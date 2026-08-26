@@ -3,24 +3,24 @@ import type { RenderNode } from "#modules/rendering/primitives.js";
 import { line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 import {
-  DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
-  type DaemonProjectDirOptions,
+  DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION,
+  type DaemonScopeRootOptions,
   printDaemonError,
-  resolveDaemonCommandProjectDir,
+  resolveDaemonCommandScopeRoot,
 } from "./daemon-cli-options.js";
 import { buildDaemonOpsDaemonHandler } from "./daemon-client-handlers.js";
-import { daemonOpsClientForProject, localDaemonStop } from "./daemon-ops-operations.js";
+import { daemonOpsClientForScope, localDaemonStop } from "./daemon-ops-operations.js";
 import { buildDaemonStatusNode } from "./daemon-status-renderer.js";
 
 export function addDaemonControlCommands(command: Command): void {
   command
     .command("status")
     .description("Show daemon health summary (exits 0 if reachable)")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
     .option("--json", "Output as JSON")
-    .action(async (opts: { json?: boolean; projectDir?: string }, child: Command) => {
-      const projectDir = resolveDaemonCommandProjectDir(opts, child);
-      const client = await daemonOpsClientForProject(projectDir, buildDaemonOpsDaemonHandler);
+    .action(async (opts: { json?: boolean; scopeRoot?: string }, child: Command) => {
+      const scopeRoot = resolveDaemonCommandScopeRoot(opts, child);
+      const client = await daemonOpsClientForScope(scopeRoot, buildDaemonOpsDaemonHandler);
       const result = await client.status();
       if (result.state === "running") {
         if (opts.json) writeJson({
@@ -54,11 +54,11 @@ export function addDaemonControlCommands(command: Command): void {
   command
     .command("pid")
     .description("Print the PID of the running daemon (exits non-zero if not running)")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
-    .action(async (opts: DaemonProjectDirOptions, child: Command) => {
-      const projectDir = resolveDaemonCommandProjectDir(opts, child);
-      const result = await (await daemonOpsClientForProject(
-        projectDir,
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
+    .action(async (opts: DaemonScopeRootOptions, child: Command) => {
+      const scopeRoot = resolveDaemonCommandScopeRoot(opts, child);
+      const result = await (await daemonOpsClientForScope(
+        scopeRoot,
         buildDaemonOpsDaemonHandler,
       )).pid();
       if (result.state === "running") {
@@ -74,13 +74,13 @@ export function addDaemonControlCommands(command: Command): void {
   command
     .command("stop")
     .description("Gracefully stop the running daemon (exits 0 on success)")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
     .option("--timeout <seconds>", "Seconds to wait for clean exit", "90")
-    .action(async (opts: { timeout: string; projectDir?: string }, child: Command) => {
+    .action(async (opts: { timeout: string; scopeRoot?: string }, child: Command) => {
       const timeoutSec = Math.max(1, Number.parseInt(opts.timeout, 10) || 10);
       const result = await localDaemonStop({
         timeoutSec,
-        projectDir: resolveDaemonCommandProjectDir(opts, child),
+        scopeRoot: resolveDaemonCommandScopeRoot(opts, child),
       });
       if (result.ok) {
         print(line(span("Daemon stopped.", "success")));
@@ -99,11 +99,11 @@ export function addDaemonControlCommands(command: Command): void {
   command
     .command("reload")
     .description("Reload daemon config and re-register module workflow contributions without restart")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
-    .action(async (opts: DaemonProjectDirOptions, child: Command) => {
-      const projectDir = resolveDaemonCommandProjectDir(opts, child);
-      const result = await (await daemonOpsClientForProject(
-        projectDir,
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
+    .action(async (opts: DaemonScopeRootOptions, child: Command) => {
+      const scopeRoot = resolveDaemonCommandScopeRoot(opts, child);
+      const result = await (await daemonOpsClientForScope(
+        scopeRoot,
         buildDaemonOpsDaemonHandler,
       )).reload();
       if (!result.ok) {

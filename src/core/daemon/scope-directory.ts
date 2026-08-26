@@ -1,14 +1,14 @@
 import { accessSync, constants, realpathSync, statSync } from "node:fs";
 import { basename, resolve } from "node:path";
-import { projectHash } from "./schedule-parser.js";
+import { scopeHash } from "./schedule-parser.js";
 import type {
-  ConfiguredProject,
-  ConfiguredProjectInput,
-  ProjectId,
+  DirectoryScope,
+  DirectoryScopeInput,
+  ScopeId,
 } from "./scope-registry.js";
 
 export type DirectoryScopeResolution =
-  | { ok: true; project: ConfiguredProject }
+  | { ok: true; scope: DirectoryScope }
   | {
       ok: false;
       reason:
@@ -16,42 +16,42 @@ export type DirectoryScopeResolution =
         | "directory_not_found"
         | "directory_inaccessible"
         | "not_directory";
-      projectDir: string;
+      scopeRoot: string;
       message: string;
     };
 
-export function resolveDirectoryScopeRoot(projectDir: string): string {
-  if (!projectDir.trim()) {
-    throw new Error("projectDir must be a non-empty string");
+export function resolveDirectoryScopeRoot(scopeRoot: string): string {
+  if (!scopeRoot.trim()) {
+    throw new Error("scopeRoot must be a non-empty string");
   }
-  return resolve(projectDir);
+  return resolve(scopeRoot);
 }
 
-export function deriveDirectoryScopeId(projectDir: string): ProjectId {
-  const resolved = resolveLiveDirectoryScope({ projectDir });
+export function deriveDirectoryScopeId(scopeRoot: string): ScopeId {
+  const resolved = resolveLiveDirectoryScope({ scopeRoot });
   if (!resolved.ok) throw new Error(resolved.message);
-  return resolved.project.projectId;
+  return resolved.scope.scopeId;
 }
 
-export function buildConfiguredProject(
-  input: ConfiguredProjectInput,
-): ConfiguredProject {
+export function buildDirectoryScope(
+  input: DirectoryScopeInput,
+): DirectoryScope {
   const resolved = resolveLiveDirectoryScope(input);
   if (!resolved.ok) throw new Error(resolved.message);
-  return resolved.project;
+  return resolved.scope;
 }
 
 export function resolveLiveDirectoryScope(
-  input: ConfiguredProjectInput,
+  input: DirectoryScopeInput,
 ): DirectoryScopeResolution {
   let resolved: string;
   try {
-    resolved = resolveDirectoryScopeRoot(input.projectDir);
+    resolved = resolveDirectoryScopeRoot(input.scopeRoot);
   } catch (error) {
     return {
       ok: false,
       reason: "invalid_directory",
-      projectDir: input.projectDir,
+      scopeRoot: input.scopeRoot,
       message: error instanceof Error ? error.message : String(error),
     };
   }
@@ -68,7 +68,7 @@ export function resolveLiveDirectoryScope(
     return {
       ok: false,
       reason,
-      projectDir: resolved,
+      scopeRoot: resolved,
       message: `${resolved}: ${reason.replaceAll("_", " ")}`,
     };
   }
@@ -78,7 +78,7 @@ export function resolveLiveDirectoryScope(
       return {
         ok: false,
         reason: "not_directory",
-        projectDir: canonical,
+        scopeRoot: canonical,
         message: `${canonical}: scope root must be a directory`,
       };
     }
@@ -87,28 +87,28 @@ export function resolveLiveDirectoryScope(
     return {
       ok: false,
       reason: "directory_inaccessible",
-      projectDir: canonical,
+      scopeRoot: canonical,
       message: `${canonical}: directory is not readable and searchable (${errorCode(error as NodeJS.ErrnoException) ?? "unknown"})`,
     };
   }
 
   return {
     ok: true,
-    project: configuredProjectFromCanonicalDirectory(
+    scope: configuredScopeFromCanonicalDirectory(
       canonical,
       input.displayName,
     ),
   };
 }
 
-function configuredProjectFromCanonicalDirectory(
-  projectDir: string,
+function configuredScopeFromCanonicalDirectory(
+  scopeRoot: string,
   displayNameInput: string | undefined,
-): ConfiguredProject {
-  const displayName = (displayNameInput ?? "").trim() || basename(projectDir);
+): DirectoryScope {
+  const displayName = (displayNameInput ?? "").trim() || basename(scopeRoot);
   return {
-    projectId: projectHash(projectDir),
-    projectDir,
+    scopeId: scopeHash(scopeRoot),
+    scopeRoot,
     displayName,
   };
 }

@@ -26,7 +26,7 @@ export function validateName(name: string): string | null {
     return `Error: name must be snake_case, 3-50 chars (lowercase letters, digits, underscores). Got: "${name}"`;
   }
   if (RESERVED_NAMES.has(name)) {
-    return `Error: "${name}" conflicts with a project tool name`;
+    return `Error: "${name}" conflicts with an installed tool name`;
   }
   if (isMcpManagedToolName(name)) {
     return `Error: ${mcpManagedToolNameError(name)}`;

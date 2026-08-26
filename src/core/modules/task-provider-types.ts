@@ -1,7 +1,7 @@
 import type { Task, TaskPriority, TaskStatus } from '#core/daemon/task-store.js';
 import type { ReindexResult } from './work-provider-types.js';
 
-export interface TaskProvider {
+export interface TaskMutationProvider {
 	add(
 		task: string,
 		opts?: {
@@ -10,7 +10,7 @@ export interface TaskProvider {
 			blocked_by?: number[];
 			notes?: string;
 		},
-	): Task;
+	): Promise<Task>;
 	update(
 		id: number,
 		changes: {
@@ -19,16 +19,28 @@ export interface TaskProvider {
 			blocked_by?: number[];
 			notes?: string;
 		},
-	): Task;
+	): Promise<Task>;
+}
+
+export interface TaskMaintenanceProvider {
+	clear(): Promise<void>;
+	archiveCompleted(): Promise<number>;
+}
+
+export interface TaskProvider {
 	list(): Task[];
 	active(): Task[];
 	get(id: number): Task | undefined;
-	clear(): void;
-	archiveCompleted(): number;
 	getActiveSummary(): string | null;
 	isEmpty(): boolean;
 	count(): number;
 }
+
+export type TaskProviderRegistration = {
+	provider: TaskProvider;
+	mutations?: TaskMutationProvider;
+	maintenance?: TaskMaintenanceProvider;
+};
 
 export type RepoTaskState =
 	| "backlog"
@@ -67,11 +79,11 @@ export type RepoTasksSearchOptions = {
  * Interface for the repo task queue's search/reindex seam.
  *
  * The default provider lives in the `repo-tasks` module and answers
- * substring/grep ranking with `supportsSemanticSearch() === false`. The
- * `tasks-semantic` module registers an overriding implementation that runs
- * embedding-backed cosine ranking against the same indexable text.
+ * substring/grep ranking. The `tasks-semantic` module registers an overriding
+ * implementation that also declares embedding-backed semantic search.
  */
 export interface RepoTasksProvider {
+	readonly semanticSearchCapability?: RepoTasksSemanticSearchCapability;
 	/**
 	 * Rank tasks by relevance to a natural-language query. Embedding-backed
 	 * providers throw if the embedding service is unreachable; callers that
@@ -81,10 +93,12 @@ export interface RepoTasksProvider {
 		query: string,
 		options?: RepoTasksSearchOptions,
 	): Promise<RepoTaskSearchHit[]>;
-	/**
-	 * Rebuild the semantic index from the current task queue. Providers
-	 * without embedding support return `{ indexed: 0, failed: 0, skipped: true }`.
-	 */
+}
+
+export interface RepoTasksSemanticSearchCapability {
+	searchTasks(
+		query: string,
+		options?: RepoTasksSearchOptions,
+	): Promise<RepoTaskSearchHit[]>;
 	reindex(): Promise<ReindexResult>;
-	supportsSemanticSearch(): boolean;
 }

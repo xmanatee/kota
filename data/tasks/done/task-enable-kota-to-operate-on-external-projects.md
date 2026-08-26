@@ -39,8 +39,8 @@ KOTA currently only develops and improves itself. The owner wants to run KOTA's 
   the same value, and project module discovery walks KOTA's own install
   tree via `import.meta.url` independently of `projectDir`.
 - Operator surfaces now resolve the project root through a single
-  `resolveProjectDir()` helper (`src/core/config/project-dir.ts`) that honors
-  the `KOTA_PROJECT_DIR` env var and a new `kota daemon --project-dir <path>`
+  `resolveScopeRoot()` helper (`src/core/config/project-dir.ts`) that honors
+  the `KOTA_SCOPE_ROOT` env var and a new `kota daemon --project-dir <path>`
   flag, and daemon-ops, module-manager, doctor, qr-cli, status-cli, and the
   daemon control client all look up the state dir through the same helper.
 

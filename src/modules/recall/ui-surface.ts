@@ -73,5 +73,5 @@ function buildRecallUiSurface(scopeId: string): UiSurface {
 
 export const recallUiSurfaceSource: UiSurfaceSource = {
   sourceId: "recall",
-  project: (context) => [buildRecallUiSurface(context.scopeId)],
+  scope: (context) => [buildRecallUiSurface(context.scopeId)],
 };

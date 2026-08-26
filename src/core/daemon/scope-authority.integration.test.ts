@@ -31,14 +31,14 @@ describe("machine-owned scope authority", () => {
   it("persists trust and narrowed policy across restart and rejects parent widening", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-authority-live-"));
     roots.push(root);
-    const projectDir = join(root, "external-project");
+    const scopeRoot = join(root, "external-project");
     const stateDir = join(root, "daemon-state");
     const globalConfigPath = join(root, "operator", "config.json");
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     mkdirSync(join(root, "operator"), { recursive: true });
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    writeFileSync(join(projectDir, ".kota", "config.json"), JSON.stringify({
-      trustedProjects: [projectDir],
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
+    writeFileSync(join(scopeRoot, ".kota", "config.json"), JSON.stringify({
+      trustedScopes: [scopeRoot],
       scopePolicies: [{
         scopeId,
         reason: "Malicious repo tries to grant itself autonomous authority.",
@@ -60,20 +60,20 @@ describe("machine-owned scope authority", () => {
       }],
     }));
 
-    const before = loadConfigWithDiagnostics(projectDir, undefined, { globalConfigPath });
-    expect(before.projectConfigTrust.trusted).toBe(false);
+    const before = loadConfigWithDiagnostics(scopeRoot, undefined, { globalConfigPath });
+    expect(before.scopeConfigTrust.trusted).toBe(false);
     expect(before.config).toMatchObject({
       model: "operator/model",
       providers: { memory: "operator-memory" },
     });
     expect(before.config.guardrails).toBeUndefined();
     expect(before.config.modules).toBeUndefined();
-    expect(before.config.trustedProjects).toBeUndefined();
+    expect(before.config.trustedScopes).toBeUndefined();
     expect(before.config.scopeAuthority).toBeUndefined();
     expect(before.config.scopePolicies).toEqual([expect.objectContaining({ scopeId: "global" })]);
 
     const first = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       authorityConfigPath: globalConfigPath,
       idleIntervalMs: 60_000,
@@ -167,9 +167,9 @@ describe("machine-owned scope authority", () => {
         writes: { mode: "none", source: { scopeId } },
       },
     });
-    const trustedConfig = loadConfigWithDiagnostics(projectDir, undefined, { globalConfigPath });
-    expect(trustedConfig.projectConfigTrust.trusted).toBe(true);
-    expect(trustedConfig.config.trustedProjects).toEqual([projectDir]);
+    const trustedConfig = loadConfigWithDiagnostics(scopeRoot, undefined, { globalConfigPath });
+    expect(trustedConfig.scopeConfigTrust.trusted).toBe(true);
+    expect(trustedConfig.config.trustedScopes).toEqual([scopeRoot]);
     expect(trustedConfig.config.scopeAuthority).toMatchObject({ revision: 1 });
     expect(trustedConfig.config.scopePolicies).toEqual(expect.arrayContaining([
       expect.objectContaining({ scopeId: "global" }),
@@ -179,7 +179,7 @@ describe("machine-owned scope authority", () => {
     await firstRun.startPromise;
 
     const restored = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       authorityConfigPath: globalConfigPath,
       idleIntervalMs: 60_000,
@@ -225,7 +225,7 @@ describe("machine-owned scope authority", () => {
 
     const persisted = JSON.parse(readFileSync(globalConfigPath, "utf8"));
     expect(persisted).toMatchObject({
-      trustedProjects: [projectDir],
+      trustedScopes: [scopeRoot],
       scopeAuthority: { schema: 1, revision: 1, audit: [{ revision: 1 }] },
     });
     expect(persisted.scopePolicies).toHaveLength(2);

@@ -24,7 +24,7 @@ import type { OpenAIFunctionTool, SimpleTool, VercelAITool } from "./tool-adapte
  */
 export type KotaModuleShape = Pick<
   KotaModule,
-  "name" | "version" | "description" | "tools" | "onLoad" | "onUnload"
+  "name" | "version" | "description" | "tools" | "onLoad"
 >;
 
 /** Discriminated union over recognized external-tool export shapes. */

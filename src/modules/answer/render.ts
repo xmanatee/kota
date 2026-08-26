@@ -129,7 +129,7 @@ const ANSWER_FAILURE_BODY: Record<
   Extract<AnswerResult, { ok: false }>["reason"],
   string
 > = {
-  no_hits: "No matching sources across the second brain — nothing to synthesize.",
+  no_hits: "No matching knowledge, memory, or history sources — nothing to synthesize.",
   semantic_unavailable: "Cross-store recall has no registered contributors.",
   synthesis_failed:
     "Synthesis failed (model unreachable or unable to cite resolvable sources).",

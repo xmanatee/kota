@@ -54,8 +54,8 @@ const EXECUTE_HARNESS_TOOLS = [
 
 export type DelegateHarnessConfig = {
   cwd?: string;
-  projectDir?: string;
-  projectContext?: string;
+  scopeRoot?: string;
+  scopeContext?: string;
   instructionContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;
@@ -112,7 +112,7 @@ export async function runDelegateHarness(
   const basePrompt = isExecute ? EXECUTE_PROMPT : EXPLORE_PROMPT;
   const promptConfig: PromptConfig = {
     cwd: config.cwd,
-    projectContext: config.projectContext,
+    scopeContext: config.scopeContext,
     instructionContext: config.instructionContext,
   };
   const allowedTools = isExecute ? EXECUTE_HARNESS_TOOLS : EXPLORE_HARNESS_TOOLS;
@@ -190,7 +190,7 @@ export async function runDelegateHarness(
           ? { abortController: invalidation.abortController }
           : {}),
         autonomyMode,
-        projectDir: config.projectDir ?? config.cwd ?? process.cwd(),
+        scopeRoot: config.scopeRoot ?? config.cwd ?? process.cwd(),
         cwd: config.cwd ?? process.cwd(),
         effort: "xhigh",
         tokenBudget: config.tokenBudget,

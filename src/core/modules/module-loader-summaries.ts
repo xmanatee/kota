@@ -44,7 +44,7 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
     const setupRequirements = state.moduleSetupRequirementDefs.get(mod.name);
     return {
       name: mod.name,
-      source: state.moduleSources.get(mod.name) ?? "project",
+      source: state.moduleSources.get(mod.name) ?? "bundled",
       version: mod.version,
       description: mod.description,
       dependencies: mod.dependencies ?? [],
@@ -70,7 +70,7 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
   for (const [name, failure] of state.loadFailures) {
     failed.push({
       name,
-      source: state.moduleSources.get(name) ?? "project",
+      source: state.moduleSources.get(name) ?? "bundled",
       dependencies: [],
       toolNames: [],
       workflowNames: [],

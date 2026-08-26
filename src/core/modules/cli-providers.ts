@@ -1,9 +1,9 @@
 import { loadConfig } from "#core/config/config.js";
 import { initEventBus } from "#core/events/event-bus.js";
+import { discoverBundledModules } from "./bundled-module-discovery.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
 import type { KotaModule } from "./module-types.js";
-import { discoverProjectModules } from "./project-discovery.js";
 import {
   getProviderRegistry,
   initProviderRegistry,
@@ -61,10 +61,10 @@ export async function ensureCliProvidersFor(
   ];
 
   const providersForLoader = Object.fromEntries(configuredEntries);
-  const projectModules = await discoverProjectModules();
+  const bundledModules = await discoverBundledModules();
   const modules = await discoverModules(cwd, false);
   const selected = selectProviderModules(
-    [...projectModules, ...modules],
+    [...bundledModules, ...modules],
     moduleNames,
   );
   const loader = new ModuleLoader(
@@ -73,6 +73,7 @@ export async function ensureCliProvidersFor(
       providers: providersForLoader,
     },
     false,
+    registry ? { providerRegistry: registry } : undefined,
   );
   loader.setCwd(cwd);
   loader.setBus(initEventBus());

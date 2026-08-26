@@ -15,11 +15,11 @@ import {
 } from "./check-protocol/validation.mjs";
 import { processProtocolBatch } from "../src/protocol-handler.mjs";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const specPath = resolve(projectRoot, "SPEC.md");
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const specPath = resolve(scopeRoot, "SPEC.md");
 const verifierPath = fileURLToPath(import.meta.url);
-const artifactPath = resolve(projectRoot, "spec-compliance-result.json");
-const implementationPath = resolve(projectRoot, "src/protocol-handler.mjs");
+const artifactPath = resolve(scopeRoot, "spec-compliance-result.json");
+const implementationPath = resolve(scopeRoot, "src/protocol-handler.mjs");
 const EXPECTED_SPEC_SHA256 = "ac00243c726cb17607ba028decb53b9b9b7afc3fa4d7a99c0d72005c782d76aa";
 const VERIFIER_SEAL = "kota-wep-verifier-v1";
 const REQUIRED_CLAUSES = ["WEP-1", "WEP-2", "WEP-3", "WEP-4", "WEP-5"];

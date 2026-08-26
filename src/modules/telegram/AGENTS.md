@@ -20,13 +20,13 @@ notification forwarding.
   plain-text helper — no copy of CLI rendering on the Telegram side.
   They are allowlist-gated, do not advance cadence counters or emit
   workflow events, and are operator-facing only.
-- On multi-project daemons, Telegram resolves one project per chat
+- On multi-scope daemons, Telegram resolves one scope per chat
   before running commands or interactive sessions. Defaults live in
-  `modules.telegram.chatProjectBindings`; `/project` lists hosted
-  projects and updates the daemon-owned per-chat selection. Unbound
+  `modules.telegram.chatScopeBindings`; `/scope` lists hosted
+  scopes and updates the daemon-owned per-chat selection. Unbound
   chats fail with an explicit reply instead of falling back to the
-  active/default project. Single-project daemons do not show project
-  labels and do not need `/project`.
+  active/default scope. Single-scope daemons do not show scope
+  labels and do not need `/scope`.
 - The four per-store search commands call
   `ctx.client.<store>.search` with `{ semantic: true, limit: 10 }`.
   Empty / whitespace-only queries reply with a usage hint and skip
@@ -64,8 +64,8 @@ notification forwarding.
   never let reused short ids reactivate stale buttons.
 - Interactive sessions use configured autonomy explicitly. Missing
   session-autonomy config is a startup error, not a hidden fallback.
-- Interactive harness sessions own one project-scoped tool-runtime identity
-  for the conversation and erase its credential overlay on clear, project
+- Interactive harness sessions own one scope-scoped tool-runtime identity
+  for the conversation and erase its credential overlay on clear, scope
   switch, or bot shutdown.
 - Interactive sessions report scope ids for drain inspection and resolve the
   live daemon default instead of retaining the startup runtime.
@@ -74,7 +74,7 @@ notification forwarding.
   vendor API directly; absence of a registered provider surfaces as an
   explicit failure, not a silent drop.
 - Prefix-configured Telegram updates emit `inbound.signal.received` with
-  project scope, Telegram source metadata, and chat trust. Supported update
+  scope scope, Telegram source metadata, and chat trust. Supported update
   kinds include text, media captions, transcribed voice/audio, edited messages,
   reactions, generic callbacks, and chat membership/status updates. True
   online presence and message deletion signals are not exposed to bots, so the

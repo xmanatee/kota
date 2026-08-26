@@ -4,6 +4,11 @@ import type { BusEvents } from "#core/events/event-bus-types.js";
 import { redactionProfileForTarget } from "#core/evidence/policy.js";
 import type { ModuleEventProxy } from "#core/modules/module-types.js";
 import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpTransport,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
+import {
   measureTelemetryPayloadBytes,
   type ToolTelemetryCallRecord,
 } from "#core/tools/tool-telemetry.js";
@@ -63,16 +68,6 @@ type OtlpAttribute = {
   key: string;
   value: OtlpAnyValue;
 };
-
-type OtlpFetchResponse = Pick<Response, "ok" | "status" | "text">;
-type OtlpFetch = (
-  url: string,
-  init: {
-    method: "POST";
-    headers: { "content-type": "application/json" };
-    body: string;
-  },
-) => Promise<OtlpFetchResponse>;
 
 function textMetadata(prefix: string, value: string): SecurityLogAttributes {
   const bytes = measureTelemetryPayloadBytes(value);
@@ -137,7 +132,7 @@ function baseRecord(
 
 function workflowAttributes(payload: StepCompletedPayload): SecurityLogAttributes {
   return {
-    "project.id": payload.projectId,
+    "scope.id": payload.scopeId,
     "workflow.name": payload.workflow,
     "workflow.run_id": payload.runId,
     "workflow.step.id": payload.stepId,
@@ -149,12 +144,12 @@ function workflowAttributes(payload: StepCompletedPayload): SecurityLogAttribute
 }
 
 function readToolTelemetryArtifact(
-  projectDir: string,
+  scopeRoot: string,
   runDir: string,
   stepId: string,
   onEnrichmentError: SecurityLogLogger,
 ): ToolTelemetryArtifact | undefined {
-  const filePath = join(resolve(projectDir, runDir), "steps", `${stepId}.tool-telemetry.json`);
+  const filePath = join(resolve(scopeRoot, runDir), "steps", `${stepId}.tool-telemetry.json`);
   if (!existsSync(filePath)) return undefined;
   try {
     return JSON.parse(readFileSync(filePath, "utf-8")) as ToolTelemetryArtifact;
@@ -166,12 +161,12 @@ function readToolTelemetryArtifact(
 }
 
 function readAgentStepSessionId(
-  projectDir: string,
+  scopeRoot: string,
   runDir: string,
   stepId: string,
   onEnrichmentError: SecurityLogLogger,
 ): string | undefined {
-  const filePath = join(resolve(projectDir, runDir), "steps", `${stepId}.json`);
+  const filePath = join(resolve(scopeRoot, runDir), "steps", `${stepId}.json`);
   if (!existsSync(filePath)) return undefined;
   try {
     const artifact = JSON.parse(readFileSync(filePath, "utf-8")) as AgentStepResultArtifact;
@@ -239,12 +234,15 @@ export class OtlpHttpSecurityLogExporter implements SecurityLogExporter {
   constructor(
     private readonly url: string,
     private readonly serviceName: string = DEFAULT_SERVICE_NAME,
-    private readonly fetchImpl: OtlpFetch = fetch,
+    private readonly http: Pick<OutboundHttpTransport, "request"> = outboundHttp,
   ) {}
 
   async export(records: readonly SecurityLogRecord[]): Promise<void> {
     if (records.length === 0) return;
-    const response = await this.fetchImpl(this.url, {
+    const { response } = await this.http.request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.url]),
+      operation: "tracing.security-logs.export",
+      url: this.url,
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(toOtlpPayload(this.serviceName, records)),
@@ -271,7 +269,7 @@ export function createSecurityLogExporter(config: TracingConfig): SecurityLogExp
 
 export class SecurityLogEmitter {
   constructor(
-    private readonly projectDir: string,
+    private readonly scopeRoot: string,
     private readonly exporter: SecurityLogExporter,
     private readonly onExportError: SecurityLogLogger = () => {},
   ) {}
@@ -289,7 +287,7 @@ export class SecurityLogEmitter {
 
   onApprovalRequested(payload: ApprovalRequestedPayload): void {
     this.publish(baseRecord("approval.requested", "WARN", {
-      "project.id": payload.projectId,
+      "scope.id": payload.scopeId,
       "approval.id": payload.id,
       "tool.name": payload.tool,
       "tool.risk": payload.risk,
@@ -302,7 +300,7 @@ export class SecurityLogEmitter {
 
   onApprovalResolved(payload: ApprovalResolvedPayload): void {
     this.publish(baseRecord("approval.resolved", "INFO", {
-      "project.id": payload.projectId,
+      "scope.id": payload.scopeId,
       "approval.id": payload.id,
       "approval.approved": payload.approved,
       "approval.outcome": payload.approved ? "approved" : "rejected",
@@ -330,7 +328,7 @@ export class SecurityLogEmitter {
   onStepCompleted(payload: StepCompletedPayload): void {
     if (payload.stepType !== "agent") return;
     const artifact = readToolTelemetryArtifact(
-      this.projectDir,
+      this.scopeRoot,
       payload.runDir,
       payload.stepId,
       this.onExportError,
@@ -338,7 +336,7 @@ export class SecurityLogEmitter {
     if (!artifact) return;
 
     const sessionId = readAgentStepSessionId(
-      this.projectDir,
+      this.scopeRoot,
       payload.runDir,
       payload.stepId,
       this.onExportError,

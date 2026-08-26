@@ -6,6 +6,10 @@ import { expect, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
+import {
+  type OutboundHttpAddressResolver,
+  OutboundHttpTransport,
+} from "#core/outbound-http/index.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import { makeTask } from "./daemon-session-client.js";
 import {
@@ -49,7 +53,7 @@ export class FakeBackend implements A2ABackend {
   ): Promise<A2ATask> {
     this.sentInputs.push(input);
     const taskId = input.taskId ?? "task-1";
-    const contextId = input.contextId ?? input.projectId ?? "proj-1";
+    const contextId = input.contextId ?? input.scopeId ?? "proj-1";
     const working = task(taskId, contextId, "TASK_STATE_WORKING", "working");
     options?.onUpdate?.({
       statusUpdate: {
@@ -81,7 +85,7 @@ export class FakeBackend implements A2ABackend {
     if (
       this.missingTasks.has(selector.taskId) ||
       selector.taskId !== "task-1" ||
-      (selector.projectId !== null && selector.projectId !== "proj-1") ||
+      (selector.scopeId !== null && selector.scopeId !== "proj-1") ||
       (selector.contextId !== null && selector.contextId !== "proj-1")
     ) {
       throw taskNotFound(selector.taskId);
@@ -90,7 +94,7 @@ export class FakeBackend implements A2ABackend {
   }
 
   async listTasks(filter: TaskListFilter): Promise<A2ATask[]> {
-    if (filter.projectId !== null && filter.projectId !== "proj-1") return [];
+    if (filter.scopeId !== null && filter.scopeId !== "proj-1") return [];
     return [task("task-1", "proj-1", "TASK_STATE_WORKING", "working")];
   }
 
@@ -135,14 +139,14 @@ export class FakeBackend implements A2ABackend {
 export function pushConfigParams(overrides: {
   id?: string;
   tenant?: string;
-  projectId?: string;
+  scopeId?: string;
   url?: string;
   token?: string;
   authentication?: { scheme: string; credentials?: string };
 } = {}) {
   return {
     tenant: overrides.tenant ?? "proj-1",
-    ...(overrides.projectId ? { projectId: overrides.projectId } : {}),
+    ...(overrides.scopeId ? { scopeId: overrides.scopeId } : {}),
     id: overrides.id ?? "config-1",
     taskId: "task-1",
     url: overrides.url ?? "https://callback.example.test/a2a",
@@ -194,6 +198,19 @@ export function makeContext(storage: ModuleStorage): ModuleContext {
     createSession: vi.fn(),
     client: {} as never,
   };
+}
+
+export function makePushNotificationHttp(
+  fetchImpl: typeof fetch,
+  resolveAddresses: OutboundHttpAddressResolver = async () => [{
+    address: "93.184.216.34",
+    family: 4,
+  }],
+): OutboundHttpTransport {
+  return new OutboundHttpTransport({
+    resolveAddresses,
+    dispatcher: (url, init) => fetchImpl(url.toString(), init),
+  });
 }
 
 export async function startRouteServer(
@@ -265,7 +282,7 @@ function task(
     contextId,
     state,
     messageText: message,
-    metadata: { kotaSessionId: id, projectId: "proj-1" },
+    metadata: { kotaSessionId: id, scopeId: "proj-1" },
     now: () => NOW,
   });
 }

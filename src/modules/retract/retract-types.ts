@@ -12,7 +12,7 @@
  * enum edit.
  */
 
-import type { ProjectId } from "#core/daemon/scope-registry.js";
+import type { ScopeId } from "#core/daemon/scope-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
@@ -52,9 +52,9 @@ export const RETRACT_TARGET_ORDER: ReadonlyArray<RetractTarget> = [
   "inbox",
 ] as const;
 
-export type RetractProjectContext = {
-  projectId: ProjectId;
-  projectDir: string;
+export type RetractScopeContext = {
+  scopeId: ScopeId;
+  scopeRoot: string;
   memory: MemoryProvider;
   knowledge: KnowledgeProvider;
 };
@@ -80,22 +80,22 @@ export type RetractContributorResult =
  */
 export type MemoryRetractContributor = {
   readonly target: "memory";
-  retract(req: { id: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
+  retract(req: { id: string; scope?: RetractScopeContext }): Promise<RetractContributorResult>;
 };
 
 export type KnowledgeRetractContributor = {
   readonly target: "knowledge";
-  retract(req: { slug: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
+  retract(req: { slug: string; scope?: RetractScopeContext }): Promise<RetractContributorResult>;
 };
 
 export type TasksRetractContributor = {
   readonly target: "tasks";
-  retract(req: { id: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
+  retract(req: { id: string; scope?: RetractScopeContext }): Promise<RetractContributorResult>;
 };
 
 export type InboxRetractContributor = {
   readonly target: "inbox";
-  retract(req: { path: string; project?: RetractProjectContext }): Promise<RetractContributorResult>;
+  retract(req: { path: string; scope?: RetractScopeContext }): Promise<RetractContributorResult>;
 };
 
 export type RetractContributor =
@@ -111,7 +111,7 @@ export interface RetractProvider {
   contributors(): ReadonlyArray<RetractTarget>;
   retract(
     request: RetractRequest,
-    project?: RetractProjectContext,
+    scope?: RetractScopeContext,
   ): Promise<RetractResult>;
 }
 

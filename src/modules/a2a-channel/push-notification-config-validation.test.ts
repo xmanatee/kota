@@ -4,6 +4,7 @@ import {
   errorReason,
   FakeBackend,
   makeContext,
+  makePushNotificationHttp,
   makeStorage,
   type PushNotificationTestState,
   postRpc,
@@ -24,7 +25,7 @@ describe("a2a push notification config validation", () => {
     const backendFactory = vi.fn(() => backend);
     const server = await startRouteServer(a2aRoutes(makeContext(makeStorage(state.tempDirs)), {
       backendFactory,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(server.server);
 
@@ -34,7 +35,7 @@ describe("a2a push notification config validation", () => {
       method: "CreateTaskPushNotificationConfig",
       params: pushConfigParams({
         tenant: "proj-1",
-        projectId: "proj-2",
+        scopeId: "proj-2",
       }),
     });
     expect(errorReason(mismatch)).toBe("ROUTING_SCOPE_MISMATCH");

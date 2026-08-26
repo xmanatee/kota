@@ -32,7 +32,7 @@ export type OwnerQuestionListFilter = ScopeSelector & {
   status?: OwnerQuestionStatus | "all";
 };
 
-export type OwnerQuestionProjectScope = ScopeSelector;
+export type OwnerQuestionScopeSelection = ScopeSelector;
 
 export type OwnerQuestionsListResult = {
   questions: PendingOwnerQuestion[];
@@ -60,11 +60,11 @@ export interface OwnerQuestionsClient {
   answer(
     id: string,
     answer: string,
-    project?: OwnerQuestionProjectScope,
+    scopeSelector?: OwnerQuestionScopeSelection,
   ): Promise<OwnerQuestionMutateResult>;
   dismiss(
     id: string,
     reason?: string,
-    project?: OwnerQuestionProjectScope,
+    scopeSelector?: OwnerQuestionScopeSelection,
   ): Promise<OwnerQuestionMutateResult>;
 }

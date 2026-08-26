@@ -75,36 +75,32 @@ export class DaemonClient {
     return core.getIdentity(this.http);
   }
 
-  getProjects(): Promise<import('./daemon/conformance/decoders').ProjectRegistryProjection> {
-    return core.getProjects(this.http);
-  }
-
-  getScopes(): Promise<import('./daemon/conformance/decoders').ScopeRegistryProjection> {
+  getScopes(): Promise<import('./daemon/daemon-contract.generated').ScopeRegistryProjection> {
     return core.getScopes(this.http);
   }
 
-  getScopePolicy(scopeId: string): Promise<import('./daemon/conformance/decoders').ScopePolicyRouteResponse> {
+  getScopePolicy(scopeId: string): Promise<import('./daemon/daemon-contract.generated').ScopePolicyRouteResponse> {
     return core.getScopePolicy(this.http, scopeId);
   }
 
-  getStatus(projectId?: string): Promise<DaemonStatus> {
-    return core.getStatus(this.http, projectId);
+  getStatus(scopeId?: string): Promise<DaemonStatus> {
+    return core.getStatus(this.http, scopeId);
   }
 
   getRuns(
     workflow?: string,
     limit = 20,
-    projectId?: string,
+    scopeId?: string,
   ): Promise<{ runs: RunSummary[] }> {
-    return core.getRuns(this.http, workflow, limit, projectId);
+    return core.getRuns(this.http, workflow, limit, scopeId);
   }
 
-  getRunDetail(id: string, projectId?: string): Promise<RunDetail> {
-    return core.getRunDetail(this.http, id, projectId);
+  getRunDetail(id: string, scopeId?: string): Promise<RunDetail> {
+    return core.getRunDetail(this.http, id, scopeId);
   }
 
-  getUiSurfaces(projectId?: string): Promise<UiSurfaceBundle> {
-    return ui.getUiSurfaces(this.http, projectId);
+  getUiSurfaces(scopeId?: string): Promise<UiSurfaceBundle> {
+    return ui.getUiSurfaces(this.http, scopeId);
   }
 
   executeUiAction(
@@ -213,35 +209,35 @@ export class DaemonClient {
     return push.registerPushToken(this.http, deviceId, token);
   }
 
-  pauseDispatch(projectId?: string): Promise<{ ok: boolean; paused: boolean }> {
-    return core.pauseDispatch(this.http, projectId);
+  pauseDispatch(scopeId?: string): Promise<{ ok: boolean; paused: boolean }> {
+    return core.pauseDispatch(this.http, scopeId);
   }
 
-  resumeDispatch(projectId?: string): Promise<{ ok: boolean; paused: boolean }> {
-    return core.resumeDispatch(this.http, projectId);
+  resumeDispatch(scopeId?: string): Promise<{ ok: boolean; paused: boolean }> {
+    return core.resumeDispatch(this.http, scopeId);
   }
 
-  getSessions(projectId?: string): Promise<{ sessions: InteractiveSession[] }> {
-    return sessions.getSessions(this.http, projectId);
+  getSessions(scopeId?: string): Promise<{ sessions: InteractiveSession[] }> {
+    return sessions.getSessions(this.http, scopeId);
   }
 
   createSession(
     autonomyMode?: AutonomyMode,
-    projectId?: string,
+    scopeId?: string,
   ): Promise<{ session_id: string; autonomy_mode?: AutonomyMode }> {
-    return sessions.createSession(this.http, autonomyMode, projectId);
+    return sessions.createSession(this.http, autonomyMode, scopeId);
   }
 
   setSessionAutonomyMode(
     id: string,
     mode: AutonomyMode,
-    projectId?: string,
+    scopeId?: string,
   ): Promise<SetAutonomyModeResponse> {
-    return sessions.setSessionAutonomyMode(this.http, id, mode, projectId);
+    return sessions.setSessionAutonomyMode(this.http, id, mode, scopeId);
   }
 
-  deleteSession(id: string, projectId?: string): Promise<void> {
-    return sessions.deleteSession(this.http, id, projectId);
+  deleteSession(id: string, scopeId?: string): Promise<void> {
+    return sessions.deleteSession(this.http, id, scopeId);
   }
 
   voiceTranscribe(input: {

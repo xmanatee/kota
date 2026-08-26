@@ -43,16 +43,16 @@ describe("daemon control responsiveness during workflow execution", () => {
   });
 
   it("serves health, live status, pause, resume, and CLI status during CPU blocking work", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-control-responsive-"));
-    roots.push(projectDir);
-    initializeFixtureRepo(projectDir);
-    const stateDir = join(projectDir, ".kota");
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-control-responsive-"));
+    roots.push(scopeRoot);
+    initializeFixtureRepo(scopeRoot);
+    const stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
     resetEventBus();
     resetScheduler();
 
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 10,
       pollIntervalMs: 60_000,
@@ -113,7 +113,7 @@ describe("daemon control responsiveness during workflow execution", () => {
       }
 
       const cliStartedAt = performance.now();
-      const cliStatus = await gatherStatus(projectDir);
+      const cliStatus = await gatherStatus(scopeRoot);
       const cliDurationMs = performance.now() - cliStartedAt;
       expect(cliStatus.daemonRunning).toBe(true);
       expect(cliStatus.controlFile.kind).toBe("fresh");

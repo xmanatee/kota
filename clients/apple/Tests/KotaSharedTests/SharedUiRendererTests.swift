@@ -12,13 +12,13 @@ final class SharedUiRendererTests: XCTestCase {
             return opensURLs
         }
 
-        func pickProjectDirectory() async -> URL? {
+        func pickScopeDirectory() async -> URL? {
             URL(fileURLWithPath: "/tmp/kota-shared-ui")
         }
 
         func openAppSettings() {}
         var supportsQuit: Bool { false }
-        var supportsNativeProjectPicker: Bool { true }
+        var supportsNativeScopePicker: Bool { true }
         func quitApp() {}
     }
 
@@ -183,7 +183,7 @@ final class SharedUiRendererTests: XCTestCase {
             let body = """
             id: event-42
             event: workflow.updated
-            data: {"projectId":"scope-main","timestamp":"2026-08-26T00:00:00Z","level":"warn","message":"Updated"}
+            data: {"scopeId":"scope-main","timestamp":"2026-08-26T00:00:00Z","level":"warn","message":"Updated"}
 
 
             """
@@ -249,11 +249,11 @@ final class SharedUiRendererTests: XCTestCase {
             platform: platform,
             startPollingOnInit: false
         )
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: scopeId,
-            projects: [ConfiguredProjectEntry(
-                projectId: scopeId,
-                projectDir: "/tmp/kota",
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: scopeId,
+            scopes: [directoryScope(
+                scopeId: scopeId,
+                scopeRoot: "/tmp/kota",
                 displayName: "KOTA"
             )]
         ))
@@ -295,11 +295,11 @@ final class SharedUiRendererTests: XCTestCase {
             platform: platform,
             startPollingOnInit: false
         )
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: action.scopeId,
-            projects: [ConfiguredProjectEntry(
-                projectId: action.scopeId,
-                projectDir: "/tmp/kota",
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: action.scopeId,
+            scopes: [directoryScope(
+                scopeId: action.scopeId,
+                scopeRoot: "/tmp/kota",
                 displayName: "KOTA"
             )]
         ))
@@ -341,43 +341,43 @@ final class SharedUiRendererTests: XCTestCase {
             platform: platform,
             startPollingOnInit: false
         )
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: originalScope,
-            projects: [ConfiguredProjectEntry(
-                projectId: originalScope,
-                projectDir: "/tmp/original",
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: originalScope,
+            scopes: [directoryScope(
+                scopeId: originalScope,
+                scopeRoot: "/tmp/original",
                 displayName: "Original"
             )]
         ))
 
         let surfaceRefresh = Task { await state.refreshUiSurfaceBundle() }
         try await Task.sleep(nanoseconds: 20_000_000)
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: "scope-other",
-            projects: [ConfiguredProjectEntry(
-                projectId: "scope-other",
-                projectDir: "/tmp/other",
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: "scope-other",
+            scopes: [directoryScope(
+                scopeId: "scope-other",
+                scopeRoot: "/tmp/other",
                 displayName: "Other"
             )]
         ))
         await surfaceRefresh.value
         XCTAssertNil(state.uiSurfaceBundle)
 
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: originalScope,
-            projects: [ConfiguredProjectEntry(
-                projectId: originalScope,
-                projectDir: "/tmp/original",
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: originalScope,
+            scopes: [directoryScope(
+                scopeId: originalScope,
+                scopeRoot: "/tmp/original",
                 displayName: "Original"
             )]
         ))
         let actionTask = Task { await state.executeUiAction(action) }
         try await Task.sleep(nanoseconds: 20_000_000)
-        state.reconcileActiveProjectId(with: ProjectRegistryProjection(
-            defaultProjectId: "scope-other",
-            projects: [ConfiguredProjectEntry(
-                projectId: "scope-other",
-                projectDir: "/tmp/other",
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: "scope-other",
+            scopes: [directoryScope(
+                scopeId: "scope-other",
+                scopeRoot: "/tmp/other",
                 displayName: "Other"
             )]
         ))
@@ -388,10 +388,9 @@ final class SharedUiRendererTests: XCTestCase {
     }
 
     private static func bundleData() throws -> Data {
-        guard let url = Bundle.module.url(forResource: "contract-fixture", withExtension: "json"),
+        guard let url = Bundle.module.url(forResource: "ui-behavior-vectors.generated", withExtension: "json"),
               let tree = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any],
-              let surfaces = tree["uiSurfaces"] as? [String: Any],
-              let bundle = surfaces["statusInbox"]
+              let bundle = tree["operatorBundle"]
         else { throw NSError(domain: "fixture", code: 1) }
         return try JSONSerialization.data(withJSONObject: bundle, options: [.sortedKeys])
     }

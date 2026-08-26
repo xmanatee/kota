@@ -190,7 +190,6 @@ describe("IdempotencyStore", () => {
 
     const payload = {
       scopeId: "scope-a",
-      projectId: "scope-a",
       provider: "telegram",
       channel: "message",
       accountId: "acct",

@@ -53,27 +53,28 @@ function buildTaskBody(args: {
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
 }): string {
+  const evidenceIds = args.task.evidenceIds.map((id) => `- ${id}`).join("\n");
   return renderRepoTaskIntent({
     problem: renderGeneratedTaskProse(args.task.summary),
     desiredOutcome:
       `Resolve the progress-review finding identified by topic ` +
       `${args.task.topicKey}.`,
     constraints: [
-      "Preserve the cited evidence ids until the task is resolved.",
-      "Do not treat this seeded task as proof that the finding is already fixed.",
-    ],
-    doneWhen: [
-      "The cited progress gap is fixed or explicitly disproven with evidence.",
-      "The result is supported by proportionate inspectable evidence.",
-    ],
+      "- Preserve the cited evidence ids until the task is resolved.",
+      "- Do not treat this seeded task as proof that the finding is already fixed.",
+    ].join("\n"),
+    howWeWillKnow: renderGeneratedTaskProse(args.task.howWeWillKnow),
     context: [
       "Created by progress-reviewer from the cited evidence.",
-      `Review verdict: ${args.review.verdict}`,
-      `Review summary: ${renderGeneratedTaskProse(args.review.summary)}`,
+      `review verdict: ${args.review.verdict}`,
+      "review summary:",
+      "",
+      renderGeneratedTaskProse(args.review.summary),
+      "",
       "Evidence ids:",
-      ...args.task.evidenceIds,
-    ],
-    acceptanceEvidence: renderGeneratedTaskProse(args.task.acceptanceEvidence),
+      "",
+      evidenceIds,
+    ].join("\n"),
   });
 }
 
@@ -85,8 +86,7 @@ function taskActionPath(actions: readonly object[]): string | null {
 }
 
 export function writeFollowUpTask(args: {
-  projectDir: string;
-  scopeDir: string;
+  workspaceRoot: string;
   runId: string;
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
@@ -99,7 +99,7 @@ export function writeFollowUpTask(args: {
     summary: task.summary,
   });
   const result = stageGeneratedWorkProposal({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: progressReviewTaskProposal({ ...args, task, taskClass }),
   });
   const created = result.actions.some((action) => action.kind === "created-task");
@@ -123,19 +123,19 @@ export function writeFollowUpTask(args: {
         existingTaskId: result.taskId,
         existingState: "ready" as const,
         existingPath: `data/tasks/ready/${result.taskId}.md`,
-        existingScopeId: deriveDirectoryScopeId(args.scopeDir),
+        existingScopeId: deriveDirectoryScopeId(args.workspaceRoot),
       }
       : {}),
   };
 }
 
 export function enqueueOwnerQuestion(args: {
-  projectDir: string;
+  workspaceRoot: string;
   runId: string;
   question: ProgressReviewOwnerQuestionOutput;
 }): ProgressReviewAppliedAction[] {
   const result = stageGeneratedWorkProposal({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: progressReviewOwnerQuestionProposal(args),
   });
   const droppedTasks: ProgressReviewAppliedAction[] = result.actions.flatMap(
@@ -154,11 +154,11 @@ export function enqueueOwnerQuestion(args: {
 }
 
 export function resolveGeneratedWork(args: {
-  projectDir: string;
+  workspaceRoot: string;
   resolution: ProgressReviewResolutionOutput;
 }): ProgressReviewAppliedAction[] {
   const result = stageGeneratedWorkProposal({
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     proposal: progressReviewResolutionProposal(args.resolution),
   });
   return result.actions.map((action): ProgressReviewAppliedAction => {

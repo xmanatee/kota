@@ -9,8 +9,8 @@
  * they already do.
  */
 
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
   catalogFromModuleContext,
   SLASH_COMMAND_PROVIDER_TYPE,
@@ -47,15 +47,8 @@ function ensureCatalog(ctx: ModuleContext): SlashCommandCatalog {
   return sharedCatalog;
 }
 
-function registerProvider(ctx: ModuleContext, catalog: SlashCommandCatalog): void {
-  const registry = getProviderRegistry();
-  if (registry) {
-    registry.register(SLASH_COMMAND_PROVIDER_TYPE, "commands", catalog);
-  } else {
-    ctx.log.debug(
-      "commands: provider registry unavailable; daemon /commands routes will degrade to 503",
-    );
-  }
+function registerProvider(ctx: ModuleRuntimeContext, catalog: SlashCommandCatalog): void {
+  ctx.registerProvider(SLASH_COMMAND_PROVIDER_TYPE, catalog);
 }
 
 const commandsModule: KotaModule = {
@@ -73,8 +66,11 @@ const commandsModule: KotaModule = {
     return commandRoutes(ensureCatalog(ctx));
   },
 
-  controlRoutes() {
-    return commandsControlRoutes();
+  controlRoutes(ctx) {
+    return commandsControlRoutes({
+      getCatalog: () => ctx.getProvider(SLASH_COMMAND_PROVIDER_TYPE),
+      getDispatcher: () => ctx.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE),
+    });
   },
 };
 

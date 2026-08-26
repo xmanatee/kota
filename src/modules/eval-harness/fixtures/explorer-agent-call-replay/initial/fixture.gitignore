@@ -1,4 +1,0 @@
-# Mirror the repo-root .kota/ ignore so a workflow's tmpdir-git inside this
-# fixture sees realistic gitignore behavior.
-.kota/*
-node_modules/

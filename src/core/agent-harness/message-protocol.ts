@@ -2,8 +2,7 @@
  * Harness-neutral message/tool protocol types. Core defines every shape
  * it uses to describe tools, messages, and content blocks here; module-side
  * adapters translate between these neutral shapes and provider-native wire
- * formats at their boundary. See `anthropic-type-audit.md` for the staged
- * plan that removes `@anthropic-ai/sdk` type imports from `src/core/`.
+ * formats at their boundary; core owns only the neutral message contract.
  */
 
 /**

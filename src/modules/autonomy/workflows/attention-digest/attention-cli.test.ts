@@ -30,8 +30,8 @@ function makeProgram(): Command {
   return program;
 }
 
-function makeTaskDir(projectDir: string, state: string, count: number): void {
-  const dir = join(projectDir, "data", "tasks", state);
+function makeTaskDir(workspaceRoot: string, state: string, count: number): void {
+  const dir = join(workspaceRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   for (let i = 0; i < count; i++) {
     writeFileSync(join(dir, `task-test-${i}.md`), `# task ${i}\n`, "utf-8");
@@ -39,22 +39,22 @@ function makeTaskDir(projectDir: string, state: string, count: number): void {
 }
 
 describe("kota attention CLI", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   let origCwd: string;
   const observed: Array<{ event: string; payload: unknown }> = [];
   let unsubscribe: () => void;
 
-  let origEnvKotaProjectDir: string | undefined;
+  let origEnvKotaScopeRoot: string | undefined;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-attention-cli-"));
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-attention-cli-"));
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
     origCwd = process.cwd();
-    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
-    delete process.env.KOTA_PROJECT_DIR;
-    process.chdir(projectDir);
+    origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
+    delete process.env.KOTA_SCOPE_ROOT;
+    process.chdir(workspaceRoot);
 
     observed.length = 0;
     const bus = initEventBus();
@@ -68,20 +68,20 @@ describe("kota attention CLI", () => {
     unsubscribe?.();
     resetEventBus();
     process.chdir(origCwd);
-    if (origEnvKotaProjectDir !== undefined) {
-      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    if (origEnvKotaScopeRoot !== undefined) {
+      process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
     } else {
-      delete process.env.KOTA_PROJECT_DIR;
+      delete process.env.KOTA_SCOPE_ROOT;
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("prints the same body renderOnDemandAttention produces when items exist", async () => {
     // Stalled work plus an empty backlog produce two attention items.
-    makeTaskDir(projectDir, "doing", 2);
-    makeTaskDir(projectDir, "ready", 1);
+    makeTaskDir(workspaceRoot, "doing", 2);
+    makeTaskDir(workspaceRoot, "ready", 1);
 
-    const expected = renderOnDemandAttention({ projectDir, runsDir }).text;
+    const expected = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir }).text;
     expect(expected).not.toBe(NO_ATTENTION_ITEMS_TEXT);
 
     const out = await captureStdout(async () => {
@@ -92,8 +92,8 @@ describe("kota attention CLI", () => {
   });
 
   it("prints the no-items reply when nothing warrants attention", async () => {
-    makeTaskDir(projectDir, "ready", 1);
-    makeTaskDir(projectDir, "backlog", 1);
+    makeTaskDir(workspaceRoot, "ready", 1);
+    makeTaskDir(workspaceRoot, "backlog", 1);
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "attention"]);
@@ -103,10 +103,10 @@ describe("kota attention CLI", () => {
   });
 
   it("--json emits the structured AttentionItem[] payload and rendered text", async () => {
-    makeTaskDir(projectDir, "doing", 2);
-    makeTaskDir(projectDir, "ready", 1);
+    makeTaskDir(workspaceRoot, "doing", 2);
+    makeTaskDir(workspaceRoot, "ready", 1);
 
-    const expected = renderOnDemandAttention({ projectDir, runsDir });
+    const expected = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "attention", "--json"]);
@@ -117,7 +117,7 @@ describe("kota attention CLI", () => {
   });
 
   it("does not emit workflow.attention.digest", async () => {
-    makeTaskDir(projectDir, "doing", 2);
+    makeTaskDir(workspaceRoot, "doing", 2);
 
     await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "attention"]);

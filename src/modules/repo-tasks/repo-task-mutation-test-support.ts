@@ -22,16 +22,16 @@ function git(cwd: string, args: readonly string[]): void {
 }
 
 export function createRepoTaskRuntimeSandbox(
-  scopeDir: string,
+  scopeRoot: string,
   runId: string,
-): RepoTaskRuntimeSandboxTarget & { projectDir: string } {
-  mkdirSync(scopeDir, { recursive: true });
-  git(scopeDir, ["init", "-q"]);
-  git(scopeDir, ["config", "user.email", "test@test"]);
-  git(scopeDir, ["config", "user.name", "test"]);
-  git(scopeDir, ["commit", "--allow-empty", "-q", "-m", "initial"]);
+): RepoTaskRuntimeSandboxTarget & { workspaceRoot: string } {
+  mkdirSync(scopeRoot, { recursive: true });
+  git(scopeRoot, ["init", "-q"]);
+  git(scopeRoot, ["config", "user.email", "test@test"]);
+  git(scopeRoot, ["config", "user.name", "test"]);
+  git(scopeRoot, ["commit", "--allow-empty", "-q", "-m", "initial"]);
 
-  const sandbox = new RunSandboxManager(scopeDir).create({
+  const sandbox = new RunSandboxManager(scopeRoot).create({
     runId,
     repository: "write",
   });
@@ -39,15 +39,15 @@ export function createRepoTaskRuntimeSandbox(
   mkdirSync(agentRunDir, { recursive: true });
   const store = new RunStateDatabase(join(sandbox.rootDir, "test-state"));
   const startedAt = "2026-08-26T00:00:00.000Z";
-  store.registerProject({
-    id: "test-project",
-    rootPath: scopeDir,
+  store.registerScope({
+    id: "test-scope",
+    rootPath: scopeRoot,
     createdAt: startedAt,
   });
   const { epoch } = store.beginDaemonSession(startedAt);
   store.admitRun({
     id: runId,
-    projectId: "test-project",
+    scopeId: "test-scope",
     workflow: "repo-task-mutation",
     repository: "write",
     trigger: { event: "test.requested", schemaRef: null, payload: {} },
@@ -61,8 +61,8 @@ export function createRepoTaskRuntimeSandbox(
     runId,
     attempt,
     daemonEpoch: epoch,
-    projectId: "test-project",
-    projectRoot: scopeDir,
+    scopeId: "test-scope",
+    scopeRoot,
     workflow: "repo-task-mutation",
     trigger: { event: "test.requested", schemaRef: null, payload: {} },
     sandbox,
@@ -83,9 +83,9 @@ export function createRepoTaskRuntimeSandbox(
     store,
     now: () => "2026-08-26T00:00:00.000Z",
   });
-  const target: RepoTaskRuntimeSandboxTarget & { projectDir: string } = {
+  const target: RepoTaskRuntimeSandboxTarget & { workspaceRoot: string } = {
     authority: "runtime-owned-sandbox",
-    projectDir: sandbox.workspaceDir,
+    workspaceRoot: sandbox.workspaceDir,
     repositoryAccess: context.repositoryAccess!,
   };
   runtimeTargets.set(resolve(sandbox.workspaceDir), target);
@@ -93,9 +93,9 @@ export function createRepoTaskRuntimeSandbox(
   return target;
 }
 
-export function finishRepoTaskRuntimeSandbox(projectDir: string): void {
-  const runtime = runtimeStores.get(resolve(projectDir));
-  if (runtime === undefined) throw new Error(`No test runtime owns "${projectDir}"`);
+export function finishRepoTaskRuntimeSandbox(workspaceRoot: string): void {
+  const runtime = runtimeStores.get(resolve(workspaceRoot));
+  if (runtime === undefined) throw new Error(`No test runtime owns "${workspaceRoot}"`);
   runtime.store.finishRun(
     runtime.runId,
     runtime.epoch,
@@ -111,11 +111,11 @@ export function disposeRepoTaskRuntimeSandboxes(): void {
 }
 
 export function repoTaskRuntimeSandboxTarget(
-  projectDir: string,
+  workspaceRoot: string,
 ): RepoTaskRuntimeSandboxTarget {
-  const target = runtimeTargets.get(resolve(projectDir));
+  const target = runtimeTargets.get(resolve(workspaceRoot));
   if (target === undefined) {
-    throw new Error(`No test runtime owns repo-task sandbox "${projectDir}"`);
+    throw new Error(`No test runtime owns repo-task sandbox "${workspaceRoot}"`);
   }
   return target;
 }

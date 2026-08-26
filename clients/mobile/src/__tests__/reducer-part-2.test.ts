@@ -9,6 +9,7 @@ import type {
   DaemonStatus,
   DigestResponse,
   HistorySearchResponse,
+  KnowledgeEntry,
   KnowledgeSearchResponse,
   MemorySearchResponse,
   OwnerQuestion,
@@ -18,6 +19,19 @@ import type {
   TasksResponse,
   TasksSearchResponse,
 } from '../types';
+
+function knowledgeEntry(
+  values: Pick<KnowledgeEntry, 'id' | 'type' | 'status' | 'title'>,
+): KnowledgeEntry {
+  return {
+    content: '',
+    created: '2026-04-26T00:00:00.000Z',
+    meta: {},
+    tags: [],
+    updated: '2026-04-26T00:00:00.000Z',
+    ...values,
+  };
+}
 
 function makeApproval(overrides: Partial<Approval> = {}): Approval {
   return {
@@ -78,9 +92,9 @@ describe('reducer', () => {
       digest,
     });
     const next = reducer(withDigest, { type: 'DIGEST_ERROR', error: '503' });
-    expect(next.digest).toBeNull();
-    expect(next.digestError).toBe('503');
-    expect(next.digestLoading).toBe(false);
+    expect(next.content.digest).toBeNull();
+    expect(next.content.digestError).toBe('503');
+    expect(next.content.digestLoading).toBe(false);
   });
 
   test('ONLINE false drops cached digest so it cannot persist across an offline transition', () => {
@@ -108,9 +122,9 @@ describe('reducer', () => {
       type: 'DIGEST_RESULT',
       digest,
     });
-    expect(withDigest.digest).toBe(digest);
+    expect(withDigest.content.digest).toBe(digest);
     const offline = reducer(withDigest, { type: 'ONLINE', online: false });
-    expect(offline.digest).toBeNull();
+    expect(offline.content.digest).toBeNull();
   });
 
   test('ATTENTION_LOADING flips loading flag and clears prior error', () => {
@@ -118,29 +132,27 @@ describe('reducer', () => {
       type: 'ATTENTION_ERROR',
       error: 'boom',
     });
-    expect(withError.attentionError).toBe('boom');
+    expect(withError.content.attentionError).toBe('boom');
     const next = reducer(withError, { type: 'ATTENTION_LOADING' });
-    expect(next.attentionLoading).toBe(true);
-    expect(next.attentionError).toBeNull();
+    expect(next.content.attentionLoading).toBe(true);
+    expect(next.content.attentionError).toBeNull();
   });
 
   test('ATTENTION_RESULT stores payload and clears loading/error', () => {
     const attention: AttentionResponse = {
-      data: {
-        items: [{ label: 'Owner question', detail: 'pending 2 days' }],
-      },
+      items: [{ label: 'Owner question', detail: 'pending 2 days' }],
       text: 'Attention required\n- pending owner question',
     };
     const loading = reducer(initialState, { type: 'ATTENTION_LOADING' });
     const next = reducer(loading, { type: 'ATTENTION_RESULT', attention });
-    expect(next.attention).toBe(attention);
-    expect(next.attentionLoading).toBe(false);
-    expect(next.attentionError).toBeNull();
+    expect(next.content.attention).toBe(attention);
+    expect(next.content.attentionLoading).toBe(false);
+    expect(next.content.attentionError).toBeNull();
   });
 
   test('ATTENTION_ERROR clears stale attention payload', () => {
     const attention: AttentionResponse = {
-      data: { items: [] },
+      items: [],
       text: 'No attention items right now.',
     };
     const withAttention = reducer(initialState, {
@@ -151,23 +163,23 @@ describe('reducer', () => {
       type: 'ATTENTION_ERROR',
       error: '503',
     });
-    expect(next.attention).toBeNull();
-    expect(next.attentionError).toBe('503');
-    expect(next.attentionLoading).toBe(false);
+    expect(next.content.attention).toBeNull();
+    expect(next.content.attentionError).toBe('503');
+    expect(next.content.attentionLoading).toBe(false);
   });
 
   test('ONLINE false drops cached attention so it cannot persist across an offline transition', () => {
     const attention: AttentionResponse = {
-      data: { items: [{ label: 'Builder warnings', detail: '3/10' }] },
+      items: [{ label: 'Builder warnings', detail: '3/10' }],
       text: 'Attention required\n- builder warnings repeating',
     };
     const withAttention = reducer(initialState, {
       type: 'ATTENTION_RESULT',
       attention,
     });
-    expect(withAttention.attention).toBe(attention);
+    expect(withAttention.content.attention).toBe(attention);
     const offline = reducer(withAttention, { type: 'ONLINE', online: false });
-    expect(offline.attention).toBeNull();
+    expect(offline.content.attention).toBeNull();
   });
 
   test('KNOWLEDGE_QUERY_SET stores the query without touching results or loading flags', () => {
@@ -175,10 +187,10 @@ describe('reducer', () => {
       type: 'KNOWLEDGE_QUERY_SET',
       query: 'autonomy',
     });
-    expect(next.knowledgeQuery).toBe('autonomy');
-    expect(next.knowledgeResult).toBeNull();
-    expect(next.knowledgeLoading).toBe(false);
-    expect(next.knowledgeError).toBeNull();
+    expect(next.content.knowledgeQuery).toBe('autonomy');
+    expect(next.content.knowledgeResult).toBeNull();
+    expect(next.content.knowledgeLoading).toBe(false);
+    expect(next.content.knowledgeError).toBeNull();
   });
 
   test('KNOWLEDGE_LOADING records the in-flight query and clears prior error', () => {
@@ -186,21 +198,21 @@ describe('reducer', () => {
       type: 'KNOWLEDGE_ERROR',
       error: 'boom',
     });
-    expect(withError.knowledgeError).toBe('boom');
+    expect(withError.content.knowledgeError).toBe('boom');
     const next = reducer(withError, {
       type: 'KNOWLEDGE_LOADING',
       query: 'autonomy',
     });
-    expect(next.knowledgeLoading).toBe(true);
-    expect(next.knowledgeError).toBeNull();
-    expect(next.knowledgeQuery).toBe('autonomy');
+    expect(next.content.knowledgeLoading).toBe(true);
+    expect(next.content.knowledgeError).toBeNull();
+    expect(next.content.knowledgeQuery).toBe('autonomy');
   });
 
   test('KNOWLEDGE_RESULT stores a populated payload and clears loading/error', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     const loading = reducer(initialState, {
@@ -208,9 +220,9 @@ describe('reducer', () => {
       query: 'autonomy',
     });
     const next = reducer(loading, { type: 'KNOWLEDGE_RESULT', result });
-    expect(next.knowledgeResult).toBe(result);
-    expect(next.knowledgeLoading).toBe(false);
-    expect(next.knowledgeError).toBeNull();
+    expect(next.content.knowledgeResult).toBe(result);
+    expect(next.content.knowledgeLoading).toBe(false);
+    expect(next.content.knowledgeError).toBeNull();
   });
 
   test('KNOWLEDGE_RESULT preserves the semantic-unavailable branch verbatim', () => {
@@ -219,19 +231,19 @@ describe('reducer', () => {
       reason: 'semantic_unavailable',
     };
     const next = reducer(initialState, { type: 'KNOWLEDGE_RESULT', result });
-    expect(next.knowledgeResult).toEqual({
+    expect(next.content.knowledgeResult).toEqual({
       ok: false,
       reason: 'semantic_unavailable',
     });
-    expect(next.knowledgeLoading).toBe(false);
-    expect(next.knowledgeError).toBeNull();
+    expect(next.content.knowledgeLoading).toBe(false);
+    expect(next.content.knowledgeError).toBeNull();
   });
 
   test('KNOWLEDGE_ERROR clears stale knowledge result', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     const withResult = reducer(initialState, {
@@ -239,25 +251,25 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'KNOWLEDGE_ERROR', error: '503' });
-    expect(next.knowledgeResult).toBeNull();
-    expect(next.knowledgeError).toBe('503');
-    expect(next.knowledgeLoading).toBe(false);
+    expect(next.content.knowledgeResult).toBeNull();
+    expect(next.content.knowledgeError).toBe('503');
+    expect(next.content.knowledgeLoading).toBe(false);
   });
 
   test('ONLINE false drops cached knowledge result so it cannot persist across an offline transition', () => {
     const result: KnowledgeSearchResponse = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
+        knowledgeEntry({ id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' }),
       ],
     };
     const withResult = reducer(initialState, {
       type: 'KNOWLEDGE_RESULT',
       result,
     });
-    expect(withResult.knowledgeResult).toBe(result);
+    expect(withResult.content.knowledgeResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.knowledgeResult).toBeNull();
+    expect(offline.content.knowledgeResult).toBeNull();
   });
 
   test('MEMORY_QUERY_SET stores the query without touching results or loading flags', () => {
@@ -265,8 +277,8 @@ describe('reducer', () => {
       type: 'MEMORY_QUERY_SET',
       query: 'autonomy',
     });
-    expect(next.memoryQuery).toBe('autonomy');
-    expect(next.memoryResult).toBeNull();
-    expect(next.memoryLoading).toBe(false);
-    expect(next.memoryError).toBeNull();
+    expect(next.content.memoryQuery).toBe('autonomy');
+    expect(next.content.memoryResult).toBeNull();
+    expect(next.content.memoryLoading).toBe(false);
+    expect(next.content.memoryError).toBeNull();
   });});

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearCustomGroups, detectToolGroups, enableGroup, getActiveToolNames, registerCustomGroup, resetGroups } from "./core/tools/tool-groups.js";
 import { runHttpRequest } from "./modules/web-access/http-request.js";
+import { installGlobalFetchTransportFixture } from "./modules/web-access/outbound-http-test-helpers.js";
 
 vi.mock("node:dns/promises", () => ({
   lookup: vi.fn(),
@@ -47,8 +48,9 @@ describe("http_request → code_exec data pipeline", () => {
   const mockLookup = vi.mocked(lookup);
   const tempDirs: string[] = [];
 
-  beforeEach(() => {
-    mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+	beforeEach(() => {
+		mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+		installGlobalFetchTransportFixture();
     registerCustomGroup("web", ["web_search", "web_fetch", "http_request"]);
     registerCustomGroup("code", ["code_exec", "notebook", "sqlite"]);
   });

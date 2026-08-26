@@ -1,19 +1,20 @@
-import {
-  type RiskTier,
-  riskFromEffect,
-  type ToolEffect,
+import type {
+  RiskTier,
+  ToolEffect,
 } from "#core/tools/effect.js";
-import type { WorkflowStepInput } from "#core/workflow/step-input-types.js";
-import type { WorkflowTriggerInput } from "#core/workflow/trigger-types.js";
-import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
+import {
+  assertManifestRequiredForEffects,
+  buildModuleManifestEffectProjection,
+  deriveModuleManifestSimulation,
+  validateModuleManifestSimulation,
+} from "./module-manifest-effects.js";
 import type {
   ModuleSetupCapabilityStatus,
   ModuleSetupPendingAction,
-  ModuleSetupRequirementStatus,
   ModuleSetupStatusState,
 } from "./setup-requirements.js";
 
-export type ModuleManifestScope = "global" | "project" | "daemon" | "external";
+export type ModuleManifestScope = "global" | "scope" | "daemon" | "external";
 export type ModuleManifestScopePolicyHook =
   | "autonomy"
   | "channels"
@@ -34,7 +35,7 @@ export type ModuleManifestDataSensitivity =
 
 export type ModuleManifestRetentionPosture =
   | "ephemeral"
-  | "project-durable"
+  | "scope-durable"
   | "run-artifact"
   | "external-provider"
   | "operator-visible";
@@ -246,7 +247,7 @@ export type ModuleManifestEffectLookup = ModuleManifestEffectProjection & {
 };
 
 const MANIFEST_ID_PATTERN = /^[a-z][a-z0-9.-]*$/;
-const MANIFEST_SCOPES = ["global", "project", "daemon", "external"] as const;
+const MANIFEST_SCOPES = ["global", "scope", "daemon", "external"] as const;
 const MANIFEST_SCOPE_POLICY_HOOKS = [
   "autonomy",
   "channels",
@@ -267,7 +268,7 @@ const MANIFEST_DATA_SENSITIVITIES = [
 ] as const;
 const MANIFEST_RETENTION_POSTURES = [
   "ephemeral",
-  "project-durable",
+  "scope-durable",
   "run-artifact",
   "external-provider",
   "operator-visible",
@@ -304,42 +305,6 @@ const TOOL_EFFECT_SCOPES = [
   "external-network",
   "operator-surface",
 ] as const;
-
-const moduleManifestProjections = new Map<string, ModuleCapabilityManifestProjection>();
-
-export function registerModuleCapabilityManifestProjection(
-  projection: ModuleCapabilityManifestProjection,
-): void {
-  moduleManifestProjections.set(projection.moduleName, projection);
-}
-
-export function unregisterModuleCapabilityManifestProjection(
-  moduleName: string,
-): void {
-  moduleManifestProjections.delete(moduleName);
-}
-
-export function clearModuleCapabilityManifestProjections(): void {
-  moduleManifestProjections.clear();
-}
-
-export function getModuleCapabilityManifestProjections(): readonly ModuleCapabilityManifestProjection[] {
-  return [...moduleManifestProjections.values()];
-}
-
-export function findModuleManifestToolEffect(
-  toolName: string,
-): ModuleManifestEffectLookup | undefined {
-  for (const projection of moduleManifestProjections.values()) {
-    const effect = projection.effects.find(
-      (candidate) =>
-        candidate.source === "tool" &&
-        candidate.target === toolName,
-    );
-    if (effect) return { ...effect, moduleName: projection.moduleName };
-  }
-  return undefined;
-}
 
 function isLiteral<T extends string>(
   value: string,
@@ -669,109 +634,6 @@ function validateCapabilitySetupLinks(
   }
 }
 
-function triggerEventName(trigger: WorkflowTriggerInput): string | undefined {
-  if (trigger.watch) return "files.changed";
-  if (trigger.webhook) return "webhook";
-  if (trigger.schedule || trigger.intervalMs !== undefined) return undefined;
-  return trigger.event;
-}
-
-function triggerFilterLabel(trigger: WorkflowTriggerInput): string | undefined {
-  if (!trigger.filter || Object.keys(trigger.filter).length === 0) return undefined;
-  return Object.entries(trigger.filter)
-    .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-    .join(",");
-}
-
-type MutableEventProjection = {
-  declared: boolean;
-  producers: ModuleManifestEventProducer[];
-  consumers: ModuleManifestEventConsumer[];
-};
-
-function getOrCreateEventProjection(
-  map: Map<string, MutableEventProjection>,
-  eventName: string,
-): MutableEventProjection {
-  let projection = map.get(eventName);
-  if (projection) return projection;
-  projection = { declared: false, producers: [], consumers: [] };
-  map.set(eventName, projection);
-  return projection;
-}
-
-function collectStepEventFlows(
-  workflowName: string,
-  steps: readonly WorkflowStepInput[],
-  eventMap: Map<string, MutableEventProjection>,
-): void {
-  for (const step of steps) {
-    switch (step.type) {
-      case "emit":
-        getOrCreateEventProjection(eventMap, step.event).producers.push({
-          workflow: workflowName,
-          stepId: step.id,
-        });
-        break;
-      case "await-event":
-        getOrCreateEventProjection(eventMap, step.event).consumers.push({
-          workflow: workflowName,
-          source: "await-event",
-          stepId: step.id,
-        });
-        break;
-      case "branch":
-        collectStepEventFlows(workflowName, step.ifTrue, eventMap);
-        if (step.ifFalse) {
-          collectStepEventFlows(workflowName, step.ifFalse, eventMap);
-        }
-        break;
-      case "agent":
-      case "approval":
-      case "code":
-      case "foreach":
-      case "parallel":
-      case "restart":
-      case "tool":
-      case "trigger":
-        break;
-    }
-  }
-}
-
-export function buildModuleManifestEventFlows(args: {
-  declaredEventNames: readonly string[];
-  workflows: readonly RegisteredWorkflowDefinitionInput[];
-}): ModuleManifestEventProjection[] {
-  const eventMap = new Map<string, MutableEventProjection>();
-  for (const eventName of args.declaredEventNames) {
-    getOrCreateEventProjection(eventMap, eventName).declared = true;
-  }
-  for (const workflow of args.workflows) {
-    for (const trigger of workflow.triggers) {
-      const eventName = triggerEventName(trigger);
-      if (!eventName) continue;
-      const consumer: ModuleManifestEventConsumer = {
-        workflow: workflow.name,
-        source: "trigger",
-        ...(triggerFilterLabel(trigger) !== undefined
-          ? { filter: triggerFilterLabel(trigger) }
-          : {}),
-      };
-      getOrCreateEventProjection(eventMap, eventName).consumers.push(consumer);
-    }
-    collectStepEventFlows(workflow.name, workflow.steps, eventMap);
-  }
-  return [...eventMap.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([name, projection]) => ({
-      name,
-      declared: projection.declared,
-      producers: projection.producers,
-      consumers: projection.consumers,
-    }));
-}
-
 function inferredCapability(
   moduleName: string,
   snapshot: ModuleManifestContributionSnapshot,
@@ -790,216 +652,6 @@ function inferredCapability(
   };
 }
 
-export function effectCategoriesFromEffect(
-  effect: ToolEffect,
-): ModuleManifestEffectCategory[] {
-  const categories: ModuleManifestEffectCategory[] = [];
-  if (effect.kind === "destructive") categories.push("destructive");
-  if (effect.scope === "external-network") {
-    categories.push(effect.kind === "read" ? "network-read" : "external-write");
-  }
-  if (effect.scope === "local-fs" && effect.kind !== "read") {
-    categories.push("local-write");
-  }
-  if (effect.scope === "daemon-state" && effect.kind !== "read") {
-    categories.push("daemon-mutation");
-  }
-  if (effect.scope === "operator-surface") {
-    categories.push("notification", "owner-visible");
-  }
-  if (effect.scope === "process-env" && effect.kind !== "read") {
-    categories.push("credential");
-  }
-  if (effect.scope === "session" && effect.kind !== "read") {
-    categories.push("session-write");
-  }
-  return categories;
-}
-
-function effectRequiresExplicitManifest(effect: ToolEffect): boolean {
-  return effect.scope === "external-network" ||
-    effect.scope === "operator-surface" ||
-    effect.kind === "destructive";
-}
-
-export function simulationBlockReasonFromEffect(
-  tool: string,
-  effect: ToolEffect,
-  opts: { canScopeLocalFs: boolean },
-): string | undefined {
-  if (effect.kind === "destructive") {
-    return "tool would produce a destructive side effect in trial mode";
-  }
-  if (effect.scope === "external-network" || effect.scope === "operator-surface") {
-    return "tool would produce a live external or operator-visible side effect in trial mode";
-  }
-  if (effect.scope === "daemon-state" && effect.kind !== "read") {
-    return "tool would mutate daemon state outside the isolated trial project";
-  }
-  if (effect.scope === "process-env" && effect.kind !== "read") {
-    return "tool would inject values into an execution environment in trial mode";
-  }
-  if (
-    effect.scope === "local-fs" &&
-    effect.kind !== "read" &&
-    !opts.canScopeLocalFs
-  ) {
-    return `tool "${tool}" has local filesystem side effects that trial mode cannot root in the isolated project`;
-  }
-  return undefined;
-}
-
-function effectProjection(args: {
-  id: string;
-  description: string;
-  source: ModuleManifestEffectSource;
-  target: string;
-  effect: ToolEffect;
-  capabilityIds: readonly string[];
-}): ModuleManifestEffectProjection {
-  const reason = simulationBlockReasonFromEffect(args.target, args.effect, {
-    canScopeLocalFs: false,
-  });
-  return {
-    id: args.id,
-    description: args.description,
-    source: args.source,
-    target: args.target,
-    effect: args.effect,
-    risk: riskFromEffect(args.effect),
-    categories: effectCategoriesFromEffect(args.effect),
-    capabilityIds: args.capabilityIds,
-    simulation: reason
-      ? { blocked: true, reason }
-      : { blocked: false },
-  };
-}
-
-function deriveSimulation(
-  effects: readonly ModuleManifestEffectProjection[],
-): ModuleManifestSimulation {
-  const blockedReasons = unique(
-    effects
-      .map((effect) => effect.simulation.reason)
-      .filter((reason): reason is string => reason !== undefined),
-  );
-  if (blockedReasons.length > 0) {
-    return { support: "external-effects-blocked", blockedReasons };
-  }
-  const localMutation = effects.some((effect) =>
-    effect.categories.includes("local-write") ||
-    effect.categories.includes("session-write")
-  );
-  if (localMutation) return { support: "local-isolated", blockedReasons: [] };
-  return { support: "full", blockedReasons: [] };
-}
-
-function validateSimulationCoversEffects(
-  moduleName: string,
-  simulation: ModuleManifestSimulation,
-  effects: readonly ModuleManifestEffectProjection[],
-): void {
-  const blockedEffects = effects.filter((effect) => effect.simulation.blocked);
-  if (blockedEffects.length === 0) {
-    if (
-      (simulation.support === "external-effects-blocked" ||
-        simulation.support === "unsupported") &&
-      simulation.blockedReasons.length === 0
-    ) {
-      throw new Error(
-        `Module "${moduleName}" manifest simulation support "${simulation.support}" must declare blocked reasons`,
-      );
-    }
-    return;
-  }
-  if (simulation.support === "full") {
-    throw new Error(
-      `Module "${moduleName}" manifest simulation support "full" conflicts with blocked effects: ${blockedEffects.map((effect) => effect.id).join(", ")}`,
-    );
-  }
-  if (simulation.blockedReasons.length === 0) {
-    throw new Error(
-      `Module "${moduleName}" manifest simulation must declare blocked reasons for blocked effects: ${blockedEffects.map((effect) => effect.id).join(", ")}`,
-    );
-  }
-}
-
-function assertManifestRequiredForEffects(
-  moduleName: string,
-  effects: readonly ModuleManifestEffectProjection[],
-): void {
-  const uncovered = effects.filter((effect) =>
-    effectRequiresExplicitManifest(effect.effect)
-  );
-  if (uncovered.length === 0) return;
-  throw new Error(
-    `Module "${moduleName}" must declare a manifest because it contributes external, operator-visible, or destructive effects: ${uncovered.map((effect) => effect.id).join(", ")}`,
-  );
-}
-
-export function buildModuleManifestSetupStatusLinks(args: {
-  moduleName: string;
-  requirementId: string;
-  kind: string;
-  setupMode: ModuleManifestSetupMode;
-}): ModuleManifestSetupStatusLinks {
-  const moduleName = encodeURIComponent(args.moduleName);
-  const requirementId = encodeURIComponent(args.requirementId);
-  const base = `/setup/requirements/${moduleName}/${requirementId}`;
-  return {
-    list: "/setup/requirements",
-    refresh: `${base}/refresh`,
-    revoke: base,
-    ...(args.setupMode === "form" ? { submitForm: `${base}/form` } : {}),
-    ...(args.kind === "secret" || args.kind === "oauth" ? { storeSecret: `${base}/secret` } : {}),
-    ...(args.setupMode === "url" ? { start: `${base}/start` } : {}),
-  };
-}
-
-function projectSetupAvailability(
-  status: ModuleSetupRequirementStatus,
-): ModuleManifestSetupAvailabilitySnapshot {
-  return {
-    state: status.state,
-    reason: status.reason,
-    message: status.message,
-    ...(status.capabilities !== undefined ? { capabilities: status.capabilities } : {}),
-    ...(status.pendingAction !== undefined
-      ? {
-          pendingAction: {
-            ...status.pendingAction,
-            complete: `/setup/actions/${encodeURIComponent(status.pendingAction.actionId)}/complete`,
-          },
-        }
-      : {}),
-  };
-}
-
-export function projectSetupStatusOntoManifest(
-  manifest: ModuleCapabilityManifestProjection,
-  statuses: readonly ModuleSetupRequirementStatus[],
-): ModuleCapabilityManifestProjection {
-  const statusesByRequirement = new Map(
-    statuses
-      .filter((status) => status.moduleName === manifest.moduleName)
-      .map((status) => [status.requirementId, status]),
-  );
-  return {
-    ...manifest,
-    contributions: {
-      ...manifest.contributions,
-      setupRequirements: manifest.contributions.setupRequirements.map((requirement) => {
-        const status = statusesByRequirement.get(requirement.id);
-        if (status === undefined) return requirement;
-        return {
-          ...requirement,
-          availability: projectSetupAvailability(status),
-        };
-      }),
-    },
-  };
-}
-
 export function buildModuleCapabilityManifestProjection(
   moduleName: string,
   manifest: ModuleCapabilityManifestInput | undefined,
@@ -1013,7 +665,7 @@ export function buildModuleCapabilityManifestProjection(
   validateCapabilitySetupLinks(moduleName, capabilities, snapshot.setupRequirements);
   const defaultCapabilityIds = [...capabilityIds];
   const toolEffects = snapshot.tools.map((tool) =>
-    effectProjection({
+    buildModuleManifestEffectProjection({
       id: `tool.${tool.name}`,
       description: tool.description,
       source: "tool",
@@ -1023,7 +675,7 @@ export function buildModuleCapabilityManifestProjection(
     })
   );
   const moduleEffects = snapshot.effects.map((effect) =>
-    effectProjection({
+    buildModuleManifestEffectProjection({
       id: effect.id,
       description: effect.description,
       source: effect.source,
@@ -1033,7 +685,7 @@ export function buildModuleCapabilityManifestProjection(
     })
   );
   const additionalEffects = (manifest?.additionalEffects ?? []).map((effect) =>
-    effectProjection({
+    buildModuleManifestEffectProjection({
       id: effect.id,
       description: effect.description,
       source: effect.source,
@@ -1048,8 +700,8 @@ export function buildModuleCapabilityManifestProjection(
   const healthCapabilityIds = unique(
     snapshot.setupRequirements.flatMap((req) => req.healthCapabilityIds),
   );
-  const simulation = manifest?.simulation ?? deriveSimulation(effects);
-  validateSimulationCoversEffects(moduleName, simulation, effects);
+  const simulation = manifest?.simulation ?? deriveModuleManifestSimulation(effects);
+  validateModuleManifestSimulation(moduleName, simulation, effects);
   return {
     schemaVersion: 1,
     moduleName,
@@ -1083,3 +735,13 @@ export function buildModuleCapabilityManifestProjection(
     },
   };
 }
+
+export {
+  effectCategoriesFromEffect,
+  simulationBlockReasonFromEffect,
+} from "./module-manifest-effects.js";
+export { buildModuleManifestEventFlows } from "./module-manifest-events.js";
+export {
+  buildModuleManifestSetupStatusLinks,
+  scopeSetupStatusOntoManifest,
+} from "./module-manifest-setup.js";

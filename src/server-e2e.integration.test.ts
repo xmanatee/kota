@@ -42,8 +42,8 @@ vi.mock("./core/loop/loop.js", () => {
 });
 
 import { EventBus } from "./core/events/event-bus.js";
+import { discoverBundledModules } from "./core/modules/bundled-module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
-import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import { startServer } from "./core/server/server.js";
 import {
   registerServerE2EBasicCases,
@@ -55,7 +55,7 @@ let server: Server;
 let loader: ModuleLoader;
 let baseUrl: string;
 const TEST_AUTH_TOKEN = "test-e2e-auth-token-abc123";
-const projectModules = await discoverProjectModules();
+const bundledModules = await discoverBundledModules();
 const webDistDir = join(process.cwd(), "clients", "web", "dist");
 const webAssetName = "kota-e2e-dashboard.js";
 let seededWebDist = false;
@@ -187,7 +187,7 @@ beforeAll(async () => {
   const eventBus = new EventBus();
   loader = new ModuleLoader(testConfig, false, { mode: "runtime" });
   loader.setBus(eventBus);
-  await loader.loadAll(projectModules);
+  await loader.loadAll(bundledModules);
   server = startServer({
     port: 0,
     config: testConfig,

@@ -48,7 +48,7 @@
   `IntegrationQueue` as the shared ownership chain. Workflows define semantic
   steps, not private queues, claims, worktrees, leases, process registries,
   port allocators, commits, merge gates, or restart recovery.
-- Keep mutable operational and project state in the revisioned
+- Keep mutable operational and scope state in the revisioned
   `RunStateDatabase` API. `WorkflowRunStore` owns retained run evidence only;
   runtime summaries are projections from SQLite and current in-memory timers.
   Offline readers must receive the canonical state root explicitly and open it
@@ -141,6 +141,34 @@
   operator journey is inspectable through a rendered transcript, screenshot,
   runtime probe, or equivalent artifact. Passing unit tests alone does not
   prove that a CLI, Mac, Web, channel, setup, or daemon-control path improved.
+
+## Validation Cadence
+
+Validation is selected from the behavior and owner affected by a change. These
+commands are discovery surfaces, not a checklist that every edit must run.
+
+| Cadence | Command | Use |
+| --- | --- | --- |
+| deterministic | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. |
+| owner behavior | `pnpm test <owner paths>` or `pnpm test:changed` | Exercise the decisions and observable behavior owned by the changed component. |
+| protocol | `pnpm test:protocol` | Exercise wire compatibility, framing, redirect, OAuth, and interoperability behavior. |
+| resilience | `pnpm test:resilience` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
+| component integration | `pnpm test:integration` | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
+| evaluation | `pnpm test:eval` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
+| broad confidence | `pnpm check` | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
+
+Tests without an explicit cadence stay with their behavior owner. Security and
+restart scenarios stay beside that owner; protocol and resilience scenarios
+use their explicit projects and do not need parallel global copies. Vitest's
+changed-file selection is useful feedback, but changes to
+schemas, configuration, generated data, or runtime reach still require
+engineering judgment about affected owners.
+
+The production TypeScript build excludes repository tests, internal test
+support, and eval fixture projects. A separate test TypeScript project keeps
+those sources type-safe. Generated-binding freshness runs as part of the owner
+build; each native client builds and tests only when its own source or a shared
+generated contract changes.
 
 ## AGENTS.md Files
 

@@ -18,7 +18,7 @@ export type GoogleWorkspaceInboundTrustConfig = {
 
 export type GoogleWorkspaceInboundSignalContext =
   GoogleWorkspaceInboundTrustConfig & {
-    projectId: string;
+    scopeId: string;
     accountId: string;
     receivedAt: string;
   };
@@ -568,8 +568,7 @@ export function gmailMessageToInboundSignal(
     context.receivedAt;
 
   return validateInboundSignalPayload({
-    scopeId: context.projectId,
-    projectId: context.projectId,
+    scopeId: context.scopeId,
     provider: "google-workspace",
     channel: "gmail.message",
     accountId: `google:gmail:${context.accountId}`,
@@ -615,8 +614,7 @@ export function calendarEventChangeToInboundSignal(
     `https://calendar.google.com/calendar/event?eid=${encodeURIComponent(change.id)}`;
 
   return validateInboundSignalPayload({
-    scopeId: context.projectId,
-    projectId: context.projectId,
+    scopeId: context.scopeId,
     provider: "google-workspace",
     channel: "calendar.event",
     accountId: `google:calendar:${context.accountId}`,

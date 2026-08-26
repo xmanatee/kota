@@ -21,8 +21,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   ModuleInspectEntry,
@@ -75,7 +73,7 @@ function makeRecordingTransport(options: {
 function makeEntry(name: string): ModuleListEntry {
   return {
     name,
-    source: "project",
+    source: "bundled",
     status: "loaded",
     toolCount: 0,
     workflowCount: 0,
@@ -135,35 +133,12 @@ describe("module-manager module daemonClient(link)", () => {
     const contributed = moduleManagerModule.daemonClient!(transport);
     await expect(contributed.modules!.list()).rejects.toThrow(/boom/);
   });
-
-  it("the assembly path fails loudly when the module-manager module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.modules;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /modules/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the module-manager module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = moduleManagerModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.modules;
-    delete others.modulesAdmin;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
 });
 
 function makeInspectEntry(name: string): ModuleInspectEntry {
   return {
     name,
-    source: "project",
+    source: "bundled",
     status: "loaded",
     dependencies: [],
     toolNames: [],
@@ -264,7 +239,7 @@ describe("module-manager module daemonClient(link) — modulesAdmin", () => {
   it("routes reload through POST /reload then GET /modules and assembles ok=true when the name is present and changed", async () => {
     const moduleListEntry: ModuleListEntry = {
       name: "doctor",
-      source: "project",
+      source: "bundled",
       status: "loaded",
       toolCount: 0,
       workflowCount: 0,
@@ -301,7 +276,7 @@ describe("module-manager module daemonClient(link) — modulesAdmin", () => {
       modules: [
         {
           name: "doctor",
-          source: "project",
+          source: "bundled",
           status: "loaded",
           toolCount: 0,
           workflowCount: 0,
@@ -377,28 +352,5 @@ describe("module-manager module daemonClient(link) — modulesAdmin", () => {
     await expect(contributed.modulesAdmin!.reload("doctor")).rejects.toThrow(
       /list-down/,
     );
-  });
-
-  it("the assembly path fails loudly when the modulesAdmin contribution is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.modulesAdmin;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /modulesAdmin/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the modulesAdmin contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = moduleManagerModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.modules;
-    delete others.modulesAdmin;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

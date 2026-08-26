@@ -1,8 +1,9 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import tracingModule from "./index.js";
 import {
   OtlpHttpSecurityLogExporter,
@@ -36,10 +37,6 @@ function byName(
 }
 
 describe("SecurityLogEmitter", () => {
-  afterEach(async () => {
-    await tracingModule.onUnload?.();
-  });
-
   it("does not subscribe or initialize exporters when tracing is disabled", async () => {
     const subscribe = vi.fn();
     const debug = vi.fn();
@@ -73,7 +70,7 @@ describe("SecurityLogEmitter", () => {
       session: "session-1",
     });
     emitter.onApprovalRequested({
-      projectId: "project-1",
+      scopeId: "scope-1",
       id: "approval-1",
       tool: "mcp__github__create_issue",
       risk: "dangerous",
@@ -82,7 +79,7 @@ describe("SecurityLogEmitter", () => {
       sessionId: "session-1",
     });
     emitter.onApprovalResolved({
-      projectId: "project-1",
+      scopeId: "scope-1",
       id: "approval-1",
       tool: "mcp__github__create_issue",
       approved: false,
@@ -115,11 +112,11 @@ describe("SecurityLogEmitter", () => {
       "guardrail.reason.omitted": true,
       "session.id": "session-1",
     });
-    expect(guardrail.attributes).not.toHaveProperty("project.id");
+    expect(guardrail.attributes).not.toHaveProperty("scope.id");
 
     const requested = byName(exporter.records, "approval.requested");
     expect(requested.attributes).toMatchObject({
-      "project.id": "project-1",
+      "scope.id": "scope-1",
       "approval.id": "approval-1",
       "session.id": "session-1",
       "approval.source.omitted": true,
@@ -131,7 +128,7 @@ describe("SecurityLogEmitter", () => {
 
     const resolved = byName(exporter.records, "approval.resolved");
     expect(resolved.attributes).toMatchObject({
-      "project.id": "project-1",
+      "scope.id": "scope-1",
       "approval.outcome": "rejected",
       "approval.approved": false,
       "session.id": "session-1",
@@ -147,7 +144,7 @@ describe("SecurityLogEmitter", () => {
       "autonomy_mode": "autonomous",
       "session.id": "session-1",
     });
-    expect(injection.attributes).not.toHaveProperty("project.id");
+    expect(injection.attributes).not.toHaveProperty("scope.id");
 
     const serialized = JSON.stringify(exporter.records);
     expect(serialized).not.toContain("SECRET_TOKEN");
@@ -155,9 +152,9 @@ describe("SecurityLogEmitter", () => {
   });
 
   it("emits one bounded record per agent tool call and marks MCP usage", () => {
-    const projectDir = makeTmpDir();
+    const scopeRoot = makeTmpDir();
     const runDir = ".kota/runs/run-1";
-    const stepsDir = join(projectDir, runDir, "steps");
+    const stepsDir = join(scopeRoot, runDir, "steps");
     mkdirSync(stepsDir, { recursive: true });
     writeFileSync(join(stepsDir, "build.input.md"), "raw prompt SECRET_PROMPT");
     writeFileSync(
@@ -192,9 +189,9 @@ describe("SecurityLogEmitter", () => {
     );
 
     const exporter = new FakeSecurityLogExporter();
-    const emitter = new SecurityLogEmitter(projectDir, exporter);
+    const emitter = new SecurityLogEmitter(scopeRoot, exporter);
     emitter.onStepCompleted({
-      projectId: "project-1",
+      scopeId: "scope-1",
       workflow: "builder",
       runId: "run-1",
       stepId: "build",
@@ -214,7 +211,7 @@ describe("SecurityLogEmitter", () => {
 
     const mcpCall = exporter.records[0]!;
     expect(mcpCall.attributes).toMatchObject({
-      "project.id": "project-1",
+      "scope.id": "scope-1",
       "workflow.name": "builder",
       "workflow.run_id": "run-1",
       "workflow.step.id": "build",
@@ -271,10 +268,10 @@ describe("OtlpHttpSecurityLogExporter", () => {
     const exporter = new OtlpHttpSecurityLogExporter(
       "http://otel.example/v1/logs",
       "kota-test",
-      async (_url, init) => {
-        bodies.push(init.body);
-        return { ok: true, status: 200, text: async () => "" };
-      },
+      outboundHttpRequestPort(async (request) => {
+        bodies.push(String(request.body));
+        return new Response("", { status: 200 });
+      }),
     );
 
     await exporter.export([

@@ -6,7 +6,7 @@ import {
 } from "./repo-mutation-path-safety.js";
 
 export function writeVerifiedRepoMarkdownFile(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
   content: string;
@@ -15,7 +15,7 @@ export function writeVerifiedRepoMarkdownFile(args: {
 }
 
 function rollbackInstalledDestination(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
   expectedSnapshot: ReturnType<typeof writeAnchoredRepoMarkdownFile>;
@@ -25,7 +25,7 @@ function rollbackInstalledDestination(args: {
 
 export function moveVerifiedRepoMarkdownFile(
   args: {
-    projectDir: string;
+    repoRoot: string;
     sourceRootDir: string;
     sourcePath: string;
     destinationRootDir: string;
@@ -35,7 +35,7 @@ export function moveVerifiedRepoMarkdownFile(
   },
 ): void {
   const source = readVerifiedRepoMarkdownFileWithIdentity({
-    projectDir: args.projectDir,
+    repoRoot: args.repoRoot,
     rootDir: args.sourceRootDir,
     filePath: args.sourcePath,
   });
@@ -50,7 +50,7 @@ export function moveVerifiedRepoMarkdownFile(
   }
 
   const destinationSnapshot = writeAnchoredRepoMarkdownFile({
-    projectDir: args.projectDir,
+    repoRoot: args.repoRoot,
     rootDir: args.destinationRootDir,
     filePath: args.destinationPath,
     content: args.destinationContent,
@@ -58,7 +58,7 @@ export function moveVerifiedRepoMarkdownFile(
   });
   try {
     removeAnchoredRepoMarkdownFile({
-      projectDir: args.projectDir,
+      repoRoot: args.repoRoot,
       rootDir: args.sourceRootDir,
       filePath: args.sourcePath,
       expectedSnapshot: source.snapshot,
@@ -66,7 +66,7 @@ export function moveVerifiedRepoMarkdownFile(
   } catch (removeError) {
     try {
       rollbackInstalledDestination({
-        projectDir: args.projectDir,
+        repoRoot: args.repoRoot,
         rootDir: args.destinationRootDir,
         filePath: args.destinationPath,
         expectedSnapshot: destinationSnapshot,
@@ -84,7 +84,7 @@ export function moveVerifiedRepoMarkdownFile(
 
 export function removeVerifiedRepoMarkdownFile(
   args: {
-    projectDir: string;
+    repoRoot: string;
     rootDir: string;
     filePath: string;
   },

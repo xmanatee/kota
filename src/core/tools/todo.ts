@@ -1,6 +1,9 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority } from "#core/daemon/task-store.js";
-import { getTaskProvider } from "#core/modules/provider-registry.js";
+import {
+  getTaskProvider,
+  getTaskProviderRegistration,
+} from "#core/modules/provider-registry.js";
 import { sessionWriteEffect } from "./effect.js";
 import type { ToolResult } from "./index.js";
 
@@ -67,14 +70,18 @@ export async function runTodo(
   input: Record<string, unknown>,
 ): Promise<ToolResult> {
   const action = input.action as string;
-  const store = getTaskProvider();
+  const registration = getTaskProviderRegistration();
+  const store = registration.provider;
 
   switch (action) {
     case "add": {
       const task = input.task as string;
       if (!task) return { content: "Error: task is required for 'add'", is_error: true };
+      if (!registration.mutations) {
+        return { content: "Error: active task provider does not support mutations", is_error: true };
+      }
       try {
-        const item = store.add(task, {
+        const item = await registration.mutations.add(task, {
           parent_id: input.parent_id as number | undefined,
           priority: input.priority as TaskPriority | undefined,
           blocked_by: input.blocked_by as number[] | undefined,
@@ -99,8 +106,11 @@ export async function runTodo(
       const notes = input.notes as string | undefined;
       if (!status && !priority && !blocked_by && notes === undefined)
         return { content: "Error: status, priority, blocked_by, or notes required for 'update'", is_error: true };
+      if (!registration.mutations) {
+        return { content: "Error: active task provider does not support mutations", is_error: true };
+      }
       try {
-        store.update(id, { status, priority, blocked_by, notes });
+        await registration.mutations.update(id, { status, priority, blocked_by, notes });
         const changes: string[] = [];
         if (status) changes.push(`status: ${status}`);
         if (priority) changes.push(`priority: ${priority}`);
@@ -115,11 +125,17 @@ export async function runTodo(
       return { content: formatTodos(store.list()) };
     }
     case "clear": {
-      store.clear();
+      if (!registration.maintenance) {
+        return { content: "Error: active task provider does not support clearing tasks", is_error: true };
+      }
+      await registration.maintenance.clear();
       return { content: "Cleared all tasks" };
     }
     case "archive": {
-      const count = store.archiveCompleted();
+      if (!registration.maintenance) {
+        return { content: "Error: active task provider does not support archiving tasks", is_error: true };
+      }
+      const count = await registration.maintenance.archiveCompleted();
       return {
         content: count > 0
           ? `Archived ${count} completed task${count > 1 ? "s" : ""}`

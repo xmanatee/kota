@@ -10,7 +10,7 @@ import type { WorkflowDefinition } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
-const PROJECT_ID = "project-queue-restoration";
+const SCOPE_ID = "scope-queue-restoration";
 
 function trigger(
   event: string,
@@ -19,7 +19,7 @@ function trigger(
   return { event, schemaRef: null, payload };
 }
 
-function workflow(projectDir: string): WorkflowDefinition {
+function workflow(scopeRoot: string): WorkflowDefinition {
   return validateWorkflowDefinitions(
     [
       registerWorkflowDefinition("test/workflow.ts", {
@@ -44,31 +44,31 @@ function workflow(projectDir: string): WorkflowDefinition {
         steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
       }),
     ],
-    projectDir,
+    scopeRoot,
   )[0];
 }
 
 describe("durable workflow queue restoration", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let runState: RunStateDatabase;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-queue-restore-"));
-    runState = new RunStateDatabase(join(projectDir, ".kota"));
-    runState.registerProject({
-      id: PROJECT_ID,
-      rootPath: projectDir,
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-queue-restore-"));
+    runState = new RunStateDatabase(join(scopeRoot, ".kota"));
+    runState.registerScope({
+      id: SCOPE_ID,
+      rootPath: scopeRoot,
       createdAt: "2026-08-25T10:00:00.000Z",
     });
   });
 
   afterEach(() => {
     runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("revalidates durable queued runs without reordering durable admission", () => {
-    const definition = workflow(projectDir);
+    const definition = workflow(scopeRoot);
     const admittedAt = "2026-08-25T10:00:00.000Z";
     const runs = [
       {
@@ -117,7 +117,7 @@ describe("durable workflow queue restoration", () => {
     for (const run of runs) {
       runState.admitRun({
         ...run,
-        projectId: PROJECT_ID,
+        scopeId: SCOPE_ID,
         repository: definition.repository,
         admittedAt,
       });
@@ -126,12 +126,12 @@ describe("durable workflow queue restoration", () => {
     const refill = vi.fn();
     const logs: string[] = [];
     const queue = new WorkflowQueueManager({
-      store: new WorkflowRunStore(projectDir),
+      store: new WorkflowRunStore(scopeRoot),
       runState,
       coordinator: { refill } as unknown as RunCoordinator,
-      projectId: PROJECT_ID,
-      projectDir,
-      getScopeId: () => PROJECT_ID,
+      scopeId: SCOPE_ID,
+      scopeRoot,
+      getScopeId: () => SCOPE_ID,
       getActiveBackoff: () => null,
       workflowUsesAgent: () => false,
       getDefinitions: () => [definition],
@@ -144,7 +144,7 @@ describe("durable workflow queue restoration", () => {
       "valid",
       "manual-control",
     ]);
-    expect(runState.listRuns(PROJECT_ID, ["cancelled"]).map((run) => run.id).sort()).toEqual([
+    expect(runState.listRuns(SCOPE_ID, ["cancelled"]).map((run) => run.id).sort()).toEqual([
       "changed-resource",
       "invalid-payload",
       "missing-definition",

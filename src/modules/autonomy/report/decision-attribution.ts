@@ -53,7 +53,6 @@ const AUTONOMOUS_EXECUTION_WORKFLOWS = new Set([
   "builder",
   "decomposer",
   "explorer",
-  "fan-out-consolidator",
   "inbox-sorter",
   "progress-reviewer",
   "research-retry",

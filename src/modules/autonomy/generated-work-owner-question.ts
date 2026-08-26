@@ -21,8 +21,8 @@ export function generatedWorkQuestionDedupeKey(proposalKey: string): string {
   return `generated-work:${proposalKey}`;
 }
 
-export function createGeneratedWorkQuestionQueue(projectDir: string): OwnerQuestionQueue {
-  return new OwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"));
+export function createGeneratedWorkQuestionQueue(workspaceRoot: string): OwnerQuestionQueue {
+  return new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
 }
 
 export function findGeneratedWorkQuestion(
@@ -122,7 +122,7 @@ function updatedQuestion(
 }
 
 export function reconcileGeneratedWorkQuestion(args: {
-  projectDir: string;
+  workspaceRoot: string;
   queue: OwnerQuestionQueue;
   input: OwnerQuestionEnqueueInput & { dedupeKey: string };
 }): ReconciledGeneratedWorkQuestion {
@@ -147,7 +147,7 @@ export function reconcileGeneratedWorkQuestion(args: {
   const reopened = existing.status !== "pending";
   const item = updatedQuestion(existing, input);
   writeFileSync(
-    join(args.projectDir, ".kota", "owner-questions", `${item.id}.json`),
+    join(args.workspaceRoot, ".kota", "owner-questions", `${item.id}.json`),
     JSON.stringify(item, null, 2),
   );
   return { item, created: false, updated: true, reopened };

@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { IMPORTED_SKILL_PROVENANCE_FILE } from "#core/modules/imported-skills.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
 
 function moduleSummary(name: string, skills: ModuleSummary["skills"]): ModuleSummary {
   return {
     name,
-    source: "project",
+    source: "bundled",
     dependencies: [],
     toolNames: [],
     workflowNames: [],
@@ -31,32 +32,27 @@ function stubCtx(cwd: string, summaries: ModuleSummary[] = []): ModuleContext {
   } as unknown as ModuleContext;
 }
 
-function mockFetch(responses: Record<string, string>): void {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-      const url = typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url;
+function mockFetch(responses: Record<string, string>) {
+  return outboundHttpRequestPort(
+    async (request) => {
+      const url = String(request.url);
       const body = responses[url];
       if (body === undefined) {
         return new Response("missing", { status: 404, statusText: "Not Found" });
       }
       return new Response(body, { status: 200, statusText: "OK" });
-    }),
+    },
   );
 }
 
 function writeInstalledSkill(
-  projectDir: string,
+  scopeRoot: string,
   name: string,
   frontmatter: string,
   body: string,
   importedFiles = ["SKILL.md"],
 ): void {
-  const skillDir = join(projectDir, ".kota", "skills", name);
+  const skillDir = join(scopeRoot, ".kota", "skills", name);
   mkdirSync(skillDir, { recursive: true });
   writeFileSync(join(skillDir, "SKILL.md"), `---\n${frontmatter}---\n${body}`);
   writeFileSync(
@@ -75,26 +71,26 @@ function writeInstalledSkill(
 }
 
 describe("skill-ops operations (local handler / daemon-down branch)", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-skill-ops-"));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-skill-ops-"));
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("listSkills surfaces module skills and reads imported skills", () => {
     writeInstalledSkill(
-      projectDir,
+      scopeRoot,
       "external",
       "name: external\ndescription: external skill\n",
       "body\n",
     );
 
-    const ctx = stubCtx(projectDir, [
+    const ctx = stubCtx(scopeRoot, [
       moduleSummary("autonomy", [
         { name: "builder-guidance", description: "builder", promptPath: "p1.md" },
       ]),
@@ -116,9 +112,9 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   it("listSkills reports an imported duplicate as shadowed by the module skill", () => {
-    writeInstalledSkill(projectDir, "shared", "name: shared\n", "body\n");
+    writeInstalledSkill(scopeRoot, "shared", "name: shared\n", "body\n");
 
-    const ctx = stubCtx(projectDir, [
+    const ctx = stubCtx(scopeRoot, [
       moduleSummary("autonomy", [
         { name: "shared", description: "module", promptPath: "p.md" },
       ]),
@@ -146,11 +142,11 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   it("listSkills fails loudly for invalid imported skill files", () => {
-    const skillDir = join(projectDir, ".kota", "skills", "invalid");
+    const skillDir = join(scopeRoot, ".kota", "skills", "invalid");
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(join(skillDir, "SKILL.md"), "body without frontmatter\n");
 
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
     expect(() => listSkills(ctx)).toThrow(
       '.kota/skills/invalid/SKILL.md: imported skills must declare frontmatter with a non-empty "name"',
     );
@@ -158,21 +154,21 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
 
   it("listSkills rejects imported skills that declare unsupported tool policy", () => {
     writeInstalledSkill(
-      projectDir,
+      scopeRoot,
       "restricted",
       "name: restricted\ndisallowed-tools: [Bash]\n",
       "body\n",
     );
 
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
     expect(() => listSkills(ctx)).toThrow(
       '.kota/skills/restricted/SKILL.md: unsupported skill tool-policy frontmatter "disallowed-tools"',
     );
   });
 
   it("importSkill returns missing_name when frontmatter has no name and no override", async () => {
-    const ctx = stubCtx(projectDir);
-    const sourcePath = join(projectDir, "no-name.md");
+    const ctx = stubCtx(scopeRoot);
+    const sourcePath = join(scopeRoot, "no-name.md");
     writeFileSync(sourcePath, "no frontmatter here\n");
 
     const result = await importSkill(ctx, sourcePath);
@@ -181,15 +177,15 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   it("importSkill returns fetch_failed for a missing local file", async () => {
-    const ctx = stubCtx(projectDir);
+    const ctx = stubCtx(scopeRoot);
     const result = await importSkill(ctx, "/does/not/exist.md");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("fetch_failed");
   });
 
   it("importSkill writes a canonical skill directory when frontmatter has a name", async () => {
-    const ctx = stubCtx(projectDir);
-    const sourcePath = join(projectDir, "my-skill.md");
+    const ctx = stubCtx(scopeRoot);
+    const sourcePath = join(scopeRoot, "my-skill.md");
     writeFileSync(sourcePath, "---\nname: my-skill\n---\nbody\n");
 
     const result = await importSkill(ctx, sourcePath);
@@ -198,20 +194,20 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       expect(result.skills).toHaveLength(1);
       expect(result.skills[0].name).toBe("my-skill");
       expect(existsSync(result.skills[0].path)).toBe(true);
-      expect(result.skills[0].path).toBe(join(projectDir, ".kota", "skills", "my-skill", "SKILL.md"));
+      expect(result.skills[0].path).toBe(join(scopeRoot, ".kota", "skills", "my-skill", "SKILL.md"));
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain("name: my-skill");
       expect(readFileSync(result.skills[0].path, "utf-8")).toContain(`imported_from: ${sourcePath}`);
-      expect(existsSync(join(projectDir, ".kota", "skills", "my-skill.md"))).toBe(false);
+      expect(existsSync(join(scopeRoot, ".kota", "skills", "my-skill.md"))).toBe(false);
       expect(readFileSync(
-        join(projectDir, ".kota", "skills", "my-skill", IMPORTED_SKILL_PROVENANCE_FILE),
+        join(scopeRoot, ".kota", "skills", "my-skill", IMPORTED_SKILL_PROVENANCE_FILE),
         "utf-8",
       )).toContain('"importedFiles": [');
     }
   });
 
   it("importSkill rejects unsupported tool-policy frontmatter before writing", async () => {
-    const ctx = stubCtx(projectDir);
-    const sourcePath = join(projectDir, "restricted.md");
+    const ctx = stubCtx(scopeRoot);
+    const sourcePath = join(scopeRoot, "restricted.md");
     writeFileSync(
       sourcePath,
       "---\nname: restricted\nallowed-tools: [Read]\n---\nbody\n",
@@ -225,16 +221,21 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
         '.kota/skills/restricted/SKILL.md: unsupported skill tool-policy frontmatter "allowed-tools"',
       );
     }
-    expect(existsSync(join(projectDir, ".kota", "skills", "restricted"))).toBe(false);
+    expect(existsSync(join(scopeRoot, ".kota", "skills", "restricted"))).toBe(false);
   });
 
   it("keeps single-file URL imports on the frontmatter-driven path", async () => {
-    const ctx = stubCtx(projectDir);
-    mockFetch({
+    const ctx = stubCtx(scopeRoot);
+    const http = mockFetch({
       "https://example.test/my-skill.md": "---\nname: url-skill\n---\nURL body\n",
     });
 
-    const result = await importSkill(ctx, "https://example.test/my-skill.md");
+    const result = await importSkill(
+      ctx,
+      "https://example.test/my-skill.md",
+      undefined,
+      http,
+    );
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.skills).toHaveLength(1);
@@ -247,8 +248,8 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
   });
 
   it("imports a selected skill from a local directory pack", async () => {
-    const ctx = stubCtx(projectDir);
-    const packDir = join(projectDir, "pack");
+    const ctx = stubCtx(scopeRoot);
+    const packDir = join(scopeRoot, "pack");
     mkdirSync(join(packDir, "alpha"), { recursive: true });
     mkdirSync(join(packDir, "alpha", "references"), { recursive: true });
     mkdirSync(join(packDir, "alpha", "scripts"), { recursive: true });
@@ -271,11 +272,11 @@ describe("skill-ops operations (local handler / daemon-down branch)", () => {
       expect(imported).toContain("directory-pack:");
       expect(imported).toContain("alpha/SKILL.md");
       expect(imported).toContain("Alpha guidance.");
-      expect(existsSync(join(projectDir, ".kota", "skills", "alpha", "references", "schema.md"))).toBe(true);
-      expect(existsSync(join(projectDir, ".kota", "skills", "alpha", "scripts", "helper.py"))).toBe(true);
-      expect(existsSync(join(projectDir, ".kota", "skills", "alpha", "sibling.md"))).toBe(false);
+      expect(existsSync(join(scopeRoot, ".kota", "skills", "alpha", "references", "schema.md"))).toBe(true);
+      expect(existsSync(join(scopeRoot, ".kota", "skills", "alpha", "scripts", "helper.py"))).toBe(true);
+      expect(existsSync(join(scopeRoot, ".kota", "skills", "alpha", "sibling.md"))).toBe(false);
       const provenance = readFileSync(
-        join(projectDir, ".kota", "skills", "alpha", IMPORTED_SKILL_PROVENANCE_FILE),
+        join(scopeRoot, ".kota", "skills", "alpha", IMPORTED_SKILL_PROVENANCE_FILE),
         "utf-8",
       );
       expect(provenance).toContain('"references/schema.md"');

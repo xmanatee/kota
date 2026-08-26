@@ -8,10 +8,6 @@
  */
 
 import { collectReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import {
-  buildReviewScrutinyEscalationReport,
-  detectRecurringReviewScrutinyPatternsFromReport,
-} from "#modules/autonomy/review-scrutiny-escalation.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   listFullRepoTasks,
@@ -30,7 +26,6 @@ import {
   type AutonomyReportInput,
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate-types.js";
-import { buildAutonomyChangeDecisionReport } from "./autonomy-change-decisions.js";
 import { buildDecisionAttributionReport } from "./decision-attribution.js";
 import { buildDiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
 import { buildOwnerInterventionReport } from "./owner-interventions.js";
@@ -45,8 +40,6 @@ import { buildSupervisionLoadReport } from "./supervision-load.js";
 
 export {
   type AreaCount,
-  type AutonomyChangeDecisionReport,
-  type AutonomyChangeDecisionSummary,
   type AutonomyHealthBreakdown,
   type AutonomyReportData,
   type AutonomyReportInput,
@@ -89,7 +82,7 @@ export function aggregateAutonomyReport(
   const windowMs = windowDays * MS_PER_DAY;
   const windowStartMs = input.windowEndMs - windowMs;
 
-  const allTasks = listFullRepoTasks(input.projectDir);
+  const allTasks = listFullRepoTasks(input.workspaceRoot);
   const taskById = buildTaskLookup(allTasks);
   const openQueue = buildQueueBalance(
     allTasks.filter((t) =>
@@ -98,7 +91,7 @@ export function aggregateAutonomyReport(
       t.state === "doing" ||
       t.state === "blocked",
     ),
-    listRepoTaskDependencyWaits(input.projectDir, [
+    listRepoTaskDependencyWaits(input.workspaceRoot, [
       "backlog",
       "ready",
       "doing",
@@ -134,16 +127,10 @@ export function aggregateAutonomyReport(
     runs: priorRuns,
   });
   const ownerInterventions = buildOwnerInterventionReport({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     windowStartMs,
     windowEndMs: input.windowEndMs,
   });
-  const reviewScrutinyEscalationDetection =
-    detectRecurringReviewScrutinyPatternsFromReport({
-      report: reviewScrutiny,
-      tasks: allTasks,
-      config: { nowMs: input.windowEndMs, windowMs },
-    });
   const postCompletionFollowUpLinks = buildPostCompletionCorrectiveLinks({
     tasks: allTasks,
     runs,
@@ -165,7 +152,7 @@ export function aggregateAutonomyReport(
     priorPostCompletionFollowUpLinks,
   );
   const supervisionLoad = buildSupervisionLoadReport({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     runsDir: input.runsDir,
     runs: reportRuns,
     tasks: allTasks,
@@ -195,11 +182,6 @@ export function aggregateAutonomyReport(
       runsDir: input.runsDir,
     }),
     reviewScrutiny,
-    reviewScrutinyEscalation: buildReviewScrutinyEscalationReport({
-      projectDir: input.projectDir,
-      detection: reviewScrutinyEscalationDetection,
-      config: { nowMs: input.windowEndMs, windowMs },
-    }),
     shadowSemanticReviews: buildShadowSemanticReviewReport({
       runs,
       runsDir: input.runsDir,
@@ -213,10 +195,6 @@ export function aggregateAutonomyReport(
       runs,
       runsDir: input.runsDir,
       taskById,
-    }),
-    autonomyChangeDecisions: buildAutonomyChangeDecisionReport({
-      runs,
-      runsDir: input.runsDir,
     }),
     ownerInterventions,
     postCompletionFollowUps,
@@ -233,7 +211,7 @@ export function aggregateAutonomyReport(
       postCompletionFollowUpLinks,
       priorPostCompletionFollowUpLinks,
     }),
-    health: buildAutonomyHealthBreakdown(input.projectDir),
+    health: buildAutonomyHealthBreakdown(input.workspaceRoot),
     blockers: buildBlockerMix(allTasks),
     cost: buildCostBreakdown(runs),
   };

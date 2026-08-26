@@ -2,32 +2,32 @@ import { rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   MS_PER_DAY,
-  makeProjectDir,
+  makeScopeRoot,
   NOW,
   ownerInterventionDetection,
   writeQuestion,
 } from "./owner-intervention-escalation.test-helpers.js";
 
 describe("owner intervention escalation detection", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("detects repeated stale and expired owner questions", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "stale1",
       status: "pending",
       runId: "run-a",
       createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
       timeoutMs: 60 * 60 * 1000,
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "expired1",
       status: "expired",
       runId: "run-b",
@@ -36,7 +36,7 @@ describe("owner intervention escalation detection", () => {
       resolutionSource: "timeout",
     });
 
-    const found = ownerInterventionDetection(projectDir);
+    const found = ownerInterventionDetection(workspaceRoot);
 
     expect(found.patterns).toHaveLength(1);
     expect(found.patterns[0]).toMatchObject({
@@ -47,7 +47,7 @@ describe("owner intervention escalation detection", () => {
   });
 
   it("keeps stale record-only health reviewer questions reportable but out of active repair escalation", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "health-stale-a",
       status: "pending",
       runId: "health-run-a",
@@ -57,7 +57,7 @@ describe("owner intervention escalation detection", () => {
       answerBehavior: "record-only",
       createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "health-stale-b",
       status: "pending",
       runId: "health-run-b",
@@ -68,7 +68,7 @@ describe("owner intervention escalation detection", () => {
       createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
     });
 
-    const found = ownerInterventionDetection(projectDir);
+    const found = ownerInterventionDetection(workspaceRoot);
 
     expect(found.patterns).toEqual([]);
     expect(found.ignoredPatterns).toHaveLength(1);
@@ -85,7 +85,7 @@ describe("owner intervention escalation detection", () => {
   });
 
   it("detects workflow and source recurrence across different task ids", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "workflow-task-a",
       status: "answered",
       runId: "run-workflow-a",
@@ -96,7 +96,7 @@ describe("owner intervention escalation detection", () => {
       proposedAnswers: ["Continue"],
       answer: "Use the available-queue path instead.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "workflow-task-b",
       status: "answered",
       runId: "run-workflow-b",
@@ -107,7 +107,7 @@ describe("owner intervention escalation detection", () => {
       proposedAnswers: ["Continue"],
       answer: "Do not continue; switch to the available-queue path.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "source-task-a",
       status: "answered",
       runId: "run-source-a",
@@ -118,7 +118,7 @@ describe("owner intervention escalation detection", () => {
       proposedAnswers: ["Continue"],
       answer: "Rather than continue, use the explicit dispatch path.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "source-task-b",
       status: "answered",
       runId: "run-source-b",
@@ -130,7 +130,7 @@ describe("owner intervention escalation detection", () => {
       answer: "Stop continuing and use the explicit dispatch path.",
     });
 
-    const found = ownerInterventionDetection(projectDir);
+    const found = ownerInterventionDetection(workspaceRoot);
 
     expect(found.patterns.map((pattern) => pattern.dimension)).toEqual([
       { kind: "source", value: "shared-owner-source" },
@@ -153,38 +153,38 @@ describe("owner intervention escalation detection", () => {
   });
 
   it("keeps provider/setup-only and legacy records out of the active escalation gate", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "provider1",
       status: "answered",
       runId: "run-provider-a",
       answer: "This is provider API outage noise; ignore the false alarm.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "provider2",
       status: "answered",
       runId: "run-provider-b",
       answer: "Network provider timeout noise, dismiss as transient.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "setup1",
       status: "answered",
       runId: "run-setup-a",
       answer: "Configure the missing API key credential before retrying.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "setup2",
       status: "answered",
       runId: "run-setup-b",
       answer: "Install Playwright storage state and log in before retrying.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "legacy1",
       status: "answered",
       answer: "Use the safer path instead.",
       omitOrigin: true,
       omitAnswerBehavior: true,
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "legacy2",
       status: "answered",
       answer: "Do not continue; use the safer path.",
@@ -192,7 +192,7 @@ describe("owner intervention escalation detection", () => {
       omitAnswerBehavior: true,
     });
 
-    const found = ownerInterventionDetection(projectDir);
+    const found = ownerInterventionDetection(workspaceRoot);
 
     expect(found.patterns).toEqual([]);
     expect(

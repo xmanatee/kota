@@ -1,15 +1,15 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { resolveTelegramInteractiveBackend } from "./backend.js";
 import type {
   TelegramBotOptions,
-  TelegramProjectTarget,
-  TelegramProjectTargetResolution,
+  TelegramScopeTarget,
+  TelegramScopeTargetResolution,
   TelegramSession,
   TelegramSessionAgent,
 } from "./bot-runtime-types.js";
@@ -28,7 +28,7 @@ export class TelegramSessionRuntime {
   }
 
   protected async processMessage(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     text: string,
     firstName?: string,
   ): Promise<void> {
@@ -38,7 +38,11 @@ export class TelegramSessionRuntime {
     }
 
     this.busyChats.add(target.sessionKey);
-    const transport = new TelegramTransport(target.chatId, this.token);
+    const transport = new TelegramTransport(
+      target.chatId,
+      this.token,
+      this.options.http,
+    );
     try {
       const session = this.getOrCreateSession(target, firstName);
       session.proxy.target = transport;
@@ -66,18 +70,18 @@ export class TelegramSessionRuntime {
   }
 
   private getOrCreateSession(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     firstName?: string,
   ): TelegramSession {
     let session = this.sessions.get(target.sessionKey);
     if (session) return session;
 
-    const admittedTarget = this.admitProjectTarget(target);
+    const admittedTarget = this.admitScopeTarget(target);
     const identity: ChannelUserIdentity = {
       channelUserId: String(admittedTarget.chatId),
       displayName: firstName,
       channel: "telegram",
-      meta: { projectId: admittedTarget.projectId },
+      meta: { scopeId: admittedTarget.scopeId },
     };
     const proxy = new ProxyTransport();
     session = {
@@ -90,17 +94,17 @@ export class TelegramSessionRuntime {
     return session;
   }
 
-  protected admitProjectTarget(target: TelegramProjectTarget): TelegramProjectTarget {
-    const projectRuntime = this.options.getProjectRuntime(target.projectId);
+  protected admitScopeTarget(target: TelegramScopeTarget): TelegramScopeTarget {
+    const scopeRuntime = this.options.getScopeRuntime(target.scopeId);
     return {
       ...target,
-      projectDir: projectRuntime.project.projectDir,
-      projectRuntime,
+      scopeRoot: scopeRuntime.scope.scopeRoot,
+      scopeRuntime,
     };
   }
 
   private createSessionAgent(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     identity: ChannelUserIdentity,
     proxy: ProxyTransport,
   ): TelegramSessionAgent {
@@ -115,9 +119,9 @@ export class TelegramSessionRuntime {
           : {}),
         modelOutputTokenLimits: config.modelOutputTokenLimits,
         effort: backend.preset.defaultEffort,
-        projectDir: target.projectDir,
-        cwd: target.projectDir,
-        scopeId: target.projectId,
+        scopeRoot: target.scopeRoot,
+        cwd: target.scopeRoot,
+        scopeId: target.scopeId,
         config,
         autonomyMode: this.options.autonomyMode,
         verbose: this.options.verbose ?? config.verbose,
@@ -131,71 +135,78 @@ export class TelegramSessionRuntime {
       transport: proxy,
       config,
       channelIdentity: identity,
-      projectDir: target.projectDir,
-      projectRuntime: target.projectRuntime,
+      scopeRoot: target.scopeRoot,
+      scopeRuntime: target.scopeRuntime,
       moduleLoader: this.options.moduleLoader,
     };
     return new AgentSession(loopOptions);
   }
 
-  protected async resolveProjectTarget(chatId: number): Promise<TelegramProjectTargetResolution> {
-    if (!this.options.projectSelection) {
-      const runtime = this.options.defaultProjectRuntime;
+  protected async resolveScopeTarget(chatId: number): Promise<TelegramScopeTargetResolution> {
+    if (!this.options.scopeSelection) {
+      const runtime = this.options.defaultScopeRuntime;
       return {
         ok: true,
         target: {
           chatId,
-          projectId: runtime.project.projectId,
-          projectDir: runtime.project.projectDir,
-          projectRuntime: runtime,
-          sessionKey: `${chatId}:${runtime.project.projectId}`,
+          scopeId: runtime.scope.scopeId,
+          scopeRoot: runtime.scope.scopeRoot,
+          scopeRuntime: runtime,
+          sessionKey: `${chatId}:${runtime.scope.scopeId}`,
         },
       };
     }
-    const resolved = await this.options.projectSelection.resolveChat(chatId);
+    const resolved = await this.options.scopeSelection.resolveChat(chatId);
     if (!resolved.ok) return resolved;
-    let projectRuntime: ProjectRuntime;
+    let scopeRuntime: ScopeRuntime;
     try {
-      projectRuntime = this.options.getProjectRuntime(resolved.project.projectId);
+      scopeRuntime = this.options.getScopeRuntime(resolved.scope.scopeId);
     } catch (err) {
       return {
         ok: false,
-        message: `Telegram project "${resolved.project.projectId}" is not available in this daemon runtime: ${(err as Error).message}`,
+        message: `Telegram scope "${resolved.scope.scopeId}" is not available in this daemon runtime: ${(err as Error).message}`,
       };
     }
     return {
       ok: true,
       target: {
         chatId,
-        projectId: resolved.project.projectId,
-        projectDir: resolved.project.projectDir,
-        projectRuntime,
-        sessionKey: `${chatId}:${resolved.project.projectId}`,
+        scopeId: resolved.scope.scopeId,
+        scopeRoot: resolved.scope.scopeRoot,
+        scopeRuntime,
+        sessionKey: `${chatId}:${resolved.scope.scopeId}`,
       },
     };
   }
 
-  protected async handleProjectCommand(chatId: number, text: string): Promise<void> {
-    if (!this.options.projectSelection) return;
-    const before = await this.resolveProjectTarget(chatId);
-    const requested = text === "/project" ? "" : text.slice("/project ".length);
-    const result = await this.options.projectSelection.switchChat(chatId, requested);
+  protected async handleScopeCommand(chatId: number, text: string): Promise<void> {
+    if (!this.options.scopeSelection) return;
+    const before = await this.resolveScopeTarget(chatId);
+    const requested = text === "/scope" ? "" : text.slice("/scope ".length);
+    const result = await this.options.scopeSelection.switchChat(chatId, requested);
     this.sendText(chatId, result.message);
-    if (result.ok && result.changed && before.ok) this.closeSessionsForChat(chatId);
+    if (result.ok && result.changed && before.ok) await this.closeSessionsForChat(chatId);
   }
 
-  protected closeSessionsForChat(chatId: number): void {
+  protected async closeSessionsForChat(chatId: number): Promise<void> {
+    const cleanups: Promise<void>[] = [];
     const prefix = `${chatId}:`;
     for (const [key, session] of this.sessions) {
       if (!key.startsWith(prefix)) continue;
-      session.agent.close();
+      cleanups.push(Promise.resolve(session.agent.close()));
       this.sessions.delete(key);
       this.busyChats.delete(key);
     }
+    await Promise.all(cleanups);
   }
 
   protected sendText(chatId: number, text: string): void {
-    callTelegramApi(this.token, "sendMessage", { chat_id: chatId, text }).catch((err) => {
+    callTelegramApi(
+      this.token,
+      "sendMessage",
+      { chat_id: chatId, text },
+      { http: this.options.http },
+    ).catch((err) => {
       printTerminalDiagnostic(
         `[kota-telegram] Failed to send to ${chatId}:`,
         "error",

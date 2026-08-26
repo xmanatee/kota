@@ -1,17 +1,15 @@
-import type { AgentCanUseTool } from "#core/agent-harness/index.js";
+import type { AgentCanUseTool, AgentHarness } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
-import {
-  createProjectRuntime,
-  type ProjectRuntime,
-} from "#core/daemon/project-runtime.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
-import type { EventBus } from "#core/events/event-bus.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import {
-  getProviderRegistry,
-  initProviderRegistry,
-  resetProviderRegistry,
+  createScopeRuntime,
+  type ScopeRuntime,
+} from "#core/daemon/scope-runtime.js";
+import { EventBus } from "#core/events/event-bus.js";
+import {
+  ProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { resolveWorkflowConcurrency } from "./concurrency.js";
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
@@ -31,11 +29,14 @@ import {
 import { RunStateDatabase, type StoredRun } from "./run-state-database.js";
 import type { WorkflowRunMetadata, WorkflowRunToolRunner } from "./run-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
+import type { WorkflowCommandRunner } from "./workflow-command.js";
 
 const TERMINAL_STATES = new Set(["succeeded", "failed", "cancelled"]);
 
 export type StandaloneRunExecutionOptions = Readonly<{
   runTool?: WorkflowRunToolRunner;
+  runCommand?: WorkflowCommandRunner;
+  resolveAgentHarness?: (name: string) => AgentHarness;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
 }>;
 
@@ -54,8 +55,8 @@ export type StandaloneNestedRun = Readonly<{
 
 export type StandaloneRunHostOptions = Readonly<{
   stateDir: string;
-  project: ConfiguredProject;
-  bus: EventBus;
+  scope: DirectoryScope;
+  bus?: EventBus;
   workflows: readonly RegisteredWorkflowDefinitionInput[];
   config?: KotaConfig;
   model?: string;
@@ -67,6 +68,7 @@ export type StandaloneRunHostOptions = Readonly<{
     context: RunContext,
   ) => StandaloneRunExecutionOptions;
   onLog?: (message: string) => void;
+  providerRegistry?: ProviderRegistry;
 }>;
 
 /**
@@ -77,14 +79,15 @@ export type StandaloneRunHostOptions = Readonly<{
 export class StandaloneRunHost {
   readonly state: RunStateDatabase;
   readonly coordinator: RunCoordinator;
-  readonly projectRuntime: ProjectRuntime;
+  readonly scopeRuntime: ScopeRuntime;
+  readonly providerRegistry: ProviderRegistry;
+  readonly bus: EventBus;
 
   private readonly epoch: number;
   private readonly lifecycle: RunLifecycle;
   private readonly definitions: readonly WorkflowDefinition[];
   private readonly onLog: (message: string) => void;
   private readonly nestedRuns = new Map<string, StandaloneNestedRun>();
-  private readonly ownsProviderRegistry: boolean;
   private started = false;
   private closed = false;
 
@@ -92,10 +95,10 @@ export class StandaloneRunHost {
     this.onLog = options.onLog ?? (() => undefined);
     this.state = new RunStateDatabase(options.stateDir);
     const now = new Date().toISOString();
-    this.state.registerProject({
-      id: options.project.projectId,
-      rootPath: options.project.projectDir,
-      displayName: options.project.displayName,
+    this.state.registerScope({
+      id: options.scope.scopeId,
+      rootPath: options.scope.scopeRoot,
+      displayName: options.scope.displayName,
       createdAt: now,
     });
     const session = this.state.beginDaemonSession(now);
@@ -124,7 +127,7 @@ export class StandaloneRunHost {
         return verifyRunPostReconcileInvariant(
           context,
           definition.integration,
-          this.projectRuntime.runStore.rootDir,
+          this.scopeRuntime.runStore.rootDir,
           input,
         );
       },
@@ -143,7 +146,7 @@ export class StandaloneRunHost {
         options.concurrency ?? resolveWorkflowConcurrency(options.config?.scheduler),
       execute: (run, signal) => this.executeRun(run, signal),
       deliverPublication: (publication) =>
-        this.projectRuntime.workflowRuntime.deliverPublication(publication),
+        this.scopeRuntime.workflowRuntime.deliverPublication(publication),
       onError: (error, run) =>
         this.onLog(
           `Standalone run "${run.id}" failed in coordinator: ${
@@ -151,9 +154,9 @@ export class StandaloneRunHost {
           }`,
         ),
     });
-    this.coordinator.pauseProjectAdmission(options.project.projectId);
-    this.ownsProviderRegistry = getProviderRegistry() === null;
-    const registry = getProviderRegistry() ?? initProviderRegistry();
+    this.coordinator.pauseScopeAdmission(options.scope.scopeId);
+    this.providerRegistry = options.providerRegistry ?? new ProviderRegistry();
+    this.bus = options.bus ?? new EventBus();
 
     // Standalone commands admit only explicit work. Definition triggers are
     // intentionally disabled so schedules and file watchers cannot add work.
@@ -161,11 +164,11 @@ export class StandaloneRunHost {
       ...workflow,
       triggers: [{ event: "manual", cooldownMs: 0 }],
     }));
-    let createdRuntime: ProjectRuntime | undefined;
+    let createdRuntime: ScopeRuntime | undefined;
     try {
-      createdRuntime = createProjectRuntime({
-        project: options.project,
-        bus: options.bus,
+      createdRuntime = createScopeRuntime({
+        scope: options.scope,
+        bus: this.bus,
         config: options.config,
         workflows: explicitWorkflows,
         model: options.model,
@@ -178,18 +181,18 @@ export class StandaloneRunHost {
         runCoordinator: this.coordinator,
         daemonEpoch: this.epoch,
       });
-      this.projectRuntime = createdRuntime;
-      this.projectRuntime.workflowRuntime.start("paused");
-      this.definitions = this.projectRuntime.workflowRuntime.getDefinitions();
-      registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
-        resolve: (projectId) => projectId === options.project.projectId
-          ? { ok: true, runtime: this.projectRuntime }
-          : { ok: false, projectId },
+      this.scopeRuntime = createdRuntime;
+      this.scopeRuntime.workflowRuntime.start("paused");
+      this.definitions = this.scopeRuntime.workflowRuntime.getDefinitions();
+      this.providerRegistry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "standalone-run-host", {
+        resolve: (scopeId) => scopeId === options.scope.scopeId
+          ? { ok: true, runtime: this.scopeRuntime }
+          : { ok: false, scopeId },
       });
     } catch (error) {
       void createdRuntime?.workflowRuntime.stop(0);
       this.state.close();
-      if (this.ownsProviderRegistry) resetProviderRegistry();
+      this.providerRegistry.unregisterOwner("standalone-run-host");
       throw error;
     }
   }
@@ -199,7 +202,7 @@ export class StandaloneRunHost {
     options: WorkflowEnqueueOptions = {},
   ): string {
     this.assertOpen();
-    const result = this.projectRuntime.workflowRuntime.enqueuePendingRun(
+    const result = this.scopeRuntime.workflowRuntime.enqueuePendingRun(
       workflowName,
       options,
     );
@@ -237,7 +240,7 @@ export class StandaloneRunHost {
       }
       const run = this.state.getRun(runId);
       if (!run) {
-        if (this.projectRuntime.workflowRuntime
+        if (this.scopeRuntime.workflowRuntime
           .getState()
           .pendingRuns.some((pending) => pending.runId === runId)) {
           await new Promise<void>((resolve) => setTimeout(resolve, 0));
@@ -248,7 +251,7 @@ export class StandaloneRunHost {
       if (TERMINAL_STATES.has(run.state)) {
         return {
           run,
-          metadata: this.projectRuntime.runStore.getRun(runId),
+          metadata: this.scopeRuntime.runStore.getRun(runId),
         };
       }
       if (run.state === "needs_attention") {
@@ -266,7 +269,7 @@ export class StandaloneRunHost {
   }
 
   listRuns(): StoredRun[] {
-    return this.state.listRuns(this.options.project.projectId);
+    return this.state.listRuns(this.options.scope.scopeId);
   }
 
   listNestedRuns(): StandaloneNestedRun[] {
@@ -277,12 +280,12 @@ export class StandaloneRunHost {
     if (this.closed) return;
     if (
       !this.started &&
-      this.state.listRuns(this.options.project.projectId, ["queued"]).length > 0
+      this.state.listRuns(this.options.scope.scopeId, ["queued"]).length > 0
     ) {
       this.startDispatch();
     }
     if (this.started) await this.coordinator.whenIdle();
-    this.coordinator.pauseProjectAdmission(this.options.project.projectId);
+    this.coordinator.pauseScopeAdmission(this.options.scope.scopeId);
     await this.coordinator.drainPublications();
     const pendingPublications = this.state.listPendingPublications();
     if (pendingPublications.length > 0) {
@@ -290,17 +293,18 @@ export class StandaloneRunHost {
         `Standalone run host cannot close with ${pendingPublications.length} undelivered publication(s)`,
       );
     }
-    await this.projectRuntime.workflowRuntime.stop(0);
+    await this.scopeRuntime.workflowRuntime.stop(0);
     await this.coordinator.dispose();
     this.state.close();
-    if (this.ownsProviderRegistry) resetProviderRegistry();
+    this.providerRegistry.unregisterOwner("standalone-run-host");
+    if (!this.options.bus) this.bus.clear();
     this.closed = true;
   }
 
   private startDispatch(): void {
     if (this.started) return;
     this.started = true;
-    this.projectRuntime.workflowRuntime.setDispatchPaused(false);
+    this.scopeRuntime.workflowRuntime.setDispatchPaused(false);
   }
 
   private definition(name: string): WorkflowDefinition {
@@ -322,13 +326,13 @@ export class StandaloneRunHost {
     const { promise } = executeWorkflowRun(definition, run.trigger, {
       runContext: context,
       authorityConfigPath: this.options.authorityConfigPath,
-      bus: this.options.bus,
-      pbus: this.projectRuntime.pbus,
-      store: this.projectRuntime.runStore,
-      readRuntimeState: () => this.state.readWorkflowSummary(this.options.project.projectId),
-      deadLetterQueue: this.projectRuntime.deadLetterQueue,
-      approvalQueue: this.projectRuntime.approvalQueue,
-      idempotencyStore: this.projectRuntime.idempotencyStore,
+      bus: this.bus,
+      pbus: this.scopeRuntime.pbus,
+      store: this.scopeRuntime.runStore,
+      readRuntimeState: () => this.state.readWorkflowSummary(this.options.scope.scopeId),
+      deadLetterQueue: this.scopeRuntime.deadLetterQueue,
+      approvalQueue: this.scopeRuntime.approvalQueue,
+      idempotencyStore: this.scopeRuntime.idempotencyStore,
       model: this.options.model,
       config: this.options.config,
       log: this.onLog,
@@ -343,8 +347,10 @@ export class StandaloneRunHost {
         ),
       resolveAgentDef: this.options.resolveAgentDef,
       resolveSkillsPrompt: this.options.resolveSkillsPrompt,
-      scopePolicyAuthority: this.projectRuntime.scopePolicyAuthority,
+      scopePolicyAuthority: this.scopeRuntime.scopePolicyAuthority,
       runTool: execution?.runTool,
+      runCommand: execution?.runCommand,
+      resolveAgentHarness: execution?.resolveAgentHarness,
       createAgentCanUseTool: execution?.createAgentCanUseTool,
     }, abortController);
     try {
@@ -372,7 +378,7 @@ export class StandaloneRunHost {
   ): Promise<RunExecutionOutcome> {
     const outcome = await this.lifecycle.execute(run, signal);
     return outcome.kind === "terminal"
-      ? this.projectRuntime.workflowRuntime.finalizeTerminalOutcome(run, outcome)
+      ? this.scopeRuntime.workflowRuntime.finalizeTerminalOutcome(run, outcome)
       : outcome;
   }
 
@@ -423,7 +429,7 @@ export class StandaloneRunHost {
       throw error;
     }
     const successful = child.state === "succeeded";
-    const childOutput = this.projectRuntime.runStore.getRun(runId)?.steps
+    const childOutput = this.scopeRuntime.runStore.getRun(runId)?.steps
       .slice()
       .reverse()
       .find((step) => step.status === "success")?.output;

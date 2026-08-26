@@ -29,14 +29,14 @@ function outputLines(output: string): string[] {
 
 async function tryGitLines(
   runCommand: WorkflowCommandRunner,
-  projectDir: string,
+  workspaceRoot: string,
   args: readonly string[],
 ): Promise<string[] | null> {
   try {
     const result = await runCommand({
       command: "git",
       args,
-      cwd: projectDir,
+      cwd: workspaceRoot,
       captureLimitBytesPerStream: 1_000_000,
     });
     return outputLines(result.stdout.text);
@@ -113,20 +113,20 @@ async function collectGitEvidenceForSource(
   runCommand: WorkflowCommandRunner,
 ): Promise<{ evidence: ProgressReviewGitEvidence[]; excluded: string[] }> {
   const excluded: string[] = [];
-  const status = await tryGitLines(runCommand, source.projectDir, ["status", "--short"]);
+  const status = await tryGitLines(runCommand, source.workspaceRoot, ["status", "--short"]);
   const statusEvidence = status
     ? parseGitStatusEvidence(source, status, excluded)
     : [];
   if (!status) excluded.push(`${source.displayName} git: status unavailable`);
 
-  const hasHead = await tryGitLines(runCommand, source.projectDir, [
+  const hasHead = await tryGitLines(runCommand, source.workspaceRoot, [
     "rev-parse",
     "--verify",
     "HEAD",
   ]);
   if (!hasHead) return { evidence: statusEvidence, excluded };
 
-  const commits = await tryGitLines(runCommand, source.projectDir, [
+  const commits = await tryGitLines(runCommand, source.workspaceRoot, [
     "log",
     `--since=${new Date(windowStartMs).toISOString()}`,
     `--max-count=${PROGRESS_REVIEW_MAX_GIT_COMMITS}`,
@@ -152,7 +152,7 @@ async function collectGitEvidenceForSource(
       committedAt,
       summary: sourceSummary(source, `commit ${short}: ${subject}`),
     });
-    const files = await tryGitLines(runCommand, source.projectDir, [
+    const files = await tryGitLines(runCommand, source.workspaceRoot, [
       "diff-tree",
       "--root",
       "--no-commit-id",
@@ -182,16 +182,16 @@ async function collectGitEvidenceForSource(
 }
 
 export async function collectProgressReviewGitEvidence(args: {
-  projectDir: string;
-  scopeDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   trigger: WorkflowRunTrigger;
   now: Date;
   runCommand: WorkflowCommandRunner;
 }): Promise<ProgressReviewGitEvidenceByScope> {
   const target = selectEvidenceTarget(
-    args.projectDir,
-    args.scopeDir,
+    args.workspaceRoot,
+    args.scopeRoot,
     args.trigger,
     args.stateDir,
   );

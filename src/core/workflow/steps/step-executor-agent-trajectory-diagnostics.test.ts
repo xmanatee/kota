@@ -75,18 +75,18 @@ function toolResult(index: number, isError: boolean): KotaAgentMessage {
   };
 }
 
-function makeProjectDir(): string {
-  const projectDir = join(
+function makeScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-agent-trajectory-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
-  return projectDir;
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
+  return workspaceRoot;
 }
 
 function makeAgentStep(
-  projectDir: string,
+  workspaceRoot: string,
   harness: string,
 ): WorkflowAgentStep {
   return {
@@ -94,7 +94,7 @@ function makeAgentStep(
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -102,7 +102,7 @@ function makeAgentStep(
 }
 
 function makeDefinition(
-  projectDir: string,
+  workspaceRoot: string,
   step: WorkflowAgentStep,
 ): WorkflowDefinition {
   return {
@@ -110,7 +110,7 @@ function makeDefinition(
     enabled: true,
     repository: "read",
     definitionPath: "src/modules/test/workflows/trajectory/workflow.ts",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     triggers: [],
     steps: [step],
     tags: [],
@@ -140,7 +140,7 @@ function makeHarness(
 }
 
 function readDiagnosticsArtifact(
-  projectDir: string,
+  workspaceRoot: string,
   metadata: WorkflowRunMetadata,
 ): {
   step: WorkflowStepResult;
@@ -151,7 +151,7 @@ function readDiagnosticsArtifact(
   if (step === undefined) throw new Error("missing step result");
   const artifactPath = step.trajectoryDiagnostics?.artifactPath;
   if (artifactPath === undefined) throw new Error("missing diagnostics path");
-  const absolutePath = join(projectDir, artifactPath);
+  const absolutePath = join(workspaceRoot, artifactPath);
   return {
     step,
     artifactPath: absolutePath,
@@ -162,7 +162,7 @@ function readDiagnosticsArtifact(
 }
 
 async function runDiagnosticScenario(args: {
-  projectDir: string;
+  workspaceRoot: string;
   messages: readonly KotaAgentMessage[];
   emitsAgentMessageStream?: boolean;
 }): Promise<{
@@ -174,14 +174,14 @@ async function runDiagnosticScenario(args: {
   registerAgentHarness(
     makeHarness(harness, args.messages, args.emitsAgentMessageStream ?? true),
   );
-  const store = new WorkflowRunStore(args.projectDir);
+  const store = new WorkflowRunStore(args.workspaceRoot);
   const bus = new EventBus();
   const { promise } = executeWorkflowRun(
-    makeDefinition(args.projectDir, makeAgentStep(args.projectDir, harness)),
+    makeDefinition(args.workspaceRoot, makeAgentStep(args.workspaceRoot, harness)),
     TRIGGER,
     {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: createTestRunContext(args.projectDir, TRIGGER),
+      runContext: createTestRunContext(args.workspaceRoot, TRIGGER),
       bus,
       store,
       log: () => {},
@@ -189,27 +189,27 @@ async function runDiagnosticScenario(args: {
   );
   const result = await promise;
   expect(result.metadata.status).toBe("success");
-  return readDiagnosticsArtifact(args.projectDir, result.metadata);
+  return readDiagnosticsArtifact(args.workspaceRoot, result.metadata);
 }
 
 describe("workflow agent-step trajectory diagnostics", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("writes clean supported diagnostics beside the agent step artifacts", async () => {
     const { step, artifactPath, artifact } = await runDiagnosticScenario({
-      projectDir,
+      workspaceRoot,
       messages: [
         toolCall(1, "Edit", { path: "add.js" }),
         toolResult(1, false),
@@ -236,7 +236,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
 
   it("warns when a workflow edit has no later verification-like command", async () => {
     const { artifact } = await runDiagnosticScenario({
-      projectDir,
+      workspaceRoot,
       messages: [
         toolCall(1, "Edit", { path: "add.js" }),
         toolResult(1, false),
@@ -253,7 +253,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
 
   it("warns on repeated identical failing commands without an intervening edit", async () => {
     const { artifact } = await runDiagnosticScenario({
-      projectDir,
+      workspaceRoot,
       messages: [
         toolCall(1, "Bash", { command: "pnpm test add.test.ts" }),
         toolResult(1, true),
@@ -268,7 +268,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
 
   it("warns when a successful verification is followed by another edit", async () => {
     const { artifact } = await runDiagnosticScenario({
-      projectDir,
+      workspaceRoot,
       messages: [
         toolCall(1, "Bash", { command: "pnpm test add.test.ts" }),
         toolResult(1, false),
@@ -284,7 +284,7 @@ describe("workflow agent-step trajectory diagnostics", () => {
 
   it("writes bounded unsupported diagnostics for non-streaming harnesses", async () => {
     const { step, artifact } = await runDiagnosticScenario({
-      projectDir,
+      workspaceRoot,
       messages: [],
       emitsAgentMessageStream: false,
     });
@@ -332,31 +332,31 @@ describe("workflow agent-step trajectory diagnostics", () => {
         return AGENT_OK_RESULT;
       },
     });
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const bus = new EventBus();
     const step = {
-      ...makeAgentStep(projectDir, harness),
+      ...makeAgentStep(workspaceRoot, harness),
       idleTimeoutMs: 20,
       timeoutMs: 1_000,
       retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
     };
 
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const completedStep = result.metadata.steps[0];
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "steps",
       "agent.trajectory-diagnostics.json",
     );
     const coveragePath = join(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "control-monitor-coverage.json",
     );
@@ -392,29 +392,29 @@ describe("workflow agent-step trajectory diagnostics", () => {
         throw new Error("Codex CLI run aborted.");
       },
     });
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const bus = new EventBus();
     const step = {
-      ...makeAgentStep(projectDir, harness),
+      ...makeAgentStep(workspaceRoot, harness),
       retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
     };
 
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const completedStep = result.metadata.steps[0];
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "steps",
       "agent.trajectory-diagnostics.json",
     );
     const coveragePath = join(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "control-monitor-coverage.json",
     );
@@ -462,10 +462,10 @@ describe("workflow agent-step trajectory diagnostics", () => {
     });
 
     let checkAttempts = 0;
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const bus = new EventBus();
     const step = {
-      ...makeAgentStep(projectDir, harness),
+      ...makeAgentStep(workspaceRoot, harness),
       repairLoop: {
         maxRepairAttempts: 1,
         checks: [
@@ -482,14 +482,14 @@ describe("workflow agent-step trajectory diagnostics", () => {
       },
     };
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
     const { step: completedStep, artifact } = readDiagnosticsArtifact(
-      projectDir,
+      workspaceRoot,
       result.metadata,
     );
 

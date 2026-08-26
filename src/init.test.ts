@@ -33,7 +33,7 @@ vi.mock("./core/daemon/scheduler.js", () => ({
   })),
 }));
 
-import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
+import { detectEnvironment, detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
 import { getTaskStore } from "./core/daemon/task-store.js";
 import { getHistoryProvider, getMemoryProvider } from "./core/modules/provider-registry.js";
@@ -44,7 +44,7 @@ const mockedHistory = vi.mocked(getHistoryProvider);
 const mockedTaskStore = vi.mocked(getTaskStore);
 const mockedScheduler = vi.mocked(getScheduler);
 
-describe("detectProject", () => {
+describe("detectWorkspaceTechnology", () => {
   let dir: string;
 
   beforeEach(() => {
@@ -56,13 +56,13 @@ describe("detectProject", () => {
   });
 
   it("returns null when no config files exist", () => {
-    expect(detectProject(dir)).toBeNull();
+    expect(detectWorkspaceTechnology(dir)).toBeNull();
   });
 
-  it("detects Node.js project with name from package.json", () => {
+  it("detects Node.js workspace with name from package.json", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "my-app" }));
-    const result = detectProject(dir);
-    expect(result).toContain("Node.js project");
+    const result = detectWorkspaceTechnology(dir);
+    expect(result).toContain("Node.js workspace");
     expect(result).toContain("my-app");
   });
 
@@ -73,7 +73,7 @@ describe("detectProject", () => {
         dependencies: { react: "^18", next: "^14" },
       }),
     );
-    const result = detectProject(dir)!;
+    const result = detectWorkspaceTechnology(dir)!;
     expect(result).toContain("react");
     expect(result).toContain("next");
   });
@@ -85,48 +85,48 @@ describe("detectProject", () => {
         devDependencies: { typescript: "^5", vitest: "^1" },
       }),
     );
-    const result = detectProject(dir)!;
+    const result = detectWorkspaceTechnology(dir)!;
     expect(result).toContain("TypeScript");
     expect(result).toContain("vitest");
   });
 
   it("falls back gracefully on malformed package.json", () => {
     writeFileSync(join(dir, "package.json"), "not valid json{{{");
-    expect(detectProject(dir)).toBe("Node.js project");
+    expect(detectWorkspaceTechnology(dir)).toBe("Node.js workspace");
   });
 
-  it("detects Rust project from Cargo.toml", () => {
+  it("detects Rust workspace from Cargo.toml", () => {
     writeFileSync(join(dir, "Cargo.toml"), '[package]\nname = "my-crate"\nversion = "0.1.0"');
-    expect(detectProject(dir)).toContain("Rust project");
-    expect(detectProject(dir)).toContain("my-crate");
+    expect(detectWorkspaceTechnology(dir)).toContain("Rust workspace");
+    expect(detectWorkspaceTechnology(dir)).toContain("my-crate");
   });
 
-  it("detects Go project from go.mod", () => {
+  it("detects Go workspace from go.mod", () => {
     writeFileSync(join(dir, "go.mod"), "module github.com/user/repo\n\ngo 1.21");
-    expect(detectProject(dir)).toContain("Go project");
-    expect(detectProject(dir)).toContain("github.com/user/repo");
+    expect(detectWorkspaceTechnology(dir)).toContain("Go workspace");
+    expect(detectWorkspaceTechnology(dir)).toContain("github.com/user/repo");
   });
 
-  it("detects Python project from pyproject.toml", () => {
-    writeFileSync(join(dir, "pyproject.toml"), '[project]\nname = "analyzer"');
-    expect(detectProject(dir)).toContain("Python project");
-    expect(detectProject(dir)).toContain("analyzer");
+  it("detects Python workspace from pyproject.toml", () => {
+    writeFileSync(join(dir, "pyproject.toml"), '[workspace]\nname = "analyzer"');
+    expect(detectWorkspaceTechnology(dir)).toContain("Python workspace");
+    expect(detectWorkspaceTechnology(dir)).toContain("analyzer");
   });
 
-  it("detects Python project from requirements.txt", () => {
+  it("detects Python workspace from requirements.txt", () => {
     writeFileSync(join(dir, "requirements.txt"), "flask\nrequests\n");
-    expect(detectProject(dir)).toBe("Python project");
+    expect(detectWorkspaceTechnology(dir)).toBe("Python workspace");
   });
 
-  it("detects Make-based project from Makefile", () => {
+  it("detects Make-based workspace from Makefile", () => {
     writeFileSync(join(dir, "Makefile"), "all:\n\techo hello");
-    expect(detectProject(dir)).toBe("Make-based project");
+    expect(detectWorkspaceTechnology(dir)).toBe("Make-based workspace");
   });
 
   it("package.json takes priority over Makefile", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "app" }));
     writeFileSync(join(dir, "Makefile"), "all:\n\techo hello");
-    expect(detectProject(dir)).toContain("Node.js project");
+    expect(detectWorkspaceTechnology(dir)).toContain("Node.js workspace");
   });
 
   it("includes scripts from package.json", () => {
@@ -134,7 +134,7 @@ describe("detectProject", () => {
       join(dir, "package.json"),
       JSON.stringify({ scripts: { build: "tsc", test: "vitest", lint: "eslint" } }),
     );
-    const result = detectProject(dir)!;
+    const result = detectWorkspaceTechnology(dir)!;
     expect(result).toContain("scripts:");
     expect(result).toContain("build");
     expect(result).toContain("test");
@@ -171,11 +171,11 @@ describe("buildSessionWarmup", () => {
     expect(result).toContain("Working directory");
   });
 
-  it("includes project type when detected", () => {
+  it("includes workspace type when detected", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "test-proj" }));
     const result = buildSessionWarmup(dir);
-    expect(result).toContain("**Project**:");
-    expect(result).toContain("Node.js project");
+		expect(result).toContain("**Workspace**:");
+    expect(result).toContain("Node.js workspace");
   });
 
   it("includes git context when in a git repo", () => {
@@ -479,20 +479,20 @@ describe("detectEnvironment", () => {
     expect(detectEnvironment(dir)).toBeNull();
   });
 
-  it("warmup shows environment when no project detected", () => {
+  it("warmup shows environment when no workspace detected", () => {
     writeFileSync(join(dir, "data.csv"), "a,b\n1,2");
     writeFileSync(join(dir, "notes.md"), "# Notes");
     const result = buildSessionWarmup(dir);
     expect(result).toContain("**Environment**:");
     expect(result).toContain("Workspace");
-    expect(result).not.toContain("**Project**:");
+		expect(result).not.toContain("**Workspace**:");
   });
 
-  it("warmup prefers project over environment when both available", () => {
+  it("warmup prefers workspace over environment when both available", () => {
     writeFileSync(join(dir, "package.json"), JSON.stringify({ name: "app" }));
     writeFileSync(join(dir, "data.csv"), "a,b");
     const result = buildSessionWarmup(dir);
-    expect(result).toContain("**Project**:");
+		expect(result).toContain("**Workspace**:");
     expect(result).not.toContain("**Environment**:");
   });
 });

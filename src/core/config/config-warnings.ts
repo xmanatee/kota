@@ -20,7 +20,7 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "thinkingBudget",
   "verbose",
   "skipConfirmations",
-  "trustedProjects",
+  "trustedScopes",
   "scopePolicies",
   "scopeAuthority",
   "autoEnable",
@@ -59,31 +59,31 @@ function readRawKeys(path: string): string[] | null {
 }
 
 /**
- * Checks the project-level .kota/config.json for unknown top-level keys and
+ * Checks the scope-level .kota/config.json for unknown top-level keys and
  * calls `warn` for each one found. Safe to call at startup; non-fatal.
  *
  * `moduleKeys` contains additional keys registered by loaded modules.
  */
 export function warnUnknownConfigKeys(
-  projectDir: string,
+  scopeRoot: string,
   warn: (message: string) => void,
   moduleKeys?: ReadonlySet<string>,
 ): void {
-  const projectPath = join(projectDir, ".kota", "config.json");
-  const keys = readRawKeys(projectPath);
+  const workspacePath = join(scopeRoot, ".kota", "config.json");
+  const keys = readRawKeys(workspacePath);
   if (!keys) return;
   for (const k of keys) {
     if (KNOWN_CONFIG_KEYS.has(k)) continue;
     if (moduleKeys?.has(k)) continue;
-    warn(`Config warning: unknown key "${k}" in ${projectPath}`);
+    warn(`Config warning: unknown key "${k}" in ${workspacePath}`);
   }
 }
 
-export function warnIgnoredUntrustedProjectConfig(
-  projectDir: string,
+export function warnIgnoredUntrustedScopeConfig(
+  scopeRoot: string,
   warn: (message: string) => void,
 ): void {
-  const diagnostics = loadConfigWithDiagnostics(projectDir);
+  const diagnostics = loadConfigWithDiagnostics(scopeRoot);
   for (const warning of diagnostics.warnings) {
     warn(`Config warning: ${warning}`);
   }
@@ -94,14 +94,14 @@ export function warnIgnoredUntrustedProjectConfig(
  * parse time and the default applies.
  */
 export function warnInvalidConcurrencyConfig(
-  projectDir: string,
+  scopeRoot: string,
   warn: (message: string) => void,
 ): void {
-  const projectPath = join(projectDir, ".kota", "config.json");
-  if (!existsSync(projectPath)) return;
+  const workspacePath = join(scopeRoot, ".kota", "config.json");
+  if (!existsSync(workspacePath)) return;
   let raw: unknown;
   try {
-    raw = JSON.parse(readFileSync(projectPath, "utf-8"));
+    raw = JSON.parse(readFileSync(workspacePath, "utf-8"));
   } catch {
     return;
   }

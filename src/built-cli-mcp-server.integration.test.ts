@@ -158,19 +158,19 @@ async function waitForExit(child: ChildProcess, timeoutMs: number): Promise<Exit
 }
 
 describe("built CLI mcp-server smoke (tools registered through onLoad)", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
   let homeDir: string;
   let child: ChildProcess | null;
   let stderrChunks: Buffer[];
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-built-cli-mcp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    homeDir = join(projectDir, "home");
+    stateDir = join(scopeRoot, ".kota");
+    homeDir = join(scopeRoot, "home");
     mkdirSync(stateDir, { recursive: true });
     mkdirSync(homeDir, { recursive: true });
     writeFileSync(
@@ -190,7 +190,7 @@ describe("built CLI mcp-server smoke (tools registered through onLoad)", () => {
         await waitForExit(child, 2_000);
       }
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("`node dist/cli.js mcp-server` advertises a non-empty tool list (registerTool ran in onLoad)", async () => {
@@ -198,11 +198,11 @@ describe("built CLI mcp-server smoke (tools registered through onLoad)", () => {
       process.execPath,
       [CLI_PATH, "mcp-server"],
       {
-        cwd: projectDir,
+        cwd: scopeRoot,
         env: {
           ...process.env,
           HOME: homeDir,
-          KOTA_PROJECT_DIR: projectDir,
+          KOTA_SCOPE_ROOT: scopeRoot,
           NODE_OPTIONS: "",
         },
         stdio: ["pipe", "pipe", "pipe"],

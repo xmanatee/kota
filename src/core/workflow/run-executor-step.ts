@@ -132,7 +132,6 @@ export async function executeWorkflowStep(
   const toolSession = {
     sessionId: `workflow:${randomUUID()}`,
     scopeId: deps.pbus.getScopeId(),
-    projectId: deps.pbus.getProjectId(),
   };
   registerSessionEnvironment(toolSession);
   progressContext.runTool = (name, input, toolContext) =>
@@ -195,7 +194,7 @@ export async function executeWorkflowStep(
     }
 
     const toolCalls = step.type === "agent"
-      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.projectDir, deps.log)
+      ? readToolCallSummary(step.id, run.metadata.runDir, agentConfig.scopeRoot, deps.log)
       : undefined;
     const completedBase = {
       id: step.id,
@@ -272,7 +271,7 @@ export async function executeWorkflowStep(
       usage: usageAccumulator?.snapshot(),
     });
   } finally {
-    unregisterSessionEnvironment(toolSession);
+    await unregisterSessionEnvironment(toolSession);
     activeTimeout?.dispose();
     idleMonitor?.dispose();
     runAbortController.signal.removeEventListener("abort", forwardRunAbort);

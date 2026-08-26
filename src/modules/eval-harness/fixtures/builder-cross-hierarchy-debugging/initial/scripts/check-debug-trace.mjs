@@ -7,18 +7,18 @@ import {
   runShortcutSelfTest,
 } from "./debug-trace-runner.mjs";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const artifactPath = join(projectRoot, "debug-trace-result.json");
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const artifactPath = join(scopeRoot, "debug-trace-result.json");
 
 const args = process.argv.slice(2);
 
 try {
   if (args.includes("--baseline-fails")) {
-    runBaselineFailureCheck(projectRoot);
+    runBaselineFailureCheck(scopeRoot);
   } else if (args.includes("--self-test-shortcuts")) {
-    runShortcutSelfTest(projectRoot);
+    runShortcutSelfTest(scopeRoot);
   } else {
-    runMainCheck(projectRoot, artifactPath);
+    runMainCheck(scopeRoot, artifactPath);
   }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

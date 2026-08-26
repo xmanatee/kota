@@ -1,5 +1,5 @@
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
-import type { TelegramProjectTarget, TelegramProjectTargetResolution } from "./bot-runtime-types.js";
+import type { TelegramScopeTarget, TelegramScopeTargetResolution } from "./bot-runtime-types.js";
 import { TelegramVoiceRuntime } from "./bot-voice-runtime.js";
 import type { TelegramMessage, TelegramUpdate } from "./client.js";
 import {
@@ -25,25 +25,25 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
     chatId: number,
     text: string,
     firstName?: string,
-    resolvedTarget?: TelegramProjectTarget,
+    resolvedTarget?: TelegramScopeTarget,
     sourceMessage?: TelegramMessage,
   ): Promise<void> {
     const interactiveAllowed = this.isInteractiveChatAllowed(chatId);
 
-    if (text === "/project" || text.startsWith("/project ")) {
+    if (text === "/scope" || text.startsWith("/scope ")) {
       if (!interactiveAllowed) {
         this.sendUnauthorizedChatMessage(chatId);
         return;
       }
       try {
-        await this.handleProjectCommand(chatId, text);
+        await this.handleScopeCommand(chatId, text);
       } catch (err) {
         printTerminalDiagnostic(
-          `[kota-telegram] Project switch error in chat ${chatId}:`,
+          `[kota-telegram] Scope switch error in chat ${chatId}:`,
           "error",
           (err as Error).message,
         );
-        this.sendText(chatId, "Project selection failed.");
+        this.sendText(chatId, "Scope selection failed.");
       }
       return;
     }
@@ -53,18 +53,18 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
       return;
     }
 
-    let resolved: TelegramProjectTargetResolution;
+    let resolved: TelegramScopeTargetResolution;
     try {
       resolved = resolvedTarget
         ? { ok: true, target: resolvedTarget }
-        : await this.resolveProjectTarget(chatId);
+        : await this.resolveScopeTarget(chatId);
     } catch (err) {
       printTerminalDiagnostic(
-        `[kota-telegram] Project resolution error in chat ${chatId}:`,
+        `[kota-telegram] Scope resolution error in chat ${chatId}:`,
         "error",
         (err as Error).message,
       );
-      if (interactiveAllowed) this.sendText(chatId, "Project selection failed.");
+      if (interactiveAllowed) this.sendText(chatId, "Scope selection failed.");
       else this.sendUnauthorizedChatMessage(chatId);
       return;
     }
@@ -80,7 +80,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
       }
       this.sendText(
         chatId,
-        `Hi ${firstName ?? "there"}! I'm KOTA, your AI assistant. Send me any message.\n\n` +
+        `Hi ${firstName ?? "there"}! I'm KOTA. Send me any message.\n\n` +
           `/clear — New conversation\n/status — Session info`,
       );
       return;
@@ -97,7 +97,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
       }
       const session = this.sessions.get(resolved.target.sessionKey);
       if (session) {
-        session.agent.close();
+        await session.agent.close();
         this.sessions.delete(resolved.target.sessionKey);
       }
       this.sendText(chatId, "Conversation cleared.");
@@ -115,7 +115,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
       }
       const session = this.sessions.get(resolved.target.sessionKey);
       const busy = this.busyChats.has(resolved.target.sessionKey);
-      const pendingCount = resolved.target.projectRuntime.scheduler.count();
+      const pendingCount = resolved.target.scopeRuntime.scheduler.count();
       const statusParts = [
         session
           ? `Active session (${busy ? "processing" : "idle"}). Cost: ${session.agent.getCostSummary()}`
@@ -150,7 +150,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
   }
 
   private emitInboundSignal(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     sourceMessage: TelegramMessage | undefined,
   ): boolean {
     const inboundSignals = this.options.inboundSignals;
@@ -168,7 +168,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
   }
 
   protected emitVoiceTranscriptInboundSignal(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     sourceMessage: TelegramMessage,
     transcript: string,
   ): boolean {
@@ -192,7 +192,7 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
     if (!inboundSignals) return false;
     const chatId = telegramUpdateChatId(update);
     if (chatId === null) return false;
-    const resolved = await this.resolveProjectTarget(chatId);
+    const resolved = await this.resolveScopeTarget(chatId);
     if (!resolved.ok) return false;
     const result = emitTelegramUpdateInboundSignal(
       inboundSignals.events,
@@ -207,11 +207,11 @@ export class TelegramMessageRuntime extends TelegramVoiceRuntime {
   }
 
   private inboundSignalContext(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     config: TelegramInboundSignalConfig,
   ) {
     return {
-      projectId: target.projectId,
+      scopeId: target.scopeId,
       receivedAt: new Date().toISOString(),
       config,
       allowedChatIds: this.options.allowedChatIds,

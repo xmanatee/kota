@@ -27,7 +27,7 @@ function statusFor(
           kind: "config",
           title: "OpenRouter API key credential",
           required: true,
-          scope: "project",
+          scope: "scope",
           sensitivity: "none",
           setup: { mode: "none" },
           state: "missing",

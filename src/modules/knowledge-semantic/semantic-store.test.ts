@@ -76,7 +76,7 @@ function makeTmpDir(): string {
 }
 
 describe("SemanticKnowledgeStore", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let globalDir: string;
 	let base: KnowledgeStore;
 	let provider: FakeEmbeddingProvider;
@@ -84,9 +84,9 @@ describe("SemanticKnowledgeStore", () => {
 	let errors: unknown[];
 
 	beforeEach(() => {
-		projectDir = makeTmpDir();
+		scopeRoot = makeTmpDir();
 		globalDir = makeTmpDir();
-		base = new KnowledgeStore(projectDir, globalDir);
+		base = new KnowledgeStore(scopeRoot, globalDir);
 		provider = new FakeEmbeddingProvider();
 		errors = [];
 		store = new SemanticKnowledgeStore({
@@ -97,7 +97,7 @@ describe("SemanticKnowledgeStore", () => {
 	});
 
 	afterEach(() => {
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 		rmSync(globalDir, { recursive: true, force: true });
 	});
 
@@ -111,7 +111,7 @@ describe("SemanticKnowledgeStore", () => {
 
 		expect(errors).toEqual([]);
 		expect(provider.calls).toBeGreaterThanOrEqual(1);
-		const sidecar = indexPathFor(join(projectDir, ".kota", "data"));
+		const sidecar = indexPathFor(join(scopeRoot, ".kota", "data"));
 		expect(existsSync(sidecar)).toBe(true);
 
 		const results = await store.semanticSearch("workflow cost tracking", 5);
@@ -151,7 +151,7 @@ describe("SemanticKnowledgeStore", () => {
 		});
 		await store.flush();
 
-		const sidecarPath = indexPathFor(join(projectDir, ".kota", "data"));
+		const sidecarPath = indexPathFor(join(scopeRoot, ".kota", "data"));
 		const before = new SemanticIndexFile(sidecarPath).load(provider.model);
 		const embBefore = [...before.entries[id].embedding];
 

@@ -1,3 +1,7 @@
+import type {
+  ModuleCapabilityManifestProjection,
+  ModuleManifestEffectLookup,
+} from "#core/modules/module-manifest.js";
 import type { ToolEffect } from "./effect.js";
 import type { ToolRunner } from "./index.js";
 
@@ -8,6 +12,9 @@ export type ToolEffectResolver = (
 export type ToolEffectMetadata = {
   effect: ToolEffect;
   resolveEffect?: ToolEffectResolver;
+  moduleName?: string;
+  manifestEffect?: ModuleManifestEffectLookup;
+  moduleManifest?: ModuleCapabilityManifestProjection;
 };
 
 type CoreToolEffectRegistration = ToolEffectMetadata & {
@@ -30,7 +37,27 @@ export function setModuleToolEffect(
   name: string,
   metadata: ToolEffectMetadata,
 ): void {
-  moduleToolEffects.set(name, metadata);
+  moduleToolEffects.set(name, {
+    ...moduleToolEffects.get(name),
+    ...metadata,
+  });
+}
+
+/** Attach a loader-built manifest to its tool registrations without a second manifest registry. */
+export function registerModuleToolManifestProjection(
+  projection: ModuleCapabilityManifestProjection,
+): void {
+  for (const effect of projection.effects) {
+    if (effect.source !== "tool") continue;
+    const existing = moduleToolEffects.get(effect.target);
+    moduleToolEffects.set(effect.target, {
+      ...existing,
+      effect: existing?.effect ?? effect.effect,
+      moduleName: projection.moduleName,
+      manifestEffect: { ...effect, moduleName: projection.moduleName },
+      moduleManifest: projection,
+    });
+  }
 }
 
 export function deleteModuleToolEffect(name: string): void {
@@ -45,6 +72,18 @@ export function getModuleToolEffectMetadata(
   name: string,
 ): ToolEffectMetadata | undefined {
   return moduleToolEffects.get(name);
+}
+
+export function getModuleToolManifestEffect(
+  name: string,
+): ModuleManifestEffectLookup | undefined {
+  return moduleToolEffects.get(name)?.manifestEffect;
+}
+
+export function getModuleToolManifestProjection(
+  name: string,
+): ModuleCapabilityManifestProjection | undefined {
+  return moduleToolEffects.get(name)?.moduleManifest;
 }
 
 export function getRegisteredToolEffectMetadata(

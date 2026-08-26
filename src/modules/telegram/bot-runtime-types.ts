@@ -1,14 +1,15 @@
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { OutboundHttpRequestPort } from "#core/outbound-http/index.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { TelegramCallbackQuery } from "./client.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
 import type { TelegramPollingOwner } from "./polling-ownership.js";
-import type { TelegramProjectSelection } from "./project-selection.js";
+import type { TelegramScopeSelection } from "./scope-selection.js";
 
 export type TelegramBotOptions = {
   token: string;
@@ -17,13 +18,13 @@ export type TelegramBotOptions = {
   config?: KotaConfig;
   autonomyMode: AutonomyMode;
   moduleLoader?: ModuleLoader;
-  /** Current daemon default runtime for single-project Telegram sessions. */
-  defaultProjectRuntime: ProjectRuntime;
-  /** Resolve the daemon-owned runtime bundle for a selected project id. */
-  getProjectRuntime: (projectId: string) => ProjectRuntime;
+  /** Current daemon default runtime for single-scope Telegram sessions. */
+  defaultScopeRuntime: ScopeRuntime;
+  /** Resolve the daemon-owned runtime bundle for a selected scope id. */
+  getScopeRuntime: (scopeId: string) => ScopeRuntime;
   /** Whitelist of allowed chat IDs. Empty/undefined = allow all. */
   allowedChatIds?: number[];
-  projectSelection?: TelegramProjectSelection;
+  scopeSelection?: TelegramScopeSelection;
   onChatReply?: (
     chatId: number,
     replyToMessageId: number,
@@ -37,23 +38,24 @@ export type TelegramBotOptions = {
     events: Pick<ModuleContext["events"], "emit">;
   };
   pollOwner?: TelegramPollingOwner;
+  http?: OutboundHttpRequestPort;
 };
 
-export type TelegramProjectTarget = {
+export type TelegramScopeTarget = {
   chatId: number;
-  projectId: string;
-  projectDir: string;
-  projectRuntime: ProjectRuntime;
+  scopeId: string;
+  scopeRoot: string;
+  scopeRuntime: ScopeRuntime;
   sessionKey: string;
 };
 
-export type TelegramProjectTargetResolution =
-  | { ok: true; target: TelegramProjectTarget }
+export type TelegramScopeTargetResolution =
+  | { ok: true; target: TelegramScopeTarget }
   | { ok: false; message: string };
 
 export type TelegramSessionAgent = {
   send(text: string): Promise<string | void>;
-  close(): void;
+  close(): void | Promise<void>;
   getCostSummary(): string;
 };
 

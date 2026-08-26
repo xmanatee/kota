@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "mcpName": "io.github.xmanatee/kota",
   "packageManager": "pnpm@10.32.1",
-  "description": "KOTA — Keep Only The Awesome. An AI coding agent.",
+  "description": "KOTA — a local-first agent automation runtime and operator control plane.",
   "type": "module",
   "bin": {
     "kota": "./bin/kota.mjs"
@@ -52,11 +52,13 @@
     "test:eval": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=eval",
     "test:changed": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --changed",
     "test:preset-parity": "NODE_OPTIONS=--conditions=source vitest run src/preset-parity-model-sweep.integration.test.ts src/preset-parity.integration.test.ts",
-    "lint": "biome check src/",
-    "lint:fix": "biome check --write src/",
+    "lint": "biome check src/ && biome lint clients/mobile/src/daemon/",
+    "lint:fix": "biome check --write src/ && biome lint clients/mobile/src/daemon/",
     "build:schema": "node --conditions=source --import tsx src/core/config/build-schema.ts",
     "build:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs",
     "check:ui-bindings": "node scripts/generate-ui-surface-bindings.mjs --check",
+    "build:client-bindings": "pnpm build:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs",
+    "check:client-bindings": "pnpm check:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs --check",
     "hygiene": "node --conditions=source --import tsx src/check-hygiene.ts",
     "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
     "kota": "node --conditions=source --import tsx src/cli.ts"

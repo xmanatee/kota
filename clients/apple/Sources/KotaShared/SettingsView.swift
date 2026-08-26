@@ -38,9 +38,9 @@ public struct MenuBarLabel: View {
 }
 
 /// Shared settings form. Both the macOS Settings scene and the iOS
-/// settings tab mount this directly so project-directory and remote-
+/// settings tab mount this directly so scope-directory and remote-
 /// daemon configuration stays one shape across platforms. The
-/// "Choose…" project-directory button delegates to the platform
+/// "Choose…" scope-directory button delegates to the platform
 /// affordance: macOS shows an `NSOpenPanel`; iOS surfaces a manual
 /// path-entry sheet because the iOS sandbox cannot grant
 /// arbitrary-folder access.
@@ -52,41 +52,41 @@ public struct SettingsView: View {
     }()
     @State private var remoteURLField: String = ""
     @State private var remoteTokenField: String = ""
-    @State private var manualProjectPath: String = ""
+    @State private var manualScopePath: String = ""
 
     public init() {}
 
     public var body: some View {
         Form {
-            Section("Project") {
+            Section("Scope") {
                 HStack {
-                    Text(appState.projectDir?.path ?? "Not configured")
+                    Text(appState.scopeRoot?.path ?? "Not configured")
                         .truncationMode(.head)
-                        .foregroundStyle(appState.projectDir == nil ? .red : .primary)
+                        .foregroundStyle(appState.scopeRoot == nil ? .red : .primary)
                     Spacer()
-                    if appState.platform.supportsNativeProjectPicker {
+                    if appState.platform.supportsNativeScopePicker {
                         Button("Choose…") {
-                            Task { await appState.promptForProjectDirectory() }
+                            Task { await appState.promptForScopeDirectory() }
                         }
                     }
                 }
 
-                if !appState.platform.supportsNativeProjectPicker {
+                if !appState.platform.supportsNativeScopePicker {
                     // iOS path: NSOpenPanel doesn't exist; the operator
-                    // types the project path manually and we resolve it
-                    // through the same `projectDir` write that the macOS
+                    // types the scope path manually and we resolve it
+                    // through the same `scopeRoot` write that the macOS
                     // chooser uses.
                     HStack {
-                        TextField("/path/to/project", text: $manualProjectPath)
+                        TextField("/path/to/scope", text: $manualScopePath)
                             .textFieldStyle(.roundedBorder)
                         Button("Set") {
-                            let trimmed = manualProjectPath.trimmingCharacters(in: .whitespacesAndNewlines)
+                            let trimmed = manualScopePath.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
-                                appState.projectDir = URL(fileURLWithPath: trimmed)
+                                appState.scopeRoot = URL(fileURLWithPath: trimmed)
                                 appState.startPolling()
                             }
                         }
-                        .disabled(manualProjectPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(manualScopePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
             }
@@ -130,7 +130,7 @@ public struct SettingsView: View {
             } header: {
                 Text("Remote Daemon")
             } footer: {
-                Text("When configured, the remote URL takes precedence over local project-directory discovery. The token is stored in Keychain.")
+                Text("When configured, the remote URL takes precedence over local scope-directory discovery. The token is stored in Keychain.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -147,7 +147,7 @@ public struct SettingsView: View {
     private func loadRemoteFields() {
         remoteURLField = appState.remoteURL
         remoteTokenField = appState.loadRemoteToken()
-        manualProjectPath = appState.projectDir?.path ?? ""
+        manualScopePath = appState.scopeRoot?.path ?? ""
     }
 
     private func saveRemote() {

@@ -9,7 +9,7 @@ export type OwnerDecisionListFilter = ScopeSelector & {
   status?: OwnerDecisionStatus | "all";
 };
 
-export type OwnerDecisionProjectScope = ScopeSelector;
+export type OwnerDecisionScopeSelection = ScopeSelector;
 
 export type OwnerDecisionListResult = {
   decisions: OwnerDecisionClientProjection[];
@@ -25,15 +25,15 @@ export type OwnerDecisionMutateResult =
 
 export interface OwnerDecisionsClient {
   list(filter?: OwnerDecisionListFilter): Promise<OwnerDecisionListResult>;
-  show(id: string, project?: OwnerDecisionProjectScope): Promise<OwnerDecisionShowResult>;
+  show(id: string, scopeSelector?: OwnerDecisionScopeSelection): Promise<OwnerDecisionShowResult>;
   answer(
     id: string,
     selectedValue: OwnerDecisionSelectedValue,
-    project?: OwnerDecisionProjectScope,
+    scopeSelector?: OwnerDecisionScopeSelection,
   ): Promise<OwnerDecisionMutateResult>;
   cancel(
     id: string,
     reason: string,
-    project?: OwnerDecisionProjectScope,
+    scopeSelector?: OwnerDecisionScopeSelection,
   ): Promise<OwnerDecisionMutateResult>;
 }

@@ -53,7 +53,7 @@ describe("runEvalSet profile validation", () => {
       ],
     );
     const resourceReport = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => EXECUTION_PROFILE,
@@ -109,7 +109,7 @@ describe("runEvalSet profile validation", () => {
       diagnostics: [],
     };
     const executionReport = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures: loadAllFixtures(fixturesRoot),
       executor: {
         preflight: () => nonGatingProfile,
@@ -134,7 +134,7 @@ describe("runEvalSet profile validation", () => {
     const fixtures = loadAllFixtures(fixturesRoot);
     await expect(
       runEvalSet({
-        projectDir: fixturesRoot,
+        workspaceRoot: fixturesRoot,
         fixtures,
         executor: {
           preflight: () => EXECUTION_PROFILE,
@@ -154,7 +154,7 @@ describe("runEvalSet profile validation", () => {
   it("rejects empty fixture sets rather than returning a vacuous 0/0 score", async () => {
     await expect(
       runEvalSet({
-        projectDir: fixturesRoot,
+        workspaceRoot: fixturesRoot,
         fixtures: [],
         executor: {
           preflight: () => EXECUTION_PROFILE,
@@ -192,7 +192,7 @@ describe("runEvalSet profile validation", () => {
 
     await expect(
       runEvalSet({
-        projectDir: fixturesRoot,
+        workspaceRoot: fixturesRoot,
         fixtures,
         executor: {
           preflight: () => rejectedProfile,

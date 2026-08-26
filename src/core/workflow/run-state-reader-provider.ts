@@ -10,9 +10,9 @@ import type {
 
 /** Read-only projection of the daemon-owned durable run-state authority. */
 export type RunStateReader = Readonly<{
-  getProjectIdByRootPath(rootPath: string): string | null;
-  readProjectStateValue<T extends DurableEffectValue>(
-    projectId: string,
+  getScopeIdByRootPath(rootPath: string): string | null;
+  readScopeStateValue<T extends DurableEffectValue>(
+    scopeId: string,
     key: string,
   ): RunStateValueSnapshot<T>;
 }>;
@@ -22,10 +22,10 @@ export const RUN_STATE_READER_PROVIDER_TYPE: ProviderToken<RunStateReader> =
 
 export function createRunStateReader(source: RunStateReader): RunStateReader {
   return Object.freeze({
-    getProjectIdByRootPath: (rootPath: string) =>
-      source.getProjectIdByRootPath(rootPath),
-    readProjectStateValue: <T extends DurableEffectValue>(projectId: string, key: string) =>
-      source.readProjectStateValue<T>(projectId, key),
+    getScopeIdByRootPath: (rootPath: string) =>
+      source.getScopeIdByRootPath(rootPath),
+    readScopeStateValue: <T extends DurableEffectValue>(scopeId: string, key: string) =>
+      source.readScopeStateValue<T>(scopeId, key),
   });
 }
 

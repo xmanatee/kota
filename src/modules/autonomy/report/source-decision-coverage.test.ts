@@ -12,18 +12,18 @@ import {
 const NOW_MS = Date.parse("2026-07-07T00:00:00.000Z");
 
 describe("source decision coverage report", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-source-coverage-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-source-coverage-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("groups source coverage by disposition and deterministic mapping status", () => {
-    writeWatchlist(projectDir, [
+    writeWatchlist(workspaceRoot, [
       watchlistEntry({
         url: "https://example.com/adopted",
         summary:
@@ -45,13 +45,13 @@ describe("source decision coverage report", () => {
         '    added: "2026-07-01"',
       ].join("\n"),
     ]);
-    writeTask(projectDir, {
+    writeTask(workspaceRoot, {
       state: "done",
       id: "task-done-source",
       title: "Done source task",
       body: sourceTaskBody("https://example.com/adopted"),
     });
-    writeTask(projectDir, {
+    writeTask(workspaceRoot, {
       state: "ready",
       id: "task-open-source",
       title: "Open source task",
@@ -59,7 +59,7 @@ describe("source decision coverage report", () => {
     });
 
     const report = buildSourceDecisionCoverageReport({
-      projectDir,
+      workspaceRoot,
       nowMs: NOW_MS,
       staleAfterDays: 30,
       localDecisionMarkers: [
@@ -103,7 +103,7 @@ describe("source decision coverage report", () => {
   });
 
   it("flags stale snapshots without inventing a task mapping", () => {
-    writeWatchlist(projectDir, [
+    writeWatchlist(workspaceRoot, [
       watchlistEntry({
         url: "https://example.com/stale",
         summary: "Monitor this source later.",
@@ -112,7 +112,7 @@ describe("source decision coverage report", () => {
     ]);
 
     const report = buildSourceDecisionCoverageReport({
-      projectDir,
+      workspaceRoot,
       nowMs: NOW_MS,
       staleAfterDays: 30,
       localDecisionMarkers: [],
@@ -132,7 +132,7 @@ describe("source decision coverage report", () => {
   });
 
   it("renders a sample section with adopted, open, rejected, and unmapped sources", () => {
-    writeWatchlist(projectDir, [
+    writeWatchlist(workspaceRoot, [
       watchlistEntry({
         url: "https://example.com/adopted",
         summary: "Covered by task-done-source.",
@@ -153,13 +153,13 @@ describe("source decision coverage report", () => {
         '    added: "2026-07-01"',
       ].join("\n"),
     ]);
-    writeTask(projectDir, {
+    writeTask(workspaceRoot, {
       state: "done",
       id: "task-done-source",
       title: "Done source task",
       body: sourceTaskBody("https://example.com/adopted"),
     });
-    writeTask(projectDir, {
+    writeTask(workspaceRoot, {
       state: "ready",
       id: "task-open-source",
       title: "Open source task",
@@ -169,7 +169,7 @@ describe("source decision coverage report", () => {
     const text = renderToString(
       renderSourceDecisionCoverageReport(
         buildSourceDecisionCoverageReport({
-          projectDir,
+          workspaceRoot,
           nowMs: NOW_MS,
           localDecisionMarkers: [
             localDecision({
@@ -194,8 +194,8 @@ describe("source decision coverage report", () => {
   });
 });
 
-function writeWatchlist(projectDir: string, entries: readonly string[]): void {
-  const dataDir = join(projectDir, "data");
+function writeWatchlist(workspaceRoot: string, entries: readonly string[]): void {
+  const dataDir = join(workspaceRoot, "data");
   mkdirSync(dataDir, { recursive: true });
   writeFileSync(
     join(dataDir, "watchlist.yaml"),
@@ -219,13 +219,13 @@ function watchlistEntry(args: {
   ].join("\n");
 }
 
-function writeTask(projectDir: string, args: {
+function writeTask(workspaceRoot: string, args: {
   state: "ready" | "done";
   id: string;
   title: string;
   body: string;
 }): void {
-  const dir = join(projectDir, "data", "tasks", args.state);
+  const dir = join(workspaceRoot, "data", "tasks", args.state);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, `${args.id}.md`),

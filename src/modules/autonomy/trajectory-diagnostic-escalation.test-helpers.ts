@@ -12,7 +12,7 @@ import { detectRecurringTrajectoryDiagnosticPatterns } from "./trajectory-diagno
 
 const NOW = Date.parse("2026-05-29T12:00:00.000Z");
 
-export function makeTrajectoryDiagnosticProjectDir(): string {
+export function makeTrajectoryDiagnosticScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "trajectory-diagnostic-escalation-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -86,7 +86,7 @@ export function legacyCleanArtifact(): { status: "ok"; counts: { warningCount: 0
 }
 
 export function seedTrajectoryRun(
-  projectDir: string,
+  workspaceRoot: string,
   opts: {
     id: string;
     hoursAgo: number;
@@ -124,7 +124,7 @@ export function seedTrajectoryRun(
       },
     ],
   };
-  const runDir = join(projectDir, ".kota", "runs", opts.id);
+  const runDir = join(workspaceRoot, ".kota", "runs", opts.id);
   const stepsDir = join(runDir, "steps");
   mkdirSync(stepsDir, { recursive: true });
   writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
@@ -134,9 +134,9 @@ export function seedTrajectoryRun(
   );
 }
 
-export function detectTrajectoryPatterns(projectDir: string) {
+export function detectTrajectoryPatterns(workspaceRoot: string) {
   return detectRecurringTrajectoryDiagnosticPatterns(
-    join(projectDir, ".kota", "runs"),
+    join(workspaceRoot, ".kota", "runs"),
     { nowMs: NOW },
   );
 }

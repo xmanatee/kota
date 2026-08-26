@@ -26,7 +26,7 @@ function moduleSummary(
   const skills = overrides.skills ?? [];
   return {
     name,
-    source: "project",
+    source: "bundled",
     dependencies: [],
     toolNames: [],
     workflowNames: [],
@@ -63,7 +63,7 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
     expect(result.agents[0]).toMatchObject({
       name: "builder",
       source: "autonomy",
-      moduleSource: "project",
+      moduleSource: "bundled",
       sourcePath: "src/modules/autonomy",
       model: "claude-opus-4-7",
       effort: "xhigh",
@@ -183,7 +183,7 @@ describe("agent-ops operations (local handler / daemon-down branch)", () => {
     expect(result.agents[0]).toMatchObject({
       name: "builder",
       source: "autonomy",
-      moduleSource: "project",
+      moduleSource: "bundled",
       sourcePath: "src/modules/autonomy",
       sourcePaths: [
         "src/modules/autonomy",

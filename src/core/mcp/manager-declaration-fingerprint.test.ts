@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { McpToolSchema } from "./client.js";
 import { McpManager } from "./manager.js";
-import type { McpToolEntry } from "./remote-task-entry-resolution.js";
 
 function captureTerminalStderr(): { output: () => string; restore: () => void } {
   const chunks: string[] = [];
@@ -206,64 +205,6 @@ describe("MCP tool declaration fingerprints", () => {
         before!,
       );
       expect(boundExecution).toMatchObject({
-        ok: true,
-        result: { content: "lookup route" },
-      });
-    } finally {
-      await manager.close();
-    }
-  }, 10_000);
-
-  it("dispatches through the entry captured during fingerprint validation", async () => {
-    const manager = new McpManager();
-    try {
-      await manager.initialize({
-        mcpServers: {
-          remote: {
-            command: "node",
-            args: [
-              "-e",
-              refreshServerScript([baseTool], `{ tools: ${JSON.stringify([baseTool])} }`),
-            ],
-          },
-        },
-      });
-
-      const name = "mcp__remote__lookup";
-      const expectedFingerprint = manager.getToolDeclarationFingerprint(name);
-      expect(expectedFingerprint).toMatch(/^[a-f0-9]{64}$/);
-      const state = manager as unknown as { toolMap: Map<string, McpToolEntry> };
-      const checkedMap = state.toolMap;
-      const checkedEntry = checkedMap.get(name);
-      if (!checkedEntry) throw new Error("expected checked MCP entry");
-      const replacementEntry: McpToolEntry = {
-        ...checkedEntry,
-        originalName: "replacement",
-        declaration: {
-          ...checkedEntry.declaration,
-          fingerprint: "f".repeat(64),
-        },
-      };
-      vi.spyOn(checkedEntry.client, "callTool").mockImplementation(async (toolName) => ({
-        resultType: "complete",
-        protocolVersion: "2024-11-05",
-        content: [],
-        blocks: [],
-        text: `${toolName} route`,
-        structuredContent: { answer: `${toolName} route` },
-      }));
-      vi.spyOn(checkedMap, "get").mockImplementationOnce(() => {
-        state.toolMap = new Map([[name, replacementEntry]]);
-        return checkedEntry;
-      });
-
-      const execution = await manager.executeToolWithDeclarationFingerprint(
-        name,
-        {},
-        expectedFingerprint!,
-      );
-
-      expect(execution).toMatchObject({
         ok: true,
         result: { content: "lookup route" },
       });

@@ -39,8 +39,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import daemonOpsModule from "./index.js";
 
@@ -259,27 +257,5 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
       source: "serve",
       serveOwned: true,
     });
-  });
-
-  it("supplying the daemon-ops sessions contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const contributed = daemonOpsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.sessions;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
-
-  it("the assembly path fails loudly when the daemon-ops sessions contribution is removed", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.sessions;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /sessions/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
   });
 });

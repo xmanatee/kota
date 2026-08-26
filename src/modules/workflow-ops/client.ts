@@ -89,7 +89,7 @@ export type WorkflowDeadLetterRedriveOptions = {
   target: DeadLetterRedriveTarget;
 };
 
-/** Project scope accepted by workflow runtime reads. */
+/** Scope selector accepted by workflow runtime reads. */
 export type WorkflowStatusFilter = ScopeSelector;
 
 /**
@@ -217,8 +217,8 @@ export type WorkflowDefinitionsResult = {
  *
  * Reads (`listRuns`, `status`) work both daemon-up and daemon-down — the
  * local implementor sources from run artifacts and durable run state. The
- * daemon-up `status` path accepts `projectId` so scoped clients can read the
- * selected project's workflow runtime.
+ * daemon-up `status` path accepts `scopeId` so scoped clients can read the
+ * selected scope's workflow runtime.
  * Dispatch-state mutations (`pause`, `resume`, `abort`, `reload`) work
  * daemon-down via signal files: the local implementor writes the signal
  * and the next daemon cycle picks it up. Definition mutations
@@ -229,10 +229,10 @@ export type WorkflowDefinitionsResult = {
 export interface WorkflowClient {
   listRuns(filter?: WorkflowRunsListFilter): Promise<WorkflowRunsListResult>;
   listDeadLetters(filter?: WorkflowDeadLetterListFilter): Promise<WorkflowDeadLetterListResult>;
-  getDeadLetter(id: string, projectId?: string): Promise<WorkflowDeadLetterGetResult>;
-  dismissDeadLetter(id: string, reason: string, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;
-  redriveDeadLetter(id: string, options: WorkflowDeadLetterRedriveOptions, projectId?: string): Promise<WorkflowDeadLetterMutationResult>;
-  exportDeadLetterDiagnostics(id: string, projectId?: string): Promise<EventJsonObject | null>;
+  getDeadLetter(id: string, scopeId?: string): Promise<WorkflowDeadLetterGetResult>;
+  dismissDeadLetter(id: string, reason: string, scopeId?: string): Promise<WorkflowDeadLetterMutationResult>;
+  redriveDeadLetter(id: string, options: WorkflowDeadLetterRedriveOptions, scopeId?: string): Promise<WorkflowDeadLetterMutationResult>;
+  exportDeadLetterDiagnostics(id: string, scopeId?: string): Promise<EventJsonObject | null>;
   status(filter?: WorkflowStatusFilter): Promise<WorkflowStatusSnapshot>;
   /**
    * Look up a single run. Daemon-up consults the daemon's in-memory tracker;

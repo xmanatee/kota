@@ -31,27 +31,27 @@ function makeProgram(): Command {
 }
 
 describe("kota report CLI process discipline output", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let origCwd: string;
-  let origEnvKotaProjectDir: string | undefined;
+  let origEnvKotaScopeRoot: string | undefined;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-report-process-discipline-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-report-process-discipline-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
     origCwd = process.cwd();
-    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
-    delete process.env.KOTA_PROJECT_DIR;
-    process.chdir(projectDir);
+    origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
+    delete process.env.KOTA_SCOPE_ROOT;
+    process.chdir(workspaceRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    if (origEnvKotaProjectDir !== undefined) {
-      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    if (origEnvKotaScopeRoot !== undefined) {
+      process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
     } else {
-      delete process.env.KOTA_PROJECT_DIR;
+      delete process.env.KOTA_SCOPE_ROOT;
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("--json includes the process-discipline report section", async () => {

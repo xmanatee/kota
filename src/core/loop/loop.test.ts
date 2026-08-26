@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerCleanupHook, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
 import {
   registerPreSendHook,
   resetPreSendHooks,
@@ -45,7 +44,7 @@ vi.mock("#core/tools/index.js", () => ({
   executeTool: vi.fn(),
   getTodoState: vi.fn(() => ""),
 }));
-vi.mock("./project-context.js", () => ({ loadProjectContext: vi.fn(() => "") }));
+vi.mock("./scope-context.js", () => ({ loadScopeContext: vi.fn(() => "") }));
 vi.mock("./instruction-files.js", () => ({ loadInstructionContext: vi.fn(() => "") }));
 vi.mock("#root/init.js", () => ({ buildSessionWarmup: vi.fn(() => "") }));
 vi.mock("#core/tools/delegate.js", () => ({
@@ -79,8 +78,8 @@ vi.mock("#core/loop/verify-tracker.js", async (importOriginal) => {
     detectVerifyCommands: vi.fn(() => []),
   };
 });
-vi.mock("#core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
+vi.mock("#core/modules/bundled-module-discovery.js", () => ({
+  discoverBundledModules: vi.fn(async () => []),
 }));
 vi.mock("#core/modules/module-discovery.js", () => ({
   discoverModules: vi.fn(async () => []),
@@ -89,7 +88,6 @@ vi.mock("#core/modules/module-discovery.js", () => ({
 // --- Import after mocks ---
 
 import { createModelClient } from "#core/model/model-client.js";
-import { Context } from "./context.js";
 import { AgentSession, runAgentLoop } from "./loop.js";
 import { BufferTransport } from "./transport.js";
 
@@ -142,7 +140,6 @@ describe("AgentSession", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    resetCleanupHooks();
     resetPreSendHooks();
     vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -150,7 +147,6 @@ describe("AgentSession", () => {
 
   afterEach(() => {
     session?.close();
-    resetCleanupHooks();
     resetPreSendHooks();
     vi.restoreAllMocks();
   });
@@ -254,7 +250,6 @@ describe("AgentSession", () => {
       expect(mockExecuteToolCalls.mock.calls[0]?.[1]).toMatchObject({
         approvalQueue: session.approvalQueue,
         scopeId: session.scopeId,
-        projectId: session.scopeId,
       });
     });
 
@@ -368,37 +363,6 @@ describe("AgentSession", () => {
 
       expect(replacement.changed).toBe(false);
       expect(session.getGuardrailsSnapshot()).toEqual(before);
-    });
-  });
-
-  describe("observation masking timing", () => {
-    it("calls maskOldObservations before LLM call each turn", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
-      mockStreamMessage.mockResolvedValueOnce(textResponse("ok", 110_000));
-
-      await session.send("test");
-
-      // maskOldObservations called once per turn (pre-LLM call)
-      expect(maskSpy).toHaveBeenCalledTimes(1);
-      maskSpy.mockRestore();
-    });
-
-    it("calls maskOldObservations once per turn in multi-turn loop", async () => {
-      session = new AgentSession({ autonomyMode: "autonomous" });
-      const maskSpy = vi.spyOn(Context.prototype, "maskOldObservations");
-      mockStreamMessage
-        .mockResolvedValueOnce(
-          toolResponse([{ id: "tu_1", name: "grep", input: { pattern: "x" } }], 110_000),
-        )
-        .mockResolvedValueOnce(textResponse("done", 110_000));
-      mockExecuteToolCalls.mockResolvedValueOnce(toolResults([{ id: "tu_1", content: "r" }]));
-
-      await session.send("search");
-
-      // 2 turns × 1 mask call = 2
-      expect(maskSpy).toHaveBeenCalledTimes(2);
-      maskSpy.mockRestore();
     });
   });
 
@@ -688,14 +652,20 @@ describe("AgentSession", () => {
   });
 
   describe("close", () => {
-    it("runs registered cleanup hooks", () => {
-      const cleanup = vi.fn();
-      registerCleanupHook("test-cleanup", cleanup);
-
+    it("resolves disposal only after its owned module host releases resources", async () => {
       session = new AgentSession({ autonomyMode: "autonomous" });
-      session.close();
+      let release!: () => void;
+      const blocked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      const unload = vi
+        .spyOn(session.moduleLoader, "unloadAll")
+        .mockImplementation(() => blocked);
 
-      expect(cleanup).toHaveBeenCalledTimes(1);
+		const disposal = session.dispose();
+		await vi.waitFor(() => expect(unload).toHaveBeenCalledTimes(1));
+		release();
+		await disposal;
     });
 
     it("is idempotent", () => {
@@ -704,10 +674,10 @@ describe("AgentSession", () => {
       session.close();
     });
 
-    it("emits Done status on normal close", () => {
-      const transport = new BufferTransport();
-      session = new AgentSession({ autonomyMode: "autonomous", transport });
-      session.close();
+		it("emits Done status on normal disposal", async () => {
+			const transport = new BufferTransport();
+			session = new AgentSession({ autonomyMode: "autonomous", transport });
+			await session.dispose();
 
       const statuses = transport.getStatusMessages();
       expect(statuses.some((m: string) => m.includes("Done"))).toBe(true);

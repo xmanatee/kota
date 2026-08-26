@@ -8,7 +8,7 @@ import {
 import type {
   UiLinkTarget,
   UiNode,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { SharedUiAction } from './SharedUiAction';
 import { assertNever } from './graph';
 import { roleColors, rowActionDefaults } from './presentation';

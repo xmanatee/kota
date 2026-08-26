@@ -12,22 +12,17 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import type { KotaConfig } from "#core/config/config.js";
 import { loadConfig } from "#core/config/config.js";
-import { getScheduler, initScheduler, resetScheduler } from "#core/daemon/scheduler.js";
-import {
-  type EventBus,
-  initEventBus,
-  resetEventBus,
-} from "#core/events/event-bus.js";
+import { Scheduler } from "#core/daemon/scheduler.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, type Transport } from "#core/loop/transport.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
 import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type { DaemonClientHandlers } from "#root/client/kota-client.generated.js";
 import { DaemonLink } from "./daemon-link.js";
 import type { DaemonTransport } from "./daemon-transport.js";
-import type { DaemonClientHandlers } from "./kota-client.js";
 import { NOTIFICATION_HUB_PROVIDER_TYPE } from "./notification-hub-provider.js";
 import { buildRequestHandler } from "./server-routes.js";
 import { SessionPool } from "./session-pool.js";
@@ -60,6 +55,8 @@ export type ServerListeningInfo = {
 export type ServerOptions = {
   /** Event authority already bound to runtime module lifecycle hooks. */
   eventBus?: EventBus;
+  /** Scheduler authority owned by this server. A fresh instance is used by default. */
+  scheduler?: Scheduler;
   /** Host-owned runtime loader borrowed by every server-created session. */
   moduleLoader?: ModuleLoader;
   port?: number;
@@ -120,21 +117,19 @@ export function startServer(options: ServerOptions): Server {
   });
   const daemonRunning = daemonLink.current() !== null;
 
-  const bus = options.eventBus ?? initEventBus();
+  const bus = options.eventBus ?? new EventBus();
   // When the daemon is running, it owns the scheduler. Use an in-memory-only
   // scheduler here so the server does not start a second disk-backed instance.
-  if (daemonRunning) {
-    initScheduler(process.cwd(), null);
-  } else {
-    initScheduler(process.cwd());
-  }
+  const scheduler = options.scheduler
+    ?? new Scheduler(process.cwd(), daemonRunning ? null : undefined);
   initModuleLogStore(process.cwd());
-  const scheduler = getScheduler();
 
   let stopBusConnection = (): void => {};
   let stopScheduler = (): void => {};
   if (!daemonRunning) {
-    const hub = getProviderRegistry()?.get(NOTIFICATION_HUB_PROVIDER_TYPE);
+    const hub = options.moduleLoader
+      ?.getProviderRegistry()
+      .get(NOTIFICATION_HUB_PROVIDER_TYPE);
     if (hub) {
       stopBusConnection = scheduler.connectBus(bus, (dueItems) => {
         hub.handleDueItems(dueItems);
@@ -193,8 +188,9 @@ export function startServer(options: ServerOptions): Server {
     clearInterval(cleanupTimer);
     stopBusConnection();
     stopScheduler();
-    resetScheduler();
-    resetEventBus();
+    scheduler.disconnectBus();
+    scheduler.stopTimer();
+    if (!options.eventBus) bus.clear();
     daemonLink.close();
     pool.closeAll();
   });

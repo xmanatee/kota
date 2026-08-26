@@ -18,16 +18,18 @@ export function createDefaultOutboundHttpDispatcher(
   resolveAddresses: OutboundHttpAddressResolver = resolveOutboundAddresses,
 ): OutboundHttpDispatcher {
   return async (url, init, context) =>
-    context.profile === "public-untrusted" || context.profile === "oauth-metadata-endpoint"
+    context.profile === "public-untrusted" ||
+      context.profile === "oauth-metadata-endpoint" ||
+      context.profile === "explicit-callback"
       ? dispatchPublicRequest(url, init, resolveAddresses, context.profile)
-      : globalThis.fetch(url, init);
+      : globalThis.fetch(url.href, init);
 }
 
 async function dispatchPublicRequest(
   url: URL,
   init: RequestInit,
   resolveAddresses: OutboundHttpAddressResolver,
-  policyLabel: "public-untrusted" | "oauth-metadata-endpoint",
+  policyLabel: "public-untrusted" | "oauth-metadata-endpoint" | "explicit-callback",
 ): Promise<Response> {
   const request = url.protocol === "https:" ? httpsRequest : httpRequest;
   const headers = requestHeadersFromInit(init.headers);
@@ -69,7 +71,7 @@ function lookupPublicAddress(
   options: PublicLookupOptions,
   callback: PublicLookupCallback,
   resolveAddresses: OutboundHttpAddressResolver,
-  policyLabel: "public-untrusted" | "oauth-metadata-endpoint",
+  policyLabel: "public-untrusted" | "oauth-metadata-endpoint" | "explicit-callback",
 ): void {
   void resolvePublicOutboundAddresses(hostname, resolveAddresses, policyLabel).then(
     (addresses) => {

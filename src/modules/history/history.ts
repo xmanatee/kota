@@ -1,9 +1,5 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type {
-  HistorySemanticOptions,
-  ReindexResult,
-} from "#core/modules/provider-types.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";
 import {
@@ -14,7 +10,7 @@ import {
   generateId,
   generateTitle,
   getHistoryDir,
-  getProjectHistoryDir,
+  getScopeHistoryDir,
   type HistoryIndex,
   MAX_ACTION_CONVERSATIONS,
   MAX_USER_CONVERSATIONS,
@@ -231,24 +227,6 @@ export class ConversationHistory {
     return this.dir;
   }
 
-  supportsSemanticSearch(): boolean {
-    return false;
-  }
-
-  async semanticSearch(
-    _query: string,
-    _topK: number,
-    _options?: HistorySemanticOptions,
-  ): Promise<ConversationRecord[]> {
-    throw new Error(
-      "Semantic conversation search requires an embedding-backed history provider.",
-    );
-  }
-
-  async reindex(): Promise<ReindexResult> {
-    return { indexed: 0, failed: 0, skipped: true };
-  }
-
   /** Clean up orphaned files not in the index. */
   cleanup(): number {
     const index = this.loadIndex();
@@ -285,23 +263,23 @@ export class ConversationHistory {
 }
 
 let globalHistory: ConversationHistory | null = null;
-const projectHistories = new Map<string, ConversationHistory>();
+const scopeHistories = new Map<string, ConversationHistory>();
 
 export function getHistory(): ConversationHistory {
   if (!globalHistory) globalHistory = new ConversationHistory();
   return globalHistory;
 }
 
-export function getProjectHistoryStore(projectDir: string): ConversationHistory {
-  const dir = getProjectHistoryDir(projectDir);
-  const existing = projectHistories.get(dir);
+export function getScopeHistoryStore(scopeRoot: string): ConversationHistory {
+  const dir = getScopeHistoryDir(scopeRoot);
+  const existing = scopeHistories.get(dir);
   if (existing) return existing;
   const history = new ConversationHistory(dir);
-  projectHistories.set(dir, history);
+  scopeHistories.set(dir, history);
   return history;
 }
 
 export function resetHistory(): void {
   globalHistory = null;
-  projectHistories.clear();
+  scopeHistories.clear();
 }

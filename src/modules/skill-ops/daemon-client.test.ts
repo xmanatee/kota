@@ -29,8 +29,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   SkillImportResult,
@@ -284,27 +282,5 @@ describe("skill-ops module daemonClient(link)", () => {
     });
     const contributed = skillsModule.daemonClient!(transport);
     await expect(contributed.skills!.import("/any")).rejects.toThrow(/boom/);
-  });
-
-  it("the assembly path fails loudly when the skill-ops module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.skills;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /skills/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the skill-ops module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = skillsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.skills;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

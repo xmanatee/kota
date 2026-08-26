@@ -16,11 +16,11 @@ const roots: string[] = [];
 
 function resources(
   definition: WorkflowDefinitionInput,
-  projectDir: string,
+  scopeRoot: string,
 ): readonly string[] {
   const input: WorkflowResourceInput = {
-    projectDir,
-    stateDir: join(projectDir, ".kota"),
+    scopeRoot,
+    stateDir: join(scopeRoot, ".kota"),
     workflowName: definition.name,
     trigger: { event: "publication.requested", schemaRef: null, payload: {} },
   };
@@ -30,17 +30,17 @@ function resources(
 function admit(
   store: RunStateDatabase,
   definition: WorkflowDefinitionInput,
-  projectId: string,
-  projectDir: string,
+  scopeId: string,
+  scopeRoot: string,
   runId: string,
 ): void {
   store.admitRun({
     id: runId,
-    projectId,
+    scopeId,
     workflow: definition.name,
     repository: definition.repository,
     trigger: { event: "publication.requested", schemaRef: null, payload: {} },
-    resources: resources(definition, projectDir),
+    resources: resources(definition, scopeRoot),
     admittedAt: "2026-08-25T10:00:00.000Z",
   });
 }
@@ -55,33 +55,33 @@ describe("autonomy publication resource isolation", () => {
   it("queues same-domain writers without blocking unrelated domains or scopes", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-publication-resources-"));
     roots.push(root);
-    const projectA = join(root, "project-a");
-    const projectB = join(root, "project-b");
+    const scopeA = join(root, "scope-a");
+    const scopeB = join(root, "scope-b");
     const store = new RunStateDatabase(join(root, "state"));
-    store.registerProject({
-      id: "project-a",
-      rootPath: projectA,
+    store.registerScope({
+      id: "scope-a",
+      rootPath: scopeA,
       createdAt: "2026-08-25T09:00:00.000Z",
     });
-    store.registerProject({
-      id: "project-b",
-      rootPath: projectB,
+    store.registerScope({
+      id: "scope-b",
+      rootPath: scopeB,
       createdAt: "2026-08-25T09:00:00.000Z",
     });
     const { epoch } = store.beginDaemonSession("2026-08-25T09:30:00.000Z");
 
-    admit(store, healthReviewer, "project-a", projectA, "health-a");
+    admit(store, healthReviewer, "scope-a", scopeA, "health-a");
     expect(store.startRun("health-a", epoch, "2026-08-25T10:00:01.000Z")).toBe(1);
-    admit(store, improverPublication, "project-a", projectA, "improver-a");
+    admit(store, improverPublication, "scope-a", scopeA, "improver-a");
     expect(store.startRun("improver-a", epoch, "2026-08-25T10:00:01.000Z")).toBeNull();
-    admit(store, progressPublication, "project-a", projectA, "progress-a");
+    admit(store, progressPublication, "scope-a", scopeA, "progress-a");
     expect(store.startRun("progress-a", epoch, "2026-08-25T10:00:01.000Z")).toBe(1);
-    admit(store, progressPublication, "project-a", projectA, "progress-a-2");
+    admit(store, progressPublication, "scope-a", scopeA, "progress-a-2");
     expect(store.startRun("progress-a-2", epoch, "2026-08-25T10:00:01.000Z")).toBeNull();
-    admit(store, scopePublication, "project-a", projectA, "scope-a");
+    admit(store, scopePublication, "scope-a", scopeA, "scope-a");
     expect(store.startRun("scope-a", epoch, "2026-08-25T10:00:01.000Z")).toBe(1);
 
-    admit(store, improverPublication, "project-b", projectB, "improver-b");
+    admit(store, improverPublication, "scope-b", scopeB, "improver-b");
     expect(store.startRun("improver-b", epoch, "2026-08-25T10:00:01.000Z")).toBe(1);
     expect(store.getRun("health-a")?.resources).toHaveLength(1);
     expect(store.getRun("progress-a")?.resources).toHaveLength(1);

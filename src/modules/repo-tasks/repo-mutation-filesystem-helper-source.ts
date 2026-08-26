@@ -45,7 +45,7 @@ try {
       request.operation !== "read" &&
       request.operation !== "write" &&
       request.operation !== "remove") ||
-    typeof request.projectRootPath !== "string" ||
+    typeof request.repoRootPath !== "string" ||
     typeof request.parentPath !== "string" ||
     !Array.isArray(request.parentParts) ||
     request.parentParts.some(
@@ -67,7 +67,7 @@ try {
   ) {
     refuse("repo mutation filesystem request is invalid");
   }
-  validateIdentity(request.projectRootIdentity, "project root identity");
+  validateIdentity(request.repoRootIdentity, "repository root identity");
   if (request.operation === "write") {
     if (
       (request.expectation !== "any" &&

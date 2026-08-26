@@ -131,7 +131,8 @@ describe("executeWorkflowStep agent usage capture", () => {
   const trigger = { event: "runtime.idle" as const, schemaRef: null, payload: {} };
 
   const context = {
-    projectDir: "/tmp",
+    workspaceRoot: "/tmp",
+    scopeRoot: "/tmp",
     workflow: { name: "test-wf", runId: "run-cost-01", runDir: ".kota/runs/run-cost-01", definitionPath: "src/modules/test/workflows/test/workflow.ts" },
     trigger,
     previousOutput: undefined,
@@ -148,11 +149,15 @@ describe("executeWorkflowStep agent usage capture", () => {
   const bus = { emit: vi.fn() } as any;
   const pbus = {
     emit: bus.emit,
-    getScopeId: () => "test-project",
-    getProjectId: () => "test-project",
+    getScopeId: () => "test-scope",
   } as any;
   const log = vi.fn();
-  const agentConfig = { config: {}, log, projectDir: "/tmp" } as any;
+	const agentConfig = {
+		config: {},
+		log,
+		scopeRoot: "/tmp",
+		workspaceRoot: "/tmp",
+	} as any;
   const observeUsage = (args: unknown[], usage: AgentUsage): void => {
     (args[8] as AgentStepConfig).onUsage?.(usage);
   };
@@ -207,7 +212,7 @@ describe("executeWorkflowStep agent usage capture", () => {
         sessionId: expect.stringMatching(/^workflow:/),
       });
       registerSessionEnvironmentResource(
-        { ...toolContext, scopeId: "test-project", projectId: "test-project" },
+        { ...toolContext, scopeId: "test-scope" },
         cleanup,
       );
       return { content: "ok" };

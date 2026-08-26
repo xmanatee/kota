@@ -4,7 +4,7 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import type { ModuleEventDef } from "#core/events/module-event.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { DaemonClientHandlers, LocalClientHandlers } from "#core/server/kota-client.js";
+import type { DaemonClientHandlers, LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import type {
   ModuleContext,
   ModuleContribution,
@@ -25,6 +25,11 @@ import type {
 } from "./module-types.js";
 import type { UiSurfaceSource } from "./module-ui-surfaces.js";
 import type { ModuleSetupRequirement } from "./setup-requirements.js";
+
+/** Host-owned runtime instance returned by module activation. */
+export type ModuleActivation = {
+  dispose: () => Promise<void> | void;
+};
 
 /** The single declaration boundary for every project or installed module. */
 export type KotaModule = {
@@ -54,8 +59,9 @@ export type KotaModule = {
     | ((ctx: ModuleContext) => ModuleCapabilityManifestInput);
   localClient?: (ctx: ModuleContext) => Partial<LocalClientHandlers>;
   daemonClient?: (link: DaemonTransport) => Partial<DaemonClientHandlers>;
-  onLoad?: (ctx: ModuleRuntimeContext) => Promise<void> | void;
-  onUnload?: () => Promise<void> | void;
+  onLoad?: (
+    ctx: ModuleRuntimeContext,
+  ) => Promise<ModuleActivation | void> | ModuleActivation | void;
   getHealth?: () => ModuleHealth;
   healthCheck?: () => HealthCheckResult | Promise<HealthCheckResult>;
 };

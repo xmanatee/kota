@@ -1,12 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import slackModule from "./index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { createSlackModule } from "./index.js";
 
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+const slackModule = createSlackModule(outboundHttpRequestPort((request) =>
+  mockFetch(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+));
 
 const FAKE_WEBHOOK = "https://hooks.slack.com/services/T000/B000/xxxx";
 
@@ -66,10 +74,6 @@ describe("slackModule notifications", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockFetch.mockResolvedValue({ ok: true, status: 200 });
-  });
-
-  afterEach(async () => {
-    await slackModule.onUnload?.();
   });
 
   it("POSTs Block Kit to webhook on workflow.failure.alert", async () => {
@@ -255,8 +259,8 @@ describe("slackModule notifications", () => {
 
   it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
-    await slackModule.onUnload?.();
+    const activation = await slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await activation?.dispose();
     bus.emit("workflow.failure.alert", { text: "alert" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();

@@ -9,6 +9,7 @@
  * transport — only the framing mechanism differs.
  */
 
+import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import type { HttpForeignModuleConfig, KempInbound, KempOutbound, KempTransport } from "./foreign-module.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
@@ -37,11 +38,14 @@ export class HttpTransport implements KempTransport {
 
     let response: Response;
     try {
-      response = await fetch(this.config.url, {
+      ({ response } = await outboundHttp.request({
+        profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.config.url]),
+        operation: "foreign-module.kemp.send",
+        url: this.config.url,
         method: "POST",
         headers,
         body: JSON.stringify(msg),
-      });
+      }));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       printTerminalDiagnostic(`${this.label} HTTP request failed: ${message}`, "error");

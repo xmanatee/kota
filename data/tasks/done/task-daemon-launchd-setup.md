@@ -35,7 +35,7 @@ unexpectedly and nothing restarts it.
   `systemctl --user enable --now`.
 - Does not require `sudo`; uses user-level service managers only.
 - Fails gracefully with a clear error when the OS is unsupported (Windows, etc.).
-- The generated service unit must include `KOTA_PROJECT_DIR` so the daemon starts in
+- The generated service unit must include `KOTA_SCOPE_ROOT` so the daemon starts in
   the correct project directory.
 - `kota daemon status` should indicate whether the service is managed via the OS
   process manager.

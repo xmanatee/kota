@@ -19,7 +19,7 @@ export async function triggerInboundSignalAgent(
   const result = await withHandoffAgentRuntime(
     {
       cwd: ctx.cwd,
-      projectDir: ctx.cwd,
+      scopeRoot: ctx.cwd,
       harness,
       resolveAgentDef: ctx.resolveAgentDef,
       resolveSkillsPrompt: ctx.resolveSkillsPrompt,
@@ -30,7 +30,6 @@ export async function triggerInboundSignalAgent(
       delegateBudget: createDelegateBudget(),
       autonomyMode: options.autonomyMode,
       scopeId: String(options.payload.scopeId),
-      projectId: String(options.payload.projectId),
     },
     () =>
       runHandoffAgent(
@@ -43,12 +42,10 @@ export async function triggerInboundSignalAgent(
           budget: { max_turns: options.maxTurns },
           scope: {
             scope_id: String(options.payload.scopeId),
-            project_id: String(options.payload.projectId),
           },
         },
         {
           scopeId: String(options.payload.scopeId),
-          projectId: String(options.payload.projectId),
         },
       ),
   );

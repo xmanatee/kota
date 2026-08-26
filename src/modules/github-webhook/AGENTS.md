@@ -15,8 +15,8 @@ This directory owns the GitHub webhook ingestion module — receives GitHub webh
   downstream prompt-injection labeling.
 - Trusted issue-comment mention deliveries map into the shared
   `inbound.signal.received` contract. Keep that adapter thin: authenticate the
-  GitHub delivery, normalize project/source/account/actor metadata, emit the
-  typed project-scoped event, and leave task capture, replies, owner questions,
+  GitHub delivery, normalize scope/source/account/actor metadata, emit the
+  typed scope-scoped event, and leave task capture, replies, owner questions,
   retries, and no-op decisions to workflows.
 
 ## GitHub Setup

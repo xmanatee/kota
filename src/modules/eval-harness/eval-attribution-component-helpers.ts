@@ -72,9 +72,7 @@ export function tierEvidence(
 }
 
 export function executionModeEvidence(runs: readonly FixtureRun[]): string {
-  const modes = uniqueSorted(
-    runs.map((run): FixtureRunExecutionMode => run.executionMode ?? "live"),
-  );
+  const modes = uniqueSorted(runs.map((run): FixtureRunExecutionMode => run.executionMode));
   return modes.join(",") || "unknown";
 }
 

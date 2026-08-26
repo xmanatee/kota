@@ -40,13 +40,13 @@ const workflow: WorkflowDefinitionInput = {
         );
         const currentState = decodeProgressReviewConsumptionState(
           snapshot.value,
-          ctx.scopeDir,
+          ctx.scopeRoot,
         );
-        if (currentState.scopeId !== deriveDirectoryScopeId(ctx.scopeDir)) {
+        if (currentState.scopeId !== deriveDirectoryScopeId(ctx.scopeRoot)) {
           throw new Error("progress review publication state belongs to another scope");
         }
         const result = publishProgressReview({
-          scopeDir: ctx.scopeDir,
+          scopeRoot: ctx.scopeRoot,
           sourceRunId: inspectRequest.outputRequired(ctx).sourceRunId,
           currentState,
         });

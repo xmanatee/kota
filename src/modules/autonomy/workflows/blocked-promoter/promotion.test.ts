@@ -22,7 +22,7 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "blocked-promoter-promotion-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -35,7 +35,7 @@ function makeProjectDir(): string {
 }
 
 function blockedTask(opts: {
-  projectDir: string;
+  workspaceRoot: string;
   id: string;
   preconditionLines: string[];
   daysAgo: number;
@@ -71,7 +71,7 @@ function blockedTask(opts: {
     "",
   ].join("\n");
   writeFileSync(
-    join(opts.projectDir, "data", "tasks", "blocked", `${opts.id}.md`),
+    join(opts.workspaceRoot, "data", "tasks", "blocked", `${opts.id}.md`),
     content,
   );
 }
@@ -100,9 +100,9 @@ describe("extractRecommendedAnswer", () => {
 
 describe("pickOwnerAskCandidate surfaces recommendedAnswer", () => {
   it("includes recommendedAnswer when context names one", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-pick-variant",
       daysAgo: 5,
       preconditionLines: [
@@ -120,9 +120,9 @@ describe("pickOwnerAskCandidate surfaces recommendedAnswer", () => {
   });
 
   it("recommendedAnswer is null when context has no Recommended line", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-pick-variant-2",
       daysAgo: 5,
       preconditionLines: [
@@ -141,13 +141,13 @@ describe("pickOwnerAskCandidate surfaces recommendedAnswer", () => {
 
 describe("classifyBlockedActions", () => {
   it("classifies task-done blockers as auto-promotable when enabler is in done/", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     writeFileSync(
       join(dir, "data", "tasks", "done", "task-enabler.md"),
       "---\nid: task-enabler\nstatus: done\n---\n# done\n",
     );
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-depends",
       daysAgo: 2,
       preconditionLines: ["kind: task-done", "ref: task-enabler"],
@@ -160,9 +160,9 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies task-done blockers as still-awaiting-task when enabler missing", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-depends-missing",
       daysAgo: 2,
       preconditionLines: ["kind: task-done", "ref: task-enabler-missing"],
@@ -177,9 +177,9 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies capability-installed as still-awaiting-capability when probe fails", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-cap",
       daysAgo: 2,
       preconditionLines: [
@@ -194,13 +194,13 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies blocked tasks with unfinished hard dependencies before precondition action", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     writeFileSync(
       join(dir, "data", "tasks", "backlog", "task-enabler.md"),
       "---\nid: task-enabler\nstatus: backlog\n---\n# backlog\n",
     );
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-owner-after-dependency",
       daysAgo: 20,
       dependsOn: ["task-enabler"],
@@ -222,9 +222,9 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies a due owner-decision as owner-ask-due with recommendedAnswer", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-pick-variant",
       daysAgo: 20,
       preconditionLines: [
@@ -247,13 +247,13 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies an owner-decision with fresh ask marker as owner-ask-recent", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     const recentMarker = renderOwnerAskMarker({
       slot: "pick-variant",
       lastAskedAt: new Date(Date.now() - 1 * MS_PER_DAY).toISOString(),
     });
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-pick-variant-recent",
       daysAgo: 20,
       preconditionLines: [
@@ -272,9 +272,9 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies operator-capture under threshold as operator-capture-fresh", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-fresh-capture",
       daysAgo: 5,
       preconditionLines: [
@@ -290,12 +290,12 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies a fresh partial operator-capture directory as due", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     const captureDir = join(dir, ".kota", "runs", "telegram-deploy-staging");
     mkdirSync(captureDir, { recursive: true });
     writeFileSync(join(captureDir, "smoke.txt"), "smoke passed\n");
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-partial-capture",
       daysAgo: 1,
       preconditionLines: [
@@ -316,9 +316,9 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies aged operator-capture without marker as operator-capture-due", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-aged-capture",
       daysAgo: 30,
       preconditionLines: [
@@ -338,12 +338,12 @@ describe("classifyBlockedActions", () => {
   });
 
   it("classifies aged operator-capture with fresh marker as operator-capture-recent", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     const marker = renderOperatorCaptureInstructedMarker({
       lastInstructedAt: new Date(Date.now() - 1 * MS_PER_DAY).toISOString(),
     });
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-aged-capture-marked",
       daysAgo: 30,
       preconditionLines: [
@@ -362,9 +362,9 @@ describe("classifyBlockedActions", () => {
 
 describe("listOperatorCaptureInstructCandidates", () => {
   it("returns aged operator-capture blockers without a fresh marker", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-aged",
       daysAgo: 30,
       preconditionLines: [
@@ -381,12 +381,12 @@ describe("listOperatorCaptureInstructCandidates", () => {
   });
 
   it("returns fresh partial operator-capture blockers", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     const captureDir = join(dir, ".kota", "runs", "telegram-deploy-staging");
     mkdirSync(captureDir, { recursive: true });
     writeFileSync(join(captureDir, "smoke.txt"), "smoke passed\n");
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-partial",
       daysAgo: 1,
       preconditionLines: [
@@ -405,9 +405,9 @@ describe("listOperatorCaptureInstructCandidates", () => {
   });
 
   it("skips fresh blockers (under threshold)", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-fresh",
       daysAgo: 5,
       preconditionLines: [
@@ -422,12 +422,12 @@ describe("listOperatorCaptureInstructCandidates", () => {
   });
 
   it("skips aged blockers with a marker fresher than 14 days", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     const recentMarker = renderOperatorCaptureInstructedMarker({
       lastInstructedAt: new Date(Date.now() - 1 * MS_PER_DAY).toISOString(),
     });
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-marker-fresh",
       daysAgo: 30,
       preconditionLines: [
@@ -445,9 +445,9 @@ describe("listOperatorCaptureInstructCandidates", () => {
 
 describe("applyOperatorCaptureInstruction", () => {
   it("upserts the marker on a previously unmarked task body", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-aged-x",
       daysAgo: 30,
       preconditionLines: [
@@ -460,7 +460,7 @@ describe("applyOperatorCaptureInstruction", () => {
     const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     const now = new Date("2026-05-02T16:00:00.000Z");
     const result = applyOperatorCaptureInstruction({
-      projectDir: dir,
+      workspaceRoot: dir,
       candidate: candidates[0],
       now,
     });
@@ -472,12 +472,12 @@ describe("applyOperatorCaptureInstruction", () => {
   });
 
   it("refreshes an existing marker timestamp without duplicating", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     const stale = renderOperatorCaptureInstructedMarker({
       lastInstructedAt: new Date(Date.now() - 60 * MS_PER_DAY).toISOString(),
     });
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-aged-refresh",
       daysAgo: 60,
       preconditionLines: [
@@ -491,7 +491,7 @@ describe("applyOperatorCaptureInstruction", () => {
     const candidates = listOperatorCaptureInstructCandidates(records, dir, Date.now());
     const now = new Date("2026-05-02T16:00:00.000Z");
     applyOperatorCaptureInstruction({
-      projectDir: dir,
+      workspaceRoot: dir,
       candidate: candidates[0],
       now,
     });
@@ -505,9 +505,9 @@ describe("applyOperatorCaptureInstruction", () => {
 
 describe("classifyBlockedActions includes ageDays", () => {
   it("reports ageDays alongside each action", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     blockedTask({
-      projectDir: dir,
+      workspaceRoot: dir,
       id: "task-aged",
       daysAgo: 7,
       preconditionLines: [
@@ -521,7 +521,7 @@ describe("classifyBlockedActions includes ageDays", () => {
   });
 
   it("yields ageDays null when frontmatter updated_at is unparseable", () => {
-    const dir = makeProjectDir();
+    const dir = makeScopeRoot();
     writeFileSync(
       join(dir, "data", "tasks", "blocked", "task-broken.md"),
       [

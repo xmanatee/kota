@@ -8,49 +8,49 @@ import {
   WorkspaceChangeCommandError,
 } from "./workspace-change-evidence.js";
 
-function git(projectDir: string, ...args: string[]): string {
+function git(workspaceRoot: string, ...args: string[]): string {
   return execFileSync("git", args, {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-function writeProjectFile(projectDir: string, path: string, content: string): void {
-  const absolutePath = join(projectDir, path);
+function writeProjectFile(workspaceRoot: string, path: string, content: string): void {
+  const absolutePath = join(workspaceRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, content);
 }
 
 describe("readWorkspaceChangeEvidence", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-workspace-change-evidence-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    git(projectDir, "init", "-q", "-b", "main");
-    git(projectDir, "config", "user.email", "test@example.com");
-    git(projectDir, "config", "user.name", "Test");
-    git(projectDir, "config", "commit.gpgsign", "false");
-    writeProjectFile(projectDir, "modified.ts", "export const value = 1;\n");
-    writeProjectFile(projectDir, "deleted.ts", "export const removed = true;\n");
-    git(projectDir, "add", "modified.ts", "deleted.ts");
-    git(projectDir, "commit", "-q", "-m", "seed");
+    mkdirSync(workspaceRoot, { recursive: true });
+    git(workspaceRoot, "init", "-q", "-b", "main");
+    git(workspaceRoot, "config", "user.email", "test@example.com");
+    git(workspaceRoot, "config", "user.name", "Test");
+    git(workspaceRoot, "config", "commit.gpgsign", "false");
+    writeProjectFile(workspaceRoot, "modified.ts", "export const value = 1;\n");
+    writeProjectFile(workspaceRoot, "deleted.ts", "export const removed = true;\n");
+    git(workspaceRoot, "add", "modified.ts", "deleted.ts");
+    git(workspaceRoot, "commit", "-q", "-m", "seed");
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns typed changes plus diff and stat for tracked and untracked workspace content", () => {
-    writeProjectFile(projectDir, "modified.ts", "export const value = 2;\n");
-    rmSync(join(projectDir, "deleted.ts"));
-    writeProjectFile(projectDir, "new.ts", "export const created = true;\n");
+    writeProjectFile(workspaceRoot, "modified.ts", "export const value = 2;\n");
+    rmSync(join(workspaceRoot, "deleted.ts"));
+    writeProjectFile(workspaceRoot, "new.ts", "export const created = true;\n");
 
-    const evidence = readWorkspaceChangeEvidence(projectDir);
+    const evidence = readWorkspaceChangeEvidence(workspaceRoot);
 
     expect(evidence.changes).toEqual([
       { path: "deleted.ts", status: "deleted", tracked: true },
@@ -64,8 +64,8 @@ describe("readWorkspaceChangeEvidence", () => {
     expect(evidence.stat).toMatchObject({ truncated: false });
     expect(evidence.stat.text).toContain("modified.ts");
     expect(evidence.stat.text).toContain("new.ts");
-    expect(git(projectDir, "diff", "--cached", "--name-only")).toBe("");
-    expect(git(projectDir, "ls-files", "--others", "--exclude-standard", "-z")).toBe(
+    expect(git(workspaceRoot, "diff", "--cached", "--name-only")).toBe("");
+    expect(git(workspaceRoot, "ls-files", "--others", "--exclude-standard", "-z")).toBe(
       "new.ts\0",
     );
   });
@@ -73,13 +73,13 @@ describe("readWorkspaceChangeEvidence", () => {
   it("preserves awkward tracked and untracked filenames", () => {
     const trackedPath = "src/tracked\tname\nfile.ts";
     const untrackedPath = "src/untracked\tname\nfile.ts";
-    writeProjectFile(projectDir, trackedPath, "export const before = true;\n");
-    git(projectDir, "add", trackedPath);
-    git(projectDir, "commit", "-q", "-m", "add awkward tracked path");
-    writeProjectFile(projectDir, trackedPath, "export const after = true;\n");
-    writeProjectFile(projectDir, untrackedPath, "export const added = true;\n");
+    writeProjectFile(workspaceRoot, trackedPath, "export const before = true;\n");
+    git(workspaceRoot, "add", trackedPath);
+    git(workspaceRoot, "commit", "-q", "-m", "add awkward tracked path");
+    writeProjectFile(workspaceRoot, trackedPath, "export const after = true;\n");
+    writeProjectFile(workspaceRoot, untrackedPath, "export const added = true;\n");
 
-    const evidence = readWorkspaceChangeEvidence(projectDir, {
+    const evidence = readWorkspaceChangeEvidence(workspaceRoot, {
       pathspecs: ["src"],
     });
 
@@ -91,14 +91,14 @@ describe("readWorkspaceChangeEvidence", () => {
 
   it("reports size truncation without turning it into a command failure", () => {
     writeProjectFile(
-      projectDir,
+      workspaceRoot,
       "large.ts",
       Array.from({ length: 200 }, (_, index) => `export const value${index} = ${index};`).join(
         "\n",
       ),
     );
 
-    const evidence = readWorkspaceChangeEvidence(projectDir, {
+    const evidence = readWorkspaceChangeEvidence(workspaceRoot, {
       limits: { diffBytes: 128 },
     });
 

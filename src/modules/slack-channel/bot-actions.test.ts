@@ -72,8 +72,9 @@ describe("SlackBot", () => {
         },
       }));
       const bot = makeBot({
-        approvals: { ...makeStubClients().approvals, approve: mockApprove },
+        getApprovals: () => ({ ...makeStubClients().approvals, approve: mockApprove }),
       });
+      await bot.postApproval(approvalProjection("abc"));
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
       const ws = MockWebSocket.instances[0];
@@ -86,7 +87,7 @@ describe("SlackBot", () => {
           team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:abc",
-            value: `approve:abc:${"a".repeat(64)}`,
+            value: `approve:scope-test:abc:${"a".repeat(64)}`,
           }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },
@@ -129,8 +130,9 @@ describe("SlackBot", () => {
         },
       }));
       const bot = makeBot({
-        approvals: { ...makeStubClients().approvals, approve: mockApprove },
+        getApprovals: () => ({ ...makeStubClients().approvals, approve: mockApprove }),
       });
+      await bot.postApproval(approvalProjection("failed"));
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
 
@@ -142,7 +144,7 @@ describe("SlackBot", () => {
           team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:failed",
-            value: `approve:failed:${"a".repeat(64)}`,
+            value: `approve:scope-test:failed:${"a".repeat(64)}`,
           }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },
@@ -170,8 +172,13 @@ describe("SlackBot", () => {
         approval: { ...approvalProjection(id), tool: "write", status: "rejected" as const },
       }));
       const bot = makeBot({
-        approvals: { ...makeStubClients().approvals, reject: mockReject },
+        getApprovals: () => ({
+          ...makeStubClients().approvals,
+          list: vi.fn(async () => ({ approvals: [approvalProjection("def")] })),
+          reject: mockReject,
+        }),
       });
+      await bot.postApproval(approvalProjection("def"));
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
       const ws = MockWebSocket.instances[0];
@@ -182,7 +189,10 @@ describe("SlackBot", () => {
         payload: {
           type: "block_actions",
           team: { id: "T-TEST" },
-          actions: [{ action_id: "reject:def", value: "reject:def" }],
+          actions: [{
+            action_id: "reject:def",
+            value: `reject:scope-test:def:${"a".repeat(64)}`,
+          }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },
           message: { ts: "1234.5678" },
@@ -211,8 +221,9 @@ describe("SlackBot", () => {
         reason: "not_found" as const,
       }));
       const bot = makeBot({
-        approvals: { ...makeStubClients().approvals, approve: mockApprove },
+        getApprovals: () => ({ ...makeStubClients().approvals, approve: mockApprove }),
       });
+      await bot.postApproval(approvalProjection("gone"));
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
       const ws = MockWebSocket.instances[0];
@@ -225,7 +236,7 @@ describe("SlackBot", () => {
           team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:gone",
-            value: `approve:gone:${"a".repeat(64)}`,
+            value: `approve:scope-test:gone:${"a".repeat(64)}`,
           }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },

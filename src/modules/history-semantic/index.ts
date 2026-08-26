@@ -7,7 +7,7 @@
 
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { HISTORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
-import { getProjectHistoryStore } from "#modules/history/history.js";
+import { getScopeHistoryStore } from "#modules/history/history.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,
@@ -39,7 +39,7 @@ const historySemanticModule: KotaModule = {
 			ctx.log.warn(`history-semantic: cannot init embedding provider — ${msg}`);
 			return;
 		}
-		const base = getProjectHistoryStore(ctx.cwd);
+		const base = getScopeHistoryStore(ctx.cwd);
 		const store = new SemanticHistoryStore({
 			base,
 			provider,

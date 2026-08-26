@@ -1,18 +1,18 @@
 import { listActiveApprovalExecutionIds } from "./approval-execution-activity.js";
-import type { ProjectRuntime } from "./project-runtime.js";
 import type { ScopeDrainBlocker } from "./scope-drain-inspection.js";
 import {
   registeredDirectoryScope,
   type ScopeLifecycleOptions,
 } from "./scope-lifecycle-types.js";
 import type { ScopeId } from "./scope-registry.js";
+import type { ScopeRuntime } from "./scope-runtime.js";
 
 export function collectScopeDrainBlockers(
   options: ScopeLifecycleOptions,
-  runtime: ProjectRuntime,
+  runtime: ScopeRuntime,
 ): ScopeDrainBlocker[] {
   const runtimeState = runtime.workflowRuntime.getState();
-  const durableRuns = runtime.runState.listRuns(runtime.project.projectId, [
+  const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId, [
     "queued",
     "running",
     "integrating",
@@ -22,7 +22,7 @@ export function collectScopeDrainBlockers(
   const activeRuns = durableRuns.filter(
     (run) => run.state === "running" || run.state === "integrating",
   );
-  const sessionIds = [...options.listSessionIds(runtime.project.projectId)];
+  const sessionIds = [...options.listSessionIds(runtime.scope.scopeId)];
   const approvals = runtime.approvalQueue.list("pending").map((item) => item.id);
   const approvalExecutions = listActiveApprovalExecutionIds(runtime.approvalQueue);
   const pendingRuns = durableRuns
@@ -105,9 +105,9 @@ export function collectScopeDrainBlockers(
   blockers.push(
     ...options.inspectExternalBlockers(
       registeredDirectoryScope(
-        runtime.project.projectId,
-        runtime.project.projectDir,
-        runtime.project.displayName,
+        runtime.scope.scopeId,
+        runtime.scope.scopeRoot,
+        runtime.scope.displayName,
       ),
     ),
   );

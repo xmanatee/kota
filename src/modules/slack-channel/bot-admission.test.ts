@@ -18,7 +18,7 @@ describe("SlackBot interactive admission", () => {
       ...clients,
       allowedUserIds: ["U-OWNER"],
       inboundSignals: {
-        getProjectId: () => "project-slack",
+        getScopeId: () => "scope-slack",
         config: { prefixes: ["!task"], trustedUserIds: ["U-OWNER"] },
         events,
       },
@@ -84,7 +84,7 @@ describe("SlackBot interactive admission", () => {
     const bot = makeBot({
       allowedUserIds: ["U-OWNER"],
       inboundSignals: {
-        getProjectId: () => "project-slack",
+        getScopeId: () => "scope-slack",
         config: { prefixes: ["!task"], trustedUserIds: ["U-TRUSTED"] },
         events,
       },
@@ -123,7 +123,7 @@ describe("SlackBot interactive admission", () => {
     const reject = vi.fn();
     const bot = makeBot({
       allowedUserIds: ["U-OWNER"],
-      approvals: { ...makeStubClients().approvals, reject },
+      getApprovals: () => ({ ...makeStubClients().approvals, reject }),
     });
     const startPromise = bot.start();
     await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));

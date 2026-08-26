@@ -21,7 +21,6 @@ export function buildTrajectoryDiagnosticReport(
         stepId: pattern.stepId,
         code: pattern.code,
         runCount: pattern.runCount,
-        repairTaskId: pattern.taskId,
         evidenceArtifactPaths: pattern.artifactPaths,
       })),
   };

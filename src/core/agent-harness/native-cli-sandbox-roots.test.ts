@@ -54,16 +54,16 @@ describe("native CLI sandbox roots", () => {
       "v22.0.0",
     );
     const nvmBin = join(nvmRoot, "bin");
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const invocationRoot = join(root, "invocation");
     mkdirSync(operatorBin, { recursive: true });
     mkdirSync(nvmBin, { recursive: true });
-    mkdirSync(projectDir);
+    mkdirSync(scopeRoot);
     mkdirSync(invocationRoot);
 
     const readableRoots = nativeCliReadableRoots(
       join(operatorBin, "native-cli"),
-      projectDir,
+      scopeRoot,
       invocationRoot,
       { PATH: [operatorHome, operatorBin, nvmBin].join(":") },
       "linux",
@@ -77,14 +77,14 @@ describe("native CLI sandbox roots", () => {
   it("resolves declared workspace configuration through physical symlink targets", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-config-root-"));
     roots.push(root);
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const sharedConfigDir = join(root, "shared-config");
-    mkdirSync(projectDir);
+    mkdirSync(scopeRoot);
     mkdirSync(sharedConfigDir);
     writeFileSync(join(sharedConfigDir, "settings.json"), "{}");
-    symlinkSync(sharedConfigDir, join(projectDir, ".client"));
+    symlinkSync(sharedConfigDir, join(scopeRoot, ".client"));
 
-    expect(nativeCliWorkspaceConfigurationReadRoots(projectDir, [
+    expect(nativeCliWorkspaceConfigurationReadRoots(scopeRoot, [
       ".client/settings.json",
       ".client/missing.json",
     ])).toEqual([
@@ -95,24 +95,24 @@ describe("native CLI sandbox roots", () => {
   it("exposes linked-worktree Git metadata as read-only roots", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-git-roots-"));
     roots.push(root);
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const worktreeDir = join(root, "linked");
-    mkdirSync(projectDir);
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    mkdirSync(scopeRoot);
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
     execFileSync("git", ["config", "user.email", "test@example.com"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-    writeFileSync(join(projectDir, "tracked.txt"), "tracked\n");
-    execFileSync("git", ["add", "tracked.txt"], { cwd: projectDir });
-    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
+    writeFileSync(join(scopeRoot, "tracked.txt"), "tracked\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: scopeRoot });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
     execFileSync("git", ["worktree", "add", "-q", "-b", "linked", worktreeDir], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
 
     expect(nativeCliGitMetadataRoots(worktreeDir)).toEqual([
-      realpathSync.native(join(projectDir, ".git", "worktrees", "linked")),
-      realpathSync.native(join(projectDir, ".git")),
+      realpathSync.native(join(scopeRoot, ".git", "worktrees", "linked")),
+      realpathSync.native(join(scopeRoot, ".git")),
     ]);
   });
 });

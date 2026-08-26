@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
@@ -12,8 +12,8 @@ import { buildDaemonHandle } from "./daemon-handle.js";
 import {
   makeWorkflowRunSubject,
 } from "./daemon-handle-test-support.integration.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 describe("buildDaemonHandle workflow run projections", () => {
   it("redacts trigger payload values in client-facing run detail", () => {
@@ -84,36 +84,36 @@ describe("buildDaemonHandle sessions", () => {
       enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
     };
     const runtimeA = {
-      pbus: new ProjectScopedEventBus(bus, "project-a"),
+      pbus: new ScopedEventBus(bus, "scope-a"),
       workflowRuntime,
-    } as unknown as ProjectRuntime;
+    } as unknown as ScopeRuntime;
     const runtimeB = {
-      pbus: new ProjectScopedEventBus(bus, "project-b"),
+      pbus: new ScopedEventBus(bus, "scope-b"),
       workflowRuntime,
-    } as unknown as ProjectRuntime;
+    } as unknown as ScopeRuntime;
     const runtimes = new Map([
-      ["project-a", runtimeA],
-      ["project-b", runtimeB],
+      ["scope-a", runtimeA],
+      ["scope-b", runtimeB],
     ]);
-    const projectRuntimes = {
+    const scopeRuntimes = {
       list: vi.fn(() => [runtimeA, runtimeB]),
       getDefault: vi.fn(() => runtimeA),
-      get: vi.fn((projectId: string) => {
-        const runtime = runtimes.get(projectId);
-        if (!runtime) throw new Error(`unknown project ${projectId}`);
+      get: vi.fn((scopeId: string) => {
+        const runtime = runtimes.get(scopeId);
+        if (!runtime) throw new Error(`unknown scope ${scopeId}`);
         return runtime;
       }),
-    } as unknown as ProjectRuntimeRegistry;
-    const projectRegistry = {
-      get: vi.fn((projectId: string) =>
-        projectId === "project-a" || projectId === "project-b"
-          ? { projectId }
+    } as unknown as ScopeRuntimeRegistry;
+    const scopeRegistry = {
+      get: vi.fn((scopeId: string) =>
+        scopeId === "scope-a" || scopeId === "scope-b"
+          ? { scopeId }
           : undefined,
       ),
-      getDefaultProjectId: vi.fn(() => "project-a"),
-      toProjection: vi.fn(() => ({ defaultProjectId: "project-a", projects: [] })),
+      getDefaultScopeId: vi.fn(() => "scope-a"),
+      toProjection: vi.fn(() => ({ defaultScopeId: "scope-a", scopes: [] })),
     } as unknown as ScopeRegistry;
-    let projectBHostingState: "hosted" | "draining" | "drained" = "hosted";
+    let scopeBHostingState: "hosted" | "draining" | "drained" = "hosted";
     const handle = buildDaemonHandle({
       getState: () => ({
         startedAt: "2026-01-01T00:00:00.000Z",
@@ -124,11 +124,11 @@ describe("buildDaemonHandle sessions", () => {
       bus,
       sessions: new Map(),
       runStore: {} as WorkflowRunStore,
-      projectDir: mkdtempSync(join(tmpdir(), "kota-daemon-session-test-")),
-      projectRegistry,
-      projectRuntimes,
-      getScopeHostingState: (projectId) =>
-        projectId === "project-b" ? projectBHostingState : "hosted",
+      scopeRoot: mkdtempSync(join(tmpdir(), "kota-daemon-session-test-")),
+      scopeRegistry,
+      scopeRuntimes,
+      getScopeHostingState: (scopeId) =>
+        scopeId === "scope-b" ? scopeBHostingState : "hosted",
       config: { config: {}, verbose: false },
       refreshLiveSessionGuardrails: () => ({ refreshed: 0, unchanged: 0 }),
       log: () => {},
@@ -145,23 +145,21 @@ describe("buildDaemonHandle sessions", () => {
       "serve-b",
       "2026-01-01T00:00:00.000Z",
       "supervised",
-      "project-b",
+      "scope-b",
     );
 
-    expect(handle.listSessions("project-a")).toEqual([]);
-    expect(handle.listSessions("project-b")).toMatchObject([
+    expect(handle.listSessions("scope-a")).toEqual([]);
+    expect(handle.listSessions("scope-b")).toMatchObject([
       {
         id: "serve-b",
-        scopeId: "project-b",
-        projectId: "project-b",
+        scopeId: "scope-b",
         source: "serve",
       },
     ]);
     expect(registered).toEqual([
       {
         id: "serve-b",
-        scopeId: "project-b",
-        projectId: "project-b",
+        scopeId: "scope-b",
         createdAt: "2026-01-01T00:00:00.000Z",
         autonomyMode: "supervised",
       },
@@ -169,24 +167,23 @@ describe("buildDaemonHandle sessions", () => {
 
     handle.unregisterSession("serve-b");
 
-    expect(handle.listSessions("project-b")).toEqual([]);
+    expect(handle.listSessions("scope-b")).toEqual([]);
     expect(unregistered).toEqual([
       {
         id: "serve-b",
-        scopeId: "project-b",
-        projectId: "project-b",
+        scopeId: "scope-b",
       },
     ]);
 
-    expect(handle.setActiveProjectId("project-b"))
-      .toEqual({ ok: true, activeProjectId: "project-b" });
-    projectBHostingState = "draining";
-    expect(handle.getActiveProjectId()).toBeNull();
-    expect(handle.setActiveProjectId("project-b"))
+    expect(handle.setActiveScopeId("scope-b"))
+      .toEqual({ ok: true, activeScopeId: "scope-b" });
+    scopeBHostingState = "draining";
+    expect(handle.getActiveScopeId()).toBeNull();
+    expect(handle.setActiveScopeId("scope-b"))
       .toEqual({
         ok: false,
         reason: "not_hosted",
-        projectId: "project-b",
+        scopeId: "scope-b",
         state: "draining",
       });
     expect(
@@ -194,23 +191,23 @@ describe("buildDaemonHandle sessions", () => {
         "late-serve-b",
         "2026-01-01T00:01:00.000Z",
         "supervised",
-        "project-b",
+        "scope-b",
       ),
     ).toEqual({
       ok: false,
       reason: "scope_not_hosted",
-      scopeId: "project-b",
+      scopeId: "scope-b",
       state: "draining",
     });
-    expect(handle.enqueuePendingRun("builder", undefined, "project-b"))
+    expect(handle.enqueuePendingRun("builder", undefined, "scope-b"))
       .toEqual({
         ok: false,
-        error: "Scope project-b is draining and cannot accept workflow runs",
+        error: "Scope scope-b is draining and cannot accept workflow runs",
         reason: "scope_not_hosted",
-        scopeId: "project-b",
+        scopeId: "scope-b",
         state: "draining",
       });
     expect(workflowRuntime.enqueuePendingRun).not.toHaveBeenCalled();
-    expect(handle.listSessions("project-b")).toEqual([]);
+    expect(handle.listSessions("scope-b")).toEqual([]);
   });
 });

@@ -110,10 +110,10 @@ export async function handleTaskBodyUpdate(
 
 export function handleTaskStatus(
   res: ServerResponse,
-  projectDir = process.cwd(),
+  repoRoot = process.cwd(),
 ): void {
-  const tasksDir = getRepoTasksDir(projectDir);
-  const inboxDir = getRepoInboxDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
+  const inboxDir = getRepoInboxDir(repoRoot);
   const counts = Object.fromEntries(
     COUNTED_STATES.map((state) => [
       state,
@@ -121,7 +121,7 @@ export function handleTaskStatus(
     ]),
   ) as DaemonTaskStatusResponse["counts"];
   const tasks = Object.fromEntries(
-    DETAIL_STATES.map((state) => [state, readStateTasks(projectDir, tasksDir, state)]),
+    DETAIL_STATES.map((state) => [state, readStateTasks(repoRoot, tasksDir, state)]),
   ) as DaemonTaskStatusResponse["tasks"];
   jsonResponse(res, 200, { counts, tasks } satisfies DaemonTaskStatusResponse);
 }

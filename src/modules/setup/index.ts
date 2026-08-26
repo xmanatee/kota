@@ -1,4 +1,4 @@
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -25,32 +25,32 @@ function buildLocalSetupClient(ctx: ModuleContext): SetupClient {
   const services = new Map<string, ModuleSetupService>();
   const serviceFor = (scope?: ScopeSelector): ModuleSetupService => {
     const selectedId = selectedScopeSelectorId(scope);
-    let projectDir = ctx.cwd;
+    let scopeRoot = ctx.cwd;
     let authorityConfigPath: string | undefined;
     let getVisibility: (() => "hidden" | "metadata" | "full") | undefined;
     if (selectedId !== undefined) {
-      const projectScope = ctx.getProvider(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-      if (!projectScope) {
+      const scopeProvider = ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE);
+      if (!scopeProvider) {
         throw new Error(`Unknown scope: ${selectedId}`);
       }
-      const resolved = projectScope.resolveProjectRuntime(selectedId);
+      const resolved = scopeProvider.resolveScopeRuntime(selectedId);
       if (!resolved.ok) throw new Error(`Unknown scope: ${selectedId}`);
-      projectDir = resolved.runtime.project.projectDir;
+      scopeRoot = resolved.runtime.scope.scopeRoot;
       authorityConfigPath = resolved.runtime.authorityConfigPath;
       getVisibility = () => {
         if (!resolved.runtime.scopePolicyAuthority) {
           throw new Error(`Scope policy authority is unavailable for scope ${selectedId}`);
         }
-        return resolved.runtime.scopePolicyAuthority.getSnapshot(resolved.runtime.project.projectId)
+        return resolved.runtime.scopePolicyAuthority.getSnapshot(resolved.runtime.scope.scopeId)
           .policy.setup.visibility;
       };
     }
 
-    const serviceKey = `${selectedId ?? "local"}\0${projectDir}`;
+    const serviceKey = `${selectedId ?? "local"}\0${scopeRoot}`;
     let service = services.get(serviceKey);
     if (!service) {
       service = new ModuleSetupService({
-        projectDir,
+        scopeRoot,
         ...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
         getRequirements: () => moduleSetupRequirementsFromSummaries(ctx.getModuleSummaries()),
         probeCapabilities: async () => [],

@@ -7,7 +7,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
-import { defineProjectScopedModuleEvent, ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent, ScopedEventBus } from "#core/events/scope.js";
 import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowRuntime } from "./runtime.js";
 import { readStoredWorkflowRuntimeState } from "./stored-runtime-state.js";
@@ -25,17 +25,17 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function makeProjectDir(): string {
-  const projectDir = join(
+function makeScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-event-batches-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  return projectDir;
+  mkdirSync(workspaceRoot, { recursive: true });
+  return workspaceRoot;
 }
 
-function readRunPayloads(projectDir: string): WorkflowBatchFlushPayload[] {
-  const runsDir = join(projectDir, ".kota", "runs");
+function readRunPayloads(workspaceRoot: string): WorkflowBatchFlushPayload[] {
+  const runsDir = join(workspaceRoot, ".kota", "runs");
   return readdirSync(runsDir).map((runId) => {
     const trigger = JSON.parse(
       readFileSync(join(runsDir, runId, "trigger.json"), "utf-8"),
@@ -47,34 +47,34 @@ function readRunPayloads(projectDir: string): WorkflowBatchFlushPayload[] {
 describe("WorkflowEventBatchManager", () => {
   const runtimes: WorkflowRuntime[] = [];
   const runStates: Array<{ close(): void }> = [];
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(async () => {
     for (const runtime of runtimes.splice(0).reverse()) {
       await runtime.stop(0);
     }
     for (const runState of runStates.splice(0)) runState.close();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
     resetModuleEventRegistry();
   });
 
-  function trackProjectDir(projectDir = makeProjectDir()): string {
-    projectDirs.push(projectDir);
-    return projectDir;
+  function trackScopeRoot(workspaceRoot = makeScopeRoot()): string {
+    scopeRoots.push(workspaceRoot);
+    return workspaceRoot;
   }
 
   function startRuntime(
-    projectDir: string,
+    workspaceRoot: string,
     bus: EventBus,
     workflows: Parameters<typeof registerWorkflowDefinition>[1][],
-    pbus?: ProjectScopedEventBus,
+    pbus?: ScopedEventBus,
   ): WorkflowRuntime {
     const { runtime, runState } = createTestWorkflowRuntime({
       bus,
       pbus,
-      projectDir,
+      scopeRoot: workspaceRoot,
       idleIntervalMs: 10_000,
       workflows: workflows.map((workflow, index) =>
         registerWorkflowDefinition(`test/batch-${index}.ts`, workflow),
@@ -87,7 +87,7 @@ describe("WorkflowEventBatchManager", () => {
   }
 
   it("flushes by count and runs the downstream workflow with input envelopes", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
     const emitted: WorkflowBatchFlushPayload[] = [];
@@ -103,7 +103,7 @@ describe("WorkflowEventBatchManager", () => {
       emitted.push(payload as WorkflowBatchFlushPayload);
     });
 
-    startRuntime(projectDir, bus, [
+    startRuntime(workspaceRoot, bus, [
       {
         repository: "none",
         name: "telegram-batch",
@@ -163,7 +163,7 @@ describe("WorkflowEventBatchManager", () => {
       "evtj-3",
     ]);
     expect(emitted).toHaveLength(1);
-    expect(readRunPayloads(projectDir)[0]).toMatchObject({
+    expect(readRunPayloads(workspaceRoot)[0]).toMatchObject({
       reason: "count",
       count: 3,
       groupingKey: "chatId=sports",
@@ -171,11 +171,11 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("groups batch buffers by dotted payload paths", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
 
-    startRuntime(projectDir, bus, [
+    startRuntime(workspaceRoot, bus, [
       {
         repository: "none",
         name: "nested-group-batch",
@@ -216,11 +216,11 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("validates strict batch payload schemas without internal run metadata", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
 
-    startRuntime(projectDir, bus, [
+    startRuntime(workspaceRoot, bus, [
       {
         repository: "none",
         name: "strict-batch",
@@ -228,7 +228,6 @@ describe("WorkflowEventBatchManager", () => {
           type: "object",
           required: [
             "scopeId",
-            "projectId",
             "sourceEventName",
             "groupingKey",
             "reason",
@@ -239,7 +238,6 @@ describe("WorkflowEventBatchManager", () => {
           ],
           properties: {
             scopeId: { type: "string" },
-            projectId: { type: "string" },
             sourceEventName: { type: "string" },
             groupingKey: { type: "string" },
             reason: { type: "string" },
@@ -279,15 +277,15 @@ describe("WorkflowEventBatchManager", () => {
 
     expect(processed).toHaveLength(1);
     expect(processed[0]).not.toHaveProperty("_runId");
-    expect(readRunPayloads(projectDir)[0]).not.toHaveProperty("_runId");
+    expect(readRunPayloads(workspaceRoot)[0]).not.toHaveProperty("_runId");
   });
 
   it("flushes by max age and idle timeout", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
 
-    startRuntime(projectDir, bus, [
+    startRuntime(workspaceRoot, bus, [
       {
         repository: "none",
         name: "age-batch",
@@ -351,7 +349,7 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("recovers persisted buffers after runtime restart", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
     const workflow = {
@@ -380,12 +378,12 @@ describe("WorkflowEventBatchManager", () => {
       ],
     };
 
-    const firstRuntime = startRuntime(projectDir, bus, [workflow]);
+    const firstRuntime = startRuntime(workspaceRoot, bus, [workflow]);
     bus.emit("task.changed", { list: "ready", id: "first" });
     await wait(30);
     expect(
       Object.keys(
-        readStoredWorkflowRuntimeState(projectDir, join(projectDir, ".kota", "state"))
+        readStoredWorkflowRuntimeState(workspaceRoot, join(workspaceRoot, ".kota", "state"))
           .batchBuffers ?? {},
       ).some((key) =>
         key.includes("restart-batch"),
@@ -394,7 +392,7 @@ describe("WorkflowEventBatchManager", () => {
     await firstRuntime.stop(0);
     runtimes.splice(runtimes.indexOf(firstRuntime), 1);
 
-    startRuntime(projectDir, bus, [workflow]);
+    startRuntime(workspaceRoot, bus, [workflow]);
     bus.emit("task.changed", { list: "ready", id: "second" });
     await wait(80);
 
@@ -407,11 +405,11 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("persists and flushes route-owned workflow batch inputs after restart", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, "route-batch-scope");
+    const pbus = new ScopedEventBus(bus, "route-batch-scope");
     const processed: WorkflowBatchFlushPayload[] = [];
-    const routeEvent = defineProjectScopedModuleEvent<{
+    const routeEvent = defineScopedModuleEvent<{
       sourceId: string;
       text: string;
     }>("route.blocked.input", ["sourceId", "text"], {
@@ -439,14 +437,13 @@ describe("WorkflowEventBatchManager", () => {
       overflow: "flush-oldest" as const,
     };
 
-    const firstRuntime = startRuntime(projectDir, bus, [workflow], pbus);
+    const firstRuntime = startRuntime(workspaceRoot, bus, [workflow], pbus);
     const firstResult = firstRuntime.enqueueBatchedEvent({
       workflowName: workflow.name,
       event: routeEvent.name,
       schemaRef: { name: routeEvent.name, version: routeEvent.schema.currentVersion },
       payload: {
         scopeId: "route-batch-scope",
-        projectId: "route-batch-scope",
         sourceId: "github/17",
         text: "one",
       },
@@ -455,8 +452,8 @@ describe("WorkflowEventBatchManager", () => {
 
     expect(firstResult).toEqual({ ok: true, status: "batched" });
     const buffers = readStoredWorkflowRuntimeState(
-      projectDir,
-      join(projectDir, ".kota", "state"),
+      workspaceRoot,
+      join(workspaceRoot, ".kota", "state"),
     ).batchBuffers ?? {};
     const buffer = Object.values(buffers)[0];
     expect(buffer).toMatchObject({
@@ -474,14 +471,13 @@ describe("WorkflowEventBatchManager", () => {
     await firstRuntime.stop(0);
     runtimes.splice(runtimes.indexOf(firstRuntime), 1);
 
-    const secondRuntime = startRuntime(projectDir, bus, [workflow], pbus);
+    const secondRuntime = startRuntime(workspaceRoot, bus, [workflow], pbus);
     const secondResult = secondRuntime.enqueueBatchedEvent({
       workflowName: workflow.name,
       event: routeEvent.name,
       schemaRef: { name: routeEvent.name, version: routeEvent.schema.currentVersion },
       payload: {
         scopeId: "route-batch-scope",
-        projectId: "route-batch-scope",
         sourceId: "github/17",
         text: "two",
       },
@@ -509,15 +505,15 @@ describe("WorkflowEventBatchManager", () => {
       "two",
     ]);
     expect(
-      readStoredWorkflowRuntimeState(projectDir, join(projectDir, ".kota", "state"))
+      readStoredWorkflowRuntimeState(workspaceRoot, join(workspaceRoot, ".kota", "state"))
         .batchBuffers,
     ).toEqual({});
   });
 
   it("isolates buffers by scope and supports explicit manual flush", async () => {
     const bus = new EventBus();
-    const projectA = trackProjectDir();
-    const projectB = trackProjectDir();
+    const scopeA = trackScopeRoot();
+    const scopeB = trackScopeRoot();
     const processedA: WorkflowBatchFlushPayload[] = [];
     const processedB: WorkflowBatchFlushPayload[] = [];
     const workflowA = {
@@ -559,12 +555,12 @@ describe("WorkflowEventBatchManager", () => {
       ],
     };
 
-    startRuntime(projectA, bus, [workflowA], new ProjectScopedEventBus(bus, "scope-a"));
-    startRuntime(projectB, bus, [workflowB], new ProjectScopedEventBus(bus, "scope-b"));
+    startRuntime(scopeA, bus, [workflowA], new ScopedEventBus(bus, "scope-a"));
+    startRuntime(scopeB, bus, [workflowB], new ScopedEventBus(bus, "scope-b"));
 
-    bus.emit("task.changed", { projectId: "scope-a", bucket: "daily", id: "a1" });
-    bus.emit("task.changed", { projectId: "scope-b", bucket: "daily", id: "b1" });
-    bus.emit("task.changed", { projectId: "scope-a", bucket: "daily", id: "a2" });
+    bus.emit("task.changed", { scopeId: "scope-a", bucket: "daily", id: "a1" });
+    bus.emit("task.changed", { scopeId: "scope-b", bucket: "daily", id: "b1" });
+    bus.emit("task.changed", { scopeId: "scope-a", bucket: "daily", id: "a2" });
     await wait(80);
 
     expect(processedA).toHaveLength(1);
@@ -572,7 +568,7 @@ describe("WorkflowEventBatchManager", () => {
     expect(processedB).toHaveLength(0);
 
     bus.emit("workflow.batch.flush", {
-      projectId: "scope-b",
+      scopeId: "scope-b",
       workflow: "scoped-batch",
       sourceEventName: "task.changed",
     });
@@ -583,11 +579,11 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("records overflow handling in the flushed payload", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
 
-    startRuntime(projectDir, bus, [
+    startRuntime(workspaceRoot, bus, [
       {
         repository: "none",
         name: "overflow-batch",
@@ -632,11 +628,11 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("flushes the oldest buffer and schedules the replacement on overflow", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
     const processed: WorkflowBatchFlushPayload[] = [];
 
-    startRuntime(projectDir, bus, [
+    startRuntime(workspaceRoot, bus, [
       {
         repository: "none",
         name: "flush-oldest-overflow-batch",
@@ -689,7 +685,7 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("validates batch filters and grouping fields against module event declarations", () => {
-    const event = defineProjectScopedModuleEvent<{ kind: string }>(
+    const event = defineScopedModuleEvent<{ kind: string }>(
       "declared.event",
       ["kind"],
     );
@@ -741,10 +737,10 @@ describe("WorkflowEventBatchManager", () => {
   });
 
   it("preserves module event schema references on batch input envelopes", async () => {
-    const projectDir = trackProjectDir();
+    const workspaceRoot = trackScopeRoot();
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, "schema-batch-scope");
-    const event = defineProjectScopedModuleEvent<{ kind: string; id: string }>(
+    const pbus = new ScopedEventBus(bus, "schema-batch-scope");
+    const event = defineScopedModuleEvent<{ kind: string; id: string }>(
       "declared.batch.input",
       ["kind", "id"],
       {
@@ -762,7 +758,7 @@ describe("WorkflowEventBatchManager", () => {
     const processed: WorkflowBatchFlushPayload[] = [];
 
     startRuntime(
-      projectDir,
+      workspaceRoot,
       bus,
       [
         {

@@ -10,7 +10,7 @@ const PROJECTION: ScopeRegistryProjection = {
   scopes: [
     { scopeId: "global", displayName: "Global" },
     {
-      scopeId: "project",
+      scopeId: "scope",
       displayName: "Project",
       parentScopeId: "global",
       directoryRoot: "/canonical/project",
@@ -21,7 +21,7 @@ const PROJECTION: ScopeRegistryProjection = {
 function policy(fragment?: ScopePolicyFragment) {
   return resolveScopePolicy({
     projection: PROJECTION,
-    scopeId: "project",
+    scopeId: "scope",
     ...(fragment === undefined ? {} : { fragments: [fragment] }),
   });
 }
@@ -33,12 +33,12 @@ describe("Codex agent harness scope policy boundary", () => {
     ).not.toContain("scopePolicy");
   });
 
-  it("projects policy paths into the run worktree", () => {
+  it("scopes policy paths into the run worktree", () => {
     expect(projectNativeCliScope({
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
-        scopeId: "project",
+        scopeId: "scope",
         reason: "Limit writes to implementation and generated evidence.",
         writes: { mode: "paths", paths: ["src", "data/generated"] },
       }),
@@ -56,7 +56,7 @@ describe("Codex agent harness scope policy boundary", () => {
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
-        scopeId: "project",
+        scopeId: "scope",
         reason: "Project writes stay in task data; run output stays runtime-owned.",
         writes: { mode: "paths", paths: ["data/tasks"] },
       }),
@@ -93,7 +93,7 @@ describe("Codex agent harness scope policy boundary", () => {
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
-        scopeId: "project",
+        scopeId: "scope",
         reason: "Require owner confirmation before local writes.",
         ownerConfirmation: { localWrite: "confirm" },
       }),
@@ -105,7 +105,7 @@ describe("Codex agent harness scope policy boundary", () => {
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
-        scopeId: "project",
+        scopeId: "scope",
         reason: "No external or KOTA module effects.",
         modules: { defaultAvailability: "disabled" },
         externalEffects: {
@@ -125,7 +125,7 @@ describe("Codex agent harness scope policy boundary", () => {
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
-        scopeId: "project",
+        scopeId: "scope",
         reason: "No destructive local effects.",
         ownerConfirmation: { destructive: "deny" },
       }),
@@ -137,7 +137,7 @@ describe("Codex agent harness scope policy boundary", () => {
       cwd: "/worktrees/run",
       autonomyMode: "autonomous",
       scopePolicy: policy({
-        scopeId: "project",
+        scopeId: "scope",
         reason: "External path fixture.",
         writes: { mode: "paths", paths: ["/operator/outside"] },
       }),

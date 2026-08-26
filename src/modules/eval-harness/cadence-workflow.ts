@@ -89,7 +89,7 @@ export const runHarness = typedCodeStep<EvalHarnessCadenceResult>({
       EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
     );
     const output = await ctx.runBlocking(evalHarnessCadenceOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       runDirPath: ctx.workflow.runDirPath,
       isolationBackend: resolveCadenceIsolationBackend(),
       priorBaseline: baseline.value,

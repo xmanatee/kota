@@ -1,8 +1,8 @@
 import { readdirSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   registerWorkflowDefinition,
@@ -26,18 +26,18 @@ import {
 } from "./workflow.test-helpers.js";
 
 describe("scope-improver semantic boundaries", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   function track(label: string): string {
-    const projectDir = makeScopeFixture(label);
-    projectDirs.push(projectDir);
-    return projectDir;
+    const workspaceRoot = makeScopeFixture(label);
+    scopeRoots.push(workspaceRoot);
+    return workspaceRoot;
   }
 
   it("registers only explicit semantic requests", () => {
@@ -64,11 +64,11 @@ describe("scope-improver semantic boundaries", () => {
   });
 
   it("recomputes current guidance when a queued automatic request becomes stale", () => {
-    const projectDir = track("onboarding-coalescing");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = track("onboarding-coalescing");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const initial = computeScopeContentFingerprint(
-      projectDir,
-      scopePolicySnapshotForTest(projectDir).policy,
+      workspaceRoot,
+      scopePolicySnapshotForTest(workspaceRoot).policy,
     );
     const state = reserveScopeImprovementInput(
       emptyScopeImprovementState(scopeId),
@@ -80,11 +80,11 @@ describe("scope-improver semantic boundaries", () => {
       },
     );
     writeFileSync(
-      join(projectDir, "AGENTS.md"),
+      join(workspaceRoot, "AGENTS.md"),
       "# Scope\n\n- Preserve the latest owner policy.\n",
     );
-    runScopeFixtureGit(projectDir, ["add", "AGENTS.md"]);
-    runScopeFixtureGit(projectDir, [
+    runScopeFixtureGit(workspaceRoot, ["add", "AGENTS.md"]);
+    runScopeFixtureGit(workspaceRoot, [
       "-c",
       "user.email=kota@example.test",
       "-c",
@@ -96,11 +96,11 @@ describe("scope-improver semantic boundaries", () => {
       "change guidance before consumption",
     ]);
     const current = computeScopeContentFingerprint(
-      projectDir,
-      scopePolicySnapshotForTest(projectDir).policy,
+      workspaceRoot,
+      scopePolicySnapshotForTest(workspaceRoot).policy,
     );
     const inputs = collectScopeImprovementInputs({
-      projectDir,
+      workspaceRoot,
       state,
       trigger: {
         event: "autonomy.scope-improvement.requested",
@@ -118,7 +118,7 @@ describe("scope-improver semantic boundaries", () => {
         },
       },
       now: SCOPE_TEST_NOW,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
     });
 
     expect(inputs.semanticInput).toMatchObject({
@@ -129,11 +129,11 @@ describe("scope-improver semantic boundaries", () => {
   });
 
   it("publishes owner effects idempotently and returns transactional state", async () => {
-    const projectDir = track("publication");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = track("publication");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const fingerprint = computeScopeContentFingerprint(
-      projectDir,
-      scopePolicySnapshotForTest(projectDir).policy,
+      workspaceRoot,
+      scopePolicySnapshotForTest(workspaceRoot).policy,
     );
     const initialState = reserveScopeImprovementInput(
       emptyScopeImprovementState(scopeId),
@@ -165,22 +165,22 @@ describe("scope-improver semantic boundaries", () => {
         ),
       },
     };
-    const run = await new WorkflowTestHarness(scopeImproverWorkflow, {
-      projectDir,
+    const run = await new WorkflowScenarioDriver(scopeImproverWorkflow, {
+      workspaceRoot,
       trigger,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
-      contextOverrides: { state: transactionalState },
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      ports: { state: transactionalState },
     }).run();
     expect(run.status).toBe("success");
 
     const first = publishScopeImprovement({
-      scopeDir: projectDir,
-      sourceRunId: "harness",
+      scopeRoot: workspaceRoot,
+      sourceRunId: basename(run.runDirPath),
       currentState: initialState,
     });
     const second = publishScopeImprovement({
-      scopeDir: projectDir,
-      sourceRunId: "harness",
+      scopeRoot: workspaceRoot,
+      sourceRunId: basename(run.runDirPath),
       currentState: first.nextState!,
     });
 
@@ -192,6 +192,6 @@ describe("scope-improver semantic boundaries", () => {
       },
     });
     expect(second.disposition).toBe("published");
-    expect(readdirSync(join(projectDir, ".kota", "owner-questions"))).toHaveLength(1);
+    expect(readdirSync(join(workspaceRoot, ".kota", "owner-questions"))).toHaveLength(1);
   });
 });

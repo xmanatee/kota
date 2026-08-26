@@ -2,7 +2,7 @@ import {
   TranscriptionProviderUnavailableError,
   transcribeAudio,
 } from "#modules/transcription/index.js";
-import type { TelegramProjectTarget } from "./bot-runtime-types.js";
+import type { TelegramScopeTarget } from "./bot-runtime-types.js";
 import { TelegramSessionRuntime } from "./bot-session-runtime.js";
 import type {
   TelegramAudio,
@@ -19,7 +19,7 @@ export abstract class TelegramVoiceRuntime extends TelegramSessionRuntime {
       this.sendUnauthorizedChatMessage(chatId);
       return;
     }
-    const resolved = await this.resolveProjectTarget(chatId);
+    const resolved = await this.resolveScopeTarget(chatId);
     if (!resolved.ok) {
       if (interactiveAllowed) this.sendText(chatId, resolved.message);
       else this.sendUnauthorizedChatMessage(chatId);
@@ -34,7 +34,11 @@ export abstract class TelegramVoiceRuntime extends TelegramSessionRuntime {
 
     let download: Awaited<ReturnType<typeof downloadTelegramFile>>;
     try {
-      download = await downloadTelegramFile(this.token, media.file_id);
+      download = await downloadTelegramFile(
+        this.token,
+        media.file_id,
+        this.options.http,
+      );
     } catch (err) {
       if (interactiveAllowed) {
         this.sendText(chatId, `Couldn't download your voice message: ${(err as Error).message}`);
@@ -82,9 +86,9 @@ export abstract class TelegramVoiceRuntime extends TelegramSessionRuntime {
     }
 
     if (interactiveAllowed) this.sendText(chatId, `\u{1F3A4} Transcribed: ${transcript}`);
-    let admittedTarget: TelegramProjectTarget;
+    let admittedTarget: TelegramScopeTarget;
     try {
-      admittedTarget = this.admitProjectTarget(resolved.target);
+      admittedTarget = this.admitScopeTarget(resolved.target);
     } catch (err) {
       if (interactiveAllowed) this.sendText(chatId, (err as Error).message);
       else this.sendUnauthorizedChatMessage(chatId);
@@ -101,7 +105,7 @@ export abstract class TelegramVoiceRuntime extends TelegramSessionRuntime {
   protected abstract isInteractiveChatAllowed(chatId: number): boolean;
   protected abstract sendUnauthorizedChatMessage(chatId: number): void;
   protected abstract emitVoiceTranscriptInboundSignal(
-    target: TelegramProjectTarget,
+    target: TelegramScopeTarget,
     sourceMessage: TelegramMessage,
     transcript: string,
   ): boolean;
@@ -109,7 +113,7 @@ export abstract class TelegramVoiceRuntime extends TelegramSessionRuntime {
     chatId: number,
     text: string,
     firstName?: string,
-    resolvedTarget?: TelegramProjectTarget,
+    resolvedTarget?: TelegramScopeTarget,
     sourceMessage?: TelegramMessage,
   ): Promise<void>;
 }

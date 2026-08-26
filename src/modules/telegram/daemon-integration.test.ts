@@ -20,8 +20,9 @@ import { resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
-import telegramModule from "./index.js";
+import { createTelegramModule } from "./index.js";
 
 const agentSendMock = vi.fn(async () => undefined);
 
@@ -51,11 +52,6 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   };
 });
 
-vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#core/daemon/task-store.js")>();
-  return { ...actual, initTaskStore: vi.fn() };
-});
-
 import "#modules/claude-agent-harness/index.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 
@@ -70,17 +66,16 @@ function fixedTime(): number {
 }
 
 describe("Telegram personal-assistant daemon integration", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-telegram-integration-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), {
+    stateDir = join(scopeRoot, ".kota");
+    mkdirSync(join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder"), {
       recursive: true,
     });
     resetEventBus();
@@ -89,15 +84,14 @@ describe("Telegram personal-assistant daemon integration", () => {
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     resetEventBus();
     resetScheduler();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
     return new Daemon({
-      projectDir,
+      scopeRoot,
       model: "claude-sonnet-4-6",
       verbose: false,
       idleIntervalMs: 1000,
@@ -153,7 +147,9 @@ describe("Telegram personal-assistant daemon integration", () => {
         json: () => Promise.resolve({ ok: true, result: true }),
       } as unknown as Response;
     });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const telegramModule = createTelegramModule(
+      outboundHttpRequestPort((request) => fetchMock(String(request.url))),
+    );
 
     // Resolve the interactive channel from the real telegram module through a
     // stub context, with the live bus so bot scheduler broadcasts can flow.
@@ -165,13 +161,13 @@ describe("Telegram personal-assistant daemon integration", () => {
     const bus = initEventBus();
 
     const stubCtx: ModuleRuntimeContext = {
-      cwd: projectDir,
+      cwd: scopeRoot,
       verbose: false,
       config: {
         model: "claude-sonnet-4-6",
         modelProvider: { type: "anthropic", apiKey: "sk-test" },
       } as ModuleRuntimeContext["config"],
-      storage: new ModuleStorage(projectDir, "telegram"),
+      storage: new ModuleStorage(scopeRoot, "telegram"),
       registerGroup: () => {},
       getRoutes: () => [],
       getContributedWorkflows: () => [],

@@ -75,15 +75,15 @@ export function RetractScreen() {
     setRetractConfirmed,
     retract,
   } = useDaemon();
+  const { online } = state.connection;
   const {
-    online,
     retractTarget,
     retractIdentifier,
     retractResult,
     retractLoading,
     retractError,
     retractConfirmed,
-  } = state;
+  } = state.content;
 
   const trimmed = retractIdentifier.trim();
   const hasIdentifier = trimmed.length > 0;
@@ -102,7 +102,7 @@ export function RetractScreen() {
     setRetractConfirmed(false);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -110,7 +110,7 @@ export function RetractScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>

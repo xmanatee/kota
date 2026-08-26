@@ -157,7 +157,7 @@ describe("startCallbackPoll", () => {
           approvalId: "id1",
           chatId: "99",
           messageId: 10,
-          projectId: "test-project",
+          scopeId: "test-scope",
           reviewDigest: "a".repeat(64),
         }],
       ]);
@@ -170,7 +170,7 @@ describe("startCallbackPoll", () => {
         "id1",
         "a".repeat(64),
         undefined,
-        { projectId: "test-project" },
+        { scopeId: "test-scope" },
       );
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
         callback_query_id: "cq1",
@@ -217,7 +217,7 @@ describe("startCallbackPoll", () => {
           approvalId: "id2",
           chatId: "99",
           messageId: 20,
-          projectId: "test-project",
+          scopeId: "test-scope",
           reviewDigest: "b".repeat(64),
         }],
       ]);
@@ -229,7 +229,7 @@ describe("startCallbackPoll", () => {
       expect(mockReject).toHaveBeenCalledWith(
         "id2",
         undefined,
-        { projectId: "test-project" },
+        { scopeId: "test-scope" },
       );
       expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
         callback_query_id: "cq2",

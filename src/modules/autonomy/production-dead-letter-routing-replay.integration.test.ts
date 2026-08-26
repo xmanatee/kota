@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
 import { deadLetterChangedEventPayload } from "#core/daemon/dead-letter-queue-events.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
@@ -81,9 +82,9 @@ describe("production dead-letter routing replay", () => {
       });
       expect(capture.verification.successfulProductionRuns).toHaveLength(2);
 
-      const projectDir = mkdtempSync(join(tmpdir(), "kota-production-dlq-replay-"));
-      tempDirs.push(projectDir);
-      seedIssueDrivenLoopFixture(projectDir);
+      const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-production-dlq-replay-"));
+      tempDirs.push(workspaceRoot);
+      seedIssueDrivenLoopFixture(workspaceRoot);
       const scopeId = capture.records[0]!.scopeId;
       expect(new Set(capture.records.map((record) => record.scopeId))).toEqual(
         new Set([scopeId]),
@@ -97,7 +98,7 @@ describe("production dead-letter routing replay", () => {
         taskPriority: "p1",
         taskArea: "autonomy",
         taskClass: "Product",
-        taskAcceptanceEvidence:
+        taskHowWeWillKnow:
           "The captured production incident reaches one typed clear without another AI review.",
         ownerQuestion: "",
         ownerReason: "",
@@ -108,13 +109,14 @@ describe("production dead-letter routing replay", () => {
         streamedText: "",
         turns: 1,
         totalCostUsd: 0.01,
+        usage: pricedAgentUsage(undefined, undefined, 0.01),
         subtype: "success",
         isError: false,
       } as never);
 
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, scopeId);
-      const source = makeAutonomyIssueSourceContext(projectDir, bus, scopeId);
+      const pbus = new ScopedEventBus(bus, scopeId);
+      const source = makeAutonomyIssueSourceContext(workspaceRoot, bus, scopeId);
       subscribeAutonomyIssueSources(source.ctx);
       const completed: Array<{ workflow: string; status: string }> = [];
       const attention: string[] = [];
@@ -140,7 +142,7 @@ describe("production dead-letter routing replay", () => {
         {
           ...repoTaskMutationWorkflow,
           definitionPath: "src/modules/repo-tasks/repo-task-mutation-workflow.ts",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
         },
       ];
       const runtimeFixture = createTestWorkflowRuntime({
@@ -150,8 +152,8 @@ describe("production dead-letter routing replay", () => {
         },
         bus,
         pbus,
-        projectDir,
-        projectId: scopeId,
+        scopeRoot: workspaceRoot,
+        scopeId: scopeId,
         runStore: source.runtime.runStore,
         deadLetterQueue: source.runtime.deadLetterQueue,
         idleIntervalMs: 10_000,
@@ -173,7 +175,7 @@ describe("production dead-letter routing replay", () => {
       const { runtime } = runtimeFixture;
       const recordsById = new Map(capture.records.map((record) => [record.id, record]));
       const capturedIssue = () =>
-        readAutonomyIssueProjection(projectDir).issues.find(
+        readAutonomyIssueProjection(workspaceRoot).issues.find(
           (issue) => issue.source.kind === "workflow" && issue.source.id === "progress-reviewer",
         );
       const openItems: DeadLetterItem[] = [];
@@ -187,7 +189,7 @@ describe("production dead-letter routing replay", () => {
           if (!record) throw new Error(`missing captured dead letter ${lifecycle.id}`);
           const open = asOpenDeadLetter(record, lifecycle.before.at);
           openItems.push(open);
-          writeDeadLetterSnapshot(projectDir, openItems);
+          writeDeadLetterSnapshot(workspaceRoot, openItems);
           pbus.emit("workflow.dead-letter.changed", deadLetterChangedEventPayload(open));
           await waitForLifecycle(
             () =>
@@ -196,14 +198,14 @@ describe("production dead-letter routing replay", () => {
           );
           if (index === 0) {
             await waitForLifecycle(
-              () => listFullRepoTasks(projectDir).some((task) => task.state === "ready"),
+              () => listFullRepoTasks(workspaceRoot).some((task) => task.state === "ready"),
               "the single generated repair task",
             );
           }
         }
 
         const openIssue = capturedIssue()!;
-        const readyTasks = listFullRepoTasks(projectDir).filter((task) =>
+        const readyTasks = listFullRepoTasks(workspaceRoot).filter((task) =>
           openIssue.links.taskIds.includes(task.id)
         );
         expect(decisionRequests.filter((request) => request.issueKey === openIssue.issueKey))
@@ -229,7 +231,7 @@ describe("production dead-letter routing replay", () => {
         ]);
         expect(readyTasks).toEqual([expect.objectContaining({ state: "ready" })]);
         expect(openIssue.links.taskIds).toEqual([readyTasks[0]!.id]);
-        expect(getRepoTaskQueueSnapshot(projectDir).hasDispatchableWork).toBe(true);
+        expect(getRepoTaskQueueSnapshot(workspaceRoot).hasDispatchableWork).toBe(true);
         expect(attention.some((text) => text.includes("action decision-requested"))).toBe(
           true,
         );
@@ -243,7 +245,7 @@ describe("production dead-letter routing replay", () => {
           if (!terminal) throw new Error(`missing terminal dead letter ${lifecycle.id}`);
           const index = openItems.findIndex((item) => item.id === terminal.id);
           openItems[index] = terminal;
-          writeDeadLetterSnapshot(projectDir, openItems);
+          writeDeadLetterSnapshot(workspaceRoot, openItems);
           pbus.emit(
             "workflow.dead-letter.changed",
             deadLetterChangedEventPayload(terminal),
@@ -260,7 +262,7 @@ describe("production dead-letter routing replay", () => {
         );
         await waitForLifecycle(
           () =>
-            listFullRepoTasks(projectDir).some(
+            listFullRepoTasks(workspaceRoot).some(
               (task) => task.id === readyTasks[0]!.id && task.state === "dropped",
             ),
           "the shared task mutation writer",
@@ -284,7 +286,7 @@ describe("production dead-letter routing replay", () => {
           "repeated",
           "cleared",
         ]);
-        expect(listFullRepoTasks(projectDir)).toContainEqual(
+        expect(listFullRepoTasks(workspaceRoot)).toContainEqual(
           expect.objectContaining({ id: readyTasks[0]!.id, state: "dropped" }),
         );
         expect(attention.some((text) => text.includes("action resolved"))).toBe(true);

@@ -2,7 +2,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { pricedAgentUsage } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RunContext } from "#core/workflow/run-context.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
@@ -11,7 +10,10 @@ import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import {
+  type ExecutorResult,
+  executeWithAgentSDK,
+} from "#modules/claude-agent-harness/executor.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
@@ -21,7 +23,6 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 });
 
 import "#modules/claude-agent-harness/index.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 
@@ -42,11 +43,11 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
 function makeRunContext(
-  projectDir: string,
+  scopeRoot: string,
   trigger: WorkflowRunTrigger = TRIGGER,
 ): RunContext {
   const runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const rootDir = join(scopeRoot, ".kota", "runtime", runId);
   const workspaceDir = join(rootDir, "workspace");
   const tempDir = join(rootDir, "tmp");
   const artifactDir = join(rootDir, "artifacts");
@@ -57,7 +58,7 @@ function makeRunContext(
   }
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: scopeRoot },
     workflow: "test",
     trigger,
     sandbox: {
@@ -91,24 +92,24 @@ function makeRunContext(
 
 
 describe("parallel step groups", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-parallel-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(scopeRoot, { recursive: true });
+    store = new WorkflowRunStore(scopeRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("runs all child steps concurrently and records outputs by ID", async () => {
@@ -151,8 +152,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -204,8 +205,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -241,8 +242,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -295,8 +296,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -337,8 +338,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -380,8 +381,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -431,8 +432,8 @@ describe("parallel step groups", () => {
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir),
+      readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
+      runContext: makeRunContext(scopeRoot),
       bus,
       store,
       log,
@@ -446,17 +447,17 @@ describe("parallel step groups", () => {
 });
 
 describe("parallel step groups with agent steps", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
-  const SUCCESS_RESULT = {
+  const SUCCESS_RESULT: ExecutorResult = {
     text: "done",
     streamedText: "",
     sessionId: "sess-1",
     turns: 1,
-    usage: pricedAgentUsage(undefined, undefined, 0.01),
+    usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
     subtype: "success",
     isError: false,
   };
@@ -466,7 +467,7 @@ describe("parallel step groups with agent steps", () => {
       id,
       type: "agent",
       promptPath: "prompt.md",
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       model: "claude-opus-4-7",
               effort: "xhigh",
       autonomyMode: "autonomous",
@@ -476,20 +477,20 @@ describe("parallel step groups with agent steps", () => {
   }
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-parallel-agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "# Prompt\nDo stuff.", "utf-8");
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "# Prompt\nDo stuff.", "utf-8");
+    store = new WorkflowRunStore(scopeRoot);
     bus = new EventBus();
     log.mockReset();
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("runs all agent steps concurrently and records outputs", async () => {
@@ -505,8 +506,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { readRuntimeState: () => ({ completedRuns: 0, workflows: {} }), runContext: makeRunContext(scopeRoot), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
@@ -536,8 +536,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { readRuntimeState: () => ({ completedRuns: 0, workflows: {} }), runContext: makeRunContext(scopeRoot), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -566,8 +565,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { readRuntimeState: () => ({ completedRuns: 0, workflows: {} }), runContext: makeRunContext(scopeRoot), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("failed");
@@ -607,8 +605,7 @@ describe("parallel step groups with agent steps", () => {
       ],
     });
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(projectDir), bus, store, log });
+    const { promise } = executeWorkflowRun(definition, TRIGGER, { readRuntimeState: () => ({ completedRuns: 0, workflows: {} }), runContext: makeRunContext(scopeRoot), bus, store, log });
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");

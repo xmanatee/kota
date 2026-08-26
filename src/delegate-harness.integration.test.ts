@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 
@@ -73,6 +74,7 @@ describe("delegate-harness", () => {
       streamedText: "",
       turns: 2,
       totalCostUsd: 0.15,
+      usage: pricedAgentUsage(undefined, undefined, 0.15),
       subtype: "success",
       isError: false,
     });

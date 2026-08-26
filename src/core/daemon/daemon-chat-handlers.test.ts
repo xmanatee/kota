@@ -12,7 +12,7 @@ import {
   mockAgentSession,
   mockRequest,
   mockResponse,
-  PROJECT_ID,
+  SCOPE_ID,
 } from "./daemon-chat-test-support.integration.js";
 
 describe("readChatBody", () => {
@@ -48,7 +48,7 @@ describe("handleDaemonChat", () => {
       () => mockAgentSession() as never,
       "supervised",
       CONV_ID,
-      { projectId: PROJECT_ID },
+      { scopeId: SCOPE_ID },
     );
     const res = mockResponse();
     await handleDaemonChat(pool, mockRequest("{}") as never, res as never, session.id);
@@ -61,7 +61,7 @@ describe("handleDaemonChat", () => {
       () => mockAgentSession() as never,
       "supervised",
       CONV_ID,
-      { projectId: PROJECT_ID },
+      { scopeId: SCOPE_ID },
     );
     session.busy = true;
     const res = mockResponse();
@@ -78,7 +78,7 @@ describe("handleDaemonChat", () => {
     const pool = makePool();
     const agent = mockAgentSession({ status: "done" });
     const session = pool.create(() => agent as never, "supervised", CONV_ID, {
-      projectId: PROJECT_ID,
+      scopeId: SCOPE_ID,
     });
     const res = mockResponse();
     await handleDaemonChat(
@@ -103,7 +103,7 @@ describe("handleDaemonChat", () => {
       close: vi.fn(),
     };
     const session = pool.create(() => agent as never, "supervised", CONV_ID, {
-      projectId: PROJECT_ID,
+      scopeId: SCOPE_ID,
     });
     const res = mockResponse();
     await handleDaemonChat(
@@ -132,7 +132,7 @@ describe("handleDaemonChat", () => {
       setAutonomyMode: vi.fn(),
       getGuardrailsSnapshot: vi.fn(() => ({ id: "gr_test", generation: 1, tools: {} })),
       replaceGuardrailsConfig: vi.fn(() => ({ changed: false })),
-    }) as never, "supervised", CONV_ID, { projectId: PROJECT_ID });
+    }) as never, "supervised", CONV_ID, { scopeId: SCOPE_ID });
 
     const chatPromise = handleDaemonChat(
       pool,
@@ -186,7 +186,7 @@ describe("handleDaemonChat", () => {
       }),
     };
     const session = pool.create(() => agent as never, "supervised", CONV_ID, {
-      projectId: PROJECT_ID,
+      scopeId: SCOPE_ID,
     });
     const res = mockResponse();
     const chatPromise = handleDaemonChat(
@@ -252,7 +252,7 @@ describe("handleDaemonChat", () => {
       () => mockAgentSession() as never,
       "supervised",
       CONV_ID,
-      { projectId: PROJECT_ID },
+      { scopeId: SCOPE_ID },
     );
     const res = mockResponse();
     handleDaemonChatEvents(pool, mockRequest() as never, res as never, session.id);

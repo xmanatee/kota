@@ -44,20 +44,20 @@ function baseMetadata(
 }
 
 describe("control monitor coverage telemetry", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let runDirPath: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-control-coverage-telemetry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runDirPath = join(projectDir, ".kota", "runs", "run-control");
+    runDirPath = join(scopeRoot, ".kota", "runs", "run-control");
     mkdirSync(join(runDirPath, "steps"), { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("counts dynamic external MCP payloads from telemetry provenance", () => {
@@ -103,7 +103,7 @@ describe("control monitor coverage telemetry", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -155,7 +155,7 @@ describe("control monitor coverage telemetry", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,

@@ -1,5 +1,6 @@
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
+import { OUTBOUND_HTTP_PROFILES, outboundHttp } from "#core/outbound-http/index.js";
 import { makeLinearTools, resolveTeamContext } from "./linear-tools.js";
 import type { LinearTaskProviderConfig } from "./task-provider.js";
 import { LinearTaskProvider } from "./task-provider.js";
@@ -26,7 +27,10 @@ async function linearFetch(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<{ data: Record<string, unknown>; errors?: Array<{ message: string }> }> {
-  const res = await fetch("https://api.linear.app/graphql", {
+  const { response: res } = await outboundHttp.request({
+    profile: OUTBOUND_HTTP_PROFILES.configuredProvider(["https://api.linear.app"]),
+    operation: "linear.graphql",
+    url: "https://api.linear.app/graphql",
     method: "POST",
     headers: {
       Authorization: apiKey,
@@ -61,9 +65,9 @@ const linearModule: KotaModule = {
     dataClasses: [
       {
         id: "linear.credentials",
-        description: "Linear API key references resolved from project config or environment variables.",
+        description: "Linear API key references resolved from scope config or environment variables.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -139,7 +143,10 @@ const linearModule: KotaModule = {
     const provider = new LinearTaskProvider(config.taskProvider, boundFetch);
     try {
       await provider.init();
-      ctx.registerProvider(TASK_PROVIDER_TOKEN, provider);
+      ctx.registerProvider(TASK_PROVIDER_TOKEN, {
+        provider,
+        mutations: provider,
+      });
       ctx.log.info("Linear Issues task provider registered");
     } catch (err) {
       ctx.log.warn(

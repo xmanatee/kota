@@ -20,9 +20,9 @@ and are independently registered.
 - One daemon-control route (`POST /capture`) plus its user-facing twin
   (`POST /api/capture`) — both share `createCaptureRouteHandler` so the
   wire shape cannot drift between operator surfaces.
-- Both routes resolve a concrete project id before writer execution. Project
-  contributors receive `CaptureProjectContext` and write through that
-  project's stores and project root.
+- Both routes resolve a concrete scope id before writer execution. Scope
+  contributors receive `CaptureScopeContext` and write through that
+  scope's stores and scope root.
 - One `KotaClient.capture` namespace and one `kota capture <text>` CLI
   subcommand rendered through `src/modules/rendering`.
 - One agent-callable tool (`capture`) contributed through the standard
@@ -43,8 +43,8 @@ and are independently registered.
 
 A new contributor:
 
-1. Extends the capture target and record unions in
-   `src/core/server/kota-client.ts`.
+1. Extends the capture target and record unions in this module's `client.ts`;
+   the daemon binding generator discovers them through the canonical wire root.
 2. Adds an adapter in `contributors.ts` that wraps its writer into a
    `CaptureContributor`.
 3. Registers the new contributor in this module's `onLoad`.
@@ -109,12 +109,12 @@ its `register()` API; nothing in core hard-codes the contributor set.
   `KnowledgeProvider.create`, `createNormalizedTask`, or the repo-tasks
   domain's verified inbox writer). The seam never writes a parallel record on
   the side and never logs a separate envelope.
-- Project contributors must use the supplied project context; default
-  provider getters are not a valid path for multi-project capture.
+- Scope contributors must use the supplied scope context; default
+  provider getters are not a valid path for multi-scope capture.
 - No public classifier-prompt knob. Tuning the routing prompt lands as
   a focused follow-up, not as a per-call parameter.
 - No cost surfacing into autonomy-facing context. The classifier uses
-  the project's configured model client; per-call cost stays in the
+  the scope's configured model client; per-call cost stays in the
   cost tracker the recall and answer seams already share.
 - Live operator consumers are the daemon `POST /capture` route, the
   web-facing `POST /api/capture` route, `kota capture <text>`, the web
@@ -125,6 +125,6 @@ its `register()` API; nothing in core hard-codes the contributor set.
   Slack-channel `/capture` plus the same four explicit-target commands.
   These surfaces share `createCaptureRouteHandler`,
   `renderCaptureResultPlain`, `renderCaptureReplyPlain`, and the
-  conformance fixture instead of maintaining independent wire contracts.
+  generated daemon bindings instead of maintaining independent wire contracts.
 - No second registry, no second public capture path. `register()` is
   the single way new stores join.

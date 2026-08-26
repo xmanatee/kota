@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { localWriteEffect } from "#core/tools/effect.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import { resolvePathFrom } from "#core/tools/project-path-policy.js";
+import { resolvePathFrom } from "#core/tools/path-containment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 
 export const sqliteTool: KotaTool = {

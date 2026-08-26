@@ -14,7 +14,7 @@
  * (memory, knowledge, tasks, inbox); the recall side is built from the
  * four real recall contributors against the same backing stores plus a
  * minimal in-process history provider stub (history is never fed by
- * capture). Both providers run with `supportsSemanticSearch() === false`
+ * capture). Both providers omit the optional semantic capability
  * so the test stays fully offline and exercises every contributor's
  * keyword-fallback path. The classifier is a deterministic in-process
  * stub.
@@ -53,10 +53,9 @@ import type {
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
-  ReindexResult,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import {
   CAPTURE_TARGET_ORDER,
@@ -137,7 +136,7 @@ function buildClassifier(): {
 
 /**
  * Minimal in-process `HistoryProvider`. The recall pipeline only calls
- * `supportsSemanticSearch()` and `list({ search, limit })` on the history
+ * `list({ search, limit })` on the history
  * provider; the rest of the interface throws so an unintended call
  * surfaces loudly rather than masquerading as empty.
  */
@@ -164,13 +163,6 @@ function createEmptyHistoryProvider(): HistoryProvider {
     findByPrefix: (_idOrPrefix: string): ConversationRecord | null => null,
     remove: (_id: string): boolean => false,
     cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> => unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
   };
 }
 
@@ -214,12 +206,12 @@ function startServer(
   });
 }
 
-function makeProjectRoot(): string {
+function makeScopeRoot(): string {
   const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-recall-"));
   const dir = createRepoTaskRuntimeSandbox(
     scopeDir,
     "capture-recall",
-  ).projectDir;
+  ).workspaceRoot;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
@@ -235,10 +227,10 @@ type WriteSnapshot = {
 function snapshotWrites(args: {
   memoryStore: MemoryStore;
   knowledgeStore: KnowledgeStore;
-  projectRoot: string;
+  scopeRoot: string;
 }): WriteSnapshot {
-  const tasksDir = join(args.projectRoot, "data", "tasks", "backlog");
-  const inboxDir = join(args.projectRoot, "data", "inbox");
+  const tasksDir = join(args.scopeRoot, "data", "tasks", "backlog");
+  const inboxDir = join(args.scopeRoot, "data", "inbox");
   return {
     memory: args.memoryStore.list().length,
     knowledge: args.knowledgeStore.list().length,
@@ -258,7 +250,7 @@ function findHit(hits: RecallHit[], source: RecallHit["source"], id: string): Re
 }
 
 describe("capture↔recall pipeline (HTTP)", () => {
-  let projectRoot: string;
+  let scopeRoot: string;
   let memoryStore: MemoryStore;
   let knowledgeStore: KnowledgeStore;
   let captureProvider: CaptureProvider;
@@ -268,13 +260,13 @@ describe("capture↔recall pipeline (HTTP)", () => {
   let client: DaemonControlClient;
 
   beforeAll(async () => {
-    projectRoot = makeProjectRoot();
-    memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+    scopeRoot = makeScopeRoot();
+    memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
     knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
+      scopeRoot,
+      join(scopeRoot, ".kota-global", "data"),
     );
-    const tasksProvider = new RepoTasksDefaultStore(projectRoot);
+    const tasksProvider = new RepoTasksDefaultStore(scopeRoot);
     const historyProvider = createEmptyHistoryProvider();
 
     const { classifier, calls } = buildClassifier();
@@ -283,7 +275,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
     const capture = new CaptureProviderImpl({ classifier });
     capture.register(createMemoryCaptureContributor(memoryStore));
     capture.register(createKnowledgeCaptureContributor(knowledgeStore));
-    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
     capture.register(createTasksCaptureContributor(mutationTarget));
     capture.register(createInboxContributor(mutationTarget));
     captureProvider = capture;
@@ -316,7 +308,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
         token: "",
       },
       (link) => ({
-        ...buildMigratedNamespaceTestStubs(),
+        ...completeDaemonClientHandlers(),
         ...captureModule.daemonClient!(link),
         ...recallModule.daemonClient!(link),
       }),
@@ -325,7 +317,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("registers all four capture contributors and the four raw-store recall contributors", () => {
@@ -417,7 +409,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
     expect(captureResult.record.recordId).toBe(INBOX_EXPECTED_ID);
     expect(
       existsSync(
-        join(projectRoot, "data", "inbox", `${INBOX_EXPECTED_ID}.md`),
+        join(scopeRoot, "data", "inbox", `${INBOX_EXPECTED_ID}.md`),
       ),
     ).toBe(true);
 
@@ -455,7 +447,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
   });
 
   it("ambiguous classifier reply: surfaces the typed ambiguous envelope and writes nothing to any store", async () => {
-    const before = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const before = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     const callsBefore = classifierCalls.length;
 
     const result = await client.capture.capture(AMBIGUOUS_TEXT);
@@ -468,7 +460,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
     expect(classifierCalls.length).toBe(callsBefore + 1);
     expect(classifierCalls[callsBefore]?.text).toBe(AMBIGUOUS_TEXT);
 
-    const after = snapshotWrites({ memoryStore, knowledgeStore, projectRoot });
+    const after = snapshotWrites({ memoryStore, knowledgeStore, scopeRoot });
     expect(after).toEqual(before);
   });
 });

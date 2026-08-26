@@ -6,16 +6,16 @@ import { parseAgentStepRecording } from "./agent-step-recording.js";
 import { extractJudgeCallRecording } from "./recorder.js";
 
 describe("extractJudgeCallRecording", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let fixtureDir: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-judge-recorder-project-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-judge-recorder-project-"));
     fixtureDir = mkdtempSync(join(tmpdir(), "kota-judge-recorder-fixture-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(fixtureDir, { recursive: true, force: true });
   });
 
@@ -25,7 +25,7 @@ describe("extractJudgeCallRecording", () => {
     label: string,
     verdict: Record<string, unknown>,
   ): void {
-    const runDir = join(projectDir, ".kota", "runs", runId);
+    const runDir = join(workspaceRoot, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "metadata.json"),
@@ -48,7 +48,7 @@ describe("extractJudgeCallRecording", () => {
     seedJudgeArtifact(runId, "builder", "critic-review", verdict);
 
     const result = extractJudgeCallRecording({
-      projectDir,
+      workspaceRoot,
       sourceRunId: runId,
       label: "critic-review",
       fixtureDir,
@@ -86,7 +86,7 @@ describe("extractJudgeCallRecording", () => {
     seedJudgeArtifact(runId, "improver", "semantic-gate-review", verdict);
 
     const result = extractJudgeCallRecording({
-      projectDir,
+      workspaceRoot,
       sourceRunId: runId,
       label: "semantic-gate-review",
       fixtureDir,
@@ -102,7 +102,7 @@ describe("extractJudgeCallRecording", () => {
 
   it("rejects a source run missing the labeled judge artifact, naming run id and label", () => {
     const runId = "2026-04-24T00-00-00-000Z-builder-nojudge";
-    const runDir = join(projectDir, ".kota", "runs", runId);
+    const runDir = join(workspaceRoot, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "metadata.json"),
@@ -112,7 +112,7 @@ describe("extractJudgeCallRecording", () => {
     let err: unknown;
     try {
       extractJudgeCallRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: runId,
         label: "critic-review",
         fixtureDir,
@@ -129,7 +129,7 @@ describe("extractJudgeCallRecording", () => {
   it("rejects traversal-shaped source run and judge labels before deriving paths", () => {
     expect(() =>
       extractJudgeCallRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: "../outside-run",
         label: "critic-review",
         fixtureDir,
@@ -138,7 +138,7 @@ describe("extractJudgeCallRecording", () => {
 
     expect(() =>
       extractJudgeCallRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: "2026-04-24T00-00-00-000Z-builder-safe",
         label: "../critic-review",
         fixtureDir,
@@ -148,7 +148,7 @@ describe("extractJudgeCallRecording", () => {
 
   it("rejects an unparseable judge artifact", () => {
     const runId = "2026-04-24T00-00-00-000Z-builder-badjson";
-    const runDir = join(projectDir, ".kota", "runs", runId);
+    const runDir = join(workspaceRoot, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "metadata.json"),
@@ -158,7 +158,7 @@ describe("extractJudgeCallRecording", () => {
 
     expect(() =>
       extractJudgeCallRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: runId,
         label: "critic-review",
         fixtureDir,

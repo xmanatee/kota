@@ -12,13 +12,13 @@ import {
   type AdmittedRun,
   type DurableRunState,
   type PendingRunPublication,
-  type ProjectStateValue,
   PublicationIntentConflictError,
   type RestartRecoveryAttempt,
   type RunAdmissionDisposition,
   type RunAdmissionIdentity,
   type RunPublication,
   type RunSuspensionState,
+  type ScopeStateValue,
   StaleDaemonEpochError,
   StateValueConflictError,
   type StoredExternalEffect,
@@ -46,7 +46,7 @@ export {
 
 type RunRow = {
   id: string;
-  project_id: string;
+  scope_id: string;
   workflow: string;
   trigger_json: string;
   repository_access: StoredRun["repository"];
@@ -117,7 +117,7 @@ export class RunStateDatabase {
     this.database.close();
   }
 
-  registerProject(input: {
+  registerScope(input: {
     id: string;
     rootPath: string;
     displayName?: string;
@@ -125,7 +125,7 @@ export class RunStateDatabase {
   }): void {
     this.database
       .prepare(
-        `INSERT INTO projects (id, root_path, display_name, created_at)
+        `INSERT INTO scopes (id, root_path, display_name, created_at)
          VALUES (?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            root_path = excluded.root_path,
@@ -134,9 +134,9 @@ export class RunStateDatabase {
       .run(input.id, resolve(input.rootPath), input.displayName ?? null, input.createdAt);
   }
 
-  getProjectIdByRootPath(rootPath: string): string | null {
+  getScopeIdByRootPath(rootPath: string): string | null {
     const row = this.database
-      .prepare("SELECT id FROM projects WHERE root_path = ?")
+      .prepare("SELECT id FROM scopes WHERE root_path = ?")
       .get(resolve(rootPath)) as { id: string } | undefined;
     return row?.id ?? null;
   }
@@ -270,11 +270,11 @@ export class RunStateDatabase {
           );
         }
         const sameContract =
-          existing.projectId === input.projectId &&
+          existing.scopeId === input.scopeId &&
           existing.workflow === input.workflow &&
           existing.repository === input.repository &&
           JSON.stringify(existing.trigger) === JSON.stringify(input.trigger) &&
-          JSON.stringify(this.requestedResources(input.id, existing.projectId)) ===
+          JSON.stringify(this.requestedResources(input.id, existing.scopeId)) ===
             JSON.stringify([...new Set(input.resources)].sort());
         if (!sameContract) {
           throw new Error(`Run id "${input.id}" was reused with a different contract`);
@@ -287,13 +287,13 @@ export class RunStateDatabase {
       this.database
         .prepare(
           `INSERT INTO runs
-            (id, project_id, workflow, trigger_json, repository_access, state,
+            (id, scope_id, workflow, trigger_json, repository_access, state,
              admitted_at, not_before_at)
            VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)`,
         )
         .run(
           input.id,
-          input.projectId,
+          input.scopeId,
           input.workflow,
           JSON.stringify(input.trigger),
           input.repository,
@@ -306,7 +306,7 @@ export class RunStateDatabase {
          VALUES (?, ?)`,
       );
       for (const logicalKey of [...new Set(input.resources)].sort()) {
-        const resourceKey = this.scopeResourceKey(input.projectId, logicalKey);
+        const resourceKey = this.scopeResourceKey(input.scopeId, logicalKey);
         insert.run(input.id, resourceKey);
       }
       if (input.admission !== undefined) {
@@ -328,17 +328,17 @@ export class RunStateDatabase {
   listDispatchableRuns(input: {
     now: string;
     limit: number;
-    excludedProjectIds: readonly string[];
+    excludedScopeIds: readonly string[];
     includedRunIds?: readonly string[];
   }): StoredRun[] {
     if (!Number.isInteger(input.limit) || input.limit < 0) {
       throw new Error("limit must be a non-negative integer");
     }
     if (input.limit === 0) return [];
-    const excludedProjectIds = [...new Set(input.excludedProjectIds)].sort();
-    const excludedProjects = excludedProjectIds.length === 0
+    const excludedScopeIds = [...new Set(input.excludedScopeIds)].sort();
+    const excludedScopes = excludedScopeIds.length === 0
       ? ""
-      : `AND project_id NOT IN (${excludedProjectIds.map(() => "?").join(", ")})`;
+      : `AND scope_id NOT IN (${excludedScopeIds.map(() => "?").join(", ")})`;
     const includedRunIds = input.includedRunIds === undefined
       ? undefined
       : [...new Set(input.includedRunIds)].sort();
@@ -350,11 +350,11 @@ export class RunStateDatabase {
       .prepare(
         `SELECT id FROM runs
          WHERE state = 'queued' AND (not_before_at IS NULL OR not_before_at <= ?)
-         ${excludedProjects}
+         ${excludedScopes}
          ${includedRuns}
          ORDER BY admitted_at, rowid`,
       )
-      .all(input.now, ...excludedProjectIds, ...(includedRunIds ?? []));
+      .all(input.now, ...excludedScopeIds, ...(includedRunIds ?? []));
     const owners = new Map(
       (this.database.prepare("SELECT resource_key, run_id FROM run_resources").all() as Array<{
         resource_key: string;
@@ -378,13 +378,13 @@ export class RunStateDatabase {
 
   nextQueuedEligibility(input: {
     after: string;
-    excludedProjectIds: readonly string[];
+    excludedScopeIds: readonly string[];
     includedRunIds?: readonly string[];
   }): string | null {
-    const excludedProjectIds = [...new Set(input.excludedProjectIds)].sort();
-    const excludedProjects = excludedProjectIds.length === 0
+    const excludedScopeIds = [...new Set(input.excludedScopeIds)].sort();
+    const excludedScopes = excludedScopeIds.length === 0
       ? ""
-      : `AND project_id NOT IN (${excludedProjectIds.map(() => "?").join(", ")})`;
+      : `AND scope_id NOT IN (${excludedScopeIds.map(() => "?").join(", ")})`;
     const includedRunIds = input.includedRunIds === undefined
       ? undefined
       : [...new Set(input.includedRunIds)].sort();
@@ -396,34 +396,34 @@ export class RunStateDatabase {
       .prepare(
         `SELECT MIN(not_before_at) AS value FROM runs
          WHERE state = 'queued' AND not_before_at > ?
-         ${excludedProjects}
+         ${excludedScopes}
          ${includedRuns}`,
       )
-      .get(input.after, ...excludedProjectIds, ...(includedRunIds ?? [])) as {
+      .get(input.after, ...excludedScopeIds, ...(includedRunIds ?? [])) as {
         value: string | null;
       };
     return row.value;
   }
 
-  getProjectRoot(projectId: string): string | null {
+  getScopeRoot(scopeId: string): string | null {
     const row = this.database
-      .prepare("SELECT root_path FROM projects WHERE id = ?")
-      .get(projectId) as { root_path: string } | undefined;
+      .prepare("SELECT root_path FROM scopes WHERE id = ?")
+      .get(scopeId) as { root_path: string } | undefined;
     return row?.root_path ?? null;
   }
 
   findQueuedRun(input: {
-    projectId: string;
+    scopeId: string;
     workflow: string;
     triggerEvent: string;
   }): StoredRun | null {
     const rows = this.database
       .prepare(
         `SELECT id FROM runs
-         WHERE project_id = ? AND workflow = ? AND state = 'queued'
+         WHERE scope_id = ? AND workflow = ? AND state = 'queued'
          ORDER BY admitted_at, rowid`,
       )
-      .all(input.projectId, input.workflow);
+      .all(input.scopeId, input.workflow);
     for (const row of rows) {
       const run = this.getRun((row as { id: string }).id)!;
       if (run.trigger.event === input.triggerEvent) return run;
@@ -475,11 +475,11 @@ export class RunStateDatabase {
       this.assertCurrentEpoch(epoch);
       const run = this.database
         .prepare(
-          `SELECT project_id FROM runs
+          `SELECT scope_id FROM runs
            WHERE id = ? AND state = 'queued'
              AND (not_before_at IS NULL OR not_before_at <= ?)`,
         )
-        .get(runId, startedAt) as { project_id: string } | undefined;
+        .get(runId, startedAt) as { scope_id: string } | undefined;
       if (!run) throw new Error(`Run "${runId}" is not queued`);
       const ownerQuery = this.database.prepare(
         "SELECT run_id FROM run_resources WHERE resource_key = ?",
@@ -719,10 +719,10 @@ export class RunStateDatabase {
       this.assertCurrentEpoch(input.epoch);
       const run = this.database
         .prepare(
-          `SELECT project_id FROM runs
+          `SELECT scope_id FROM runs
            WHERE id = ? AND state IN ('running', 'integrating') AND daemon_epoch = ?`,
         )
-        .get(input.runId, input.epoch) as { project_id: string } | undefined;
+        .get(input.runId, input.epoch) as { scope_id: string } | undefined;
       if (!run) {
         const exists = this.database
           .prepare("SELECT 1 FROM runs WHERE id = ?")
@@ -732,7 +732,7 @@ export class RunStateDatabase {
           `Run "${input.runId}" is not active in daemon epoch ${input.epoch}`,
         );
       }
-      const resourceKey = this.scopeResourceKey(run.project_id, input.resourceKey);
+      const resourceKey = this.scopeResourceKey(run.scope_id, input.resourceKey);
       const owner = this.database
         .prepare("SELECT run_id FROM run_resources WHERE resource_key = ?")
         .get(resourceKey);
@@ -758,10 +758,10 @@ export class RunStateDatabase {
     return this.database.transaction(() => {
       this.assertCurrentEpoch(epoch);
       const run = this.database
-        .prepare("SELECT project_id FROM runs WHERE id = ?")
-        .get(runId) as { project_id: string } | undefined;
+        .prepare("SELECT scope_id FROM runs WHERE id = ?")
+        .get(runId) as { scope_id: string } | undefined;
       if (!run) throw new Error(`Unknown run "${runId}"`);
-      const scopedKey = this.scopeResourceKey(run.project_id, resourceKey);
+      const scopedKey = this.scopeResourceKey(run.scope_id, resourceKey);
       const released = this.database
         .prepare("DELETE FROM run_resources WHERE resource_key = ? AND run_id = ?")
         .run(scopedKey, runId);
@@ -769,18 +769,18 @@ export class RunStateDatabase {
     })();
   }
 
-  readProjectStateValue<T = unknown>(
-    projectId: string,
+  readScopeStateValue<T = unknown>(
+    scopeId: string,
     key: string,
-  ): ProjectStateValue<T> {
+  ): ScopeStateValue<T> {
     this.assertStateKey(key);
     const row = this.database
       .prepare(
         `SELECT revision, value_json
-         FROM project_state_values
-         WHERE project_id = ? AND state_key = ?`,
+         FROM scope_state_values
+         WHERE scope_id = ? AND state_key = ?`,
       )
-      .get(projectId, key) as {
+      .get(scopeId, key) as {
         revision: number;
         value_json: string;
       } | undefined;
@@ -792,8 +792,8 @@ export class RunStateDatabase {
         };
   }
 
-  compareAndSetProjectStateValue(input: {
-    projectId: string;
+  compareAndSetScopeStateValue(input: {
+    scopeId: string;
     key: string;
     expectedRevision: number;
     value: unknown;
@@ -811,10 +811,10 @@ export class RunStateDatabase {
     }
 
     this.database.transaction(() => {
-      const current = this.readProjectStateValue(input.projectId, input.key);
+      const current = this.readScopeStateValue(input.scopeId, input.key);
       if (current.revision !== input.expectedRevision) {
         throw new StateValueConflictError(
-          input.projectId,
+          input.scopeId,
           input.key,
           input.expectedRevision,
           current.revision,
@@ -823,12 +823,12 @@ export class RunStateDatabase {
       const pending = this.database
         .prepare(
           `SELECT run_id FROM run_state_mutations
-           WHERE project_id = ? AND state_key = ?`,
+           WHERE scope_id = ? AND state_key = ?`,
         )
-        .get(input.projectId, input.key) as { run_id: string } | undefined;
+        .get(input.scopeId, input.key) as { run_id: string } | undefined;
       if (pending !== undefined) {
         throw new StateValueConflictError(
-          input.projectId,
+          input.scopeId,
           input.key,
           input.expectedRevision,
           current.revision,
@@ -837,16 +837,16 @@ export class RunStateDatabase {
       }
       this.database
         .prepare(
-          `INSERT INTO project_state_values
-            (project_id, state_key, revision, value_json, updated_at)
+          `INSERT INTO scope_state_values
+            (scope_id, state_key, revision, value_json, updated_at)
            VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(project_id, state_key) DO UPDATE SET
+           ON CONFLICT(scope_id, state_key) DO UPDATE SET
              revision = excluded.revision,
              value_json = excluded.value_json,
              updated_at = excluded.updated_at`,
         )
         .run(
-          input.projectId,
+          input.scopeId,
           input.key,
           input.expectedRevision + 1,
           valueJson,
@@ -855,10 +855,10 @@ export class RunStateDatabase {
     })();
   }
 
-  readWorkflowSummary(projectId: string): WorkflowRuntimeSummary {
+  readWorkflowSummary(scopeId: string): WorkflowRuntimeSummary {
     const workflows: WorkflowRuntimeSummary["workflows"] = {};
     let completedRuns = 0;
-    for (const run of this.listRuns(projectId)) {
+    for (const run of this.listRuns(scopeId)) {
       if (run.startedAt !== undefined) {
         const current = workflows[run.workflow]?.lastStarted;
         if (
@@ -898,7 +898,7 @@ export class RunStateDatabase {
     return { completedRuns, workflows };
   }
 
-  stageProjectStateMutation(input: {
+  stageScopeStateMutation(input: {
     runId: string;
     key: string;
     expectedRevision: number;
@@ -918,9 +918,9 @@ export class RunStateDatabase {
 
     this.database.transaction(() => {
       const run = this.database
-        .prepare("SELECT project_id, state FROM runs WHERE id = ?")
+        .prepare("SELECT scope_id, state FROM runs WHERE id = ?")
         .get(input.runId) as {
-          project_id: string;
+          scope_id: string;
           state: DurableRunState;
         } | undefined;
       if (!run) throw new Error(`Unknown run "${input.runId}"`);
@@ -948,18 +948,18 @@ export class RunStateDatabase {
           return;
         }
         throw new StateValueConflictError(
-          run.project_id,
+          run.scope_id,
           input.key,
           input.expectedRevision,
-          this.readProjectStateValue(run.project_id, input.key).revision,
+          this.readScopeStateValue(run.scope_id, input.key).revision,
           input.runId,
         );
       }
 
-      const current = this.readProjectStateValue(run.project_id, input.key);
+      const current = this.readScopeStateValue(run.scope_id, input.key);
       if (current.revision !== input.expectedRevision) {
         throw new StateValueConflictError(
-          run.project_id,
+          run.scope_id,
           input.key,
           input.expectedRevision,
           current.revision,
@@ -968,12 +968,12 @@ export class RunStateDatabase {
       const pending = this.database
         .prepare(
           `SELECT run_id FROM run_state_mutations
-           WHERE project_id = ? AND state_key = ?`,
+           WHERE scope_id = ? AND state_key = ?`,
         )
-        .get(run.project_id, input.key) as { run_id: string } | undefined;
+        .get(run.scope_id, input.key) as { run_id: string } | undefined;
       if (pending !== undefined) {
         throw new StateValueConflictError(
-          run.project_id,
+          run.scope_id,
           input.key,
           input.expectedRevision,
           current.revision,
@@ -983,12 +983,12 @@ export class RunStateDatabase {
       this.database
         .prepare(
           `INSERT INTO run_state_mutations
-            (run_id, project_id, state_key, expected_revision, value_json, staged_at)
+            (run_id, scope_id, state_key, expected_revision, value_json, staged_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
         .run(
           input.runId,
-          run.project_id,
+          run.scope_id,
           input.key,
           input.expectedRevision,
           valueJson,
@@ -1033,21 +1033,21 @@ export class RunStateDatabase {
         this.applyStagedStateMutations(runId, finishedAt);
         const intents = this.database
           .prepare(
-            `SELECT publication_id, project_id, event_name, payload_json, intent_sequence
+            `SELECT publication_id, scope_id, event_name, payload_json, intent_sequence
              FROM run_emit_intents
              WHERE run_id = ?
              ORDER BY intent_sequence`,
           )
           .all(runId) as Array<{
             publication_id: string;
-            project_id: string;
+            scope_id: string;
             event_name: string;
             payload_json: string;
             intent_sequence: number;
           }>;
         const insertPublication = this.database.prepare(
           `INSERT INTO run_publications
-            (publication_id, run_id, project_id, event_name, payload_json,
+            (publication_id, run_id, scope_id, event_name, payload_json,
              publication_sequence, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
         );
@@ -1055,7 +1055,7 @@ export class RunStateDatabase {
           insertPublication.run(
             intent.publication_id,
             runId,
-            intent.project_id,
+            intent.scope_id,
             intent.event_name,
             intent.payload_json,
             publicationSequence,
@@ -1073,14 +1073,14 @@ export class RunStateDatabase {
         this.database
           .prepare(
             `INSERT INTO run_publications
-              (publication_id, run_id, project_id, event_name, payload_json,
+              (publication_id, run_id, scope_id, event_name, payload_json,
                publication_sequence, created_at)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
           )
           .run(
             publication.id,
             publication.runId,
-            publication.projectId,
+            publication.scopeId,
             publication.event,
             JSON.stringify(publication.payload),
             publicationSequence,
@@ -1105,8 +1105,8 @@ export class RunStateDatabase {
 
     this.database.transaction(() => {
       const run = this.database
-        .prepare("SELECT project_id, state FROM runs WHERE id = ?")
-        .get(input.runId) as { project_id: string; state: DurableRunState } | undefined;
+        .prepare("SELECT scope_id, state FROM runs WHERE id = ?")
+        .get(input.runId) as { scope_id: string; state: DurableRunState } | undefined;
       if (!run) throw new Error(`Unknown run "${input.runId}"`);
       if (run.state !== "running") {
         throw new Error(`Run "${input.runId}" cannot stage emit intents while ${run.state}`);
@@ -1139,7 +1139,7 @@ export class RunStateDatabase {
       this.database
         .prepare(
           `INSERT INTO run_emit_intents
-            (run_id, step_id, publication_id, project_id, event_name, payload_json,
+            (run_id, step_id, publication_id, scope_id, event_name, payload_json,
              intent_sequence, staged_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
@@ -1147,7 +1147,7 @@ export class RunStateDatabase {
           input.runId,
           input.stepId,
           `workflow:${input.runId}:emit:${input.stepId}`,
-          run.project_id,
+          run.scope_id,
           input.event,
           payloadJson,
           next.next_sequence,
@@ -1162,7 +1162,7 @@ export class RunStateDatabase {
     }
     return this.database
       .prepare(
-        `SELECT publication_id, run_id, project_id, event_name, payload_json, created_at
+        `SELECT publication_id, run_id, scope_id, event_name, payload_json, created_at
          FROM run_publications
          WHERE delivered_at IS NULL
          ORDER BY created_at, run_id, publication_sequence, publication_id
@@ -1173,7 +1173,7 @@ export class RunStateDatabase {
         const value = row as {
           publication_id: string;
           run_id: string;
-          project_id: string;
+          scope_id: string;
           event_name: string;
           payload_json: string;
           created_at: string;
@@ -1181,7 +1181,7 @@ export class RunStateDatabase {
         return {
           id: value.publication_id,
           runId: value.run_id,
-          projectId: value.project_id,
+          scopeId: value.scope_id,
           event: value.event_name,
           payload: JSON.parse(value.payload_json) as Record<string, unknown>,
           createdAt: value.created_at,
@@ -1193,7 +1193,7 @@ export class RunStateDatabase {
   listPendingPublicationHeads(): PendingRunPublication[] {
     return this.database
       .prepare(
-        `SELECT publication_id, run_id, project_id, event_name, payload_json, created_at
+        `SELECT publication_id, run_id, scope_id, event_name, payload_json, created_at
          FROM run_publications AS candidate
          WHERE delivered_at IS NULL
            AND NOT EXISTS (
@@ -1210,7 +1210,7 @@ export class RunStateDatabase {
         const value = row as {
           publication_id: string;
           run_id: string;
-          project_id: string;
+          scope_id: string;
           event_name: string;
           payload_json: string;
           created_at: string;
@@ -1218,7 +1218,7 @@ export class RunStateDatabase {
         return {
           id: value.publication_id,
           runId: value.run_id,
-          projectId: value.project_id,
+          scopeId: value.scope_id,
           event: value.event_name,
           payload: JSON.parse(value.payload_json) as Record<string, unknown>,
           createdAt: value.created_at,
@@ -1345,7 +1345,7 @@ export class RunStateDatabase {
       | RunRow
       | undefined;
     if (!row) return null;
-    const resourcePrefix = `project:${row.project_id}:`;
+    const resourcePrefix = `scope:${row.scope_id}:`;
     const resources = (row.state === "succeeded" || row.state === "failed" || row.state === "cancelled"
       ? []
       : [...new Set([
@@ -1362,7 +1362,7 @@ export class RunStateDatabase {
       );
     return {
       id: row.id,
-      projectId: row.project_id,
+      scopeId: row.scope_id,
       workflow: row.workflow,
       trigger: JSON.parse(row.trigger_json) as WorkflowRunTrigger,
       repository: row.repository_access,
@@ -1392,17 +1392,17 @@ export class RunStateDatabase {
     };
   }
 
-  listRuns(projectId: string, states?: readonly DurableRunState[]): StoredRun[] {
+  listRuns(scopeId: string, states?: readonly DurableRunState[]): StoredRun[] {
     const rows = states && states.length > 0
       ? this.database
           .prepare(
-            `SELECT id FROM runs WHERE project_id = ? AND state IN (${states.map(() => "?").join(",")})
+            `SELECT id FROM runs WHERE scope_id = ? AND state IN (${states.map(() => "?").join(",")})
              ORDER BY admitted_at, rowid`,
           )
-          .all(projectId, ...states)
+          .all(scopeId, ...states)
       : this.database
-          .prepare("SELECT id FROM runs WHERE project_id = ? ORDER BY admitted_at, rowid")
-          .all(projectId);
+          .prepare("SELECT id FROM runs WHERE scope_id = ? ORDER BY admitted_at, rowid")
+          .all(scopeId);
     return rows.map((row) => this.getRun((row as { id: string }).id)!);
   }
 
@@ -1433,8 +1433,8 @@ export class RunStateDatabase {
       .map((resource) => (resource as { resource_key: string }).resource_key);
   }
 
-  private requestedResources(runId: string, projectId: string): string[] {
-    const resourcePrefix = `project:${projectId}:`;
+  private requestedResources(runId: string, scopeId: string): string[] {
+    const resourcePrefix = `scope:${scopeId}:`;
     return this.requestedResourceKeys(runId).map((resourceKey) =>
       resourceKey.startsWith(resourcePrefix)
         ? resourceKey.slice(resourcePrefix.length)
@@ -1525,41 +1525,41 @@ export class RunStateDatabase {
   private applyStagedStateMutations(runId: string, updatedAt: string): void {
     const mutations = this.database
       .prepare(
-        `SELECT project_id, state_key, expected_revision, value_json
+        `SELECT scope_id, state_key, expected_revision, value_json
          FROM run_state_mutations
          WHERE run_id = ?
          ORDER BY state_key`,
       )
       .all(runId) as Array<{
-        project_id: string;
+        scope_id: string;
         state_key: string;
         expected_revision: number;
         value_json: string;
       }>;
     const upsert = this.database.prepare(
-      `INSERT INTO project_state_values
-        (project_id, state_key, revision, value_json, updated_at)
+      `INSERT INTO scope_state_values
+        (scope_id, state_key, revision, value_json, updated_at)
        VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(project_id, state_key) DO UPDATE SET
+       ON CONFLICT(scope_id, state_key) DO UPDATE SET
          revision = excluded.revision,
          value_json = excluded.value_json,
          updated_at = excluded.updated_at`,
     );
     for (const mutation of mutations) {
-      const current = this.readProjectStateValue(
-        mutation.project_id,
+      const current = this.readScopeStateValue(
+        mutation.scope_id,
         mutation.state_key,
       );
       if (current.revision !== mutation.expected_revision) {
         throw new StateValueConflictError(
-          mutation.project_id,
+          mutation.scope_id,
           mutation.state_key,
           mutation.expected_revision,
           current.revision,
         );
       }
       upsert.run(
-        mutation.project_id,
+        mutation.scope_id,
         mutation.state_key,
         mutation.expected_revision + 1,
         mutation.value_json,
@@ -1601,9 +1601,9 @@ export class RunStateDatabase {
       .run(runId);
   }
 
-  private scopeResourceKey(projectId: string, resourceKey: string): string {
+  private scopeResourceKey(scopeId: string, resourceKey: string): string {
     const logicalKey = resourceKey.trim();
-    if (!logicalKey || logicalKey.startsWith("project:")) {
+    if (!logicalKey || logicalKey.startsWith("scope:")) {
       throw new Error(`Invalid resource key "${resourceKey}"`);
     }
     if (logicalKey.startsWith("global:")) {
@@ -1611,7 +1611,7 @@ export class RunStateDatabase {
       if (!globalKey) throw new Error(`Invalid global resource key "${resourceKey}"`);
       return `global:${globalKey}`;
     }
-    return `project:${projectId}:${logicalKey}`;
+    return `scope:${scopeId}:${logicalKey}`;
   }
 
 }

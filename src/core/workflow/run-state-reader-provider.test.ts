@@ -16,7 +16,7 @@ describe("run-state reader capability", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-state-reader-"));
     roots.push(root);
     const database = new RunStateDatabase(root);
-    database.registerProject({
+    database.registerScope({
       id: "project-a",
       rootPath: join(root, "project-a"),
       createdAt: "2026-08-26T10:00:00.000Z",
@@ -24,8 +24,8 @@ describe("run-state reader capability", () => {
 
     const reader = createRunStateReader(database);
 
-    expect(reader.getProjectIdByRootPath(join(root, "project-a"))).toBe("project-a");
-    expect(reader.readProjectStateValue("project-a", "missing")).toEqual({
+    expect(reader.getScopeIdByRootPath(join(root, "project-a"))).toBe("project-a");
+    expect(reader.readScopeStateValue("project-a", "missing")).toEqual({
       revision: 0,
       value: null,
     });

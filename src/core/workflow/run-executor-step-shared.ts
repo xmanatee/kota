@@ -1,5 +1,5 @@
 import type { EventBus } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { buildStepCompletedPayload, resolveStepAutonomyMode } from "./event-payloads.js";
 import type { RunExecutorBoundaryValue } from "./run-executor-step.js";
@@ -71,7 +71,7 @@ export type StepAccumulators = {
 
 export type StepDeps = {
   bus: EventBus;
-  pbus: ProjectScopedEventBus;
+  pbus: ScopedEventBus;
   log: (message: string) => void;
 };
 
@@ -89,7 +89,7 @@ export function buildSkippedResult(
   stepStartedAt: number,
   acc: StepAccumulators,
   recordStep: (result: WorkflowStepResult) => void,
-  pbus: ProjectScopedEventBus,
+  pbus: ScopedEventBus,
   runMetadata: WorkflowRunMetadata,
   defaultAutonomyMode: AutonomyMode | undefined,
   skipReason: WorkflowStepSkipReason,

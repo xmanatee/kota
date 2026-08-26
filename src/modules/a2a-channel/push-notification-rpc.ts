@@ -83,7 +83,7 @@ async function assertPushTaskAccessible(
   try {
     return await backend.getTask({
       taskId: selector.taskId,
-      projectId: selector.projectId,
+      scopeId: selector.scopeId,
       contextId: selector.contextId,
     });
   } catch (err) {

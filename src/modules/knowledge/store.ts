@@ -13,7 +13,7 @@
  *   ---
  *   # Content here
  *
- * Supports project-scoped (.kota/data/) and global (~/.kota/data/) storage.
+ * Supports scope-scoped (.kota/data/) and global (~/.kota/data/) storage.
  */
 
 import { randomBytes } from "node:crypto";
@@ -22,7 +22,6 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
 	KnowledgeEntry,
-	ReindexResult,
 	SearchFilters,
 } from "#core/modules/provider-types.js";
 import type { WorkMemoryMetadata } from "#core/modules/work-memory-metadata.js";
@@ -42,12 +41,12 @@ import {
 } from "./store-metadata.js";
 
 export class KnowledgeStore {
-	private projectDir: string | null;
+	private scopeDir: string | null;
 	private globalDir: string;
 
-	constructor(projectDir?: string, globalDir?: string) {
-		this.projectDir = projectDir
-			? join(projectDir, ".kota", "data")
+	constructor(scopeDir?: string, globalDir?: string) {
+		this.scopeDir = scopeDir
+			? join(scopeDir, ".kota", "data")
 			: null;
 		this.globalDir = globalDir || join(homedir(), ".kota", "data");
 	}
@@ -60,9 +59,9 @@ export class KnowledgeStore {
 		return null;
 	}
 
-	/** Get the project storage directory, or null if none was configured. */
-	getProjectDir(): string | null {
-		return this.projectDir;
+	/** Get the scope storage directory, or null if none was configured. */
+	getScopeDir(): string | null {
+		return this.scopeDir;
 	}
 
 	/** Get the global storage directory. */
@@ -74,32 +73,32 @@ export class KnowledgeStore {
 		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 	}
 
-	private getDir(scope: "project" | "global"): string {
-		if (scope === "project") {
-			if (!this.projectDir) {
-				throw new Error("No project directory configured");
+	private getDir(scope: "scope" | "global"): string {
+		if (scope === "scope") {
+			if (!this.scopeDir) {
+				throw new Error("No scope directory configured");
 			}
-			return this.projectDir;
+			return this.scopeDir;
 		}
 		return this.globalDir;
 	}
 
 	private allDirs(): string[] {
 		const dirs: string[] = [];
-		if (this.projectDir && existsSync(this.projectDir))
-			dirs.push(this.projectDir);
+		if (this.scopeDir && existsSync(this.scopeDir))
+			dirs.push(this.scopeDir);
 		if (existsSync(this.globalDir)) dirs.push(this.globalDir);
 		return dirs;
 	}
 
-	private loadAll(scope?: "project" | "global" | "all"): KnowledgeEntry[] {
+	private loadAll(scope?: "scope" | "global" | "all"): KnowledgeEntry[] {
 		const dirs: string[] = [];
 		if (
-			(!scope || scope === "project" || scope === "all") &&
-			this.projectDir &&
-			existsSync(this.projectDir)
+			(!scope || scope === "scope" || scope === "all") &&
+			this.scopeDir &&
+			existsSync(this.scopeDir)
 		) {
-			dirs.push(this.projectDir);
+			dirs.push(this.scopeDir);
 		}
 		if (
 			(!scope || scope === "global" || scope === "all") &&
@@ -125,12 +124,12 @@ export class KnowledgeStore {
 		type?: string;
 		tags?: string[];
 		status?: string;
-		scope?: "project" | "global";
+		scope?: "scope" | "global";
 		meta?: Record<string, string>;
 		provenance?: WorkMemoryMetadata["provenance"];
 		freshness?: WorkMemoryMetadata["freshness"];
 	}): string {
-		const scope = opts.scope || "project";
+		const scope = opts.scope || "scope";
 		const dir = this.getDir(scope);
 		this.ensureDir(dir);
 
@@ -250,21 +249,6 @@ export class KnowledgeStore {
 		return entries.filter((e) => e.type.toLowerCase() === t).length;
 	}
 
-	supportsSemanticSearch(): boolean {
-		return false;
-	}
-
-	async semanticSearch(
-		_query: string,
-		_topK: number,
-		_filters?: SearchFilters,
-	): Promise<KnowledgeEntry[]> {
-		throw new Error("Semantic knowledge search requires an embedding-backed knowledge provider.");
-	}
-
-	async reindex(): Promise<ReindexResult> {
-		return { indexed: 0, failed: 0, skipped: true };
-	}
 }
 
 let store: KnowledgeStore | undefined;

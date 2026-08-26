@@ -9,11 +9,11 @@ import {
 } from "#core/daemon/scope-registry.js";
 
 export function scopePolicySnapshotForTest(
-  projectDir: string,
+  workspaceRoot: string,
   fragments: readonly ScopePolicyFragment[] = [],
   revision = 0,
 ): ScopePolicySnapshot {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   return {
     revision,
     policy: resolveScopePolicy({
@@ -27,9 +27,9 @@ export function scopePolicySnapshotForTest(
           },
           {
             scopeId,
-            displayName: projectDir.split("/").pop() ?? projectDir,
+            displayName: workspaceRoot.split("/").pop() ?? workspaceRoot,
             parentScopeId: GLOBAL_SCOPE_ID,
-            directoryRoot: projectDir,
+            directoryRoot: workspaceRoot,
           },
         ],
       },

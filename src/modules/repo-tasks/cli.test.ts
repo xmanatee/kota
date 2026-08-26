@@ -34,28 +34,28 @@ type SearchOverride = (
 type ReindexOverride = () => Promise<RepoTaskReindexResult>;
 
 function stubCtx(
-  projectDir: string,
+  repoRoot: string,
   overrides?: {
     search?: SearchOverride;
     reindex?: ReindexOverride;
   },
 ): ModuleContext {
-  const defaultStore = new RepoTasksDefaultStore(projectDir);
+  const defaultStore = new RepoTasksDefaultStore(repoRoot);
   return {
-    cwd: projectDir,
+    cwd: repoRoot,
     client: {
       tasks: {
         async list(states?: RepoTaskState[]) {
           const wanted = states && states.length > 0 ? states : OPEN_STATES;
-          const tasks = listTasksForStates(getRepoTasksDir(projectDir), wanted);
+          const tasks = listTasksForStates(getRepoTasksDir(repoRoot), wanted);
           return { tasks };
         },
         async show(id: string) {
-          return showTask(projectDir, id);
+          return showTask(repoRoot, id);
         },
         async move(id: string, toState: RepoTaskState) {
           try {
-            const result = moveTaskById(projectDir, id, toState);
+            const result = moveTaskById(repoRoot, id, toState);
             return {
               ok: true as const,
               id: result.id,
@@ -76,13 +76,13 @@ function stubCtx(
           }
         },
         async create(options: RepoTaskCreateOptions) {
-          return createNormalizedTask(projectDir, options);
+          return createNormalizedTask(repoRoot, options);
         },
         async capture(title: string) {
-          return captureInboxTask(projectDir, title);
+          return captureInboxTask(repoRoot, title);
         },
         async gc(options?: RepoTaskGcOptions) {
-          return gcTerminalTasks(projectDir, options ?? {});
+          return gcTerminalTasks(repoRoot, options ?? {});
         },
         async search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult> {
           if (overrides?.search) return overrides.search(query, filter);
@@ -97,7 +97,7 @@ function stubCtx(
         },
         async reindex(): Promise<RepoTaskReindexResult> {
           if (overrides?.reindex) return overrides.reindex();
-          return defaultStore.reindex();
+          return { ok: false, reason: "semantic_unavailable" };
         },
       },
     },
@@ -110,7 +110,7 @@ vi.mock("node:child_process", async (importOriginal) => ({
   execFileSync: vi.fn(),
 }));
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-task-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -121,12 +121,12 @@ function makeProjectDir(): string {
 }
 
 function writeTaskFile(
-  projectDir: string,
+  repoRoot: string,
   state: string,
   id: string,
   extra: Record<string, string> = {},
 ): void {
-  const dir = join(projectDir, "data", "tasks", state);
+  const dir = join(repoRoot, "data", "tasks", state);
   mkdirSync(dir, { recursive: true });
   const fm = {
     id,
@@ -165,7 +165,7 @@ async function captureOutput(fn: () => void | Promise<void>): Promise<string> {
 }
 
 function makeProgram(
-  projectDir?: string,
+  repoRoot?: string,
   overrides?: {
     search?: SearchOverride;
     reindex?: ReindexOverride;
@@ -173,41 +173,41 @@ function makeProgram(
 ): Command {
   const program = new Command();
   program.exitOverride();
-  registerTaskCommands(program, stubCtx(projectDir ?? process.cwd(), overrides));
+  registerTaskCommands(program, stubCtx(repoRoot ?? process.cwd(), overrides));
   return program;
 }
 
 describe("listTasksForStates", () => {
-  let projectDir: string;
+  let repoRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("returns empty array when no tasks exist", () => {
-    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
     expect(result).toEqual([]);
   });
 
   it("returns tasks from requested states", () => {
-    writeTaskFile(projectDir, "ready", "task-a");
-    writeTaskFile(projectDir, "backlog", "task-b");
+    writeTaskFile(repoRoot, "ready", "task-a");
+    writeTaskFile(repoRoot, "backlog", "task-b");
 
-    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("task-a");
     expect(result[0].state).toBe("ready");
   });
 
   it("returns tasks across multiple states", () => {
-    writeTaskFile(projectDir, "ready", "task-a");
-    writeTaskFile(projectDir, "doing", "task-b");
+    writeTaskFile(repoRoot, "ready", "task-a");
+    writeTaskFile(repoRoot, "doing", "task-b");
 
-    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready", "doing"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready", "doing"]);
     expect(result).toHaveLength(2);
     const ids = result.map((t) => t.id);
     expect(ids).toContain("task-a");
@@ -215,48 +215,48 @@ describe("listTasksForStates", () => {
   });
 
   it("skips AGENTS.md files", () => {
-    const dir = join(projectDir, "data", "tasks", "ready");
+    const dir = join(repoRoot, "data", "tasks", "ready");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "AGENTS.md"), "# Agents");
-    writeTaskFile(projectDir, "ready", "task-real");
+    writeTaskFile(repoRoot, "ready", "task-real");
 
-    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("task-real");
   });
 
   it("returns id and priority from frontmatter", () => {
-    writeTaskFile(projectDir, "ready", "task-x", { priority: "p1", title: "My Task" });
-    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
+    writeTaskFile(repoRoot, "ready", "task-x", { priority: "p1", title: "My Task" });
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
     expect(result[0].priority).toBe("p1");
     expect(result[0].title).toBe("My Task");
   });
 
   it("returns unfinished hard dependency ids for task list output", () => {
-    writeTaskFile(projectDir, "ready", "task-dependent", {
+    writeTaskFile(repoRoot, "ready", "task-dependent", {
       depends_on: "[task-enabler]",
     });
-    writeTaskFile(projectDir, "backlog", "task-enabler");
+    writeTaskFile(repoRoot, "backlog", "task-enabler");
 
-    const result = listTasksForStates(join(projectDir, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
 
     expect(result[0].waitingOnTasks).toEqual(["task-enabler"]);
   });
 });
 
 describe("kota task list", () => {
-  let projectDir: string;
+  let repoRoot: string;
   let origCwd: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
     origCwd = process.cwd();
-    process.chdir(projectDir);
+    process.chdir(repoRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("prints 'No tasks found.' when queue is empty", async () => {
@@ -268,8 +268,8 @@ describe("kota task list", () => {
   });
 
   it("lists tasks from open states by default", async () => {
-    writeTaskFile(projectDir, "ready", "task-alpha", { title: "Alpha task", priority: "p1" });
-    writeTaskFile(projectDir, "doing", "task-beta", { title: "Beta task", priority: "p2" });
+    writeTaskFile(repoRoot, "ready", "task-alpha", { title: "Alpha task", priority: "p1" });
+    writeTaskFile(repoRoot, "doing", "task-beta", { title: "Beta task", priority: "p2" });
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
@@ -281,8 +281,8 @@ describe("kota task list", () => {
   });
 
   it("filters to specific state with --state", async () => {
-    writeTaskFile(projectDir, "ready", "task-ready-one");
-    writeTaskFile(projectDir, "backlog", "task-backlog-one");
+    writeTaskFile(repoRoot, "ready", "task-ready-one");
+    writeTaskFile(repoRoot, "backlog", "task-backlog-one");
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
@@ -294,22 +294,22 @@ describe("kota task list", () => {
 });
 
 describe("kota task show", () => {
-  let projectDir: string;
+  let repoRoot: string;
   let origCwd: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
     origCwd = process.cwd();
-    process.chdir(projectDir);
+    process.chdir(repoRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("prints full task content", async () => {
-    writeTaskFile(projectDir, "doing", "task-show-me");
+    writeTaskFile(repoRoot, "doing", "task-show-me");
     const program = makeProgram();
     const output = await captureOutput(async () => {
       await program.parseAsync(["node", "kota", "task", "show", "task-show-me"]);
@@ -336,23 +336,23 @@ describe("kota task show", () => {
 });
 
 describe("kota task move", () => {
-  let projectDir: string;
+  let repoRoot: string;
   let origCwd: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
     origCwd = process.cwd();
-    process.chdir(projectDir);
+    process.chdir(repoRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("moves task file and updates status frontmatter", async () => {
-    writeTaskFile(projectDir, "ready", "task-mover", { status: "ready" });
-    mkdirSync(join(projectDir, "data", "tasks", "doing"), { recursive: true });
+    writeTaskFile(repoRoot, "ready", "task-mover", { status: "ready" });
+    mkdirSync(join(repoRoot, "data", "tasks", "doing"), { recursive: true });
 
     const { execFileSync: mockExecFile } = await import("node:child_process");
     vi.mocked(mockExecFile).mockImplementation(
@@ -376,14 +376,14 @@ describe("kota task move", () => {
       logSpy.mockRestore();
     }
 
-    expect(existsSync(join(projectDir, "data", "tasks", "ready", "task-mover.md"))).toBe(false);
-    expect(existsSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
-    const content = readFileSync(join(projectDir, "data", "tasks", "doing", "task-mover.md"), "utf-8");
+    expect(existsSync(join(repoRoot, "data", "tasks", "ready", "task-mover.md"))).toBe(false);
+    expect(existsSync(join(repoRoot, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
+    const content = readFileSync(join(repoRoot, "data", "tasks", "doing", "task-mover.md"), "utf-8");
     expect(content).toMatch(/^status: doing$/m);
   });
 
   it("prints message when task is already in target state", async () => {
-    writeTaskFile(projectDir, "ready", "task-already");
+    writeTaskFile(repoRoot, "ready", "task-already");
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
@@ -394,19 +394,19 @@ describe("kota task move", () => {
 });
 
 describe("kota task capture", () => {
-  let projectDir: string;
+  let repoRoot: string;
   let origCwd: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
     origCwd = process.cwd();
-    process.chdir(projectDir);
-    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
+    process.chdir(repoRoot);
+    mkdirSync(join(repoRoot, "data", "inbox"), { recursive: true });
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("creates a new inbox task file", async () => {
@@ -418,7 +418,7 @@ describe("kota task capture", () => {
       logSpy.mockRestore();
     }
 
-    const filePath = join(projectDir, "data", "inbox", "task-add-search-filter.md");
+    const filePath = join(repoRoot, "data", "inbox", "task-add-search-filter.md");
     expect(existsSync(filePath)).toBe(true);
     const content = readFileSync(filePath, "utf-8");
     expect(content).toContain("# Add search filter");
@@ -434,7 +434,7 @@ describe("kota task capture", () => {
 
   it("errors if task file already exists", async () => {
     writeFileSync(
-      join(projectDir, "data", "inbox", "task-duplicate.md"),
+      join(repoRoot, "data", "inbox", "task-duplicate.md"),
       "# duplicate\n",
     );
 
@@ -455,27 +455,27 @@ describe("kota task capture", () => {
 });
 
 describe("kota task search", () => {
-  let projectDir: string;
+  let repoRoot: string;
   let origCwd: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
     origCwd = process.cwd();
-    process.chdir(projectDir);
+    process.chdir(repoRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
   it("falls back to keyword path with --keyword and prints matched ids", async () => {
-    writeTaskFile(projectDir, "ready", "task-cost-tracker", {
+    writeTaskFile(repoRoot, "ready", "task-cost-tracker", {
       title: "Track spend anomaly alerts",
     });
-    writeTaskFile(projectDir, "done", "task-bread", { title: "Bake bread" });
+    writeTaskFile(repoRoot, "done", "task-bread", { title: "Bake bread" });
 
-    const program = makeProgram(projectDir);
+    const program = makeProgram(repoRoot);
     const output = await captureOutput(async () => {
       await program.parseAsync([
         "node",
@@ -491,7 +491,7 @@ describe("kota task search", () => {
   });
 
   it("exits non-zero with a single-line operator message when semantic is unavailable", async () => {
-    const program = makeProgram(projectDir, {
+    const program = makeProgram(repoRoot, {
       search: async () => ({ ok: false, reason: "semantic_unavailable" }),
     });
     const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
@@ -511,7 +511,7 @@ describe("kota task search", () => {
   });
 
   it("emits structured payload with --json", async () => {
-    const program = makeProgram(projectDir, {
+    const program = makeProgram(repoRoot, {
       search: async () => ({
         ok: true,
         tasks: [
@@ -543,7 +543,7 @@ describe("kota task search", () => {
   });
 
   it("--json with semantic_unavailable exits non-zero but still emits the structured payload", async () => {
-    const program = makeProgram(projectDir, {
+    const program = makeProgram(repoRoot, {
       search: async () => ({ ok: false, reason: "semantic_unavailable" }),
     });
     const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
@@ -576,14 +576,14 @@ describe("kota task search", () => {
   });
 
   it("filters by --state", async () => {
-    writeTaskFile(projectDir, "ready", "task-open-spend", {
+    writeTaskFile(repoRoot, "ready", "task-open-spend", {
       title: "Track spend in open work",
     });
-    writeTaskFile(projectDir, "done", "task-closed-spend", {
+    writeTaskFile(repoRoot, "done", "task-closed-spend", {
       title: "Track spend in closed work",
     });
 
-    const program = makeProgram(projectDir);
+    const program = makeProgram(repoRoot);
     const output = await captureOutput(async () => {
       await program.parseAsync([
         "node",
@@ -602,22 +602,22 @@ describe("kota task search", () => {
 });
 
 describe("kota task reindex", () => {
-  let projectDir: string;
+  let repoRoot: string;
   let origCwd: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
     origCwd = process.cwd();
-    process.chdir(projectDir);
+    process.chdir(repoRoot);
   });
 
   afterEach(() => {
     process.chdir(origCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("reports skipped when no embedding provider is configured", async () => {
-    const program = makeProgram(projectDir);
+  it("reports semantic reindex as unavailable when no capability is configured", async () => {
+    const program = makeProgram(repoRoot);
     const output = await captureOutput(async () => {
       await program.parseAsync(["node", "kota", "task", "reindex"]);
     });
@@ -625,8 +625,8 @@ describe("kota task reindex", () => {
   });
 
   it("prints success counts when reindex completes", async () => {
-    const program = makeProgram(projectDir, {
-      reindex: async () => ({ indexed: 3, failed: 0 }),
+    const program = makeProgram(repoRoot, {
+      reindex: async () => ({ ok: true, indexed: 3, failed: 0 }),
     });
     const output = await captureOutput(async () => {
       await program.parseAsync(["node", "kota", "task", "reindex"]);
@@ -636,8 +636,8 @@ describe("kota task reindex", () => {
   });
 
   it("exits non-zero when reindex reports failures", async () => {
-    const program = makeProgram(projectDir, {
-      reindex: async () => ({ indexed: 1, failed: 2 }),
+    const program = makeProgram(repoRoot, {
+      reindex: async () => ({ ok: true, indexed: 1, failed: 2 }),
     });
     const exitSpy = vi.spyOn(process, "exit").mockImplementation(((code: number) => {
       throw new Error(`process.exit:${code}`);

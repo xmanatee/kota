@@ -38,7 +38,7 @@ const createTask = typedCodeStep<CreatedTaskReference>({
       throw new Error("cannot create a task for a non-create GitHub mention assessment");
     }
     return ctx.runBlocking(createMentionTaskOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       taskTitle: assessment.taskTitle,
       taskSummary: assessment.taskSummary,
       taskBody: assessment.taskBody,
@@ -93,7 +93,7 @@ const validateChanges = typedCodeStep<{ ok: true }>({
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

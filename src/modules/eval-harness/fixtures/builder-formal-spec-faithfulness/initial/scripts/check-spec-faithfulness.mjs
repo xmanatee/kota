@@ -21,7 +21,7 @@ import {
 } from "./check-spec-faithfulness/validation.mjs";
 import { validateReturnLabelDecision } from "../src/spec-contract.mjs";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const verifierPath = fileURLToPath(import.meta.url);
 const resultPath = "spec-faithfulness-result.json";
 const verificationPath = "spec-faithfulness-verification.json";
@@ -34,9 +34,9 @@ const EXPECTED_SOURCE_HASHES = {
 
 function readSourceTexts() {
   return {
-    requirements: readFileSync(`${projectRoot}/REQUIREMENTS.md`, "utf8"),
-    officialExamples: readFileSync(`${projectRoot}/data/official-examples.json`, "utf8"),
-    adversarialCases: readFileSync(`${projectRoot}/data/adversarial-cases.json`, "utf8"),
+    requirements: readFileSync(`${scopeRoot}/REQUIREMENTS.md`, "utf8"),
+    officialExamples: readFileSync(`${scopeRoot}/data/official-examples.json`, "utf8"),
+    adversarialCases: readFileSync(`${scopeRoot}/data/adversarial-cases.json`, "utf8"),
   };
 }
 
@@ -78,9 +78,9 @@ function loadAndValidateStaticInputs() {
   const sourceHashes = validateSourceHashes(sourceTexts, EXPECTED_SOURCE_HASHES);
   const verifierSource = readFileSync(verifierPath, "utf8");
   validateVerifierSource(verifierSource, VERIFIER_SEAL);
-  const visibleCases = loadVisibleCases(projectRoot);
+  const visibleCases = loadVisibleCases(scopeRoot);
   validateSpecSource(
-    readFileSync(`${projectRoot}/src/spec-contract.mjs`, "utf8"),
+    readFileSync(`${scopeRoot}/src/spec-contract.mjs`, "utf8"),
     [
       ...visibleCases.officialCases,
       ...visibleCases.adversarialCases,
@@ -91,9 +91,9 @@ function loadAndValidateStaticInputs() {
 }
 
 function runMain() {
-  rmSync(`${projectRoot}/${verificationPath}`, { force: true });
+  rmSync(`${scopeRoot}/${verificationPath}`, { force: true });
   const { sourceHashes, visibleCases } = loadAndValidateStaticInputs();
-  if (!existsSync(`${projectRoot}/${resultPath}`)) {
+  if (!existsSync(`${scopeRoot}/${resultPath}`)) {
     throw new Error(`${resultPath} is missing`);
   }
   const allCases = [
@@ -103,9 +103,9 @@ function runMain() {
   ];
   const observations = runCaseSuite(validateReturnLabelDecision, allCases);
   const expectedArtifact = expectedArtifactContext(visibleCases, sourceHashes);
-  validateResultArtifact(readJson(`${projectRoot}/${resultPath}`), expectedArtifact);
+  validateResultArtifact(readJson(`${scopeRoot}/${resultPath}`), expectedArtifact);
   const verification = buildVerification(observations, expectedArtifact);
-  writeFileSync(`${projectRoot}/${verificationPath}`, `${JSON.stringify(verification, null, 2)}\n`);
+  writeFileSync(`${scopeRoot}/${verificationPath}`, `${JSON.stringify(verification, null, 2)}\n`);
   console.log(JSON.stringify({
     status: "passed",
     acceptedValidCases: verification.acceptedValidCases,

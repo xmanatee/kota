@@ -14,7 +14,6 @@ import type {
   ConversationRecord,
 } from "#core/modules/provider-types.js";
 import { getActiveKotaClient } from "#core/server/client-holder.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { confirmAction } from "#core/util/confirm.js";
 import type { ColumnsNode } from "#modules/rendering/primitives.js";
 import {
@@ -28,6 +27,7 @@ import {
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
 import { print, TerminalTransport, writeJson } from "#modules/rendering/transport.js";
 import { runHarnessRepl } from "#modules/repl/index.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   interactiveMode,
   parseIntOption,
@@ -188,7 +188,7 @@ export function registerHistoryCommands(program: Command) {
         resumeHere: opts.resumeHere,
       });
       reportResumeCwdSelection(resume);
-      const config = loadConfig(resume.projectDir);
+      const config = loadConfig(resume.scopeRoot);
       const modelSpec =
         opts.model ||
         config.model ||
@@ -201,19 +201,19 @@ export function registerHistoryCommands(program: Command) {
         const harnessName = runtime.harness;
         const model = modelForHarness(modelSpec, harnessName);
         const modelProvider = modelProviderSelectionFromConfig(config);
-        const resumeStore = openHarnessResumeConversation(resume.projectDir, resume.id);
+        const resumeStore = openHarnessResumeConversation(resume.scopeRoot, resume.id);
         await runHarnessRepl({
           harness: resolveAgentHarness(harnessName),
           model,
-          cwd: resume.projectDir,
+          cwd: resume.scopeRoot,
           run: {
             verbose: opts.verbose || config.verbose || false,
             effort: preset.defaultEffort,
             systemPrompt: buildKotaSystemPrompt(
               config,
               undefined,
-              resume.projectDir,
-              resume.projectDir,
+              resume.scopeRoot,
+              resume.scopeRoot,
             ),
             ...(modelProvider !== undefined ? { modelProvider } : {}),
           },
@@ -233,7 +233,7 @@ export function registerHistoryCommands(program: Command) {
         provider: config.modelProvider?.type,
         baseUrl: config.modelProvider?.baseUrl,
         apiKey: config.modelProvider?.apiKey,
-        projectDir: resume.projectDir,
+        scopeRoot: resume.scopeRoot,
       });
       await interactiveMode({
         autonomyMode: resolveChannelAutonomyMode(
@@ -245,7 +245,7 @@ export function registerHistoryCommands(program: Command) {
         verbose: opts.verbose || config.verbose,
         config,
         resumeConversation: resume.id,
-        projectDir: resume.projectDir,
+        scopeRoot: resume.scopeRoot,
         client: resolved.client,
       }, config);
     });
@@ -274,13 +274,13 @@ export function registerHistoryCommands(program: Command) {
     .command("reindex")
     .description(
       "Rebuild the semantic search index for all conversations. " +
-        "No-op when no embedding provider is configured.",
+        "Reports when no embedding provider is configured.",
     )
     .action(async () => {
       await ensureCliProvidersFor(["history"]);
       const client = getActiveKotaClient();
       const result = await client.history.reindex();
-      if (result.skipped) {
+      if (!result.ok) {
         print(line(plain(
           "Semantic search not configured — nothing to reindex. " +
             "Set `providers.history` to an embedding-capable provider to enable.",

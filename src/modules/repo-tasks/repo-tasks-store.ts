@@ -9,7 +9,6 @@
  */
 
 import type {
-	ReindexResult,
 	RepoTaskSearchHit,
 	RepoTaskState,
 	RepoTasksProvider,
@@ -31,11 +30,7 @@ const DEFAULT_TOP_K = 20;
  * the task surfaces it ahead of incidental body matches.
  */
 export class RepoTasksDefaultStore implements RepoTasksProvider {
-	constructor(private projectDir: string) {}
-
-	supportsSemanticSearch(): boolean {
-		return false;
-	}
+	constructor(private repoRoot: string) {}
 
 	async searchTasks(
 		query: string,
@@ -48,7 +43,7 @@ export class RepoTasksDefaultStore implements RepoTasksProvider {
 		const topK = options?.topK ?? DEFAULT_TOP_K;
 		if (topK <= 0) return [];
 
-		const records = listFullRepoTasks(this.projectDir, states);
+		const records = listFullRepoTasks(this.repoRoot, states);
 		const tokens = tokenize(trimmed);
 		if (tokens.length === 0) return [];
 
@@ -71,9 +66,6 @@ export class RepoTasksDefaultStore implements RepoTasksProvider {
 		return scored.slice(0, topK);
 	}
 
-	async reindex(): Promise<ReindexResult> {
-		return { indexed: 0, failed: 0, skipped: true };
-	}
 }
 
 function normalizeStates(

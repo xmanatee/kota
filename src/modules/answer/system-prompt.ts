@@ -22,7 +22,7 @@ The \`answer\` tool composes one short cited reply by running cross-store
 recall and asking the model to synthesize a response with typed
 \`[source:id]\` citations, appending one record to the answer history.
 Prefer it over a free-form reply for any question that asks for a
-synthesized answer grounded in the second brain — anything starting with
+synthesized answer grounded in knowledge, memory, and history — anything starting with
 "what is", "how did we", "what do I think about", "summarize", or
 "explain". Free-form replies should be reserved for raw computation,
 code generation against provided context, or chat that does not require

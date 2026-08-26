@@ -54,15 +54,14 @@ body. The workflow must not branch on channel-specific formatting.
 
 ## On-Demand Seam
 
-`renderOnDemandDigest({ projectDir, windowEndMs? })` in `on-demand.ts`
+`renderOnDemandDigest({ scopeRoot, windowEndMs? })` in `on-demand.ts`
 produces the same body the cadence step emits, evaluated against a
 rolling window ending at the call moment. Telegram, CLI, slack-channel
 (`/digest` slash command via `DigestSnapshotClient`), daemon HTTP
 (`GET /api/digest`), embedded web, macOS, and mobile pull surfaces
 should consume this seam so cadence and on-demand rendering cannot
-drift. The cross-client conformance fixture
-`clients/conformance/contract-fixture.json` `digest` arm pins the wire
-shape every fan-out client decoder must accept.
+drift. Fan-out clients consume the generated daemon contract binding; focused
+surface tests cover the operator meaning each client renders.
 
 Snapshot invariant: the queue-delta baseline is revisioned project state owned
 by the workflow runtime. The cadence run stages its update transactionally;

@@ -7,7 +7,7 @@ import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   isMachineAuthorityMutationPath,
   machineAuthorityMutationError,
-} from "#core/tools/protected-project-paths.js";
+} from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
 import { lintFile } from "./lint.js";

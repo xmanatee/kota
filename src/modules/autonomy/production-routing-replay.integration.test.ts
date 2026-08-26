@@ -4,13 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { getPreset } from "#core/model/preset.js";
 import { WorkflowEventBatchManager } from "#core/workflow/event-batches.js";
-import { ProjectRuntimeStateStore } from "#core/workflow/project-runtime-state.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { ScopeRuntimeStateStore } from "#core/workflow/scope-runtime-state.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
@@ -33,7 +33,6 @@ describe("production completion routing replay", () => {
   const expectedCompletionConsumers = [
     "attention-digest",
     "evaluator-calibration-monitor",
-    "fan-out-consolidator",
   ];
 
   afterEach(() => {
@@ -97,15 +96,15 @@ describe("production completion routing replay", () => {
     tempDirs.push(replayDir);
     const scopeId = "8nrg1m";
     const bus = new EventBus();
-    const pbus = new ProjectScopedEventBus(bus, scopeId);
+    const pbus = new ScopedEventBus(bus, scopeId);
     const store = new WorkflowRunStore(replayDir);
     const runState = new RunStateDatabase(join(store.rootDir, "state"));
-    runState.registerProject({
+    runState.registerScope({
       id: scopeId,
       rootPath: replayDir,
       createdAt: new Date().toISOString(),
     });
-    const projectState = new ProjectRuntimeStateStore(runState, scopeId);
+    const scopeState = new ScopeRuntimeStateStore(runState, scopeId);
     const invocations: RoutedInvocation[] = [];
     const recordInvocation = (
       definition: WorkflowDefinition,
@@ -113,7 +112,7 @@ describe("production completion routing replay", () => {
       run: WorkflowRunTrigger,
     ) => invocations.push(invocationFromTrigger(definition.name, run));
     const batches = new WorkflowEventBatchManager(
-      projectState,
+      scopeState,
       () => false,
       recordInvocation,
       () => {},
@@ -127,7 +126,7 @@ describe("production completion routing replay", () => {
         batches.handleEvent(envelope);
         enqueueMatchingWorkflows(envelope, definitions, recordInvocation);
       }
-      const pendingInputs = Object.values(projectState.getBatchBuffers()).reduce(
+      const pendingInputs = Object.values(scopeState.getBatchBuffers()).reduce(
         (total, buffer) => total + buffer.inputEvents.length,
         0,
       );

@@ -12,6 +12,11 @@
  * Subcommand-level dispatch never re-evaluates this decision.
  */
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
+import type {
+  DaemonClientHandlers,
+  KotaClient,
+  LocalClientHandlers,
+} from "#root/client/kota-client.generated.js";
 import { setActiveKotaClient } from "./client-holder.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import {
@@ -19,11 +24,6 @@ import {
   readLiveDaemonControlAddress,
 } from "./daemon-control-address.js";
 import { type DaemonTransport, daemonTransportFromAddress } from "./daemon-transport.js";
-import type {
-  DaemonClientHandlers,
-  KotaClient,
-  LocalClientHandlers,
-} from "./kota-client.js";
 import { buildLocalKotaClient } from "./local-kota-client.js";
 
 export type ClientSelection =
@@ -31,7 +31,7 @@ export type ClientSelection =
   | { kind: "local"; client: KotaClient };
 
 export type ResolveKotaClientOptions = {
-  /** Override the `.kota/` state directory (default: `<projectDir>/.kota`). */
+  /** Override the `.kota/` state directory (default: `<scopeRoot>/.kota`). */
   stateDir?: string;
   /** Local-side handlers contributed by modules during load. */
   localHandlers: Partial<LocalClientHandlers>;

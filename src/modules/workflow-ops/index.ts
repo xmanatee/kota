@@ -213,7 +213,7 @@ const workflowModule: KotaModule = {
         const store = new WorkflowRunStore(ctx.cwd);
         const activeRuns = readWorkflowOperationalState({
           stateDir: store.rootDir,
-          projectDir: ctx.cwd,
+          scopeRoot: ctx.cwd,
         }).activeRuns;
         if (activeRuns.length === 0) {
           return { status: "signaled", runs: [] };
@@ -281,7 +281,7 @@ const workflowModule: KotaModule = {
           : [];
         const toolNames = typeof ctx.listTools === "function" ? ctx.listTools() : [];
         return simulateAutomation({
-          projectDir: ctx.cwd,
+          scopeRoot: ctx.cwd,
           definitions,
           moduleManifests,
           availableToolNames: new Set(toolNames),
@@ -302,7 +302,7 @@ const workflowModule: KotaModule = {
  *
  *  - `listRuns(filter)` → `GET /workflow/runs[?workflow=...&limit=...&tag=...&causedByRunId=...]`.
  *    Soft-falls through on transport failure: returns `{ runs: [] }`.
- *  - `status(filter?)` → `GET /workflow/status[?projectId=...]`. Throws
+ *  - `status(filter?)` → `GET /workflow/status[?scopeId=...]`. Throws
  *    `"Daemon unreachable while reading workflow status"` on transport
  *    failure and preserves typed unknown-project route errors. Wraps the daemon's
  *    `WorkflowLiveStatus` with `pendingAbort: false` (the daemon-up branch
@@ -370,7 +370,7 @@ export function buildWorkflowDaemonHandler(
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
       if (filter?.tag) params.set("tag", filter.tag);
       if (filter?.causedByRunId) params.set("causedByRunId", filter.causedByRunId);
-      if (filter?.projectId) params.set("projectId", filter.projectId);
+      if (filter?.scopeId) params.set("scopeId", filter.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const result = await link.request<{ runs: WorkflowRunSummary[] }>(
         "GET",
@@ -384,7 +384,7 @@ export function buildWorkflowDaemonHandler(
       if (filter?.type) params.set("type", filter.type);
       if (filter?.workflow) params.set("workflow", filter.workflow);
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-      if (filter?.projectId) params.set("projectId", filter.projectId);
+      if (filter?.scopeId) params.set("scopeId", filter.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const result = await link.request<Awaited<ReturnType<WorkflowClient["listDeadLetters"]>>>(
         "GET",
@@ -392,8 +392,8 @@ export function buildWorkflowDaemonHandler(
       );
       return result ?? { items: [], counts: { open: 0, dismissed: 0, redriven: 0 } };
     },
-    getDeadLetter: async (id, projectId) => {
-      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    getDeadLetter: async (id, scopeId) => {
+      const query = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : "";
       const resp = await fetchJson(
         "GET",
         `/workflow/dead-letter/${encodeURIComponent(id)}${query}`,
@@ -407,8 +407,8 @@ export function buildWorkflowDaemonHandler(
       };
       return { found: true, item: result.item };
     },
-    dismissDeadLetter: async (id, reason, projectId) => {
-      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    dismissDeadLetter: async (id, reason, scopeId) => {
+      const query = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : "";
       const resp = await fetchJson(
         "POST",
         `/workflow/dead-letter/${encodeURIComponent(id)}/dismiss${query}`,
@@ -419,8 +419,8 @@ export function buildWorkflowDaemonHandler(
       if (!resp.ok) throw new Error(`Daemon unreachable while dismissing dead-letter item "${id}"`);
       return (await resp.json()) as Awaited<ReturnType<WorkflowClient["dismissDeadLetter"]>>;
     },
-    redriveDeadLetter: async (id, options, projectId) => {
-      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    redriveDeadLetter: async (id, options, scopeId) => {
+      const query = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : "";
       const resp = await fetchJson(
         "POST",
         `/workflow/dead-letter/${encodeURIComponent(id)}/redrive${query}`,
@@ -435,8 +435,8 @@ export function buildWorkflowDaemonHandler(
       if (!resp.ok) throw new Error(`Daemon unreachable while redriving dead-letter item "${id}"`);
       return (await resp.json()) as Awaited<ReturnType<WorkflowClient["redriveDeadLetter"]>>;
     },
-    exportDeadLetterDiagnostics: async (id, projectId) => {
-      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    exportDeadLetterDiagnostics: async (id, scopeId) => {
+      const query = scopeId ? `?scopeId=${encodeURIComponent(scopeId)}` : "";
       const resp = await fetchJson(
         "GET",
         `/workflow/dead-letter/${encodeURIComponent(id)}/diagnostics${query}`,
@@ -447,7 +447,7 @@ export function buildWorkflowDaemonHandler(
     },
     status: async (filter) => {
       const params = new URLSearchParams();
-      if (filter?.projectId) params.set("projectId", filter.projectId);
+      if (filter?.scopeId) params.set("scopeId", filter.scopeId);
       const query = params.toString() ? `?${params.toString()}` : "";
       const result = await fetchWorkflowStatus(link, `/workflow/status${query}`);
       return { ...result, pendingAbort: false };
@@ -607,7 +607,7 @@ export function buildWorkflowDaemonHandler(
         ...(options?.repeat !== undefined && { repeat: options.repeat }),
         ...(options?.compareWorkflows !== undefined && { compareWorkflows: options.compareWorkflows }),
         ...(options?.comparePayloads !== undefined && { comparePayloads: options.comparePayloads }),
-        ...(options?.projectId !== undefined && { projectId: options.projectId }),
+        ...(options?.scopeId !== undefined && { scopeId: options.scopeId }),
       };
       const resp = await fetchJson("POST", "/workflow/trial", body);
       if (!resp) {
@@ -619,33 +619,33 @@ export function buildWorkflowDaemonHandler(
       }
       if (!resp.ok) {
         let message = `Workflow trial "${name}" failed`;
-        let reason: "invalid_request" | "unknown_workflow" | "unknown_project" = "invalid_request";
-        let unknownProjectId: string | undefined;
+        let reason: "invalid_request" | "unknown_workflow" | "unknown_scope" = "invalid_request";
+        let unknownScopeId: string | undefined;
         try {
           const errorBody = (await resp.json()) as {
             error?: string;
-            reason?: "invalid_request" | "unknown_workflow" | "unknown_project";
-            projectId?: string;
+            reason?: "invalid_request" | "unknown_workflow" | "unknown_scope";
+            scopeId?: string;
           };
           if (
-            errorBody.reason === "unknown_project" &&
-            typeof errorBody.projectId === "string"
+            errorBody.reason === "unknown_scope" &&
+            typeof errorBody.scopeId === "string"
           ) {
-            unknownProjectId = errorBody.projectId;
+            unknownScopeId = errorBody.scopeId;
           }
           if (typeof errorBody.error === "string") message = errorBody.error;
           if (
             errorBody.reason === "invalid_request" ||
             errorBody.reason === "unknown_workflow" ||
-            errorBody.reason === "unknown_project"
+            errorBody.reason === "unknown_scope"
           ) {
             reason = errorBody.reason;
           }
         } catch {
           // Use the generic message when the daemon returned a non-JSON body.
         }
-        if (unknownProjectId !== undefined) {
-          throw new Error(`Unknown project: ${unknownProjectId}`);
+        if (unknownScopeId !== undefined) {
+          throw new Error(`Unknown scope: ${unknownScopeId}`);
         }
         return { ok: false, reason, message };
       }
@@ -690,7 +690,7 @@ export function buildWorkflowDaemonHandler(
 type WorkflowRouteErrorBody = {
   error?: string;
   reason?: string;
-  projectId?: string;
+  scopeId?: string;
 };
 
 async function fetchWorkflowStatus(
@@ -705,8 +705,8 @@ async function fetchWorkflowStatus(
   }
   if (res.status === 404) {
     const body = await readWorkflowRouteError(res);
-    if (body?.reason === "unknown_project" && body.projectId) {
-      throw new Error(`Unknown project: ${body.projectId}`);
+    if (body?.reason === "unknown_scope" && body.scopeId) {
+      throw new Error(`Unknown scope: ${body.scopeId}`);
     }
   }
   if (!res.ok) {

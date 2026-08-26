@@ -9,13 +9,13 @@
 
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 
 export type PendingMessage = {
   chatId: string;
   messageId: number;
-  projectId: string;
+  scopeId: string;
   proposedAnswers?: string[];
 };
 
@@ -93,7 +93,7 @@ export async function tryHandleOwnerQuestionReply(args: {
   const info = args.pending.get(questionId);
   if (!info) return false;
   const mutate = args.client
-    ? await args.client.forProject(info.projectId).ownerQuestions.answer(questionId, args.text)
+    ? await args.client.forScope(info.scopeId).ownerQuestions.answer(questionId, args.text)
     : (() => {
         const resolved = getOwnerQuestionQueue().answer(questionId, args.text, "telegram-reply");
         return resolved

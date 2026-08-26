@@ -158,17 +158,17 @@ function currentBranch(cwd: string): string {
 }
 
 export class RunSandboxManager {
-  private readonly projectDir: string;
-  private readonly projectCommonDir: string | undefined;
+  private readonly repoRoot: string;
+  private readonly repoCommonDir: string | undefined;
   private readonly worktreesDir: string;
   private readonly runtimeDir: string;
 
-  constructor(projectDir: string) {
-    this.projectDir = comparablePath(projectDir);
-    this.runtimeDir = join(this.projectDir, ".kota", "runtime");
+  constructor(repoRoot: string) {
+    this.repoRoot = comparablePath(repoRoot);
+    this.runtimeDir = join(this.repoRoot, ".kota", "runtime");
     this.worktreesDir = join(this.runtimeDir, "worktrees");
-    this.projectCommonDir = gitSucceeds(this.projectDir, ["rev-parse", "--git-dir"])
-      ? repositoryCommonDir(this.projectDir)
+    this.repoCommonDir = gitSucceeds(this.repoRoot, ["rev-parse", "--git-dir"])
+      ? repositoryCommonDir(this.repoRoot)
       : undefined;
   }
 
@@ -188,7 +188,7 @@ export class RunSandboxManager {
   create(input: { runId: string; repository: RepositoryAccess }): RunSandbox {
     const paths = this.pathsFor(input.runId, input.repository);
     mkdirSync(this.runtimeDir, { recursive: true });
-    assertContained(this.projectDir, this.runtimeDir);
+    assertContained(this.repoRoot, this.runtimeDir);
     const { artifactDir, rootDir, tempDir, workspaceDir } = paths;
     if (existsSync(rootDir)) {
       throw new Error(`Run sandbox "${input.runId}" already exists`);
@@ -212,9 +212,9 @@ export class RunSandboxManager {
     mkdirSync(this.worktreesDir, { recursive: true });
     assertContained(this.runtimeDir, this.worktreesDir);
     try {
-      const baseCommit = this.requireProjectRepository();
+      const baseCommit = this.requireScopeRepository();
       if (input.repository === "read") {
-        git(this.projectDir, [
+        git(this.repoRoot, [
           "worktree",
           "add",
           "--quiet",
@@ -234,8 +234,8 @@ export class RunSandboxManager {
       }
 
       const branch = this.branchFor(input.runId);
-      const targetBranch = currentBranch(this.projectDir);
-      const targetHead = git(this.projectDir, [
+      const targetBranch = currentBranch(this.repoRoot);
+      const targetHead = git(this.repoRoot, [
         "rev-parse",
         "--verify",
         `refs/heads/${targetBranch}^{commit}`,
@@ -247,7 +247,7 @@ export class RunSandboxManager {
         encoding: "utf8",
         flag: "wx",
       });
-      git(this.projectDir, [
+      git(this.repoRoot, [
         "worktree",
         "add",
         "--quiet",
@@ -289,7 +289,7 @@ export class RunSandboxManager {
     const absentRuntime = runtimeExists.every((exists) => !exists);
     const workspaceExists = existsSync(paths.workspaceDir);
     const branch = this.branchFor(runId);
-    const branchExists = gitSucceeds(this.projectDir, [
+    const branchExists = gitSucceeds(this.repoRoot, [
       "show-ref",
       "--verify",
       `refs/heads/${branch}`,
@@ -332,16 +332,16 @@ export class RunSandboxManager {
     }
 
     if (repository === "write" && branchExists) {
-      this.requireProjectRepository();
+      this.requireScopeRepository();
       const targetBranch = this.readTargetBranch(paths.rootDir, runId);
-      const branchHead = git(this.projectDir, ["rev-parse", "--verify", `${branch}^{commit}`]);
-      const canonicalHead = git(this.projectDir, [
+      const branchHead = git(this.repoRoot, ["rev-parse", "--verify", `${branch}^{commit}`]);
+      const canonicalHead = git(this.repoRoot, [
         "rev-parse",
         "--verify",
         `refs/heads/${targetBranch}^{commit}`,
       ]);
       if (
-        !gitSucceeds(this.projectDir, [
+        !gitSucceeds(this.repoRoot, [
           "merge-base",
           "--is-ancestor",
           branchHead,
@@ -350,7 +350,7 @@ export class RunSandboxManager {
       ) {
         throw new Error(`Cannot reconcile run "${runId}": writer branch is not integrated`);
       }
-      git(this.projectDir, ["branch", "-d", branch]);
+      git(this.repoRoot, ["branch", "-d", branch]);
       if (completeRuntime) rmSync(paths.rootDir, { recursive: true });
       return { status: "removed" };
     }
@@ -403,13 +403,13 @@ export class RunSandboxManager {
 
     if (sandbox.repository === "write") {
       const writerHead = git(sandbox.workspaceDir, ["rev-parse", "HEAD"]);
-      const canonicalHead = git(this.projectDir, [
+      const canonicalHead = git(this.repoRoot, [
         "rev-parse",
         "--verify",
         `refs/heads/${sandbox.targetBranch}^{commit}`,
       ]);
       if (
-        !gitSucceeds(this.projectDir, [
+        !gitSucceeds(this.repoRoot, [
           "merge-base",
           "--is-ancestor",
           writerHead,
@@ -421,32 +421,32 @@ export class RunSandboxManager {
     }
 
     // Git performs a final dirtiness and ownership check while removing the worktree.
-    git(this.projectDir, ["worktree", "remove", sandbox.workspaceDir]);
+    git(this.repoRoot, ["worktree", "remove", sandbox.workspaceDir]);
     if (sandbox.repository === "write") {
-      git(this.projectDir, ["branch", "-d", sandbox.branch]);
+      git(this.repoRoot, ["branch", "-d", sandbox.branch]);
     }
     rmSync(sandbox.rootDir, { recursive: true });
     return { cleaned: true, blockers: [] };
   }
 
-  private requireProjectRepository(): string {
-    if (this.projectCommonDir === undefined) {
-      throw new Error(`Project "${this.projectDir}" is not a Git repository`);
+  private requireScopeRepository(): string {
+    if (this.repoCommonDir === undefined) {
+      throw new Error(`Repository "${this.repoRoot}" is not a Git repository`);
     }
-    if (repositoryTopLevel(this.projectDir) !== this.projectDir) {
-      throw new Error(`Project "${this.projectDir}" is not the repository root`);
+    if (repositoryTopLevel(this.repoRoot) !== this.repoRoot) {
+      throw new Error(`Repository "${this.repoRoot}" is not the repository root`);
     }
-    if (repositoryCommonDir(this.projectDir) !== this.projectCommonDir) {
-      throw new Error(`Project "${this.projectDir}" repository identity changed`);
+    if (repositoryCommonDir(this.repoRoot) !== this.repoCommonDir) {
+      throw new Error(`Repository "${this.repoRoot}" repository identity changed`);
     }
-    return git(this.projectDir, ["rev-parse", "--verify", "HEAD^{commit}"]);
+    return git(this.repoRoot, ["rev-parse", "--verify", "HEAD^{commit}"]);
   }
 
   private verifyRepositorySandbox(
     sandbox: Extract<RunSandbox, { repository: "read" | "write" }>,
   ): void {
-    this.requireProjectRepository();
-    if (repositoryCommonDir(sandbox.workspaceDir) !== this.projectCommonDir) {
+    this.requireScopeRepository();
+    if (repositoryCommonDir(sandbox.workspaceDir) !== this.repoCommonDir) {
       throw new Error(`Run "${sandbox.runId}" belongs to another repository`);
     }
     if (repositoryTopLevel(sandbox.workspaceDir) !== comparablePath(sandbox.workspaceDir)) {
@@ -522,7 +522,7 @@ export class RunSandboxManager {
     const branch = readFileSync(path, "utf8").trim();
     if (
       branch === "" ||
-      !gitSucceeds(this.projectDir, ["check-ref-format", "--branch", branch])
+      !gitSucceeds(this.repoRoot, ["check-ref-format", "--branch", branch])
     ) {
       throw new Error(`Cannot reconcile writer run "${runId}": target branch is invalid`);
     }
@@ -543,7 +543,7 @@ export class RunSandboxManager {
           : join(this.worktreesDir, allocation),
     };
 
-    assertContained(this.projectDir, this.runtimeDir);
+    assertContained(this.repoRoot, this.runtimeDir);
     assertContained(this.runtimeDir, paths.rootDir);
     assertContained(paths.rootDir, paths.tempDir);
     assertContained(paths.rootDir, paths.artifactDir);

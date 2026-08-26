@@ -8,6 +8,7 @@
  */
 import { lookup } from "node:dns/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installGlobalFetchTransportFixture } from "./modules/web-access/outbound-http-test-helpers.js";
 import { runWebFetch } from "./modules/web-access/web-fetch.js";
 
 vi.mock("node:dns/promises", () => ({
@@ -17,11 +18,13 @@ vi.mock("node:dns/promises", () => ({
 const mockLookup = vi.mocked(lookup);
 
 beforeEach(() => {
-  mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+	mockLookup.mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+	installGlobalFetchTransportFixture();
 });
 
 afterEach(() => {
-  mockLookup.mockReset();
+	mockLookup.mockReset();
+	vi.restoreAllMocks();
 });
 
 function mockHtmlResponse(body: string) {

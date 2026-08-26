@@ -17,8 +17,8 @@ function isStaleRunInsightFile(path: string): boolean {
   return end !== -1 && /^type:\s*run-insight\s*$/m.test(raw.slice(4, end));
 }
 
-export function listStaleRunInsightFiles(projectDir: string): string[] {
-  const dataDir = join(projectDir, ".kota", "data");
+export function listStaleRunInsightFiles(scopeRoot: string): string[] {
+  const dataDir = join(scopeRoot, ".kota", "data");
   if (!existsSync(dataDir)) return [];
   const files: string[] = [];
   for (const entry of readdirSync(dataDir, { withFileTypes: true })) {
@@ -29,9 +29,9 @@ export function listStaleRunInsightFiles(projectDir: string): string[] {
   return files;
 }
 
-export function runDoctorFixes(projectDir: string): DoctorRepairResult[] {
+export function runDoctorFixes(scopeRoot: string): DoctorRepairResult[] {
   const results: DoctorRepairResult[] = [];
-  const kotaDir = join(projectDir, ".kota");
+  const kotaDir = join(scopeRoot, ".kota");
   const lockFile = join(kotaDir, "daemon-control.json");
 
   if (existsSync(lockFile)) {
@@ -84,7 +84,7 @@ export function runDoctorFixes(projectDir: string): DoctorRepairResult[] {
   }
 
   for (const strayDir of ["runs", "kota"]) {
-    const strayPath = join(projectDir, strayDir);
+    const strayPath = join(scopeRoot, strayDir);
     if (!existsSync(strayPath)) continue;
     try {
       rmSync(strayPath, { recursive: true, force: true });
@@ -102,7 +102,7 @@ export function runDoctorFixes(projectDir: string): DoctorRepairResult[] {
     }
   }
 
-  const staleRunInsightFiles = listStaleRunInsightFiles(projectDir);
+  const staleRunInsightFiles = listStaleRunInsightFiles(scopeRoot);
   if (staleRunInsightFiles.length > 0) {
     for (const file of staleRunInsightFiles) unlinkSync(file);
     results.push({

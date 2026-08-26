@@ -94,9 +94,13 @@ function recordDisposition(
             ? "task"
             : applied.disposition.action === "ask-owner"
               ? "owner-question"
-              : applied.disposition.action === "resolve"
-                ? "resolved"
-                : "observed",
+              : applied.disposition.action === "accept"
+                ? "accepted"
+                : applied.disposition.action === "duplicate"
+                  ? "duplicate"
+                  : applied.disposition.action === "no-action"
+                    ? "no-action"
+                    : "observed",
         decidedAt,
         taskIds: materialized.taskId ? [materialized.taskId] : [],
         ownerQuestionIds: materialized.ownerQuestionId
@@ -108,14 +112,14 @@ function recordDisposition(
 }
 
 export function publishImproverDisposition(args: {
-  scopeDir: string;
+  scopeRoot: string;
   sourceRunId: string;
   currentProjection: AutonomyIssueProjection;
   ownerQuestionQueue?: OwnerQuestionQueue;
 }): { published: boolean; nextProjection: AutonomyIssueProjection } {
   const artifact = readOptionalJsonFile<unknown>(
     join(
-      args.scopeDir,
+      args.scopeRoot,
       ".kota",
       "runs",
       args.sourceRunId,
@@ -127,9 +131,9 @@ export function publishImproverDisposition(args: {
   }
   const decoded = decodeArtifact(artifact);
   const materialized = finalizeGeneratedWorkProposal({
-    projectDir: args.scopeDir,
+    workspaceRoot: args.scopeRoot,
     ownerQuestionQueue:
-      args.ownerQuestionQueue ?? createGeneratedWorkQuestionQueue(args.scopeDir),
+      args.ownerQuestionQueue ?? createGeneratedWorkQuestionQueue(args.scopeRoot),
     proposal: decoded.applied.proposal,
     staged: decoded.applied.materialized,
   });

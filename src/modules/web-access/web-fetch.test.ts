@@ -211,13 +211,13 @@ describe("runWebFetch", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("rejects outside-project save_to before fetching", async () => {
+  it("rejects outside-scope save_to before fetching", async () => {
     const result = await runWebFetch({
       url: "https://example.com/file.txt",
       save_to: "/tmp/kota-web-fetch-outside.txt",
     });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("project directory");
+    expect(result.content).toContain("scope directory");
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -226,10 +226,10 @@ describe("runWebFetch", () => {
     const os = await import("node:os");
     const baseDir = path.join(process.cwd(), ".kota", "test-tmp");
     fs.mkdirSync(baseDir, { recursive: true });
-    const projectDir = fs.mkdtempSync(path.join(baseDir, "kota-web-fetch-link-"));
+    const scopeRoot = fs.mkdtempSync(path.join(baseDir, "kota-web-fetch-link-"));
     const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-outside-"));
     const outsideTarget = path.join(outsideDir, "response.txt");
-    const link = path.join(projectDir, "response.txt");
+    const link = path.join(scopeRoot, "response.txt");
     fs.symlinkSync(outsideTarget, link);
 
     try {
@@ -239,11 +239,11 @@ describe("runWebFetch", () => {
       });
 
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("project directory");
+      expect(result.content).toContain("scope directory");
       expect(global.fetch).not.toHaveBeenCalled();
       expect(fs.existsSync(outsideTarget)).toBe(false);
     } finally {
-      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(scopeRoot, { recursive: true, force: true });
       fs.rmSync(outsideDir, { recursive: true, force: true });
     }
   });
@@ -479,9 +479,9 @@ describe("runWebFetch", () => {
     const fs = await import("node:fs");
     const os = await import("node:os");
     const { writeFile: wf, mkdir: mk } = await import("node:fs/promises");
-    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-context-"));
+    const scopeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "kota-web-fetch-context-"));
     const savePath = "downloads/page.txt";
-    const resolvedSavePath = path.join(fs.realpathSync.native(projectDir), savePath);
+    const resolvedSavePath = path.join(fs.realpathSync.native(scopeRoot), savePath);
     vi.mocked(wf).mockClear();
     vi.mocked(mk).mockClear();
     vi.mocked(global.fetch).mockResolvedValue(
@@ -496,7 +496,7 @@ describe("runWebFetch", () => {
           url: "https://example.com/data.txt",
           save_to: savePath,
         },
-        { cwd: projectDir, scopeId: "project-b", projectId: "project-b" },
+        { cwd: scopeRoot, scopeId: "scope-b" },
       );
 
       expect(result.is_error).toBeUndefined();
@@ -505,7 +505,7 @@ describe("runWebFetch", () => {
       });
       expect(wf).toHaveBeenCalledWith(resolvedSavePath, "Project B content", "utf-8");
     } finally {
-      fs.rmSync(projectDir, { recursive: true, force: true });
+      fs.rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

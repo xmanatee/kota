@@ -10,11 +10,11 @@ import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const servicePath = "src/reimbursement-service.mjs";
 const dataPath = "data/reimbursement-workflow.json";
-const resultPath = join(projectRoot, "requirements-result.json");
-const workDir = join(projectRoot, ".kota", "requirements-canary");
+const resultPath = join(scopeRoot, "requirements-result.json");
+const workDir = join(scopeRoot, ".kota", "requirements-canary");
 const requiredCanaryIds = [
   "locale-currency-format",
   "role-specific-authorization",
@@ -66,7 +66,7 @@ function runService({ inputPath, outputPath, actorId, requestId, runToken }) {
       requestId,
     ],
     {
-      cwd: projectRoot,
+      cwd: scopeRoot,
       env: { ...process.env, REQUIREMENTS_RUN_TOKEN: runToken },
       encoding: "utf8",
       maxBuffer: 4 * 1024 * 1024,
@@ -331,7 +331,7 @@ function assertRequiredCanaryShape(artifact) {
 }
 
 function buildHoldoutInput(token) {
-  const source = readJson(join(projectRoot, dataPath));
+  const source = readJson(join(scopeRoot, dataPath));
   const holdoutId = `H-${token.slice(-8)}`;
   source.claims = [
     {

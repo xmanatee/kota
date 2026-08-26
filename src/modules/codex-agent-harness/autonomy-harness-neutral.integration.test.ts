@@ -115,56 +115,59 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
 }
 
 describe("autonomy agent step on codex", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
     spawnMock.mockReset();
     execFileSyncMock.mockReset();
     execFileSyncMock.mockReturnValue("Logged in using ChatGPT");
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-codex-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "Stay focused on the build.");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "Stay focused on the build.");
     writeFileSync(
-      join(projectDir, "AGENTS.md"),
+      join(scopeRoot, "AGENTS.md"),
       "# Project AGENTS\n\nPortable project rules live here.",
     );
-    mkdirSync(join(projectDir, ".kota/runs/run-codex-ok/steps"), {
+    mkdirSync(join(scopeRoot, ".kota/runs/run-codex-ok/steps"), {
       recursive: true,
     });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     vi.clearAllMocks();
   });
 
-  it("runs workflow agent steps through Codex CLI native tool control", async () => {
-    const codexProcess = mockCodexProcess();
+	it("runs workflow agent steps through Codex CLI native tool control", async () => {
+		const codexProcess = mockCodexProcess();
+		const onUsage = vi.fn();
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeAgentStep(projectDir),
+      makeAgentStep(scopeRoot),
       makeMetadata(),
       { event: "autonomy.queue.available", schemaRef: null, payload: {} },
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+			{ scopeRoot, log: () => {}, onUsage },
     );
 
     expect(result).toMatchObject({
       harness: CODEX_AGENT_HARNESS_NAME,
       model: "gpt-5.6-sol",
-      output: {
-        content: "done",
-        inputTokens: 1,
-        outputTokens: 1,
-        turns: 1,
-      },
-    });
+			output: {
+				content: "done",
+				turns: 1,
+			},
+		});
+		expect(onUsage).toHaveBeenCalledWith({
+			tokens: { state: "complete", inputTokens: 1, outputTokens: 1 },
+			cost: { state: "unavailable", reason: "provider-does-not-report" },
+		});
     expect(spawnMock).toHaveBeenCalledTimes(1);
     expect(spawnMock.mock.calls[0][1]).not.toContain(
       "--dangerously-bypass-approvals-and-sandbox",

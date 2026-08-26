@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
   decodeSecurityInvestigationOutput,
@@ -11,21 +12,21 @@ import {
 } from "./security-review.js";
 
 export class SecurityReviewProjectFixture {
-  readonly projectDir: string;
+  readonly workspaceRoot: string;
 
   constructor() {
-    this.projectDir = join(
+    this.workspaceRoot = join(
       tmpdir(),
       `kota-security-review-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(this.projectDir, { recursive: true });
-    writeFileSync(join(this.projectDir, ".gitignore"), ".kota/\n", "utf-8");
+    mkdirSync(this.workspaceRoot, { recursive: true });
+    writeFileSync(join(this.workspaceRoot, ".gitignore"), ".kota/\n", "utf-8");
     execFileSync("git", ["init", "-q", "-b", "main"], {
-      cwd: this.projectDir,
+      cwd: this.workspaceRoot,
       stdio: "ignore",
     });
     execFileSync("git", ["add", ".gitignore"], {
-      cwd: this.projectDir,
+      cwd: this.workspaceRoot,
       stdio: "ignore",
     });
     execFileSync(
@@ -39,18 +40,42 @@ export class SecurityReviewProjectFixture {
         "-m",
         "initial",
       ],
-      { cwd: this.projectDir, stdio: "ignore" },
+      { cwd: this.workspaceRoot, stdio: "ignore" },
     );
   }
 
   cleanup(): void {
-    rmSync(this.projectDir, { recursive: true, force: true });
+    rmSync(this.workspaceRoot, { recursive: true, force: true });
   }
 
   writeProjectFile(path: string, content: string): void {
-    const fullPath = join(this.projectDir, path);
+    const fullPath = join(this.workspaceRoot, path);
     mkdirSync(join(fullPath, ".."), { recursive: true });
     writeFileSync(fullPath, content, "utf-8");
+  }
+
+  commitProjectState(
+    message = "scenario input",
+    workspaceRoot = this.workspaceRoot,
+  ): void {
+    execFileSync("git", ["add", "-A"], {
+      cwd: workspaceRoot,
+      stdio: "ignore",
+    });
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "user.name=KOTA Test",
+        "-c",
+        "user.email=kota@example.invalid",
+        "commit",
+        "--quiet",
+        "-m",
+        message,
+      ],
+      { cwd: workspaceRoot, stdio: "ignore" },
+    );
   }
 
   securityFindingTaskIdForClaim(claim: string): string {
@@ -97,6 +122,12 @@ export class SecurityReviewProjectFixture {
 
   writeTerminalSecurityTask(id: string, state: "done" | "dropped", marker: string): void {
     const path = `data/tasks/${state}/${id}.md`;
+    const body = renderRepoTaskIntent({
+      problem: marker,
+      desiredOutcome: "Keep this terminal task as historical context.",
+      constraints: "- Do not reopen this fixture directly.",
+      howWeWillKnow: "- Historical task state is preserved.",
+    });
     this.writeProjectFile(
       path,
       [
@@ -110,30 +141,10 @@ export class SecurityReviewProjectFixture {
         "created_at: 2026-06-19T00:00:00.000Z",
         "updated_at: 2026-06-19T00:00:00.000Z",
         "---",
-        "",
-        "## Problem",
-        "",
-        marker,
-        "",
-        "## Desired Outcome",
-        "",
-        "Keep this terminal task as historical evidence.",
-        "",
-        "## Constraints",
-        "",
-        "- Do not reopen this fixture directly.",
-        "",
-        "## Done When",
-        "",
-        "- Historical task state is preserved.",
-        "",
-        "## Acceptance Evidence",
-        "",
-        "- Historical evidence.",
-        "",
+        body,
       ].join("\n"),
     );
-    execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", path], { cwd: this.workspaceRoot, stdio: "ignore" });
   }
 
   writeLegacySecurityFindingTask(args: {
@@ -149,6 +160,22 @@ export class SecurityReviewProjectFixture {
     const candidateId = args.candidateId ??
       "task-workflow-mutation:src/modules/example.ts:12";
     const path = `data/tasks/${args.state}/${args.id}.md`;
+    const body = renderRepoTaskIntent({
+      problem: [
+        "The security-review workflow confirmed an application-security finding.",
+        "",
+        `claim: ${args.claim}`,
+      ].join("\n"),
+      desiredOutcome: "Keep one canonical remediation record for this stable finding.",
+      constraints: "- Preserve review provenance.",
+      howWeWillKnow: "- The stable finding is resolved at its actual security boundary.",
+      context: [
+        `Created by security-review workflow run ${args.runId}.`,
+        "",
+        `finding id: ${findingId}`,
+        `candidate id: ${candidateId}`,
+      ].join("\n"),
+    });
     this.writeProjectFile(
       path,
       [
@@ -163,35 +190,7 @@ export class SecurityReviewProjectFixture {
         "created_at: 2026-06-19T00:00:00.000Z",
         "updated_at: 2026-06-19T00:00:00.000Z",
         "---",
-        "",
-        "## Problem",
-        "",
-        "The security-review workflow confirmed an application-security finding.",
-        "",
-        `claim: ${args.claim}`,
-        "",
-        "## Desired Outcome",
-        "",
-        "Keep one canonical remediation record for this stable finding.",
-        "",
-        "## Constraints",
-        "",
-        "- Preserve review provenance.",
-        "",
-        "## Done When",
-        "",
-        "- The stable finding is resolved.",
-        "",
-        "## Source / Intent",
-        "",
-        `Created by security-review workflow run ${args.runId}.`,
-        "",
-        `finding id: ${findingId}`,
-        `candidate id: ${candidateId}`,
-        "",
-        "## Acceptance Evidence",
-        "",
-        "- Focused security-review replay.",
+        body,
         ...(args.supersededBy
           ? [
               "",
@@ -203,6 +202,6 @@ export class SecurityReviewProjectFixture {
         "",
       ].join("\n"),
     );
-    execFileSync("git", ["add", path], { cwd: this.projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", path], { cwd: this.workspaceRoot, stdio: "ignore" });
   }
 }

@@ -33,9 +33,12 @@ describe("SlackBot", () => {
               elements: expect.arrayContaining([
                 expect.objectContaining({
                   action_id: "approve:abc123",
-                  value: `approve:abc123:${"a".repeat(64)}`,
+                  value: `approve:scope-test:abc123:${"a".repeat(64)}`,
                 }),
-                expect.objectContaining({ action_id: "reject:abc123", value: "reject:abc123" }),
+                expect.objectContaining({
+                  action_id: "reject:abc123",
+                  value: `reject:scope-test:abc123:${"a".repeat(64)}`,
+                }),
               ]),
             }),
           ]),

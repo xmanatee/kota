@@ -7,9 +7,9 @@ export type ImproverWorktreeInspection = {
 };
 
 export function inspectImproverWorktreeInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
 }): ImproverWorktreeInspection {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   return {
     dirty: worktree.available && worktree.dirty,
     summary: worktree.summary,
@@ -18,6 +18,6 @@ export function inspectImproverWorktreeInWorker(input: {
 
 export const inspectImproverWorktreeOperation =
   defineWorkflowBlockingOperation<
-    { projectDir: string },
+    { workspaceRoot: string },
     ImproverWorktreeInspection
   >(import.meta.url, "inspectImproverWorktreeInWorker");

@@ -49,14 +49,14 @@ describe("parseImportEntries", () => {
 
 describe("knowledge import integration", () => {
 	let tmpDir: string;
-	let projectDir: string;
+	let scopeRoot: string;
 	let store: KnowledgeStore;
 
 	beforeEach(() => {
 		tmpDir = mkdtempSync(join(tmpdir(), "kb-import-test-"));
-		projectDir = join(tmpDir, "project");
-		mkdirSync(projectDir, { recursive: true });
-		store = new KnowledgeStore(projectDir);
+		scopeRoot = join(tmpDir, "project");
+		mkdirSync(scopeRoot, { recursive: true });
+		store = new KnowledgeStore(scopeRoot);
 		resetKnowledgeStore();
 	});
 

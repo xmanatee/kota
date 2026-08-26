@@ -13,34 +13,34 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -75,24 +75,24 @@ function makeDefinition(overrides: Partial<WorkflowDefinition>): WorkflowDefinit
 }
 
 describe("workflow direct-tool session isolation", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-workflow-tool-session-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("isolates and tears down sessions for parallel children", async () => {
@@ -162,7 +162,7 @@ describe("workflow direct-tool session isolation", () => {
 
     const { promise: runPromise } = executeWorkflowRun(args.definition, TRIGGER, {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, TRIGGER),
       bus,
       store,
       log,

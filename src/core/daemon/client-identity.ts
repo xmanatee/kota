@@ -1,18 +1,18 @@
 /**
  * Thin-client identity contract — the typed payload every daemon client
- * uses to discover *which* project/daemon it is talking to and whether
+ * uses to discover *which* scope/daemon it is talking to and whether
  * the embedded dashboard is reachable.
  *
  * The shape is intentionally small and stable. Clients consume it through
  * `GET /identity` so they never need to read `.kota/daemon-control.json`
- * to derive a project name, infer dashboard URLs from hardcoded ports, or
- * collapse "wrong project" / "no control file" / "remote URL configured"
+ * to derive a scope name, infer dashboard URLs from hardcoded ports, or
+ * collapse "wrong scope" / "no control file" / "remote URL configured"
  * into one ambiguous "Daemon offline" string.
  */
 
 import { basename } from "node:path";
 import type { CapabilityReadinessResponse } from "./capability-readiness.js";
-import type { ProjectRegistryProjection } from "./scope-registry.js";
+import type { ScopeRegistryProjection } from "./scope-registry.js";
 
 /**
  * Stable capability id the daemon's `web` module registers when the
@@ -58,14 +58,12 @@ export type ClientDashboardAvailability =
 /**
  * Typed identity payload returned by `GET /identity`.
  *
- * - `projectName` is a short label derived from the *default* project's
- *   directory basename. Single-project KOTA renders this directly; in a
- *   multi-project daemon clients should look up the active project from
- *   `projects` instead of treating this as authoritative.
- * - `projectDir` is the absolute path of the default project. Same caveat
- *   as `projectName` for multi-project daemons.
- * - `projects` is the typed {@link ProjectRegistryProjection} every client
- *   uses to render a project selector. Clients must not derive the project
+ * - `scopeName` is a short label derived from the default scope's directory
+ *   basename. Multi-scope clients should look up the active scope from
+ *   `scopeRegistry` instead of treating this as authoritative.
+ * - `scopeRoot` is the absolute path of the default directory scope.
+ * - `scopeRegistry` is the typed {@link ScopeRegistryProjection} every client
+ *   uses to render a scope selector. Clients must not derive the scope
  *   list from `.kota/` files or from the singular fields above.
  * - `daemonVersion` mirrors the version string `GET /health` reports.
  * - `pid` and `startedAt` mirror `daemon-state.json` so a client can tell
@@ -74,9 +72,9 @@ export type ClientDashboardAvailability =
  *   meaningful; clients should not hardcode dashboard URLs.
  */
 export type ClientIdentity = {
-  projectName: string;
-  projectDir: string;
-  projects: ProjectRegistryProjection;
+  scopeName: string;
+  scopeRoot: string;
+  scopeRegistry: ScopeRegistryProjection;
   daemonVersion: string;
   pid: number;
   startedAt: string;
@@ -99,18 +97,18 @@ const DASHBOARD_PATH = "/";
 
 /**
  * Build the typed identity payload from the inputs the daemon already
- * has: project root, daemon-state metadata, and a freshly probed
+ * has: scope root, daemon-state metadata, and a freshly probed
  * capability readiness response.
  *
  * The function is deliberately pure so tests can drive it without
  * spinning up an HTTP server.
  */
 export function buildClientIdentity(opts: {
-  projectDir: string;
+  scopeRoot: string;
   pid: number;
   startedAt: string;
   capabilities: CapabilityReadinessResponse;
-  projects: ProjectRegistryProjection;
+  scopeRegistry: ScopeRegistryProjection;
 }): ClientIdentity {
   const dashboardCap = opts.capabilities.capabilities.find(
     (c) => c.id === DASHBOARD_CAPABILITY_ID,
@@ -133,9 +131,9 @@ export function buildClientIdentity(opts: {
     };
   }
   return {
-    projectName: basename(opts.projectDir) || opts.projectDir,
-    projectDir: opts.projectDir,
-    projects: opts.projects,
+    scopeName: basename(opts.scopeRoot) || opts.scopeRoot,
+    scopeRoot: opts.scopeRoot,
+    scopeRegistry: opts.scopeRegistry,
     daemonVersion: DAEMON_PROTOCOL_VERSION,
     pid: opts.pid,
     startedAt: opts.startedAt,

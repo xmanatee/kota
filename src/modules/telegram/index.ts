@@ -1,4 +1,5 @@
 import type { KotaModule } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { makeTelegramInteractiveChannel, makeTelegramStatusChannel } from "./channels.js";
@@ -7,7 +8,10 @@ import { type TelegramConfig, telegramSetupRequirements } from "./readiness.js";
 
 export { TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID } from "./readiness.js";
 
-const telegramModule: KotaModule = {
+export function createTelegramModule(
+  http: OutboundHttpRequestPort = outboundHttp,
+): KotaModule {
+  return {
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
@@ -45,7 +49,7 @@ const telegramModule: KotaModule = {
         id: "telegram.bot-credentials",
         description: "Telegram bot token and alert chat id secret references.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -98,15 +102,15 @@ const telegramModule: KotaModule = {
         items: { type: "integer" },
         uniqueItems: true,
       },
-      chatProjectBindings: {
+      chatScopeBindings: {
         type: "array",
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["chatId", "projectId"],
+          required: ["chatId", "scopeId"],
           properties: {
             chatId: { type: "integer" },
-            projectId: { type: "string", minLength: 1 },
+            scopeId: { type: "string", minLength: 1 },
           },
         },
       },
@@ -138,15 +142,18 @@ const telegramModule: KotaModule = {
 
   channels: (ctx) => {
     const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
-    const chatProjectBindings = telegramConfig?.chatProjectBindings ?? [];
+    const chatScopeBindings = telegramConfig?.chatScopeBindings ?? [];
     return [
       makeTelegramStatusChannel(ctx),
-      makeTelegramInteractiveChannel(ctx, chatProjectBindings),
+      makeTelegramInteractiveChannel(ctx, chatScopeBindings, http),
     ];
   },
 
-  onLoad: loadTelegramModule,
-  onUnload: unloadTelegramModule,
-};
+  onLoad: async (ctx) => {
+    await loadTelegramModule(ctx);
+    return { dispose: unloadTelegramModule };
+  },
+  };
+}
 
-export default telegramModule;
+export default createTelegramModule();

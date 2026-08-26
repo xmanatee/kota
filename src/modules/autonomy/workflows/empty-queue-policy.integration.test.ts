@@ -22,7 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import backlogPromoterWorkflow from "./backlog-promoter/workflow.js";
 import dispatcherWorkflow from "./dispatcher/workflow.js";
 
@@ -106,7 +106,7 @@ const TASK_TEMPLATE = (
   ].join("\n");
 };
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "queue-health-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -126,25 +126,25 @@ function commitInitial(dir: string): void {
 
 describe("empty-queue policy: ready/ empty, backlog present", () => {
   it("dispatcher emits needs-promotion (not queue.available) so builder cannot run", async () => {
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-strategic.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-strategic.md"),
       TASK_TEMPLATE("backlog", "task-strategic", {
         priority: "p1",
         area: "architecture",
       }),
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-narrow-fanout.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-narrow-fanout.md"),
       TASK_TEMPLATE("backlog", "task-narrow-fanout", {
         priority: "p2",
         area: "client",
         title: "Wire up dashboard sidebar",
       }),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(dispatcherWorkflow, { projectDir });
+    const harness = new WorkflowScenarioDriver(dispatcherWorkflow, { workspaceRoot });
     const result = await harness.run();
 
     const events = result.emitted.map((e) => e.event);
@@ -153,16 +153,16 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
   });
 
   it("backlog-promoter records a rationale identifying chosen task and rejected alternatives before builder can resume", async () => {
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-strategic.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-strategic.md"),
       TASK_TEMPLATE("backlog", "task-strategic", {
         priority: "p1",
         area: "architecture",
       }),
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "backlog", "task-narrow-fanout.md"),
+      join(workspaceRoot, "data", "tasks", "backlog", "task-narrow-fanout.md"),
       TASK_TEMPLATE("backlog", "task-narrow-fanout", {
         priority: "p2",
         area: "client",
@@ -170,19 +170,19 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
       }),
     );
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-blocked-arch.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-blocked-arch.md"),
       TASK_TEMPLATE("blocked", "task-blocked-arch", {
         priority: "p1",
         area: "architecture",
         body: "## Unblock Precondition\n\nkind: owner-decision\nslot: arch\nquestion: Approve?\n",
       }),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
-      contextOverrides: { runCommand: successfulWorkflowCommandRun },
+      workspaceRoot,
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
     const result = await harness.run();
 
@@ -210,20 +210,20 @@ describe("empty-queue policy: ready/ empty, backlog present", () => {
   });
 
   it("backlog-promoter writes no rationale and emits no promotion event when only blocked work remains", async () => {
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-blocked-only.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-blocked-only.md"),
       TASK_TEMPLATE("blocked", "task-blocked-only", {
         priority: "p1",
         area: "architecture",
         body: "## Unblock Precondition\n\nkind: owner-decision\nslot: only\nquestion: Approve?\n",
       }),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(backlogPromoterWorkflow, {
+    const harness = new WorkflowScenarioDriver(backlogPromoterWorkflow, {
       trigger: { event: "autonomy.queue.needs-promotion", payload: {} },
-      projectDir,
+      workspaceRoot,
     });
     const result = await harness.run();
 

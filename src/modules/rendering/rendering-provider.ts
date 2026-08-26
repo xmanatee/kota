@@ -1,9 +1,8 @@
 /**
  * Rendering provider — the module-owned default implementation of
  * `RenderingProvider`. Core resolves operator-facing surfaces through
- * the provider registry; the repo-wide guard at
- * `src/core/agent-harness/no-module-imports-in-core.test.ts` keeps core
- * from reaching into `#modules/rendering/*` directly. This file is the
+ * the provider registry without reaching into `#modules/rendering/*`
+ * directly. This file is the
  * concrete binding between that seam and the rendering primitives and
  * transport.
  */
@@ -55,7 +54,7 @@ function createStderrChrome(): ReplChrome {
         line(span("  exit      ", "accent"), plain(" Quit interactive mode")),
       );
     },
-    showStatus(harness, model, turns, projectDir): void {
+    showStatus(harness, model, turns, scopeRoot): void {
       chrome.write(
         line(
           span("Harness: ", "muted"),
@@ -64,10 +63,10 @@ function createStderrChrome(): ReplChrome {
           span("Model: ", "muted"),
           span(model, "info"),
           plain("  "),
-          ...(projectDir
+          ...(scopeRoot
             ? [
-                span("Project: ", "muted"),
-                plain(projectDir),
+                span("Scope: ", "muted"),
+                plain(scopeRoot),
                 plain("  "),
               ]
             : []),

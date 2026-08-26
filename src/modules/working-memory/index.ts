@@ -17,7 +17,10 @@ import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { sessionWriteEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/index.js";
-import type { WorkingMemoryEntry } from "./store.js";
+import {
+	decodeWorkingMemoryFile,
+	encodeWorkingMemoryFile,
+} from "./persistence.js";
 import {
 	clearAll,
 	getEntry,
@@ -37,22 +40,15 @@ function savePersistent(storage: ModuleStorage): void {
 		storage.delete(STORAGE_KEY);
 		return;
 	}
-	storage.setJSON(
-		STORAGE_KEY,
-		entries.map((e) => ({ key: e.key, value: e.value, updatedAt: e.updatedAt })),
-	);
+	storage.setJSON(STORAGE_KEY, encodeWorkingMemoryFile(entries));
 }
 
 function loadPersistent(storage: ModuleStorage): number {
-	const raw = storage.getJSON<Array<{ key: string; value: string; updatedAt: number }>>(STORAGE_KEY);
-	if (!raw || !Array.isArray(raw)) return 0;
-	const entries: WorkingMemoryEntry[] = raw.map((e) => ({
-		key: e.key,
-		value: e.value,
-		updatedAt: e.updatedAt ?? Date.now(),
-		persistent: true,
-	}));
-	return loadEntries(entries);
+	const raw = storage.getJSON(STORAGE_KEY);
+	if (raw === undefined) return 0;
+	const decoded = decodeWorkingMemoryFile(raw);
+	if (decoded.migrated) storage.setJSON(STORAGE_KEY, encodeWorkingMemoryFile(decoded.entries));
+	return loadEntries(decoded.entries);
 }
 
 type Action = "write" | "read" | "list" | "remove" | "clear";

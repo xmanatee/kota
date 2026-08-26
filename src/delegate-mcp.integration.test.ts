@@ -198,7 +198,7 @@ describe("delegate × mcp-manager integration", () => {
       expect(config.mcpManager?.getToolCount()).toBe(1);
     });
 
-    it("DelegateConfig works without mcpManager (backward compat)", () => {
+		it("allows callers that do not declare MCP capability", () => {
       const config: DelegateConfig = {
         model: "test-model",
       };

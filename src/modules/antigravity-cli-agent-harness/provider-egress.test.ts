@@ -3,7 +3,7 @@ import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native
 import { buildAntigravityCliEnvironment } from "./provider-egress.js";
 
 describe("Antigravity CLI provider egress environment", () => {
-  it("projects declared Google auth only while the eval proxy seam is active", () => {
+  it("scopes declared Google auth only while the eval proxy seam is active", () => {
     const active = buildAntigravityCliEnvironment({
       inheritedEnv: {
         PATH: "/usr/bin",

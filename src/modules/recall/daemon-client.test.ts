@@ -30,8 +30,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { RecallResult } from "./client.js";
 import recallModule from "./index.js";
@@ -333,27 +331,5 @@ describe("recall module daemonClient(link)", () => {
     const contributed = recallModule.daemonClient!(transport);
     const result = await contributed.recall!.recall("anything");
     expect(result).toEqual(expected);
-  });
-
-  it("the assembly path fails loudly when the recall module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.recall;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /recall/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the recall module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = recallModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.recall;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

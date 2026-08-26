@@ -7,23 +7,23 @@ import { jsonResponse } from "#core/server/session-pool.js";
 import type { InboundSignalRoutingStatus } from "./routing.js";
 
 export function inboundSignalRouteStatusRoutes(
-  status: (projectId?: string) => InboundSignalRoutingStatus,
+  status: (scopeId?: string) => InboundSignalRoutingStatus,
 ): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/inbound-signals/routes",
       handler: (req, res) => {
-        const projectId = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
-        if (projectId === null) return;
-        jsonResponse(res, 200, status(projectId));
+        const scopeId = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
+        if (scopeId === null) return;
+        jsonResponse(res, 200, status(scopeId));
       },
     },
   ];
 }
 
 export function inboundSignalRouteStatusControlRoutes(
-  status: (projectId?: string) => InboundSignalRoutingStatus,
+  status: (scopeId?: string) => InboundSignalRoutingStatus,
 ): ControlRouteRegistration[] {
   return [
     {
@@ -31,9 +31,9 @@ export function inboundSignalRouteStatusControlRoutes(
       path: "/inbound-signals/routes",
       capabilityScope: "read",
       handler: (req, res) => {
-        const projectId = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
-        if (projectId === null) return;
-        jsonResponse(res, 200, status(projectId));
+        const scopeId = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
+        if (scopeId === null) return;
+        jsonResponse(res, 200, status(scopeId));
       },
     },
   ];

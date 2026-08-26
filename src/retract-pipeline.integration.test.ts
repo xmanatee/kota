@@ -11,7 +11,7 @@
  *
  * The retract provider is built from the real `RetractProviderImpl` plus
  * the four real first-party contributors wired against in-process
- * `MemoryStore` and `KnowledgeStore` instances and a temp project root
+ * `MemoryStore` and `KnowledgeStore` instances and a temp scope root
  * for the tasks and inbox writers.
  *
  * The test also seeds memory and knowledge entries, runs a real
@@ -38,7 +38,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
+import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import {
@@ -99,12 +100,12 @@ function startServer(specs: RouteSpec[]): Promise<{ server: Server; port: number
   });
 }
 
-function makeProjectRoot(): string {
+function makeScopeRoot(): string {
   const scopeDir = mkdtempSync(join(tmpdir(), "kota-retract-pipeline-"));
   const dir = createRepoTaskRuntimeSandbox(
     scopeDir,
     "retract-pipeline",
-  ).projectDir;
+  ).workspaceRoot;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
@@ -112,7 +113,7 @@ function makeProjectRoot(): string {
 }
 
 describe("cross-store retract pipeline (HTTP)", () => {
-  let projectRoot: string;
+  let scopeRoot: string;
   let memoryStore: MemoryStore;
   let knowledgeStore: KnowledgeStore;
   let recallProvider: RecallProviderImpl;
@@ -125,11 +126,11 @@ describe("cross-store retract pipeline (HTTP)", () => {
   let inboxRepoRelPath: string;
 
   beforeAll(async () => {
-    projectRoot = makeProjectRoot();
-    memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+    scopeRoot = makeScopeRoot();
+    memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
     knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
+      scopeRoot,
+      join(scopeRoot, ".kota-global", "data"),
     );
 
     // Seed one record per target.
@@ -138,7 +139,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
       title: "Old design note",
       content: "Outdated reasoning the operator wants to retract.",
     });
-    const taskCreate = createNormalizedTask(projectRoot, {
+    const taskCreate = createNormalizedTask(scopeRoot, {
       title: "obsolete review macOS push permissions",
       priority: "p3",
       area: "uncategorized",
@@ -149,7 +150,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
     taskId = taskCreate.id;
     inboxRepoRelPath = "data/inbox/note-stale-thought.md";
     writeFileSync(
-      join(projectRoot, inboxRepoRelPath),
+      join(scopeRoot, inboxRepoRelPath),
       "stale thought\n",
       "utf-8",
     );
@@ -157,7 +158,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
     const retractProvider = new RetractProviderImpl();
     retractProvider.register(createMemoryContributor(memoryStore));
     retractProvider.register(createKnowledgeContributor(knowledgeStore));
-    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
     retractProvider.register(createTasksContributor(mutationTarget));
     retractProvider.register(createInboxContributor(mutationTarget));
 
@@ -178,17 +179,15 @@ describe("cross-store retract pipeline (HTTP)", () => {
         startedAt: new Date().toISOString(),
         token: "",
       },
-      (transport) => {
-        const stubs = buildMigratedNamespaceTestStubs();
-        delete stubs.retract;
-        return { ...stubs, ...retractModule.daemonClient!(transport) };
-      },
+      (transport) => completeDaemonClientHandlers(
+        retractModule.daemonClient!(transport),
+      ),
     );
   });
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("memory arm: a retract removes the entry and recall no longer surfaces it", async () => {
@@ -239,7 +238,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
 
   it("tasks arm: a retract routes through the state machine, file ends up under data/tasks/dropped/ with status: dropped frontmatter", async () => {
     const backlogPath = join(
-      projectRoot,
+      scopeRoot,
       "data",
       "tasks",
       "backlog",
@@ -261,7 +260,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
     expect(result.record.toState).toBe("dropped");
 
     const droppedPath = join(
-      projectRoot,
+      scopeRoot,
       "data",
       "tasks",
       "dropped",
@@ -276,7 +275,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
   });
 
   it("inbox arm: a retract unlinks the file at the named path", async () => {
-    const absolutePath = join(projectRoot, inboxRepoRelPath);
+    const absolutePath = join(scopeRoot, inboxRepoRelPath);
     expect(existsSync(absolutePath)).toBe(true);
 
     const result = await client.retract.retract({
@@ -313,14 +312,15 @@ describe("cross-store retract pipeline (HTTP)", () => {
     const started = await startServer([
       { method: "POST", path: "/retract", handler },
     ]);
-    const isolatedClient = DaemonControlClient.fromAddress(
-      {
-        port: started.port,
-        pid: 0,
-        startedAt: new Date().toISOString(),
-        token: "",
-      },
-      buildMigratedNamespaceTestStubs(),
+    const transport = daemonTransportFromAddress({
+      port: started.port,
+      pid: 0,
+      startedAt: new Date().toISOString(),
+      token: "",
+    });
+    const isolatedClient = DaemonControlClient.fromTransport(
+      transport,
+      completeDaemonClientHandlers(retractModule.daemonClient!(transport)),
     );
     try {
       const result = await isolatedClient.retract.retract({

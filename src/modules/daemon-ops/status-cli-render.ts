@@ -101,7 +101,7 @@ export function buildStatusNode(
 
   const approvalSuffix = snap.pendingApprovals > 0 ? "  ← requires attention" : "";
   const entries = [
-    { label: "Project", value: `${snap.projectName}  (${snap.projectDir})`, role: "info" as const },
+    { label: "Scope", value: `${snap.scopeName}  (${snap.scopeRoot})`, role: "info" as const },
     { label: "Control file", ...describeControlFile(snap.controlFile) },
   ];
   if (snap.controlFile.kind === "fresh" || snap.controlFile.kind === "stale") {
@@ -114,20 +114,20 @@ export function buildStatusNode(
       role: "warn" as const,
     });
   }
-  if (snap.daemonProjectDir) {
-    const name = snap.daemonProjectName ?? basename(snap.daemonProjectDir);
+  if (snap.daemonScopeRoot) {
+    const name = snap.daemonScopeName ?? basename(snap.daemonScopeRoot);
     entries.push({
-      label: "Daemon project",
-      value: snap.wrongProject
-        ? `${name}  (${snap.daemonProjectDir})  ← MISMATCH with selected project`
-        : `${name}  (${snap.daemonProjectDir})`,
-      role: snap.wrongProject ? "warn" as const : "muted" as const,
+      label: "Daemon scope",
+      value: snap.wrongScope
+        ? `${name}  (${snap.daemonScopeRoot})  ← MISMATCH with selected scope`
+        : `${name}  (${snap.daemonScopeRoot})`,
+      role: snap.wrongScope ? "warn" as const : "muted" as const,
     });
   }
-  if (snap.scopedProject) {
+  if (snap.selectedScope) {
     entries.push({
-      label: "Active project",
-      value: `${snap.scopedProject.displayName}  (${snap.scopedProject.projectDir})`,
+      label: "Active scope",
+      value: `${snap.selectedScope.displayName}  (${snap.selectedScope.scopeRoot})`,
       role: "info" as const,
     });
   }

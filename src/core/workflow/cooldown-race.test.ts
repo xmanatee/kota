@@ -16,7 +16,7 @@ describe("durable workflow cooldown projection", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-cooldown-state-"));
     roots.push(root);
     const database = new RunStateDatabase(root);
-    database.registerProject({
+    database.registerScope({
       id: "project",
       rootPath: root,
       createdAt: "2026-04-11T09:00:00.000Z",
@@ -25,7 +25,7 @@ describe("durable workflow cooldown projection", () => {
     for (const [id, workflow] of [["alpha-run", "alpha"], ["beta-run", "beta"]] as const) {
       database.admitRun({
         id,
-        projectId: "project",
+        scopeId: "project",
         workflow,
         trigger: { event: "test", schemaRef: null, payload: {} },
         repository: "none",

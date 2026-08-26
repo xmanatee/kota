@@ -1,10 +1,10 @@
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import type {
 	ApprovalApproveResult,
 	ApprovalRejectResult,
 } from "#modules/approval-queue/client.js";
 import { buildLocalApprovalsClient } from "#modules/approval-queue/local-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
 	callTelegramApi,
 	type TelegramApiBody,
@@ -77,8 +77,8 @@ export async function handleApprovalCallback(
 	const approvalId = info.approvalId;
 	const mutate = client
 		? action === "approve"
-			? await client.forProject(info.projectId).approvals.approve(approvalId, info.reviewDigest)
-			: await client.forProject(info.projectId).approvals.reject(approvalId)
+			? await client.forScope(info.scopeId).approvals.approve(approvalId, info.reviewDigest)
+			: await client.forScope(info.scopeId).approvals.reject(approvalId)
 		: await resolveLocalApproval(action, approvalId, info);
 
 	if (!mutate.ok) {
@@ -173,13 +173,13 @@ async function resolveLocalApproval(
 		return approvals.reject(
 			approvalId,
 			undefined,
-			{ projectId: info.projectId },
+			{ scopeId: info.scopeId },
 		);
 	}
 	return approvals.approve(
 		approvalId,
 		info.reviewDigest,
 		undefined,
-		{ projectId: info.projectId },
+		{ scopeId: info.scopeId },
 	);
 }

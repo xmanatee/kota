@@ -15,7 +15,7 @@ import {
   setOwnerQuestionQueueInstance,
 } from "#core/daemon/owner-question-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   clearApprovalExecutionTestTools,
   registerApprovalExecutionTestTools,
@@ -26,11 +26,11 @@ import { workflowRoutes } from "#modules/workflow-ops/routes/routes.js";
 import {
   eventIds,
   openRemoteReconnectSse,
-  REMOTE_RECONNECT_PROJECT_ID as PROJECT_ID,
   REMOTE_RECONNECT_RUN_ID as RUN_ID,
   rebuildRemoteClientState,
   remoteReconnectFetch,
   remoteReconnectJson,
+  REMOTE_RECONNECT_SCOPE_ID as SCOPE_ID,
   REMOTE_RECONNECT_SESSION_ID as SESSION_ID,
   REMOTE_RECONNECT_STARTED_AT as STARTED_AT,
   REMOTE_RECONNECT_TOKEN as TOKEN,
@@ -40,14 +40,14 @@ import {
 import { makeRemoteReconnectHandle } from "./daemon-remote-reconnect-handle-fixture.integration.js";
 
 describe("daemon remote-client reconnect contract", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalCwd: string;
   let server: DaemonControlServer | null = null;
 
   beforeEach(() => {
     originalCwd = process.cwd();
-    projectDir = mkdtempSync(join(tmpdir(), "kota-remote-reconnect-"));
-    process.chdir(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-remote-reconnect-"));
+    process.chdir(scopeRoot);
     resetApprovalQueue();
     resetOwnerQuestionQueue();
     registerApprovalExecutionTestTools(async () => ({
@@ -65,29 +65,29 @@ describe("daemon remote-client reconnect contract", () => {
     resetOwnerQuestionQueue();
     clearApprovalExecutionTestTools();
     process.chdir(originalCwd);
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("rebuilds sessions, workflow run, decisions, artifacts, and timeline after SSE reconnect", async () => {
     const bus = new EventBus();
-    const projectBus = new ProjectScopedEventBus(bus, PROJECT_ID);
-    writeRemoteReconnectRunArtifacts(projectDir);
-    const approvalQueue = new ApprovalQueue(join(projectDir, ".kota", "approvals"), projectBus);
+    const scopeBus = new ScopedEventBus(bus, SCOPE_ID);
+    writeRemoteReconnectRunArtifacts(scopeRoot);
+    const approvalQueue = new ApprovalQueue(join(scopeRoot, ".kota", "approvals"), scopeBus);
     const ownerQuestionQueue = new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
-      projectBus,
+      join(scopeRoot, ".kota", "owner-questions"),
+      scopeBus,
     );
     setApprovalQueueInstance(approvalQueue);
     setOwnerQuestionQueueInstance(ownerQuestionQueue);
 
-    server = new DaemonControlServer(makeRemoteReconnectHandle(bus, projectDir), TOKEN, {
+    server = new DaemonControlServer(makeRemoteReconnectHandle(bus, scopeRoot), TOKEN, {
       controlRoutes: [...approvalControlRoutes(), ...ownerQuestionControlRoutes()],
       routes: workflowRoutes(),
     });
     const port = await server.start();
 
     const firstStream = await openRemoteReconnectSse(port, "/events");
-    projectBus.emit("workflow.started", {
+    scopeBus.emit("workflow.started", {
       workflow: "builder",
       runId: RUN_ID,
       triggerEvent: "remote.reconnect.test",
@@ -96,7 +96,7 @@ describe("daemon remote-client reconnect contract", () => {
       startedAt: STARTED_AT,
       autonomyMode: "supervised",
     });
-    projectBus.emit("session.registered", {
+    scopeBus.emit("session.registered", {
       id: SESSION_ID,
       createdAt: STARTED_AT,
       autonomyMode: "supervised",
@@ -137,7 +137,7 @@ describe("daemon remote-client reconnect contract", () => {
       content: expect.stringContaining("remote reconnect probe"),
     });
 
-    projectBus.emit("workflow.step.completed", {
+    scopeBus.emit("workflow.step.completed", {
       workflow: "builder",
       runId: RUN_ID,
       stepId: "probe",
@@ -203,7 +203,7 @@ describe("daemon remote-client reconnect contract", () => {
     expect(new Set(eventIds(afterReconnect.timeline)).size).toBe(afterReconnect.timeline.length);
 
     writeRemoteReconnectProbe({
-      daemonBoot: { port, projectDir },
+      daemonBoot: { port, scopeRoot },
       disconnectedAfterEventId: lastSeenId,
       firstStream: firstEvents.map((event) => ({ id: event.id, type: event.type })),
       reconnectStream: reconnectEvents.map((event) => ({ id: event.id, type: event.type })),

@@ -1,19 +1,19 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
-import { jsonResponse, readBody, resolveProjectIdParam } from "./daemon-control-utils.js";
+import { jsonResponse, readBody, resolveScopeIdParam } from "./daemon-control-utils.js";
 
 export function handleListSessions(
   handle: DaemonControlHandle,
   res: ServerResponse,
   url?: URL,
 ): void {
-  const scope = url ? resolveProjectIdParam(handle, url) : { ok: true as const, projectId: undefined };
+  const scope = url ? resolveScopeIdParam(handle, url) : { ok: true as const, scopeId: undefined };
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
   }
-  jsonResponse(res, 200, { sessions: handle.listSessions(scope.projectId) });
+  jsonResponse(res, 200, { sessions: handle.listSessions(scope.scopeId) });
 }
 
 export function handleRegisterSession(
@@ -22,7 +22,7 @@ export function handleRegisterSession(
   res: ServerResponse,
   url: URL,
 ): void {
-  const scope = resolveProjectIdParam(handle, url);
+  const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {
     jsonResponse(res, scope.status, scope.error);
     return;
@@ -47,7 +47,7 @@ export function handleRegisterSession(
         jsonResponse(res, 400, { error: "autonomyMode is required (passive, supervised, autonomous)" });
         return;
       }
-      const result = handle.registerSession(id, createdAt, autonomyMode, scope.projectId);
+      const result = handle.registerSession(id, createdAt, autonomyMode, scope.scopeId);
       if (!result.ok) {
         jsonResponse(res, 409, {
           error: `Scope ${result.scopeId} is ${result.state} and cannot accept sessions`,

@@ -42,13 +42,13 @@ import type {
   CaptureResult,
 } from "./client.js";
 import {
-  createProjectInboxContributor,
-  createProjectKnowledgeContributor,
-  createProjectMemoryContributor,
-  createProjectTasksContributor,
+  createScopeInboxContributor,
+  createScopeKnowledgeContributor,
+  createScopeMemoryContributor,
+  createScopeTasksContributor,
 } from "./contributors.js";
-import { createCaptureProjectContextResolver } from "./project-context.js";
 import { captureApiRoutes, captureControlRoutes } from "./routes.js";
+import { createCaptureScopeContextResolver } from "./scope-context.js";
 import {
   buildCaptureDynamicStateProvider,
   CAPTURE_DYNAMIC_STATE_NAME,
@@ -108,7 +108,7 @@ function createDefaultClassifier(ctx: ModuleContext): CaptureClassifier {
           ...(config.modelProvider?.apiKey !== undefined && {
             apiKey: config.modelProvider.apiKey,
           }),
-          projectDir: ctx.cwd,
+          scopeRoot: ctx.cwd,
         });
       } catch (err) {
         ctx.log.warn(
@@ -146,15 +146,15 @@ const captureModule: KotaModule = {
   uiSurfaces: [captureUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveProjectContext = createCaptureProjectContextResolver(ctx.cwd);
+    const resolveScopeContext = createCaptureScopeContextResolver(ctx.cwd, ctx);
     const provider = new CaptureProviderImpl({
       classifier: createDefaultClassifier(ctx),
-      resolveProjectContext,
+      resolveScopeContext,
     });
-    provider.register(createProjectMemoryContributor());
-    provider.register(createProjectKnowledgeContributor());
-    provider.register(createProjectTasksContributor());
-    provider.register(createProjectInboxContributor());
+    provider.register(createScopeMemoryContributor());
+    provider.register(createScopeKnowledgeContributor());
+    provider.register(createScopeTasksContributor());
+    provider.register(createScopeInboxContributor());
     activeProvider = provider;
     ctx.registerProvider(CAPTURE_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
@@ -168,6 +168,11 @@ const captureModule: KotaModule = {
     ctx.log.info(
       `capture: registered ${provider.contributors().length} contributor(s)`,
     );
+    return {
+      dispose: () => {
+        if (activeProvider === provider) activeProvider = null;
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -181,23 +186,23 @@ const captureModule: KotaModule = {
   controlRoutes: (ctx) =>
     captureControlRoutes(
       resolveActiveProvider,
-      createCaptureProjectContextResolver(ctx.cwd),
+      createCaptureScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     captureApiRoutes(
       resolveActiveProvider,
-      createCaptureProjectContextResolver(ctx.cwd),
+      createCaptureScopeContextResolver(ctx.cwd, ctx),
     ),
 
   localClient: (ctx) => {
     const handler: CaptureClient = {
       async capture(text, filter) {
-        const project = createCaptureProjectContextResolver(ctx.cwd)(
+        const scope = createCaptureScopeContextResolver(ctx.cwd, ctx)(
           selectedScopeSelectorId(filter),
         );
-        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
-        return resolveActiveProvider().capture(text, filter, project);
+        if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
+        return resolveActiveProvider().capture(text, filter, scope);
       },
     };
     return { capture: handler };
@@ -205,9 +210,6 @@ const captureModule: KotaModule = {
 
   daemonClient: (link) => ({ capture: buildCaptureDaemonHandler(link) }),
 
-  onUnload() {
-    activeProvider = null;
-  },
 };
 
 export default captureModule;

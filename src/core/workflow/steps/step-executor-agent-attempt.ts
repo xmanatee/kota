@@ -115,8 +115,8 @@ export async function runAgentAttempt(input: {
     const harnessRun = agentConfig.delegateBudget
       ? withHandoffAgentRuntime(
           {
-            projectDir: agentConfig.projectDir,
-            cwd: agentConfig.workspaceDir ?? agentConfig.projectDir,
+            scopeRoot: agentConfig.scopeRoot,
+            cwd: agentConfig.workspaceRoot ?? agentConfig.scopeRoot,
             harness: resolvedHarness.name,
             resolveAgentDef: agentConfig.resolveAgentDef ?? (() => undefined),
             ...(agentConfig.runtimeResources !== undefined
@@ -137,8 +137,6 @@ export async function runAgentAttempt(input: {
             ...(harnessRunOptions.options.workflowContext !== undefined
               ? {
                   scopeId: harnessRunOptions.options.workflowContext.scopeId,
-                  projectId:
-                    harnessRunOptions.options.workflowContext.projectId,
                 }
               : {}),
             ...(harnessRunOptions.options.scopePolicy !== undefined

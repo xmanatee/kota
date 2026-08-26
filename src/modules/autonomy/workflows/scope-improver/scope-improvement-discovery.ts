@@ -57,10 +57,10 @@ function instructionPathsForFiles(files: readonly string[]): string[] {
   return [...paths].sort();
 }
 
-function readInstructions(projectDir: string, files: readonly string[]): ScopeInstruction[] {
+function readInstructions(workspaceRoot: string, files: readonly string[]): ScopeInstruction[] {
   const instructions: ScopeInstruction[] = [];
   for (const path of instructionPathsForFiles(files)) {
-    const fullPath = join(projectDir, path);
+    const fullPath = join(workspaceRoot, path);
     if (!existsSync(fullPath)) continue;
     const raw = readFileSync(fullPath, "utf-8").trim();
     instructions.push({ path, excerpt: raw.slice(0, 800) });
@@ -68,8 +68,8 @@ function readInstructions(projectDir: string, files: readonly string[]): ScopeIn
   return instructions;
 }
 
-function queueEvidence(projectDir: string): ScopeImprovementEvidence {
-  const snapshot = getRepoTaskQueueSnapshot(projectDir);
+function queueEvidence(workspaceRoot: string): ScopeImprovementEvidence {
+  const snapshot = getRepoTaskQueueSnapshot(workspaceRoot);
   return {
     id: "queue:snapshot",
     kind: "queue",
@@ -80,17 +80,17 @@ function queueEvidence(projectDir: string): ScopeImprovementEvidence {
 }
 
 export function collectScopeImprovementInputs(args: {
-  projectDir: string;
-  scopeDir?: string;
+  workspaceRoot: string;
+  scopeRoot?: string;
   stateDir?: string;
   state: ScopeImprovementState;
   trigger: WorkflowRunTrigger;
   now: Date;
   scopePolicySnapshot: ScopePolicySnapshot;
 }): ScopeImprovementInputs {
-  const scopeDir = args.scopeDir ?? args.projectDir;
-  const stateDir = args.stateDir ?? join(scopeDir, ".kota");
-  const scopeId = deriveDirectoryScopeId(scopeDir);
+  const scopeRoot = args.scopeRoot ?? args.workspaceRoot;
+  const stateDir = args.stateDir ?? join(scopeRoot, ".kota");
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
   const config = readScopeImprovementConfigFromStateDir(stateDir);
   const state = args.state;
   if (state.scopeId !== scopeId) {
@@ -98,9 +98,10 @@ export function collectScopeImprovementInputs(args: {
   }
   const payload = args.trigger.payload as ScopeImprovementRequest;
   const computedFingerprint = computeScopeContentFingerprint(
-    scopeDir,
+    args.workspaceRoot,
     args.scopePolicySnapshot.policy,
     stateDir,
+    scopeRoot,
   );
   const automatic = payload.automatic === true;
   // Automatic requests are latest-only semantic inputs. Re-read their
@@ -113,7 +114,7 @@ export function collectScopeImprovementInputs(args: {
     ? computedFingerprint.refs
     : changedFiles(args.trigger);
   const files = evidenceRefs.filter((ref) => !isScopePolicyEvidenceRef(ref));
-  const instructions = readInstructions(scopeDir, files);
+  const instructions = readInstructions(args.workspaceRoot, files);
   const evidence: ScopeImprovementEvidence[] = [
     ...instructions.map((item) => ({
       id: `instruction:${item.path}`,
@@ -127,7 +128,7 @@ export function collectScopeImprovementInputs(args: {
       summary: `Changed file ${path}`,
       path,
     })),
-    queueEvidence(args.projectDir),
+    queueEvidence(args.workspaceRoot),
     {
       id: "policy:scope-authority",
       kind: "policy",
@@ -149,8 +150,8 @@ export function collectScopeImprovementInputs(args: {
     triggerEvent: args.trigger.event,
     scope: {
       scopeId,
-      displayName: scopeDir.split("/").pop() ?? scopeDir,
-      directoryRoot: scopeDir,
+      displayName: scopeRoot.split("/").pop() ?? scopeRoot,
+      directoryRoot: scopeRoot,
     },
     config,
     state,
@@ -167,8 +168,8 @@ export function collectScopeImprovementInputs(args: {
 }
 
 export function collectScopeImprovementInputsInWorker(args: {
-  projectDir: string;
-  scopeDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   state: ScopeImprovementState;
   trigger: WorkflowRunTrigger;
@@ -176,8 +177,8 @@ export function collectScopeImprovementInputsInWorker(args: {
   scopePolicySnapshot: ScopePolicySnapshot;
 }): ScopeImprovementInputs {
   return collectScopeImprovementInputs({
-    projectDir: args.projectDir,
-    scopeDir: args.scopeDir,
+    workspaceRoot: args.workspaceRoot,
+    scopeRoot: args.scopeRoot,
     stateDir: args.stateDir,
     state: args.state,
     trigger: args.trigger,
@@ -189,8 +190,8 @@ export function collectScopeImprovementInputsInWorker(args: {
 export const collectScopeImprovementInputsOperation =
   defineWorkflowBlockingOperation<
     {
-      projectDir: string;
-      scopeDir: string;
+      workspaceRoot: string;
+      scopeRoot: string;
       stateDir: string;
       state: ScopeImprovementState;
       trigger: WorkflowRunTrigger;

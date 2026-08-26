@@ -3,6 +3,7 @@ import { render } from '@testing-library/react-native';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ActivityIndicator } from 'react-native';
+import { initialState } from '../context/state';
 import { AttentionScreen } from '../screens/AttentionScreen';
 import type { AttentionResponse } from '../types';
 
@@ -20,19 +21,6 @@ function defaultState() {
     token: 'tok',
     settingsLoaded: true,
     online: true,
-    sseConnected: true,
-    status: null,
-    runs: [],
-    approvals: [],
-    ownerQuestions: [],
-    tasks: null,
-    pendingApprovalCount: 0,
-    pendingOwnerQuestionCount: 0,
-    pushNotificationsEnabled: true,
-    error: null,
-    digest: null,
-    digestLoading: false,
-    digestError: null,
     attention: null as AttentionResponse | null,
     attentionLoading: false,
     attentionError: null as string | null,
@@ -40,7 +28,23 @@ function defaultState() {
 }
 
 function baseState(overrides: Partial<ReturnType<typeof defaultState>> = {}) {
-  return { ...defaultState(), ...overrides };
+  const state = { ...defaultState(), ...overrides };
+  return {
+    ...initialState,
+    connection: {
+      ...initialState.connection,
+      daemonUrl: state.daemonUrl,
+      token: state.token,
+      settingsLoaded: state.settingsLoaded,
+      online: state.online,
+    },
+    content: {
+      ...initialState.content,
+      attention: state.attention,
+      attentionLoading: state.attentionLoading,
+      attentionError: state.attentionError,
+    },
+  };
 }
 
 function emitMobileAttentionEvidence(fileName: string, tree: unknown): void {
@@ -84,12 +88,10 @@ describe('AttentionScreen', () => {
 
   test('renders the attention body and item-count badge when items are present', () => {
     const attention: AttentionResponse = {
-      data: {
-        items: [
-          { label: 'Owner question', detail: 'oq-1 pending 3d' },
-          { label: 'Builder warnings', detail: '3/10' },
-        ],
-      },
+      items: [
+        { label: 'Owner question', detail: 'oq-1 pending 3d' },
+        { label: 'Builder warnings', detail: '3/10' },
+      ],
       text: 'Attention required 2026-04-26\n- owner question pending\n- builder warnings repeating',
     };
     mockUseDaemon.mockReturnValue({
@@ -106,7 +108,7 @@ describe('AttentionScreen', () => {
 
   test('renders the empty-state copy and "nothing pending" badge when items are empty', () => {
     const attention: AttentionResponse = {
-      data: { items: [] },
+      items: [],
       text: NO_ATTENTION_ITEMS_TEXT,
     };
     mockUseDaemon.mockReturnValue({
@@ -177,7 +179,7 @@ describe('AttentionScreen', () => {
 
   test('renders the singular badge label when exactly one item is present', () => {
     const attention: AttentionResponse = {
-      data: { items: [{ label: 'Owner question', detail: 'oq-1' }] },
+      items: [{ label: 'Owner question', detail: 'oq-1' }],
       text: 'Attention required 2026-04-26\n- owner question pending',
     };
     mockUseDaemon.mockReturnValue({

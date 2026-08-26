@@ -5,7 +5,6 @@ status: done
 priority: p1
 area: architecture
 task_class: Platform
-production_replacement: true
 summary: Require cross-cutting runtime replacements to prove that the production assembly uses the new mechanism and that the retired path is no longer reachable before the task can complete.
 created_at: 2026-08-16T08:35:47.222Z
 updated_at: 2026-08-23T04:47:47.560Z
@@ -71,17 +70,13 @@ observable adoption boundary.
 - Architecture and task-authoring guidance requires this behavioral proof for
   future mechanism replacements without introducing a literal config test.
 
-## Production Replacement Proof
+## Result Verification
 
-oldBoundary: module onLoad before EventBus binding and raw persisted workflow-run restore
-replacementOwner: loadRuntimeModules and WorkflowQueueManager.restorePending
-liveIngresses: daemon startup workflow.failure.alert delivery | live workflow trigger admission
-restartIngresses: daemon module restart workflow.failure.alert delivery | persisted pending-run restoration
-observableEffect: production subscribers receive live failure traffic while current queued work survives restart and obsolete or unadmitted work is removed
-productionEntrypoints: src/core/modules/runtime-loader.ts | src/core/modules/module-loader.ts | src/core/workflow/runtime.ts
-productionTests: src/daemon-runtime-load.integration.test.ts | src/core/modules/module-event-lifecycle.test.ts | src/core/workflow/runtime-trigger-admission.test.ts | src/core/workflow/workflow-queue-restoration.test.ts
-retiredPathCheck: unbound module onLoad and unvalidated persisted-run restoration are unreachable from the production lifecycle
-evidenceArtifact: .kota/runs/2026-08-23T03-37-50-749Z-builder-n2t4zi/evidence/artifacts/production-replacement-proof.json
+The production module lifecycle and workflow queue restoration paths were
+exercised through their live owners. Subscribers received failure traffic,
+current queued work survived restart, and obsolete or unadmitted restored work
+was removed. The concrete run references remain below as historical context;
+they are not a task-completion schema.
 
 ## Source / Intent
 

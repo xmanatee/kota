@@ -33,15 +33,15 @@ vi.mock("#core/daemon/owner-question-queue.js", async () => {
 });
 
 describe("renderOnDemandDigest", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   const observed: Array<{ event: string; payload: unknown }> = [];
   let unsubscribe: () => void;
 
   beforeEach(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "daily-digest-on-demand-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "blocked"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "daily-digest-on-demand-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
     observed.length = 0;
     const bus = initEventBus();
     const handler = (payload: unknown) => {
@@ -50,25 +50,25 @@ describe("renderOnDemandDigest", () => {
     unsubscribe = bus.on("workflow.daily.digest", handler as never);
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
     ownerMod.resetOwnerQuestionQueue();
-    ownerMod.getOwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"));
+    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
   });
 
   afterEach(() => {
     unsubscribe?.();
     resetEventBus();
     resetProviderRegistry();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function persistCadenceState(counts: QueueCounts): void {
-    const projectId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const value = digestStateFromCounts(
       counts,
       Date.parse("2026-04-25T08:00:00.000Z"),
     );
     initProviderRegistry().register(RUN_STATE_READER_PROVIDER_TYPE, "test", {
-      getProjectIdByRootPath: (rootPath) => rootPath === projectDir ? projectId : null,
-      readProjectStateValue: <T extends DurableEffectValue>() => ({
+      getScopeIdByRootPath: (rootPath) => rootPath === workspaceRoot ? scopeId : null,
+      readScopeStateValue: <T extends DurableEffectValue>() => ({
         revision: 1,
         value: value as unknown as T,
       }),
@@ -76,12 +76,12 @@ describe("renderOnDemandDigest", () => {
   }
 
   it("returns the rendered digest body without creating cadence state", () => {
-    const databasePath = join(projectDir, ".kota", "kota.sqlite");
+    const databasePath = join(workspaceRoot, ".kota", "kota.sqlite");
     expect(existsSync(databasePath)).toBe(false);
 
     const result = renderOnDemandDigest({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
     });
 
     expect(result.text).toContain("Daily digest");
@@ -90,20 +90,20 @@ describe("renderOnDemandDigest", () => {
   });
 
   it("does not emit workflow.daily.digest", () => {
-    renderOnDemandDigest({ projectDir, stateDir: join(projectDir, ".kota") });
+    renderOnDemandDigest({ scopeRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota") });
     expect(observed).toEqual([]);
   });
 
   it("uses the persisted cadence snapshot for the queue delta baseline", () => {
     persistCadenceState({ backlog: 0, ready: 0, doing: 0, blocked: 2 });
     writeFileSync(
-      join(projectDir, "data", "tasks", "ready", "task-x.md"),
+      join(workspaceRoot, "data", "tasks", "ready", "task-x.md"),
       "---\nid: task-x\n---\n",
     );
 
     const result = renderOnDemandDigest({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
     });
     expect(result.data.queueDelta.previous).toEqual({
       backlog: 0,
@@ -114,11 +114,11 @@ describe("renderOnDemandDigest", () => {
     expect(result.data.queueDelta.delta.ready).toBe(1);
   });
 
-  it("reads pending owner questions from the requested project directory", async () => {
+  it("reads pending owner questions from the requested scope directory", async () => {
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
     ownerMod.resetOwnerQuestionQueue();
     const defaultQueue = ownerMod.getOwnerQuestionQueue(
-      join(projectDir, "default-project", ".kota", "owner-questions"),
+      join(workspaceRoot, "default-project", ".kota", "owner-questions"),
     );
     defaultQueue.enqueue({
       context: "ctx",
@@ -130,7 +130,7 @@ describe("renderOnDemandDigest", () => {
     });
 
     const projectQueue = new ownerMod.OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     );
     projectQueue.enqueue({
       context: "ctx",
@@ -142,8 +142,8 @@ describe("renderOnDemandDigest", () => {
     });
 
     const result = renderOnDemandDigest({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       windowEndMs: Date.parse("2026-04-26T08:00:00.000Z"),
     });
 

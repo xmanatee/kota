@@ -15,7 +15,7 @@ export type ReviewerLinks = {
 };
 
 export function reviewerLinks(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   metadata: WorkflowRunMetadata;
 }): ReviewerLinks {
@@ -23,10 +23,10 @@ export function reviewerLinks(args: {
   const responseTimes: number[] = [];
   for (const artifact of ASYNC_REVIEW_ARTIFACTS) {
     const path = join(args.runDirPath, artifact);
-    if (existsSync(path)) refs.push(runArtifactRef(args.projectDir, args.runDirPath, artifact));
+    if (existsSync(path)) refs.push(runArtifactRef(args.scopeRoot, args.runDirPath, artifact));
   }
 
-  const runsDir = join(args.projectDir, ".kota", "runs");
+  const runsDir = join(args.scopeRoot, ".kota", "runs");
   const completedMs = args.metadata.completedAt
     ? Date.parse(args.metadata.completedAt)
     : null;
@@ -48,7 +48,7 @@ export function reviewerLinks(args: {
     if (!linked) continue;
     const artifact = ASYNC_REVIEW_ARTIFACTS.find((name) => existsSync(join(dir, name)));
     if (!artifact) continue;
-    refs.push(artifactRef(args.projectDir, join(dir, artifact)));
+    refs.push(artifactRef(args.scopeRoot, join(dir, artifact)));
     if (completedMs !== null) {
       const startedMs = Date.parse(meta.startedAt);
       if (Number.isFinite(startedMs) && startedMs >= completedMs) {

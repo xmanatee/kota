@@ -22,13 +22,13 @@ export type ExplorerAssessment = {
 };
 
 export function inspectExplorerAssessment(input: {
-  projectDir: string;
+  workspaceRoot: string;
   lastExplorationAt: string | null;
 }): ExplorerAssessment {
-  const { projectDir, lastExplorationAt } = input;
-  const worktree = getRepoWorktreeStatus(projectDir);
+  const { workspaceRoot, lastExplorationAt } = input;
+  const worktree = getRepoWorktreeStatus(workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
-  const queue = getRepoTaskQueueSnapshot(projectDir);
+  const queue = getRepoTaskQueueSnapshot(workspaceRoot);
   const explorationRefreshDue = !lastExplorationAt ||
     Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
   const queueNeedsExploration = !queue.hasDispatchableWork ||
@@ -44,6 +44,6 @@ export function inspectExplorerAssessment(input: {
 }
 
 export const explorerAssessmentOperation = defineWorkflowBlockingOperation<
-  { projectDir: string; lastExplorationAt: string | null },
+  { workspaceRoot: string; lastExplorationAt: string | null },
   ExplorerAssessment
 >(import.meta.url, "inspectExplorerAssessment");

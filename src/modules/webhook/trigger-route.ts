@@ -26,7 +26,9 @@ import {
   readBody,
 } from "#core/daemon/daemon-control-utils.js";
 import type { ControlRouteRegistration } from "#core/modules/module-types.js";
+import type { WorkflowDefinitionsSource } from "#core/workflow/workflow-definitions-provider.js";
 import { getWorkflowDefinitionsSource } from "#core/workflow/workflow-definitions-provider.js";
+import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
   precheckWebhookSignatureHeaders,
@@ -67,6 +69,8 @@ export type WebhookTriggerHandlerOptions = {
   getSecret: WebhookSecretLookup;
   /** Rate-limit window state owned by the caller. */
   rateLimiter: WebhookRateLimiter;
+  getDefinitionsSource?: () => WorkflowDefinitionsSource | null;
+  getDispatcher?: () => WorkflowDispatcher | null;
 };
 
 export function createWebhookTriggerHandler(
@@ -134,8 +138,12 @@ export function createWebhookTriggerHandler(
       return;
     }
 
-    const definitionsSource = getWorkflowDefinitionsSource();
-    const dispatcher = getWorkflowDispatcher();
+    const definitionsSource = options.getDefinitionsSource
+      ? options.getDefinitionsSource()
+      : getWorkflowDefinitionsSource();
+    const dispatcher = options.getDispatcher
+      ? options.getDispatcher()
+      : getWorkflowDispatcher();
     if (!definitionsSource || !dispatcher) {
       jsonResponse(res, 503, { error: "Workflow runtime unavailable" });
       return;
@@ -183,11 +191,13 @@ export function createWebhookTriggerHandler(
  */
 export function webhookTriggerControlRoutes(
   getConfig: () => KotaConfig,
+  runtime?: Pick<WebhookTriggerHandlerOptions, "getDefinitionsSource" | "getDispatcher">,
 ): ControlRouteRegistration[] {
   const rateLimiter = new WebhookRateLimiter();
   const handler = createWebhookTriggerHandler({
     getSecret: (name) => getConfig().webhooks?.[name]?.secret,
     rateLimiter,
+    ...runtime,
   });
   return [
     {

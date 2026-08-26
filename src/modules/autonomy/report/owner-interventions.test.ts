@@ -23,8 +23,8 @@ type QuestionFixture = {
   omitAnswerBehavior?: boolean;
 };
 
-function writeQuestion(projectDir: string, fixture: QuestionFixture): void {
-  const dir = join(projectDir, ".kota", "owner-questions");
+function writeQuestion(workspaceRoot: string, fixture: QuestionFixture): void {
+  const dir = join(workspaceRoot, ".kota", "owner-questions");
   mkdirSync(dir, { recursive: true });
   const record: Record<string, unknown> = {
     id: fixture.id,
@@ -57,29 +57,29 @@ function writeQuestion(projectDir: string, fixture: QuestionFixture): void {
 }
 
 describe("buildOwnerInterventionReport", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `owner-interventions-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function report() {
     return buildOwnerInterventionReport({
-      projectDir,
+      workspaceRoot,
       windowStartMs: NOW - 7 * MS_PER_DAY,
       windowEndMs: NOW,
     });
   }
 
   it("classifies answers that match proposed answers as proposed-option", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "proposed1",
       status: "answered",
       resolvedAt: new Date(NOW - 60_000).toISOString(),
@@ -109,7 +109,7 @@ describe("buildOwnerInterventionReport", () => {
   });
 
   it("classifies free-form correction answers that do not match proposed options", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "correct1",
       status: "answered",
       resolvedAt: new Date(NOW - 60_000).toISOString(),
@@ -127,7 +127,7 @@ describe("buildOwnerInterventionReport", () => {
   });
 
   it("reports expired timeout pressure separately from answered corrections", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "timeout1",
       status: "expired",
       resolvedAt: new Date(NOW - 60_000).toISOString(),
@@ -143,7 +143,7 @@ describe("buildOwnerInterventionReport", () => {
   });
 
   it("reports pending questions past their timeout as stale pending", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "stale1",
       status: "pending",
       createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
@@ -159,7 +159,7 @@ describe("buildOwnerInterventionReport", () => {
   });
 
   it("normalizes legacy records without origin or answerBehavior as unknown", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "legacy1",
       status: "dismissed",
       resolvedAt: new Date(NOW - 60_000).toISOString(),
@@ -183,7 +183,7 @@ describe("buildOwnerInterventionReport", () => {
   });
 
   it("does not include raw prompts, answers, secrets, or cost fields in records", () => {
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "secret1",
       status: "answered",
       resolvedAt: new Date(NOW - 60_000).toISOString(),

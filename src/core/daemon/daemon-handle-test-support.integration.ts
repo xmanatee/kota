@@ -5,19 +5,19 @@ import { vi } from "vitest";
 import type { KotaConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { BusEvents } from "#core/events/event-bus-types.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import type { ModuleSummary } from "#core/modules/module-types.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import {
   resolveScopePolicy,
   type ScopePolicyAuthority,
 } from "./scope-policy.js";
 import { GLOBAL_SCOPE_ID, type ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 export type ReloadSubject = {
   handle: ReturnType<typeof buildDaemonHandle>;
@@ -31,22 +31,22 @@ export type ReloadSubject = {
   };
 };
 
-function makeTestScopePolicyAuthority(projectDir: string): ScopePolicyAuthority {
+function makeTestScopePolicyAuthority(scopeRoot: string): ScopePolicyAuthority {
   const policy = resolveScopePolicy({
     projection: {
       rootScopeId: GLOBAL_SCOPE_ID,
-      defaultScopeId: "test-project",
+      defaultScopeId: "test-scope",
       scopes: [
         { scopeId: GLOBAL_SCOPE_ID, displayName: "Global" },
         {
-          scopeId: "test-project",
+          scopeId: "test-scope",
           displayName: "Test project",
           parentScopeId: GLOBAL_SCOPE_ID,
-          directoryRoot: projectDir,
+          directoryRoot: scopeRoot,
         },
       ],
     },
-    scopeId: "test-project",
+    scopeId: "test-scope",
   });
   return {
     getSnapshot: () => ({ revision: 0, policy }),
@@ -73,27 +73,27 @@ export function makeReloadSubject(
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 5 })),
     getDefinitionCount: vi.fn(() => 3),
   };
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
-  const pbus = new ProjectScopedEventBus(bus, "test-project");
+  const scopeRoot = mkdtempSync(join(tmpdir(), "kota-daemon-handle-test-"));
+  const pbus = new ScopedEventBus(bus, "test-scope");
   const runtime = {
-    project: {
-      projectId: "test-project",
-      projectDir,
+    scope: {
+      scopeId: "test-scope",
+      scopeRoot,
       displayName: "Test project",
     },
     workflowRuntime,
     pbus,
-    scopePolicyAuthority: makeTestScopePolicyAuthority(projectDir),
-  } as unknown as ProjectRuntime;
-  const projectRuntimes = {
+    scopePolicyAuthority: makeTestScopePolicyAuthority(scopeRoot),
+  } as unknown as ScopeRuntime;
+  const scopeRuntimes = {
     list: vi.fn(() => [runtime]),
     getDefault: vi.fn(() => runtime),
     get: vi.fn(() => runtime),
-  } as unknown as ProjectRuntimeRegistry;
-  const projectRegistry = {
+  } as unknown as ScopeRuntimeRegistry;
+  const scopeRegistry = {
     get: vi.fn(),
-    getDefaultProjectId: vi.fn(() => "test-project"),
-    toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
+    getDefaultScopeId: vi.fn(() => "test-scope"),
+    toProjection: vi.fn(() => ({ defaultScopeId: "test-scope", scopes: [] })),
   } as unknown as ScopeRegistry;
   const refreshLiveSessionGuardrails = vi.fn(() => ({
     refreshed: 0,
@@ -110,9 +110,9 @@ export function makeReloadSubject(
     bus,
     sessions: new Map(),
     runStore: {} as WorkflowRunStore,
-    projectDir,
-    projectRegistry,
-    projectRuntimes,
+    scopeRoot,
+    scopeRegistry,
+    scopeRuntimes,
     getScopeHostingState: () => "hosted",
     config: { config: initialConfig, verbose: false },
     refreshLiveSessionGuardrails,
@@ -155,24 +155,24 @@ export function makeWorkflowRunSubject(
     getRun: vi.fn((id: string) => (id === metadata.id ? metadata : null)),
   };
   const runtime = {
-    project: {
-      projectId: "test-project",
-      projectDir: mkdtempSync(join(tmpdir(), "kota-daemon-run-test-")),
+    scope: {
+      scopeId: "test-scope",
+      scopeRoot: mkdtempSync(join(tmpdir(), "kota-daemon-run-test-")),
     },
     runStore,
     workflowRuntime: {
       getDefinitionCount: vi.fn(() => 0),
     },
-  } as unknown as ProjectRuntime;
-  const projectRuntimes = {
+  } as unknown as ScopeRuntime;
+  const scopeRuntimes = {
     list: vi.fn(() => [runtime]),
     getDefault: vi.fn(() => runtime),
     get: vi.fn(() => runtime),
-  } as unknown as ProjectRuntimeRegistry;
-  const projectRegistry = {
+  } as unknown as ScopeRuntimeRegistry;
+  const scopeRegistry = {
     get: vi.fn(),
-    getDefaultProjectId: vi.fn(() => "test-project"),
-    toProjection: vi.fn(() => ({ defaultProjectId: "test-project", projects: [] })),
+    getDefaultScopeId: vi.fn(() => "test-scope"),
+    toProjection: vi.fn(() => ({ defaultScopeId: "test-scope", scopes: [] })),
   } as unknown as ScopeRegistry;
 
   return buildDaemonHandle({
@@ -185,9 +185,9 @@ export function makeWorkflowRunSubject(
     bus,
     sessions: new Map(),
     runStore: runStore as unknown as WorkflowRunStore,
-    projectDir: runtime.project.projectDir,
-    projectRegistry,
-    projectRuntimes,
+    scopeRoot: runtime.scope.scopeRoot,
+    scopeRegistry,
+    scopeRuntimes,
     getScopeHostingState: () => "hosted",
     config: { config: {}, verbose: false },
     refreshLiveSessionGuardrails: () => ({ refreshed: 0, unchanged: 0 }),

@@ -8,46 +8,45 @@ import {
   unregisterSessionEnvironment,
 } from "./session-environment.js";
 
-const sessionAProjectA = { sessionId: "session-a", scopeId: "project-a" };
-const sessionBProjectA = { sessionId: "session-b", scopeId: "project-a" };
-const sessionAProjectB = { sessionId: "session-a", scopeId: "project-b" };
+const sessionAScopeA = { sessionId: "session-a", scopeId: "scope-a" };
+const sessionBScopeA = { sessionId: "session-b", scopeId: "scope-a" };
+const sessionAScopeB = { sessionId: "session-a", scopeId: "scope-b" };
 
 describe("session credential environments", () => {
-  afterEach(() => {
-    unregisterSessionEnvironment(sessionAProjectA);
-    unregisterSessionEnvironment(sessionBProjectA);
-    unregisterSessionEnvironment(sessionAProjectB);
+  afterEach(async () => {
+    await unregisterSessionEnvironment(sessionAScopeA);
+    await unregisterSessionEnvironment(sessionBScopeA);
+    await unregisterSessionEnvironment(sessionAScopeB);
   });
 
   it("isolates credentials by both session and project", () => {
-    registerSessionEnvironment(sessionAProjectA);
-    registerSessionEnvironment(sessionBProjectA);
-    registerSessionEnvironment(sessionAProjectB);
+    registerSessionEnvironment(sessionAScopeA);
+    registerSessionEnvironment(sessionBScopeA);
+    registerSessionEnvironment(sessionAScopeB);
 
     injectSessionEnvironmentVariable(
-      sessionAProjectA,
+      sessionAScopeA,
       "KOTA_SESSION_SECRET",
-      "session-a-project-a-value",
+      "session-a-scope-a-value",
     );
 
-    expect(sessionEnvironmentForExecution(sessionAProjectA)).toEqual({
-      KOTA_SESSION_SECRET: "session-a-project-a-value",
+    expect(sessionEnvironmentForExecution(sessionAScopeA)).toEqual({
+      KOTA_SESSION_SECRET: "session-a-scope-a-value",
     });
-    expect(sessionEnvironmentForExecution(sessionBProjectA)).toEqual({});
-    expect(sessionEnvironmentForExecution(sessionAProjectB)).toEqual({});
+    expect(sessionEnvironmentForExecution(sessionBScopeA)).toEqual({});
+    expect(sessionEnvironmentForExecution(sessionAScopeB)).toEqual({});
   });
 
   it("keeps runtime session identity separate from workflow trace identity", () => {
     const context = {
-      ...sessionAProjectA,
-      projectId: sessionAProjectA.scopeId,
+      ...sessionAScopeA,
+      scopeId: sessionAScopeA.scopeId,
       workflow: {
         workflowName: "builder",
         runId: "run-1",
         stepId: "build",
         spanId: "run-1:build",
-        scopeId: sessionAProjectA.scopeId,
-        projectId: sessionAProjectA.scopeId,
+        scopeId: sessionAScopeA.scopeId,
       },
     };
     registerSessionEnvironment(context);
@@ -62,62 +61,55 @@ describe("session credential environments", () => {
     });
   });
 
-  it("erases credentials and rejects stale approvals after teardown", () => {
-    registerSessionEnvironment(sessionAProjectA);
+  it("erases credentials and rejects stale approvals after teardown", async () => {
+    registerSessionEnvironment(sessionAScopeA);
     injectSessionEnvironmentVariable(
-      sessionAProjectA,
+      sessionAScopeA,
       "KOTA_SESSION_SECRET",
       "temporary-value",
     );
 
-    unregisterSessionEnvironment(sessionAProjectA);
+    await unregisterSessionEnvironment(sessionAScopeA);
 
-    expect(sessionEnvironmentForExecution(sessionAProjectA)).toEqual({});
+    expect(sessionEnvironmentForExecution(sessionAScopeA)).toEqual({});
     expect(() =>
       injectSessionEnvironmentVariable(
-        sessionAProjectA,
+        sessionAScopeA,
         "KOTA_SESSION_SECRET",
         "stale-value",
       )
     ).toThrow("Credential injection requires a live session");
   });
 
-  it("invalidates and cleans up long-lived execution resources", () => {
-    registerSessionEnvironment(sessionAProjectA);
+  it("invalidates and awaits long-lived execution resources", async () => {
+    registerSessionEnvironment(sessionAScopeA);
     const initialVersion = sessionEnvironmentVersionForExecution(
-      sessionAProjectA,
+      sessionAScopeA,
     );
     let cleaned = false;
-    registerSessionEnvironmentResource(sessionAProjectA, () => {
+    registerSessionEnvironmentResource(sessionAScopeA, async () => {
+      await Promise.resolve();
       cleaned = true;
     });
 
     injectSessionEnvironmentVariable(
-      sessionAProjectA,
+      sessionAScopeA,
       "KOTA_SESSION_SECRET",
       "temporary-value",
     );
 
-    expect(sessionEnvironmentVersionForExecution(sessionAProjectA)).not.toBe(
+    expect(sessionEnvironmentVersionForExecution(sessionAScopeA)).not.toBe(
       initialVersion,
     );
-    unregisterSessionEnvironment(sessionAProjectA);
+    await unregisterSessionEnvironment(sessionAScopeA);
     expect(cleaned).toBe(true);
   });
 
-  it("rejects malformed or conflicting execution identities", () => {
-    expect(() =>
-      registerSessionEnvironment({
-        sessionId: "session-a",
-        scopeId: "project-a",
-        projectId: "project-b",
-      })
-    ).toThrow("Session environment scope id values conflict");
-
-    registerSessionEnvironment(sessionAProjectA);
+  it("rejects malformed environment variable names", () => {
+    registerSessionEnvironment(sessionAScopeA);
     expect(() =>
       injectSessionEnvironmentVariable(
-        sessionAProjectA,
+        sessionAScopeA,
         "NOT-A-VARIABLE",
         "value",
       )

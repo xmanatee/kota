@@ -51,7 +51,6 @@ export const handoffAgentTool: KotaTool = {
         type: "object",
         properties: {
           scope_id: { type: "string" },
-          project_id: { type: "string" },
         },
         required: ["scope_id"],
         additionalProperties: false,

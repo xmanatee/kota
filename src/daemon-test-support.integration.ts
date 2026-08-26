@@ -26,7 +26,7 @@ vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
 import "#modules/claude-agent-harness/index.js";
 
 export const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
-export let projectDir = "";
+export let scopeRoot = "";
 export let stateDir = "";
 
 export function wait(ms: number): Promise<void> {
@@ -34,31 +34,31 @@ export function wait(ms: number): Promise<void> {
 }
 
 function initializeFixtureGitRepo(): void {
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-  execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+  writeFileSync(join(scopeRoot, ".gitignore"), ".kota/\n");
+  execFileSync("git", ["init"], { cwd: scopeRoot, stdio: "ignore" });
   execFileSync("git", ["config", "user.name", "Kota Tests"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     stdio: "ignore",
   });
   execFileSync("git", ["config", "user.email", "kota@example.com"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     stdio: "ignore",
   });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir, stdio: "ignore" });
-  execFileSync("git", ["commit", "-m", "init"], { cwd: projectDir, stdio: "ignore" });
+  execFileSync("git", ["add", ".gitignore"], { cwd: scopeRoot, stdio: "ignore" });
+  execFileSync("git", ["commit", "-m", "init"], { cwd: scopeRoot, stdio: "ignore" });
 }
 
-export function commitFixtureFiles(targetProjectDir = projectDir): void {
-  execFileSync("git", ["add", "-A"], { cwd: targetProjectDir, stdio: "ignore" });
+export function commitFixtureFiles(targetScopeRoot = scopeRoot): void {
+  execFileSync("git", ["add", "-A"], { cwd: targetScopeRoot, stdio: "ignore" });
   execFileSync("git", ["commit", "-m", "fixture"], {
-    cwd: targetProjectDir,
+    cwd: targetScopeRoot,
     stdio: "ignore",
   });
 }
 
 export function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
   return new Daemon({
-    projectDir,
+    scopeRoot,
     model: "claude-sonnet-4-6",
     verbose: false,
     idleIntervalMs: 1000,
@@ -70,12 +70,12 @@ export function makeDaemon(overrides: Partial<DaemonConfig> = {}): Daemon {
 }
 
 beforeEach(() => {
-  projectDir = join(
+  scopeRoot = join(
     tmpdir(),
     `kota-daemon-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  stateDir = join(projectDir, ".kota");
-  mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), {
+  stateDir = join(scopeRoot, ".kota");
+  mkdirSync(join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder"), {
     recursive: true,
   });
   initializeFixtureGitRepo();
@@ -87,5 +87,5 @@ beforeEach(() => {
 afterEach(() => {
   resetEventBus();
   resetScheduler();
-  rmSync(projectDir, { recursive: true, force: true });
+  rmSync(scopeRoot, { recursive: true, force: true });
 });

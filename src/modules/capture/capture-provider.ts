@@ -24,8 +24,8 @@ import {
   CAPTURE_TARGET_ORDER,
   type CaptureClassifier,
   type CaptureContributor,
-  type CaptureProjectContext,
   type CaptureProvider,
+  type CaptureScopeContext,
   type CaptureTarget,
 } from "./capture-types.js";
 import type { CaptureFilter, CaptureResult } from "./client.js";
@@ -36,22 +36,22 @@ export type CaptureProviderOptions = {
    * absent, an unguided capture surfaces `ambiguous` immediately.
    */
   classifier?: CaptureClassifier;
-  resolveProjectContext?: (
-    projectId: string | null | undefined,
-  ) => CaptureProjectContext | { error: "unknown_project"; projectId: string };
+  resolveScopeContext?: (
+    scopeId: string | null | undefined,
+  ) => CaptureScopeContext | { error: "unknown_scope"; scopeId: string };
 };
 
 export class CaptureProviderImpl implements CaptureProvider {
   private readonly byTarget = new Map<CaptureTarget, CaptureContributor>();
   private readonly order: CaptureTarget[] = [];
   private readonly classifier?: CaptureClassifier;
-  private readonly resolveProjectContext:
-    | NonNullable<CaptureProviderOptions["resolveProjectContext"]>
+  private readonly resolveScopeContext:
+    | NonNullable<CaptureProviderOptions["resolveScopeContext"]>
     | undefined;
 
   constructor(options: CaptureProviderOptions = {}) {
     if (options.classifier) this.classifier = options.classifier;
-    this.resolveProjectContext = options.resolveProjectContext;
+    this.resolveScopeContext = options.resolveScopeContext;
   }
 
   register(contributor: CaptureContributor): void {
@@ -68,13 +68,13 @@ export class CaptureProviderImpl implements CaptureProvider {
   async capture(
     text: string,
     filter?: CaptureFilter,
-    project?: CaptureProjectContext,
+    scope?: CaptureScopeContext,
   ): Promise<CaptureResult> {
     const trimmed = text.trim();
-    const resolvedProject =
-      project ?? this.resolveProjectContext?.(selectedScopeSelectorId(filter));
-    if (resolvedProject && "error" in resolvedProject) {
-      throw new Error(`Unknown project: ${resolvedProject.projectId}`);
+    const resolvedScope =
+      scope ?? this.resolveScopeContext?.(selectedScopeSelectorId(filter));
+    if (resolvedScope && "error" in resolvedScope) {
+      throw new Error(`Unknown scope: ${resolvedScope.scopeId}`);
     }
     if (this.order.length === 0) {
       return { ok: false, reason: "no_contributors" };
@@ -92,7 +92,7 @@ export class CaptureProviderImpl implements CaptureProvider {
       if (!contributor) {
         return { ok: false, reason: "no_contributors" };
       }
-      return this.runContributor(contributor, trimmed, filter.hint, resolvedProject);
+      return this.runContributor(contributor, trimmed, filter.hint, resolvedScope);
     }
 
     if (!this.classifier) {
@@ -123,20 +123,20 @@ export class CaptureProviderImpl implements CaptureProvider {
         suggestions: this.suggestionList(),
       };
     }
-    return this.runContributor(contributor, trimmed, filter?.hint, resolvedProject);
+    return this.runContributor(contributor, trimmed, filter?.hint, resolvedScope);
   }
 
   private async runContributor(
     contributor: CaptureContributor,
     text: string,
     hint?: string,
-    project?: CaptureProjectContext,
+    scope?: CaptureScopeContext,
   ): Promise<CaptureResult> {
     try {
       const record = await contributor.capture({
         text,
         ...(hint !== undefined && { hint }),
-        ...(project && { project }),
+        ...(scope && { scope }),
       });
       return { ok: true, record };
     } catch (err) {

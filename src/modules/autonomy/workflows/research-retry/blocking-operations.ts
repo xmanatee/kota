@@ -25,12 +25,12 @@ function summarizeCandidate(candidate: ResearchRetryCandidate): CandidateSummary
 }
 
 export function inspectResearchRetryCandidatesInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
 }): InspectResult {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
   const dirty = worktree.available && worktree.dirty;
-  const capability = checkResearchRetryCapability(input.projectDir);
-  const candidates = listResearchRetryCandidates(input.projectDir);
+  const capability = checkResearchRetryCapability(input.workspaceRoot);
+  const candidates = listResearchRetryCandidates(input.workspaceRoot);
 
   const examined: ExaminedCandidate[] = [];
   for (const candidate of candidates) {
@@ -70,20 +70,20 @@ export function inspectResearchRetryCandidatesInWorker(input: {
 }
 
 export function markResearchRetryAttemptInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   candidateId: string;
 }): MarkAttemptResult {
   return writeMarkerForCandidate(input);
 }
 
 export const inspectResearchRetryCandidatesOperation =
-  defineWorkflowBlockingOperation<{ projectDir: string }, InspectResult>(
+  defineWorkflowBlockingOperation<{ workspaceRoot: string }, InspectResult>(
     import.meta.url,
     "inspectResearchRetryCandidatesInWorker",
   );
 
 export const markResearchRetryAttemptOperation =
   defineWorkflowBlockingOperation<
-    { projectDir: string; candidateId: string },
+    { workspaceRoot: string; candidateId: string },
     MarkAttemptResult
   >(import.meta.url, "markResearchRetryAttemptInWorker");

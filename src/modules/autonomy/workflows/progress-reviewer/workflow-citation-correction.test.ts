@@ -13,8 +13,8 @@ import type { ProgressReviewActionResult } from "./progress-review.js";
 import {
   commitProgressReviewFixture,
   compileProgressReviewerWorkflow,
-  makeProgressReviewProjectDir,
   makeProgressReviewRunContext,
+  makeProgressReviewScopeRoot,
   NOW,
   parseReviewInputFromAgentPrompt,
   registerProgressReviewHarness,
@@ -27,8 +27,8 @@ const OBSERVED_UNKNOWN_EVIDENCE_IDS = [
   "scope:8nrg1m:dead-letter:dlq-f084687d-a51d-4b30-b661-aa07517a4d83",
 ] as const;
 
-function executeCitationReview(projectDir: string, runId: string) {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+function executeCitationReview(workspaceRoot: string, runId: string) {
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   const definition = compileProgressReviewerWorkflow();
   const reviewStep = definition.steps.find((step) => step.id === "review-evidence");
   if (reviewStep?.type !== "agent") {
@@ -40,20 +40,20 @@ function executeCitationReview(projectDir: string, runId: string) {
     {
       event: progressReviewRequested.name,
       schemaRef: null,
-      payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      payload: { scopeId, windowMs: 3_600_000 },
     },
     {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeProgressReviewRunContext(projectDir, runId),
+      runContext: makeProgressReviewRunContext(workspaceRoot, runId),
       bus: new EventBus(),
-      store: new WorkflowRunStore(projectDir),
+      store: new WorkflowRunStore(workspaceRoot),
       log: vi.fn(),
     },
   ).promise;
 }
 
 describe("progress-reviewer citation correction", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -64,25 +64,25 @@ describe("progress-reviewer citation correction", () => {
   afterEach(() => {
     vi.useRealTimers();
     resetModuleEventRegistry();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
-  function makeProjectDir(label: string): string {
-    const projectDir = makeProgressReviewProjectDir(label);
-    projectDirs.push(projectDir);
-    writeProgressReviewTask(projectDir, "done", "task-citation-source");
+  function makeScopeRoot(label: string): string {
+    const workspaceRoot = makeProgressReviewScopeRoot(label);
+    scopeRoots.push(workspaceRoot);
+    writeProgressReviewTask(workspaceRoot, "done", "task-citation-source");
     commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "prepare citation fixture",
       "2026-06-04T11:30:00.000Z",
     );
-    return projectDir;
+    return workspaceRoot;
   }
 
   it("corrects schema-valid unknown evidence IDs before apply-actions", async () => {
-    const projectDir = makeProjectDir("progress-reviewer-citation-correction");
+    const workspaceRoot = makeScopeRoot("progress-reviewer-citation-correction");
     const exactEvidenceId = "task:task-citation-source";
     let attempts = 0;
     const prompts: string[] = [];
@@ -108,7 +108,7 @@ describe("progress-reviewer citation correction", () => {
             priority: "p1",
             area: "autonomy",
             evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
-            acceptanceEvidence: "The corrected workflow run cites the packet.",
+            howWeWillKnow: "The corrected workflow run cites the packet.",
           }] : [],
         },
       });
@@ -122,7 +122,7 @@ describe("progress-reviewer citation correction", () => {
     });
 
     const result = await executeCitationReview(
-      projectDir,
+      workspaceRoot,
       "runtime-citation-correction",
     );
 
@@ -147,7 +147,7 @@ describe("progress-reviewer citation correction", () => {
   });
 
   it("fails closed with a retained diagnostic after repeated unknown evidence IDs", async () => {
-    const projectDir = makeProjectDir("progress-reviewer-citation-exhausted");
+    const workspaceRoot = makeScopeRoot("progress-reviewer-citation-exhausted");
     let attempts = 0;
     registerProgressReviewHarness(async () => {
       attempts += 1;
@@ -161,7 +161,7 @@ describe("progress-reviewer citation correction", () => {
           priority: "p1",
           area: "autonomy",
           evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
-          acceptanceEvidence: "This malformed action is never applied.",
+          howWeWillKnow: "This malformed action is never applied.",
         }] },
         ownerQuestions: [{
           topicKey: "citation-contract-exhausted-question",
@@ -180,19 +180,19 @@ describe("progress-reviewer citation correction", () => {
     });
     const runId = "runtime-citation-exhausted";
 
-    const result = await executeCitationReview(projectDir, runId);
+    const result = await executeCitationReview(workspaceRoot, runId);
 
     expect(result.metadata.status).toBe("failed");
     expect(attempts).toBe(2);
     expect(result.metadata.steps.find((step) => step.id === "apply-actions"))
       .toBeUndefined();
     expect(existsSync(join(
-      projectDir,
+      workspaceRoot,
       "data/tasks/ready/task-citation-contract-exhausted.md",
     ))).toBe(false);
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
     const diagnostic = readFileSync(
-      join(projectDir, ".kota", "runs", runId, "metadata.json"),
+      join(workspaceRoot, ".kota", "runs", runId, "metadata.json"),
       "utf-8",
     );
     expect(diagnostic).toContain("unknown evidence id");

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { getService } from "../src/catalog.mjs";
 import { buildCheckoutSummary } from "../src/checkout.mjs";
 import {
-  projectRoot,
+  scopeRoot,
   requiredChangedModules,
 } from "./check-feature-slice-shared.mjs";
 
@@ -25,7 +25,7 @@ function starterCart(overrides = {}) {
 
 function gitCapture(args) {
   const result = spawnSync("git", args, {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -54,7 +54,7 @@ function formatMoney(cents) {
 }
 
 function readModuleSource(modulePath) {
-  return readFileSync(join(projectRoot, modulePath), "utf8");
+  return readFileSync(join(scopeRoot, modulePath), "utf8");
 }
 
 function containsStringLiteral(source, value) {

@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import type {
+  ApprovalClientProjection,
+} from "#core/daemon/approval-queue.js";
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { ModuleSetupRequirementStatus } from "#modules/setup/client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   buildOperatorInboxSnapshot,
 } from "./operator-inbox.js";
@@ -19,8 +22,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
-    projectDir: "/repo",
-    projectName: "repo",
+    scopeRoot: "/repo",
+    scopeName: "repo",
     controlFile: { kind: "fresh", pid: 1234, baseURL: "http://127.0.0.1:8765" },
     runProjection: {
       available: true,
@@ -31,13 +34,20 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
   };
 }
 
-function approval(overrides: Partial<PendingApproval> = {}): PendingApproval {
+function approval(
+  overrides: Partial<ApprovalClientProjection> = {},
+): ApprovalClientProjection {
   return {
     id: "a1b2c3d4",
     scopeId: "scope-test",
     kind: "tool_call",
     tool: "shell.exec",
     input: { cmd: "deploy" },
+    review: {
+      status: "available",
+      input: { command: "deploy" },
+      digest: "a".repeat(64),
+    },
     risk: "dangerous",
     reason: "external write",
     createdAt: "2026-06-11T12:00:00.000Z",
@@ -77,7 +87,7 @@ function setupRequirement(
     kind: "secret",
     title: "GitHub token",
     required: true,
-    scope: "project",
+    scope: "scope",
     sensitivity: "secret",
     setup: { mode: "form", fields: [] },
     state: "missing",
@@ -100,7 +110,7 @@ function failedRun(overrides: Partial<WorkflowRunSummary> = {}): WorkflowRunSumm
 }
 
 function client(args: {
-  approvals?: PendingApproval[];
+  approvals?: ApprovalClientProjection[];
   questions?: PendingOwnerQuestion[];
   blockedContent?: Record<string, string>;
   setup?: ModuleSetupRequirementStatus[];
@@ -108,30 +118,15 @@ function client(args: {
   runs?: WorkflowRunSummary[];
 } = {}): KotaClient {
   const blockedContent = args.blockedContent ?? {};
-  return {
-    forProject() {
-      return this as KotaClient;
-    },
+  return createKotaClientTestDouble({
     approvals: {
       async list() {
         return { approvals: args.approvals ?? [] };
-      },
-      async approve() {
-        throw new Error("not used");
-      },
-      async reject() {
-        throw new Error("not used");
       },
     },
     ownerQuestions: {
       async list() {
         return { questions: args.questions ?? [] };
-      },
-      async answer() {
-        throw new Error("not used");
-      },
-      async dismiss() {
-        throw new Error("not used");
       },
     },
     tasks: {
@@ -151,24 +146,6 @@ function client(args: {
         const content = blockedContent[id];
         return content ? { found: true as const, state: "blocked" as const, content } : { found: false as const };
       },
-      async move() {
-        throw new Error("not used");
-      },
-      async create() {
-        throw new Error("not used");
-      },
-      async capture() {
-        throw new Error("not used");
-      },
-      async gc() {
-        throw new Error("not used");
-      },
-      async search() {
-        throw new Error("not used");
-      },
-      async reindex() {
-        throw new Error("not used");
-      },
     },
     setup: {
       async list() {
@@ -186,38 +163,20 @@ function client(args: {
           },
         };
       },
-      async submitForm() {
-        throw new Error("not used");
-      },
-      async storeSecret() {
-        throw new Error("not used");
-      },
-      async start() {
-        throw new Error("not used");
-      },
-      async complete() {
-        throw new Error("not used");
-      },
-      async refresh() {
-        throw new Error("not used");
-      },
-      async revoke() {
-        throw new Error("not used");
-      },
     },
     workflow: {
       async listRuns() {
         return { runs: args.runs ?? [] };
       },
     },
-  } as unknown as KotaClient;
+  });
 }
 
 describe("operator inbox", () => {
   it("renders a clear inbox when no attention items exist", async () => {
     const snapshot = await buildOperatorInboxSnapshot({
       client: client(),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status(),
     });
     expect(snapshot.items).toHaveLength(0);
@@ -236,7 +195,7 @@ describe("operator inbox", () => {
         setup: [setupRequirement()],
         runs: [failedRun()],
       }),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status({
         daemonRunning: false,
         controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
@@ -264,7 +223,7 @@ describe("operator inbox", () => {
   it("surfaces hidden setup visibility without inventing requirement rows", async () => {
     const snapshot = await buildOperatorInboxSnapshot({
       client: client({ setupVisibility: "hidden" }),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status(),
     });
 
@@ -281,7 +240,7 @@ describe("operator inbox", () => {
           "task-malformed": "## Source / Intent\n\nNo unblock section.\n",
         },
       }),
-      projectDir: "/repo",
+      scopeRoot: "/repo",
       status: status(),
     })).rejects.toThrow(/missing typed unblock precondition/);
   });

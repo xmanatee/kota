@@ -48,10 +48,10 @@ import type {
 
 const DEFAULT_LIMIT = 20;
 
-function resolveRunsDir(projectDir: string, options: FixtureCandidateMiningOptions): string {
+function resolveRunsDir(workspaceRoot: string, options: FixtureCandidateMiningOptions): string {
   return options.runsDir === undefined
-    ? join(projectDir, ".kota", "runs")
-    : resolve(projectDir, options.runsDir);
+    ? join(workspaceRoot, ".kota", "runs")
+    : resolve(workspaceRoot, options.runsDir);
 }
 
 function comparableRunTime(runDir: string): number {
@@ -213,12 +213,12 @@ function renderSummary(report: FixtureCandidateReport): string {
 }
 
 export function mineFixtureCandidates(
-  projectDir: string,
+  workspaceRoot: string,
   options: FixtureCandidateMiningOptions,
 ): FixtureCandidateMiningResult {
-  const runsDir = resolveRunsDir(projectDir, options);
+  const runsDir = resolveRunsDir(workspaceRoot, options);
   const runIds = selectRunIds(runsDir, options);
-  const coverage = collectDuplicateCoverage(projectDir);
+  const coverage = collectDuplicateCoverage(workspaceRoot);
   const evidences: RunEvidence[] = [];
   const malformedCandidates: FixtureCandidateRecord[] = [];
   for (const runId of runIds) {
@@ -243,7 +243,7 @@ export function mineFixtureCandidates(
   if (options.createTask === true) {
     const nowIso = options.nowIso ?? new Date().toISOString();
     candidates = candidates.map((candidate) => {
-      const acceptedAction = createCandidateTask(projectDir, candidate, nowIso);
+      const acceptedAction = createCandidateTask(workspaceRoot, candidate, nowIso);
       return acceptedAction === null
         ? candidate
         : { ...candidate, disposition: "accepted", acceptedAction };
@@ -253,7 +253,7 @@ export function mineFixtureCandidates(
   const report: FixtureCandidateReport = {
     version: 1,
     input: {
-      runsDir: relative(projectDir, runsDir) || ".",
+      runsDir: relative(workspaceRoot, runsDir) || ".",
       runIds,
       workflow: options.workflow ?? null,
       limit: options.limit ?? DEFAULT_LIMIT,
@@ -264,7 +264,7 @@ export function mineFixtureCandidates(
     totals: reportTotals(candidates),
     candidates,
   };
-  const outputDir = resolve(projectDir, options.outputDir);
+  const outputDir = resolve(workspaceRoot, options.outputDir);
   mkdirSync(outputDir, { recursive: true });
   const jsonPath = join(outputDir, "fixture-candidates.json");
   const summaryPath = join(outputDir, "fixture-candidates.md");

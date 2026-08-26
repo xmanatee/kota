@@ -34,38 +34,38 @@ function commit(repo: string, message: string): string {
 }
 
 function createFixture(label: string): {
-  projectDir: string;
-  projectId: string;
+  workspaceRoot: string;
+  scopeId: string;
   sandbox: WriteRunSandbox;
   store: RunStateDatabase;
   epoch: number;
 } {
-  const projectDir = mkdtempSync(join(tmpdir(), `kota-integration-${label}-`));
-  roots.push(projectDir);
-  git(projectDir, "init", "-q", "-b", "main");
-  git(projectDir, "config", "user.name", "KOTA Test");
-  git(projectDir, "config", "user.email", "kota@example.test");
-  git(projectDir, "config", "commit.gpgsign", "false");
-  write(projectDir, ".gitignore", ".kota/\n.worktrees/\n");
-  write(projectDir, "shared.txt", "base\n");
-  commit(projectDir, "base");
+  const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-integration-${label}-`));
+  roots.push(workspaceRoot);
+  git(workspaceRoot, "init", "-q", "-b", "main");
+  git(workspaceRoot, "config", "user.name", "KOTA Test");
+  git(workspaceRoot, "config", "user.email", "kota@example.test");
+  git(workspaceRoot, "config", "commit.gpgsign", "false");
+  write(workspaceRoot, ".gitignore", ".kota/\n.worktrees/\n");
+  write(workspaceRoot, "shared.txt", "base\n");
+  commit(workspaceRoot, "base");
 
-  const sandbox = new RunSandboxManager(projectDir).create({
+  const sandbox = new RunSandboxManager(workspaceRoot).create({
     runId: `run-${label}`,
     repository: "write",
   }) as WriteRunSandbox;
-  const projectId = `project-${label}`;
-  const store = new RunStateDatabase(join(projectDir, ".kota", "state"));
+  const scopeId = `scope-${label}`;
+  const store = new RunStateDatabase(join(workspaceRoot, ".kota", "state"));
   stores.push(store);
-  store.registerProject({
-    id: projectId,
-    rootPath: projectDir,
+  store.registerScope({
+    id: scopeId,
+    rootPath: workspaceRoot,
     createdAt: "2026-08-25T09:00:00.000Z",
   });
   const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
   store.admitRun({
     id: sandbox.runId,
-    projectId,
+    scopeId,
     workflow: "builder",
     repository: "write",
     trigger: { event: "task.ready", schemaRef: null, payload: { label } },
@@ -73,7 +73,7 @@ function createFixture(label: string): {
     admittedAt: "2026-08-25T10:00:01.000Z",
   });
   store.startRun(sandbox.runId, epoch, "2026-08-25T10:00:02.000Z");
-  return { projectDir, projectId, sandbox, store, epoch };
+  return { workspaceRoot, scopeId, sandbox, store, epoch };
 }
 
 afterEach(() => {
@@ -83,12 +83,12 @@ afterEach(() => {
 
 describe("IntegrationQueue", () => {
   test("rebases a writer over a nonconflicting canonical advance before validation and publication", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("advance");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("advance");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    write(projectDir, "canonical.txt", "canonical\n");
-    const canonicalHead = commit(projectDir, "canonical change");
-    const queue = new IntegrationQueue(projectDir, store);
+    write(workspaceRoot, "canonical.txt", "canonical\n");
+    const canonicalHead = commit(workspaceRoot, "canonical change");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let validatedHead = "";
     const finalizationOrder: string[] = [];
 
@@ -139,8 +139,8 @@ describe("IntegrationQueue", () => {
       validationEvidence: ["focused checks passed"],
       resourceKey: "repo:primary:integration",
     });
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(validatedHead);
-    expect(git(projectDir, "log", "--format=%s", "-3").split("\n")).toEqual([
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(validatedHead);
+    expect(git(workspaceRoot, "log", "--format=%s", "-3").split("\n")).toEqual([
       "writer change",
       "canonical change",
       "base",
@@ -150,12 +150,12 @@ describe("IntegrationQueue", () => {
   });
 
   test("preserves reconciled work when a post-reconcile invariant rejects publication", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("invariant");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("invariant");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    write(projectDir, "canonical.txt", "canonical\n");
-    const canonicalHead = commit(projectDir, "canonical change");
-    const queue = new IntegrationQueue(projectDir, store);
+    write(workspaceRoot, "canonical.txt", "canonical\n");
+    const canonicalHead = commit(workspaceRoot, "canonical change");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
     let publishStarted = false;
 
@@ -193,17 +193,17 @@ describe("IntegrationQueue", () => {
       resourceKey: "repo:primary:integration",
     });
     expect(publishStarted).toBe(false);
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(git(sandbox.workspaceDir, "rev-parse", "HEAD")).toBe(reconciledHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("returns stale when canonical moves during validation", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("stale");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("stale");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    const queue = new IntegrationQueue(projectDir, store);
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
     let observedCanonicalHead = "";
 
@@ -215,8 +215,8 @@ describe("IntegrationQueue", () => {
       validate: async (input) => {
         reconciledHead = input.head;
         expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
-        write(projectDir, "late.txt", "late canonical change\n");
-        observedCanonicalHead = commit(projectDir, "late canonical change");
+        write(workspaceRoot, "late.txt", "late canonical change\n");
+        observedCanonicalHead = commit(workspaceRoot, "late canonical change");
         return { status: "passed", evidence: ["validated before canonical moved"] };
       },
     });
@@ -235,20 +235,20 @@ describe("IntegrationQueue", () => {
       validationEvidence: ["validated before canonical moved"],
       resourceKey: "repo:primary:integration",
     });
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(observedCanonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(observedCanonicalHead);
     expect(() =>
-      git(projectDir, "merge-base", "--is-ancestor", reconciledHead, "HEAD"),
+      git(workspaceRoot, "merge-base", "--is-ancestor", reconciledHead, "HEAD"),
     ).toThrow();
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("preserves an ordinary rebase conflict for a caller to resolve", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("conflict");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("conflict");
     write(sandbox.workspaceDir, "shared.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    write(projectDir, "shared.txt", "canonical\n");
-    const canonicalHead = commit(projectDir, "canonical change");
-    const queue = new IntegrationQueue(projectDir, store);
+    write(workspaceRoot, "shared.txt", "canonical\n");
+    const canonicalHead = commit(workspaceRoot, "canonical change");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let validationCalled = false;
 
     const result = await queue.integrate({
@@ -282,17 +282,17 @@ describe("IntegrationQueue", () => {
     expect(git(sandbox.workspaceDir, "diff", "--name-only", "--diff-filter=U")).toBe(
       "shared.txt",
     );
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("returns validation-failed without publishing the reconciled head", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("validation");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("validation");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    write(projectDir, "canonical.txt", "canonical\n");
-    const canonicalHead = commit(projectDir, "canonical change");
-    const queue = new IntegrationQueue(projectDir, store);
+    write(workspaceRoot, "canonical.txt", "canonical\n");
+    const canonicalHead = commit(workspaceRoot, "canonical change");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
 
     const result = await queue.integrate({
@@ -325,18 +325,18 @@ describe("IntegrationQueue", () => {
       validationEvidence: ["typecheck failed", "src/example.ts:1:1 TS2322"],
     });
     expect(git(sandbox.workspaceDir, "rev-parse", "HEAD")).toBe(reconciledHead);
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("returns busy without releasing another run's integration resource", async () => {
-    const { projectDir, projectId, sandbox, store, epoch } = createFixture("busy");
+    const { workspaceRoot, scopeId, sandbox, store, epoch } = createFixture("busy");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
     store.admitRun({
       id: "publication-owner",
-      projectId,
+      scopeId,
       workflow: "builder",
       repository: "write",
       trigger: { event: "task.ready", schemaRef: null, payload: { label: "owner" } },
@@ -346,7 +346,7 @@ describe("IntegrationQueue", () => {
     expect(
       store.startRun("publication-owner", epoch, "2026-08-25T10:00:04.000Z"),
     ).toBe(1);
-    const queue = new IntegrationQueue(projectDir, store);
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
 
     const result = await queue.integrate({
@@ -377,15 +377,15 @@ describe("IntegrationQueue", () => {
       "repo:primary:integration",
     ]);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
   });
 
   test("refuses a dirty writer workspace before reconciliation", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("dirty-writer");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("dirty-writer");
     write(sandbox.workspaceDir, "shared.txt", "uncommitted writer change\n");
     const writerHead = git(sandbox.workspaceDir, "rev-parse", "HEAD");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    const queue = new IntegrationQueue(projectDir, store);
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let validationCalled = false;
 
     const result = await queue.integrate({
@@ -417,12 +417,12 @@ describe("IntegrationQueue", () => {
   });
 
   test("refuses a dirty canonical workspace before reconciliation", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("dirty-canonical");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("dirty-canonical");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    write(projectDir, "shared.txt", "uncommitted canonical change\n");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    const queue = new IntegrationQueue(projectDir, store);
+    write(workspaceRoot, "shared.txt", "uncommitted canonical change\n");
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let validationCalled = false;
 
     const result = await queue.integrate({
@@ -450,16 +450,16 @@ describe("IntegrationQueue", () => {
       dirtyStatus: " M shared.txt",
     });
     expect(validationCalled).toBe(false);
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("refuses writer changes left behind by validation", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("validator-dirty");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("validator-dirty");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    const queue = new IntegrationQueue(projectDir, store);
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
 
     const result = await queue.integrate({
@@ -489,16 +489,16 @@ describe("IntegrationQueue", () => {
       validationEvidence: ["checks passed before side effect"],
       dirtyStatus: " M shared.txt",
     });
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("refuses canonical changes made during validation and releases the lock", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("canonical-during-validation");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("canonical-during-validation");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    const queue = new IntegrationQueue(projectDir, store);
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
 
     const result = await queue.integrate({
@@ -508,7 +508,7 @@ describe("IntegrationQueue", () => {
       signal: new AbortController().signal,
       validate: async (input) => {
         reconciledHead = input.head;
-        write(projectDir, "shared.txt", "canonical validation side effect\n");
+        write(workspaceRoot, "shared.txt", "canonical validation side effect\n");
         return { status: "passed", evidence: ["focused checks passed"] };
       },
     });
@@ -529,16 +529,16 @@ describe("IntegrationQueue", () => {
       dirtyStatus: " M shared.txt",
       resourceKey: "repo:primary:integration",
     });
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("refuses a clean writer head that moved during validation", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("validator-head-moved");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("validator-head-moved");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    const queue = new IntegrationQueue(projectDir, store);
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let reconciledHead = "";
     let observedWorkspaceHead = "";
 
@@ -570,17 +570,17 @@ describe("IntegrationQueue", () => {
       observedWorkspaceHead,
       validationEvidence: ["validated original head"],
     });
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("never publishes a writer cancelled during validation", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("cancelled-validation");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("cancelled-validation");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
     const controller = new AbortController();
-    const queue = new IntegrationQueue(projectDir, store);
+    const queue = new IntegrationQueue(workspaceRoot, store);
 
     await expect(
       queue.integrate({
@@ -595,17 +595,17 @@ describe("IntegrationQueue", () => {
       }),
     ).rejects.toThrow("operator cancelled run");
 
-    expect(git(projectDir, "rev-parse", "HEAD")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "rev-parse", "HEAD")).toBe(canonicalHead);
     expect(store.getRun(sandbox.runId)?.resources).toEqual([]);
   });
 
   test("never publishes a writer into a different canonical branch", async () => {
-    const { projectDir, sandbox, store, epoch } = createFixture("target-branch");
+    const { workspaceRoot, sandbox, store, epoch } = createFixture("target-branch");
     write(sandbox.workspaceDir, "writer.txt", "writer\n");
     const writerHead = commit(sandbox.workspaceDir, "writer change");
-    const canonicalHead = git(projectDir, "rev-parse", "HEAD");
-    git(projectDir, "switch", "-c", "owner-work");
-    const queue = new IntegrationQueue(projectDir, store);
+    const canonicalHead = git(workspaceRoot, "rev-parse", "HEAD");
+    git(workspaceRoot, "switch", "-c", "owner-work");
+    const queue = new IntegrationQueue(workspaceRoot, store);
     let validationCalled = false;
 
     const result = await queue.integrate({
@@ -633,7 +633,7 @@ describe("IntegrationQueue", () => {
       observedCanonicalBranch: "owner-work",
     });
     expect(validationCalled).toBe(false);
-    expect(git(projectDir, "branch", "--show-current")).toBe("owner-work");
-    expect(git(projectDir, "rev-parse", "main")).toBe(canonicalHead);
+    expect(git(workspaceRoot, "branch", "--show-current")).toBe("owner-work");
+    expect(git(workspaceRoot, "rev-parse", "main")).toBe(canonicalHead);
   });
 });

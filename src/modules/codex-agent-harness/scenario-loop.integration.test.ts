@@ -123,12 +123,14 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
       expect.any(Function),
     );
     expect(process.stdinText()).toContain(loaded.spec.prompt);
-    expect(result).toMatchObject({
-      text: "Scenario solved.",
-      streamedText: "Scenario solved.",
-      inputTokens: 100,
-      outputTokens: 50,
-      isError: false,
+		expect(result).toMatchObject({
+			text: "Scenario solved.",
+			streamedText: "Scenario solved.",
+			usage: {
+				tokens: { state: "complete", inputTokens: 100, outputTokens: 50 },
+				cost: { state: "unavailable", reason: "provider-does-not-report" },
+			},
+			isError: false,
     });
   });
 });

@@ -56,15 +56,15 @@ describe("scope authority operator token", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-authority-token-path-"));
     roots.push(root);
     const operatorDir = join(root, "operator");
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const tokenPath = join(operatorDir, "machine-proof.dat");
     mkdirSync(operatorDir, { recursive: true });
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
     writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
 
     withInteractiveTokenPath(tokenPath, () => {
       const context = {
-        baseDirectory: projectDir,
+        baseDirectory: scopeRoot,
         authorityConfigPath: join(operatorDir, "config.json"),
       };
       expect(isScopeAuthorityOperatorTokenPath(tokenPath, context)).toBe(true);
@@ -72,7 +72,7 @@ describe("scope authority operator token", () => {
         isScopeAuthorityOperatorTokenPath("scope-authority-token.json", context),
       ).toBe(false);
       try {
-        symlinkSync(tokenPath, join(projectDir, "notes.json"));
+        symlinkSync(tokenPath, join(scopeRoot, "notes.json"));
       } catch (error: unknown) {
         // Symlink creation can be unavailable on constrained Windows hosts.
         if (process.platform === "win32") return;

@@ -71,13 +71,15 @@ describe("thin agent harness integration", () => {
 
     expect(messagesCreateMock).toHaveBeenCalledTimes(1);
     expect(writer.write).toHaveBeenCalledWith("thin says hi");
-    expect(result).toMatchObject({
-      text: "thin says hi",
-      streamedText: "thin says hi",
-      turns: 1,
-      inputTokens: 5,
-      outputTokens: 4,
-      isError: false,
+		expect(result).toMatchObject({
+			text: "thin says hi",
+			streamedText: "thin says hi",
+			turns: 1,
+			usage: {
+				tokens: { state: "complete", inputTokens: 5, outputTokens: 4 },
+				cost: { state: "unavailable" },
+			},
+			isError: false,
     });
   });
 

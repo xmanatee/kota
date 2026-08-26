@@ -4,9 +4,9 @@ import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { tryEmit } from "#core/events/event-bus.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import type { McpInputResolver, McpManager, McpServerConfig } from "#core/mcp/manager.js";
@@ -14,6 +14,7 @@ import type { ModelClient } from "#core/model/model-client.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import type { ModelOutputTokenLimits } from "#core/model/output-token-limits.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
+import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   cloneGuardrailsConfig,
@@ -64,16 +65,18 @@ export type LoopOptions = {
   showCost?: boolean;
   /** Channel user identity for attribution (set by channel adapters). */
   channelIdentity?: ChannelUserIdentity;
-  /** Project root this session should initialize against. Defaults to process.cwd(). */
-  projectDir?: string;
+  /** Scope root this session should initialize against. Defaults to process.cwd(). */
+  scopeRoot?: string;
   /**
-   * Existing daemon-owned project runtime bundle to bind this session to.
+   * Existing daemon-owned scope runtime bundle to bind this session to.
    * When supplied, the session reuses the bundle's stores instead of
-   * constructing new singleton-backed stores from `projectDir`.
+   * constructing new singleton-backed stores from `scopeRoot`.
    */
-  projectRuntime?: ProjectRuntime;
+  scopeRuntime?: ScopeRuntime;
   /** Host-owned module runtime borrowed by daemon/server sessions. */
   moduleLoader?: ModuleLoader;
+  /** Scope-selected history capability supplied by a multi-scope host. */
+  historyProvider?: HistoryProvider;
   /** Optional existing operator surface bridge for remote MCP input_required retries. */
   mcpInputResolver?: McpInputResolver;
   mcpAuthorizationResolver?: McpAuthorizationResolver;
@@ -121,15 +124,16 @@ export class AgentSession implements AgentLoopState {
   activeAbortControllers = new Set<AbortController>();
   initialized = false;
   initPromise!: Promise<void>;
-  projectDir!: string;
+  scopeRoot!: string;
   authorityConfigPath!: string;
   scopeId!: string;
-  projectContext!: string;
+  scopeContext!: string;
   instructionContext!: string;
   conversationId: string | null = null;
   resumeConversationId: string | undefined;
   historyEnabled!: boolean;
   historySource!: "user" | "action";
+  historyProvider: HistoryProvider | undefined;
   sessionId!: string;
   sessionLabel: string | undefined;
   sessionStartTime = 0;
@@ -144,12 +148,13 @@ export class AgentSession implements AgentLoopState {
   autonomyMode!: AutonomyMode;
   scopePolicyAuthority: ScopePolicyAuthority | undefined;
   guardrailsSnapshot!: GuardrailsSnapshot;
+  private closePromise: Promise<void> | null = null;
 
   constructor(options: LoopOptions) {
     initAgentSession(this, options, (opts) => {
-      if (opts.projectId !== undefined && opts.projectId !== this.scopeId) {
+      if (opts.scopeId !== undefined && opts.scopeId !== this.scopeId) {
         throw new Error(
-          `Child session scope ${opts.projectId} does not match parent scope ${this.scopeId}`,
+          `Child session scope ${opts.scopeId} does not match parent scope ${this.scopeId}`,
         );
       }
       const config: KotaConfig = options.config
@@ -164,8 +169,8 @@ export class AgentSession implements AgentLoopState {
         noHistory: opts.noHistory ?? true,
         historySource: opts.historySource ?? "action",
         reflectionEnabled: opts.reflectionEnabled ?? false,
-        projectDir: this.projectDir,
-        projectRuntime: options.projectRuntime,
+        scopeRoot: this.scopeRoot,
+        scopeRuntime: options.scopeRuntime,
         moduleLoader: options.moduleLoader,
         mcpInputResolver: this.mcpInputResolver,
         mcpAuthorizationResolver: this.mcpAuthorizationResolver,
@@ -245,8 +250,16 @@ export class AgentSession implements AgentLoopState {
 
   /** Clean up handlers and save final state. */
   close(errored = false): void {
-    process.removeListener("SIGINT", this.sigintHandler);
-    runClose(this, errored);
+    void this.dispose(errored);
+  }
+
+  /** Close and wait until host-owned module and MCP resources are released. */
+  dispose(errored = false): Promise<void> {
+    if (!this.closePromise) {
+      process.removeListener("SIGINT", this.sigintHandler);
+      this.closePromise = runClose(this, errored);
+    }
+    return this.closePromise;
   }
 }
 
@@ -263,6 +276,6 @@ export async function runAgentLoop(
     errored = true;
     throw err;
   } finally {
-    session.close(errored);
+    await session.dispose(errored);
   }
 }

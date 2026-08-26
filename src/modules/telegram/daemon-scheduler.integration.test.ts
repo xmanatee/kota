@@ -9,6 +9,7 @@ import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import { callTelegramApi } from "./client.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
@@ -16,14 +17,15 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("#core/daemon/task-store.js")>();
-  return { ...actual, initTaskStore: vi.fn() };
+vi.mock("./client.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./client.js")>();
+  return { ...actual, callTelegramApi: vi.fn() };
 });
 
 import "#modules/claude-agent-harness/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
+const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -38,34 +40,33 @@ function neverCalledClient<T>(): T {
 }
 
 describe("Telegram daemon scheduling", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
-  const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-telegram-scheduler-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    mkdirSync(join(projectDir, "src", "modules", "autonomy", "workflows", "builder"), {
+    stateDir = join(scopeRoot, ".kota");
+    mkdirSync(join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder"), {
       recursive: true,
     });
     resetEventBus();
     resetScheduler();
     mockedExecuteWithAgentSDK.mockReset();
+    mockedCallTelegramApi.mockReset();
   });
 
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     resetEventBus();
     resetScheduler();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("serves status and fires a scheduled item in one daemon process", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -79,32 +80,24 @@ describe("Telegram daemon scheduling", () => {
 
     const statusChatId = 9_876_543_210;
     let delivered = false;
-    const fetchMock = vi.fn(async (url: string) => {
-      if (!url.includes("/bot")) throw new Error(`unexpected url: ${url}`);
-      if (url.endsWith("/getUpdates")) {
+    mockedCallTelegramApi.mockImplementation(async (_token, method) => {
+      if (method === "getUpdates") {
         if (delivered) {
-          return { json: () => Promise.resolve({ ok: true, result: [] }) } as Response;
+          return [];
         }
         delivered = true;
-        return {
-          json: () =>
-            Promise.resolve({
-              ok: true,
-              result: [{
-                update_id: 1,
-                message: {
-                  message_id: 1,
-                  chat: { id: statusChatId, type: "private" },
-                  text: "/status",
-                  date: Math.floor(Date.now() / 1000),
-                },
-              }],
-            }),
-        } as Response;
+        return [{
+          update_id: 1,
+          message: {
+            message_id: 1,
+            chat: { id: statusChatId, type: "private" },
+            text: "/status",
+            date: Math.floor(Date.now() / 1000),
+          },
+        }];
       }
-      return { json: () => Promise.resolve({ ok: true, result: true }) } as Response;
+      return true;
     });
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const telegramStatusChannel: ChannelDef = {
       name: "telegram-status-test",
@@ -118,7 +111,7 @@ describe("Telegram daemon scheduling", () => {
               stop = startTelegramStatusPoll(
                 "test-token",
                 String(statusChatId),
-                ctx.getDefaultProjectRuntime().project.projectDir,
+                ctx.getDefaultScopeRuntime().scope.scopeRoot,
                 ctx.getWorkflowStatus,
                 neverCalledClient<Parameters<typeof startTelegramStatusPoll>[4]>(),
                 neverCalledClient<Parameters<typeof startTelegramStatusPoll>[5]>(),
@@ -138,7 +131,7 @@ describe("Telegram daemon scheduling", () => {
     };
 
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       model: "claude-sonnet-4-6",
       verbose: false,
       idleIntervalMs: 1000,
@@ -162,17 +155,17 @@ describe("Telegram daemon scheduling", () => {
       channels: [telegramStatusChannel],
       pollIntervalMs: 100,
     });
-    new Scheduler(projectDir, stateDir).add("Test reminder", new Date(Date.now() - 1000));
+    new Scheduler(scopeRoot, stateDir).add("Test reminder", new Date(Date.now() - 1000));
 
     const startPromise = daemon.start();
     const deadline = Date.now() + 10_000;
     let sawStatusReply = false;
     let sawSchedulerFire = false;
     while (Date.now() < deadline) {
-      sawStatusReply = fetchMock.mock.calls.some(([url]) =>
-        (url as string).endsWith("/sendMessage")
+      sawStatusReply = mockedCallTelegramApi.mock.calls.some(
+        ([, method]) => method === "sendMessage",
       );
-      sawSchedulerFire = new Scheduler(projectDir, stateDir)
+      sawSchedulerFire = new Scheduler(scopeRoot, stateDir)
         .list()
         .some((item) => item.status === "fired");
       if (sawStatusReply && sawSchedulerFire) break;

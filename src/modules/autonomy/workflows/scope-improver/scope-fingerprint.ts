@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { readScopeImprovementConfigFromStateDir } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_CONFIG_FILE,
@@ -18,7 +19,7 @@ const SKIPPED_DIRECTORIES = new Set([
   "build",
 ]);
 
-function listGuidanceFiles(projectDir: string, directory = projectDir): string[] {
+function listGuidanceFiles(workspaceRoot: string, directory = workspaceRoot): string[] {
   const files: string[] = [];
   if (!existsSync(directory)) return files;
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -26,11 +27,11 @@ function listGuidanceFiles(projectDir: string, directory = projectDir): string[]
     const path = join(directory, entry.name);
     if (entry.isDirectory()) {
       if (SKIPPED_DIRECTORIES.has(entry.name)) continue;
-      files.push(...listGuidanceFiles(projectDir, path));
+      files.push(...listGuidanceFiles(workspaceRoot, path));
       continue;
     }
     if (entry.isFile() && (entry.name === "AGENTS.md" || entry.name === "CLAUDE.md")) {
-      files.push(relative(projectDir, path));
+      files.push(relative(workspaceRoot, path));
     }
   }
   return files;
@@ -111,12 +112,19 @@ function scopePolicyMaterial(policy: ResolvedScopePolicy) {
  * become an implicit scope-review trigger.
  */
 export function computeScopeContentFingerprint(
-  projectDir: string,
+  workspaceRoot: string,
   scopePolicy: ResolvedScopePolicy,
   stateDir?: string,
+  scopeRoot: string = workspaceRoot,
 ): ScopeContentFingerprint {
-  const canonicalStateDir = stateDir ?? join(projectDir, ".kota");
-  const guidanceRefs = listGuidanceFiles(projectDir)
+	const expectedScopeId = deriveDirectoryScopeId(scopeRoot);
+	if (scopePolicy.scopeId !== expectedScopeId) {
+		throw new Error(
+			`Resolved policy for scope ${scopePolicy.scopeId} does not belong to ${scopeRoot}`,
+		);
+	}
+	const canonicalStateDir = stateDir ?? join(scopeRoot, ".kota");
+  const guidanceRefs = listGuidanceFiles(workspaceRoot)
     .sort((a, b) => a.localeCompare(b));
   const refs = [
     ...guidanceRefs,
@@ -129,7 +137,7 @@ export function computeScopeContentFingerprint(
   for (const path of guidanceRefs) {
     hash.update(path);
     hash.update("\0");
-    hash.update(readFileSync(join(projectDir, path)));
+    hash.update(readFileSync(join(workspaceRoot, path)));
     hash.update("\0");
   }
   hash.update("scope-improvement-config\0");

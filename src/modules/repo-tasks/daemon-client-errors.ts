@@ -1,13 +1,13 @@
 export type RepoTaskRouteErrorBody = {
 	error?: string;
 	reason?: string;
-	projectId?: string;
+	scopeId?: string;
 };
 
-export function projectQuery(projectId: string | undefined): string {
-	if (!projectId) return "";
+export function scopeQuery(scopeId: string | undefined): string {
+	if (!scopeId) return "";
 	const params = new URLSearchParams();
-	params.set("projectId", projectId);
+	params.set("scopeId", scopeId);
 	return `?${params.toString()}`;
 }
 
@@ -27,8 +27,8 @@ export async function throwRepoTaskRouteError(
 	fallback: string,
 ): Promise<never> {
 	const body = await readRepoTaskRouteError(res);
-	if (body?.reason === "unknown_project" && body.projectId) {
-		throw new Error(`Unknown project: ${body.projectId}`);
+	if (body?.reason === "unknown_scope" && body.scopeId) {
+		throw new Error(`Unknown scope: ${body.scopeId}`);
 	}
 	throw new Error(body?.error ?? fallback);
 }

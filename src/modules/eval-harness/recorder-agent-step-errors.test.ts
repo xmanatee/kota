@@ -13,27 +13,27 @@ import {
 } from "./recorder.test-helpers.js";
 
 describe("extractAgentStepRecording errors", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let fixtureDir: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-recorder-project-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-recorder-project-"));
     fixtureDir = mkdtempSync(join(tmpdir(), "kota-recorder-fixture-"));
-    initGitRepo(projectDir);
-    writeFileSync(join(projectDir, "README.md"), "init\n");
-    execSync("git add README.md", { cwd: projectDir });
-    execSync('git commit -q -m "init"', { cwd: projectDir });
+    initGitRepo(workspaceRoot);
+    writeFileSync(join(workspaceRoot, "README.md"), "init\n");
+    execSync("git add README.md", { cwd: workspaceRoot });
+    execSync('git commit -q -m "init"', { cwd: workspaceRoot });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(fixtureDir, { recursive: true, force: true });
   });
 
   it("rejects a source run without writer integration evidence", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-nocommit";
     seedSourceRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "decomposer",
       "decompose",
@@ -43,7 +43,7 @@ describe("extractAgentStepRecording errors", () => {
     let err: unknown;
     try {
       extractAgentStepRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: runId,
         stepId: "decompose",
         fixtureDir,
@@ -60,7 +60,7 @@ describe("extractAgentStepRecording errors", () => {
   it("rejects a source run with no integration evidence", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-nostep";
     seedSourceRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "decomposer",
       "decompose",
@@ -69,7 +69,7 @@ describe("extractAgentStepRecording errors", () => {
     );
     expect(() =>
       extractAgentStepRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: runId,
         stepId: "decompose",
         fixtureDir,
@@ -80,7 +80,7 @@ describe("extractAgentStepRecording errors", () => {
   it("rejects traversal-shaped source run and step ids before deriving paths", () => {
     expect(() =>
       extractAgentStepRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: "../outside-run",
         stepId: "decompose",
         fixtureDir,
@@ -89,7 +89,7 @@ describe("extractAgentStepRecording errors", () => {
 
     expect(() =>
       extractAgentStepRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: "2026-04-24T00-00-00-000Z-decomposer-safe",
         stepId: "../decompose",
         fixtureDir,
@@ -97,20 +97,20 @@ describe("extractAgentStepRecording errors", () => {
     ).toThrow(/--step must be a safe single path component/);
   });
 
-  it("surfaces Write events that target paths outside the project root", () => {
+  it("surfaces Write events that target paths outside the scope root", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-outside";
-    writeFile(projectDir, "inside.md", "inside v1\n");
-    execSync("git add -A", { cwd: projectDir });
-    execSync('git commit -q -m "pre-inside"', { cwd: projectDir });
-    writeFile(projectDir, "inside.md", "inside v2\n");
-    execSync("git add -A", { cwd: projectDir });
-    execSync('git commit -q -m "inside"', { cwd: projectDir });
+    writeFile(workspaceRoot, "inside.md", "inside v1\n");
+    execSync("git add -A", { cwd: workspaceRoot });
+    execSync('git commit -q -m "pre-inside"', { cwd: workspaceRoot });
+    writeFile(workspaceRoot, "inside.md", "inside v2\n");
+    execSync("git add -A", { cwd: workspaceRoot });
+    execSync('git commit -q -m "inside"', { cwd: workspaceRoot });
     const sha = execSync("git rev-parse HEAD", {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       encoding: "utf-8",
     }).trim();
     seedSourceRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "decomposer",
       "decompose",
@@ -133,24 +133,24 @@ describe("extractAgentStepRecording errors", () => {
         }),
       ],
     );
-    seedWriterIntegration(projectDir, runId, {
+    seedWriterIntegration(workspaceRoot, runId, {
       publishedHead: sha,
       message: "inside",
     });
 
     const result = extractAgentStepRecording({
-      projectDir,
+      workspaceRoot,
       sourceRunId: runId,
       stepId: "decompose",
       fixtureDir,
     });
-    expect(result.skippedWritesOutsideProject).toContain("/tmp/outside-scope.md");
+    expect(result.skippedWritesOutsideWorkspace).toContain("/tmp/outside-scope.md");
   });
 
   it("rejects a non-agent step", () => {
     const runId = "2026-04-24T00-00-00-000Z-decomposer-nonagent";
     seedSourceRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "decomposer",
       "assess-failure",
@@ -159,7 +159,7 @@ describe("extractAgentStepRecording errors", () => {
     );
     expect(() =>
       extractAgentStepRecording({
-        projectDir,
+        workspaceRoot,
         sourceRunId: runId,
         stepId: "assess-failure",
         fixtureDir,

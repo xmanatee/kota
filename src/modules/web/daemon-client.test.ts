@@ -28,8 +28,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import webModule from "./index.js";
 
@@ -129,27 +127,5 @@ describe("web module daemonClient(link)", () => {
         noAuth: false,
       }),
     ).resolves.toEqual({ ok: false, reason: "daemon_required" });
-  });
-
-  it("the assembly path fails loudly when the web module's daemonClient(link) is removed", () => {
-    const transport = makeRecordingTransport();
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.web;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /web/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the web module's contribution to the assembly path satisfies coverage", () => {
-    const transport = makeRecordingTransport();
-    const contributed = webModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.web;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

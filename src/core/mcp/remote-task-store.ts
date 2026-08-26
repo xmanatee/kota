@@ -78,7 +78,7 @@ export class MemoryRemoteMcpTaskStore implements RemoteMcpTaskStore {
 export class FileRemoteMcpTaskStore implements RemoteMcpTaskStore {
   private readonly filePath: string;
 
-  constructor(projectDir: string, filePath = join(projectDir, DEFAULT_REMOTE_TASK_STORE_PATH)) {
+  constructor(scopeRoot: string, filePath = join(scopeRoot, DEFAULT_REMOTE_TASK_STORE_PATH)) {
     this.filePath = filePath;
   }
 

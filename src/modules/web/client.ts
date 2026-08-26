@@ -4,7 +4,7 @@
  * The web module owns the `web` KotaClient namespace end-to-end: the boot
  * options, the discriminated start-result envelope, and the `WebClient`
  * interface itself. The aggregate `KotaClient` interface in
- * `src/core/server/kota-client.ts` composes this contract by importing
+ * The generated KotaClient aggregate composes this contract by importing
  * `WebClient` from this module instead of declaring the shapes inline.
  *
  * Both the local-side handler (`localClient(ctx)` in `index.ts`) and the

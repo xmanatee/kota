@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
   callSlackApi,
   MAX_TEXT_LENGTH,
@@ -9,20 +10,26 @@ import {
 
 // --- Shared fetch mock helper ---
 
-const originalFetch = globalThis.fetch;
+let activeFetch = vi.fn();
+const http = outboundHttpRequestPort((request) =>
+  activeFetch(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+);
 
 function installFetchMock(defaultResponse?: unknown) {
   const mock = vi.fn();
   if (defaultResponse !== undefined) {
     mock.mockResolvedValue({ json: () => Promise.resolve(defaultResponse) });
   }
-  globalThis.fetch = mock as unknown as typeof fetch;
+  activeFetch = mock;
   return mock;
 }
 
-function restoreFetch() {
-  globalThis.fetch = originalFetch;
-}
+function restoreFetch() {}
 
 // --- splitText ---
 
@@ -97,6 +104,7 @@ describe("callSlackApi", () => {
       "xoxb-token",
       "users.info",
       { user: "U1" },
+      http,
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "https://slack.com/api/users.info",
@@ -115,7 +123,7 @@ describe("callSlackApi", () => {
     fetchMock.mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),
     });
-    await callSlackApi("tok", "chat.postMessage", { channel: "C1", text: "hi" });
+    await callSlackApi("tok", "chat.postMessage", { channel: "C1", text: "hi" }, http);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({
@@ -128,7 +136,7 @@ describe("callSlackApi", () => {
     fetchMock.mockResolvedValue({
       json: () => Promise.resolve({ ok: true }),
     });
-    await callSlackApi("tok", "auth.test");
+    await callSlackApi("tok", "auth.test", undefined, http);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ body: undefined }),
@@ -139,14 +147,14 @@ describe("callSlackApi", () => {
     fetchMock.mockResolvedValue({
       json: () => Promise.resolve({ ok: false, error: "invalid_auth" }),
     });
-    await expect(callSlackApi("bad", "auth.test")).rejects.toThrow(
+    await expect(callSlackApi("bad", "auth.test", undefined, http)).rejects.toThrow(
       "Slack API auth.test: invalid_auth",
     );
   });
 
   it("wraps network errors with method context", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
-    await expect(callSlackApi("tok", "chat.postMessage")).rejects.toThrow(
+    await expect(callSlackApi("tok", "chat.postMessage", undefined, http)).rejects.toThrow(
       "Slack API chat.postMessage: network error: ECONNREFUSED",
     );
   });
@@ -156,7 +164,7 @@ describe("callSlackApi", () => {
       status: 502,
       json: () => Promise.reject(new SyntaxError("Unexpected token <")),
     });
-    await expect(callSlackApi("tok", "chat.postMessage")).rejects.toThrow(
+    await expect(callSlackApi("tok", "chat.postMessage", undefined, http)).rejects.toThrow(
       "Slack API chat.postMessage: non-JSON response (HTTP 502)",
     );
   });
@@ -177,7 +185,7 @@ describe("openSocketModeUrl", () => {
     fetchMock.mockResolvedValue({
       json: () => Promise.resolve({ ok: true, url: "wss://slack.example.com/socket" }),
     });
-    const url = await openSocketModeUrl("xapp-token");
+    const url = await openSocketModeUrl("xapp-token", http);
     expect(url).toBe("wss://slack.example.com/socket");
     expect(fetchMock).toHaveBeenCalledWith(
       "https://slack.com/api/apps.connections.open",
@@ -191,7 +199,7 @@ describe("openSocketModeUrl", () => {
     fetchMock.mockResolvedValue({
       json: () => Promise.resolve({ ok: false, error: "invalid_app_token" }),
     });
-    await expect(openSocketModeUrl("bad-token")).rejects.toThrow("invalid_app_token");
+    await expect(openSocketModeUrl("bad-token", http)).rejects.toThrow("invalid_app_token");
   });
 });
 
@@ -207,21 +215,21 @@ describe("SlackTransport", () => {
   afterEach(restoreFetch);
 
   it("buffers text events", () => {
-    const transport = new SlackTransport("tok", "C1");
+    const transport = new SlackTransport("tok", "C1", http);
     transport.emit({ type: "text", content: "Hello " });
     transport.emit({ type: "text", content: "world" });
     expect(transport.getBuffer()).toBe("Hello world");
   });
 
   it("ignores non-text events", () => {
-    const transport = new SlackTransport("tok", "C1");
+    const transport = new SlackTransport("tok", "C1", http);
     transport.emit({ type: "status", message: "thinking" });
     transport.emit({ type: "error", message: "oops" });
     expect(transport.getBuffer()).toBe("");
   });
 
   it("flush sends buffered text as message", async () => {
-    const transport = new SlackTransport("xoxb-tok", "C123");
+    const transport = new SlackTransport("xoxb-tok", "C123", http);
     transport.emit({ type: "text", content: "Hello!" });
     await transport.flush();
     expect(fetchMock).toHaveBeenCalledWith(
@@ -234,27 +242,27 @@ describe("SlackTransport", () => {
   });
 
   it("flush does nothing for empty buffer", async () => {
-    const transport = new SlackTransport("tok", "C1");
+    const transport = new SlackTransport("tok", "C1", http);
     await transport.flush();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("flush does nothing for whitespace-only buffer", async () => {
-    const transport = new SlackTransport("tok", "C1");
+    const transport = new SlackTransport("tok", "C1", http);
     transport.emit({ type: "text", content: "   \n  " });
     await transport.flush();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("flush clears buffer", async () => {
-    const transport = new SlackTransport("tok", "C1");
+    const transport = new SlackTransport("tok", "C1", http);
     transport.emit({ type: "text", content: "Hello" });
     await transport.flush();
     expect(transport.getBuffer()).toBe("");
   });
 
   it("flush splits long text into multiple messages", async () => {
-    const transport = new SlackTransport("tok", "C1");
+    const transport = new SlackTransport("tok", "C1", http);
     const longText = `${"a".repeat(2500)}\n${"b".repeat(2500)}`;
     transport.emit({ type: "text", content: longText });
     await transport.flush();

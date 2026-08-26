@@ -77,9 +77,7 @@ describe("renderOwnerInterventions", () => {
               questionCount: 2,
               distinctRunCount: 2,
               outcomeBuckets: ["freeform-correction"],
-              repairTaskId: "task-repair-owner-intervention-pattern-abc123",
               patternFingerprint: "owner-intervention:test",
-              action: "create",
               reason: "repeated free-form owner corrections",
               questionIds: ["q1", "q2"],
               runIds: ["run1", "run2"],
@@ -97,7 +95,7 @@ describe("renderOwnerInterventions", () => {
       "Review scrutiny",
     );
     expect(interventionSection).toContain("owner-question:q1");
-    expect(interventionSection).toContain("task-repair-owner-intervention-pattern-abc123");
+    expect(interventionSection).not.toContain("repair task");
     expect(interventionSection).toContain("task-owner-intervention");
     expect(interventionSection).toContain("freeform-correction");
     expect(interventionSection).not.toContain("sk-live-secret");

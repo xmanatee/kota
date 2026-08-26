@@ -19,7 +19,7 @@ export function buildWorkstreamGroups(
       partial.taskClass,
       partial.priority,
       partial.scopeId ?? "",
-      partial.projectId ?? "",
+      partial.scopeId ?? "",
     ].join("\u0000");
     const existing = groups.get(key) ?? {
       ...partial,
@@ -41,7 +41,6 @@ export function buildWorkstreamGroups(
       taskClass: task?.taskClass ?? "Unclassified",
       priority: task ? normalizePriority(task.priority) : "unknown",
       scopeId: scope.scopeId,
-      projectId: scope.projectId,
     });
   }
 

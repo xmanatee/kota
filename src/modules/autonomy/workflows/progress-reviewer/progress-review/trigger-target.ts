@@ -40,15 +40,15 @@ export function requestPayload(trigger: WorkflowRunTrigger): ProgressReviewReque
 }
 
 export function currentDirectorySource(
-  projectDir: string,
-  scopeDir: string,
+  workspaceRoot: string,
+  scopeRoot: string,
   stateDir: string,
 ): ProgressReviewDirectorySource {
   return {
-    scopeId: deriveDirectoryScopeId(scopeDir),
-    displayName: basename(scopeDir),
-    projectDir,
-    scopeDir,
+    scopeId: deriveDirectoryScopeId(scopeRoot),
+    displayName: basename(scopeRoot),
+    workspaceRoot,
+    scopeRoot,
     stateDir,
     idPrefix: "",
   };
@@ -60,12 +60,12 @@ export function loadConfiguredDirectorySources(
   const registry = loadRegistryFileFromDisk(stateDir);
   if (!registry) return null;
   return {
-    sources: registry.projects.map((project) => ({
-      scopeId: project.projectId,
-      displayName: project.displayName,
-      projectDir: project.projectDir,
-      scopeDir: project.projectDir,
-      stateDir: join(project.projectDir, ".kota"),
+    sources: registry.scopes.map((scope) => ({
+      scopeId: scope.scopeId,
+      displayName: scope.displayName,
+      workspaceRoot: scope.scopeRoot,
+      scopeRoot: scope.scopeRoot,
+      stateDir: join(scope.scopeRoot, ".kota"),
       idPrefix: "",
     })),
   };
@@ -81,20 +81,20 @@ export function prefixGlobalSourceIds(
 }
 
 export function selectEvidenceTarget(
-  projectDir: string,
-  scopeDir: string,
+  workspaceRoot: string,
+  scopeRoot: string,
   trigger: WorkflowRunTrigger,
   stateDir: string,
 ): ProgressReviewEvidenceTarget {
   const payload = requestPayload(trigger);
-  const selected = nonEmptyString(payload.scopeId) ?? nonEmptyString(payload.projectId);
-  const currentSource = currentDirectorySource(projectDir, scopeDir, stateDir);
+  const selected = nonEmptyString(payload.scopeId);
+  const currentSource = currentDirectorySource(workspaceRoot, scopeRoot, stateDir);
   const configured = loadConfiguredDirectorySources(stateDir);
   const scopeId = selected ?? currentSource.scopeId;
   if (scopeId === GLOBAL_SCOPE_ID) {
     if (!configured) {
       throw new Error(
-        "progress-review global scope requires project-registry.json in the active state directory",
+        "progress-review global scope requires scope-registry.json in the active state directory",
       );
     }
     return {
@@ -117,7 +117,7 @@ export function selectEvidenceTarget(
       kind: "directory",
       scopeId,
       displayName: source.displayName,
-      directoryRoot: source.scopeDir,
+      directoryRoot: source.scopeRoot,
     },
     sources: [source],
   };
@@ -173,7 +173,6 @@ export function summarizePayload(value: object): string {
 
 export function eventScopeId(payload: WorkflowRunTrigger["payload"]): string | null {
   if (typeof payload.scopeId === "string") return payload.scopeId;
-  if (typeof payload.projectId === "string") return payload.projectId;
   return null;
 }
 
@@ -198,6 +197,6 @@ export function directoryScopeForSource(
     kind: "directory",
     scopeId: source.scopeId,
     displayName: source.displayName,
-    directoryRoot: source.scopeDir,
+    directoryRoot: source.scopeRoot,
   };
 }

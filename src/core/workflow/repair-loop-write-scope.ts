@@ -17,7 +17,7 @@ export function enforceRepairAgentWriteScope(args: {
   scopedAgent: ScopedRepairAgent;
   stepId: string;
   metadata: WorkflowRunMetadata;
-  projectDir: string;
+  scopeRoot: string;
 }): void {
   const violations = findWriteScopeViolations(
     args.preSnapshot.changedPathsSince(
@@ -37,7 +37,7 @@ export function enforceRepairAgentWriteScope(args: {
   writeWriteScopeViolationArtifact({
     ...violation,
     metadata: args.metadata,
-    projectDir: args.projectDir,
+    scopeRoot: args.scopeRoot,
   });
   if (args.scopedAgent.writeScope === "deny-all") {
     args.preSnapshot.restoreDenyAllMutations(args.workspaceDir, violations);

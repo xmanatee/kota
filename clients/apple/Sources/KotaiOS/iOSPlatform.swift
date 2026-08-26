@@ -18,7 +18,7 @@ struct iOSPlatform: PlatformAffordances {
     }
 
     @MainActor
-    func pickProjectDirectory() async -> URL? {
+    func pickScopeDirectory() async -> URL? {
         // iOS apps live in a sandbox and cannot resolve arbitrary
         // host paths through a native folder picker. The shared
         // SettingsView surfaces a manual path field whenever this
@@ -36,7 +36,7 @@ struct iOSPlatform: PlatformAffordances {
 
     var supportsQuit: Bool { false }
 
-    var supportsNativeProjectPicker: Bool { false }
+    var supportsNativeScopePicker: Bool { false }
 
     @MainActor
     func quitApp() {

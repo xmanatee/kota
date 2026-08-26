@@ -23,7 +23,7 @@ const CHILD_SOURCE = String.raw`
   const store = new ScopeAuthorityStore(configPath);
   const initial = store.read();
   if (initial.metadata.revision !== 0) throw new Error("expected revision zero before race");
-  const trustedProjects = Array.from(
+  const trustedScopes = Array.from(
     { length: 50_000 },
     (_, index) => projectPrefix + "-" + index,
   );
@@ -33,7 +33,7 @@ const CHILD_SOURCE = String.raw`
   }
   try {
     await store.commit(0, {
-      trustedProjects,
+      trustedScopes,
       scopePolicies: [],
       metadata: { schema: 1, revision: 1, audit: [] },
     });
@@ -101,9 +101,9 @@ describe("ScopeAuthorityStore", () => {
     ]);
     const stored = new ScopeAuthorityStore(configPath).read();
     expect(stored.metadata.revision).toBe(1);
-    expect(stored.trustedProjects).toHaveLength(50_000);
-    expect(stored.trustedProjects.every((path) => path.startsWith(`${root}/first-`)) ||
-      stored.trustedProjects.every((path) => path.startsWith(`${root}/second-`))).toBe(true);
+    expect(stored.trustedScopes).toHaveLength(50_000);
+    expect(stored.trustedScopes.every((path) => path.startsWith(`${root}/first-`)) ||
+      stored.trustedScopes.every((path) => path.startsWith(`${root}/second-`))).toBe(true);
     expect(readdirSync(lockRoot).sort()).toEqual(expect.arrayContaining([
       "ticket-33",
       "ticket-34",

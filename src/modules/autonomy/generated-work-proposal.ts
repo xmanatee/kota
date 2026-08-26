@@ -54,13 +54,13 @@ export function normalizeGeneratedWorkProposalKey(key: string): string {
 }
 
 export function materializeGeneratedWorkProposal(args: {
-  projectDir: string;
+  workspaceRoot: string;
   proposal: GeneratedWorkProposal;
 }): GeneratedWorkProposalResult {
   const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
   const proposal = { ...args.proposal, proposalKey } as GeneratedWorkProposal;
-  const queue = createGeneratedWorkQuestionQueue(args.projectDir);
-  const existingTask = findGeneratedWorkTask(args.projectDir, proposalKey);
+  const queue = createGeneratedWorkQuestionQueue(args.workspaceRoot);
+  const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
   const actions: GeneratedWorkProposalAction[] = [];
 
   if (proposal.kind === "task") {
@@ -71,14 +71,14 @@ export function materializeGeneratedWorkProposal(args: {
       proposal.provenance.source,
     ));
     actions.push(...writeGeneratedWorkTask({
-      projectDir: args.projectDir,
+      workspaceRoot: args.workspaceRoot,
       proposal,
       existing: existingTask,
     }));
   } else if (proposal.kind === "owner-question") {
-    actions.push(...dropGeneratedWorkTask(args.projectDir, existingTask));
+    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask));
     const reconciled = reconcileGeneratedWorkQuestion({
-      projectDir: args.projectDir,
+      workspaceRoot: args.workspaceRoot,
       queue,
       input: {
         dedupeKey: generatedWorkQuestionDedupeKey(proposalKey),
@@ -108,7 +108,7 @@ export function materializeGeneratedWorkProposal(args: {
         : { reason: "owner question is current" }),
     } as GeneratedWorkProposalAction);
   } else {
-    actions.push(...dropGeneratedWorkTask(args.projectDir, existingTask));
+    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask));
     actions.push(...dismissGeneratedWorkQuestion(
       queue,
       proposalKey,

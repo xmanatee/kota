@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleLogger } from "#core/modules/module-types.js";
+import type { OutboundHttpTransport } from "#core/outbound-http/index.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import {
   A2AProtocolError,
@@ -10,7 +11,6 @@ import {
   type TaskSelector,
 } from "./protocol.js";
 import { deliverPushNotificationCallback } from "./push-notification-callback-delivery.js";
-import type { CallbackAddressResolver } from "./push-notification-callback-hosts.js";
 import {
   type PushDeliveryPayload,
   pushDeliveryPayload,
@@ -26,7 +26,6 @@ import type {
 import {
   DEFAULT_PUSH_NOTIFICATION_PAGE_SIZE,
   MAX_PUSH_NOTIFICATION_PAGE_SIZE,
-  projectIdFromTaskMetadata,
   pushConfigMatchesFilter,
   pushConfigMatchesSelector,
   pushNotificationPageStart,
@@ -34,6 +33,7 @@ import {
   readStoredPushNotificationConfigs,
   redactPushNotificationConfig,
   type StoredPushNotificationConfig,
+  scopeIdFromTaskMetadata,
   writeStoredPushNotificationConfigs,
 } from "./push-notification-storage.js";
 
@@ -57,9 +57,8 @@ export class A2APushNotificationManager {
   constructor(
     private readonly storage: ModuleStorage,
     private readonly log: ModuleLogger,
-    private readonly fetchImpl: typeof fetch = fetch,
+    private readonly http?: Pick<OutboundHttpTransport, "request">,
     private readonly now: () => string = () => new Date().toISOString(),
-    private readonly callbackAddressResolver?: CallbackAddressResolver,
   ) {}
 
   create(input: PushNotificationConfigInput, task: A2ATask): A2ATaskPushNotificationConfig {
@@ -75,7 +74,7 @@ export class A2APushNotificationManager {
       id,
       taskId: input.taskId,
       contextId: task.contextId,
-      projectId: input.projectId ?? projectIdFromTaskMetadata(task.metadata),
+      scopeId: input.scopeId ?? scopeIdFromTaskMetadata(task.metadata),
       url: input.url,
       token: input.token,
       authentication: input.authentication,
@@ -93,7 +92,7 @@ export class A2APushNotificationManager {
     this.ensureSubscription(backend, {
       taskId: task.id,
       contextId: task.contextId,
-      projectId: projectIdFromTaskMetadata(task.metadata),
+      scopeId: scopeIdFromTaskMetadata(task.metadata),
     });
   }
 
@@ -198,8 +197,7 @@ export class A2APushNotificationManager {
   ): Promise<void> {
     await deliverPushNotificationCallback(config, update, {
       log: this.log,
-      fetchImpl: this.fetchImpl,
-      callbackAddressResolver: this.callbackAddressResolver,
+      http: this.http,
     });
   }
 
@@ -252,7 +250,7 @@ export class A2APushNotificationManager {
       selectors.set(key, {
         taskId: config.taskId,
         contextId: config.contextId,
-        projectId: config.projectId,
+        scopeId: config.scopeId,
       });
     }
     return [...selectors.values()];
@@ -278,7 +276,7 @@ function configMatchesTaskScope(
   selector: TaskSelector,
 ): boolean {
   if (config.taskId !== selector.taskId) return false;
-  if (selector.projectId !== null && config.projectId !== selector.projectId) return false;
+  if (selector.scopeId !== null && config.scopeId !== selector.scopeId) return false;
   if (selector.contextId !== null && config.contextId !== selector.contextId) return false;
   return true;
 }

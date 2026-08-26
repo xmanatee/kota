@@ -3,7 +3,6 @@ import {
   describeAutonomyTaskRank,
 } from "#modules/autonomy/task-ranking.js";
 import {
-  getRepoTaskStateTransitionBlocker,
   listFullRepoTasks,
   listRepoTaskDependencyWaits,
   type RepoTaskClass,
@@ -91,16 +90,16 @@ function describeCandidate(record: RepoTaskFullRecord): PromotionCandidateSummar
  * to `applyPromotion` (which performs the `git mv` via `moveTaskById`).
  */
 export function buildPromotionRationale(
-  projectDir: string,
+  workspaceRoot: string,
   options: { batchLimit?: number } = {},
 ): PromotionRationale {
   const batchLimit = options.batchLimit ?? PROMOTION_BATCH_LIMIT;
-  const records = listFullRepoTasks(projectDir, ["backlog", "blocked"]);
-  const actionable = listFullRepoTasks(projectDir, ["ready", "doing"])
+  const records = listFullRepoTasks(workspaceRoot, ["backlog", "blocked"]);
+  const actionable = listFullRepoTasks(workspaceRoot, ["ready", "doing"])
     .sort(compareAutonomyTasks);
   const incumbent = actionable.find((record) => record.state === "ready") ?? null;
   const waitingById = new Map(
-    listRepoTaskDependencyWaits(projectDir, ["backlog", "blocked"]).map((wait) => [
+    listRepoTaskDependencyWaits(workspaceRoot, ["backlog", "blocked"]).map((wait) => [
       wait.id,
       wait.waitingOn,
     ]),
@@ -115,18 +114,7 @@ export function buildPromotionRationale(
   const dependencyClearBacklog = allBacklog.filter((record) =>
     !record.anchor && !waitingById.has(record.id)
   );
-  const transitionBlockerById = new Map(
-    dependencyClearBacklog.flatMap((record) => {
-      const blocker = getRepoTaskStateTransitionBlocker(record, "ready");
-      return blocker === null ? [] : [[record.id, blocker] as const];
-    }),
-  );
-  const transitionBlockedBacklog = dependencyClearBacklog.filter((record) =>
-    transitionBlockerById.has(record.id)
-  );
-  const promotableBacklog = dependencyClearBacklog.filter((record) =>
-    !transitionBlockerById.has(record.id)
-  );
+  const promotableBacklog = dependencyClearBacklog;
   const blocked = records
     .filter((record) => record.state === "blocked")
     .sort(compareBacklogCandidates);
@@ -173,14 +161,6 @@ export function buildPromotionRationale(
     state: "backlog" as const,
     reason: `waiting on task dependencies: ${waitingById.get(record.id)?.join(", ") ?? ""}`,
   }));
-  const rejectedTransitionBlocked = transitionBlockedBacklog.map((record) => ({
-    id: record.id,
-    title: record.title,
-    priority: record.priority,
-    taskClass: record.taskClass,
-    state: "backlog" as const,
-    reason: `cannot enter ready/: ${transitionBlockerById.get(record.id) ?? ""}`,
-  }));
   const rejectedBlocked = blocked.map((record) => ({
     id: record.id,
     title: record.title,
@@ -202,7 +182,7 @@ export function buildPromotionRationale(
   if (selected.length === 0) {
     summaryLines.push(incumbent
       ? `No backlog task outranks the current ready frontier ${incumbent.id}.`
-      : "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, dependency-waiting, or ready-invalid work remains).",
+      : "No backlog tasks were available to promote (the queue is empty or only blocked, anchor, or dependency-waiting work remains).",
     );
   } else {
     const ids = selected
@@ -229,14 +209,6 @@ export function buildPromotionRationale(
       `Backlog tasks waiting on hard predecessors skipped: ${waitingIds}.`,
     );
   }
-  if (rejectedTransitionBlocked.length > 0) {
-    const transitionBlockedIds = rejectedTransitionBlocked
-      .map((r) => `${r.id} (${r.reason})`)
-      .join(", ");
-    summaryLines.push(
-      `Backlog tasks not ready-actionable skipped: ${transitionBlockedIds}.`,
-    );
-  }
   if (rejectedBlocked.length > 0) {
     const blockedIds = rejectedBlocked.map((r) => r.id).join(", ");
     summaryLines.push(
@@ -250,7 +222,6 @@ export function buildPromotionRationale(
       ...rejectedBacklog,
       ...rejectedAnchors,
       ...rejectedDependencyWaiting,
-      ...rejectedTransitionBlocked,
       ...rejectedBlocked,
     ],
     candidates,

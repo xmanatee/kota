@@ -43,7 +43,6 @@ function makeCtx(config: Record<string, unknown>): ModuleContext {
 }
 
 afterEach(() => {
-  emailModule.onUnload?.();
   vi.clearAllMocks();
 });
 
@@ -116,12 +115,12 @@ describe("email module setup", () => {
       throw new Error("expected smtp-credentials setup requirement");
     }
     expect(secretRequirement.secretRefs).toEqual([
-      { name: "SMTP_USER", scope: "project" },
-      { name: "SMTP_PASS", scope: "project" },
+      { name: "SMTP_USER", scope: "scope" },
+      { name: "SMTP_PASS", scope: "scope" },
     ]);
   });
 
-  it("resolves SMTP auth secret references before creating the mailer", () => {
+  it("resolves SMTP auth secret references before creating the mailer", async () => {
     const ctx = makeCtx({
       smtp: {
         host: "smtp.example.test",
@@ -140,7 +139,7 @@ describe("email module setup", () => {
       })[key] ?? null,
     );
 
-    emailModule.onLoad?.(ctx as never);
+    const activation = await emailModule.onLoad?.(ctx as never);
 
     expect(createMailer).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -151,5 +150,6 @@ describe("email module setup", () => {
         },
       }),
     );
+    await activation?.dispose();
   });
 });

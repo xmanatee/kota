@@ -3,14 +3,19 @@
 // `/workflow/runs`, `/workflow/pause`, `/workflow/resume`).
 
 import {
-  parseProjectRegistryProjection,
+  parseClientIdentity,
   parseScopeRegistryProjection,
   parseScopePolicyRouteResponse,
-  type ProjectRegistryProjection,
+  type ClientIdentity,
   type ScopeRegistryProjection,
   type ScopePolicyRouteResponse,
-} from './conformance/decoders';
-import { daemonRequest, withProject, type DaemonHttp } from './http';
+} from './daemon-contract.generated';
+import {
+  daemonRequest,
+  daemonResponse,
+  withScope,
+  type DaemonHttp,
+} from './http';
 
 export interface HealthResponse {
   status: 'ok' | 'degraded';
@@ -86,47 +91,18 @@ export interface RunDetail extends RunSummary {
   warnings?: Array<{ type: string; message: string }>;
 }
 
-/**
- * Permissive identity envelope used by the mobile client's project
- * selector. The strict cross-client conformance decoders (in
- * `./conformance/decoders.ts`) already validate the projects projection
- * field-by-field; we only re-parse `projects` here so the picker's
- * input is typed and rejects an empty / inconsistent registry the same
- * way the cross-client gate does.
- */
-export interface ClientIdentity {
-  projectName: string;
-  projectDir: string;
-  projects: ProjectRegistryProjection;
-  daemonVersion: string;
-  pid: number;
-  startedAt: string;
-}
+export type { ClientIdentity } from './daemon-contract.generated';
 
 // `/health` is intentionally public (no bearer token) — it's the daemon
 // reachability probe.
 export function getHealth(http: DaemonHttp): Promise<HealthResponse> {
-  return fetch(`${http.baseUrl}/health`).then((r) => r.json());
+  return daemonResponse(http, '/health', {}, false).then((response) =>
+    response.json() as Promise<HealthResponse>
+  );
 }
 
 export async function getIdentity(http: DaemonHttp): Promise<ClientIdentity> {
-  const raw = await daemonRequest<Record<string, unknown>>(http, '/identity');
-  const projects = parseProjectRegistryProjection(raw.projects);
-  return {
-    projectName: String(raw.projectName ?? ''),
-    projectDir: String(raw.projectDir ?? ''),
-    projects,
-    daemonVersion: String(raw.daemonVersion ?? ''),
-    pid: typeof raw.pid === 'number' ? raw.pid : 0,
-    startedAt: String(raw.startedAt ?? ''),
-  };
-}
-
-export async function getProjects(
-  http: DaemonHttp,
-): Promise<ProjectRegistryProjection> {
-  const raw = await daemonRequest<unknown>(http, '/projects');
-  return parseProjectRegistryProjection(raw);
+  return parseClientIdentity(await daemonRequest<unknown>(http, '/identity'));
 }
 
 export async function getScopes(
@@ -149,47 +125,47 @@ export async function getScopePolicy(
 
 export function getStatus(
   http: DaemonHttp,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<DaemonStatus> {
-  return daemonRequest<DaemonStatus>(http, withProject('/status', projectId));
+  return daemonRequest<DaemonStatus>(http, withScope('/status', scopeId));
 }
 
 export function getRuns(
   http: DaemonHttp,
   workflow: string | undefined,
   limit: number,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<{ runs: RunSummary[] }> {
   const params = new URLSearchParams();
   if (workflow) params.set('workflow', workflow);
   params.set('limit', String(limit));
   return daemonRequest<{ runs: RunSummary[] }>(
     http,
-    withProject(`/workflow/runs?${params}`, projectId),
+    withScope(`/workflow/runs?${params}`, scopeId),
   );
 }
 
 export function getRunDetail(
   http: DaemonHttp,
   id: string,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<RunDetail> {
   return daemonRequest<RunDetail>(
     http,
-    withProject(`/workflow/runs/${encodeURIComponent(id)}`, projectId),
+    withScope(`/workflow/runs/${encodeURIComponent(id)}`, scopeId),
   );
 }
 
 export function pauseDispatch(
   http: DaemonHttp,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<{ ok: boolean; paused: boolean }> {
-  return daemonRequest(http, withProject('/workflow/pause', projectId), { method: 'POST' });
+  return daemonRequest(http, withScope('/workflow/pause', scopeId), { method: 'POST' });
 }
 
 export function resumeDispatch(
   http: DaemonHttp,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<{ ok: boolean; paused: boolean }> {
-  return daemonRequest(http, withProject('/workflow/resume', projectId), { method: 'POST' });
+  return daemonRequest(http, withScope('/workflow/resume', scopeId), { method: 'POST' });
 }

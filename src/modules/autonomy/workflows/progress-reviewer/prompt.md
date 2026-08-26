@@ -32,7 +32,8 @@ you there; do not invent ids from paths, run directories, or summaries.
 For many similar events or dead letters, cite a few representative flat
 evidence ids plus the count; do not enumerate every item.
 Return no follow-up when the evidence is healthy or too thin. Create follow-up
-task proposals only for concrete, non-duplicate work with acceptance evidence.
+task proposals only for concrete, non-duplicate work with a clear description
+of how a reviewer will know the desired outcome was reached.
 Ask owner questions only when the evidence shows a steering decision that the
 repo cannot infer safely. Give every task or question a stable lowercase
 `topicKey` describing the underlying finding or decision, such as

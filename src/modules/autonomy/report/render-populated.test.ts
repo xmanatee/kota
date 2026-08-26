@@ -134,7 +134,6 @@ describe("renderAutonomyReport with populated data", () => {
             stepId: "build",
             code: "missing_final_verification_after_edit",
             runCount: 3,
-            repairTaskId: "task-repair-trajectory-diagnostic-pattern-abc123def456",
             evidenceArtifactPaths: [
               ".kota/runs/r1/steps/build.trajectory-diagnostics.json",
             ],
@@ -240,7 +239,7 @@ describe("renderAutonomyReport with populated data", () => {
     expect(text).toContain("$0.40");
     expect(text).toContain("$0.10");
     expect(text).toContain("missing_final_verification_after_edit");
-    expect(text).toContain("task-repair-trajectory-diagnostic-pattern");
+    expect(text).not.toContain("task-repair-trajectory-diagnostic-pattern");
     expect(text).toContain("task-review-follow-up");
     expect(text).toContain("workflow:builder:runtime-warning");
     expect(text).toContain("local-code");

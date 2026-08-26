@@ -6,11 +6,11 @@ import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import {
   EventedDeadLetterQueueStore,
-  projectScopedDeadLetterChangedPublisher,
+  scopedDeadLetterChangedPublisher,
 } from "#core/daemon/dead-letter-queue-events.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
@@ -47,22 +47,22 @@ function waitForLifecycle(
 }
 
 describe("issue-driven autonomy lifecycle integration", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let savedPreset: string | undefined;
 
   beforeEach(() => {
     savedPreset = process.env[PRESET_ENV_VAR];
     process.env[PRESET_ENV_VAR] = "claude";
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-issue-lifecycle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    seedIssueDrivenLoopFixture(projectDir);
+    seedIssueDrivenLoopFixture(workspaceRoot);
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     if (savedPreset === undefined) delete process.env[PRESET_ENV_VAR];
     else process.env[PRESET_ENV_VAR] = savedPreset;
   });
@@ -81,7 +81,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         taskPriority: "p1",
         taskArea: "autonomy",
         taskClass: "Product",
-        taskAcceptanceEvidence:
+        taskHowWeWillKnow:
           "A production-shaped lifecycle fixture reaches a typed clear without another AI review.",
         ownerQuestion: "",
         ownerReason: "",
@@ -97,9 +97,9 @@ describe("issue-driven autonomy lifecycle integration", () => {
       } as never);
 
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
+      const pbus = new ScopedEventBus(bus, deriveDirectoryScopeId(workspaceRoot));
       const source = makeAutonomyIssueSourceContext(
-        projectDir, bus, deriveDirectoryScopeId(projectDir),
+        workspaceRoot, bus, deriveDirectoryScopeId(workspaceRoot),
       );
       subscribeAutonomyIssueSources(source.ctx);
       const completed: Array<{
@@ -124,7 +124,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         {
           ...repoTaskMutationWorkflow,
           definitionPath: "src/modules/repo-tasks/repo-task-mutation-workflow.ts",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
         },
       ];
       const createRuntime = (workflowNames: string[]) => createTestWorkflowRuntime({
@@ -133,7 +133,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
           defaultPreset: "claude",
         },
         bus,
-        projectDir,
+        scopeRoot: workspaceRoot,
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflowNames.includes(workflow.name)
@@ -149,13 +149,13 @@ describe("issue-driven autonomy lifecycle integration", () => {
       issueRuntime.runtime.start();
       try {
         const deadLetters = new EventedDeadLetterQueueStore(
-          join(projectDir, ".kota", "dead-letter-queue"),
+          join(workspaceRoot, ".kota", "dead-letter-queue"),
           () => new Date("2026-08-14T02:00:00.000Z"),
-          projectScopedDeadLetterChangedPublisher(pbus),
+          scopedDeadLetterChangedPublisher(pbus),
         );
         const deadLetter = createWorkflowDispatchDeadLetter({
           store: deadLetters,
-          scopeId: deriveDirectoryScopeId(projectDir),
+          scopeId: deriveDirectoryScopeId(workspaceRoot),
           workflowName: "progress-reviewer",
           trigger: {
             event: "autonomy.progress-review.requested",
@@ -189,7 +189,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         );
         const improverRun = completed.find((run) => run.workflow === "improver")!;
         const improverMetadata = JSON.parse(
-          readFileSync(join(projectDir, improverRun.runDir, "metadata.json"), "utf-8"),
+          readFileSync(join(workspaceRoot, improverRun.runDir, "metadata.json"), "utf-8"),
         ) as { status: string };
         if (improverMetadata.status !== "success") {
           throw new Error(JSON.stringify(improverMetadata, null, 2));
@@ -197,12 +197,12 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
         await waitForLifecycle(
           () =>
-            readAutonomyIssueProjection(projectDir).issues[0]
+            readAutonomyIssueProjection(workspaceRoot).issues[0]
               ?.links.deadLetterIds.includes(deadLetter.id) === true,
           "the later dead-letter evidence to enrich the original issue",
         );
         expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
-        expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
+        expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([
           expect.objectContaining({
             semanticRevision: 1,
             links: expect.objectContaining({ deadLetterIds: [deadLetter.id] }),
@@ -213,11 +213,11 @@ describe("issue-driven autonomy lifecycle integration", () => {
       }
 
       const dispatcherRuntime = createRuntime(["dispatcher"]);
-      const queueSnapshot = getRepoTaskQueueSnapshot(projectDir);
+      const queueSnapshot = getRepoTaskQueueSnapshot(workspaceRoot);
       if (queueSnapshot.actionableCount !== 1) {
-        throw new Error(JSON.stringify({ queueSnapshot, tasks: listFullRepoTasks(projectDir) }, null, 2));
+        throw new Error(JSON.stringify({ queueSnapshot, tasks: listFullRepoTasks(workspaceRoot) }, null, 2));
       }
-      const generatedTaskId = listFullRepoTasks(projectDir)[0]!.id;
+      const generatedTaskId = listFullRepoTasks(workspaceRoot)[0]!.id;
       dispatcherRuntime.runtime.start();
       try {
         pbus.emit("runtime.idle", {
@@ -232,8 +232,8 @@ describe("issue-driven autonomy lifecycle integration", () => {
         await dispatcherRuntime.stop();
       }
 
-      const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
-      const tasks = listFullRepoTasks(projectDir);
+      const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
+      const tasks = listFullRepoTasks(workspaceRoot);
       expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
       expect(tasks).toEqual([expect.objectContaining({ state: "ready" })]);
       expect(issue).toMatchObject({
@@ -246,7 +246,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
       });
 
       const resolutionRunDir = join(
-        projectDir,
+        workspaceRoot,
         ".kota",
         "runs",
         "builder-resolution",
@@ -313,7 +313,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         );
 
         await waitForLifecycle(
-          () => readAutonomyIssueProjection(projectDir).issues[0]?.status === "resolved",
+          () => readAutonomyIssueProjection(workspaceRoot).issues[0]?.status === "resolved",
           "the explicit clear observation",
         );
         await waitForLifecycle(
@@ -321,16 +321,16 @@ describe("issue-driven autonomy lifecycle integration", () => {
           "the committed resolution attention",
         );
         await waitForLifecycle(
-          () => listFullRepoTasks(projectDir)[0]?.state === "dropped",
+          () => listFullRepoTasks(workspaceRoot)[0]?.state === "dropped",
           "the shared task mutation writer",
         );
-        expect(readAutonomyIssueProjection(projectDir).issues[0]).toMatchObject({
+        expect(readAutonomyIssueProjection(workspaceRoot).issues[0]).toMatchObject({
           status: "resolved",
           semanticRevision: 1,
           links: { taskIds: [], ownerQuestionIds: [] },
         });
         expect(attention.some((text) => text.includes("action resolved"))).toBe(true);
-        expect(listFullRepoTasks(projectDir)).toEqual([
+        expect(listFullRepoTasks(workspaceRoot)).toEqual([
           expect.objectContaining({ id: tasks[0]!.id, state: "dropped" }),
         ]);
         expect(

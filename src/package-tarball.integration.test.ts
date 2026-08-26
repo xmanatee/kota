@@ -112,11 +112,11 @@ describe("published package", () => {
       join(consumerDir, "consumer.ts"),
       [
         'import type { KotaModule } from "kota/module";',
-        'import type { HarnessOptions } from "kota/testing";',
+		'import type { WorkflowScenarioOptions } from "kota/testing";',
         "const moduleContract: KotaModule | null = null;",
-        "const harnessOptions: HarnessOptions | null = null;",
+		"const scenarioOptions: WorkflowScenarioOptions | null = null;",
         "void moduleContract;",
-        "void harnessOptions;",
+		"void scenarioOptions;",
         "",
       ].join("\n"),
     );

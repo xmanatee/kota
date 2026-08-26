@@ -222,12 +222,8 @@ export type FixtureRun = {
   runIndex: number;
   /** Total number of runs planned for this fixture in this repeat set. */
   repeatCount: number;
-  /**
-   * Whether the fixture executed against live agent/tool calls or replayed
-   * fixture-owned agent-step recordings. Older reports may omit this field;
-   * attribution treats missing mode as live for backward compatibility.
-   */
-  executionMode?: FixtureRunExecutionMode;
+  /** Whether the fixture executed live calls or fixture-owned replay recordings. */
+  executionMode: FixtureRunExecutionMode;
   outcome: FixtureRunOutcome;
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;

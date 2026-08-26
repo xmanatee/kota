@@ -8,6 +8,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StdioForeignModuleConfig } from "./foreign-module.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
+import type { KotaModule } from "./module-types.js";
 
 const PROJECT_CWD = process.cwd();
 
@@ -16,6 +17,11 @@ vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 beforeEach(() => { tryEmitMock.mockClear(); });
 afterEach(() => { vi.restoreAllMocks(); });
+
+async function dispose(module: KotaModule): Promise<void> {
+  const activation = await module.onLoad?.({} as never);
+  if (activation) await activation.dispose();
+}
 
 function healthModule(
   behavior: "healthy" | "degraded" | "unhealthy" | "no-response",
@@ -66,7 +72,7 @@ describe("KEMP health_check / health_status", () => {
     expect(result.status).toBe("healthy");
     expect(result.message).toBeUndefined();
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 
   it("module reports degraded with detail message", async () => {
@@ -77,7 +83,7 @@ describe("KEMP health_check / health_status", () => {
     expect(result.status).toBe("degraded");
     expect(result.message).toBe("DB pool exhausted");
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 
   it("module reports unhealthy with detail message", async () => {
@@ -88,7 +94,7 @@ describe("KEMP health_check / health_status", () => {
     expect(result.status).toBe("unhealthy");
     expect(result.message).toBe("API key expired");
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 
   it("module does not respond to health_check → assume healthy", async () => {
@@ -98,6 +104,6 @@ describe("KEMP health_check / health_status", () => {
     const result = await ext.healthCheck!();
     expect(result.status).toBe("healthy");
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 });

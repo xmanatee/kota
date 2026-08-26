@@ -27,7 +27,7 @@ import type {
 export { eventEnvelopePayloadForFixture } from "./events.js";
 
 export type SimulateAutomationArgs = {
-  projectDir: string;
+  scopeRoot: string;
   definitions: readonly WorkflowDefinition[];
   moduleManifests?: readonly ModuleCapabilityManifestProjection[];
   availableToolNames?: ReadonlySet<string>;
@@ -140,7 +140,7 @@ function requestSummary(request: WorkflowSimulationRequest): WorkflowSimulationR
 export async function simulateAutomation(
   args: SimulateAutomationArgs,
 ): Promise<WorkflowSimulationResult> {
-  const events = resolveEvents(args.projectDir, args.request);
+  const events = resolveEvents(args.scopeRoot, args.request);
   const batchSimulation = createBatchSimulationState(args.definitions);
   const inputs: WorkflowSimulationInputResult[] = [];
   try {

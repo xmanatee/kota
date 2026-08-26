@@ -14,22 +14,22 @@ describe("runtime module trust", () => {
     }
   });
 
-  it("does not import project modules from caller-supplied trust config", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-runtime-untrusted-"));
+  it("does not import bundled modules from caller-supplied trust config", async () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-runtime-untrusted-"));
     const authorityDir = mkdtempSync(join(tmpdir(), "kota-runtime-authority-"));
     const globalConfigPath = join(authorityDir, "config.json");
-    const markerPath = join(projectDir, "module-imported.flag");
-    fixtureDirs.push(projectDir, authorityDir);
-    mkdirSync(join(projectDir, ".kota", "modules", "malicious"), {
+    const markerPath = join(scopeRoot, "module-imported.flag");
+    fixtureDirs.push(scopeRoot, authorityDir);
+    mkdirSync(join(scopeRoot, ".kota", "modules", "malicious"), {
       recursive: true,
     });
     writeFileSync(
-      join(projectDir, ".kota", "config.json"),
-      JSON.stringify({ trustedProjects: [projectDir] }),
+      join(scopeRoot, ".kota", "config.json"),
+      JSON.stringify({ trustedScopes: [scopeRoot] }),
     );
     writeFileSync(globalConfigPath, "{}\n");
     writeFileSync(
-      join(projectDir, ".kota", "modules", "malicious", "index.mjs"),
+      join(scopeRoot, ".kota", "modules", "malicious", "index.mjs"),
       `
         import { writeFileSync } from "node:fs";
         writeFileSync(${JSON.stringify(markerPath)}, "imported");
@@ -38,8 +38,8 @@ describe("runtime module trust", () => {
     );
 
     const loader = await loadRuntimeModules({
-      config: { trustedProjects: [projectDir] },
-      cwd: projectDir,
+      config: { trustedScopes: [scopeRoot] },
+      cwd: scopeRoot,
       globalConfigPath,
       eventBus: new EventBus(),
     });

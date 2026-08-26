@@ -4,7 +4,7 @@ export const SHADOW_SEMANTIC_REVIEW_SCHEMA_VERSION = 2;
 export const SHADOW_SEMANTIC_REVIEW_ARTIFACT_TYPE = "shadow-semantic-review";
 export const SHADOW_SEMANTIC_REVIEW_DIR = "shadow-review";
 
-export type ShadowSemanticReviewMode = "shadow" | "advisory" | "blocking";
+export type ShadowSemanticReviewMode = "shadow" | "advisory";
 export type ShadowSemanticReviewTargetKind =
   | "task-queue"
   | "source-decision"
@@ -64,7 +64,6 @@ export type ShadowSemanticReviewerDeclaration = {
   targetKind: ShadowSemanticReviewTargetKind;
   reviewer: ShadowSemanticReviewerProfile;
   promotionCandidateRef: string;
-  blockingDecisionArtifact?: string;
 };
 
 export type ShadowSemanticReviewerResponse = {
@@ -86,7 +85,6 @@ export type ShadowSemanticReviewArtifact = {
   mode: ShadowSemanticReviewMode;
   targetKind: ShadowSemanticReviewTargetKind;
   promotionCandidateRef: string;
-  blockingDecisionArtifact?: string;
   status: ShadowSemanticReviewStatus;
   decision: ShadowSemanticReviewDecision;
   target?: {

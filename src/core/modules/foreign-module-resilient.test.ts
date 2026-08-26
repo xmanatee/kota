@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { StdioForeignModuleConfig } from "./foreign-module.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
+import type { KotaModule } from "./module-types.js";
 
 const PROJECT_CWD = process.cwd();
 
@@ -20,6 +21,11 @@ vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 
 beforeEach(() => { tryEmitMock.mockClear(); });
 afterEach(() => { vi.restoreAllMocks(); });
+
+async function dispose(module: KotaModule): Promise<void> {
+  const activation = await module.onLoad?.({} as never);
+  if (activation) await activation.dispose();
+}
 
 type ResilienceConfig = Omit<StdioForeignModuleConfig, "transport" | "command" | "args">;
 
@@ -140,7 +146,7 @@ describe("KEMP resilient module — crash restart", () => {
     expect(secondResult.is_error).toBeFalsy();
     expect(secondResult.content).toBe("world");
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 });
 
@@ -166,7 +172,7 @@ describe("KEMP resilient module — max restarts exhausted", () => {
       reason: expect.any(String),
     }));
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 });
 
@@ -187,7 +193,7 @@ describe("KEMP resilient module — health state tracking", () => {
     expect(health.restartCount).toBe(0);
     expect(health.lastRestartAt).toBeUndefined();
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 
   it("increments restartCount and sets lastRestartAt after a crash-restart cycle", async () => {
@@ -215,7 +221,7 @@ describe("KEMP resilient module — health state tracking", () => {
     expect(typeof health.lastRestartAt).toBe("string");
     expect(health.status).toBe("ok");
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 
   it("sets status to dead when all restarts exhausted", async () => {
@@ -236,7 +242,7 @@ describe("KEMP resilient module — health state tracking", () => {
     expect(health.status).toBe("dead");
     expect(health.restartCount).toBeGreaterThan(0);
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 10_000);
 });
 
@@ -265,6 +271,6 @@ describe("KEMP resilient module — ping timeout", () => {
       reason: expect.stringContaining("ping"),
     }));
 
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 15_000);
 });

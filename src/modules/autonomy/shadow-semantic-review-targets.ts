@@ -3,10 +3,10 @@ import type { ShadowSemanticReviewArtifactRef } from "./shadow-semantic-review-t
 import { getWorkflowChangeEvidence } from "./workflow-diff.js";
 
 export function workflowMutationArtifacts(
-  projectDir: string,
+  workspaceRoot: string,
 ): ShadowSemanticReviewArtifactRef[] {
   try {
-    const evidence = getWorkflowChangeEvidence(projectDir);
+    const evidence = getWorkflowChangeEvidence(workspaceRoot);
     return [
       {
         path: "git:workflow-mutation-files",
@@ -33,13 +33,13 @@ export function workflowMutationArtifacts(
 
 export type ShadowSemanticReviewTargetOperationInput = {
   kind: "workflow-mutations";
-  projectDir: string;
+  workspaceRoot: string;
 };
 
 export function collectShadowSemanticReviewTargetsInWorker(
   input: ShadowSemanticReviewTargetOperationInput,
 ): ShadowSemanticReviewArtifactRef[] {
-  return workflowMutationArtifacts(input.projectDir);
+  return workflowMutationArtifacts(input.workspaceRoot);
 }
 
 export const shadowSemanticReviewTargetOperation =

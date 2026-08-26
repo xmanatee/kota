@@ -38,7 +38,7 @@ const applyMutation = typedCodeStep<MutationResult>({
   run: (ctx) => {
     const request = inspectRequest.outputRequired(ctx);
     const queue = new OwnerQuestionQueue(
-      join(ctx.scopeDir, ".kota", "owner-questions"),
+      join(ctx.scopeRoot, ".kota", "owner-questions"),
     );
     const current = queue.get(request.questionId);
     const replay = current?.status === "dismissed" &&

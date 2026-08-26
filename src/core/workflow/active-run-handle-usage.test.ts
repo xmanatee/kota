@@ -18,7 +18,7 @@ function finish(metadata: WorkflowRunMetadata): WorkflowRunMetadata {
   roots.push(root);
   const handle = createActiveRunHandle({
     id: metadata.id,
-    projectDir: root,
+    scopeRoot: root,
     runDirPath: join(root, metadata.runDir),
     metadata,
     headSha: null,

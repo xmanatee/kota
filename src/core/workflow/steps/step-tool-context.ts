@@ -1,5 +1,5 @@
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type {
   WorkflowRunMetadata,
   WorkflowRuntimeResources,
@@ -7,34 +7,31 @@ import type {
 
 export function buildWorkflowToolContext(
   metadata: WorkflowRunMetadata,
-  pbus: ProjectScopedEventBus,
+  pbus: ScopedEventBus,
   stepId: string,
-  scopeDir: string,
-  projectDir: string,
+  scopeRoot: string,
+  workspaceRoot: string,
   sessionId: string | undefined,
   runtimeResources: WorkflowRuntimeResources | undefined,
   approvalQueue: ApprovalQueue | undefined,
   authorityConfigPath: string,
 ) {
   const scopeId = pbus.getScopeId();
-  const projectId = pbus.getProjectId();
   return {
     ...(approvalQueue !== undefined ? { approvalQueue } : {}),
     authorityConfigPath,
-    projectDir: scopeDir,
-    cwd: projectDir,
+    scopeRoot,
+    cwd: workspaceRoot,
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(runtimeResources !== undefined ? { env: runtimeResources.env } : {}),
     stepId,
     scopeId,
-    projectId,
     workflow: {
       workflowName: metadata.workflow,
       runId: metadata.id,
       stepId,
       spanId: `${metadata.id}:${stepId}`,
       scopeId,
-      projectId,
     },
   };
 }

@@ -23,33 +23,40 @@ export type InspectBlockedResult = {
 };
 
 export function inspectBlockedInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   nowMs: number;
 }): InspectBlockedResult {
-  const worktree = getRepoWorktreeStatus(input.projectDir);
-  const records = listBlockedTasksWithPreconditions(input.projectDir);
+  const worktree = getRepoWorktreeStatus(input.workspaceRoot);
+  const records = listBlockedTasksWithPreconditions(input.workspaceRoot);
   return {
     dirty: worktree.available && worktree.dirty,
     blockedCount: records.length,
     ownerAsk: pickOwnerAskCandidate(records, input.nowMs),
-    actions: classifyBlockedActions(records, input.projectDir, input.nowMs),
+    actions: classifyBlockedActions(
+      records,
+      input.workspaceRoot,
+      input.nowMs,
+      input.scopeRoot,
+    ),
   };
 }
 
 export function promoteSatisfiedBlockedTasksInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
 }): DeterministicPromotionResult {
-  return promoteSatisfiedBlockedTasks(input.projectDir);
+  return promoteSatisfiedBlockedTasks(input.workspaceRoot, input.scopeRoot);
 }
 
 export function applyAskOutcomeInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
   candidate: OwnerAskCandidate;
   approved: boolean;
   nowIso: string;
 }): AskOutcomeApplication[] {
   return applyAskOutcome({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     candidate: input.candidate,
     approved: input.approved,
     now: new Date(input.nowIso),
@@ -57,19 +64,21 @@ export function applyAskOutcomeInWorker(input: {
 }
 
 export function instructOperatorCaptureInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   nowMs: number;
 }): { instructions: OperatorCaptureInstruction[] } {
   const candidates = listOperatorCaptureInstructCandidates(
-    listBlockedTasksWithPreconditions(input.projectDir),
-    input.projectDir,
+    listBlockedTasksWithPreconditions(input.workspaceRoot),
+    input.workspaceRoot,
     input.nowMs,
+    input.scopeRoot,
   );
   const now = new Date(input.nowMs);
   return {
     instructions: candidates.map((candidate) =>
       applyOperatorCaptureInstruction({
-        projectDir: input.projectDir,
+        workspaceRoot: input.workspaceRoot,
         candidate,
         now,
       }),
@@ -78,18 +87,18 @@ export function instructOperatorCaptureInWorker(input: {
 }
 
 export const inspectBlockedOperation = defineWorkflowBlockingOperation<
-  { projectDir: string; nowMs: number },
+  { workspaceRoot: string; scopeRoot: string; nowMs: number },
   InspectBlockedResult
 >(import.meta.url, "inspectBlockedInWorker");
 
 export const promoteSatisfiedBlockedTasksOperation = defineWorkflowBlockingOperation<
-  { projectDir: string },
+  { workspaceRoot: string; scopeRoot: string },
   DeterministicPromotionResult
 >(import.meta.url, "promoteSatisfiedBlockedTasksInWorker");
 
 export const applyAskOutcomeOperation = defineWorkflowBlockingOperation<
   {
-    projectDir: string;
+    workspaceRoot: string;
     candidate: OwnerAskCandidate;
     approved: boolean;
     nowIso: string;
@@ -98,6 +107,6 @@ export const applyAskOutcomeOperation = defineWorkflowBlockingOperation<
 >(import.meta.url, "applyAskOutcomeInWorker");
 
 export const instructOperatorCaptureOperation = defineWorkflowBlockingOperation<
-  { projectDir: string; nowMs: number },
+  { workspaceRoot: string; scopeRoot: string; nowMs: number },
   { instructions: OperatorCaptureInstruction[] }
 >(import.meta.url, "instructOperatorCaptureInWorker");

@@ -40,7 +40,7 @@ describe("a2a channel streaming routes", () => {
           message: {
             role: "ROLE_USER",
             parts: [{ text: "stream it", mediaType: "text/plain" }],
-            metadata: { projectId: "proj-1" },
+            metadata: { scopeId: "proj-1" },
           },
         },
       }),
@@ -51,7 +51,7 @@ describe("a2a channel streaming routes", () => {
     expect(frames[0]?.result.statusUpdate.status.state).toBe("TASK_STATE_WORKING");
     expect(frames[1]?.result.artifactUpdate.artifact.parts[0].text).toBe("partial");
     expect(frames[2]?.result.task.status.state).toBe("TASK_STATE_COMPLETED");
-    expect(backend.sentInputs[0]?.projectId).toBe("proj-1");
+    expect(backend.sentInputs[0]?.scopeId).toBe("proj-1");
   });
 
   it("emits one SSE version error for streaming version mismatches before backend work", async () => {
@@ -117,14 +117,14 @@ describe("a2a channel streaming routes", () => {
           message: {
             role: "ROLE_USER",
             parts: [{ text: "stream it", mediaType: "text/plain" }],
-            metadata: { projectId: "proj-2" },
+            metadata: { scopeId: "proj-2" },
           },
         },
       },
       {
         id: "subscribe-routing",
         method: "SubscribeToTask",
-        params: { id: "task-1", tenant: "proj-1", projectId: "proj-2" },
+        params: { id: "task-1", tenant: "proj-1", scopeId: "proj-2" },
       },
     ]) {
       const res = await fetch(`${server.baseUrl}${A2A_RPC_PATH}`, {

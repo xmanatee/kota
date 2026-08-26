@@ -13,9 +13,9 @@ record from the right store.
 - One daemon-control route (`POST /retract`) plus its user-facing twin
   (`POST /api/retract`) — both share `createRetractRouteHandler` so the
   wire shape cannot drift between operator surfaces.
-- Both routes resolve a concrete project id before removal execution. Project
-  contributors receive `RetractProjectContext` and remove from that project's
-  stores and project root only.
+- Both routes resolve a concrete scope id before removal execution. Scope
+  contributors receive `RetractScopeContext` and remove from that scope's
+  stores and scope root only.
 - One `KotaClient.retract` namespace and one `kota retract` CLI
   subcommand rendered through `src/modules/rendering`.
 - One agent-callable tool (`retract`) contributed through the standard
@@ -33,7 +33,7 @@ A new contributor:
 
 1. Adds a literal to the `RetractTarget` union and an arm to the
    `RetractRecord` discriminated union plus the matching arm to
-   `RetractRequest` in `src/core/server/kota-client.ts`.
+   `RetractRequest` in this module's `client.ts`.
 2. Adds an adapter in `contributors.ts` that wraps its removal helper
    into a `RetractContributor`.
 3. Registers the new contributor in this module's `onLoad`.
@@ -72,13 +72,13 @@ the provider API, and core never hard-codes the target set.
 ## Boundaries
 
 - No raw filesystem deletes for tasks or inbox entries. Tasks route through
-  `moveTaskById(projectDir, id, "dropped")`; inbox entries route through the
+  `moveTaskById(scopeRoot, id, "dropped")`; inbox entries route through the
   repo-tasks domain's verified remove-and-stage operation.
-- Project contributors must use the supplied project context; default
-  provider getters are not a valid path for multi-project retract.
+- Scope contributors must use the supplied scope context; default
+  provider getters are not a valid path for multi-scope retract.
 - No second registry, no second public retract path. `register()` is
   the single way new stores join.
 
 Cross-surface retract consumers share `createRetractRouteHandler`,
-`renderRetractResultPlain`, and the conformance fixture. Keep the exact surface
-and fixture-arm lists in code and tests.
+`renderRetractResultPlain`, and generated daemon bindings. Tests cover each
+surface's observable behavior without duplicating the wire catalog.

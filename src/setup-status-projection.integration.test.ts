@@ -9,11 +9,11 @@ const CLI_PATH = fileURLToPath(new URL("./cli.ts", import.meta.url));
 const TSX_LOADER_PATH = fileURLToPath(import.meta.resolve("tsx"));
 
 function runSetupCli(
-  projectDir: string,
+  scopeRoot: string,
   args: readonly string[],
   stdin?: string,
 ): string {
-  const homeDir = join(projectDir, "operator-home");
+  const homeDir = join(scopeRoot, "operator-home");
   mkdirSync(homeDir, { recursive: true });
   const result = spawnSync(
     process.execPath,
@@ -26,7 +26,7 @@ function runSetupCli(
       ...args,
     ],
     {
-      cwd: projectDir,
+      cwd: scopeRoot,
       encoding: "utf8",
       env: { ...process.env, HOME: homeDir },
       ...(stdin !== undefined && { input: stdin }),
@@ -41,29 +41,42 @@ function runSetupCli(
 }
 
 describe("shipped setup status client projection", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const scopeRoot of scopeRoots.splice(0)) {
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
-  it("executes a revoked-to-ready CLI journey without disclosing submitted secrets", { timeout: 60_000 }, () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-setup-operator-journey-"));
-    projectDirs.push(projectDir);
+  it("renders shipped providers and executes the revoked-to-ready CLI journey", { timeout: 60_000 }, () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-setup-operator-journey-"));
+    scopeRoots.push(scopeRoot);
 
-    const revoked = runSetupCli(projectDir, ["revoke", "telegram", "bot-credentials"]);
+    const initial = runSetupCli(scopeRoot, ["list"]);
+    for (const identifier of [
+      "model-clients/openrouter-api-key",
+      "model-clients/anthropic-api-key",
+      "model-clients/openai-api-key",
+      "google-workspace/oauth-config",
+      "email/smtp-config",
+      "slack-channel/socket-mode-config",
+      "telegram/bot-credentials",
+    ]) {
+      expect(initial).toContain(identifier);
+    }
+
+    const revoked = runSetupCli(scopeRoot, ["revoke", "telegram", "bot-credentials"]);
     expect(revoked).toContain("telegram/bot-credentials: revoked");
-    const revokedList = runSetupCli(projectDir, ["list"]);
+    const revokedList = runSetupCli(scopeRoot, ["list"]);
     expect(revokedList).toContain("credentials_revoked — Credentials were revoked");
     expect(revokedList).toContain("secret TELEGRAM_BOT_TOKEN: missing");
     expect(revokedList).toContain("kota setup start telegram bot-credentials");
 
     const started = JSON.parse(
-      runSetupCli(projectDir, ["start", "telegram", "bot-credentials", "--json"]),
+      runSetupCli(scopeRoot, ["start", "telegram", "bot-credentials", "--json"]),
     ) as { action: { actionId: string } };
-    const pendingList = runSetupCli(projectDir, ["list"]);
+    const pendingList = runSetupCli(scopeRoot, ["list"]);
     expect(pendingList).toContain(
       `kota setup complete ${started.action.actionId} --secret-values-stdin`,
     );
@@ -74,7 +87,7 @@ describe("shipped setup status client projection", () => {
     const botToken = "operator-journey-bot-secret-123456";
     const alertChat = "operator-journey-chat-secret-123456";
     const completed = runSetupCli(
-      projectDir,
+      scopeRoot,
       ["complete", started.action.actionId, "--secret-values-stdin"],
       JSON.stringify({
         TELEGRAM_BOT_TOKEN: botToken,
@@ -83,7 +96,7 @@ describe("shipped setup status client projection", () => {
     );
     expect(completed).toContain("telegram/bot-credentials: ready");
 
-    const readyList = runSetupCli(projectDir, ["list"]);
+    const readyList = runSetupCli(scopeRoot, ["list"]);
     expect(readyList).toContain("secret TELEGRAM_BOT_TOKEN: present");
     expect(readyList).toContain("secret TELEGRAM_ALERT_CHAT_ID: present");
     expect(readyList).not.toContain(botToken);

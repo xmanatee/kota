@@ -14,10 +14,7 @@ function subtask(dependsOn: number[]) {
     problem: "The original task exhausted repair.",
     desiredOutcome: "The bounded outcome is complete.",
     constraints: ["Preserve authorization boundaries."],
-    doneWhen: ["A focused regression passes."],
-    sourceIntent: "Preserve the original safety finding.",
-    initiative: "Safe autonomous execution.",
-    acceptanceEvidence: ["A regression transcript proves the boundary."],
+    howWeWillKnow: ["The authorization boundary rejects revoked access."],
     dependsOn,
   };
 }

@@ -9,6 +9,10 @@ search to KOTA's file-based stores.
   `/embeddings` API.
 - The sidecar cache stores version, model, adapter fingerprint, and dense
   embedding per indexed item.
+- The sidecar is explicitly rebuildable cache data: reads decode its version,
+  model, entry fingerprints, and finite vectors; malformed or stale documents
+  become cache misses. Writes are atomic. Canonical stores must not copy this
+  recovery policy because their malformed data is operator-visible failure.
 - `SemanticIndexManager` owns background embedding, cosine ranking, bulk
   reindex, staleness checks, lazy fill, and query-time error propagation.
 - Store adapters own indexable text, sidecar location, and fingerprint shape.

@@ -58,110 +58,142 @@ describe('reducer', () => {
       token: 'tok',
       pushEnabled: false,
     });
-    expect(next.settingsLoaded).toBe(true);
-    expect(next.daemonUrl).toBe('http://host');
-    expect(next.token).toBe('tok');
-    expect(next.pushNotificationsEnabled).toBe(false);
+    expect(next.connection.settingsLoaded).toBe(true);
+    expect(next.connection.daemonUrl).toBe('http://host');
+    expect(next.connection.token).toBe('tok');
+    expect(next.connection.pushNotificationsEnabled).toBe(false);
   });
 
-  test('IDENTITY seeds activeProjectId on first refresh and ACTIVE_PROJECT clears project-scoped rows', () => {
+  test('IDENTITY seeds activeScopeId on first refresh and ACTIVE_SCOPE clears scoped rows', () => {
     const seeded = reducer(initialState, {
       type: 'IDENTITY',
       identity: {
-        projectName: 'kota',
-        projectDir: '/tmp/kota',
+        scopeName: 'kota',
+        scopeRoot: '/tmp/kota',
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
-        projects: {
-          defaultProjectId: 'p-default',
-          projects: [
-            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
-            { projectId: 'p-other', projectDir: '/tmp/o', displayName: 'other' },
+        dashboard: { available: true, path: '/' },
+        scopeRegistry: {
+          rootScopeId: 'global',
+          defaultScopeId: 'p-default',
+          scopes: [
+            { scopeId: 'global', displayName: 'Global' },
+            { scopeId: 'p-default', directoryRoot: '/tmp/kota', displayName: 'kota', parentScopeId: 'global' },
+            { scopeId: 'p-other', directoryRoot: '/tmp/o', displayName: 'other', parentScopeId: 'global' },
           ],
         },
       },
-      activeProjectId: 'p-default',
+      activeScopeId: 'p-default',
     });
-    expect(seeded.activeProjectId).toBe('p-default');
-    expect(seeded.identity?.projects.projects).toHaveLength(2);
+    expect(seeded.scope.activeScopeId).toBe('p-default');
+    expect(seeded.connection.identity?.scopeRegistry.scopes).toHaveLength(3);
 
     const populated: DaemonState = {
       ...seeded,
-      runs: [
-        {
-          id: 'r1',
-          workflow: 'builder',
-          status: 'success',
-          triggerEvent: 'autonomy.queue.available',
-          startedAt: 't',
-          durationMs: 1,
-        },
-      ],
-      approvals: [makeApproval()],
-      pendingApprovalCount: 1,
+      activity: {
+        ...seeded.activity,
+        runs: [
+          {
+            id: 'r1',
+            workflow: 'builder',
+            status: 'success',
+            triggerEvent: 'autonomy.queue.available',
+            startedAt: 't',
+            durationMs: 1,
+          },
+        ],
+        approvals: [makeApproval()],
+        pendingApprovalCount: 1,
+      },
+      content: {
+        ...seeded.content,
+        knowledgeQuery: 'keep my draft',
+        knowledgeError: 'old scope',
+      },
     };
 
     const switched = reducer(populated, {
-      type: 'ACTIVE_PROJECT',
-      projectId: 'p-other',
+      type: 'ACTIVE_SCOPE',
+      scopeId: 'p-other',
     });
-    expect(switched.activeProjectId).toBe('p-other');
-    expect(switched.runs).toEqual([]);
-    expect(switched.approvals).toEqual([]);
-    expect(switched.pendingApprovalCount).toBe(0);
+    expect(switched.scope.activeScopeId).toBe('p-other');
+    expect(switched.activity.runs).toEqual([]);
+    expect(switched.activity.approvals).toHaveLength(1);
+    expect(switched.activity.pendingApprovalCount).toBe(1);
+    expect(switched.content.knowledgeQuery).toBe('keep my draft');
+    expect(switched.content.knowledgeError).toBeNull();
 
-    // Switching back to the same project is a no-op so React Native does
+    const staleCompletion = reducer(switched, {
+      type: 'KNOWLEDGE_ERROR',
+      error: 'late response from p-default',
+      requestScopeId: 'p-default',
+    });
+    expect(staleCompletion).toBe(switched);
+
+    const currentCompletion = reducer(switched, {
+      type: 'KNOWLEDGE_ERROR',
+      error: 'current response from p-other',
+      requestScopeId: 'p-other',
+    });
+    expect(currentCompletion.content.knowledgeError).toBe(
+      'current response from p-other',
+    );
+
+    // Switching back to the same scope is a no-op so React Native does
     // not bounce the StatusScreen list.
-    const noop = reducer(switched, { type: 'ACTIVE_PROJECT', projectId: 'p-other' });
+    const noop = reducer(switched, { type: 'ACTIVE_SCOPE', scopeId: 'p-other' });
     expect(noop).toBe(switched);
   });
 
-  test('IDENTITY_CLEARED resets identity and activeProjectId together', () => {
+  test('IDENTITY_CLEARED resets identity and activeScopeId together', () => {
     const seeded = reducer(initialState, {
       type: 'IDENTITY',
       identity: {
-        projectName: 'kota',
-        projectDir: '/tmp/kota',
+        scopeName: 'kota',
+        scopeRoot: '/tmp/kota',
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
-        projects: {
-          defaultProjectId: 'p-default',
-          projects: [
-            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
+        dashboard: { available: true, path: '/' },
+        scopeRegistry: {
+          rootScopeId: 'global',
+          defaultScopeId: 'p-default',
+          scopes: [
+            { scopeId: 'global', displayName: 'Global' },
+            { scopeId: 'p-default', directoryRoot: '/tmp/kota', displayName: 'kota', parentScopeId: 'global' },
           ],
         },
       },
-      activeProjectId: 'p-default',
+      activeScopeId: 'p-default',
     });
     const cleared = reducer(seeded, { type: 'IDENTITY_CLEARED' });
-    expect(cleared.identity).toBeNull();
-    expect(cleared.activeProjectId).toBeNull();
+    expect(cleared.connection.identity).toBeNull();
+    expect(cleared.scope.activeScopeId).toBeNull();
   });
 
   test('SET_URL and SET_TOKEN update in isolation', () => {
     let s: DaemonState = initialState;
     s = reducer(s, { type: 'SET_URL', url: 'http://x' });
-    expect(s.daemonUrl).toBe('http://x');
-    expect(s.token).toBe('');
+    expect(s.connection.daemonUrl).toBe('http://x');
+    expect(s.connection.token).toBe('');
     s = reducer(s, { type: 'SET_TOKEN', token: 'abc' });
-    expect(s.token).toBe('abc');
+    expect(s.connection.token).toBe('abc');
   });
 
   test('ONLINE true clears existing error', () => {
     const withError = reducer(initialState, { type: 'ERROR', error: 'boom' });
-    expect(withError.error).toBe('boom');
+    expect(withError.connection.error).toBe('boom');
     const online = reducer(withError, { type: 'ONLINE', online: true });
-    expect(online.online).toBe(true);
-    expect(online.error).toBeNull();
+    expect(online.connection.online).toBe(true);
+    expect(online.connection.error).toBeNull();
   });
 
   test('ONLINE false preserves existing error', () => {
     const withError = reducer(initialState, { type: 'ERROR', error: 'boom' });
     const offline = reducer(withError, { type: 'ONLINE', online: false });
-    expect(offline.online).toBe(false);
-    expect(offline.error).toBe('boom');
+    expect(offline.connection.online).toBe(false);
+    expect(offline.connection.error).toBe('boom');
   });
 
   test('APPROVALS recomputes pending count', () => {
@@ -172,17 +204,17 @@ describe('reducer', () => {
       makeApproval({ id: 'a4', status: 'rejected' }),
     ];
     const next = reducer(initialState, { type: 'APPROVALS', approvals });
-    expect(next.approvals).toHaveLength(4);
-    expect(next.pendingApprovalCount).toBe(2);
+    expect(next.activity.approvals).toHaveLength(4);
+    expect(next.activity.pendingApprovalCount).toBe(2);
   });
 
   test('PENDING_COUNT overrides the derived count without touching approvals', () => {
     const approvals = [makeApproval({ status: 'pending' })];
     const withApprovals = reducer(initialState, { type: 'APPROVALS', approvals });
-    expect(withApprovals.pendingApprovalCount).toBe(1);
+    expect(withApprovals.activity.pendingApprovalCount).toBe(1);
     const withCount = reducer(withApprovals, { type: 'PENDING_COUNT', count: 42 });
-    expect(withCount.pendingApprovalCount).toBe(42);
-    expect(withCount.approvals).toHaveLength(1);
+    expect(withCount.activity.pendingApprovalCount).toBe(42);
+    expect(withCount.activity.approvals).toHaveLength(1);
   });
 
   test('STATUS, RUNS, TASKS write through unchanged', () => {
@@ -206,20 +238,20 @@ describe('reducer', () => {
     let s = reducer(initialState, { type: 'STATUS', status });
     s = reducer(s, { type: 'RUNS', runs });
     s = reducer(s, { type: 'TASKS', tasks });
-    expect(s.status).toBe(status);
-    expect(s.runs).toBe(runs);
-    expect(s.tasks).toBe(tasks);
+    expect(s.activity.status).toBe(status);
+    expect(s.activity.runs).toBe(runs);
+    expect(s.activity.tasks).toBe(tasks);
   });
 
   test('SET_PUSH_ENABLED toggles without affecting other fields', () => {
     const s = reducer(initialState, { type: 'SET_PUSH_ENABLED', enabled: false });
-    expect(s.pushNotificationsEnabled).toBe(false);
-    expect(s.settingsLoaded).toBe(initialState.settingsLoaded);
+    expect(s.connection.pushNotificationsEnabled).toBe(false);
+    expect(s.connection.settingsLoaded).toBe(initialState.connection.settingsLoaded);
   });
 
   test('SSE_STATUS updates the connected flag', () => {
     const s = reducer(initialState, { type: 'SSE_STATUS', connected: true });
-    expect(s.sseConnected).toBe(true);
+    expect(s.connection.sseConnected).toBe(true);
   });
 
   test('DIGEST_LOADING flips loading flag and clears prior error', () => {
@@ -227,10 +259,10 @@ describe('reducer', () => {
       type: 'DIGEST_ERROR',
       error: 'boom',
     });
-    expect(withError.digestError).toBe('boom');
+    expect(withError.content.digestError).toBe('boom');
     const next = reducer(withError, { type: 'DIGEST_LOADING' });
-    expect(next.digestLoading).toBe(true);
-    expect(next.digestError).toBeNull();
+    expect(next.content.digestLoading).toBe(true);
+    expect(next.content.digestError).toBeNull();
   });
 
   test('DIGEST_RESULT stores payload and clears loading/error', () => {
@@ -256,7 +288,7 @@ describe('reducer', () => {
     };
     const loading = reducer(initialState, { type: 'DIGEST_LOADING' });
     const next = reducer(loading, { type: 'DIGEST_RESULT', digest });
-    expect(next.digest).toBe(digest);
-    expect(next.digestLoading).toBe(false);
-    expect(next.digestError).toBeNull();
+    expect(next.content.digest).toBe(digest);
+    expect(next.content.digestLoading).toBe(false);
+    expect(next.content.digestError).toBeNull();
   });});

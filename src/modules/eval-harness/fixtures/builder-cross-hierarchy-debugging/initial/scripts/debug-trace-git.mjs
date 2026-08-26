@@ -1,9 +1,9 @@
 import { spawnSync } from "node:child_process";
 import { allowedChangedPaths, forbiddenChangedPaths } from "./debug-trace-contract.mjs";
 
-function runGit(projectRoot, args) {
+function runGit(scopeRoot, args) {
   return spawnSync("git", args, {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -37,16 +37,16 @@ function pathsFromPorcelain(stdout) {
   return paths;
 }
 
-export function gitChangedPaths(projectRoot) {
-  const root = runGit(projectRoot, ["rev-list", "--max-parents=0", "HEAD"]);
+export function gitChangedPaths(scopeRoot) {
+  const root = runGit(scopeRoot, ["rev-list", "--max-parents=0", "HEAD"]);
   if (root.status !== 0) return [];
   const rootCommit = root.stdout.trim().split("\n").find((line) => line.length > 0);
   if (rootCommit === undefined) return [];
 
-  const committed = runGit(projectRoot, ["diff", "--name-status", "--find-renames", `${rootCommit}..HEAD`]);
+  const committed = runGit(scopeRoot, ["diff", "--name-status", "--find-renames", `${rootCommit}..HEAD`]);
   if (committed.status !== 0) return [];
 
-  const workingTree = runGit(projectRoot, ["status", "--porcelain=v1", "--untracked-files=all"]);
+  const workingTree = runGit(scopeRoot, ["status", "--porcelain=v1", "--untracked-files=all"]);
   if (workingTree.status !== 0) return [];
 
   return [...new Set([...pathsFromNameStatus(committed.stdout), ...pathsFromPorcelain(workingTree.stdout)])]

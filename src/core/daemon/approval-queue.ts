@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import { cloneEvidenceJsonObject } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
@@ -85,7 +85,7 @@ export type ApprovalQueueOptions = {
 };
 
 export class ApprovalQueue {
-	private pbus: ProjectScopedEventBus | null;
+	private pbus: ScopedEventBus | null;
 	private executionInputs = new Map<string, PendingApproval["input"]>();
 	private reviewContexts = new Map<string, string>();
 	private readonly scopeId: string;
@@ -95,7 +95,7 @@ export class ApprovalQueue {
 
 	constructor(
 		dir: string,
-		pbus?: ProjectScopedEventBus | null,
+		pbus?: ScopedEventBus | null,
 		options: ApprovalQueueOptions = {},
 	) {
 		const storage = new ApprovalRecordStorage(dir);
@@ -426,7 +426,7 @@ export function getApprovalQueue(dir?: string): ApprovalQueue {
 	return queueInstance ??= new ApprovalQueue(dir ?? join(process.cwd(), ".kota", "approvals"));
 }
 
-// Project runtime bundle setup installs the default scope's queue instance here.
+// Scope runtime bundle setup installs the default scope's queue instance here.
 export function setApprovalQueueInstance(queue: ApprovalQueue): void {
 	queueInstance = queue;
 }

@@ -63,20 +63,20 @@ function makeAgentStep(
 }
 
 describe("workflow history", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-wf-hist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   describe("loadRunsInWindow", () => {

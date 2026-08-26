@@ -1,7 +1,6 @@
 import type { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
-import type { ProjectRuntimeStateStore } from "./project-runtime-state.js";
-import { projectStoredWorkflowOperationalState } from "./run-operational-projection.js";
+import { deriveStoredWorkflowOperationalState } from "./run-operational-projection.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRuntimeSnapshot } from "./run-types.js";
 import {
@@ -10,15 +9,16 @@ import {
   resolveDefinitions,
   type WorkflowRuntimeDispatchState,
 } from "./runtime-dispatch.js";
+import type { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WatchTriggerManager } from "./watch-triggers.js";
 
 export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatchState {
-  projectId: string;
+  scopeId: string;
   runState: RunStateDatabase;
   watchTriggers: WatchTriggerManager;
   eventBatches: WorkflowEventBatchManager;
-  projectState: ProjectRuntimeStateStore;
+  scopeState: ScopeRuntimeStateStore;
   definitionSourceEnabled: Map<string, boolean>;
 }
 
@@ -108,15 +108,15 @@ export function getRuntimeState(
   queueLength: number;
   concurrency: number;
 } {
-  const runtimeState = state.runState.readWorkflowSummary(state.projectId);
+  const runtimeState = state.runState.readWorkflowSummary(state.scopeId);
   for (const [workflow, nextScheduledAt] of state.scheduleTriggers.nextScheduledAt()) {
     runtimeState.workflows[workflow] = {
       ...runtimeState.workflows[workflow],
       nextScheduledAt,
     };
   }
-  const operationalState = projectStoredWorkflowOperationalState(
-    state.runState.listRuns(state.projectId, [
+  const operationalState = deriveStoredWorkflowOperationalState(
+    state.runState.listRuns(state.scopeId, [
       "queued",
       "running",
       "integrating",
@@ -128,7 +128,7 @@ export function getRuntimeState(
     ...operationalState,
     definitionsLoadedAt: state.definitionsLoadedAt,
     agentBackoff: activeAgentBackoff ?? undefined,
-    batchBuffers: state.projectState.getBatchBuffers(),
+    batchBuffers: state.scopeState.getBatchBuffers(),
     queueLength: operationalState.pendingRuns.length,
     concurrency: state.runCoordinator.capacity,
   };

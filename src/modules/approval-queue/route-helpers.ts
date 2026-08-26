@@ -9,9 +9,9 @@ import {
 	projectApprovalForClient,
 } from "#core/daemon/approval-queue.js";
 import {
-	DAEMON_PROJECT_SCOPE_PROVIDER_TYPE,
-	type DaemonProjectRuntimeScope,
-} from "#core/daemon/project-scope-provider.js";
+	DAEMON_SCOPE_PROVIDER_TYPE,
+	type DaemonScopeRuntime,
+} from "#core/daemon/scope-provider.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -51,7 +51,7 @@ export function readStatusFilter(req: IncomingMessage): ApprovalStatus | "all" |
 	return undefined;
 }
 
-export function readProjectId(
+export function readScopeId(
 	req: IncomingMessage,
 	res: ServerResponse,
 ): string | null | undefined {
@@ -60,41 +60,41 @@ export function readProjectId(
 
 export function approvalQuery(
 	status?: ApprovalStatus | "all",
-	projectId?: string,
+	scopeId?: string,
 ): string {
 	const params = new URLSearchParams();
 	if (status) params.set("status", status);
-	if (projectId) params.set("projectId", projectId);
+	if (scopeId) params.set("scopeId", scopeId);
 	const query = params.toString();
 	return query ? `?${query}` : "";
 }
 
-export function projectQuery(projectId?: string): string {
-	if (!projectId) return "";
+export function scopeQuery(scopeId?: string): string {
+	if (!scopeId) return "";
 	const params = new URLSearchParams();
-	params.set("projectId", projectId);
+	params.set("scopeId", scopeId);
 	return `?${params.toString()}`;
 }
 
 export function resolveApprovalQueue(
 	res: ServerResponse,
 	queue?: ApprovalQueue,
-	projectId?: string,
+	scopeId?: string,
 ): { queue: ApprovalQueue; executionContext?: ToolRunnerContext } | null {
 	if (queue) return { queue };
-	const projectScope = getProviderRegistry()?.get(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-	if (!projectScope) {
-		if (projectId) {
+	const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+	if (!scopeProvider) {
+		if (scopeId) {
 			jsonResponse(res, 404, {
-				error: "Unknown project",
-				reason: "unknown_project",
-				projectId,
+				error: "Unknown scope",
+				reason: "unknown_scope",
+				scopeId,
 			});
 			return null;
 		}
 		return { queue: getApprovalQueue() };
 	}
-	const resolved = projectScope.resolveProjectRuntime(projectId);
+	const resolved = scopeProvider.resolveScopeRuntime(scopeId);
 	if (!resolved.ok) {
 		jsonResponse(res, 404, resolved.error);
 		return null;
@@ -161,7 +161,7 @@ export function writeApprovalScopeMismatch(
 	approvals: PendingApproval[],
 ): void {
 	jsonResponse(res, 409, {
-		error: "Approval belongs to a different project scope",
+		error: "Approval belongs to a different scope",
 		reason: "approval_scope_mismatch",
 		expectedScopeId,
 		approvals: approvals.map((item) => projectApprovalForClient(item)),
@@ -281,12 +281,11 @@ export async function proxyApprovalMutation(
 }
 
 function projectExecutionContext(
-	runtime: DaemonProjectRuntimeScope,
+	runtime: DaemonScopeRuntime,
 ): ToolRunnerContext {
 	return {
-		scopeId: runtime.project.projectId,
-		projectId: runtime.project.projectId,
-		projectDir: runtime.project.projectDir,
-		cwd: runtime.project.projectDir,
+		scopeId: runtime.scope.scopeId,
+		scopeRoot: runtime.scope.scopeRoot,
+		cwd: runtime.scope.scopeRoot,
 	};
 }

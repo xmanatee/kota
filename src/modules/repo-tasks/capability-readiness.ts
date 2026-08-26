@@ -21,7 +21,7 @@ export function createRepoTasksReadinessSource(
         },
       ];
       const provider = resolveProvider();
-      if (provider.supportsSemanticSearch()) {
+      if (provider.semanticSearchCapability) {
         reports.push({
           id: "repo-tasks.semantic_search",
           moduleName: MODULE_NAME,

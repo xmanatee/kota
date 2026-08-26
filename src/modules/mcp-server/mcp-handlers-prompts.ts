@@ -6,7 +6,7 @@
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import {
 	type McpMrtrStateCodec,
-	resolveProjectDirFromRootsInput,
+	resolveScopeRootFromRootsInput,
 } from "./mcp-mrtr.js";
 import type { HandlerContext, JsonRpcRequest } from "./mcp-protocol-types.js";
 import { hasActiveMcpContext, MCP_PUBLIC_CATALOG_CACHE_HINTS } from "./mcp-protocol-types.js";
@@ -36,7 +36,7 @@ function decodePromptArguments(value: KotaJsonValue | undefined): {
 export class PromptsHandler {
 	constructor(
 		private readonly ctx: HandlerContext,
-		private readonly resolveProjectDir: () => string,
+		private readonly resolveScopeRoot: () => string,
 		private readonly mrtr: McpMrtrStateCodec,
 	) {}
 
@@ -46,7 +46,7 @@ export class PromptsHandler {
 			return;
 		}
 		const result = listPromptCatalogPage(
-			this.resolveProjectDir(),
+			this.resolveScopeRoot(),
 			msg.params?.cursor,
 		);
 		if (!result.ok) {
@@ -75,9 +75,9 @@ export class PromptsHandler {
 			this.ctx.transport.sendError(msg, -32602, decodedArgs.message);
 			return;
 		}
-		const projectDir = this.resolveProjectDirForGet(msg);
-		if (!projectDir) return;
-		const result = renderPrompt(projectDir, name, decodedArgs.args);
+		const scopeRoot = this.resolveScopeRootForGet(msg);
+		if (!scopeRoot) return;
+		const result = renderPrompt(scopeRoot, name, decodedArgs.args);
 		if (!result.ok) {
 			this.ctx.transport.sendError(msg, result.code, result.message);
 			return;
@@ -85,14 +85,14 @@ export class PromptsHandler {
 		this.ctx.transport.sendResult(msg, result.result);
 	}
 
-	private resolveProjectDirForGet(msg: JsonRpcRequest): string | null {
-		const resolved = resolveProjectDirFromRootsInput({
+	private resolveScopeRootForGet(msg: JsonRpcRequest): string | null {
+		const resolved = resolveScopeRootFromRootsInput({
 			ctx: this.ctx,
 			mrtr: this.mrtr,
 			msg,
-			fallbackProjectDir: this.resolveProjectDir(),
+			fallbackScopeRoot: this.resolveScopeRoot(),
 		});
-		if (resolved.kind === "ready") return resolved.projectDir;
+		if (resolved.kind === "ready") return resolved.scopeRoot;
 		if (resolved.kind === "input_required") {
 			this.ctx.transport.sendResult(msg, resolved.result);
 			return null;

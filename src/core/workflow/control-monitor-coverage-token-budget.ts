@@ -27,7 +27,7 @@ function addEvidence(family: ControlCoverageFamilyBuilder, ref: string | null): 
 }
 
 export function inspectTokenBudget(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   stepId: string;
   maxTotalTokens: number | null;
@@ -42,7 +42,7 @@ export function inspectTokenBudget(args: {
   tokenBudget.denominator += 1;
   if (!artifact) {
     args.addGap("token-budget", "missing-token-budget-artifact", args.stepId, [
-      runArtifactRef(args.projectDir, args.runDirPath, "workflow.json"),
+      runArtifactRef(args.scopeRoot, args.runDirPath, "workflow.json"),
     ], "error");
     return;
   }
@@ -52,13 +52,13 @@ export function inspectTokenBudget(args: {
   const expectedMax = args.maxTotalTokens ?? recordedMax;
   if (recordedMax === null || expectedMax === null || recordedMax !== expectedMax) {
     args.addGap("token-budget", "token-budget-artifact-mismatch", args.stepId, [
-      artifactRef(args.projectDir, path),
-      runArtifactRef(args.projectDir, args.runDirPath, "workflow.json"),
+      artifactRef(args.scopeRoot, path),
+      runArtifactRef(args.scopeRoot, args.runDirPath, "workflow.json"),
     ], "error");
     return;
   }
   tokenBudget.numerator += 1;
-  const ref = artifactRef(args.projectDir, path);
+  const ref = artifactRef(args.scopeRoot, path);
   addEvidence(tokenBudget, ref);
   const diagnostics = arrayField(snapshot?.diagnostics).filter(isJsonObject);
   tokenBudget.warned += diagnostics.length;

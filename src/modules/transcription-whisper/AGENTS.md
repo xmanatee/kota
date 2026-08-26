@@ -7,7 +7,8 @@ registered as the active `TranscriptionProvider`.
   `modules.transcription-whisper`; nothing registers a default provider.
 - Always routes through the `transcription` module's `TranscriptionProvider`
   protocol — channels never see this module directly.
-- Owns its own retry and timeout behaviour. Channels see a single
+- Owns semantic retry behaviour while the shared outbound HTTP boundary owns
+  request timeout and network policy. Channels see a single
   success/fail from `transcribe`.
 
 ## Configuration

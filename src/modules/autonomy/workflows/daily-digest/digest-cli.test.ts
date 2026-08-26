@@ -53,21 +53,21 @@ function makeProgram(): Command {
 }
 
 describe("kota digest CLI", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let origCwd: string;
-  let origEnvKotaProjectDir: string | undefined;
+  let origEnvKotaScopeRoot: string | undefined;
   const observed: Array<{ event: string; payload: unknown }> = [];
   let unsubscribe: () => void;
 
   beforeEach(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-digest-cli-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "blocked"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-digest-cli-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
     origCwd = process.cwd();
-    origEnvKotaProjectDir = process.env.KOTA_PROJECT_DIR;
-    delete process.env.KOTA_PROJECT_DIR;
-    process.chdir(projectDir);
+    origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
+    delete process.env.KOTA_SCOPE_ROOT;
+    process.chdir(workspaceRoot);
 
     // Pin Date.now so the seam-evaluated and CLI-evaluated windows match
     // exactly. Without this, two consecutive `renderOnDemandDigest` calls
@@ -85,7 +85,7 @@ describe("kota digest CLI", () => {
 
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
     ownerMod.resetOwnerQuestionQueue();
-    ownerMod.getOwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"));
+    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
   });
 
   afterEach(() => {
@@ -93,18 +93,18 @@ describe("kota digest CLI", () => {
     resetEventBus();
     vi.useRealTimers();
     process.chdir(origCwd);
-    if (origEnvKotaProjectDir !== undefined) {
-      process.env.KOTA_PROJECT_DIR = origEnvKotaProjectDir;
+    if (origEnvKotaScopeRoot !== undefined) {
+      process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
     } else {
-      delete process.env.KOTA_PROJECT_DIR;
+      delete process.env.KOTA_SCOPE_ROOT;
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("prints the same body renderOnDemandDigest produces", async () => {
     const expected = renderOnDemandDigest({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
     }).text;
 
     const out = await captureStdout(async () => {
@@ -116,8 +116,8 @@ describe("kota digest CLI", () => {
 
   it("--json emits the structured DailyDigestData payload", async () => {
     const expected = renderOnDemandDigest({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
     }).data;
 
     const out = await captureStdout(async () => {
@@ -129,7 +129,7 @@ describe("kota digest CLI", () => {
   });
 
   it("does not create cadence state or emit workflow.daily.digest", async () => {
-    const databasePath = join(projectDir, ".kota", "kota.sqlite");
+    const databasePath = join(workspaceRoot, ".kota", "kota.sqlite");
     expect(existsSync(databasePath)).toBe(false);
 
     await captureStdout(async () => {

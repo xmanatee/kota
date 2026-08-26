@@ -21,8 +21,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import harnessParityModule from "./index.js";
 
@@ -237,29 +235,5 @@ describe("harness-parity module daemonClient(link)", () => {
     );
     const contributed = harnessParityModule.daemonClient!(transport);
     await expect(contributed.harnessParity!.run()).rejects.toThrow("boom");
-  });
-
-  it("the assembly path fails loudly when the harness-parity module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport({}, {});
-    // Other migrated namespaces are stubbed via the shared helper so the
-    // only coverage gap is the harness-parity namespace itself.
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.harnessParity;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /harnessParity/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the harness-parity module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({}, {});
-    const contributed = harnessParityModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.harnessParity;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

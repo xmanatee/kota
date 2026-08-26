@@ -73,7 +73,6 @@ describe("runDelegate token budgets", () => {
           stepId: "build",
           spanId: "run-1:build",
           scopeId: "scope-1",
-          projectId: "scope-1",
         },
       },
     );

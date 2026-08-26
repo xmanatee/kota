@@ -36,19 +36,22 @@ export type SearchFilters = {
 	tag?: string;
 	status?: string;
 	since?: string;
-	scope?: "project" | "global" | "all";
+	scope?: "scope" | "global" | "all";
 };
 
 /** Result of rebuilding the semantic search index. */
 export type ReindexResult = {
 	indexed: number;
 	failed: number;
-	/** Skipped — semantic search not supported by this provider. */
-	skipped?: boolean;
 };
+
+export type ReindexOperationResult =
+	| ({ ok: true } & ReindexResult)
+	| { ok: false; reason: "semantic_unavailable" };
 
 /** Interface for persistent memory storage (save/search/list/update/delete). */
 export interface MemoryProvider {
+	readonly semanticSearchCapability?: MemorySemanticSearchCapability;
 	save(
 		content: string,
 		tags?: string[],
@@ -66,7 +69,10 @@ export interface MemoryProvider {
 		},
 	): boolean;
 	delete(id: string): boolean;
-	supportsSemanticSearch(): boolean;
+}
+
+/** Optional embedding-backed operations declared by capable memory providers. */
+export interface MemorySemanticSearchCapability {
 	/**
 	 * Rank entries by semantic similarity to a natural-language query.
 	 * Only embedding-backed providers should return results here.
@@ -77,21 +83,21 @@ export interface MemoryProvider {
 		options?: { tag?: string; since?: string },
 	): Promise<Memory[]>;
 	/**
-	 * Rebuild the semantic index over all entries. Providers without embedding
-	 * support return `{ indexed: 0, failed: 0, skipped: true }`.
+	 * Rebuild the semantic index over all entries.
 	 */
 	reindex(): Promise<ReindexResult>;
 }
 
 /** Interface for structured knowledge storage (CRUD + search over entries). */
 export interface KnowledgeProvider {
+	readonly semanticSearchCapability?: KnowledgeSemanticSearchCapability;
 	create(opts: {
 		title: string;
 		content: string;
 		type?: string;
 		tags?: string[];
 		status?: string;
-		scope?: "project" | "global";
+		scope?: "scope" | "global";
 		meta?: Record<string, string>;
 		provenance?: WorkMemoryProvenance;
 		freshness?: WorkMemoryFreshness;
@@ -114,7 +120,10 @@ export interface KnowledgeProvider {
 	search(query: string, filters?: SearchFilters): KnowledgeEntry[];
 	list(filters?: SearchFilters): KnowledgeEntry[];
 	count(type?: string): number;
-	supportsSemanticSearch(): boolean;
+}
+
+/** Optional embedding-backed operations declared by capable knowledge providers. */
+export interface KnowledgeSemanticSearchCapability {
 	/**
 	 * Rank entries by semantic similarity to a natural-language query.
 	 * Only embedding-backed providers should return results here.
@@ -125,10 +134,10 @@ export interface KnowledgeProvider {
 		filters?: SearchFilters,
 	): Promise<KnowledgeEntry[]>;
 	/**
-	 * Rebuild the semantic index over all entries. Providers without embedding
-	 * support return `{ indexed: 0, failed: 0, skipped: true }`.
+	 * Rebuild the semantic index over all entries.
 	 */
 	reindex(): Promise<ReindexResult>;
 }
+
 
 /** Interface for persistent task storage (add/update/list/get/clear). */

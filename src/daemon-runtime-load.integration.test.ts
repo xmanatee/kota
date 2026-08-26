@@ -28,7 +28,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
-import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { resetScheduler } from "#core/daemon/scheduler.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -36,8 +35,7 @@ import { EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js
 import { EventJournal } from "#core/events/event-journal.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
-  getKnowledgeProvider,
-  getProviderRegistry,
+  KNOWLEDGE_PROVIDER_TOKEN,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
@@ -47,8 +45,9 @@ import {
   type AutonomyHealthSignal,
   autonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
+import { createRuntimeSourceFixture } from "#root/daemon-runtime-event-fixture.integration.js";
 import {
-  initializeRuntimeRoutingProject,
+  initializeRuntimeRoutingScope,
   waitForRuntimeEvidence,
 } from "#root/daemon-runtime-routing-fixture.integration.js";
 
@@ -69,16 +68,16 @@ async function fetchWithToken(
 
 describe("daemon runtime module load", () => {
   let rootDir: string;
-  let projectDir: string;
+  let scopeRoot: string;
   let stateDir: string;
 
   beforeEach(() => {
     rootDir = mkdtempSync(join(tmpdir(), "kota-runtime-load-"));
-    projectDir = join(rootDir, "project-a");
-    stateDir = join(projectDir, ".kota");
-    mkdirSync(projectDir, { recursive: true });
+    scopeRoot = join(rootDir, "scope-a");
+    stateDir = join(scopeRoot, ".kota");
+    mkdirSync(scopeRoot, { recursive: true });
     mkdirSync(stateDir, { recursive: true });
-    initializeRuntimeRoutingProject(projectDir);
+    initializeRuntimeRoutingScope(scopeRoot);
     resetEventBus();
     resetScheduler();
     resetProviderRegistry();
@@ -98,7 +97,7 @@ describe("daemon runtime module load", () => {
 
     const daemon = new Daemon({
       runtimeModuleHost: { eventBus: new EventBus(), moduleLoader: loader },
-      projectDir,
+      scopeRoot,
       stateDir,
     });
     await expect(daemon.start()).rejects.toThrow(/bound to a different EventBus authority/);
@@ -112,26 +111,25 @@ describe("daemon runtime module load", () => {
     const eventBus = initEventBus();
     const loader = await loadRuntimeModules({
       config,
-      cwd: projectDir,
+      cwd: scopeRoot,
       eventBus,
     });
     const sourceListenerCount = eventBus.listenerCount("workflow.dead-letter.changed");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
     const initialHealthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
-      projectId: string;
     }> = [];
     const stopInitialHealthObservation = eventBus.on(
       autonomyHealthSignal,
       (payload) => initialHealthSignals.push(payload),
     );
 
-    expect(() => getKnowledgeProvider()).not.toThrow();
+    expect(loader.getProviderRegistry().get(KNOWLEDGE_PROVIDER_TOKEN)).toBeDefined();
     expect(sourceListenerCount).toBeGreaterThan(0);
 
     const daemon = new Daemon({
       runtimeModuleHost: { eventBus, moduleLoader: loader },
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
@@ -155,33 +153,22 @@ describe("daemon runtime module load", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { entries: unknown[] };
       expect(Array.isArray(body.entries)).toBe(true);
-      const initialScope = getProviderRegistry()?.get(
+      const runtimeScopeProvider = loader.getProviderRegistry().get(
         DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE,
-      )?.resolve(scopeId);
-      if (!initialScope?.ok) throw new Error("initial runtime scope was unavailable");
-      createWorkflowDispatchDeadLetter({
-        store: initialScope.runtime.deadLetterQueue,
-        scopeId,
-        workflowName: "builder",
-        trigger: { event: "test.failure", schemaRef: null, payload: {} },
-        reason: "daemon cold-start integration failure",
-        errorClass: "execution",
-        failedRun: {
-          id: "daemon-runtime-cold-start-event-run",
-          workflow: "builder",
-          definitionPath: "fixture",
-          trigger: { event: "test.failure", schemaRef: null, payload: {} },
-          startedAt: "2026-08-26T12:00:00.000Z",
-          completedAt: "2026-08-26T12:01:00.000Z",
-          status: "failed",
-          runDir: ".kota/runs/daemon-runtime-cold-start-event-run",
-          steps: [],
-        },
-      });
+      );
+      const resolvedRuntimeScope = runtimeScopeProvider?.resolve(scopeId);
+      expect(resolvedRuntimeScope).toEqual(expect.objectContaining({ ok: true }));
+      if (!resolvedRuntimeScope?.ok) {
+        throw new Error("initial daemon runtime scope was unavailable");
+      }
+      createRuntimeSourceFixture({
+        bus: eventBus,
+        scope: resolvedRuntimeScope.runtime,
+        tag: "cold-start",
+      }).emitFailure("daemon cold-start integration failure");
       expect(initialHealthSignals).toEqual([
         expect.objectContaining({
           scopeId,
-          projectId: scopeId,
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
@@ -194,10 +181,12 @@ describe("daemon runtime module load", () => {
 
     const restartedLoader = await loadRuntimeModules({
       config,
-      cwd: projectDir,
+      cwd: scopeRoot,
       eventBus,
     });
-    const restartedSourceListenerCount = eventBus.listenerCount("workflow.dead-letter.changed");
+    const restartedSourceListenerCount = eventBus.listenerCount(
+      "workflow.dead-letter.changed",
+    );
     const issueProjectionWorkflowNames = new Set([
       "autonomy-health-reviewer",
       "autonomy-issue-projection-materialization",
@@ -212,13 +201,12 @@ describe("daemon runtime module load", () => {
 
     const healthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
-      projectId: string;
     }> = [];
-    const decisions: Array<{ scopeId: string; projectId: string; issueKey: string }> = [];
+    const decisions: Array<{ scopeId: string; issueKey: string }> = [];
     eventBus.on(autonomyHealthSignal, (payload) => healthSignals.push(payload));
     const restartedDaemon = new Daemon({
       runtimeModuleHost: { eventBus, moduleLoader: restartedLoader },
-      projectDir,
+      scopeRoot,
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
@@ -256,7 +244,7 @@ describe("daemon runtime module load", () => {
       expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(
         restartedSourceListenerCount,
       );
-      const runtimeScopeProvider = getProviderRegistry()?.get(
+      const runtimeScopeProvider = restartedLoader.getProviderRegistry().get(
         DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE,
       );
       const resolvedRuntimeScope = runtimeScopeProvider?.resolve(scopeId);
@@ -277,41 +265,26 @@ describe("daemon runtime module load", () => {
           resolve();
         });
       });
-      createWorkflowDispatchDeadLetter({
-        store: resolvedRuntimeScope.runtime.deadLetterQueue,
-        scopeId,
-        workflowName: "builder",
-        trigger: { event: "test.failure", schemaRef: null, payload: {} },
-        reason: "daemon runtime integration failure",
-        errorClass: "execution",
-        failedRun: {
-          id: "daemon-runtime-event-run",
-          workflow: "builder",
-          definitionPath: "fixture",
-          trigger: { event: "test.failure", schemaRef: null, payload: {} },
-          startedAt: "2026-08-26T13:00:00.000Z",
-          completedAt: "2026-08-26T13:01:00.000Z",
-          status: "failed",
-          runDir: ".kota/runs/daemon-runtime-event-run",
-          steps: [],
-        },
-      });
+      createRuntimeSourceFixture({
+        bus: eventBus,
+        scope: resolvedRuntimeScope.runtime,
+        tag: "restart",
+      }).emitFailure("daemon runtime integration failure");
       expect(healthSignals).toEqual([
         expect.objectContaining({
           scopeId,
-          projectId: scopeId,
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
       await decisionObserved;
       expect(decisions).toEqual([
-        expect.objectContaining({ scopeId, projectId: scopeId }),
+        expect.objectContaining({ scopeId }),
       ]);
       await waitForRuntimeEvidence(
-        () => readAutonomyIssueProjection(projectDir).issues.length === 1,
+        () => readAutonomyIssueProjection(scopeRoot).issues.length === 1,
         "scoped autonomy issue state was not materialized",
       );
-      expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
+      expect(readAutonomyIssueProjection(scopeRoot).issues).toEqual([
         expect.objectContaining({
           status: "needs-decision",
           source: expect.objectContaining({ id: "builder" }),
@@ -331,7 +304,9 @@ describe("daemon runtime module load", () => {
       expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(
         restartedSourceListenerCount,
       );
-      expect(getProviderRegistry()?.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)).toBe(
+      expect(restartedLoader.getProviderRegistry().get(
+        DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE,
+      )).toBe(
         runtimeScopeProvider,
       );
     } finally {

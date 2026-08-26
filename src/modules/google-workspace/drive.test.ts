@@ -1,7 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { makeDriveListFiles, makeDriveReadFile } from "./drive.js";
 
-const originalFetch = globalThis.fetch;
+let requestMock = vi.fn();
+const http = outboundHttpRequestPort((request) =>
+  requestMock(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+);
 
 function mockGetToken(token = "test-token") {
   return vi.fn().mockResolvedValue(token);
@@ -9,7 +18,7 @@ function mockGetToken(token = "test-token") {
 
 function stubFetch(response: { ok?: boolean; status?: number; data?: unknown }) {
   const { ok = true, status = 200, data = {} } = response;
-  globalThis.fetch = vi.fn().mockResolvedValue({
+  requestMock = vi.fn().mockResolvedValue({
     ok,
     status,
     json: () => Promise.resolve(data),
@@ -20,7 +29,7 @@ function stubFetchSequence(
   responses: Array<{ ok?: boolean; status?: number; data?: unknown; text?: string }>,
 ) {
   const queue = [...responses];
-  globalThis.fetch = vi.fn().mockImplementation(() => {
+  requestMock = vi.fn().mockImplementation(() => {
     const next = queue.shift() ?? { ok: false, status: 500 };
     const ok = next.ok ?? true;
     const status = next.status ?? 200;
@@ -34,12 +43,12 @@ function stubFetchSequence(
 }
 
 afterEach(() => {
-  globalThis.fetch = originalFetch;
+  requestMock = vi.fn();
   vi.restoreAllMocks();
 });
 
 describe("drive_list_files: schema", () => {
-  const def = makeDriveListFiles(mockGetToken());
+  const def = makeDriveListFiles(mockGetToken(), http);
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("drive_list_files");
@@ -55,7 +64,7 @@ describe("drive_list_files: schema", () => {
 
 describe("drive_list_files: runner", () => {
   it("returns 'No files found' on empty result", async () => {
-    const def = makeDriveListFiles(mockGetToken());
+    const def = makeDriveListFiles(mockGetToken(), http);
     stubFetch({ data: { files: [] } });
 
     const result = await def.runner({});
@@ -63,7 +72,7 @@ describe("drive_list_files: runner", () => {
   });
 
   it("formats file listing with name, type, and size", async () => {
-    const def = makeDriveListFiles(mockGetToken());
+    const def = makeDriveListFiles(mockGetToken(), http);
     stubFetch({
       data: {
         files: [
@@ -85,25 +94,25 @@ describe("drive_list_files: runner", () => {
   });
 
   it("caps maxResults at 100", async () => {
-    const def = makeDriveListFiles(mockGetToken());
+    const def = makeDriveListFiles(mockGetToken(), http);
     stubFetch({ data: { files: [] } });
 
     await def.runner({ maxResults: 500 });
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const url = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url).toContain("pageSize=100");
   });
 
   it("passes query parameter", async () => {
-    const def = makeDriveListFiles(mockGetToken());
+    const def = makeDriveListFiles(mockGetToken(), http);
     stubFetch({ data: { files: [] } });
 
     await def.runner({ query: "name contains 'report'" });
-    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const url = (requestMock as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(url).toContain("q=name");
   });
 
   it("returns error on API failure", async () => {
-    const def = makeDriveListFiles(mockGetToken());
+    const def = makeDriveListFiles(mockGetToken(), http);
     stubFetch({ ok: false, status: 403, data: { error: { message: "Forbidden" } } });
 
     const result = await def.runner({});
@@ -113,7 +122,7 @@ describe("drive_list_files: runner", () => {
 });
 
 describe("drive_read_file: schema", () => {
-  const def = makeDriveReadFile(mockGetToken());
+  const def = makeDriveReadFile(mockGetToken(), http);
 
   it("has correct tool name and metadata", () => {
     expect(def.tool.name).toBe("drive_read_file");
@@ -128,7 +137,7 @@ describe("drive_read_file: schema", () => {
 
 describe("drive_read_file: runner", () => {
   it("reads a plain text file directly", async () => {
-    const def = makeDriveReadFile(mockGetToken());
+    const def = makeDriveReadFile(mockGetToken(), http);
     stubFetchSequence([
       { data: { name: "notes.txt", mimeType: "text/plain" } },
       { text: "File content here" },
@@ -139,12 +148,12 @@ describe("drive_read_file: runner", () => {
     expect(result.content).toContain("File content here");
 
     // Second fetch should use alt=media
-    const secondUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
+    const secondUrl = (requestMock as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
     expect(secondUrl).toContain("alt=media");
   });
 
   it("exports Google Docs as plain text", async () => {
-    const def = makeDriveReadFile(mockGetToken());
+    const def = makeDriveReadFile(mockGetToken(), http);
     stubFetchSequence([
       { data: { name: "My Doc", mimeType: "application/vnd.google-apps.document" } },
       { text: "Exported text content" },
@@ -153,13 +162,13 @@ describe("drive_read_file: runner", () => {
     const result = await def.runner({ id: "doc1" });
     expect(result.content).toContain("Exported text content");
 
-    const secondUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
+    const secondUrl = (requestMock as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
     expect(secondUrl).toContain("export");
     expect(secondUrl).toContain("mimeType=text/plain");
   });
 
   it("exports Google Sheets as CSV", async () => {
-    const def = makeDriveReadFile(mockGetToken());
+    const def = makeDriveReadFile(mockGetToken(), http);
     stubFetchSequence([
       { data: { name: "My Sheet", mimeType: "application/vnd.google-apps.spreadsheet" } },
       { text: "a,b,c\n1,2,3" },
@@ -168,13 +177,13 @@ describe("drive_read_file: runner", () => {
     const result = await def.runner({ id: "sheet1" });
     expect(result.content).toContain("a,b,c");
 
-    const secondUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
+    const secondUrl = (requestMock as ReturnType<typeof vi.fn>).mock.calls[1][0] as string;
     expect(secondUrl).toContain("export");
     expect(secondUrl).toContain("mimeType=text/csv");
   });
 
   it("truncates content at maxChars", async () => {
-    const def = makeDriveReadFile(mockGetToken());
+    const def = makeDriveReadFile(mockGetToken(), http);
     const longText = "A".repeat(9000);
     stubFetchSequence([
       { data: { name: "big.txt", mimeType: "text/plain" } },
@@ -187,7 +196,7 @@ describe("drive_read_file: runner", () => {
   });
 
   it("returns error when metadata fetch fails", async () => {
-    const def = makeDriveReadFile(mockGetToken());
+    const def = makeDriveReadFile(mockGetToken(), http);
     stubFetch({ ok: false, status: 404, data: { error: { message: "Not Found" } } });
 
     const result = await def.runner({ id: "missing" });
@@ -196,7 +205,7 @@ describe("drive_read_file: runner", () => {
   });
 
   it("returns error when content fetch fails", async () => {
-    const def = makeDriveReadFile(mockGetToken());
+    const def = makeDriveReadFile(mockGetToken(), http);
     stubFetchSequence([
       { data: { name: "file.txt", mimeType: "text/plain" } },
       { ok: false, status: 500, text: "Internal Server Error" },

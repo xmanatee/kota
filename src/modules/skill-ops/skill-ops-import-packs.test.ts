@@ -5,41 +5,38 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
 
 function stubCtx(cwd: string): ModuleContext {
   return { cwd, config: {}, getModuleSummaries: () => [] } as unknown as ModuleContext;
 }
 
-function mockFetch(responses: Record<string, string>): void {
-  vi.stubGlobal("fetch", vi.fn(async (input: Parameters<typeof fetch>[0]) => {
-    const url = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.toString()
-        : input.url;
+function mockFetch(responses: Record<string, string>) {
+  return outboundHttpRequestPort(async (request) => {
+    const url = String(request.url);
     const body = responses[url];
     return body === undefined
       ? new Response("missing", { status: 404, statusText: "Not Found" })
       : new Response(body, { status: 200, statusText: "OK" });
-  }));
+  });
 }
 
 describe("skill pack imports", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-skill-pack-"));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-skill-pack-"));
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("imports a direct local skill directory SKILL.md without network access", async () => {
-    const ctx = stubCtx(projectDir);
-    const skillDir = join(projectDir, "pack", "gamma");
+    const ctx = stubCtx(scopeRoot);
+    const skillDir = join(scopeRoot, "pack", "gamma");
     mkdirSync(skillDir, { recursive: true });
     const skillPath = join(skillDir, "SKILL.md");
     writeFileSync(skillPath, "Gamma guidance.\n");
@@ -55,8 +52,8 @@ describe("skill pack imports", () => {
   });
 
   it("fails ambiguous multi-skill directory imports with available skill names", async () => {
-    const ctx = stubCtx(projectDir);
-    const packDir = join(projectDir, "ambiguous-pack");
+    const ctx = stubCtx(scopeRoot);
+    const packDir = join(scopeRoot, "ambiguous-pack");
     mkdirSync(join(packDir, "one"), { recursive: true });
     mkdirSync(join(packDir, "two"), { recursive: true });
     writeFileSync(join(packDir, "one", "SKILL.md"), "One guidance.\n");
@@ -74,8 +71,8 @@ describe("skill pack imports", () => {
   });
 
   it("imports all skills from a local directory pack when explicitly requested", async () => {
-    const ctx = stubCtx(projectDir);
-    const packDir = join(projectDir, "all-pack");
+    const ctx = stubCtx(scopeRoot);
+    const packDir = join(scopeRoot, "all-pack");
     mkdirSync(join(packDir, "one"), { recursive: true });
     mkdirSync(join(packDir, "two"), { recursive: true });
     writeFileSync(join(packDir, "one", "SKILL.md"), "One guidance.\n");
@@ -90,8 +87,8 @@ describe("skill pack imports", () => {
   });
 
   it("returns an invalid pack diagnostic when a directory has no SKILL.md files", async () => {
-    const ctx = stubCtx(projectDir);
-    const packDir = join(projectDir, "empty-pack");
+    const ctx = stubCtx(scopeRoot);
+    const packDir = join(scopeRoot, "empty-pack");
     mkdirSync(packDir, { recursive: true });
 
     const result = await importSkill(ctx, packDir);
@@ -103,8 +100,8 @@ describe("skill pack imports", () => {
   });
 
   it("imports a selected skill from an owner/repo GitHub shorthand pack", async () => {
-    const ctx = stubCtx(projectDir);
-    mockFetch({
+    const ctx = stubCtx(scopeRoot);
+    const http = mockFetch({
       "https://api.github.com/repos/vercel/ai": JSON.stringify({ default_branch: "main" }),
       "https://api.github.com/repos/vercel/ai/git/trees/main?recursive=1": JSON.stringify({
         tree: [
@@ -121,7 +118,7 @@ describe("skill pack imports", () => {
       "https://raw.githubusercontent.com/vercel/ai/main/typescript/scripts/check.ts": "console.log('ts');\n",
     });
 
-    const result = await importSkill(ctx, "vercel/ai", { skill: "typescript" });
+    const result = await importSkill(ctx, "vercel/ai", { skill: "typescript" }, http);
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.skills).toHaveLength(1);
@@ -130,15 +127,15 @@ describe("skill pack imports", () => {
       expect(imported).toContain("repo-pack: vercel/ai -> typescript/SKILL.md (skill: typescript)");
       expect(imported).toContain("TypeScript guidance.");
       expect(readFileSync(
-        join(projectDir, ".kota", "skills", "typescript", "references", "api.md"),
+        join(scopeRoot, ".kota", "skills", "typescript", "references", "api.md"),
         "utf-8",
       )).toBe("TypeScript API.\n");
       expect(readFileSync(
-        join(projectDir, ".kota", "skills", "typescript", "scripts", "check.ts"),
+        join(scopeRoot, ".kota", "skills", "typescript", "scripts", "check.ts"),
         "utf-8",
       )).toBe("console.log('ts');\n");
       expect(existsSync(join(
-        projectDir,
+        scopeRoot,
         ".kota",
         "skills",
         "typescript",
@@ -150,8 +147,8 @@ describe("skill pack imports", () => {
   });
 
   it("imports from a full GitHub tree URL scoped to a skill directory", async () => {
-    const ctx = stubCtx(projectDir);
-    mockFetch({
+    const ctx = stubCtx(scopeRoot);
+    const http = mockFetch({
       "https://api.github.com/repos/crewaiinc/skills/git/trees/main?recursive=1": JSON.stringify({
         tree: [
           { path: "python/SKILL.md", type: "blob" },
@@ -166,6 +163,8 @@ describe("skill pack imports", () => {
     const result = await importSkill(
       ctx,
       "https://github.com/crewaiinc/skills/tree/main/python",
+      undefined,
+      http,
     );
     expect(result.ok).toBe(true);
     if (result.ok) {
@@ -175,15 +174,15 @@ describe("skill pack imports", () => {
         "repo-pack: https://github.com/crewaiinc/skills/tree/main/python -> python/SKILL.md (skill: python)",
       );
       expect(readFileSync(
-        join(projectDir, ".kota", "skills", "python", "references", "python.md"),
+        join(scopeRoot, ".kota", "skills", "python", "references", "python.md"),
         "utf-8",
       )).toBe("Python reference.\n");
     }
   });
 
   it("covers import, list, and resolver prompt use for an imported skill", async () => {
-    const ctx = stubCtx(projectDir);
-    const sourcePath = join(projectDir, "resolver-skill.md");
+    const ctx = stubCtx(scopeRoot);
+    const sourcePath = join(scopeRoot, "resolver-skill.md");
     writeFileSync(
       sourcePath,
       "---\nname: resolver-skill\ndescription: resolver fixture\n---\nUse imported resolver guidance.\n",
@@ -202,7 +201,7 @@ describe("skill pack imports", () => {
 
     const loader = new ModuleLoader({});
     loader.setBus(new EventBus());
-    loader.setCwd(projectDir);
+    loader.setCwd(scopeRoot);
     await loader.load({ name: "empty-module" });
     expect(loader.getSkillsPromptFor(["resolver-skill"], "builder")).toContain(
       "Imported skill directory: .kota/skills/resolver-skill",
@@ -216,8 +215,8 @@ describe("skill pack imports", () => {
   });
 
   it("importSkill honors the explicit name override", async () => {
-    const ctx = stubCtx(projectDir);
-    const sourcePath = join(projectDir, "frontmatter.md");
+    const ctx = stubCtx(scopeRoot);
+    const sourcePath = join(scopeRoot, "frontmatter.md");
     writeFileSync(sourcePath, "---\nname: original\n---\nbody\n");
 
     const result = await importSkill(ctx, sourcePath, { name: "renamed" });
@@ -231,13 +230,13 @@ describe("skill pack imports", () => {
   });
 
   it("importSkill returns invalid_skill before writing unsafe names", async () => {
-    const ctx = stubCtx(projectDir);
-    const sourcePath = join(projectDir, "unsafe.md");
+    const ctx = stubCtx(scopeRoot);
+    const sourcePath = join(scopeRoot, "unsafe.md");
     writeFileSync(sourcePath, "---\nname: original\n---\nbody\n");
 
     const result = await importSkill(ctx, sourcePath, { name: "../unsafe" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("invalid_skill");
-    expect(existsSync(join(projectDir, ".kota", "unsafe.md"))).toBe(false);
+    expect(existsSync(join(scopeRoot, ".kota", "unsafe.md"))).toBe(false);
   });
 });

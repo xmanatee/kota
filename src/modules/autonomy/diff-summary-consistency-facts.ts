@@ -11,7 +11,7 @@ const MAX_CHANGED_FILES_IN_RECORD = 60;
 const LARGE_DIFF_FILE_THRESHOLD = 12;
 
 export async function collectGitNameStatus(
-	projectDir: string,
+	workspaceRoot: string,
 	runCommand: WorkflowCommandRunner,
 	baseHead = "HEAD~1",
 	publishedHead = "HEAD",
@@ -19,7 +19,7 @@ export async function collectGitNameStatus(
 	const result = await runCommand({
 		command: "git",
 		args: ["diff", "--name-status", `${baseHead}..${publishedHead}`, "--"],
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 	return parseGitNameStatus(result.stdout.text);
 }

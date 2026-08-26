@@ -15,7 +15,7 @@ import {
   EVIDENCE_PRUNED_REASON_CODE,
 } from "#core/evidence/pruned-reference.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
-import { eventJournalForProject } from "../utils.js";
+import { eventJournalForScope } from "../utils.js";
 import type {
   WorkflowSimulationAvailability,
   WorkflowSimulationJournalSelector,
@@ -140,10 +140,10 @@ function journalLimit(selector: WorkflowSimulationJournalSelector): number {
 }
 
 function journalEvents(
-  projectDir: string,
+  workspaceRoot: string,
   selector: WorkflowSimulationJournalSelector,
 ): SimulationEvent[] {
-  const journal = eventJournalForProject(projectDir);
+  const journal = eventJournalForScope(workspaceRoot);
   const limit = journalLimit(selector);
   const query = {
     id: selector.id,
@@ -168,14 +168,14 @@ function journalEvents(
 }
 
 export function resolveEvents(
-  projectDir: string,
+  workspaceRoot: string,
   request: WorkflowSimulationRequest,
 ): SimulationEvent[] {
   if (request.envelope) {
     return [eventFromEnvelope(request.envelope, { kind: "envelope" })];
   }
   if (request.journal) {
-    return journalEvents(projectDir, request.journal);
+    return journalEvents(workspaceRoot, request.journal);
   }
   const synthetic = syntheticEvent(request);
   if (synthetic) return [synthetic];
@@ -211,8 +211,7 @@ function payloadString(
 }
 
 export function defaultScopeIdForEvent(event: SimulationEvent): string {
-  const payloadScope = payloadString(event.payload, "scopeId") ??
-    payloadString(event.payload, "projectId");
+  const payloadScope = payloadString(event.payload, "scopeId");
   if (payloadScope !== undefined) return payloadScope;
   if (event.envelope?.scope.kind === "scope") return event.envelope.scope.scopeId;
   return "default";

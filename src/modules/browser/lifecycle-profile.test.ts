@@ -2,6 +2,8 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
+  renameSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -50,7 +52,7 @@ describe("browser lifecycle — authenticated profile", () => {
 
     expect(content).toBe("Authenticated content — welcome, operator.");
     expect(lifecycleTestState.capturedContextOptions[0]?.storageState).toBe(
-      profilePath,
+      realpathSync(profilePath),
     );
     expect(lifecycleTestState.capturedLaunchOptions[0]).toMatchObject({
       headless: true,
@@ -91,7 +93,7 @@ describe("browser lifecycle — authenticated profile", () => {
     await lifecycle.getPage(context);
     await lifecycle.closeBrowserSession(context);
 
-    expect(lifecycleTestState.lastContextStorageWrite).toBe(profilePath);
+    expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profilePath));
     expect(JSON.parse(readFileSync(profilePath, "utf8")).authCookie).toBe(
       "valid-session",
     );
@@ -126,37 +128,37 @@ describe("browser lifecycle — authenticated profile", () => {
     expect(lifecycleTestState.capturedLaunchOptions[0]?.headless).toBe(false);
   });
 
-  it("resolves relative storage paths from each canonical project, not its workspace", async () => {
-    const projectA = join(workDir, "project-a");
-    const projectB = join(workDir, "project-b");
-    mkdirSync(join(projectA, "profiles"), { recursive: true });
-    mkdirSync(join(projectB, "profiles"), { recursive: true });
+  it("resolves relative storage paths from each canonical scope, not its workspace", async () => {
+    const scopeARoot = join(workDir, "scope-a");
+    const scopeBRoot = join(workDir, "scope-b");
+    mkdirSync(join(scopeARoot, "profiles"), { recursive: true });
+    mkdirSync(join(scopeBRoot, "profiles"), { recursive: true });
     const relativePath = join("profiles", "browser.json");
     writeFileSync(
-      join(projectA, relativePath),
+      join(scopeARoot, relativePath),
       JSON.stringify({ authCookie: "valid-session" }),
     );
     writeFileSync(
-      join(projectB, relativePath),
+      join(scopeBRoot, relativePath),
       JSON.stringify({ authCookie: "other-session" }),
     );
     const lifecycle = await loadConfiguredLifecycle(
-      projectA,
+      scopeARoot,
       { storageStatePath: relativePath },
-      { projectDir: projectA },
+      { scopeRoot: scopeARoot },
     );
 
     const pageA = await lifecycle.getPage(
       await activateRunnerContext(runnerContext(
-        projectA,
+        scopeARoot,
         "session-a",
         "scope-a",
-        join(workDir, "worktrees", "project-a"),
+        join(workDir, "worktrees", "scope-a"),
       )),
     );
     const pageB = await lifecycle.getPage(
       await activateRunnerContext(
-        runnerContext(projectB, "session-b", "scope-b"),
+        runnerContext(scopeBRoot, "session-b", "scope-b"),
       ),
     );
 
@@ -164,93 +166,150 @@ describe("browser lifecycle — authenticated profile", () => {
       lifecycleTestState.capturedContextOptions.map(
         (entry) => entry.storageState,
       ),
-    ).toEqual([join(projectA, relativePath), join(projectB, relativePath)]);
+    ).toEqual([
+      realpathSync(join(scopeARoot, relativePath)),
+      realpathSync(join(scopeBRoot, relativePath)),
+    ]);
     expect(await pageA.title()).toBe("Protected");
     expect(await pageB.title()).toBe("Login");
   });
 
   it.each([
     ["absolute", (root: string) => join(root, "shared-profile.json")],
-    ["project-escaping", () => join("..", "shared-profile.json")],
+    ["scope-escaping", () => join("..", "shared-profile.json")],
   ])(
     "loads and persists a %s profile only for its owning scope",
     async (_kind, configuredPath) => {
-      const projectA = join(workDir, "project-a");
-      const projectB = join(workDir, "project-b");
-      mkdirSync(projectA, { recursive: true });
-      mkdirSync(projectB, { recursive: true });
+      const scopeARoot = join(workDir, "scope-a");
+      const scopeBRoot = join(workDir, "scope-b");
+      mkdirSync(scopeARoot, { recursive: true });
+      mkdirSync(scopeBRoot, { recursive: true });
       const profilePath = join(workDir, "shared-profile.json");
       writeFileSync(
         profilePath,
         JSON.stringify({ authCookie: "valid-session" }),
       );
       const lifecycle = await loadConfiguredLifecycle(
-        projectA,
+        scopeARoot,
         { storageStatePath: configuredPath(workDir), persist: true },
-        { projectDir: projectA },
+        { scopeRoot: scopeARoot },
       );
-      const scopeA = await activateRunnerContext(
-        runnerContext(projectA, "session-a", "scope-a"),
+      const contextA = await activateRunnerContext(
+        runnerContext(scopeARoot, "session-a", "scope-a"),
       );
-      const scopeB = await activateRunnerContext(
-        runnerContext(projectB, "session-b", "scope-b"),
+      const contextB = await activateRunnerContext(
+        runnerContext(scopeBRoot, "session-b", "scope-b"),
       );
 
-      const pageA = await lifecycle.getPage(scopeA);
-      const pageB = await lifecycle.getPage(scopeB);
+      const pageA = await lifecycle.getPage(contextA);
+      const pageB = await lifecycle.getPage(contextB);
 
       expect(lifecycleTestState.capturedContextOptions).toEqual([
-        { storageState: profilePath },
+        { storageState: realpathSync(profilePath) },
         {},
       ]);
       expect(await pageA.title()).toBe("Protected");
       expect(await pageB.title()).toBe("Login");
 
-      await lifecycle.closeBrowserSession(scopeB);
+      await lifecycle.closeBrowserSession(contextB);
       expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
-      await lifecycle.closeBrowserSession(scopeA);
-      expect(lifecycleTestState.lastContextStorageWrite).toBe(profilePath);
+      await lifecycle.closeBrowserSession(contextA);
+      expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profilePath));
     },
   );
 
   it("does not load or persist another scope's profile through a local symlink", async () => {
-    const projectA = join(workDir, "project-a");
-    const projectB = join(workDir, "project-b");
+    const scopeARoot = join(workDir, "scope-a");
+    const scopeBRoot = join(workDir, "scope-b");
     const relativePath = join("profiles", "browser.json");
-    const profileA = join(projectA, relativePath);
-    const profileB = join(projectB, relativePath);
-    mkdirSync(join(projectA, "profiles"), { recursive: true });
-    mkdirSync(join(projectB, "profiles"), { recursive: true });
+    const profileA = join(scopeARoot, relativePath);
+    const profileB = join(scopeBRoot, relativePath);
+    mkdirSync(join(scopeARoot, "profiles"), { recursive: true });
+    mkdirSync(join(scopeBRoot, "profiles"), { recursive: true });
     writeFileSync(
       profileA,
       JSON.stringify({ authCookie: "valid-session" }),
     );
     symlinkSync(profileA, profileB);
     const lifecycle = await loadConfiguredLifecycle(
-      projectA,
+      scopeARoot,
       { storageStatePath: relativePath, persist: true },
-      { projectDir: projectA },
+      { scopeRoot: scopeARoot },
     );
-    const scopeA = await activateRunnerContext(
-      runnerContext(projectA, "session-a", "scope-a"),
+    const contextA = await activateRunnerContext(
+      runnerContext(scopeARoot, "session-a", "scope-a"),
     );
-    const scopeB = await activateRunnerContext(
-      runnerContext(projectB, "session-b", "scope-b"),
+    const contextB = await activateRunnerContext(
+      runnerContext(scopeBRoot, "session-b", "scope-b"),
     );
 
-    const pageA = await lifecycle.getPage(scopeA);
-    const pageB = await lifecycle.getPage(scopeB);
+    const pageA = await lifecycle.getPage(contextA);
+    const pageB = await lifecycle.getPage(contextB);
 
     expect(lifecycleTestState.capturedContextOptions).toEqual([
-      { storageState: profileA },
+      { storageState: realpathSync(profileA) },
       {},
     ]);
     expect(await pageA.title()).toBe("Protected");
     expect(await pageB.title()).toBe("Login");
 
-    await lifecycle.closeBrowserSession(scopeB);
+    await lifecycle.closeBrowserSession(contextB);
     expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
-    await lifecycle.closeBrowserSession(scopeA);
-    expect(lifecycleTestState.lastContextStorageWrite).toBe(profileA);
+    await lifecycle.closeBrowserSession(contextA);
+    expect(lifecycleTestState.lastContextStorageWrite).toBe(realpathSync(profileA));
+  });
+
+  it("rejects persistence outside an agent's declared write roots", async () => {
+    const scopeRoot = join(workDir, "scope");
+    const workspaceRoot = join(workDir, "worktree");
+    mkdirSync(scopeRoot, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
+    const profilePath = join(scopeRoot, "profile.json");
+    writeFileSync(profilePath, JSON.stringify({ authCookie: "valid-session" }));
+    const context = await activateRunnerContext({
+      ...runnerContext(scopeRoot, "agent-session", "scope-a", workspaceRoot),
+      agentWriteScope: ["."],
+    });
+    const lifecycle = await loadConfiguredLifecycle(scopeRoot, {
+      storageStatePath: profilePath,
+      persist: true,
+    });
+
+    await lifecycle.getPage(context);
+
+    await expect(lifecycle.closeBrowserSession(context)).rejects.toThrow(
+      "outside the agent write scope",
+    );
+    expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
+  });
+
+  it("rejects a profile target redirected after the session opens", async () => {
+    const scopeRoot = join(workDir, "scope");
+    const profileDir = join(scopeRoot, "profiles");
+    const movedProfileDir = join(scopeRoot, "original-profiles");
+    const redirectDir = join(workDir, "redirect");
+    mkdirSync(profileDir, { recursive: true });
+    mkdirSync(redirectDir, { recursive: true });
+    writeFileSync(
+      join(profileDir, "profile.json"),
+      JSON.stringify({ authCookie: "valid-session" }),
+    );
+    writeFileSync(
+      join(redirectDir, "profile.json"),
+      JSON.stringify({ authCookie: "other-session" }),
+    );
+    const context = await activateRunnerContext(runnerContext(scopeRoot));
+    const lifecycle = await loadConfiguredLifecycle(scopeRoot, {
+      storageStatePath: join("profiles", "profile.json"),
+      persist: true,
+    });
+    await lifecycle.getPage(context);
+    renameSync(profileDir, movedProfileDir);
+    symlinkSync(redirectDir, profileDir);
+
+    await expect(lifecycle.closeBrowserSession(context)).rejects.toThrow(
+      "storage target changed",
+    );
+    expect(lifecycleTestState.lastContextStorageWrite).toBeNull();
   });
 });

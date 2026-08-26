@@ -89,7 +89,7 @@ const executionModule: KotaModule = {
         id: "execution.local-process",
         description:
           "Run shell commands, background processes, and code execution sessions against the local project and declared network targets.",
-        scope: "project",
+        scope: "scope",
         scopePolicyHooks: ["external-effects", "writes", "retention"],
       },
       {
@@ -133,13 +133,15 @@ const executionModule: KotaModule = {
     ],
   },
   tools,
-  onLoad: (ctx) => {
+  onLoad: () => {
     registerExecutionCodeRunners();
-    ctx.registerCleanupHook(() => {
-      cleanupProcesses();
-      cleanupSessions();
-      deregisterExecutionCodeRunners();
-    });
+    return {
+      dispose: () => {
+        cleanupProcesses();
+        cleanupSessions();
+        deregisterExecutionCodeRunners();
+      },
+    };
   },
 };
 

@@ -28,15 +28,18 @@ import { localWebClient } from "./web-operations.js";
 // The daemon-link inside startServer asks the runtime loader to assemble
 // module-contributed daemon handlers. As namespaces migrate out of
 // buildCoreStubDaemonClientHandlers, the hermetic stub here must cover
-// each migrated namespace through `buildMigratedNamespaceTestStubs`.
+// each migrated namespace through `completeDaemonClientHandlers`.
 vi.mock("#core/modules/runtime-loader.js", async () => {
-  const stubs = await import("#core/server/daemon-client-test-stubs.js");
+  const stubs = await import("#core/server/daemon-client-test-support.js");
+  const { ProviderRegistry } = await import("#core/modules/provider-registry.js");
+  const registry = new ProviderRegistry();
   return {
     loadRuntimeModules: vi.fn(async () => ({
       getRoutes: () => [],
       getRegisteredConfigKeys: () => new Set<string>(),
-      assembleDaemonClientHandlers: () => stubs.buildMigratedNamespaceTestStubs(),
+      assembleDaemonClientHandlers: () => stubs.completeDaemonClientHandlers(),
       setSessionFactory: () => {},
+      getProviderRegistry: () => registry,
     })),
   };
 });
@@ -107,7 +110,7 @@ describe("web local handler cold-start", () => {
     expect(res.body).toMatchObject({ status: "ok" });
   });
 
-  it("warns when serve ignores untrusted project config", async () => {
+  it("warns when serve ignores untrusted scope config", async () => {
     mkdirSync(join(cwd, ".kota"), { recursive: true });
     writeFileSync(
       join(cwd, ".kota", "config.json"),
@@ -126,10 +129,10 @@ describe("web local handler cold-start", () => {
     } finally {
       stderrSpy.mockRestore();
     }
-    expect(warnings).toContain("ignored untrusted project config");
+    expect(warnings).toContain("ignored untrusted scope config");
     expect(warnings).toContain(join(cwd, ".kota", "config.json"));
     expect(warnings).toContain("server/auth posture (serve)");
-    expect(warnings).toContain("trustedProjects");
+    expect(warnings).toContain("trustedScopes");
   });
 
   it("rejects unconfigured-posture session creation with the canonical resolver error", async () => {

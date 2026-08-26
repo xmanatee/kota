@@ -1,4 +1,4 @@
-import type { AgentCanUseTool } from "#core/agent-harness/index.js";
+import type { AgentCanUseTool, AgentHarness } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -7,22 +7,23 @@ import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { RunContext } from "./run-context.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunToolRunner, WorkflowRuntimeSummary } from "./run-types.js";
 import type { TriggerWorkflowFromStepResult } from "./runtime-dispatch-trigger.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type { WorkflowCommandRunner } from "./workflow-command.js";
 
 export type RunExecutorDeps = {
   runContext: RunContext;
   authorityConfigPath?: string;
   bus: EventBus;
   /**
-   * Per-project view over the bus. Standalone runs derive one from projectDir
+   * Per-project view over the bus. Standalone runs derive one from workspaceRoot
    * when the daemon does not supply it.
    */
-  pbus?: ProjectScopedEventBus;
+  pbus?: ScopedEventBus;
   store: WorkflowRunStore;
   readRuntimeState: () => WorkflowRuntimeSummary;
   deadLetterQueue?: DeadLetterQueueStore;
@@ -44,5 +45,9 @@ export type RunExecutorDeps = {
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   scopePolicyAuthority?: ScopePolicyAuthority;
   runTool?: WorkflowRunToolRunner;
+  /** Host-owned command execution port; defaults to the supervised runner. */
+  runCommand?: WorkflowCommandRunner;
+  /** Host-owned harness lookup; defaults to the process registry. */
+  resolveAgentHarness?: (name: string) => AgentHarness;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
 };

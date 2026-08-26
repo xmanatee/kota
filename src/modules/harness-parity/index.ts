@@ -38,7 +38,7 @@ import { harnessParityControlRoutes } from "./routes.js";
 
 function resolveDeps(ctx: ModuleContext): HarnessParityDeps {
   return {
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
     scenariosRoot: resolveKotaRuntimeAsset(
       "src/modules/harness-parity/scenarios",
     ),

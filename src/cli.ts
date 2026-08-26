@@ -34,9 +34,9 @@ import {
   type PresetResolution,
   resolvePreset,
 } from "./core/model/preset.js";
+import { discoverBundledModules } from "./core/modules/bundled-module-discovery.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
-import { discoverProjectModules } from "./core/modules/project-discovery.js";
 import {
   getProviderRegistry,
   initProviderRegistry,
@@ -176,13 +176,13 @@ function warnMissingModelProviderKey(
   providerName: string | undefined,
   modelSpec: string,
   explicitApiKey: string | undefined,
-  projectDir: string,
+  scopeRoot: string,
 ): void {
   const effectiveProvider = resolveModelProviderName(modelSpec, providerName);
   if (!effectiveProvider) return;
   const envName = apiKeyNameForProvider(effectiveProvider);
   if (!envName) return;
-  if (resolveApiKey(effectiveProvider, explicitApiKey, { projectDir })) return;
+  if (resolveApiKey(effectiveProvider, explicitApiKey, { scopeRoot })) return;
   stderr().write(
     line(
       span("Warning: ", "warn"),
@@ -206,7 +206,7 @@ function modelForHarness(modelSpec: string, harnessName: string): string {
 
 program
   .name("kota")
-  .description("KOTA — Keep Only The Awesome. A general-purpose AI agent.")
+  .description("KOTA — a local-first agent automation runtime and operator control plane.")
   .version("0.1.0")
   .addHelpText(
     "after",
@@ -246,8 +246,8 @@ program
 
     const resumeSelection = await resolveRunContinue(getActiveKotaClient(), opts);
     reportResumeCwdSelection(resumeSelection);
-    const runProjectDir = resumeSelection?.projectDir ?? process.cwd();
-    const config = loadConfig(runProjectDir);
+    const runScopeRoot = resumeSelection?.scopeRoot ?? process.cwd();
+    const config = loadConfig(runScopeRoot);
 
     const providerName = opts.provider || config.modelProvider?.type;
     const explicitHarness = opts.harness as string | undefined;
@@ -283,8 +283,8 @@ program
       const systemPrompt = buildKotaSystemPrompt(
         config,
         undefined,
-        runProjectDir,
-        runProjectDir,
+        runScopeRoot,
+        runScopeRoot,
       );
       const runOverrides = {
         verbose: opts.verbose || config.verbose || false,
@@ -308,17 +308,17 @@ program
             showCost: opts.cost !== false && (config.serve?.showCost ?? true),
             mcpInputResolver: createAskUserMcpInputResolver(),
             mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
-            projectDir: runProjectDir,
+            scopeRoot: runScopeRoot,
           }
         : undefined;
       if (opts.interactive || !prompt) {
         const resumeStore = conversationOptions
-          ? openHarnessResumeConversation(runProjectDir, conversationOptions.resumeConversation)
+          ? openHarnessResumeConversation(runScopeRoot, conversationOptions.resumeConversation)
           : undefined;
         await runHarnessRepl({
           harness,
           model,
-          cwd: runProjectDir,
+          cwd: runScopeRoot,
           run: runOverrides,
           chrome: createRenderingProvider().createReplChrome(),
           ...(resumeStore
@@ -335,14 +335,14 @@ program
         });
         return;
       }
-      prompt = expandUserPromptReferences(prompt, runProjectDir).text;
+      prompt = expandUserPromptReferences(prompt, runScopeRoot).text;
       const result = await withProcessSignalAbort((abortController) =>
         runAgentHarnessWithConversationResume({
           harness,
           prompt,
           run: {
             model,
-            cwd: runProjectDir,
+            cwd: runScopeRoot,
             ...runOverrides,
             abortController,
           },
@@ -360,14 +360,14 @@ program
       providerName,
       modelSpec,
       config.modelProvider?.apiKey,
-      runProjectDir,
+      runScopeRoot,
     );
     const resolved = createModelClient({
       model: modelSpec,
       provider: providerName,
       baseUrl: opts.baseUrl || config.modelProvider?.baseUrl,
       apiKey: config.modelProvider?.apiKey,
-      projectDir: runProjectDir,
+      scopeRoot: runScopeRoot,
     });
     const model = resolved.model;
     const editorModel = opts.editorModel || config.editorModel;
@@ -413,7 +413,7 @@ program
       showCost: opts.cost !== false && (config.serve?.showCost ?? true),
       mcpInputResolver: createAskUserMcpInputResolver(),
       mcpAuthorizationResolver: createAskUserMcpAuthorizationResolver(),
-      projectDir: runProjectDir,
+      scopeRoot: runScopeRoot,
     };
 
     let prompt = promptWords.join(" ");
@@ -423,7 +423,7 @@ program
       announceActivePreset({ presetId: "classic-loop", model });
       await interactiveMode(options, config);
     } else {
-      prompt = expandUserPromptReferences(prompt, runProjectDir).text;
+      prompt = expandUserPromptReferences(prompt, runScopeRoot).text;
       announceActivePreset({ presetId: "classic-loop", model });
       await runAgentLoop(prompt, options);
     }
@@ -495,18 +495,25 @@ async function checkPipeMode() {
 
 async function main() {
   ensureCliRenderingProvider();
-  // Discover project modules first so their registration side effects (model
+  // Discover bundled and installed modules first so their registration side effects (model
   // clients, agent harness adapters, etc.) run before any pipe path or action
   // handler resolves something from a core registry.
-  const projectModules = await discoverProjectModules();
+  const bundledModules = await discoverBundledModules();
   const modules = await discoverModules(undefined, false);
 
   const wasPiped = await checkPipeMode();
   if (wasPiped) return;
 
   const config = loadConfig();
-  const loader = new ModuleLoader(config, false, { mode: "commands" });
-  await loader.loadAll(projectModules, modules);
+  const processProviders = getProviderRegistry();
+  if (!processProviders) {
+    throw new Error("CLI provider authority was not initialized");
+  }
+  const loader = new ModuleLoader(config, false, {
+    mode: "commands",
+    providerRegistry: processProviders,
+  });
+  await loader.loadAll(bundledModules, modules);
   // Resolve the active KotaClient exactly once: daemon when reachable,
   // otherwise a LocalKotaClient assembled from the namespace handlers
   // modules registered during load. CLI subcommands consume this through

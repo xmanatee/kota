@@ -1,7 +1,8 @@
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  type DirectoryScope,
+  directoryScopesFromProjection,
 } from "#core/daemon/scope-registry.js";
 import { McpManager } from "#core/mcp/manager.js";
 import type {
@@ -43,9 +44,9 @@ const RECALL_DISCOVERY_SOURCES = [
 // capability probes can refresh OAuth tokens or touch external services.
 const ADVISORY_CAPABILITY_STATUSES: readonly ModuleSetupCapabilityStatus[] = [];
 
-type DiscoveryProject = {
-  projectId: string;
-  projectDir: string;
+type DiscoveryScope = {
+  scopeId: string;
+  scopeRoot: string;
   isDefault: boolean;
 };
 
@@ -114,12 +115,12 @@ function moduleSummariesWithAdvisoryAvailability(
 
 async function moduleSummariesWithAdvisorySetupStatus(
   ctx: ModuleContext,
-  projectDir: string | null,
+  scopeRoot: string | null,
 ) {
   const summaries = ctx.getModuleSummaries();
-  if (projectDir === null) return summaries;
+  if (scopeRoot === null) return summaries;
   const setupStatuses = await listModuleSetupStatusesFromSummaries({
-    projectDir,
+    scopeRoot,
     getModuleSummaries: () => summaries,
     probeCapabilities: async () => ADVISORY_CAPABILITY_STATUSES,
   });
@@ -145,11 +146,11 @@ export function configuredMcpServers(cwd: string): ConfiguredMcpServerResource[]
 
 function knowledgeEntries(
   query: string,
-  project: DiscoveryProject | null,
+  scope: DiscoveryScope | null,
 ) {
-  if (project === null) return [];
+  if (scope === null) return [];
   try {
-    return knowledgeProviderForProject(project)
+    return knowledgeProviderForScope(scope)
       .search(query, { scope: "all" })
       .slice(0, KNOWLEDGE_LIMIT);
   } catch {
@@ -159,10 +160,10 @@ function knowledgeEntries(
 
 function skillSummaries(
   ctx: ModuleContext,
-  project: DiscoveryProject | null,
+  scope: DiscoveryScope | null,
 ): SkillSummary[] {
-  if (project) {
-    return listSkills({ ...ctx, cwd: project.projectDir }).skills;
+  if (scope) {
+    return listSkills({ ...ctx, cwd: scope.scopeRoot }).skills;
   }
   return ctx.getModuleSummaries().flatMap((summary) =>
     summary.skills.map((skill) => ({
@@ -188,7 +189,6 @@ async function recallHits(
     return await provider.recall(query, {
       topK: RECALL_LIMIT,
       sources: RECALL_DISCOVERY_SOURCES,
-      ...(filter.projectId !== undefined && { projectId: filter.projectId }),
       ...(filter.scopeId !== undefined && { scopeId: filter.scopeId }),
     });
   } catch {
@@ -196,48 +196,48 @@ async function recallHits(
   }
 }
 
-function knowledgeProviderForProject(project: DiscoveryProject): KnowledgeProvider {
-  if (project.isDefault) return getKnowledgeProvider();
-  return new KnowledgeStore(project.projectDir);
+function knowledgeProviderForScope(scope: DiscoveryScope): KnowledgeProvider {
+  if (scope.isDefault) return getKnowledgeProvider();
+  return new KnowledgeStore(scope.scopeRoot);
 }
 
-function resolveDiscoveryProject(
-  defaultProjectDir: string,
+function resolveDiscoveryScope(
+  defaultScopeRoot: string,
   filter: ResourceDiscoveryFilter,
-): DiscoveryProject | null {
+): DiscoveryScope | null {
   const selectedId = selectedScopeSelectorId(filter);
   const daemonScope = getProviderRegistry()?.get(
-    DAEMON_PROJECT_SCOPE_PROVIDER_TYPE,
+    DAEMON_SCOPE_PROVIDER_TYPE,
   );
   if (daemonScope) {
-    const projection = daemonScope.getProjectRegistryProjection();
-    const projectId =
-      selectedId ?? daemonScope.getActiveProjectId() ?? projection.defaultProjectId;
-    const project = projection.projects.find((entry) =>
-      entry.projectId === projectId
+    const projection = daemonScope.getScopeRegistryProjection();
+    const scopeId =
+      selectedId ?? daemonScope.getActiveScopeId() ?? projection.defaultScopeId;
+    const scope = directoryScopesFromProjection(projection).find((entry) =>
+      entry.scopeId === scopeId
     );
-    return project
-      ? discoveryProject(project, projection.defaultProjectId)
+    return scope
+      ? discoveryScope(scope, projection.defaultScopeId)
       : null;
   }
 
-  const fallbackProject = buildConfiguredProject({
-    projectDir: defaultProjectDir,
+  const fallbackScope = buildDirectoryScope({
+    scopeRoot: defaultScopeRoot,
   });
-  const projectId = selectedId ?? fallbackProject.projectId;
-  return projectId === fallbackProject.projectId
-    ? discoveryProject(fallbackProject, fallbackProject.projectId)
+  const scopeId = selectedId ?? fallbackScope.scopeId;
+  return scopeId === fallbackScope.scopeId
+    ? discoveryScope(fallbackScope, fallbackScope.scopeId)
     : null;
 }
 
-function discoveryProject(
-  project: ConfiguredProject,
-  defaultProjectId: string,
-): DiscoveryProject {
+function discoveryScope(
+  scope: DirectoryScope,
+  defaultScopeId: string,
+): DiscoveryScope {
   return {
-    projectId: project.projectId,
-    projectDir: project.projectDir,
-    isDefault: project.projectId === defaultProjectId,
+    scopeId: scope.scopeId,
+    scopeRoot: scope.scopeRoot,
+    isDefault: scope.scopeId === defaultScopeId,
   };
 }
 
@@ -246,7 +246,7 @@ export function buildResourceDiscoverySnapshotReader(ctx: ModuleContext) {
     query: string,
     filter: ResourceDiscoveryFilter,
   ): Promise<ResourceDiscoverySnapshot> => {
-    const project = resolveDiscoveryProject(ctx.cwd, filter);
+    const scope = resolveDiscoveryScope(ctx.cwd, filter);
     const toolEffects = new Map(
       getAllTools()
         .map((tool) => [tool.name, getToolEffect(tool.name)] as const)
@@ -257,18 +257,18 @@ export function buildResourceDiscoverySnapshotReader(ctx: ModuleContext) {
     return {
       summaries: await moduleSummariesWithAdvisorySetupStatus(
         ctx,
-        project?.projectDir ?? null,
+        scope?.scopeRoot ?? null,
       ),
       tools: getAllTools(),
       toolEffects,
-      skillSummaries: skillSummaries(ctx, project),
-      knowledgeEntries: knowledgeEntries(query, project),
+      skillSummaries: skillSummaries(ctx, scope),
+      knowledgeEntries: knowledgeEntries(query, scope),
       recallHits: await recallHits(
         ctx.getProvider(RECALL_PROVIDER_TOKEN),
         query,
         filter,
       ),
-      mcpServers: project ? configuredMcpServers(project.projectDir) : [],
+      mcpServers: scope ? configuredMcpServers(scope.scopeRoot) : [],
     };
   };
 }

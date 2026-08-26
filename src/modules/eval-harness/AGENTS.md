@@ -41,7 +41,7 @@ their CLI, HTTP, and cadence surfaces.
 
 ## Baselines And Execution
 
-Cadence stores one accepted aggregate in project-scoped runtime state. The
+Cadence stores one accepted aggregate in scope-scoped runtime state. The
 first run records without gating; non-gating comparisons advance the baseline,
 while gated regressions hold it until a clear run or manual reset. A config
 fingerprint change starts a fresh baseline rather than becoming quality signal.
@@ -74,7 +74,7 @@ materialization before runtime clocks are read.
 Replay-only tools are compiled into this trusted module. Local simulated
 effects must write through the workflow runner's explicit `cwd`, never the host
 process directory; they do not use fixture code, credentials, network access,
-or project trust.
+or scope trust.
 
 ## Boundaries
 

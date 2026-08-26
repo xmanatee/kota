@@ -9,7 +9,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { EMITTED_EVENTS_LOG_FILENAME } from "../run-event-evidence.js";
 import { WorkflowRunStore } from "../run-store.js";
@@ -19,7 +19,7 @@ import { createTestTransactionalRunState } from "../testing/run-context-fixture.
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 import { createStepContext } from "./step-context.js";
 
-function tempProject(): string {
+function tempScope(): string {
   const dir = join(
     tmpdir(),
     `kota-step-context-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -55,11 +55,11 @@ describe("createStepContext", () => {
   it.skipIf(process.platform === "win32")(
     "registers command processes with the run-owned registry",
     async () => {
-      const projectDir = tempProject();
+      const workspaceRoot = tempScope();
       try {
         const bus = new EventBus();
-        const pbus = new ProjectScopedEventBus(bus, "scope-a");
-        const store = new WorkflowRunStore(projectDir);
+        const pbus = new ScopedEventBus(bus, "scope-a");
+        const store = new WorkflowRunStore(workspaceRoot);
         const register = vi.fn();
 
         const context = createStepContext(
@@ -71,8 +71,8 @@ describe("createStepContext", () => {
           [],
           {
             readRuntimeState: readEmptyTestWorkflowRuntimeState,
-            projectDir,
-            scopeDir: projectDir,
+            workspaceRoot,
+            scopeRoot: workspaceRoot,
             bus,
             pbus,
             store,
@@ -97,13 +97,13 @@ describe("createStepContext", () => {
         expect(register).toHaveBeenCalledOnce();
         expect(register).toHaveBeenCalledWith(result.identity);
       } finally {
-        rmSync(projectDir, { recursive: true, force: true });
+        rmSync(workspaceRoot, { recursive: true, force: true });
       }
     },
   );
 
   it("stages every writer code-step event until integration succeeds", () => {
-    const projectDir = tempProject();
+    const workspaceRoot = tempScope();
     try {
       const event = defineDaemonWideModuleEvent<{ value: number }>(
         "step-context.writer.completed",
@@ -118,8 +118,8 @@ describe("createStepContext", () => {
       );
       initModuleEventRegistry().register("step-context-test", event);
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
-      const store = new WorkflowRunStore(projectDir);
+      const pbus = new ScopedEventBus(bus, "scope-a");
+      const store = new WorkflowRunStore(workspaceRoot);
       const stageEmit = vi.fn();
       const observed = vi.fn();
       bus.on("*", observed);
@@ -133,8 +133,8 @@ describe("createStepContext", () => {
         [],
         {
           readRuntimeState: readEmptyTestWorkflowRuntimeState,
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
           store,
@@ -160,20 +160,20 @@ describe("createStepContext", () => {
         ["mutate:emit:1", event.name, { value: 2 }],
       ]);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
-  it("separates the canonical project root from the workflow workspace", async () => {
-    const projectDir = tempProject();
+  it("separates the canonical scope root from the workflow workspace", async () => {
+    const workspaceRoot = tempScope();
     try {
-      const workspaceDir = join(projectDir, ".worktrees", "run-1");
+      const workspaceDir = join(workspaceRoot, ".worktrees", "run-1");
       mkdirSync(workspaceDir, { recursive: true });
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
-      const store = new WorkflowRunStore(projectDir);
+      const pbus = new ScopedEventBus(bus, "scope-a");
+      const store = new WorkflowRunStore(workspaceRoot);
       const runTool = vi.fn(async () => ({ content: "ok" }));
-      const authorityConfigPath = join(projectDir, "operator", "config.json");
+      const authorityConfigPath = join(workspaceRoot, "operator", "config.json");
 
       const context = createStepContext(
         makeMetadata(),
@@ -184,8 +184,8 @@ describe("createStepContext", () => {
         [],
         {
           readRuntimeState: readEmptyTestWorkflowRuntimeState,
-          projectDir: workspaceDir,
-          scopeDir: projectDir,
+          workspaceRoot: workspaceDir,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
           store,
@@ -207,29 +207,27 @@ describe("createStepContext", () => {
         { action: "list" },
         {
           authorityConfigPath,
-          projectDir,
+          scopeRoot: workspaceRoot,
           cwd: workspaceDir,
           sessionId: "workflow-session",
           stepId: "build",
           scopeId: "scope-a",
-          projectId: "scope-a",
           workflow: {
             workflowName: "repo-ai-checks",
             runId: "run-1",
             stepId: "build",
             spanId: "run-1:build",
             scopeId: "scope-a",
-            projectId: "scope-a",
           },
         },
       );
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("emits registered daemon-wide dynamic events without injecting scope fields", () => {
-    const projectDir = tempProject();
+    const workspaceRoot = tempScope();
     try {
       const event = defineDaemonWideModuleEvent<{ repo: string }>(
         "step-context.daemon.completed",
@@ -245,8 +243,8 @@ describe("createStepContext", () => {
       initModuleEventRegistry().register("step-context-test", event);
 
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
-      const store = new WorkflowRunStore(projectDir);
+      const pbus = new ScopedEventBus(bus, "scope-a");
+      const store = new WorkflowRunStore(workspaceRoot);
       const wildcard = vi.fn();
       bus.on("*", wildcard);
 
@@ -259,8 +257,8 @@ describe("createStepContext", () => {
         [],
         {
           readRuntimeState: readEmptyTestWorkflowRuntimeState,
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
           store,
@@ -276,7 +274,7 @@ describe("createStepContext", () => {
         payload: { repo: "owner/repo" },
       } satisfies BusEnvelope);
       const logPath = join(
-        projectDir,
+        workspaceRoot,
         ".kota/runs/run-1",
         EMITTED_EVENTS_LOG_FILENAME,
       );
@@ -289,7 +287,7 @@ describe("createStepContext", () => {
       expect(logged.schemaRef).toEqual({ name: event.name, version: 1 });
       expect(logged.payload).toEqual({ repo: "owner/repo" });
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });

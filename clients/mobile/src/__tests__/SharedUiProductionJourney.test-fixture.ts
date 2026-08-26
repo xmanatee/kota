@@ -1,13 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import type * as Notifications from 'expo-notifications';
-import fixture from './__fixtures__/contract-fixture.json';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
 import {
   parseUiSurfaceBundle,
   type UiAction,
   type UiSurface,
   type UiSurfaceBundle,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 
 export type FetchCall = {
   url: string;
@@ -23,8 +23,29 @@ export type NotificationListener = Parameters<
 export const DAEMON_URL = 'http://127.0.0.1:8765';
 export const DAEMON_TOKEN = 'production-journey-token';
 export const contractBundle = parseUiSurfaceBundle(
-  fixture.uiSurfaces.statusInbox,
+  fixture.operatorBundle,
 );
+const identity = {
+  scopeName: 'kota',
+  scopeRoot: '/workspace/kota',
+  scopeRegistry: {
+    rootScopeId: 'global',
+    defaultScopeId: 'scope-fixture',
+    scopes: [
+      { scopeId: 'global', displayName: 'Global' },
+      {
+        scopeId: 'scope-fixture',
+        displayName: 'kota',
+        parentScopeId: 'global',
+        directoryRoot: '/workspace/kota',
+      },
+    ],
+  },
+  daemonVersion: '0.1.0',
+  pid: 12345,
+  startedAt: '2026-04-29T01:00:00.000Z',
+  dashboard: { available: true, path: '/' },
+};
 export const sseRequests: MockSseRequest[] = [];
 
 const capturedBundlePath = process.env.KOTA_UI_SURFACE_EVIDENCE_BUNDLE;
@@ -80,7 +101,7 @@ export function createDaemonRequestHandler(
       case '/health':
         return jsonResponse({ ok: true });
       case '/identity':
-        return jsonResponse(fixture.identity);
+        return jsonResponse(identity);
       case '/ui/surfaces':
         return jsonResponse(getBundle());
       case '/ui/actions/execute':
@@ -118,7 +139,7 @@ export function callsForPath(
 
 export function evidenceBundleSource(): string {
   if (!capturedBundlePath) {
-    return 'clients/conformance/contract-fixture.json#uiSurfaces.statusInbox';
+    return 'scripts/ui-behavior-vectors.mjs#operatorBundle';
   }
   return relative(join(process.cwd(), '..', '..'), capturedBundlePath);
 }

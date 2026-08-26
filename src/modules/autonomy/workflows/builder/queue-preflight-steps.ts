@@ -23,7 +23,7 @@ export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget>({
     ]),
   run: (ctx) =>
     ctx.runBlocking(inspectBuilderTaskTargetOperation, {
-      projectDir: workflowWorkspaceDir(ctx),
+      workspaceRoot: workflowWorkspaceDir(ctx),
       payload: ctx.trigger.payload,
     }),
 });

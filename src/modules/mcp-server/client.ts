@@ -4,7 +4,7 @@
  * The mcp-server module owns the `mcpServer` KotaClient namespace
  * end-to-end: the boot options, the discriminated start-result envelope,
  * and the `McpServerClient` interface itself. The aggregate `KotaClient`
- * interface in `src/core/server/kota-client.ts` composes this contract by
+ * interface in the generated KotaClient aggregate composes this contract by
  * importing `McpServerClient` from this module instead of declaring the
  * shapes inline.
  *

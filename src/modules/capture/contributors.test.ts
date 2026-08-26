@@ -8,7 +8,6 @@ import type {
 } from "#core/modules/provider-types.js";
 import {
   createRepoTaskRuntimeSandbox,
-  repoTaskRuntimeSandboxTarget,
 } from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import {
   createInboxContributor,
@@ -36,15 +35,6 @@ function fakeMemoryProvider(): MemoryProvider & { saved: string[] } {
     },
     delete() {
       return false;
-    },
-    supportsSemanticSearch() {
-      return false;
-    },
-    async semanticSearch() {
-      return [];
-    },
-    async reindex() {
-      return { indexed: 0, failed: 0, skipped: true };
     },
   };
 }
@@ -77,27 +67,18 @@ function fakeKnowledgeProvider(): KnowledgeProvider & {
     count() {
       return 0;
     },
-    supportsSemanticSearch() {
-      return false;
-    },
-    async semanticSearch() {
-      return [];
-    },
-    async reindex() {
-      return { indexed: 0, failed: 0, skipped: true };
-    },
   };
 }
 
-function makeProjectDir(): string {
+function makeRuntimeTarget() {
   const scopeDir = mkdtempSync(join(tmpdir(), "capture-contrib-"));
-  const dir = createRepoTaskRuntimeSandbox(
+  const target = createRepoTaskRuntimeSandbox(
     scopeDir,
     "capture-contributor-test",
-  ).projectDir;
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(dir, "data", "inbox"), { recursive: true });
-  return dir;
+  );
+  mkdirSync(join(target.workspaceRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(target.workspaceRoot, "data", "inbox"), { recursive: true });
+  return target;
 }
 
 describe("createMemoryContributor", () => {
@@ -148,15 +129,15 @@ describe("createKnowledgeContributor", () => {
 
 describe("createTasksContributor", () => {
   it("creates a normalized task with title from the first line", async () => {
-    const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
+    const target = makeRuntimeTarget();
+    const contrib = createTasksContributor(target);
     const record = await contrib.capture({
       text: "review macOS push permissions",
     });
     expect(record.target).toBe("tasks");
     if (record.target !== "tasks") throw new Error("unreachable");
     expect(record.recordId).toBe("task-review-macos-push-permissions");
-    const filePath = join(projectDir, record.path);
+    const filePath = join(target.workspaceRoot, record.path);
     expect(existsSync(filePath)).toBe(true);
     const body = readFileSync(filePath, "utf-8");
     expect(body).toMatch(/title: review macOS push permissions/);
@@ -165,16 +146,16 @@ describe("createTasksContributor", () => {
   });
 
   it("throws when the title produces an empty slug", async () => {
-    const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
+    const target = makeRuntimeTarget();
+    const contrib = createTasksContributor(target);
     await expect(contrib.capture({ text: "??? !!!" })).rejects.toThrow(
       /Task capture rejected/,
     );
   });
 
   it("throws when the first line is empty", async () => {
-    const projectDir = makeProjectDir();
-    const contrib = createTasksContributor(repoTaskRuntimeSandboxTarget(projectDir));
+    const target = makeRuntimeTarget();
+    const contrib = createTasksContributor(target);
     await expect(contrib.capture({ text: "" })).rejects.toThrow(
       /non-empty first line/,
     );
@@ -183,8 +164,8 @@ describe("createTasksContributor", () => {
 
 describe("createInboxContributor", () => {
   it("writes a slugged note file under data/inbox/", async () => {
-    const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
+    const target = makeRuntimeTarget();
+    const contrib = createInboxContributor(target);
     const record = await contrib.capture({
       text: "raw thought worth filing later",
     });
@@ -194,14 +175,14 @@ describe("createInboxContributor", () => {
     expect(record.path).toBe(
       "data/inbox/note-raw-thought-worth-filing-later.md",
     );
-    const body = readFileSync(join(projectDir, record.path), "utf-8");
+    const body = readFileSync(join(target.workspaceRoot, record.path), "utf-8");
     expect(body.endsWith("\n")).toBe(true);
     expect(body).toContain("raw thought worth filing later");
   });
 
   it("throws when a note with the same slug already exists", async () => {
-    const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
+    const target = makeRuntimeTarget();
+    const contrib = createInboxContributor(target);
     await contrib.capture({ text: "duplicate-thought" });
     await expect(
       contrib.capture({ text: "duplicate-thought" }),
@@ -209,8 +190,8 @@ describe("createInboxContributor", () => {
   });
 
   it("throws when the title produces an empty slug", async () => {
-    const projectDir = makeProjectDir();
-    const contrib = createInboxContributor(repoTaskRuntimeSandboxTarget(projectDir));
+    const target = makeRuntimeTarget();
+    const contrib = createInboxContributor(target);
     await expect(contrib.capture({ text: "??? !!!" })).rejects.toThrow(
       /empty slug/,
     );

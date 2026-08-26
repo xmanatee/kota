@@ -1,119 +1,51 @@
 # Clients
 
-This directory contains native client apps that connect to the KOTA daemon control API.
+This directory contains thin operator clients for the KOTA daemon.
 
-- Each client lives in its own subdirectory (currently `web/`, `apple/`, and `mobile/`).
-- Clients are thin: all live state comes from the daemon HTTP+JSON API and SSE
-  event stream. No client parses `.kota/` files or starts its own KOTA runtime.
-- Authentication and daemon discovery must go through the client wrapper for
-  that platform, not ad hoc view code.
-- Clients are not modules. They do not contribute tools, workflows, channels, or agents.
-- Native platform technology is preferred (SwiftUI for macOS/iOS, Kotlin/Jetpack Compose for Android, or a cross-platform framework when targeting multiple platforms).
+- Clients read live state and perform operations through the daemon's typed
+  control API and event stream. They do not parse `.kota/`, start a runtime, or
+  recreate daemon decisions locally.
+- Each platform has one client wrapper that owns discovery, authentication,
+  transport, decoding, error normalization, and event-stream lifecycle. Views
+  depend on domain operations and view state, not route strings.
+- Native shells own platform presentation and affordances. Shared product
+  behavior belongs in the daemon contract, not in copied screen logic.
+- A missing product capability is resolved by changing the owning daemon
+  contract and affected clients as one coherent slice; directory boundaries do
+  not force separate task or migration surfaces.
 
-## Clients
+## Thin-client contract
 
-- `web/` — browser dashboard served by the daemon.
-- `apple/` — native macOS menu-bar app and native iOS app, sharing
-  Swift sources (daemon transport, `AppState`, SwiftUI views) through
-  a single Swift package with three targets (`KotaShared`,
-  `KotaMenuBar`, `KotaiOS`).
-- `mobile/` — React Native cross-platform mobile client. Android phone parity
-  is its primary reason to exist while `apple/` owns native iOS. If a future
-  decision makes React Native the canonical iOS app, that decision must first
-  retire or rescope the native iOS shell so the repo does not keep two
-  independent iOS product surfaces.
+The daemon owns one versioned machine-readable contract for structural wire
+shapes. Generate language bindings from that source. Do not hand-copy route
+catalogs, discriminated unions, or canonical payload trees between clients.
 
-## Adding a New Client
+Authored conformance examples cover semantics that a schema cannot express:
+cross-field invariants, version negotiation, capability readiness, error
+meaning, security-sensitive redaction, and event ordering. An implementation
+runs only the suites for contracts or capabilities it declares. Adding a
+surface does not automatically require positive, negative, restart, source-
+absence, and copy-identity tests.
 
-- Create a subdirectory with an `AGENTS.md` that states ownership boundaries and
-  durable platform conventions.
-- Build against the daemon control API source and client wrapper types.
-- Do not require any daemon or server changes — the existing API should be sufficient.
-- If you discover a missing API capability, add a task to `data/inbox/` rather than patching the daemon from within the client.
+Clients must:
 
-## Thin-Client Contract
+- render the daemon-provided identity and canonical scope model without
+  deriving either from local files;
+- discover capability readiness and make unavailable actions understandable;
+- derive daemon URLs and workflow choices from daemon responses rather than
+  hardcoded deployment assumptions;
+- normalize typed errors consistently without exposing credentials; and
+- own one reconnecting event transport per connection rather than per screen.
 
-Every client must speak the same daemon control protocol. A new client
-gets these affordances for free; an existing client must not invent
-local equivalents.
+Compatibility with an older public wire shape is an adapter at the daemon
+boundary. New client code consumes the canonical scope and capability model and
+does not extend the compatibility vocabulary.
 
-- **Identity** — `GET /identity` returns the typed `ClientIdentity`
-  payload (default directory-scope name + absolute path, the typed
-  `projects: ProjectRegistryProjection` compatibility projection, daemon
-  version, pid, startedAt, dashboard availability). Existing selectors
-  render against `projects`; new scope-aware surfaces should read
-  `GET /scopes`. Clients must not derive either list from `.kota/`
-  files or collapse "wrong scope" / "no control file" / "remote URL
-  configured" into a single "Daemon offline" string.
-- **Scope registry** — `GET /scopes` returns the canonical
-  `ScopeRegistryProjection`: a global root, default scope id, and ordered
-  child scopes. Directory-backed scopes carry `directoryRoot`; future
-  non-directory scopes use the same shape without forcing project
-  terminology.
-- **Project registry compatibility** — `GET /projects` returns the typed
-  `ProjectRegistryProjection` directly (default projectId + ordered list
-  of configured directory scopes) as a compatibility adapter for existing
-  project selectors. Project-scoped control-API routes accept an optional
-  `?projectId=` query parameter; when omitted the daemon resolves the
-  registry's default, and an unknown id returns `404` with the typed
-  `{ "error": "Unknown project", "reason": "unknown_project",
-  "projectId": "<id>" }` envelope. Single-directory clients can ignore
-  the parameter entirely and continue to receive default-scope state.
-- **Capability readiness** — `GET /capabilities` returns the typed
-  `CapabilityReadinessResponse`. Each entry carries a stable id (e.g.
-  `dashboard`, `knowledge.search`, `workflow.trigger`), a status
-  (`ready` | `unavailable` | `init_failed`), an optional reason code,
-  and a short operator-facing message. Clients must hide, disable, or
-  explain controls whose capability is not `ready` rather than
-  rendering an unhandled error after the route fails.
-- **Dashboard URL** — clients must not hardcode `localhost:3000`. They
-  must construct the dashboard URL from `ClientIdentity.dashboard.path`
-  joined onto the daemon base URL (or remote URL), and they must hide
-  the affordance entirely when `dashboard.available` is `false`.
-- **Workflow definitions** — `GET /workflow/definitions` is the
-  authoritative catalog. Workflow trigger UIs must consume this list
-  rather than asking the operator for a free-text workflow name. The
-  payload includes `inputSchema` when a workflow declares one; clients
-  that cannot render input fields must surface that they are
-  triggering without input.
-- **Error envelope** — daemon error responses are JSON
-  `{ "error"?, "code"?, "reason"?, "message"? }` (or plain text on
-  pre-handler failures). The shared parser is
-  `parseDaemonClientErrorBody` in `src/core/daemon/client-error.ts`;
-  TypeScript clients consume that helper, and Swift clients mirror its
-  field ordering through `DaemonErrorBody.displaySummary` so the same
-  body renders the same line in every UI.
-- **Presentation** — show the connected project + daemon identity in an
-  unobtrusive way; render `unavailable` capabilities as "disabled with
-  reason" rather than "broken with raw HTTP error"; voice clients surface
-  daemon failure codes one-to-one; never expose bearer tokens.
+## Platform ownership
 
-The contract conformance gate has three pieces:
-
-1. `clients/conformance/contract-fixture.json` — canonical pinned
-   sample of every contract surface.
-2. `src/core/daemon/client-contract.test.ts` and
-   `src/core/daemon/client-identity.test.ts` — TypeScript decoders
-   exercise the fixture and the live `/identity` route.
-3. `clients/apple/Tests/KotaSharedTests/ContractFixtureTests.swift` — Swift
-   decoders parse the same JSON tree; `ui.surface.v1` uses generated bindings,
-   while remaining decoders stay fixture-locked by the cross-client test.
-
-Add a contract surface only after extending all three pieces in the
-same change.
-
-Open client-contract gaps belong in `data/tasks/`, not in a durable
-migration matrix. This file records the steady-state contract only.
-
-## Platform Ownership
-
-The steady state is one daemon protocol, multiple thin clients, and no duplicate
-runtime ownership:
-
-- `apple/` owns native macOS and native iOS behavior, including platform
-  affordances that require AppKit/UIKit or SwiftUI-native shells.
-- `mobile/` owns React Native shared mobile behavior and Android parity. It may
-  share daemon-contract fixtures with other clients, but it must not add an
-  iOS-only feature that bypasses or disagrees with `apple/`.
-- Shared behavior belongs in the daemon contract or conformance fixtures, not in
-  copy-pasted screen logic between `apple/` and `mobile/`.
+- `web/` owns the browser dashboard.
+- `apple/` owns native macOS and iOS shells and their shared Swift code.
+- `mobile/` owns shared React Native behavior and Android parity. It does not
+  create a second independent iOS product contract.
+- `conformance/` owns authored cross-language semantic vectors and generation
+  entrypoints, not copied production decoders or an exhaustive product fixture.

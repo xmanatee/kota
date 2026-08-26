@@ -13,8 +13,8 @@ import {
   localDaemonStatus,
   localDaemonStop,
 } from "./daemon-ops-operations.js";
-import { buildProjectsDaemonHandler } from "./projects-daemon.js";
-import { projectsLocalClient } from "./projects-local.js";
+import { buildScopesDaemonHandler } from "./scopes-daemon.js";
+import { scopesLocalClient } from "./scopes-local.js";
 import { sessionsLocalClient } from "./sessions-local.js";
 import { parseUiActionRequest } from "./ui-action-request.js";
 import {
@@ -71,14 +71,14 @@ const daemonModule: KotaModule = {
     return {
       sessions: sessionsLocalClient(),
       daemonOps,
-      projects: projectsLocalClient(),
+      scopes: scopesLocalClient(),
       ui: buildLocalUiClient(ctx),
     };
   },
   daemonClient: (link) => ({
     sessions: buildSessionsDaemonHandler(link),
     daemonOps: buildDaemonOpsDaemonHandler(link),
-    projects: buildProjectsDaemonHandler(link),
+    scopes: buildScopesDaemonHandler(link),
     ui: buildUiDaemonHandler(link),
   }),
 };

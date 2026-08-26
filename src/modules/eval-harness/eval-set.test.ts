@@ -57,7 +57,7 @@ describe("runEvalSet aggregation", () => {
     };
 
     const report = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures,
       executor,
       requestedProfile: PROFILE,
@@ -155,7 +155,7 @@ describe("runEvalSet aggregation", () => {
 
     await expect(
       runEvalSet({
-        projectDir: fixturesRoot,
+        workspaceRoot: fixturesRoot,
         fixtures,
         executor: {
           preflight: () => EXECUTION_PROFILE,
@@ -206,7 +206,7 @@ describe("runEvalSet aggregation", () => {
     const fixtures = loadAllFixtures(fixturesRoot);
 
     const report = await runEvalSet({
-      projectDir: fixturesRoot,
+      workspaceRoot: fixturesRoot,
       fixtures,
       executor: {
         preflight: () => EXECUTION_PROFILE,

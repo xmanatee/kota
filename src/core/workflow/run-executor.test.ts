@@ -66,7 +66,7 @@ function delayWithAbort(ms: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-function registerWorkflowTestHarness(
+function registerWorkflowScenarioDriver(
   name: string,
   run: AgentHarness["run"],
 ): void {
@@ -82,9 +82,9 @@ function registerWorkflowTestHarness(
   });
 }
 
-function makeRunContext(projectDir: string): RunContext {
+function makeRunContext(workspaceRoot: string): RunContext {
   const runId = "test-run";
-  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const rootDir = join(workspaceRoot, ".kota", "runtime", runId);
   const workspaceDir = join(rootDir, "workspace");
   const tempDir = join(rootDir, "tmp");
   const artifactDir = join(rootDir, "artifacts");
@@ -96,7 +96,7 @@ function makeRunContext(projectDir: string): RunContext {
 
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger: TRIGGER,
     sandbox: {
@@ -129,17 +129,17 @@ function makeRunContext(projectDir: string): RunContext {
 }
 
 function makeAgentStep(
-  projectDir: string,
+  workspaceRoot: string,
   harness: string,
   overrides: Partial<WorkflowAgentStep> = {},
 ): WorkflowAgentStep {
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
   return {
     id: "agent",
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -147,26 +147,26 @@ function makeAgentStep(
   };
 }
 
-let projectDir: string;
+let workspaceRoot: string;
 let store: WorkflowRunStore;
 let bus: EventBus;
 let runContext: RunContext;
 const log = vi.fn();
 
 beforeEach(() => {
-  projectDir = join(
+  workspaceRoot = join(
     tmpdir(),
     `kota-run-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  store = new WorkflowRunStore(projectDir);
+  mkdirSync(workspaceRoot, { recursive: true });
+  store = new WorkflowRunStore(workspaceRoot);
   bus = new EventBus();
-  runContext = makeRunContext(projectDir);
+  runContext = makeRunContext(workspaceRoot);
   log.mockReset();
 });
 
 afterEach(() => {
-  rmSync(projectDir, { recursive: true, force: true });
+  rmSync(workspaceRoot, { recursive: true, force: true });
 });
 
 describe("continueOnFailure", () => {
@@ -259,9 +259,9 @@ describe("continueOnFailure", () => {
     });
     await promise;
 
-    const runDirs = readdirSync(join(projectDir, ".kota", "runs"));
+    const runDirs = readdirSync(join(workspaceRoot, ".kota", "runs"));
     const metadata = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
     ) as { steps: Array<{ status: string; continueOnFailure?: boolean; error?: string }> };
 
     expect(metadata.steps).toHaveLength(1);
@@ -525,7 +525,7 @@ describe("step timeout", () => {
 
   it("lets streaming agent steps exceed idleTimeoutMs while typed messages arrive", async () => {
     const harness = "workflow-idle-productive";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       const signal = options.abortController?.signal;
       await delayWithAbort(100, signal);
       await options.onMessage?.({ type: "text", text: "one" });
@@ -537,9 +537,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           idleTimeoutMs: 250,
           timeoutMs: 2000,
         }),
@@ -556,7 +556,7 @@ describe("step timeout", () => {
 
   it("governs an unbounded agent step only by trusted idle progress", async () => {
     const harness = "workflow-idle-governed";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       const signal = options.abortController?.signal;
       await delayWithAbort(30, signal);
       await options.onMessage?.({ type: "text", text: "one" });
@@ -567,9 +567,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           timeoutMs: null,
           idleTimeoutMs: 50,
         }),
@@ -588,7 +588,7 @@ describe("step timeout", () => {
     const harness = "workflow-agent-output-validator";
     const token = `${"ghp"}_${"A".repeat(36)}`;
     const responseText = ["```json", JSON.stringify({ body: `token: ${token}` }), "```"].join("\n");
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await options.onMessage?.({ type: "text", text: responseText });
       return {
         text: responseText,
@@ -603,9 +603,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           outputFormat: "json",
           outputSchema: {
             type: "object",
@@ -626,7 +626,7 @@ describe("step timeout", () => {
       readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext, bus, store, log });
     const result = await promise;
     const step = result.metadata.steps[0];
-    const runDirPath = join(projectDir, result.metadata.runDir);
+    const runDirPath = join(workspaceRoot, result.metadata.runDir);
 
     expect(result.metadata.status).toBe("failed");
     expect(step?.status).toBe("failed");
@@ -641,7 +641,7 @@ describe("step timeout", () => {
   it("retries invalid fenced JSON output with a targeted correction prompt", async () => {
     const harness = "workflow-agent-invalid-json-retry";
     const prompts: string[] = [];
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       prompts.push(options.prompt);
       const attempt = prompts.length;
       const text = prompts.length === 1
@@ -664,9 +664,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           outputFormat: "json",
           outputSchema: {
             type: "object",
@@ -695,7 +695,7 @@ describe("step timeout", () => {
   it("retries missing fenced JSON output with a targeted correction prompt", async () => {
     const harness = "workflow-agent-missing-json-fence-retry";
     const prompts: string[] = [];
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       prompts.push(options.prompt);
       const text = prompts.length === 1
         ? JSON.stringify({ body: "ok" })
@@ -713,9 +713,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           outputFormat: "json",
           outputSchema: {
             type: "object",
@@ -742,7 +742,7 @@ describe("step timeout", () => {
   it("retries agent idle timeouts through the agent retry classifier", async () => {
     const harness = "workflow-idle-retry";
     let attempts = 0;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       attempts += 1;
       const signal = options.abortController?.signal;
       if (attempts === 1) {
@@ -753,9 +753,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
           timeoutMs: AGENT_STEP_TIMEOUT_MS,
           retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
@@ -776,15 +776,15 @@ describe("step timeout", () => {
     bus.on("workflow.failure.alert", (payload) => alerts.push(payload));
 
     const harness = "workflow-idle-failure";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
           timeoutMs: null,
           retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
@@ -808,7 +808,7 @@ describe("step timeout", () => {
   it("records structured idle-timeout failure details from repair agents", async () => {
     const harness = "workflow-repair-idle-failure";
     let attempts = 0;
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       attempts += 1;
       if (attempts === 1) return AGENT_OK_RESULT;
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
@@ -816,9 +816,9 @@ describe("step timeout", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
           timeoutMs: AGENT_STEP_TIMEOUT_MS,
           retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
@@ -854,12 +854,12 @@ describe("step timeout", () => {
 
   it("records structured repair-loop exhaustion", async () => {
     const harness = "workflow-repair-exhausted";
-    registerWorkflowTestHarness(harness, async () => AGENT_OK_RESULT);
+    registerWorkflowScenarioDriver(harness, async () => AGENT_OK_RESULT);
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           repairLoop: {
             maxRepairAttempts: 1,
             checks: [
@@ -960,19 +960,19 @@ describe("step timeout", () => {
 
   it("preserves agent idle-timeout details and backoff from parallel groups", async () => {
     const harness = "workflow-parallel-idle-failure";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
         {
           id: "fanout",
           type: "parallel",
           steps: [
-            makeAgentStep(projectDir, harness, {
+            makeAgentStep(workspaceRoot, harness, {
               id: "inner-agent",
               idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
               timeoutMs: AGENT_STEP_TIMEOUT_MS,
@@ -999,13 +999,13 @@ describe("step timeout", () => {
 
   it("preserves agent idle-timeout details and backoff from foreach groups", async () => {
     const harness = "workflow-foreach-idle-failure";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
         {
           id: "loop",
@@ -1013,7 +1013,7 @@ describe("step timeout", () => {
           items: [1],
           as: "item",
           steps: [
-            makeAgentStep(projectDir, harness, {
+            makeAgentStep(workspaceRoot, harness, {
               id: "inner-agent",
               idleTimeoutMs: AGENT_IDLE_TIMEOUT_MS,
               timeoutMs: AGENT_STEP_TIMEOUT_MS,
@@ -1040,15 +1040,15 @@ describe("step timeout", () => {
 
   it("lets hard timeoutMs win before an idle timeout deadline", async () => {
     const harness = "workflow-hard-timeout-wins";
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       await delayWithAbort(AGENT_IDLE_DELAY_MS, options.abortController?.signal);
       return AGENT_OK_RESULT;
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, {
+        makeAgentStep(workspaceRoot, harness, {
           idleTimeoutMs: 100,
           timeoutMs: 20,
           retry: { maxAttempts: 1, initialDelayMs: 1, backoffFactor: 1 },
@@ -1203,9 +1203,9 @@ describe("outputSchema validation", () => {
       readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext, bus, store, log });
     await promise;
 
-    const runDirs = readdirSync(join(projectDir, ".kota", "runs"));
+    const runDirs = readdirSync(join(workspaceRoot, ".kota", "runs"));
     const metadata = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, ".kota", "runs", runDirs[0], "metadata.json"), "utf-8"),
     ) as { status: string; warnings?: Array<{ type: string; message: string }> };
 
     expect(metadata.status).toBe("completed-with-warnings");

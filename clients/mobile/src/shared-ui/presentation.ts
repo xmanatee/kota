@@ -3,7 +3,7 @@ import type {
   UiCondition,
   UiPermission,
   UiRole,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { assertNever } from './graph';
 
 export const roleColors: Readonly<Record<UiRole, string>> = {

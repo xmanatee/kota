@@ -4,7 +4,7 @@ This module owns the typed daemon event contract and declarative routing
 dispatcher for external platform signals that should wake bounded workflows.
 
 - Adapters authenticate provider traffic, normalize source/account/actor
-  metadata, attach project scope, validate the payload, and emit
+  metadata, attach scope identity, validate the payload, and emit
   `inbound.signal.received`.
 - The module's routing table decides which normalized sources are eligible for
   downstream workflow processing. Workflows decide what an accepted routed

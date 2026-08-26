@@ -54,16 +54,14 @@ function getConfig(ctx: ModuleContext): EmailConfig | null {
 }
 
 let mailer: Mailer | null = null;
-let unsubs: (() => void)[] = [];
-
 function makeEmailSender(
   cfg: EmailConfig,
   log: ModuleContext["log"],
+  activeMailer: Mailer,
 ): (event: string, payload: Record<string, unknown>) => void {
   return (event, payload) => {
-    if (!mailer) return;
     const { subject, text } = formatEmail(event, payload);
-    mailer.send({ from: cfg.from, to: cfg.to, subject, text }).catch((err: unknown) => {
+    activeMailer.send({ from: cfg.from, to: cfg.to, subject, text }).catch((err: unknown) => {
       log.warn(`email: failed to send (${event}): ${(err as Error).message}`);
     });
   };
@@ -92,7 +90,7 @@ const emailAlertsChannel: ChannelDef = {
           }
         },
         stop() {
-          // no-op: mailer is closed in onUnload
+          // no-op: the module activation disposer closes the mailer
         },
       },
     };
@@ -129,14 +127,14 @@ const emailModule: KotaModule = {
         id: "email.smtp-routing",
         description: "SMTP host, sender, recipient, and event-filter routing configuration.",
         sensitivity: "personal",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "metadata-only",
       },
       {
         id: "email.smtp-credentials",
         description: "SMTP username and password references resolved through the shared secret provider.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -160,9 +158,9 @@ const emailModule: KotaModule = {
       kind: "config",
       title: "SMTP routing config",
       description:
-        "Project SMTP host and email routing fields used for operator notifications.",
+        "Scope SMTP host and email routing fields used for operator notifications.",
       required: true,
-      scope: "project",
+      scope: "scope",
       owner: "email",
       sensitivity: "none",
       setup: {
@@ -235,7 +233,7 @@ const emailModule: KotaModule = {
       description:
         "Optional SMTP username and password values stored through the shared secret provider.",
       required: false,
-      scope: "project",
+      scope: "scope",
       owner: "email",
       sensitivity: "secret",
       setup: {
@@ -245,8 +243,8 @@ const emailModule: KotaModule = {
         pendingTtlMs: 30 * 60 * 1000,
       },
       secretRefs: [
-        { name: "SMTP_USER", scope: "project" },
-        { name: "SMTP_PASS", scope: "project" },
+        { name: "SMTP_USER", scope: "scope" },
+        { name: "SMTP_PASS", scope: "scope" },
       ],
     },
   ] satisfies ModuleSetupRequirement[],
@@ -260,22 +258,23 @@ const emailModule: KotaModule = {
       return;
     }
 
-    mailer = createMailer(cfg.smtp);
-    const send = makeEmailSender(cfg, ctx.log);
-    unsubs = [
+    const activeMailer = createMailer(cfg.smtp);
+    mailer = activeMailer;
+    const send = makeEmailSender(cfg, ctx.log, activeMailer);
+    const unsubs = [
       ...NOTIFICATION_EVENTS.map((event) =>
         ctx.events.subscribe(event, (payload) => {
           send(event, payload as Record<string, unknown>);
         }),
       ),
     ];
-  },
-
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
-    mailer?.close();
-    mailer = null;
+    return {
+      dispose: () => {
+        unsubs.forEach((unsubscribe) => unsubscribe());
+        activeMailer.close();
+        if (mailer === activeMailer) mailer = null;
+      },
+    };
   },
 };
 

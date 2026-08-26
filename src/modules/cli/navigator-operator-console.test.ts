@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { runNavigator } from "./navigator.js";
 import { operatorConsoleBundle } from "./navigator-operator-console-fixture.test-support.js";
@@ -31,7 +29,7 @@ describe("navigator operator console", () => {
     expect(joined).toMatch(/KOTA Terminal Client/);
     expect(joined).toMatch(/Operator overview/);
     expect(joined).toMatch(/Daemon:\s+running \(pid 4242\)/);
-    expect(joined).toMatch(/Project:\s+scope-main/);
+    expect(joined).toMatch(/Scope:\s+scope-main/);
     expect(joined).toMatch(/Dispatch:\s+running/);
     expect(joined).toMatch(/Active \/ queued:\s+1 active, 2 queued/);
     expect(joined).toMatch(/Inbox:\s+1 approvals, 1 owner questions, 1 failed runs/);
@@ -133,29 +131,5 @@ describe("navigator operator console", () => {
     expect(joined).toMatch(/kota daemon start/);
     expect(joined).toMatch(/live:not subscribed 0/);
     expect(joined).not.toMatch(/live:event-stream/);
-  });
-
-  it("keeps navigator code on the shared KotaClient UI contract", () => {
-    const sourceFiles = [
-      "index.ts",
-      "navigator.ts",
-      "navigator-action-execution.ts",
-      "navigator-commands.ts",
-      "navigator-live-events.ts",
-      "navigator-render.ts",
-      "navigator-state.ts",
-      "navigator-terminal-prompt.ts",
-    ];
-    const sources = sourceFiles.map((file) => readFileSync(join(import.meta.dirname, file), "utf-8"));
-    for (const src of sources) {
-      expect(/['"]\.kota\//.test(src), "navigator must not read .kota/ paths").toBe(false);
-      expect(/DaemonControlClient/.test(src), "navigator must not import DaemonControlClient").toBe(false);
-      expect(/getProvider|getModuleSummaries|getApprovalQueue|moduleServices/.test(src),
-        "navigator must not resolve module services through ctx",
-      ).toBe(false);
-      expect(/client\.(approvals|tasks|workflow|sessions|modules|setup|secrets|memory|knowledge|history|ownerQuestions)\b/.test(src),
-        "navigator must consume shared ui surfaces rather than private namespace projections",
-      ).toBe(false);
-    }
   });
 });

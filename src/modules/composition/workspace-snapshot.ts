@@ -25,7 +25,7 @@ export type WorkspaceRestoreResult =
   | { status: "missing"; artifactPath: string }
   | { status: "unavailable"; reason: string; artifactPath?: string };
 
-function projectDirFromContext(context?: ToolRunnerContext): string {
+function scopeRootFromContext(context?: ToolRunnerContext): string {
   return context?.cwd ?? process.cwd();
 }
 
@@ -35,7 +35,7 @@ function artifactPathFor(
 ): string | undefined {
   if (scope.kind !== "workflow") return undefined;
   return join(
-    projectDirFromContext(context),
+    scopeRootFromContext(context),
     ".kota",
     "runs",
     scope.runId,
@@ -43,8 +43,8 @@ function artifactPathFor(
   );
 }
 
-function displayPath(projectDir: string, path: string): string {
-  const rel = relative(projectDir, path);
+function displayPath(scopeRoot: string, path: string): string {
+  const rel = relative(scopeRoot, path);
   return rel.startsWith("..") ? path : rel;
 }
 
@@ -55,7 +55,7 @@ export function writeCompositionWorkspaceSnapshot(input: {
 }): string | undefined {
   const artifactPath = artifactPathFor(input.context, input.scope);
   if (artifactPath === undefined) return undefined;
-  const projectDir = projectDirFromContext(input.context);
+  const scopeRoot = scopeRootFromContext(input.context);
   const snapshot = snapshotWorkspaceScope(input.scope);
   const artifact = buildCompositionWorkspaceSnapshotArtifact(
     snapshot,
@@ -63,7 +63,7 @@ export function writeCompositionWorkspaceSnapshot(input: {
   );
   mkdirSync(dirname(artifactPath), { recursive: true });
   writeFileSync(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf-8");
-  return displayPath(projectDir, artifactPath);
+  return displayPath(scopeRoot, artifactPath);
 }
 
 export function restoreCompositionWorkspaceSnapshot(input: {
@@ -75,8 +75,8 @@ export function restoreCompositionWorkspaceSnapshot(input: {
 
   const artifactPath = artifactPathFor(input.context, input.scope);
   if (artifactPath === undefined) return { status: "active" };
-  const projectDir = projectDirFromContext(input.context);
-  const display = displayPath(projectDir, artifactPath);
+  const scopeRoot = scopeRootFromContext(input.context);
+  const display = displayPath(scopeRoot, artifactPath);
   if (!existsSync(artifactPath)) return { status: "missing", artifactPath: display };
 
   try {

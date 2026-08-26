@@ -1,7 +1,7 @@
 import { rmSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import onboardingWorkflow from "../scope-improvement-onboarding/workflow.js";
 import {
@@ -13,37 +13,37 @@ import { scopeImprovementDispatchKey } from "./semantic-request.js";
 import { makeScopeFixture } from "./workflow.test-helpers.js";
 
 describe("scope improvement onboarding workflow", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("durably reserves and emits one initial request across restart replay", async () => {
-    const projectDir = makeScopeFixture("production-onboarding");
-    projectDirs.push(projectDir);
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = makeScopeFixture("production-onboarding");
+    scopeRoots.push(workspaceRoot);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const state = createTestTransactionalRunState();
     const options = {
-      projectDir,
+      workspaceRoot,
       trigger: {
         event: "scope.lifecycle.changed",
         schemaRef: null,
         payload: {
           transition: "registered",
           affectedScopeId: scopeId,
-          directoryRoot: projectDir,
+          directoryRoot: workspaceRoot,
           displayName: "External scope",
         },
       },
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
-      contextOverrides: { state },
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      ports: { state },
     } as const;
 
-    const first = await new WorkflowTestHarness(onboardingWorkflow, options).run();
-    const second = await new WorkflowTestHarness(onboardingWorkflow, options).run();
+    const first = await new WorkflowScenarioDriver(onboardingWorkflow, options).run();
+    const second = await new WorkflowScenarioDriver(onboardingWorkflow, options).run();
 
     expect(first.status).toBe("success");
     expect(first.emitted).toHaveLength(1);

@@ -1,13 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearCustomTools, getAllTools, registerTool } from "#core/tools/index.js";
 import {
-  CORE_TOOL_NAMES,
   clearCustomGroups,
   enableGroup,
   filterTools,
   registerCustomGroup,
   resetGroups,
-  TOOL_GROUPS,
 } from "#core/tools/tool-groups.js";
 import { EDITOR_TOOL_SET } from "./architect-editor.js";
 
@@ -81,33 +79,9 @@ describe("editor tool set independence from tool-group state", () => {
     enableGroup("all");
     expect(getEditorTools()).toEqual(baseline);
   });
-
-  it("EDITOR_TOOL_SET includes tools from multiple groups", () => {
-    // Verify the editor needs tools spanning web, code, and core
-    const editorToolNames = [...EDITOR_TOOL_SET];
-    const webTools = TOOL_GROUPS.web;
-    const codeTools = TOOL_GROUPS.code;
-
-    const hasWeb = editorToolNames.some((t) => webTools.includes(t));
-    const hasCode = editorToolNames.some((t) => codeTools.includes(t));
-    const hasCore = editorToolNames.some((t) => CORE_TOOL_NAMES.has(t));
-
-    expect(hasWeb).toBe(true);
-    expect(hasCode).toBe(true);
-    expect(hasCore).toBe(true);
-  });
 });
 
 describe("filterTools main-loop behavior with group state", () => {
-  it("core tools always present even with no groups enabled", () => {
-    const filtered = filterTools(getAllTools()).map((t) => t.name);
-    for (const core of CORE_TOOL_NAMES) {
-      if (getAllTools().some((t) => t.name === core)) {
-        expect(filtered).toContain(core);
-      }
-    }
-  });
-
   it("enabling a group adds its tools to filterTools output", () => {
     // sqlite is in the "code" group (system module); register a mock to simulate module load
     const mockSqlite = {

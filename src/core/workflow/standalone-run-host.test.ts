@@ -2,11 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { EventBus } from "#core/events/event-bus.js";
-import {
-  initProviderRegistry,
-  resetProviderRegistry,
-} from "#core/modules/provider-registry.js";
 import { StandaloneRunHost } from "./standalone-run-host.js";
 
 describe("StandaloneRunHost", () => {
@@ -18,24 +15,21 @@ describe("StandaloneRunHost", () => {
   ): StandaloneRunHost {
     const root = mkdtempSync(join(tmpdir(), "kota-standalone-nested-host-"));
     cleanup.push(root);
-    const projectDir = join(root, "project");
-    mkdirSync(projectDir);
-    initProviderRegistry();
-
+    const workspaceRoot = join(root, "project");
+    mkdirSync(workspaceRoot);
     return new StandaloneRunHost({
       stateDir: join(root, "state"),
-      project: {
-        projectId: "standalone-nested-test",
-        projectDir,
+      scope: {
+        scopeId: "standalone-nested-test",
+        scopeRoot: workspaceRoot,
         displayName: "Standalone nested test",
       },
-      bus: new EventBus(),
       concurrency: 1,
       workflows: [
         {
           name: "parent-run",
           enabled: true,
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           definitionPath: "standalone-parent-test",
           repository: "none",
           tags: [],
@@ -51,7 +45,7 @@ describe("StandaloneRunHost", () => {
         {
           name: "child-run",
           enabled: true,
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           definitionPath: "standalone-child-test",
           repository: "none",
           tags: [],
@@ -67,7 +61,6 @@ describe("StandaloneRunHost", () => {
   }
 
   afterEach(() => {
-    resetProviderRegistry();
     for (const path of cleanup.splice(0)) {
       rmSync(path, { force: true, recursive: true });
     }
@@ -76,23 +69,21 @@ describe("StandaloneRunHost", () => {
   it("admits an explicit workflow and returns its durable terminal result", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-standalone-host-"));
     cleanup.push(root);
-    const projectDir = join(root, "project");
+    const workspaceRoot = join(root, "project");
     const stateDir = join(root, "state");
-    mkdirSync(projectDir);
-    initProviderRegistry();
-
+    mkdirSync(workspaceRoot);
     const host = new StandaloneRunHost({
       stateDir,
-      project: {
-        projectId: "standalone-test",
-        projectDir,
+      scope: {
+        scopeId: "standalone-test",
+        scopeRoot: workspaceRoot,
         displayName: "Standalone test",
       },
       bus: new EventBus(),
       workflows: [{
         name: "explicit-run",
         enabled: true,
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         definitionPath: "standalone-test",
         repository: "none",
         tags: [],
@@ -117,6 +108,30 @@ describe("StandaloneRunHost", () => {
     } finally {
       await host.close();
     }
+  });
+
+  it("owns provider state independently across concurrent hosts", async () => {
+    const first = createNestedRunHost("queued");
+    const second = createNestedRunHost("queued");
+
+    expect(first.providerRegistry).not.toBe(second.providerRegistry);
+    expect(first.bus).not.toBe(second.bus);
+    second.bus.on("host.fixture", () => undefined);
+    expect(
+      first.providerRegistry.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE),
+    ).not.toBeNull();
+    expect(
+      second.providerRegistry.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE),
+    ).not.toBeNull();
+
+    await first.close();
+    expect(first.providerRegistry.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)).toBeNull();
+    expect(first.bus.listenerCount()).toBe(0);
+    expect(second.bus.listenerCount("host.fixture")).toBe(1);
+    expect(
+      second.providerRegistry.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE),
+    ).not.toBeNull();
+    await second.close();
   });
 
   it("drains a queued child after its parent releases the only coordinator slot", async () => {

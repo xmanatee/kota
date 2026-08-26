@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ProjectSelector } from '../components/ProjectSelector';
+import { ScopeSelector } from '../components/ScopeSelector';
 import { useDaemon } from '../context/DaemonContext';
 import type { ActiveRun } from '../types';
 
@@ -70,7 +70,7 @@ export function StatusScreen({
     if (!client) return;
     setToggling(true);
     try {
-      if (state.status?.workflow.paused) {
+      if (state.activity.status?.workflow.paused) {
         await client.resumeDispatch();
       } else {
         await client.pauseDispatch();
@@ -83,7 +83,7 @@ export function StatusScreen({
     }
   }
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -91,7 +91,7 @@ export function StatusScreen({
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -102,7 +102,8 @@ export function StatusScreen({
     );
   }
 
-  const { status, online, sseConnected } = state;
+  const { online, sseConnected } = state.connection;
+  const { status } = state.activity;
   const activeRuns = status?.workflow.activeRuns ?? [];
   const paused = status?.workflow.paused ?? false;
   const queueLength = status?.workflow.queueLength ?? 0;
@@ -124,7 +125,7 @@ export function StatusScreen({
         </View>
       )}
 
-      <ProjectSelector />
+      <ScopeSelector />
 
       <View style={styles.section}>
         <View style={styles.statusRow}>

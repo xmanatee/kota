@@ -2,9 +2,8 @@
  * Boundary regression for the mobile digest and attention pull seams.
  *
  * The mobile `getDigest` / `getAttention` paths now strict-decode the
- * daemon response through the shared conformance decoders
- * (`src/daemon/conformance/decoders.ts`). A malformed payload — missing
- * required field on digest, drifted `data.items[]` entry on attention —
+ * daemon response through the generated contract decoder. A malformed payload — missing
+ * required field on digest, drifted `items[]` entry on attention —
  * must throw a `ContractDecodeError` at the mobile boundary instead of
  * silently flowing into `DigestScreen` / `AttentionScreen` as a
  * typed-but-invalid object. The macOS Swift seam already enforces this
@@ -13,7 +12,7 @@
  * attention.
  */
 
-import { ContractDecodeError } from '../daemon/conformance/decoders';
+import { ContractDecodeError } from '../daemon/daemon-contract.generated';
 import { getAttention } from '../daemon/attention';
 import { getDigest } from '../daemon/digest';
 import type { DaemonHttp } from '../daemon/http';
@@ -117,15 +116,13 @@ describe('mobile getDigest decoder boundary', () => {
 });
 
 describe('mobile getAttention decoder boundary', () => {
-  test('rejects a payload with a malformed data.items[] entry', async () => {
+  test('rejects a payload with a malformed items[] entry', async () => {
     mockFetch({
-      data: {
-        items: [
-          { label: 'Owner question', detail: 'oq-1 pending 3d' },
-          // detail missing — decoder must reject.
-          { label: 'Builder warnings' },
-        ],
-      },
+      items: [
+        { label: 'Owner question', detail: 'oq-1 pending 3d' },
+        // detail missing — decoder must reject.
+        { label: 'Builder warnings' },
+      ],
       text: 'Attention required 2026-04-27',
     });
     await expect(getAttention(HTTP)).rejects.toBeInstanceOf(
@@ -133,7 +130,7 @@ describe('mobile getAttention decoder boundary', () => {
     );
   });
 
-  test('rejects a payload missing data entirely', async () => {
+  test('rejects a payload missing items entirely', async () => {
     mockFetch({ text: 'Attention required 2026-04-27' });
     await expect(getAttention(HTTP)).rejects.toBeInstanceOf(
       ContractDecodeError,
@@ -142,14 +139,12 @@ describe('mobile getAttention decoder boundary', () => {
 
   test('passes a well-formed payload through the decoder unchanged', async () => {
     mockFetch({
-      data: {
-        items: [{ label: 'Owner question', detail: 'oq-1 pending 3d' }],
-      },
+      items: [{ label: 'Owner question', detail: 'oq-1 pending 3d' }],
       text: 'Attention required 2026-04-27',
     });
     const decoded = await getAttention(HTTP);
-    expect(decoded.data.items).toHaveLength(1);
-    expect(decoded.data.items[0]).toEqual({
+    expect(decoded.items).toHaveLength(1);
+    expect(decoded.items[0]).toEqual({
       label: 'Owner question',
       detail: 'oq-1 pending 3d',
     });

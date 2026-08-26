@@ -60,6 +60,11 @@ const resourceDiscoveryModule: KotaModule = {
     const provider = createProvider(ctx);
     activeProvider = provider;
     ctx.registerProvider(RESOURCE_DISCOVERY_PROVIDER_TOKEN, provider);
+    return {
+      dispose: () => {
+        if (activeProvider === provider) activeProvider = null;
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -85,9 +90,6 @@ const resourceDiscoveryModule: KotaModule = {
     resourceDiscovery: buildResourceDiscoveryDaemonHandler(link),
   }),
 
-  onUnload() {
-    activeProvider = null;
-  },
 };
 
 export default resourceDiscoveryModule;

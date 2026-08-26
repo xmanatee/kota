@@ -10,7 +10,7 @@ describe("DaemonA2ABackend", () => {
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
     const task = await backend.sendMessage(
-      { taskId: null, contextId: null, projectId: "proj-1", text: "hello" },
+      { taskId: null, contextId: null, scopeId: "proj-1", text: "hello" },
       { onUpdate: (update) => updates.push(update) },
     );
 
@@ -20,20 +20,20 @@ describe("DaemonA2ABackend", () => {
     expect(JSON.stringify(updates)).not.toContain("private reasoning");
     expect(JSON.stringify(updates)).toContain("KOTA guardrail applied");
     const createCall = vi.mocked(transport.fetchRaw).mock.calls.find(([path, init]) =>
-      path === "/sessions?projectId=proj-1" && init?.method === "POST"
+      path === "/sessions?scopeId=proj-1" && init?.method === "POST"
     );
     expect(createCall).toBeDefined();
     expect(createCall?.[1]).not.toHaveProperty("body");
   });
 
-  it("creates context-only SendMessage sessions without daemon project scope", async () => {
+  it("creates context-only SendMessage sessions without a daemon scope", async () => {
     const transport = makeDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
     const task = await backend.sendMessage({
       taskId: null,
       contextId: "client-context",
-      projectId: null,
+      scopeId: null,
       text: "hello",
     });
 
@@ -42,7 +42,7 @@ describe("DaemonA2ABackend", () => {
     expect(task.artifacts[0]?.parts[0]?.text).toBe("unscoped final");
     const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
     expect(calledPaths).toContain("/sessions");
-    expect(calledPaths).not.toContain("/sessions?projectId=client-context");
+    expect(calledPaths).not.toContain("/sessions?scopeId=client-context");
   });
 
   it("subscribes to active daemon session output and emits artifact updates", async () => {
@@ -50,7 +50,7 @@ describe("DaemonA2ABackend", () => {
     const backend = new DaemonA2ABackend(makeDaemonTransport(), () => NOW);
 
     const task = await backend.subscribeToTask(
-      { taskId: "active-task", projectId: null, contextId: null },
+      { taskId: "active-task", scopeId: null, contextId: null },
       { onUpdate: (update) => updates.push(update) },
     );
 
@@ -65,36 +65,36 @@ describe("DaemonA2ABackend", () => {
     const transport = makeScopedDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
-    const listed = await backend.listTasks({ projectId: null, contextId: "proj-2" });
+    const listed = await backend.listTasks({ scopeId: null, contextId: "proj-2" });
     expect(listed).toEqual([]);
 
     await expect(
-      backend.getTask({ taskId: "task-2", projectId: null, contextId: "proj-2" }),
+      backend.getTask({ taskId: "task-2", scopeId: null, contextId: "proj-2" }),
     ).rejects.toMatchObject({ message: "A2A task not found: task-2" });
 
     const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
     expect(calledPaths).toContain("/sessions");
-    expect(calledPaths).not.toContain("/sessions?projectId=proj-2");
+    expect(calledPaths).not.toContain("/sessions?scopeId=proj-2");
   });
 
-  it("filters daemon-backed list and get calls by normalized project scope", async () => {
+  it("filters daemon-backed list and get calls by normalized scope", async () => {
     const transport = makeScopedDaemonTransport();
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
-    const listed = await backend.listTasks({ projectId: "proj-2", contextId: null });
+    const listed = await backend.listTasks({ scopeId: "proj-2", contextId: null });
     expect(listed.map((task) => task.id)).toEqual(["task-2"]);
     expect(listed[0]?.contextId).toBe("proj-2");
 
-    const found = await backend.getTask({ taskId: "task-2", projectId: "proj-2", contextId: null });
+    const found = await backend.getTask({ taskId: "task-2", scopeId: "proj-2", contextId: null });
     expect(found.id).toBe("task-2");
     expect(found.contextId).toBe("proj-2");
 
     await expect(
-      backend.getTask({ taskId: "task-2", projectId: "proj-2", contextId: "proj-1" }),
+      backend.getTask({ taskId: "task-2", scopeId: "proj-2", contextId: "proj-1" }),
     ).rejects.toMatchObject({ message: "A2A task not found: task-2" });
 
     const calledPaths = vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path);
-    expect(calledPaths).toContain("/sessions?projectId=proj-2");
+    expect(calledPaths).toContain("/sessions?scopeId=proj-2");
   });
 
   it("validates resumed SendMessage tasks against A2A scope before chat", async () => {
@@ -102,13 +102,13 @@ describe("DaemonA2ABackend", () => {
     const backend = new DaemonA2ABackend(transport, () => NOW);
 
     await expect(
-      backend.sendMessage({ taskId: "task-2", projectId: "proj-2", contextId: "proj-1", text: "hello" }),
+      backend.sendMessage({ taskId: "task-2", scopeId: "proj-2", contextId: "proj-1", text: "hello" }),
     ).rejects.toMatchObject({ message: "A2A task not found: task-2" });
     expect(vi.mocked(transport.fetchRaw).mock.calls.map(([path]) => path)).not.toContain(
       "/sessions/task-2/chat",
     );
 
-    const task = await backend.sendMessage({ taskId: "task-2", projectId: "proj-2", contextId: null, text: "hello" });
+    const task = await backend.sendMessage({ taskId: "task-2", scopeId: "proj-2", contextId: null, text: "hello" });
     expect(task.id).toBe("task-2");
     expect(task.contextId).toBe("proj-2");
     expect(task.artifacts[0]?.parts[0]?.text).toBe("resumed final");
@@ -119,8 +119,8 @@ describe("DaemonA2ABackend", () => {
 
 function makeDaemonTransport(): DaemonTransport {
   const fetchRaw = vi.fn(async (path: string, init?: RequestInit) => {
-    if (path === "/sessions?projectId=proj-1" && init?.method === "POST") {
-      return jsonResponse({ session_id: "sess-1", project_id: "proj-1" });
+    if (path === "/sessions?scopeId=proj-1" && init?.method === "POST") {
+      return jsonResponse({ session_id: "sess-1", scope_id: "proj-1" });
     }
     if (path === "/sessions" && init?.method === "POST") {
       return jsonResponse({ session_id: "sess-unscoped" });
@@ -135,7 +135,7 @@ function makeDaemonTransport(): DaemonTransport {
             busy: true,
             autonomyMode: "supervised",
             source: "daemon",
-            projectId: "proj-1",
+            scopeId: "proj-1",
             conversationId: "conv-1",
           },
         ],
@@ -182,7 +182,7 @@ function makeDaemonTransport(): DaemonTransport {
 }
 
 function makeScopedDaemonTransport(): DaemonTransport {
-  const sessionsByProject: Record<string, object[]> = {
+  const sessionsByScope: Record<string, object[]> = {
     "proj-1": [session("task-1", "proj-1", 1, false, "supervised", "daemon")],
     "proj-2": [
       session("task-2", "proj-2", 2, false, "autonomous", "daemon"),
@@ -192,10 +192,10 @@ function makeScopedDaemonTransport(): DaemonTransport {
   const fetchRaw = vi.fn(async (path: string, init?: RequestInit) => {
     if (path.startsWith("/sessions?") && init?.method === "GET") {
       const url = new URL(path, "http://127.0.0.1");
-      return jsonResponse({ sessions: sessionsByProject[url.searchParams.get("projectId") ?? ""] ?? [] });
+      return jsonResponse({ sessions: sessionsByScope[url.searchParams.get("scopeId") ?? ""] ?? [] });
     }
     if (path === "/sessions" && init?.method === "GET") {
-      return jsonResponse({ sessions: sessionsByProject["proj-1"] ?? [] });
+      return jsonResponse({ sessions: sessionsByScope["proj-1"] ?? [] });
     }
     if (path === "/sessions/task-2/chat" && init?.method === "POST") {
       return sseResponse([
@@ -219,7 +219,7 @@ function makeScopedDaemonTransport(): DaemonTransport {
 
 function session(
   id: string,
-  projectId: string,
+  scopeId: string,
   lastActive: number,
   busy: boolean,
   autonomyMode: string,
@@ -232,7 +232,7 @@ function session(
     busy,
     autonomyMode,
     source,
-    projectId,
+    scopeId,
     conversationId: `conv-${id}`,
   };
 }

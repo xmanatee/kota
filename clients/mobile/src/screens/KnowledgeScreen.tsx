@@ -23,13 +23,13 @@ export function KnowledgeScreen() {
     setKnowledgeQuery,
     searchKnowledge,
   } = useDaemon();
+  const { online } = state.connection;
   const {
-    online,
     knowledgeQuery,
     knowledgeResult,
     knowledgeLoading,
     knowledgeError,
-  } = state;
+  } = state.content;
 
   const trimmed = knowledgeQuery.trim();
   const hasQuery = trimmed.length > 0;
@@ -39,7 +39,7 @@ export function KnowledgeScreen() {
     void searchKnowledge(trimmed);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -47,7 +47,7 @@ export function KnowledgeScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -157,7 +157,7 @@ export function KnowledgeScreen() {
 function KnowledgeBody({
   result,
 }: {
-  result: NonNullable<ReturnType<typeof useDaemon>['state']['knowledgeResult']>;
+  result: NonNullable<ReturnType<typeof useDaemon>['state']['content']['knowledgeResult']>;
 }) {
   if (result.ok === false) {
     return (
@@ -183,7 +183,7 @@ function KnowledgeBody({
 }
 
 function renderHeaderBadge(
-  result: ReturnType<typeof useDaemon>['state']['knowledgeResult'],
+  result: ReturnType<typeof useDaemon>['state']['content']['knowledgeResult'],
 ): { label: string; active: boolean } | null {
   if (result === null) return null;
   if (result.ok === false) {

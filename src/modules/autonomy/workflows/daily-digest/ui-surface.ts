@@ -27,9 +27,9 @@ function buildDailyDigestUiSurface(scopeId: string, body: string): UiSurface {
 
 export const dailyDigestUiSurfaceSource: UiSurfaceSource = {
   sourceId: "daily-digest",
-  project: (context) => {
+  scope: (context) => {
     const digest = renderOnDemandDigest({
-      projectDir: context.cwd,
+      scopeRoot: context.cwd,
       stateDir: join(context.cwd, ".kota"),
     });
     return [buildDailyDigestUiSurface(context.scopeId, digest.text)];

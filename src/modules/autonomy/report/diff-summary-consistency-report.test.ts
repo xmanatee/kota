@@ -11,8 +11,8 @@ import { renderReport, section } from "./render-test-helpers.js";
 
 const NOW = Date.parse("2026-06-24T12:00:00.000Z");
 
-function writeTask(projectDir: string): void {
-  const dir = join(projectDir, "data", "tasks", "done");
+function writeTask(workspaceRoot: string): void {
+  const dir = join(workspaceRoot, "data", "tasks", "done");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "task-eval-harness.md"),
@@ -122,21 +122,21 @@ function mismatchRecord(runId: string): DiffSummaryConsistencyRecord {
 }
 
 describe("diff-summary consistency report", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-diff-summary-report-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runsDir = join(projectDir, ".kota", "runs");
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
-    writeTask(projectDir);
+    writeTask(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("aggregates mismatch categories, missing metadata, and sanitized examples", () => {
@@ -145,7 +145,7 @@ describe("diff-summary consistency report", () => {
     writeDiagnostic(runDir, mismatchRecord(runId));
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 1,
@@ -181,7 +181,7 @@ describe("diff-summary consistency report", () => {
     writeRun(runsDir, "2026-06-24T11-30-00-000Z-builder-older");
 
     const report = aggregateAutonomyReport({
-      projectDir,
+      workspaceRoot,
       runsDir,
       windowEndMs: NOW,
       windowDays: 1,

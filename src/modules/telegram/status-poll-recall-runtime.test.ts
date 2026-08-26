@@ -27,7 +27,7 @@ const CHAT_ID = 987654321;
 
 function makeScope(recall: RecallClient["recall"]): TelegramStatusScope {
   return {
-    projectDir: "/tmp/kota-telegram-recall-runtime",
+    scopeRoot: "/tmp/kota-telegram-recall-runtime",
     getStatusInfo: async () => ({
       runtimeState: {
         activeRuns: [],
@@ -147,7 +147,7 @@ describe("Telegram /recall runtime evidence", () => {
             score: 0.66,
             id: "conv-12",
             title: "Daemon review 2026-04-28",
-            cwd: "/Users/operator/projects/kota",
+            cwd: "/Users/operator/scopes/kota",
             updatedAt: "2026-04-28T18:30:00.000Z",
           },
           {

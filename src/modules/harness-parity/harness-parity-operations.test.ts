@@ -67,7 +67,7 @@ describe("harness-parity operations (local handler / daemon-down branch)", () =>
     evalFixturesRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-eval-"));
     outRoot = mkdtempSync(join(tmpdir(), "kota-parity-ops-out-"));
     deps = {
-      projectDir: outRoot,
+      scopeRoot: outRoot,
       scenariosRoot,
       evalFixturesRoot,
       defaultOutBaseDir: outRoot,

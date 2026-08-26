@@ -13,12 +13,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runGit } from "./git.js";
 
-let projectDir: string;
+let repoRoot: string;
 let rootDir: string;
 
 function git(args: readonly string[]): void {
 	execFileSync("git", args, {
-		cwd: projectDir,
+		cwd: repoRoot,
 		env: {
 			...process.env,
 			GIT_AUTHOR_EMAIL: "test@test.com",
@@ -31,10 +31,10 @@ function git(args: readonly string[]): void {
 
 beforeEach(() => {
 	rootDir = mkdtempSync(join(tmpdir(), "kota-git-arguments-"));
-	projectDir = join(rootDir, "project");
-	mkdirSync(projectDir);
+	repoRoot = join(rootDir, "project");
+	mkdirSync(repoRoot);
 	git(["init", "-b", "main"]);
-	writeFileSync(join(projectDir, "README.md"), "# Test\n");
+	writeFileSync(join(repoRoot, "README.md"), "# Test\n");
 	git(["add", "README.md"]);
 	git(["commit", "-m", "Initial commit"]);
 });
@@ -50,7 +50,7 @@ describe("git operation argument boundary", () => {
 
 		const result = await runGit(
 			{ op: "log", args: `-1 --format=%B --output=${target}` },
-			{ cwd: projectDir },
+			{ cwd: repoRoot },
 		);
 
 		expect(result).toMatchObject({ is_error: true });
@@ -63,7 +63,7 @@ describe("git operation argument boundary", () => {
 
 		const result = await runGit(
 			{ op: "log", args: `-1 --output ${target}` },
-			{ cwd: projectDir },
+			{ cwd: repoRoot },
 		);
 
 		expect(result).toMatchObject({ is_error: true });
@@ -87,7 +87,7 @@ describe("git operation argument boundary", () => {
 					op: "log",
 					args: `-1 ${displayOption} --output=${target}`,
 				},
-				{ cwd: projectDir },
+				{ cwd: repoRoot },
 			);
 
 			expect(result).toMatchObject({ is_error: true });
@@ -102,41 +102,41 @@ describe("git operation argument boundary", () => {
 			const outsidePath = join(rootDir, "outside.txt");
 			const result = await runGit(
 				{ op, args: outsidePath },
-				{ cwd: projectDir },
+				{ cwd: repoRoot },
 			);
 
 			expect(result).toMatchObject({ is_error: true });
-			expect(result.content).toContain("outside the project");
+			expect(result.content).toContain("outside the repository");
 		},
 	);
 
-	it("rejects a project-external local push target", async () => {
+	it("rejects a repository-external local push target", async () => {
 		const outsideRepository = join(rootDir, "outside.git");
 
 		const result = await runGit(
 			{ op: "push", args: `${outsideRepository} HEAD:main` },
-			{ cwd: projectDir },
+			{ cwd: repoRoot },
 		);
 
 		expect(result).toMatchObject({ is_error: true });
-		expect(result.content).toContain("outside the project");
+		expect(result.content).toContain("outside the repository");
 	});
 
-	it("does not push through a project symlink to an external repository", async () => {
+	it("does not push through a repository symlink to an external repository", async () => {
 		const outsideRepository = join(rootDir, "outside.git");
 		git(["init", "--bare", outsideRepository]);
-		symlinkSync(outsideRepository, join(projectDir, "inside-link.git"), "dir");
+		symlinkSync(outsideRepository, join(repoRoot, "inside-link.git"), "dir");
 
 		const result = await runGit(
 			{
 				op: "push",
 				args: "inside-link.git HEAD:refs/heads/topic",
 			},
-			{ cwd: projectDir },
+			{ cwd: repoRoot },
 		);
 
 		expect(result).toMatchObject({ is_error: true });
-		expect(result.content).toContain("outside the project");
+		expect(result.content).toContain("outside the repository");
 		expect(() =>
 			execFileSync(
 				"git",
@@ -157,13 +157,13 @@ describe("git operation argument boundary", () => {
 		["diff", "--ext-diff", "--ext-diff"],
 		["log", "--config=core.pager=cat", "--config"],
 		["show", "--output=outside", "--output"],
-		["add", "../outside.txt", "outside the project"],
+		["add", "../outside.txt", "outside the repository"],
 		["branch", "checkout main extra", "branch arguments"],
 		["push", "--exec=receive-pack origin", "--exec"],
 	] as const)(
 		"rejects disallowed %s arguments before invoking Git",
 		async (op, args, message) => {
-			const result = await runGit({ op, args }, { cwd: projectDir });
+			const result = await runGit({ op, args }, { cwd: repoRoot });
 
 			expect(result).toMatchObject({ is_error: true });
 			expect(result.content).toContain(message);

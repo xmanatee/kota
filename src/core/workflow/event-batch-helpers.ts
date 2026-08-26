@@ -73,7 +73,6 @@ export function createWorkflowBatchFlushPayload(args: {
 }): WorkflowBatchFlushPayload {
   return {
     scopeId: args.buffer.scopeId,
-    projectId: args.buffer.projectId,
     sourceEventName: args.buffer.sourceEventName,
     groupingKey: args.buffer.groupingKey,
     reason: args.reason,
@@ -159,7 +158,6 @@ export function createWorkflowBatchBuffer(
     sourceEventName: inputEvent.event,
     ...(target.triggerIndex === -1 ? { runtimeTrigger: target.trigger } : {}),
     scopeId,
-    projectId: scopeId,
     groupingKey: group.groupingKey,
     groupValues: group.groupValues,
     firstEventAt: inputEvent.receivedAt,
@@ -211,15 +209,9 @@ export function resolveWorkflowBatchGroup(
 }
 
 export function explicitWorkflowBatchScope(payload: EventPayload): string | undefined {
-  const scopeId =
-    typeof payload.scopeId === "string" && payload.scopeId.length > 0
-      ? payload.scopeId
-      : undefined;
-  const projectId =
-    typeof payload.projectId === "string" && payload.projectId.length > 0
-      ? payload.projectId
-      : undefined;
-  return scopeId ?? projectId;
+  return typeof payload.scopeId === "string" && payload.scopeId.length > 0
+    ? payload.scopeId
+    : undefined;
 }
 
 export function workflowBatchBufferKey(

@@ -42,20 +42,20 @@ import {
 } from "./workflow-step-executor-fixture.integration.js";
 
 describe("executeAgentStep", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let agentConfig: AgentStepConfig;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
+    mkdirSync(join(scopeRoot, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
+      join(scopeRoot, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
-    agentConfig = { projectDir };
+    agentConfig = { scopeRoot };
     mockedExecuteWithAgentSDK.mockReset();
   });
 
@@ -95,11 +95,11 @@ describe("executeAgentStep", () => {
         });
         return SUCCESS_RESULT;
       });
-      mkdirSync(join(projectDir, ".kota", "runs", "run-1", "steps"), { recursive: true });
+      mkdirSync(join(scopeRoot, ".kota", "runs", "run-1", "steps"), { recursive: true });
 
       await executeAgentStep(
         makeDefinition(),
-        makeStep(projectDir),
+        makeStep(scopeRoot),
         makeMetadata(),
         TRIGGER,
         new AbortController(),
@@ -108,7 +108,7 @@ describe("executeAgentStep", () => {
         agentConfig,
       );
 
-      const telemetryPath = join(projectDir, ".kota", "runs", "run-1", "steps", "test-step.tool-telemetry.json");
+      const telemetryPath = join(scopeRoot, ".kota", "runs", "run-1", "steps", "test-step.tool-telemetry.json");
       expect(existsSync(telemetryPath)).toBe(true);
       const data = JSON.parse(readFileSync(telemetryPath, "utf-8"));
       expect(data.summary).toContain("2 tool calls");
@@ -148,11 +148,11 @@ describe("executeAgentStep", () => {
 
     it("skips writing when no tool calls were recorded", async () => {
       mockedExecuteWithAgentSDK.mockResolvedValue(SUCCESS_RESULT);
-      mkdirSync(join(projectDir, ".kota", "runs", "run-1", "steps"), { recursive: true });
+      mkdirSync(join(scopeRoot, ".kota", "runs", "run-1", "steps"), { recursive: true });
 
       await executeAgentStep(
         makeDefinition(),
-        makeStep(projectDir),
+        makeStep(scopeRoot),
         makeMetadata(),
         TRIGGER,
         new AbortController(),
@@ -161,7 +161,7 @@ describe("executeAgentStep", () => {
         agentConfig,
       );
 
-      const telemetryPath = join(projectDir, ".kota", "runs", "run-1", "steps", "test-step.tool-telemetry.json");
+      const telemetryPath = join(scopeRoot, ".kota", "runs", "run-1", "steps", "test-step.tool-telemetry.json");
       expect(existsSync(telemetryPath)).toBe(false);
     });
   });

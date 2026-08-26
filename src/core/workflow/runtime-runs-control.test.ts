@@ -19,7 +19,6 @@ function redriveFixture(appendRun: (run: WorkflowQueuedRun) => ReturnType<Workfl
   const item = deadLetterQueue.record({
     type: "workflow-dispatch",
     scopeId: "scope-a",
-    projectId: "scope-a",
     owningModule: "test",
     sourceEventIds: ["event-original"],
     affectedWorkflowNames: ["target-workflow"],

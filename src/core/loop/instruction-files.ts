@@ -118,7 +118,7 @@ export function loadInstructionContext(
 	);
 
 	return (
-		"\n\n## Project Instructions (from AGENTS.md / CLAUDE.md)\n\n" +
+		"\n\n## Workspace Instructions (from AGENTS.md / CLAUDE.md)\n\n" +
 		sections.join("\n\n---\n\n")
 	);
 }

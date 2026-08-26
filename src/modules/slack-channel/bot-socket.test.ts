@@ -78,7 +78,7 @@ describe("SlackBot", () => {
       const events = { emit: vi.fn() };
       const bot = makeBot({
         inboundSignals: {
-          getProjectId: () => "project-slack",
+          getScopeId: () => "scope-slack",
           config: { prefixes: ["!task"], trustedUserIds: ["U1"] },
           events,
         },
@@ -109,7 +109,7 @@ describe("SlackBot", () => {
       expect(events.emit).toHaveBeenCalledWith(
         inboundSignalReceived,
         expect.objectContaining({
-          projectId: "project-slack",
+          scopeId: "scope-slack",
           provider: "slack",
           channel: "slack.message",
           actor: expect.objectContaining({ trust: "trusted" }),
@@ -181,8 +181,9 @@ describe("SlackBot", () => {
         },
       }));
       const bot = makeBot({
-        approvals: { ...makeStubClients().approvals, approve },
+        getApprovals: () => ({ ...makeStubClients().approvals, approve }),
       });
+      await bot.postApproval(approvalProjection("abc123"));
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
       const ws = MockWebSocket.instances[0];
@@ -195,7 +196,7 @@ describe("SlackBot", () => {
           team: { id: "T-TEST" },
           actions: [{
             action_id: "approve:abc123",
-            value: `approve:abc123:${"a".repeat(64)}`,
+            value: `approve:scope-test:abc123:${"a".repeat(64)}`,
           }],
           user: { id: "U1", name: "Test" },
           channel: { id: "C1" },
@@ -218,8 +219,13 @@ describe("SlackBot", () => {
         approval: { ...approvalProjection(id), status: "rejected" as const },
       }));
       const bot = makeBot({
-        approvals: { ...makeStubClients().approvals, reject },
+        getApprovals: () => ({
+          ...makeStubClients().approvals,
+          list: vi.fn(async () => ({ approvals: [approvalProjection("xyz")] })),
+          reject,
+        }),
       });
+      await bot.postApproval(approvalProjection("xyz"));
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
       const ws = MockWebSocket.instances[0];
@@ -227,7 +233,10 @@ describe("SlackBot", () => {
       const interactivePayload = {
         type: "block_actions",
         team: { id: "T-TEST" },
-        actions: [{ action_id: "reject:xyz", value: "reject:xyz" }],
+        actions: [{
+          action_id: "reject:xyz",
+          value: `reject:scope-test:xyz:${"a".repeat(64)}`,
+        }],
         user: { id: "U1", name: "Test" },
         channel: { id: "C1" },
         message: { ts: "1234.5678" },

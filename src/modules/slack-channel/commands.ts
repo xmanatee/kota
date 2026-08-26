@@ -56,7 +56,7 @@ import { callSlackApi, splitText } from "./client.js";
  * Wraps `renderOnDemandAttention` so the dispatcher reuses the existing
  * module-owned renderer the Telegram channel already calls, keeping the
  * Slack reply byte-identical to the Telegram reply for the same repo
- * state. The bot constructs this client from the channel's `projectDir`.
+ * state. The bot constructs this client from the channel's `scopeRoot`.
  */
 export type AttentionSnapshotClient = { snapshot(): { text: string } };
 

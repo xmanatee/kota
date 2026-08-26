@@ -76,13 +76,14 @@ describe("slackChannelModule channel adapter", () => {
     const adapter = await resolveAdapter(ctx);
     expect(adapter).not.toBeNull();
     expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({
+		expect.objectContaining({
         botToken: "xoxb-test",
         appToken: "xapp-test",
         workspaceId: "T-EXPECTED",
         allowedUserIds: ["U-OWNER"],
         notifyChannel: "C-ALERTS",
-      }),
+		}),
+		expect.anything(),
     );
     const constructed = MockedSlackBot.mock.calls[0][0];
     expect(constructed.attention).toEqual(
@@ -108,11 +109,12 @@ describe("slackChannelModule channel adapter", () => {
 
     await resolveAdapter(ctx);
 
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({
+		expect(MockedSlackBot).toHaveBeenCalledWith(
+			expect.objectContaining({
         botToken: "xoxb-stored",
         appToken: "xapp-stored",
-      }),
+			}),
+			expect.anything(),
     );
   });
 
@@ -127,8 +129,9 @@ describe("slackChannelModule channel adapter", () => {
       { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
     );
     await resolveAdapter(ctx);
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({ autonomyMode: "autonomous" }),
+		expect(MockedSlackBot).toHaveBeenCalledWith(
+			expect.objectContaining({ autonomyMode: "autonomous" }),
+			expect.anything(),
     );
   });
 
@@ -139,8 +142,9 @@ describe("slackChannelModule channel adapter", () => {
       { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
     );
     await resolveAdapter(ctx);
-    expect(MockedSlackBot).toHaveBeenCalledWith(
-      expect.objectContaining({ autonomyMode: "passive" }),
+		expect(MockedSlackBot).toHaveBeenCalledWith(
+			expect.objectContaining({ autonomyMode: "passive" }),
+			expect.anything(),
     );
   });
 
@@ -187,8 +191,9 @@ describe("slackChannelModule channel adapter", () => {
     const adapter = await resolveAdapter(ctx);
     const botInstance = MockedSlackBot.mock.results[0].value;
 
-    bus.emit("approval.requested", {
-      id: "abc123",
+		bus.emit("approval.requested", {
+			id: "abc123",
+			scopeId: "test-scope",
       tool: "shell",
       risk: "high",
       reason: "Runs commands",
@@ -210,8 +215,9 @@ describe("slackChannelModule channel adapter", () => {
     expect(botInstance.stop).toHaveBeenCalled();
 
     botInstance.postApproval.mockClear();
-    bus.emit("approval.requested", {
-      id: "xyz",
+		bus.emit("approval.requested", {
+			id: "xyz",
+			scopeId: "test-scope",
       tool: "write",
       risk: "low",
       reason: "test",

@@ -1,4 +1,3 @@
-import type { KotaClient } from "#core/server/kota-client.js";
 import type { UiSurfaceBundle } from "#modules/daemon-ops/operator-ui.js";
 import { statusBanner } from "#modules/rendering/primitives.js";
 import {
@@ -6,6 +5,7 @@ import {
   TerminalScreenSession,
   type TerminalTransport,
 } from "#modules/rendering/transport.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   executeActionCommand,
   executeSelectedAction,

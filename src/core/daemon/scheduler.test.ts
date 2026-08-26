@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { projectHash } from "./schedule-parser.js";
+import { scopeHash } from "./schedule-parser.js";
 import { resetScheduler, Scheduler } from "./scheduler.js";
 
 describe("Scheduler", () => {
@@ -318,18 +318,18 @@ describe("Scheduler", () => {
     scheduler.stopTimer(); // no error
   });
 
-  it("defaults persistence to the project runtime directory", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-scheduler-project-"));
-    const persistentScheduler = new Scheduler(projectDir);
+  it("defaults persistence to the scope runtime directory", () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-scheduler-project-"));
+    const persistentScheduler = new Scheduler(scopeRoot);
     try {
       persistentScheduler.add("Persist locally", new Date(Date.now() + 60_000));
       expect(
-        existsSync(join(projectDir, ".kota", `schedules-${projectHash(projectDir)}.json`)),
+        existsSync(join(scopeRoot, ".kota", `schedules-${scopeHash(scopeRoot)}.json`)),
       ).toBe(true);
     } finally {
       persistentScheduler.stopTimer();
       persistentScheduler.disconnectBus();
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });
@@ -525,7 +525,7 @@ describe("Event-Based Triggers", () => {
       fired.push(...items.map((i) => i.description));
     });
 
-    bus.emit("schedule.fire", { projectId: "test-project", itemId: 1, description: "test" });
+    bus.emit("schedule.fire", { scopeId: "test-scope", itemId: 1, description: "test" });
     expect(fired).toHaveLength(0);
   });
 

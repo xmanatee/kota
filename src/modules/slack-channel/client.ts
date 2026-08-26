@@ -6,6 +6,11 @@
  */
 
 import type { AgentEvent, Transport } from "#core/loop/transport.js";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 
 export const SLACK_API = "https://slack.com/api";
 export const MAX_TEXT_LENGTH = 3000;
@@ -72,18 +77,22 @@ export async function callSlackApi<T = Record<string, unknown>>(
   token: string,
   method: string,
   body?: Record<string, unknown>,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<T> {
   const url = `${SLACK_API}/${method}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    ({ response: res } = await http.request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([SLACK_API]),
+      operation: `slack.${method}`,
+      url,
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json; charset=utf-8",
       },
       body: body ? JSON.stringify(body) : undefined,
-    });
+    }));
   } catch (err) {
     throw new Error(`Slack API ${method}: network error: ${(err as Error).message}`);
   }
@@ -98,8 +107,16 @@ export async function callSlackApi<T = Record<string, unknown>>(
 }
 
 /** Open a Socket Mode WebSocket URL using the App-Level Token. */
-export async function openSocketModeUrl(appToken: string): Promise<string> {
-  const result = await callSlackApi<{ url: string }>(appToken, "apps.connections.open");
+export async function openSocketModeUrl(
+  appToken: string,
+  http: OutboundHttpRequestPort = outboundHttp,
+): Promise<string> {
+  const result = await callSlackApi<{ url: string }>(
+    appToken,
+    "apps.connections.open",
+    undefined,
+    http,
+  );
   return result.url;
 }
 
@@ -133,6 +150,7 @@ export class SlackTransport implements Transport {
   constructor(
     private botToken: string,
     private channelId: string,
+    private http: OutboundHttpRequestPort = outboundHttp,
   ) {}
 
   emit(event: AgentEvent): void {
@@ -150,7 +168,7 @@ export class SlackTransport implements Transport {
       await callSlackApi(this.botToken, "chat.postMessage", {
         channel: this.channelId,
         text: chunk,
-      });
+      }, this.http);
     }
   }
 

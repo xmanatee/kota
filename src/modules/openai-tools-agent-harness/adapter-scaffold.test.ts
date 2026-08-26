@@ -53,14 +53,14 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
   });
 
   it("completes a constrained edit-and-verify fixture through scaffold tools and JSON-action fallback", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "openai-tools-scaffold-fixture-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "openai-tools-scaffold-fixture-"));
     try {
       writeFileSync(
-        join(projectDir, "math.cjs"),
+        join(scopeRoot, "math.cjs"),
         "function add(a, b) {\n  return a - b;\n}\nmodule.exports = { add };\n",
       );
       writeFileSync(
-        join(projectDir, "test.cjs"),
+        join(scopeRoot, "test.cjs"),
         "const { add } = require('./math.cjs');\nif (add(2, 3) !== 5) process.exit(1);\n",
       );
       queueToolUse("scaffold_read", "scaffold_search_read", {
@@ -86,7 +86,7 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
       });
       queueEnd("verified");
       executeToolMock.mockImplementation(async (name, input, context) => {
-        const toolContext = { cwd: context?.cwd ?? projectDir };
+        const toolContext = { cwd: context?.cwd ?? scopeRoot };
         if (name === "file_read") return runFileRead(input, toolContext);
         if (name === "file_edit") return runFileEdit(input, toolContext);
         if (name === "shell") return runShell(input, toolContext);
@@ -99,11 +99,11 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
         model: "ollama/qwen2.5-coder",
         modelOutputTokenLimits: { "ollama/qwen2.5-coder": 2048 },
         effort: "low",
-        cwd: projectDir,
+        cwd: scopeRoot,
       });
 
       expect(result).toMatchObject({ text: "verified", turns: 4, isError: false });
-      expect(readFileSync(join(projectDir, "math.cjs"), "utf-8")).toContain(
+      expect(readFileSync(join(scopeRoot, "math.cjs"), "utf-8")).toContain(
         "return a + b;",
       );
       expect(executeToolMock.mock.calls.map(([name]) => name)).toEqual([
@@ -120,7 +120,7 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
       expect(verifyTurnTranscript).toContain('"name":"scaffold_edit"');
       expect(verifyTurnTranscript).toContain('"tool_use_id":"json_action_2"');
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 });

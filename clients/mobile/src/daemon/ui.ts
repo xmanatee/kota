@@ -2,9 +2,9 @@ import type {
   UiAction,
   UiJsonValue,
   UiSurfaceBundle,
-} from './conformance/ui-surface.generated';
-import { parseUiSurfaceBundle } from './conformance/ui-surface.generated';
-import { daemonRequest, type DaemonHttp, withProject } from './http';
+} from './ui-surface.generated';
+import { parseUiSurfaceBundle } from './ui-surface.generated';
+import { daemonRequest, type DaemonHttp, withScope } from './http';
 
 export type {
   UiAction,
@@ -12,7 +12,7 @@ export type {
   UiLogEntry,
   UiSurface,
   UiSurfaceBundle,
-} from './conformance/ui-surface.generated';
+} from './ui-surface.generated';
 
 export type UiActionExecutionResult =
   | { ok: true; message: string }
@@ -22,11 +22,11 @@ export type UiDaemonRouteDocument = UiJsonValue;
 
 export async function getUiSurfaces(
   http: DaemonHttp,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<UiSurfaceBundle> {
   const raw = await daemonRequest<unknown>(
     http,
-    withProject('/ui/surfaces', projectId),
+    withScope('/ui/surfaces', scopeId),
   );
   return parseUiSurfaceBundle(raw);
 }

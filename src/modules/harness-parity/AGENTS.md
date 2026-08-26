@@ -73,31 +73,16 @@ context-retrieval metadata beside each harness outcome, including warning
 counts and artifact paths, so side-by-side comparison does not require opening
 every child run directory.
 
-## Scenario Coverage
+## Scenario Portfolio
 
-Keep these nine coverage points alive. Adding another scenario is fine, but do not delete existing fixtures:
-
-- Smoke proves scenario load, working-dir materialization, adapter
-  invocation, verification, and diff capture end to end.
-- Multi-file probes real coding work: read several files, derive content,
-  edit more than one file, and verify through the tool loop. A text-only
-  adapter (`thin`) failing here is evidence, not a bug.
-- Failure-and-revise probes tool-result fidelity across turns. The expected
-  value appears only in assertion failure output, so dropped or truncated
-  tool results prevent success.
-- Discovery probes project navigation from a symptom-only prompt (`node
-  test.js` fails) with distractor files and no named edit target.
-- Cross-file rename probes refactor consistency when the named function is
-  exercised through callers the test does not import directly.
-- Frontend-preview probes local rendered-output work with a deterministic
-  loopback server, filesystem fallback, DOM/CSS checks, `preview.html`, and
-  `preview-check.json`.
-- Package-upgrade-chain probes staged maintenance: apply dependent API
-  upgrades on one working tree while preserving earlier behavior.
-- Codebase-investigation-answer probes answer-shaped work: investigate a local
-  codebase question, cite evidence, and avoid production edits.
-- Rank-relevant-regions probes repository exploration as the deliverable: return
-  a ranked, line-budgeted map of relevant code regions without production edits.
+Keep the smallest representative set that distinguishes materially different
+harness capabilities: tool-loop editing, recovery from feedback, workspace
+navigation, rendered output, staged maintenance, and read-only investigation.
+Before adding a scenario, name the distinct failure it catches and check
+whether an existing scenario can carry that example. Merge or remove scenarios
+whose outcomes overlap; scenario identity and fixture count are not contracts.
+The current catalog is discoverable from `scenario.json` files and should not
+be copied into this instruction file.
 
 ## Capability Gap Handling
 

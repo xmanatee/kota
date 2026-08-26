@@ -19,8 +19,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import guardrailsAuditModule from "./index.js";
 
@@ -110,29 +108,5 @@ describe("guardrails-audit module daemonClient(link)", () => {
         path: "/audit?limit=5&tool=shell&risk=dangerous&policy=confirm&since=2026-05-01T00%3A00%3A00.000Z&session=sess-1",
       },
     ]);
-  });
-
-  it("the assembly path fails loudly when the guardrails-audit module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    // Other migrated namespaces are stubbed via the shared helper so the
-    // only coverage gap is the audit namespace itself.
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.audit;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /audit/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the guardrails-audit module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = guardrailsAuditModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.audit;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

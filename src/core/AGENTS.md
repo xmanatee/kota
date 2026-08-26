@@ -56,7 +56,9 @@ into.
 `any` is forbidden in production TypeScript and is enforced by Biome's
 `noExplicitAny` and `noImplicitAnyLet` rules. The same rules are intentionally
 relaxed for `*.test.ts`, `*.integration.test.ts`, and `*.integration.ts`
-fixtures so test scaffolding can mock partial shapes without ceremony.
+fixtures, but that syntax exemption is not permission to cast partial object
+graphs into production aggregates. Tests use narrow typed ports and builders;
+only boundary parsers start from `unknown` or JSON-shaped records.
 
 `unknown` (and the JSON-shaped alias `Record<string, unknown>`) is the right
 type for untrusted input at a system boundary:

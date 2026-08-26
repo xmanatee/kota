@@ -17,26 +17,26 @@ import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import { codexAgentHarness } from "./adapter.js";
 
 describe("Codex handoff portability", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("runs a KOTA-owned handoff without routing an unsupported turn bound", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-codex-handoff-"));
-    projectDirs.push(projectDir);
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-codex-handoff-"));
+    scopeRoots.push(workspaceRoot);
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
     execFileSync("git", ["config", "user.email", "test@example.com"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
-    execFileSync("git", ["config", "user.name", "Test"], { cwd: projectDir });
-    writeFileSync(join(projectDir, "agent.md"), "Handle the inbound signal.\n");
-    execFileSync("git", ["add", "agent.md"], { cwd: projectDir });
-    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    execFileSync("git", ["config", "user.name", "Test"], { cwd: workspaceRoot });
+    writeFileSync(join(workspaceRoot, "agent.md"), "Handle the inbound signal.\n");
+    execFileSync("git", ["add", "agent.md"], { cwd: workspaceRoot });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: workspaceRoot });
 
     const receivedOptions: AgentHarnessRunOptions[] = [];
     registerAgentHarness({
@@ -61,18 +61,16 @@ describe("Codex handoff portability", () => {
       effort: "xhigh",
       writeScope: "deny-all",
     };
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
 
     const result = await withHandoffAgentRuntime(
       {
-        cwd: projectDir,
-        projectDir,
+        cwd: workspaceRoot,
         harness: codexAgentHarness.name,
         resolveAgentDef: (name) => name === agent.name ? agent : undefined,
         delegateBudget: createDelegateBudget(),
         autonomyMode: "autonomous",
         scopeId,
-        projectId: scopeId,
       },
       () => runHandoffAgent({
         agent: agent.name,
@@ -81,7 +79,7 @@ describe("Codex handoff portability", () => {
         reason: "Inbound signal route matched this agent.",
         autonomy_mode: "autonomous",
         budget: { max_turns: 4 },
-        scope: { scope_id: scopeId, project_id: scopeId },
+        scope: { scope_id: scopeId },
       }),
     );
 

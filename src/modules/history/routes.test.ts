@@ -3,15 +3,16 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import type {
   ConversationData,
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
+  HistorySemanticSearchCapability,
 } from "#core/modules/provider-types.js";
-import { HistoryProjectStores } from "./project-scope.js";
 import { handleGetHistory, handleSearchHistory } from "./routes.js";
+import { HistoryScopeStores } from "./scope.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -62,7 +63,12 @@ function longMessages(count: number): ConversationMessage[] {
   }));
 }
 
-function makeProvider(records: ConversationRecord[]): HistoryProvider {
+function makeProvider(
+  records: ConversationRecord[],
+  semanticSearch: null | HistorySemanticSearchCapability["semanticSearch"] = vi.fn(
+    async (_q: string, k: number) => records.slice(0, k),
+  ),
+): HistoryProvider {
   return {
     create: vi.fn(() => "new-id"),
     save: vi.fn(),
@@ -72,9 +78,14 @@ function makeProvider(records: ConversationRecord[]): HistoryProvider {
     findByPrefix: vi.fn(() => null),
     remove: vi.fn(() => true),
     cleanup: vi.fn(() => 0),
-    supportsSemanticSearch: vi.fn(() => true),
-    semanticSearch: vi.fn(async (_q: string, k: number) => records.slice(0, k)),
-    reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
+    ...(semanticSearch
+      ? {
+        semanticSearchCapability: {
+          semanticSearch,
+          reindex: vi.fn(async () => ({ indexed: 0, failed: 0 })),
+        },
+      }
+      : {}),
   };
 }
 
@@ -235,7 +246,7 @@ describe("history-routes", () => {
         res,
       );
       expect(result.status).toBe(200);
-      expect(provider.semanticSearch).toHaveBeenCalledWith("hello", 5, {
+      expect(provider.semanticSearchCapability?.semanticSearch).toHaveBeenCalledWith("hello", 5, {
         cwd: undefined,
         source: undefined,
       });
@@ -252,7 +263,7 @@ describe("history-routes", () => {
       const { res, result } = mockResponse();
       await handleSearchHistory(searchRequest("?semantic=true"), res);
       expect(result.status).toBe(200);
-      expect(provider.semanticSearch).toHaveBeenCalledWith("", 20, {
+      expect(provider.semanticSearchCapability?.semanticSearch).toHaveBeenCalledWith("", 20, {
         cwd: undefined,
         source: undefined,
       });
@@ -277,28 +288,27 @@ describe("history-routes", () => {
         cwd: "/repo",
         source: "user",
       });
-      expect(provider.semanticSearch).not.toHaveBeenCalled();
+      expect(provider.semanticSearchCapability?.semanticSearch).not.toHaveBeenCalled();
       const body = result.body as { ok: true; conversations: ConversationRecord[] };
       expect(body.ok).toBe(true);
       expect(body.conversations[0].title).toBe("Keyword match");
     });
 
     it("returns ok:false reason:semantic_unavailable when provider lacks semantic support", async () => {
-      const provider = makeProvider([]);
-      provider.supportsSemanticSearch = vi.fn(() => false);
+      const provider = makeProvider([], null);
       vi.mocked(getHistoryProvider).mockReturnValue(provider);
       const { res, result } = mockResponse();
       await handleSearchHistory(searchRequest("?q=anything&semantic=true"), res);
       expect(result.status).toBe(200);
-      expect(provider.semanticSearch).not.toHaveBeenCalled();
+      expect(provider.semanticSearchCapability).toBeUndefined();
       expect(result.body).toEqual({ ok: false, reason: "semantic_unavailable" });
     });
 
     it("returns 500 with the provider's error message when semantic search throws", async () => {
-      const provider = makeProvider([]);
-      provider.semanticSearch = vi.fn(async () => {
+      const semanticSearch = vi.fn(async () => {
         throw new Error("embed index missing");
       });
+      const provider = makeProvider([], semanticSearch);
       vi.mocked(getHistoryProvider).mockReturnValue(provider);
       const { res, result } = mockResponse();
       await handleSearchHistory(searchRequest("?q=x&semantic=true"), res);
@@ -322,22 +332,22 @@ describe("history-routes", () => {
       });
     });
 
-    it("isolates project history entries and rejects unknown project ids", async () => {
-      const root = mkdtempSync(join(tmpdir(), "kota-history-projects-"));
+    it("isolates project history entries and rejects unknown scope ids", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-history-scopes-"));
       try {
         mkdirSync(join(root, "a"));
         mkdirSync(join(root, "b"));
-        const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
-        const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
-        const stores = new HistoryProjectStores({
-          defaultProjectDir: projectA.projectDir,
-          defaultProjectId: projectA.projectId,
-          projects: [projectA, projectB],
+        const scopeA = buildDirectoryScope({ scopeRoot: join(root, "a") });
+        const scopeB = buildDirectoryScope({ scopeRoot: join(root, "b") });
+        const stores = new HistoryScopeStores({
+          defaultScopeRoot: scopeA.scopeRoot,
+          defaultScopeId: scopeA.scopeId,
+          scopes: [scopeA, scopeB],
         });
 
-        const scopedA = stores.resolve(projectA.projectId);
+        const scopedA = stores.resolve(scopeA.scopeId);
         if (!scopedA.ok) throw new Error("project A did not resolve");
-        const id = scopedA.store.create("claude-sonnet-4-6", projectA.projectDir);
+        const id = scopedA.store.create("claude-sonnet-4-6", scopeA.scopeRoot);
         scopedA.store.save(
           id,
           [{ role: "user", content: "private alpha discussion" }],
@@ -347,7 +357,7 @@ describe("history-routes", () => {
 
         const searchA = mockResponse();
         await handleSearchHistory(
-          searchRequest(`?q=alpha&projectId=${projectA.projectId}`),
+          searchRequest(`?q=alpha&scopeId=${scopeA.scopeId}`),
           searchA.res,
           stores,
         );
@@ -359,7 +369,7 @@ describe("history-routes", () => {
 
         const searchB = mockResponse();
         await handleSearchHistory(
-          searchRequest(`?q=alpha&projectId=${projectB.projectId}`),
+          searchRequest(`?q=alpha&scopeId=${scopeB.scopeId}`),
           searchB.res,
           stores,
         );
@@ -371,15 +381,15 @@ describe("history-routes", () => {
 
         const unknown = mockResponse();
         await handleSearchHistory(
-          searchRequest("?q=alpha&projectId=missing-project"),
+          searchRequest("?q=alpha&scopeId=missing-scope"),
           unknown.res,
           stores,
         );
         expect(unknown.result.status).toBe(404);
         expect(unknown.result.body).toEqual({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "missing-project",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "missing-scope",
         });
       } finally {
         rmSync(root, { recursive: true, force: true });

@@ -31,9 +31,9 @@ import {
 } from "./answer-history-store.js";
 import {
   ANSWER_DEFAULT_TOP_K,
-  type AnswerProjectContext,
   type AnswerProvider,
   type AnswerRecallSeam,
+  type AnswerScopeContext,
   type Synthesizer,
 } from "./answer-types.js";
 import { parseCitations, selectCitedHits } from "./citation-parser.js";
@@ -77,7 +77,7 @@ export class AnswerProviderImpl implements AnswerProvider {
   async answer(
     query: string,
     filter?: AnswerFilter,
-    project?: AnswerProjectContext,
+    scope?: AnswerScopeContext,
   ): Promise<AnswerResult> {
     const trimmed = query.trim();
     const recallFilter: AnswerFilter = {
@@ -94,7 +94,7 @@ export class AnswerProviderImpl implements AnswerProvider {
           ok: false,
           reason: "no_hits",
         },
-        project,
+        scope,
       );
     }
 
@@ -103,14 +103,14 @@ export class AnswerProviderImpl implements AnswerProvider {
       return this.persistAndReturn(query, recallFilter, [], {
         ok: false,
         reason: recallResult.reason,
-      }, project);
+      }, scope);
     }
     const hits = recallResult.hits;
     if (hits.length === 0) {
       return this.persistAndReturn(query, recallFilter, [], {
         ok: false,
         reason: "no_hits",
-      }, project);
+      }, scope);
     }
 
     const firstAttempt = await this.runSynthesis(trimmed, hits, false);
@@ -120,7 +120,7 @@ export class AnswerProviderImpl implements AnswerProvider {
         recallFilter,
         hits,
         firstAttempt.result,
-        project,
+        scope,
       );
     }
 
@@ -129,7 +129,7 @@ export class AnswerProviderImpl implements AnswerProvider {
       return this.persistAndReturn(query, recallFilter, hits, {
         ok: false,
         reason: "synthesis_failed",
-      }, project);
+      }, scope);
     }
 
     const retry = await this.runSynthesis(trimmed, hits, true);
@@ -139,7 +139,7 @@ export class AnswerProviderImpl implements AnswerProvider {
         recallFilter,
         hits,
         retry.result,
-        project,
+        scope,
       );
     }
     if (retry.kind === "thrown") this.onSynthesisError(retry.error);
@@ -147,7 +147,7 @@ export class AnswerProviderImpl implements AnswerProvider {
     return this.persistAndReturn(query, recallFilter, hits, {
       ok: false,
       reason: "synthesis_failed",
-    }, project);
+    }, scope);
   }
 
   private async persistAndReturn(
@@ -155,10 +155,10 @@ export class AnswerProviderImpl implements AnswerProvider {
     filter: AnswerFilter,
     recallHits: RecallHit[],
     result: AnswerResult,
-    project?: AnswerProjectContext,
+    scope?: AnswerScopeContext,
   ): Promise<AnswerResult> {
     try {
-      const history = project?.history ?? this.history;
+      const history = scope?.history ?? this.history;
       await history.appendAnswer(
         buildAnswerHistoryRecord({
           id: mintAnswerHistoryId(),

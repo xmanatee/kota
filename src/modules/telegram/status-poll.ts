@@ -10,8 +10,8 @@ import { callTelegramApi } from "./client.js";
 import { acquireTelegramPollingOwner } from "./polling-ownership.js";
 import {
   handleResolvedTelegramStatusCommand,
-  handleTelegramProjectCommand,
-  isTelegramProjectCommand,
+  handleTelegramScopeCommand,
+  isTelegramScopeCommand,
   isTelegramStatusCommand,
 } from "./status-commands.js";
 
@@ -21,14 +21,14 @@ export { buildStatusText } from "./status-render.js";
 import { resolveTelegramStatusScope } from "./status-scope.js";
 import type {
   StatusInfo,
-  TelegramStatusPollProjectRouting,
+  TelegramStatusPollScopeRouting,
   TelegramStatusScope,
 } from "./status-types.js";
 
 export type {
   StatusInfo,
   TelegramStatusCommandOptions,
-  TelegramStatusPollProjectRouting,
+  TelegramStatusPollScopeRouting,
   TelegramStatusScope,
 } from "./status-types.js";
 
@@ -38,7 +38,7 @@ const ERROR_BACKOFF_MS = 5_000;
 export function startTelegramStatusPoll(
   token: string,
   chatId: string,
-  projectDir: string,
+  scopeRoot: string,
   getStatusInfo: () => StatusInfo,
   knowledge: KnowledgeClient,
   memory: MemoryClient,
@@ -49,18 +49,18 @@ export function startTelegramStatusPoll(
   capture: CaptureClient,
   retract: RetractClient,
   log?: (message: string) => void,
-  projectRouting?: TelegramStatusPollProjectRouting,
+  scopeRouting?: TelegramStatusPollScopeRouting,
 ): () => void {
   const releasePollingOwner = acquireTelegramPollingOwner(token, {
     owner: "telegram-status",
-    source: "legacy status poll helper",
+    source: "status poll",
   });
   let running = true;
   let offset = 0;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const defaultScope: TelegramStatusScope = {
-    projectDir,
+    scopeRoot: scopeRoot,
     getStatusInfo,
     knowledge,
     memory,
@@ -107,11 +107,11 @@ export function startTelegramStatusPoll(
         if (!msg?.text) continue;
         if (String(msg.chat.id) !== chatId) continue;
 
-        if (isTelegramProjectCommand(msg.text)) {
-          await handleTelegramProjectCommand({
+        if (isTelegramScopeCommand(msg.text)) {
+          await handleTelegramScopeCommand({
             text: msg.text,
             messageChatId: msg.chat.id,
-            projectRouting,
+            scopeRouting,
             sendPlain,
           });
           continue;
@@ -120,7 +120,7 @@ export function startTelegramStatusPoll(
         const resolvedScope = await resolveTelegramStatusScope(
           msg.chat.id,
           defaultScope,
-          projectRouting,
+          scopeRouting,
         );
         if (!resolvedScope.ok) {
           await sendPlain(resolvedScope.message);

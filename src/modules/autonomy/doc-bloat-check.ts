@@ -96,12 +96,12 @@ export function formatDocBloatMessage(findings: DocBloatFinding[]): string {
   return [header, ...blocks].join("\n\n");
 }
 
-function readStagedDocDiff(projectDir: string): string {
-  return readWorkflowDiff(projectDir, ["*AGENTS.md", "*CLAUDE.md", "docs/**/*.md"]);
+function readStagedDocDiff(workspaceRoot: string): string {
+  return readWorkflowDiff(workspaceRoot, ["*AGENTS.md", "*CLAUDE.md", "docs/**/*.md"]);
 }
 
-export function checkDocBloat(projectDir: string): string {
-  const diff = readStagedDocDiff(projectDir);
+export function checkDocBloat(workspaceRoot: string): string {
+  const diff = readStagedDocDiff(workspaceRoot);
   if (!diff.trim()) {
     return "OK: no staged AGENTS.md/CLAUDE.md/docs changes";
   }

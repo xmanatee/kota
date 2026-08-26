@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { join, relative, resolve, sep } from "node:path";
-import type { ProjectId } from "#core/daemon/scope-registry.js";
+import type { ScopeId } from "#core/daemon/scope-registry.js";
 import { getCurrentToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import {
   type RunRepositoryAccess,
@@ -37,7 +37,7 @@ import { isRepoTaskId } from "./task-id.js";
 
 export type RepoTaskCanonicalMutationTarget = Readonly<{
 	authority: "canonical";
-  projectId: ProjectId;
+  scopeId: ScopeId;
 }>;
 
 export type RepoTaskRuntimeSandboxTarget = Readonly<{
@@ -74,7 +74,7 @@ type MoveRequest = Readonly<{ kind: "move"; id: string; state: RepoTaskState }>;
 type UpdateBodyRequest = Readonly<{ kind: "update-body"; id: string; body: string }>;
 type GcRequest = Readonly<{
   kind: "gc";
-  options: Omit<RepoTaskGcOptions, "projectId">;
+  options: Omit<RepoTaskGcOptions, "scopeId">;
 }>;
 type RetractInboxRequest = Readonly<{ kind: "retract-inbox"; path: string }>;
 
@@ -203,9 +203,9 @@ export function decodeRepoTaskMutationRequest(value: unknown): RepoTaskMutationR
   }
 }
 
-function moveResult(projectDir: string, id: string, state: RepoTaskState): RepoTaskMoveResult {
+function moveResult(repoRoot: string, id: string, state: RepoTaskState): RepoTaskMoveResult {
   try {
-    return { ok: true, ...moveTaskById(projectDir, id, state) };
+    return { ok: true, ...moveTaskById(repoRoot, id, state) };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (/invalid task id/i.test(message)) return { ok: false, reason: "invalid_id" };
@@ -218,11 +218,11 @@ function moveResult(projectDir: string, id: string, state: RepoTaskState): RepoT
 }
 
 function resolveInboxRetraction(
-  projectDir: string,
+  repoRoot: string,
   path: string,
 ): { absolutePath: string; recordId: string } {
-  const inboxDir = getRepoInboxDir(projectDir);
-  const absolute = resolve(projectDir, path);
+  const inboxDir = getRepoInboxDir(repoRoot);
+  const absolute = resolve(repoRoot, path);
   const inside = relative(inboxDir, absolute);
   if (
     inside === ".." ||
@@ -239,16 +239,16 @@ function resolveInboxRetraction(
   };
 }
 
-function retractInbox(projectDir: string, path: string): RepoTaskInboxRetractionResult {
-  const resolved = resolveInboxRetraction(projectDir, path);
-  if (!removeRepoInboxFile(projectDir, resolved.absolutePath)) {
+function retractInbox(repoRoot: string, path: string): RepoTaskInboxRetractionResult {
+  const resolved = resolveInboxRetraction(repoRoot, path);
+  if (!removeRepoInboxFile(repoRoot, resolved.absolutePath)) {
     return { ok: false, reason: "not_found" };
   }
   return { ok: true, recordId: resolved.recordId, path };
 }
 
 function executeRepoTaskMutation(
-  projectDir: string,
+  repoRoot: string,
   request: RepoTaskMutationRequest,
 ): RepoTaskMutationValue {
   switch (request.kind) {
@@ -256,42 +256,42 @@ function executeRepoTaskMutation(
       if (!isRepoTaskId(request.id)) {
         return { ok: false, reason: "invalid_slug", message: "Invalid generated task id" };
       }
-      const path = join(getRepoInboxDir(projectDir), `${request.id}.md`);
-      if (readRepoInboxFile(projectDir, path) !== null) {
+      const path = join(getRepoInboxDir(repoRoot), `${request.id}.md`);
+      if (readRepoInboxFile(repoRoot, path) !== null) {
         return { ok: false, reason: "already_exists" };
       }
       writeRepoInboxFile(
-        projectDir,
+        repoRoot,
         path,
         `# ${request.title}\n${request.summary ? `\n${request.summary}\n` : ""}`,
       );
-      return { ok: true, id: request.id, path: relative(projectDir, path) };
+      return { ok: true, id: request.id, path: relative(repoRoot, path) };
     }
     case "create":
-      return createNormalizedTask(projectDir, request.options);
+      return createNormalizedTask(repoRoot, request.options);
     case "capture":
-      return captureInboxTask(projectDir, request.title);
+      return captureInboxTask(repoRoot, request.title);
     case "capture-inbox": {
-      const path = join(getRepoInboxDir(projectDir), `${request.id}.md`);
-      if (readRepoInboxFile(projectDir, path) !== null) {
+      const path = join(getRepoInboxDir(repoRoot), `${request.id}.md`);
+      if (readRepoInboxFile(repoRoot, path) !== null) {
         return { ok: false, reason: "already_exists" };
       }
-      writeRepoInboxFile(projectDir, path, request.content);
-      return { ok: true, id: request.id, path: relative(projectDir, path) };
+      writeRepoInboxFile(repoRoot, path, request.content);
+      return { ok: true, id: request.id, path: relative(repoRoot, path) };
     }
     case "move":
-      return moveResult(projectDir, request.id, request.state);
+      return moveResult(repoRoot, request.id, request.state);
     case "update-body":
-      return updateTaskBody(projectDir, request.id, request.body);
+      return updateTaskBody(repoRoot, request.id, request.body);
     case "gc":
-      return gcTerminalTasks(projectDir, request.options);
+      return gcTerminalTasks(repoRoot, request.options);
     case "retract-inbox":
-      return retractInbox(projectDir, request.path);
+      return retractInbox(repoRoot, request.path);
   }
 }
 
 export function repoTaskMutationResources(
-  projectDir: string,
+  repoRoot: string,
   request: RepoTaskMutationRequest,
 ): readonly string[] {
   if (request.kind === "move" || request.kind === "update-body") {
@@ -300,7 +300,7 @@ export function repoTaskMutationResources(
   if (request.kind === "quick-create") return [`inbox:${request.id}`];
   if (request.kind === "capture-inbox") return [`inbox:${request.id}`];
   if (request.kind === "retract-inbox") {
-    return [`inbox:${resolveInboxRetraction(projectDir, request.path).recordId}`];
+    return [`inbox:${resolveInboxRetraction(repoRoot, request.path).recordId}`];
   }
   if (request.kind === "create") {
     const slug = slugifyTaskTitle(request.options.title);
@@ -310,7 +310,7 @@ export function repoTaskMutationResources(
     const slug = slugifyTaskTitle(request.title);
     return slug ? [`inbox:task-${slug}`] : ["repo-tasks:invalid-request"];
   }
-  const preview = gcTerminalTasks(projectDir, {
+  const preview = gcTerminalTasks(repoRoot, {
     ...request.options,
     dryRun: true,
   });
@@ -349,7 +349,7 @@ async function executeCanonicalRepoTaskMutation(
   const parentRunId = execution?.workflowContext?.runId;
   const result = await dispatcher.execute({
     workflow: "repo-task-mutation",
-    projectId: target.projectId,
+    scopeId: target.scopeId,
     event: "repo-task.mutation.requested",
     payload: { request },
     ...(parentRunId !== undefined

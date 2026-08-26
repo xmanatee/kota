@@ -17,45 +17,45 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
   repositoryHeadSha?: string,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: repositoryHeadSha === undefined
       ? {
           runId,
           repository: "none",
-          rootDir: projectDir,
+          rootDir: workspaceRoot,
           workspaceDir,
-          tempDir: projectDir,
-          artifactDir: projectDir,
+          tempDir: workspaceRoot,
+          artifactDir: workspaceRoot,
         }
       : {
           runId,
           repository: "read",
           baseCommit: repositoryHeadSha,
-          rootDir: projectDir,
+          rootDir: workspaceRoot,
           workspaceDir,
-          tempDir: projectDir,
-          artifactDir: projectDir,
+          tempDir: workspaceRoot,
+          artifactDir: workspaceRoot,
         },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -74,22 +74,22 @@ function writeJson(path: string, value: object): void {
 }
 
 describe("control monitor coverage executor persistence", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-control-coverage-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("writes the artifact when the workflow executor finishes a run", async () => {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const trigger: WorkflowRunTrigger = {
       event: "runtime.idle",
       schemaRef: null,
@@ -100,7 +100,7 @@ describe("control monitor coverage executor persistence", () => {
       enabled: true,
       repository: "none",
       definitionPath: "src/modules/test/workflows/coverage-smoke/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: [],
       steps: [
@@ -114,14 +114,14 @@ describe("control monitor coverage executor persistence", () => {
 
     const { promise } = executeWorkflowRun(definition, trigger, {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir, trigger, "executor-run"),
+      runContext: makeRunContext(workspaceRoot, trigger, "executor-run"),
       bus: new EventBus(),
       store,
       log: vi.fn(),
     });
     const result = await promise;
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       CONTROL_MONITOR_COVERAGE_ARTIFACT,
     );
@@ -140,7 +140,7 @@ describe("control monitor coverage executor persistence", () => {
   });
 
   it("uses the lifecycle-captured repository head without inspecting ambient Git", async () => {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const trigger: WorkflowRunTrigger = {
       event: "runtime.idle",
       schemaRef: null,
@@ -151,7 +151,7 @@ describe("control monitor coverage executor persistence", () => {
       enabled: true,
       repository: "read",
       definitionPath: "src/modules/test/workflows/coverage-snapshot/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: [],
       steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
@@ -160,10 +160,10 @@ describe("control monitor coverage executor persistence", () => {
     const { promise } = executeWorkflowRun(definition, trigger, {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
       runContext: makeRunContext(
-        projectDir,
+        workspaceRoot,
         trigger,
         "snapshot-run",
-        projectDir,
+        workspaceRoot,
         "captured-head",
       ),
       bus: new EventBus(),
@@ -172,20 +172,20 @@ describe("control monitor coverage executor persistence", () => {
     });
     const result = await promise;
     const artifact = readOptionalJsonFile<ControlMonitorCoverageArtifact>(
-      join(projectDir, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+      join(workspaceRoot, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
     );
 
     expect(artifact?.run.headSha).toBe("captured-head");
   });
 
   it("refreshes linked source run coverage when an async reviewer finishes", async () => {
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const sourceDefinition: WorkflowDefinition = {
       name: "monitored-source",
       enabled: true,
       repository: "read",
       definitionPath: "src/modules/test/workflows/monitored-source/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: ["monitored"],
       steps: [
@@ -201,7 +201,7 @@ describe("control monitor coverage executor persistence", () => {
       enabled: true,
       repository: "read",
       definitionPath: "src/modules/test/workflows/progress-reviewer/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: [],
       steps: [
@@ -229,10 +229,10 @@ describe("control monitor coverage executor persistence", () => {
       {
         readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(
-          projectDir,
+          workspaceRoot,
           sourceTrigger,
           "source-run",
-          projectDir,
+          workspaceRoot,
           "source-head",
         ),
         bus,
@@ -241,7 +241,7 @@ describe("control monitor coverage executor persistence", () => {
       },
     ).promise;
     const sourceCoveragePath = join(
-      projectDir,
+      workspaceRoot,
       sourceRun.metadata.runDir,
       CONTROL_MONITOR_COVERAGE_ARTIFACT,
     );
@@ -262,7 +262,6 @@ describe("control monitor coverage executor persistence", () => {
         schemaRef: null,
         payload: {
           scopeId: "default",
-          projectId: "default",
           sourceEventName: "workflow.completed",
           groupingKey: "default",
           reason: "count",
@@ -304,10 +303,10 @@ describe("control monitor coverage executor persistence", () => {
       {
         readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(
-          projectDir,
+          workspaceRoot,
           reviewerTrigger,
           "review-run",
-          projectDir,
+          workspaceRoot,
           "reviewer-head",
         ),
         bus,
@@ -334,8 +333,8 @@ describe("control monitor coverage executor persistence", () => {
   });
 
   it("does not refresh linked coverage outside the runs directory for traversal-shaped ids", async () => {
-    const store = new WorkflowRunStore(projectDir);
-    const outsideRunDirPath = join(projectDir, "outside-source-run");
+    const store = new WorkflowRunStore(workspaceRoot);
+    const outsideRunDirPath = join(workspaceRoot, "outside-source-run");
     mkdirSync(join(outsideRunDirPath, "steps"), { recursive: true });
     writeJson(join(outsideRunDirPath, "metadata.json"), {
       id: "outside-source-run",
@@ -354,7 +353,7 @@ describe("control monitor coverage executor persistence", () => {
       enabled: true,
       repository: "none",
       definitionPath: "src/modules/test/workflows/progress-reviewer/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: [],
       steps: [
@@ -393,7 +392,7 @@ describe("control monitor coverage executor persistence", () => {
       {
         readRuntimeState: readEmptyTestWorkflowRuntimeState,
         runContext: makeRunContext(
-          projectDir,
+          workspaceRoot,
           traversalTrigger,
           "review-run-traversal",
         ),

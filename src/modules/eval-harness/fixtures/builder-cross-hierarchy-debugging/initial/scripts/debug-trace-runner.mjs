@@ -19,9 +19,9 @@ function fail(message) {
   throw new Error(message);
 }
 
-function runVerificationCommand(projectRoot) {
+function runVerificationCommand(scopeRoot) {
   return spawnSync(process.execPath, ["--test", "test/signal-flow.test.mjs"], {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 10000,
@@ -57,8 +57,8 @@ function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
-export function runBaselineFailureCheck(projectRoot) {
-  const run = runVerificationCommand(projectRoot);
+export function runBaselineFailureCheck(scopeRoot) {
+  const run = runVerificationCommand(scopeRoot);
   if (run.status === 0) fail("baseline unexpectedly passed; fixture must start with a downstream routing failure");
   const output = normalizedTestOutput(run);
   const expectedNeedles = [
@@ -73,9 +73,9 @@ export function runBaselineFailureCheck(projectRoot) {
   console.log(JSON.stringify({ status: "ok", command: verificationCommand, failureNeedles: expectedNeedles }, null, 2));
 }
 
-function expectInvalidShortcut(projectRoot, name, artifact, expectedMessage) {
+function expectInvalidShortcut(scopeRoot, name, artifact, expectedMessage) {
   const issues = validateArtifact(artifact, {
-    projectRoot,
+    scopeRoot,
     expectedDigest: "expected-digest",
     changedPaths: ["debug-trace-result.json", "src/channel-registry.mjs"],
   });
@@ -84,16 +84,16 @@ function expectInvalidShortcut(projectRoot, name, artifact, expectedMessage) {
   }
 }
 
-export function runShortcutSelfTest(projectRoot) {
+export function runShortcutSelfTest(scopeRoot) {
   const base = validArtifactTemplate();
   expectInvalidShortcut(
-    projectRoot,
+    scopeRoot,
     "symptom-as-root-cause",
     { ...base, rootCause: { file: "src/gateway.mjs", layer: "gateway dispatch", fix: "patch the observed output directly" } },
     "rootCause.file",
   );
   expectInvalidShortcut(
-    projectRoot,
+    scopeRoot,
     "missing-flow-layer",
     {
       ...base,
@@ -105,13 +105,13 @@ export function runShortcutSelfTest(projectRoot) {
     "src/signal-flow.mjs",
   );
   expectInvalidShortcut(
-    projectRoot,
+    scopeRoot,
     "fake-verification-digest",
     { ...base, verification: { ...base.verification, behaviorDigest: "not-the-current-run" } },
     "behaviorDigest",
   );
   const pathIssues = validateArtifact(base, {
-    projectRoot,
+    scopeRoot,
     expectedDigest: "placeholder",
     changedPaths: ["debug-trace-result.json", "src/gateway.mjs"],
   });
@@ -146,8 +146,8 @@ export function runShortcutSelfTest(projectRoot) {
   }, null, 2));
 }
 
-export function runMainCheck(projectRoot, artifactPath) {
-  const run = runVerificationCommand(projectRoot);
+export function runMainCheck(scopeRoot, artifactPath) {
+  const run = runVerificationCommand(scopeRoot);
   if (run.status !== 0) {
     if (existsSync(artifactPath)) rmSync(artifactPath, { force: true });
     fail(`${verificationCommand} failed after candidate fix:\n${normalizedTestOutput(run)}`);
@@ -160,9 +160,9 @@ export function runMainCheck(projectRoot, artifactPath) {
   const expectedDigest = behaviorDigest(observations);
   const artifact = readJson(artifactPath);
   const issues = validateArtifact(artifact, {
-    projectRoot,
+    scopeRoot,
     expectedDigest,
-    changedPaths: gitChangedPaths(projectRoot),
+    changedPaths: gitChangedPaths(scopeRoot),
   });
   if (issues.length > 0) fail(`debug trace evidence invalid:\n- ${issues.join("\n- ")}`);
   console.log(JSON.stringify({

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ModuleEventPayloadSchema } from "#core/events/module-event.js";
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 
 export const AUTONOMY_HEALTH_SEVERITIES = [
   "info",
@@ -396,7 +396,7 @@ const healthSignalPayloadSchema: ModuleEventPayloadSchema = {
 };
 
 export const autonomyHealthSignal =
-  defineProjectScopedModuleEvent<AutonomyHealthSignalPayload>(
+  defineScopedModuleEvent<AutonomyHealthSignalPayload>(
     "autonomy.health.signal",
     [
       "signalId",
@@ -429,7 +429,6 @@ export const autonomyHealthSignal =
           name: "workflow runtime warning",
           payload: {
             scopeId: "example-scope",
-            projectId: "example-scope",
             signalId: "health-example",
             observation: "present",
             source: { kind: "workflow", id: "builder" },

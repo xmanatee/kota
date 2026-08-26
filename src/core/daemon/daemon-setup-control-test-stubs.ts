@@ -13,9 +13,7 @@ import {
 
 type SetupControlHandleMethods = Pick<
   DaemonControlHandle,
-  | "getScopeRegistryProjection"
   | "getScopeHostingState"
-  | "hasScope"
   | "getScopePolicy"
   | "listDeadLetters"
   | "getDeadLetter"
@@ -47,20 +45,20 @@ const EMPTY_SETUP_STATUS: ModuleSetupStatusResponse = {
 
 const TEST_SCOPE_PROJECTION = {
   rootScopeId: "global",
-  defaultScopeId: "test-project-id",
+  defaultScopeId: "test-scope-id",
   scopes: [
     { scopeId: "global", displayName: "Global" },
     {
-      scopeId: "test-project-id",
-      displayName: "test-project",
+      scopeId: "test-scope-id",
+      displayName: "test-scope",
       parentScopeId: "global",
-      directoryRoot: "/tmp/test-project",
+      directoryRoot: "/tmp/test-scope",
     },
     {
       scopeId: "test-feature",
       displayName: "test-feature",
-      parentScopeId: "test-project-id",
-      directoryRoot: "/tmp/test-project/feature",
+      parentScopeId: "test-scope-id",
+      directoryRoot: "/tmp/test-scope/feature",
     },
   ],
 };
@@ -83,10 +81,7 @@ function missingSetupStartResult(): ModuleSetupStartResult {
 
 export function daemonSetupControlHandleStubs(): SetupControlHandleMethods {
   return {
-    getScopeRegistryProjection: () => TEST_SCOPE_PROJECTION,
     getScopeHostingState: () => "hosted",
-    hasScope: (scopeId: string) =>
-      TEST_SCOPE_PROJECTION.scopes.some((scope) => scope.scopeId === scopeId),
     getScopePolicy: (scopeId: string) => {
       const policy = resolveScopePolicy({
         projection: TEST_SCOPE_PROJECTION,

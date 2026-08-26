@@ -32,12 +32,12 @@ capability id reports ready, unavailable, or initialization failure; duplicate
 ids and probe exceptions fail loudly. Workflow triggering is daemon-owned and
 is reported by the daemon itself.
 
-Client identity combines project and daemon identity with dashboard readiness.
+Client identity combines scope and daemon identity with dashboard readiness.
 Clients render dashboard controls only when that typed capability is available.
 
 ## Scope Runtime
 
-Scope ids are canonical; project ids are aliases for directory-backed scopes.
+Scope ids are canonical for both the global root and directory-backed scopes.
 Config seeds the registry and `ScopeLifecycleService` mutates it. Persist before
 activation, compensate on failure, and recheck live-resource blockers before
 removal. Trust and policy changes are atomic; untrust quarantines control work,

@@ -41,13 +41,13 @@ describe("REPLSession", () => {
 
 describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () => {
   let session: REPLSession;
-  const sessionA = { sessionId: "repl-session-a", scopeId: "repl-project-a" };
-  const sessionB = { sessionId: "repl-session-b", scopeId: "repl-project-a" };
+  const sessionA = { sessionId: "repl-session-a", scopeId: "repl-scope-a" };
+  const sessionB = { sessionId: "repl-session-b", scopeId: "repl-scope-a" };
 
-  afterEach(() => {
+  afterEach(async () => {
     session?.kill();
-    unregisterSessionEnvironment(sessionA);
-    unregisterSessionEnvironment(sessionB);
+    await unregisterSessionEnvironment(sessionA);
+    await unregisterSessionEnvironment(sessionB);
   });
 
   it("executes Python code and returns output", async () => {
@@ -109,7 +109,7 @@ describe("REPLSession execute (cross-module: code-wrappers → subprocess)", () 
     await session.execute("console.log('started')", 10_000, sessionA);
     expect(session.isAlive()).toBe(true);
 
-    unregisterSessionEnvironment(sessionA);
+    await unregisterSessionEnvironment(sessionA);
 
     expect(session.isAlive()).toBe(false);
   });

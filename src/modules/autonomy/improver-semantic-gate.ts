@@ -99,7 +99,7 @@ export function createImproverSemanticCheck(
       const runDir = options?.runDirPath ?? ctx.workflow.runDirPath;
       const inspection = await withWorkflowBlockingOperation(ctx).runBlocking(
         improverSemanticInspectionOperation,
-        { projectDir: ctx.projectDir, runDirPath: runDir },
+        { workspaceRoot: ctx.workspaceRoot, runDirPath: runDir },
       );
       if (inspection.status === "no-changes") {
         return "OK: no staged changes — skipping semantic gate";
@@ -130,7 +130,7 @@ export function createImproverSemanticCheck(
         diffContent,
         "",
         "## Review context",
-        `Project root: ${ctx.projectDir}`,
+        `Workspace root: ${ctx.workspaceRoot}`,
         `Run directory: ${runDir}`,
         "This is an improver workflow run. The diff should represent a genuine improvement to the autonomy layer based on evidence from recent runs.",
         "If you need to verify evidence, inspect run artifacts: metadata.json, steps/*.input.md, steps/*.events.jsonl.",
@@ -145,7 +145,7 @@ export function createImproverSemanticCheck(
       try {
         response = await invokeAgentJudge(
           userMessage,
-          ctx.projectDir,
+          ctx.workspaceRoot,
           gateConfig,
           ctx.runAgentHarness,
           ctx.signal,

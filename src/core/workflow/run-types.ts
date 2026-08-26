@@ -129,12 +129,14 @@ export type WorkflowStepContext = {
   /** The current step's cancellation and timeout signal during runtime execution. */
   signal?: AbortSignal;
   approvalQueue?: ApprovalQueue;
+  /** Canonical runtime identity for the scope that owns this run. */
+  scopeId: string;
   /** Isolated repository view owned by this run. */
-  projectDir: string;
+  workspaceRoot: string;
   /** Opaque runtime-issued authority for repository mutations. */
   repositoryAccess?: RunRepositoryAccess;
   /** Canonical configured scope root; use only for runtime state that is not repository data. */
-  scopeDir: string;
+  scopeRoot: string;
   agentRuntime: AgentRuntimeSelection;
   runtimeResources?: WorkflowRuntimeResources;
   /** Canonical durable runtime-state directory for this scope. */
@@ -157,7 +159,7 @@ export type WorkflowStepContext = {
   foreach?: Record<string, unknown>;
   /** Run a subprocess through the workflow runtime's supervised process rail. */
   runCommand: WorkflowCommandRunner;
-  /** Read and stage project-scoped JSON state committed only with run success. */
+  /** Read and stage scope-bound JSON state committed only with run success. */
   state: TransactionalRunState;
   runTool: WorkflowRunToolRunner;
   runAgentHarness: WorkflowAgentHarnessRunner;

@@ -1,20 +1,20 @@
 import type { BusEvents, EventPayloadRecord } from "./event-bus-types.js";
-import type { ProjectId } from "./project-scope.js";
+import type { ScopeId } from "./scope.js";
 
 /**
- * Set of {@link BusEvents} keys whose payload carries a `projectId`
- * compatibility field — the typed registry of directory-scoped event names.
+ * Set of {@link BusEvents} keys whose payload carries a `scopeId` field — the
+ * typed registry of directory-scoped event names.
  * Workflow runtime, daemon stores, queue-shape emitters, etc. emit only these
  * names through the scoped wrapper. Daemon-wide names (`module.*`, `model.*`,
  * `session.*` for now) are intentionally excluded.
  */
-export type ProjectScopedBusEventName = {
-  [K in keyof BusEvents]: BusEvents[K] extends { projectId: ProjectId } ? K : never;
+export type ScopedBusEventName = {
+  [K in keyof BusEvents]: BusEvents[K] extends { scopeId: ScopeId } ? K : never;
 }[keyof BusEvents];
 
 /** Payload of a directory-scoped BusEvents entry minus injected scope attribution. */
-export type ProjectScopedBusEventPayload<K extends ProjectScopedBusEventName> =
-  Omit<BusEvents[K], "projectId" | "scopeId">;
+export type ScopedBusEventPayload<K extends ScopedBusEventName> =
+  Omit<BusEvents[K], "scopeId">;
 
 export type EventSchemaReference = {
   name: string;

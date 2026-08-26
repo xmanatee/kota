@@ -16,8 +16,8 @@ import type {
 	RepoTaskUpdateBodyResult,
 } from "./client.js";
 import {
-	projectQuery,
 	readRepoTaskRouteError,
+	scopeQuery,
 	throwRepoTaskRouteError,
 } from "./daemon-client-errors.js";
 
@@ -46,9 +46,9 @@ type ListBody = {
 
 export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksClient {
 	return {
-		list: async (states, project) => {
+		list: async (states, scopeSelector) => {
 			const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
-			const query = projectQuery(project?.projectId);
+			const query = scopeQuery(scopeSelector?.scopeId);
 			let body: ListBody | null = null;
 			try {
 				const res = await link.fetchRaw(`/api/tasks${query}`, { method: "GET" });
@@ -56,12 +56,12 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 					body = (await res.json()) as ListBody;
 				} else {
 					const errBody = await readRepoTaskRouteError(res);
-					if (errBody?.reason === "unknown_project" && errBody.projectId) {
-						throw new Error(`Unknown project: ${errBody.projectId}`);
+					if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
+						throw new Error(`Unknown scope: ${errBody.scopeId}`);
 					}
 				}
 			} catch (err) {
-				if (err instanceof Error && /^Unknown project(?::|$)/.test(err.message)) {
+				if (err instanceof Error && /^Unknown scope(?::|$)/.test(err.message)) {
 					throw err;
 				}
 				body = null;
@@ -84,16 +84,16 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			}
 			return { tasks };
 		},
-		show: async (id, project): Promise<RepoTaskShowResult> => {
-			const query = projectQuery(project?.projectId);
+		show: async (id, scopeSelector): Promise<RepoTaskShowResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const res = await link.fetchRaw(
 				`/api/tasks/${encodeURIComponent(id)}${query}`,
 				{ method: "GET" },
 			);
 			if (res.status === 404) {
 				const errBody = await readRepoTaskRouteError(res);
-				if (errBody?.reason === "unknown_project" && errBody.projectId) {
-					throw new Error(`Unknown project: ${errBody.projectId}`);
+				if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
+					throw new Error(`Unknown scope: ${errBody.scopeId}`);
 				}
 				return { found: false };
 			}
@@ -103,8 +103,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			const okBody = (await res.json()) as { state: RepoTaskState; content: string };
 			return { found: true, state: okBody.state, content: okBody.content };
 		},
-		move: async (id, toState, project): Promise<RepoTaskMoveResult> => {
-			const query = projectQuery(project?.projectId);
+		move: async (id, toState, scopeSelector): Promise<RepoTaskMoveResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const res = await link.fetchRaw(
 				`/api/tasks/${encodeURIComponent(id)}/move${query}`,
 				{
@@ -115,8 +115,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			);
 			if (res.status === 404) {
 				const errBody = await readRepoTaskRouteError(res);
-				if (errBody?.reason === "unknown_project" && errBody.projectId) {
-					throw new Error(`Unknown project: ${errBody.projectId}`);
+				if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
+					throw new Error(`Unknown scope: ${errBody.scopeId}`);
 				}
 				return { ok: false, reason: "not_found" };
 			}
@@ -157,8 +157,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 				previousPath: okBody.previousPath,
 			};
 		},
-		updateBody: async (id, body, project): Promise<RepoTaskUpdateBodyResult> => {
-			const query = projectQuery(project?.projectId);
+		updateBody: async (id, body, scopeSelector): Promise<RepoTaskUpdateBodyResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const res = await link.fetchRaw(
 				`/api/tasks/${encodeURIComponent(id)}/body${query}`,
 				{
@@ -187,8 +187,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			return { ok: true, id, state: result.state, content: result.content };
 		},
 		create: async (options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult> => {
-			const { projectId, ...body } = options;
-			const query = projectQuery(projectId);
+			const { scopeId, ...body } = options;
+			const query = scopeQuery(scopeId);
 			const res = await link.fetchRaw(`/api/tasks/normalized${query}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -208,8 +208,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			const okBody = (await res.json()) as { id: string; path: string };
 			return { ok: true, id: okBody.id, path: okBody.path };
 		},
-		capture: async (title: string, project): Promise<RepoTaskCaptureResult> => {
-			const query = projectQuery(project?.projectId);
+		capture: async (title: string, scopeSelector): Promise<RepoTaskCaptureResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const res = await link.fetchRaw(`/api/tasks/capture${query}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -230,8 +230,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			return { ok: true, id: okBody.id, path: okBody.path };
 		},
 		gc: async (options?: RepoTaskGcOptions): Promise<RepoTaskGcResult> => {
-			const { projectId, ...body } = options ?? {};
-			const query = projectQuery(projectId);
+			const { scopeId, ...body } = options ?? {};
+			const query = scopeQuery(scopeId);
 			const res = await link.fetchRaw(`/api/tasks/gc${query}`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -253,15 +253,15 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			if (filter?.states) {
 				for (const state of filter.states) params.append("state", state);
 			}
-			if (filter?.projectId) params.set("projectId", filter.projectId);
+			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
 			const res = await link.fetchRaw(`/tasks/search?${params.toString()}`);
 			if (!res.ok) {
 				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
 			}
 			return (await res.json()) as RepoTaskSearchResult;
 		},
-		reindex: async (project): Promise<RepoTaskReindexResult> => {
-			const query = projectQuery(project?.projectId);
+		reindex: async (scopeSelector): Promise<RepoTaskReindexResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const res = await link.fetchRaw(`/tasks/reindex${query}`, { method: "POST" });
 			if (!res.ok) {
 				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);

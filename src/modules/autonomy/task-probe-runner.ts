@@ -16,20 +16,20 @@ const MAX_PROBE_OUTPUT_BYTES = 256 * 1024;
 
 export async function runTaskProbe(
   probe: TaskProbe,
-  projectDir: string,
+  workspaceRoot: string,
   runCommand: WorkflowCommandRunner,
 ): Promise<TaskProbeResult> {
   return runTaskProbeInSandbox(
     probe,
-    projectDir,
-    resolveTaskProbeSandbox(projectDir, probe.timeoutMs),
+    workspaceRoot,
+    resolveTaskProbeSandbox(workspaceRoot, probe.timeoutMs),
     runCommand,
   );
 }
 
 async function runTaskProbeInSandbox(
   probe: TaskProbe,
-  projectDir: string,
+  workspaceRoot: string,
   sandbox: TaskProbeSandbox,
   runCommand: WorkflowCommandRunner,
 ): Promise<TaskProbeResult> {
@@ -45,7 +45,7 @@ async function runTaskProbeInSandbox(
     };
   }
 
-  const runtimeHome = mkdtempSync(join(projectDir, ".kota-runtime-probe-"));
+  const runtimeHome = mkdtempSync(join(workspaceRoot, ".kota-runtime-probe-"));
   const start = Date.now();
   try {
     const result = await runCommand({
@@ -55,7 +55,7 @@ async function runTaskProbeInSandbox(
         sandbox.probeExecutable,
         ...probe.args,
       ],
-      cwd: projectDir,
+      cwd: workspaceRoot,
       env: buildTaskProbeEnv(runtimeHome),
       envMode: "replace",
       timeoutMs: probe.timeoutMs,

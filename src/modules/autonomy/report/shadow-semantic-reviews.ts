@@ -96,7 +96,7 @@ export function parseShadowSemanticReviewArtifact(
     reviewerPromptHash: requiredString(value, "reviewerPromptHash"),
     mode: stringEnum<ShadowSemanticReviewMode>(
       value.mode,
-      ["shadow", "advisory", "blocking"],
+      ["shadow", "advisory"],
       "mode",
     ),
     targetKind: stringEnum<ShadowSemanticReviewTargetKind>(
@@ -105,9 +105,6 @@ export function parseShadowSemanticReviewArtifact(
       "targetKind",
     ),
     promotionCandidateRef: requiredString(value, "promotionCandidateRef"),
-    ...(stringValue(value.blockingDecisionArtifact)
-      ? { blockingDecisionArtifact: stringValue(value.blockingDecisionArtifact)! }
-      : {}),
     status: stringEnum<ShadowSemanticReviewStatus>(
       value.status,
       ["reviewed", "skipped", "malformed", "error"],

@@ -4,7 +4,7 @@ title: Fix eval-harness subprocess-executor so queued workflow runs actually exe
 status: done
 priority: p1
 area: eval-harness
-summary: The eval-harness subprocess-executor spawns `kota workflow trigger` but never runs a daemon in the fixture's isolated HOME/KOTA_PROJECT_DIR, so pending runs never execute and every fixture times out. Close that gap so `pnpm kota eval run` can actually finish shipped smoke fixtures end-to-end.
+summary: The eval-harness subprocess-executor spawns `kota workflow trigger` but never runs a daemon in the fixture's isolated HOME/KOTA_SCOPE_ROOT, so pending runs never execute and every fixture times out. Close that gap so `pnpm kota eval run` can actually finish shipped smoke fixtures end-to-end.
 created_at: 2026-04-24T14:00:00.750Z
 updated_at: 2026-04-24T14:31:59.960Z
 ---
@@ -13,7 +13,7 @@ updated_at: 2026-04-24T14:31:59.960Z
 
 `src/modules/eval-harness/subprocess-executor.ts` runs each fixture by
 spawning `node bin/kota.mjs workflow trigger <name> --force --payload ...`
-in a tmpdir with `HOME` and `KOTA_PROJECT_DIR` remapped to that tmpdir,
+in a tmpdir with `HOME` and `KOTA_SCOPE_ROOT` remapped to that tmpdir,
 then polling `<workingDir>/.kota/runs/` for a terminal run. The `kota
 workflow trigger` command only enqueues a pending run into
 `WorkflowRunStore` — if `DaemonControlClient.fromStateDir()` finds no
@@ -61,7 +61,7 @@ three equally.
 ## Constraints
 
 - Keep the harness's fixture isolation honest. Each fixture still runs
-  in its own tmpdir with `HOME`/`KOTA_PROJECT_DIR` remapped; no state
+  in its own tmpdir with `HOME`/`KOTA_SCOPE_ROOT` remapped; no state
   leaks between fixtures or into the operator's real repo.
 - The solution must not require the operator to start a separate daemon
   process before running `pnpm kota eval run`. That would collapse the

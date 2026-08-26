@@ -57,9 +57,9 @@ type TaskEntry = {
  */
 export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): TaskEntry[] {
 	const results: TaskEntry[] = [];
-	const projectDir = dirname(dirname(tasksDir));
+	const repoRoot = dirname(dirname(tasksDir));
 	const waitingById = new Map(
-		listRepoTaskDependencyWaits(projectDir, states).map((wait) => [
+		listRepoTaskDependencyWaits(repoRoot, states).map((wait) => [
 			wait.id,
 			wait.waitingOn,
 		]),
@@ -212,7 +212,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 
 	taskCmd
 		.command("create <title>")
-		.description("Create a normalized task file with all required structure")
+		.description("Create a normalized task file with the recommended intent scaffold")
 		.option("-p, --priority <priority>", "Priority: p0, p1, p2, p3", "p2")
 		.option("-a, --area <area>", "Area (e.g. core, architecture, modules)", "core")
 		.option("-s, --state <state>", "Initial state directory", "backlog")
@@ -314,13 +314,13 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 
 	taskCmd
 		.command("reindex")
-		.description(
-			"Rebuild the semantic search index for all repo tasks. " +
-				"No-op when no embedding provider is configured.",
+			.description(
+				"Rebuild the semantic search index for all repo tasks. " +
+					"Reports when no embedding provider is configured.",
 		)
 		.action(async () => {
 			const result = await ctx.client.tasks.reindex();
-			if (result.skipped) {
+				if (!result.ok) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.repo-tasks` to an embedding-capable provider to enable.",

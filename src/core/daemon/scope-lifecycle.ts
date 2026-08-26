@@ -81,8 +81,8 @@ export class ScopeLifecycleService {
 
   drainScope(scopeId: ScopeId): Promise<ScopeDrainResult> {
     return this.operations.run(async () => {
-      const project = this.options.registry.get(scopeId);
-      if (!project) {
+      const scope = this.options.registry.get(scopeId);
+      if (!scope) {
         return {
           ok: false,
           reason: "unknown_scope",
@@ -106,9 +106,9 @@ export class ScopeLifecycleService {
           ok: true,
           status: "already_drained",
           scope: registeredDirectoryScope(
-            project.projectId,
-            project.projectDir,
-            project.displayName,
+            scope.scopeId,
+            scope.scopeRoot,
+            scope.displayName,
           ),
         };
       }
@@ -139,9 +139,9 @@ export class ScopeLifecycleService {
         ok: true,
         status: "drained",
         scope: registeredDirectoryScope(
-          project.projectId,
-          project.projectDir,
-          project.displayName,
+          scope.scopeId,
+          scope.scopeRoot,
+          scope.displayName,
         ),
       };
     });
@@ -149,8 +149,8 @@ export class ScopeLifecycleService {
 
   removeScope(scopeId: ScopeId): Promise<ScopeRemovalResult> {
     return this.operations.run(async () => {
-      const project = this.options.registry.get(scopeId);
-      if (!project) return unknownScopeMutation(scopeId);
+      const scope = this.options.registry.get(scopeId);
+      if (!scope) return unknownScopeMutation(scopeId);
       if (scopeId === this.options.registry.getDefaultScopeId()) {
         return {
           ok: false,
@@ -196,16 +196,16 @@ export class ScopeLifecycleService {
       this.options.bus.emit("scope.lifecycle.changed", {
         transition: "removed",
         affectedScopeId: scopeId,
-        directoryRoot: project.projectDir,
-        displayName: project.displayName,
+        directoryRoot: scope.scopeRoot,
+        displayName: scope.displayName,
       });
       return {
         ok: true,
         status: "removed",
         scope: registeredDirectoryScope(
-          project.projectId,
-          project.projectDir,
-          project.displayName,
+          scope.scopeId,
+          scope.scopeRoot,
+          scope.displayName,
         ),
       };
     });
@@ -217,9 +217,9 @@ export class ScopeLifecycleService {
   }
 
   listHostingStates(): Array<{ scopeId: ScopeId; state: ScopeHostingState }> {
-    return this.options.registry.list().map((project) => ({
-      scopeId: project.projectId,
-      state: this.getHostingState(project.projectId),
+    return this.options.registry.list().map((scope) => ({
+      scopeId: scope.scopeId,
+      state: this.getHostingState(scope.scopeId),
     }));
   }
 
@@ -255,13 +255,13 @@ export class ScopeLifecycleService {
     scopeId: ScopeId,
     extra: { previousDefaultScopeId?: ScopeId; blockerKinds?: string[] } = {},
   ): void {
-    const project = this.options.registry.get(scopeId);
-    if (!project) return;
+    const scope = this.options.registry.get(scopeId);
+    if (!scope) return;
     this.options.bus.emit("scope.lifecycle.changed", {
       transition,
       affectedScopeId: scopeId,
-      directoryRoot: project.projectDir,
-      displayName: project.displayName,
+      directoryRoot: scope.scopeRoot,
+      displayName: scope.displayName,
       ...extra,
     });
   }

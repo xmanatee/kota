@@ -1,5 +1,5 @@
-import type { ProjectScopedPayload } from "#core/events/project-scope.js";
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import type { ScopedPayload } from "#core/events/scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 
 export type InboundSignalJsonValue =
   | null
@@ -59,7 +59,7 @@ export type InboundSignalPayload = {
 };
 
 export type InboundSignalReceivedPayload =
-  ProjectScopedPayload<InboundSignalPayload>;
+  ScopedPayload<InboundSignalPayload>;
 
 export type InboundSignalRouteDecision =
   | "dispatched"
@@ -97,7 +97,7 @@ export type InboundSignalRoutePolicyPayload = {
   processing: InboundSignalJsonObject | null;
 };
 
-export type InboundSignalRoutedPayload = ProjectScopedPayload<{
+export type InboundSignalRoutedPayload = ScopedPayload<{
   routeId: string;
   decision: InboundSignalRouteDecision;
   sourceStatus: InboundSignalSourceStatus;
@@ -121,12 +121,12 @@ export type InboundSignalInputObject = {
 };
 
 export type InboundSignalAdapterContext = {
-  projectId: string;
+  scopeId: string;
   receivedAt: string;
 };
 
 export const inboundSignalReceived =
-  defineProjectScopedModuleEvent<InboundSignalPayload>(
+  defineScopedModuleEvent<InboundSignalPayload>(
     "inbound.signal.received",
     [
       "provider",
@@ -204,7 +204,7 @@ export const inboundSignalReceived =
   );
 
 export const inboundSignalRouted =
-  defineProjectScopedModuleEvent<Omit<InboundSignalRoutedPayload, "scopeId" | "projectId">>(
+  defineScopedModuleEvent<Omit<InboundSignalRoutedPayload, "scopeId">>(
     "inbound.signal.routed",
     [
       "routeId",
@@ -380,7 +380,6 @@ export function validateInboundSignalPayload(
 ): InboundSignalValidationResult {
   const stringFields = [
     ["scopeId", payload.scopeId],
-    ["projectId", payload.projectId],
     ["provider", payload.provider],
     ["channel", payload.channel],
     ["accountId", payload.accountId],
@@ -392,9 +391,6 @@ export function validateInboundSignalPayload(
     if (!nonEmpty(value)) {
       return { ok: false, error: `${field} must be a non-empty string` };
     }
-  }
-  if (payload.scopeId !== payload.projectId) {
-    return { ok: false, error: "scopeId and projectId must match" };
   }
   if (!validTimestamp(payload.occurredAt)) {
     return { ok: false, error: "occurredAt must be an ISO-compatible timestamp" };
@@ -413,8 +409,8 @@ export function normalizeInboundSignalInput(
   input: InboundSignalInputObject,
   context: InboundSignalAdapterContext,
 ): InboundSignalValidationResult {
-  if (!nonEmpty(context.projectId)) {
-    return { ok: false, error: "projectId must be a non-empty string" };
+  if (!nonEmpty(context.scopeId)) {
+    return { ok: false, error: "scopeId must be a non-empty string" };
   }
   if (!validTimestamp(context.receivedAt)) {
     return { ok: false, error: "receivedAt must be an ISO-compatible timestamp" };
@@ -461,8 +457,7 @@ export function normalizeInboundSignalInput(
   }
 
   return validateInboundSignalPayload({
-    scopeId: context.projectId,
-    projectId: context.projectId,
+    scopeId: context.scopeId,
     provider: stringValue(input.provider) ?? "",
     channel: stringValue(input.channel) ?? "",
     accountId: stringValue(input.accountId) ?? "",

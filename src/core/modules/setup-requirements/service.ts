@@ -1,6 +1,6 @@
 import { loadConfig } from "#core/config/config.js";
-import { getProjectSecretStore } from "#core/config/secrets.js";
-import { deleteProjectConfigPath, setProjectConfigPath } from "./config-paths.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
+import { deleteScopeConfigPath, setScopeConfigPath } from "./config-paths.js";
 import { SECRET_REFERENCE_PATTERN } from "./constants.js";
 import { ModuleSetupActionStore } from "./pending-actions.js";
 import { invalidRequest, notFound, storeError } from "./results.js";
@@ -28,7 +28,7 @@ import type {
 } from "./types.js";
 
 export class ModuleSetupService {
-  readonly #projectDir: string;
+  readonly #scopeRoot: string;
   readonly #authorityConfigPath: string | undefined;
   readonly #getRequirements: () => readonly ModuleSetupRequirementContribution[];
   readonly #probeCapabilities: ModuleSetupServiceOptions["probeCapabilities"];
@@ -37,13 +37,13 @@ export class ModuleSetupService {
   readonly #getVisibility: NonNullable<ModuleSetupServiceOptions["getVisibility"]>;
 
   constructor(options: ModuleSetupServiceOptions) {
-    this.#projectDir = options.projectDir;
+    this.#scopeRoot = options.scopeRoot;
     this.#authorityConfigPath = options.authorityConfigPath;
     this.#getRequirements = options.getRequirements;
     this.#probeCapabilities = options.probeCapabilities;
     this.#now = options.now ?? (() => new Date());
     this.#getVisibility = options.getVisibility ?? (() => "full");
-    this.#actions = new ModuleSetupActionStore(options.projectDir);
+    this.#actions = new ModuleSetupActionStore(options.scopeRoot);
   }
 
   async list(): Promise<ModuleSetupStatusResponse> {
@@ -52,7 +52,7 @@ export class ModuleSetupService {
       return { visibility, requirements: [], summary: summarizeStatuses([]) };
     }
     const capabilities = await this.#probeCapabilities();
-    const config = this.#loadProjectConfig();
+    const config = this.#loadScopeConfig();
     const statuses = this.#getRequirements().map((entry) =>
       this.#projectStatus(
         this.#statusFor(entry, config, capabilities),
@@ -111,7 +111,7 @@ export class ModuleSetupService {
           `Field "${field.id}" must be a secret reference like $GOOGLE_CLIENT_SECRET`,
         );
       }
-      setProjectConfigPath(this.#projectDir, field.configPath, value);
+      setScopeConfigPath(this.#scopeRoot, field.configPath, value);
     }
     return { ok: true, status: await this.#freshStatus(found) };
   }
@@ -127,7 +127,7 @@ export class ModuleSetupService {
     const refs = secretRefsFor(found.requirement);
     if (refs.length === 0) return invalidRequest("Requirement does not accept secret setup");
     try {
-      const store = getProjectSecretStore(this.#projectDir);
+      const store = getScopeSecretStore(this.#scopeRoot);
       for (const ref of refs) {
         const value = secretValues[ref.name];
         if (value === undefined || value.length === 0) {
@@ -230,11 +230,11 @@ export class ModuleSetupService {
     try {
       const refs = secretRefsFor(found.requirement);
       if (refs.length > 0) {
-        const store = getProjectSecretStore(this.#projectDir);
+        const store = getScopeSecretStore(this.#scopeRoot);
         for (const ref of refs) store.remove(ref.name, ref.scope);
       }
       if (found.requirement.kind === "browser-profile") {
-        deleteProjectConfigPath(this.#projectDir, found.requirement.storageStateConfigPath);
+        deleteScopeConfigPath(this.#scopeRoot, found.requirement.storageStateConfigPath);
       }
       this.#revokeActions(found, moduleName, requirementId);
       return { ok: true, status: await this.#freshStatus(found) };
@@ -273,13 +273,13 @@ export class ModuleSetupService {
   async #freshStatus(found: ModuleSetupRequirementContribution): Promise<ModuleSetupRequirementStatus> {
     const capabilities = await this.#probeCapabilities();
     return this.#projectStatus(
-      this.#statusFor(found, this.#loadProjectConfig(), capabilities),
+      this.#statusFor(found, this.#loadScopeConfig(), capabilities),
     );
   }
 
-  #loadProjectConfig(): ReturnType<typeof loadConfig> {
+  #loadScopeConfig(): ReturnType<typeof loadConfig> {
     return loadConfig(
-      this.#projectDir,
+      this.#scopeRoot,
       undefined,
       this.#authorityConfigPath === undefined
         ? undefined
@@ -306,7 +306,7 @@ export class ModuleSetupService {
       capabilities,
       pendingAction: this.#actions.latest(entry.moduleName, entry.requirement.id),
       now: this.#now(),
-      projectDir: this.#projectDir,
+      scopeRoot: this.#scopeRoot,
     });
   }
 }

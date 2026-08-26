@@ -37,8 +37,7 @@ describe("browser interaction tool runners", () => {
       const context = {
         sessionId: "session-a",
         scopeId: "scope-a",
-        projectId: "scope-a",
-        cwd: "/project-a",
+        cwd: "/scope-a",
       };
       const result = await runBrowserNavigate(
         { url: "https://example.com" },

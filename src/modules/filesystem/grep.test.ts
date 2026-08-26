@@ -94,7 +94,7 @@ describe("grep: input validation", () => {
       path: ".kota/daemon-control.json",
     });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("protected project runtime credential");
+    expect(result.content).toContain("protected scope runtime credential");
   });
 
   it("denies direct searches of project secrets and env files", async () => {
@@ -104,18 +104,18 @@ describe("grep: input validation", () => {
         path,
       });
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("protected project runtime credential");
+      expect(result.content).toContain("protected scope runtime credential");
     }
   });
 
   it("excludes cased .kota credential aliases from recursive searches", async () => {
     const originalCwd = process.cwd();
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-grep-protected-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-grep-protected-"));
     try {
-      mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
-      writeFileSync(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
-      writeFileSync(join(projectDir, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
-      process.chdir(projectDir);
+      mkdirSync(join(scopeRoot, ".KOTA"), { recursive: true });
+      writeFileSync(join(scopeRoot, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      writeFileSync(join(scopeRoot, ".KOTA", "secrets.json"), '{"API_KEY":"secret-token"}\n');
+      process.chdir(scopeRoot);
 
       const result = await runGrep({ pattern: "secret-token", path: ".KOTA" });
 
@@ -123,25 +123,25 @@ describe("grep: input validation", () => {
       expect(result.content).toBe("No matches found.");
     } finally {
       process.chdir(originalCwd);
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("excludes an environment-selected arbitrary operator token from recursive searches", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-grep-authority-token-"));
     const operatorDir = join(root, "operator");
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const tokenPath = join(operatorDir, "machine[proof]*.dat");
     const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
     try {
       mkdirSync(operatorDir, { recursive: true });
-      mkdirSync(projectDir, { recursive: true });
+      mkdirSync(scopeRoot, { recursive: true });
       writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
       process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = tokenPath;
 
       const result = await runGrep(
         { pattern: "a".repeat(64), path: operatorDir },
-        { cwd: projectDir, authorityConfigPath: join(operatorDir, "config.json") },
+        { cwd: scopeRoot, authorityConfigPath: join(operatorDir, "config.json") },
       );
 
       expect(result.is_error).toBeUndefined();

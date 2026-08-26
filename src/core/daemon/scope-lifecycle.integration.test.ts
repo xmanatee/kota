@@ -99,7 +99,7 @@ describe("live directory scope lifecycle", () => {
     const scopeBId = deriveDirectoryScopeId(scopeB);
     let releaseHold: (() => void) | null = null;
     let holdStarted = false;
-    let fastExecution: { projectDir: string; scopeDir: string } | null = null;
+    let fastExecution: { scopeRoot: string; workspaceRoot: string } | null = null;
     let channelContext: ChannelStartContext | null = null;
     let channelSessionScopeId: string | null = null;
 
@@ -112,7 +112,10 @@ describe("live directory scope lifecycle", () => {
           id: "write",
           type: "code",
           run: (ctx) => {
-            fastExecution = { projectDir: ctx.projectDir, scopeDir: ctx.scopeDir };
+            fastExecution = {
+              scopeRoot: ctx.scopeRoot,
+              workspaceRoot: ctx.workspaceRoot,
+            };
             return fastExecution;
           },
         }],
@@ -136,7 +139,7 @@ describe("live directory scope lifecycle", () => {
     ];
 
     const first = new Daemon({
-      projectDir: scopeA,
+      scopeRoot: scopeA,
       stateDir,
       workflows,
       channels: [{
@@ -165,10 +168,10 @@ describe("live directory scope lifecycle", () => {
     });
     expect(registration).toMatchObject({ ok: true, scope: { scopeId: scopeBId } });
     expect(first.getHostedScopeCount()).toBe(2);
-    expect(channelContext!.getDefaultProjectRuntime().project.projectId).toBe(scopeAId);
+    expect(channelContext!.getDefaultScopeRuntime().scope.scopeId).toBe(scopeAId);
     expect(await first.setDefaultScope(scopeBId))
       .toMatchObject({ ok: true, status: "default_changed" });
-    expect(channelContext!.getDefaultProjectRuntime().project.projectId).toBe(scopeBId);
+    expect(channelContext!.getDefaultScopeRuntime().scope.scopeId).toBe(scopeBId);
     expect(channelContext!.getWorkflowStatus().runsDir).toBe(
       join(realpathSync(scopeB), ".kota", "runs"),
     );
@@ -190,24 +193,22 @@ describe("live directory scope lifecycle", () => {
     channelSessionScopeId = null;
     const liveScopes = await requestJson(firstRun.address, "/scopes");
     expect(liveScopes.scopes.map((scope: any) => scope.scopeId)).toContain(scopeBId);
-    const compatibility = await requestJson(firstRun.address, "/projects");
-    expect(compatibility.projects.map((project: any) => project.projectId)).toContain(scopeBId);
-    await requestJson(firstRun.address, "/projects/active", {
+    await requestJson(firstRun.address, "/scopes/active", {
       method: "PATCH",
-      body: JSON.stringify({ projectId: scopeBId }),
+      body: JSON.stringify({ scopeId: scopeBId }),
     });
-    expect(await requestJson(firstRun.address, "/projects/active"))
-      .toEqual({ activeProjectId: scopeBId });
+    expect(await requestJson(firstRun.address, "/scopes/active"))
+      .toEqual({ activeScopeId: scopeBId });
 
     await requestJson(firstRun.address, `/workflow/trigger?scopeId=${scopeBId}`, {
       method: "POST",
       body: JSON.stringify({ name: "live-scope-fast" }),
     });
     await waitFor(() => fastExecution !== null);
-    const executedIn = fastExecution as { projectDir: string; scopeDir: string } | null;
+    const executedIn = fastExecution as { scopeRoot: string; workspaceRoot: string } | null;
     const canonicalScopeB = realpathSync(scopeB);
-    expect(executedIn?.scopeDir).toBe(canonicalScopeB);
-    expect(relative(canonicalScopeB, executedIn!.projectDir).startsWith(
+    expect(executedIn?.scopeRoot).toBe(canonicalScopeB);
+    expect(relative(canonicalScopeB, executedIn!.workspaceRoot).startsWith(
       `${join(".kota", "runtime")}${sep}`,
     )).toBe(true);
     await first.stop(0);
@@ -215,7 +216,7 @@ describe("live directory scope lifecycle", () => {
 
     channelContext = null;
     const restored = new Daemon({
-      projects: [{ projectDir: scopeA }],
+      scopes: [{ scopeRoot: scopeA }],
       stateDir,
       workflows,
       channels: [{
@@ -244,9 +245,9 @@ describe("live directory scope lifecycle", () => {
         expect.objectContaining({ scopeId: scopeBId, displayName: "Live B" }),
       ]),
     });
-    await requestJson(restoredRun.address, "/projects/active", {
+    await requestJson(restoredRun.address, "/scopes/active", {
       method: "PATCH",
-      body: JSON.stringify({ projectId: scopeBId }),
+      body: JSON.stringify({ scopeId: scopeBId }),
     });
 
     await requestJson(restoredRun.address, `/workflow/trigger?scopeId=${scopeBId}`, {
@@ -266,7 +267,7 @@ describe("live directory scope lifecycle", () => {
     release?.();
     await waitFor(() => !restored.hasActiveWorkflow());
     expect(await restored.drainScope(scopeBId)).toMatchObject({ ok: true, status: "drained" });
-    expect(() => channelContext?.getProjectRuntime(scopeBId)).toThrow(
+    expect(() => channelContext?.getScopeRuntime(scopeBId)).toThrow(
       `Scope ${scopeBId} is drained and cannot accept channel work`,
     );
     const beforeRemoval = directorySnapshot(scopeB);
@@ -274,8 +275,8 @@ describe("live directory scope lifecycle", () => {
     expect(directorySnapshot(scopeB)).toEqual(beforeRemoval);
     expect(restored.getScopeRegistryProjection().scopes.map((scope) => scope.scopeId)).not.toContain(scopeBId);
     expect(restored.getHostedScopeCount()).toBe(1);
-    expect(await requestJson(restoredRun.address, "/projects/active"))
-      .toEqual({ activeProjectId: null });
+    expect(await requestJson(restoredRun.address, "/scopes/active"))
+      .toEqual({ activeScopeId: null });
 
     await restored.stop(0);
     await restoredRun.startPromise;

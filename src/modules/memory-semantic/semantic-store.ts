@@ -10,7 +10,11 @@
  */
 
 import { createHash } from "node:crypto";
-import type { Memory, MemoryProvider } from "#core/modules/provider-types.js";
+import type {
+	Memory,
+	MemoryProvider,
+	MemorySemanticSearchCapability,
+} from "#core/modules/provider-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { MemoryStore } from "#modules/memory/store.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
@@ -54,7 +58,8 @@ function buildAdapter(base: MemoryStore): SemanticStoreAdapter<Memory> {
 	};
 }
 
-export class SemanticMemoryStore implements MemoryProvider {
+export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearchCapability {
+	readonly semanticSearchCapability: MemorySemanticSearchCapability = this;
 	private base: MemoryStore;
 	private manager: SemanticIndexManager<Memory>;
 
@@ -111,10 +116,6 @@ export class SemanticMemoryStore implements MemoryProvider {
 	/** Wait for all pending background embeddings to settle. */
 	async flush(): Promise<void> {
 		await this.manager.flush();
-	}
-
-	supportsSemanticSearch(): boolean {
-		return true;
 	}
 
 	async semanticSearch(

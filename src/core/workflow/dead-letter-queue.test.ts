@@ -13,7 +13,7 @@ import {
   EventJournal,
   installEventJournal,
 } from "#core/events/event-journal.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { deregisterTool, registerTool } from "#core/tools/index.js";
 import type { WorkflowRuntime } from "./runtime.js";
 import { createTestWorkflowRuntime } from "./testing/runtime-fixture.js";
@@ -39,14 +39,14 @@ async function waitUntil(
   throw new Error(message);
 }
 
-function makeProjectDir(): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-dlq-"));
-  mkdirSync(join(projectDir, ".kota"), { recursive: true });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
+function makeScopeRoot(): string {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-workflow-dlq-"));
+  mkdirSync(join(workspaceRoot, ".kota"), { recursive: true });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n", "utf8");
   execFileSync("git", ["init", "--quiet", "--initial-branch=main"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir });
+  execFileSync("git", ["add", ".gitignore"], { cwd: workspaceRoot });
   execFileSync(
     "git",
     [
@@ -59,15 +59,15 @@ function makeProjectDir(): string {
       "-m",
       "fixture",
     ],
-    { cwd: projectDir },
+    { cwd: workspaceRoot },
   );
-  return projectDir;
+  return workspaceRoot;
 }
 
 function startRuntime(input: {
-  projectDir: string;
+  workspaceRoot: string;
   bus: EventBus;
-  pbus: ProjectScopedEventBus;
+  pbus: ScopedEventBus;
   deadLetterQueue: DeadLetterQueueStore;
   eventJournal?: EventJournal;
   workflows: RegisteredWorkflowDefinitionInput[];
@@ -75,7 +75,7 @@ function startRuntime(input: {
   const { runtime, runState } = createTestWorkflowRuntime({
     bus: input.bus,
     pbus: input.pbus,
-    projectDir: input.projectDir,
+    scopeRoot: input.workspaceRoot,
     deadLetterQueue: input.deadLetterQueue,
     eventJournal: input.eventJournal,
     idleIntervalMs: 60_000,
@@ -87,21 +87,21 @@ function startRuntime(input: {
 }
 
 describe("workflow dead-letter queue integration", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let bus: EventBus;
-  let pbus: ProjectScopedEventBus;
+  let pbus: ScopedEventBus;
   let store: DeadLetterQueueStore;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
     bus = new EventBus();
-    pbus = new ProjectScopedEventBus(bus, "scope-a");
-    store = new DeadLetterQueueStore(join(projectDir, ".kota", "dead-letter-queue"));
+    pbus = new ScopedEventBus(bus, "scope-a");
+    store = new DeadLetterQueueStore(join(workspaceRoot, ".kota", "dead-letter-queue"));
   });
 
   afterEach(() => {
     for (const runState of runStates.splice(0)) runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("parks event-triggered workflow validation failures with the durable event id", async () => {
@@ -110,7 +110,7 @@ describe("workflow dead-letter queue integration", () => {
       next();
     });
     const runtime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus,
       pbus,
       deadLetterQueue: store,
@@ -158,7 +158,7 @@ describe("workflow dead-letter queue integration", () => {
   });
 
   it("redrives a failed Telegram-like event after the fixture schema is fixed", async () => {
-    const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
+    const eventJournal = new EventJournal(join(workspaceRoot, ".kota", "events"));
     installEventJournal(bus, eventJournal);
     const failingWorkflow: RegisteredWorkflowDefinitionInput = {
       repository: "read",
@@ -180,7 +180,7 @@ describe("workflow dead-letter queue integration", () => {
       ],
     };
     const runtime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus,
       pbus,
       deadLetterQueue: store,
@@ -222,9 +222,9 @@ describe("workflow dead-letter queue integration", () => {
     const processed: string[] = [];
     const fixedBus = new EventBus();
     const fixedRuntime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus: fixedBus,
-      pbus: new ProjectScopedEventBus(fixedBus, "scope-a"),
+      pbus: new ScopedEventBus(fixedBus, "scope-a"),
       deadLetterQueue: store,
       eventJournal,
       workflows: [
@@ -282,7 +282,7 @@ describe("workflow dead-letter queue integration", () => {
   });
 
   it("redrives a batch with durable input payloads from the event journal", async () => {
-    const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
+    const eventJournal = new EventJournal(join(workspaceRoot, ".kota", "events"));
     installEventJournal(bus, eventJournal);
     const failingWorkflow: RegisteredWorkflowDefinitionInput = {
       repository: "read",
@@ -310,7 +310,7 @@ describe("workflow dead-letter queue integration", () => {
       steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
     };
     const runtime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus,
       pbus,
       deadLetterQueue: store,
@@ -343,9 +343,9 @@ describe("workflow dead-letter queue integration", () => {
     const observedTokens: string[] = [];
     const fixedBus = new EventBus();
     const fixedRuntime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus: fixedBus,
-      pbus: new ProjectScopedEventBus(fixedBus, "scope-a"),
+      pbus: new ScopedEventBus(fixedBus, "scope-a"),
       deadLetterQueue: store,
       eventJournal,
       workflows: [
@@ -389,13 +389,13 @@ describe("workflow dead-letter queue integration", () => {
   });
 
   it("redrives event-envelope items back onto the scoped event bus", async () => {
-    const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
+    const eventJournal = new EventJournal(join(workspaceRoot, ".kota", "events"));
     const received: Record<string, unknown>[] = [];
     bus.on("telegram.message", (payload) => {
       received.push(payload);
     });
     const runtime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus,
       pbus,
       deadLetterQueue: store,
@@ -407,7 +407,6 @@ describe("workflow dead-letter queue integration", () => {
       schemaRef: null,
       payload: {
         scopeId: "scope-a",
-        projectId: "scope-a",
         chatId: "chat-1",
         text: "hello",
         botToken: "secret-token",
@@ -435,7 +434,6 @@ describe("workflow dead-letter queue integration", () => {
       text: "hello",
       botToken: "[redacted]",
       scopeId: "scope-a",
-      projectId: "scope-a",
       redriveOf: item.id,
       redriveReason: "event schema accepts the payload",
       causationId: item.id,
@@ -463,7 +461,7 @@ describe("workflow dead-letter queue integration", () => {
       ],
     };
     const runtime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus,
       pbus,
       deadLetterQueue: store,
@@ -496,9 +494,9 @@ describe("workflow dead-letter queue integration", () => {
 
     const fixedBus = new EventBus();
     const fixedRuntime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus: fixedBus,
-      pbus: new ProjectScopedEventBus(fixedBus, "scope-a"),
+      pbus: new ScopedEventBus(fixedBus, "scope-a"),
       deadLetterQueue: store,
       workflows: [
         {
@@ -544,7 +542,7 @@ describe("workflow dead-letter queue integration", () => {
     let runtime: WorkflowRuntime | undefined;
     try {
       runtime = startRuntime({
-        projectDir,
+        workspaceRoot,
         bus,
         pbus,
         deadLetterQueue: store,
@@ -607,7 +605,7 @@ describe("workflow dead-letter queue integration", () => {
   it("keeps an active-runtime timeout open until its linked continuation succeeds", async () => {
     const completedTasks: string[] = [];
     const runtime = startRuntime({
-      projectDir,
+      workspaceRoot,
       bus,
       pbus,
       deadLetterQueue: store,

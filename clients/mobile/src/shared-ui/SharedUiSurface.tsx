@@ -11,7 +11,7 @@ import type { LiveUiLogEntries } from '../context/DaemonContext';
 import type {
   UiLinkTarget,
   UiSurface,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { SharedUiAction } from './SharedUiAction';
 import { SharedUiNode } from './SharedUiNode';
 import { embeddedActionIds, referencedActionIds } from './graph';

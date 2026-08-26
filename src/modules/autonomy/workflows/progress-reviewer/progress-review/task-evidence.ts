@@ -69,7 +69,7 @@ export function listRecentTasks(
 ): ProgressReviewTaskEvidence[] {
   const openStates = new Set(["backlog", "ready", "doing", "blocked"]);
   const records = sources.flatMap((source) => {
-    const all = listFullRepoTasks(source.projectDir);
+    const all = listFullRepoTasks(source.workspaceRoot);
     const stateByTaskId = new Map(all.map((record) => [record.id, record.state]));
     const open = all.filter((record) => openStates.has(record.state));
     const recentTerminal = all.filter((record) => {
@@ -124,7 +124,7 @@ export function listDeadLetterReferencedTasks(
 
   const existingTaskIds = new Set(existingTasks.map((task) => task.taskId));
   const recordsById = new Map(
-    listFullRepoTasks(source.projectDir).map((record) => [record.id, record]),
+    listFullRepoTasks(source.workspaceRoot).map((record) => [record.id, record]),
   );
   const selected = new Set<string>();
   const tasks: ProgressReviewTaskEvidence[] = [];

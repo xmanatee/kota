@@ -49,7 +49,7 @@ export type ActiveWorkflowRunHandle = {
 
 export function createActiveRunHandle(opts: {
   id: string;
-  projectDir?: string;
+  scopeRoot?: string;
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   headSha: string | null;
@@ -61,7 +61,7 @@ export function createActiveRunHandle(opts: {
     headSha,
     stepOrder,
   } = opts;
-  const projectDir = opts.projectDir ?? dirname(dirname(dirname(runDirPath)));
+  const scopeRoot = opts.scopeRoot ?? dirname(dirname(dirname(runDirPath)));
 
   const persistMetadata = () => {
     writeJsonFile(
@@ -93,7 +93,7 @@ export function createActiveRunHandle(opts: {
     targetHeadSha: string | null,
   ): void => {
     writeControlMonitorCoverageArtifactBestEffort({
-      projectDir,
+      scopeRoot,
       runDirPath: targetRunDirPath,
       metadata: completed,
       headSha: targetHeadSha,
@@ -102,7 +102,7 @@ export function createActiveRunHandle(opts: {
     });
   };
 
-  const runsDirPath = resolve(projectDir, ".kota", "runs");
+  const runsDirPath = resolve(scopeRoot, ".kota", "runs");
 
   const pathInsideDirectory = (parentPath: string, childPath: string): boolean => {
     const relativePath = relative(parentPath, childPath);

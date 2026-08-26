@@ -23,7 +23,7 @@ function payloadString(
 }
 
 function explicitScope(payload: BusEnvelope["payload"], fallback: string): string {
-  return payloadString(payload, "scopeId") ?? payloadString(payload, "projectId") ?? fallback;
+  return payloadString(payload, "scopeId") ?? fallback;
 }
 
 function eventIngestionIdentity(

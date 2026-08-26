@@ -14,10 +14,10 @@ const TASK_ID = "task-canonical-move-ownership";
 const roots: string[] = [];
 
 function project(): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-decomposer-ownership-"));
-  roots.push(projectDir);
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-  return projectDir;
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-decomposer-ownership-"));
+  roots.push(workspaceRoot);
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  return workspaceRoot;
 }
 
 afterEach(() => {
@@ -28,11 +28,11 @@ afterEach(() => {
 
 describe("decomposer assessment ownership", () => {
   it("resolves the exact task bound to the failed builder trigger", () => {
-    const projectDir = project();
-    const task = writeActionableTask(projectDir, TASK_ID, "doing");
+    const workspaceRoot = project();
+    const task = writeActionableTask(workspaceRoot, TASK_ID, "doing");
     const metadata = failedBuilderMetadata(task);
 
-    expect(resolveDecompositionOwnership(projectDir, metadata)).toMatchObject({
+    expect(resolveDecompositionOwnership(workspaceRoot, metadata)).toMatchObject({
       kind: "owned-task",
       task: {
         id: TASK_ID,
@@ -43,26 +43,26 @@ describe("decomposer assessment ownership", () => {
   });
 
   it("treats a canonical ready-to-doing move as a changed immutable contract", () => {
-    const projectDir = project();
-    const task = writeActionableTask(projectDir, TASK_ID, "ready");
+    const workspaceRoot = project();
+    const task = writeActionableTask(workspaceRoot, TASK_ID, "ready");
     const metadata = failedBuilderMetadata(task);
-    execFileSync("git", ["add", "--", task.taskPath], { cwd: projectDir });
+    execFileSync("git", ["add", "--", task.taskPath], { cwd: workspaceRoot });
 
-    moveTaskById(projectDir, TASK_ID, "doing");
+    moveTaskById(workspaceRoot, TASK_ID, "doing");
 
-    expect(resolveDecompositionOwnership(projectDir, metadata)).toEqual({
+    expect(resolveDecompositionOwnership(workspaceRoot, metadata)).toEqual({
       kind: "superseded-task",
       reason: `Builder task ${TASK_ID} changed after the failed run was admitted`,
     });
   });
 
   it("rejects source metadata outside the builder queue contract", () => {
-    const projectDir = project();
-    const task = writeActionableTask(projectDir, TASK_ID, "doing");
+    const workspaceRoot = project();
+    const task = writeActionableTask(workspaceRoot, TASK_ID, "doing");
     const metadata = failedBuilderMetadata(task);
     metadata.trigger = { ...metadata.trigger, event: "runtime.idle" };
 
-    expect(() => resolveDecompositionOwnership(projectDir, metadata)).toThrow(
+    expect(() => resolveDecompositionOwnership(workspaceRoot, metadata)).toThrow(
       "requires a failed builder run triggered by autonomy.queue.available",
     );
   });

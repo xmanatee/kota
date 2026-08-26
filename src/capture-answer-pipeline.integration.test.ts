@@ -16,7 +16,7 @@
  * (memory, knowledge, tasks, inbox); the recall side is built from the
  * four real recall contributors against the same backing stores plus a
  * minimal in-process history provider stub. Both providers run with
- * `supportsSemanticSearch() === false` so the test stays offline and
+ * omit the optional semantic capability so the test stays offline and
  * exercises every contributor's keyword-fallback path. The answer
  * provider's `AnswerRecallSeam` calls the recall route over the same
  * in-process HTTP host, so a drift between recall's response shape and
@@ -56,14 +56,13 @@ import type {
   ConversationMessage,
   ConversationRecord,
   HistoryProvider,
-  ReindexResult,
 } from "#core/modules/provider-types.js";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import {
   type AnswerHistorySink,
-  answerHistoryRootForProject,
+  answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "#modules/answer/answer-history-store.js";
 import { AnswerProviderImpl } from "#modules/answer/answer-provider.js";
@@ -156,14 +155,6 @@ function createEmptyHistoryProvider(): HistoryProvider {
     findByPrefix: (_idOrPrefix: string): ConversationRecord | null => null,
     remove: (_id: string): boolean => false,
     cleanup: (): number => 0,
-    supportsSemanticSearch: (): boolean => false,
-    semanticSearch: async (): Promise<ConversationRecord[]> =>
-      unused("semanticSearch"),
-    reindex: async (): Promise<ReindexResult> => ({
-      indexed: 0,
-      failed: 0,
-      skipped: true,
-    }),
   };
 }
 
@@ -216,35 +207,35 @@ function startServer(
   });
 }
 
-function makeProjectRoot(): string {
+function makeScopeRoot(): string {
   const scopeDir = mkdtempSync(join(tmpdir(), "kota-capture-answer-"));
   const dir = createRepoTaskRuntimeSandbox(
     scopeDir,
     "capture-answer",
-  ).projectDir;
+  ).workspaceRoot;
   mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
 }
 
 describe("capture → recall → answer → answer-history pipeline (HTTP)", () => {
-  let projectRoot: string;
+  let scopeRoot: string;
   let server: Server;
   let client: DaemonControlClient;
   let history: DiskAnswerHistoryStore;
   let synthesisCalls: Array<{ query: string; retry: boolean; hitsCount: number }>;
 
   beforeAll(async () => {
-    projectRoot = makeProjectRoot();
-    const memoryStore = new MemoryStore(join(projectRoot, ".kota"));
+    scopeRoot = makeScopeRoot();
+    const memoryStore = new MemoryStore(join(scopeRoot, ".kota"));
     const knowledgeStore = new KnowledgeStore(
-      projectRoot,
-      join(projectRoot, ".kota-global", "data"),
+      scopeRoot,
+      join(scopeRoot, ".kota-global", "data"),
     );
-    const tasksProvider = new RepoTasksDefaultStore(projectRoot);
+    const tasksProvider = new RepoTasksDefaultStore(scopeRoot);
     const historyProvider = createEmptyHistoryProvider();
     history = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(projectRoot),
+      rootDir: answerHistoryRootForScope(scopeRoot),
     });
 
     const classifier: CaptureClassifier = {
@@ -258,7 +249,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     const captureProvider = new CaptureProviderImpl({ classifier });
     captureProvider.register(createMemoryCaptureContributor(memoryStore));
     captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-    const mutationTarget = repoTaskRuntimeSandboxTarget(projectRoot);
+    const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
     captureProvider.register(createTasksCaptureContributor(mutationTarget));
     captureProvider.register(createInboxContributor(mutationTarget));
 
@@ -336,20 +327,17 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     });
     // Migrated namespaces normally land on the assembled client through their
     // owning module's `daemonClient(link)` factory. The pipeline test does not
-    // load modules, so build the answer and capture namespace handlers against
-    // the test transport explicitly and stub the rest.
-    const otherMigratedStubs = buildMigratedNamespaceTestStubs();
-    delete otherMigratedStubs.answer;
-    delete otherMigratedStubs.capture;
-    delete otherMigratedStubs.recall;
+    // load modules, so build the participating namespace handlers against the
+    // test transport explicitly; undeclared namespaces fail if invoked.
     const answerDaemonHandler = answerModule.daemonClient!(transport);
     const captureDaemonHandler = captureModule.daemonClient!(transport);
     const recallDaemonHandler = recallModule.daemonClient!(transport);
     client = DaemonControlClient.fromTransport(transport, {
-      ...otherMigratedStubs,
-      ...answerDaemonHandler,
-      ...captureDaemonHandler,
-      ...recallDaemonHandler,
+      ...completeDaemonClientHandlers({
+        ...answerDaemonHandler,
+        ...captureDaemonHandler,
+        ...recallDaemonHandler,
+      }),
     });
     recallSeam = {
       async recall(query, filter) {
@@ -360,7 +348,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectRoot, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("memory: capture writes through MemoryStore and a content-derived answer cites the just-written memory record; the answer-history record matches", async () => {
@@ -424,7 +412,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     expect(captureResult.record.recordId).toBe(INBOX_EXPECTED_ID);
     expect(
       existsSync(
-        join(projectRoot, "data", "inbox", `${INBOX_EXPECTED_ID}.md`),
+        join(scopeRoot, "data", "inbox", `${INBOX_EXPECTED_ID}.md`),
       ),
     ).toBe(true);
 

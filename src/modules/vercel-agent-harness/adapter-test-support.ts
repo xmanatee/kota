@@ -56,7 +56,6 @@ type ExecuteToolContext = {
   cwd?: string;
   workflow?: AgentHarnessRunOptions["workflowContext"];
   scopeId?: string;
-  projectId?: string;
   signal?: AbortSignal;
 };
 

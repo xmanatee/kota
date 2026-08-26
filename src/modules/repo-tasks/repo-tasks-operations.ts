@@ -49,16 +49,16 @@ export function slugifyTaskTitle(title: string): string {
 }
 
 /** Read a normalized task by id, scanning every state directory. */
-export function showTask(projectDir: string, id: string): RepoTaskShowResult {
+export function showTask(repoRoot: string, id: string): RepoTaskShowResult {
   if (!isRepoTaskId(id)) {
     return { found: false };
   }
 
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
   for (const state of REPO_TASK_STATES) {
     const filePath = join(tasksDir, state, `${id}.md`);
     const content = readVerifiedRepoMarkdownFile({
-      projectDir,
+      repoRoot,
       rootDir: tasksDir,
       filePath,
     });
@@ -75,12 +75,12 @@ export function showTask(projectDir: string, id: string): RepoTaskShowResult {
 
 /** Replace a non-terminal task's markdown body through the path-safe domain writer. */
 export function updateTaskBody(
-  projectDir: string,
+  repoRoot: string,
   id: string,
   body: string,
 ): RepoTaskUpdateBodyResult {
   if (!isRepoTaskId(id)) return { ok: false, reason: "invalid_id" };
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
   for (const state of REPO_TASK_STATES) {
     const stateDir = join(tasksDir, state);
     if (!existsSync(stateDir)) continue;
@@ -88,7 +88,7 @@ export function updateTaskBody(
       if (!file.endsWith(".md") || file === "AGENTS.md") continue;
       const filePath = join(stateDir, file);
       const content = readVerifiedRepoMarkdownFile({
-        projectDir,
+        repoRoot,
         rootDir: tasksDir,
         filePath,
       });
@@ -104,7 +104,7 @@ export function updateTaskBody(
         ? frontMatter.replace(/^(updated_at:\s*)\S+/m, `$1${updatedAt}`)
         : frontMatter.replace(/\r?\n---$/, `\nupdated_at: ${updatedAt}\n---`);
       const nextContent = `${updatedFrontMatter}\n\n${body.trim()}\n`;
-      writeRepoTaskFile(projectDir, filePath, nextContent);
+      writeRepoTaskFile(repoRoot, filePath, nextContent);
       return { ok: true, id, state, content: nextContent };
     }
   }
@@ -113,21 +113,19 @@ export function updateTaskBody(
 
 function buildNormalizedTaskBody(): string {
   return renderRepoTaskIntent({
-    problem: "Describe the problem.",
-    desiredOutcome: "Describe the outcome, not the implementation plan.",
-    constraints: "List only load-bearing constraints.",
-    doneWhen: "Describe observable completion conditions.",
-    context: "Preserve the owner request, research source, or runtime evidence.",
-    acceptanceEvidence: "Name proportionate proof when the outcome needs it.",
+    problem: "Describe the problem and why it matters.",
+    desiredOutcome: "Describe the observable outcome, without prescribing an implementation.",
+    constraints: "Name only constraints that materially limit a valid solution.",
+    howWeWillKnow: "Describe the behavior or observation that will make completion credible.",
   });
 }
 
 /**
- * Create a normalized task file with the full template. Used by both the CLI
+ * Create a normalized task file with the recommended intent scaffold. Used by both the CLI
  * `task create` and the matching daemon HTTP route.
  */
 export function createNormalizedTask(
-  projectDir: string,
+  repoRoot: string,
   options: RepoTaskCreateOptions,
 ): RepoTaskCreateResult {
   const slug = slugifyTaskTitle(options.title);
@@ -140,13 +138,13 @@ export function createNormalizedTask(
   }
 
   const id = `task-${slug}`;
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
   const stateDir = join(tasksDir, options.state);
   const filePath = join(stateDir, `${id}.md`);
 
   if (
     readVerifiedRepoMarkdownFile({
-      projectDir,
+      repoRoot,
       rootDir: tasksDir,
       filePath,
     }) !== null
@@ -171,11 +169,11 @@ export function createNormalizedTask(
   };
 
   writeRepoTaskFile(
-    projectDir,
+    repoRoot,
     filePath,
     serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()),
   );
-  return { ok: true, id, path: relative(projectDir, filePath) };
+  return { ok: true, id, path: relative(repoRoot, filePath) };
 }
 
 /**
@@ -183,7 +181,7 @@ export function createNormalizedTask(
  * CLI `task capture` and the matching daemon HTTP route.
  */
 export function captureInboxTask(
-  projectDir: string,
+  repoRoot: string,
   title: string,
 ): RepoTaskCaptureResult {
   const slug = slugifyTaskTitle(title);
@@ -196,12 +194,12 @@ export function captureInboxTask(
   }
 
   const id = `task-${slug}`;
-  const inboxDir = getRepoInboxDir(projectDir);
+  const inboxDir = getRepoInboxDir(repoRoot);
   const filePath = join(inboxDir, `${id}.md`);
 
   if (
     readVerifiedRepoMarkdownFile({
-      projectDir,
+      repoRoot,
       rootDir: inboxDir,
       filePath,
     }) !== null
@@ -213,8 +211,8 @@ export function captureInboxTask(
     };
   }
 
-  writeRepoInboxFile(projectDir, filePath, `# ${title}\n`);
-  return { ok: true, id, path: relative(projectDir, filePath) };
+  writeRepoInboxFile(repoRoot, filePath, `# ${title}\n`);
+  return { ok: true, id, path: relative(repoRoot, filePath) };
 }
 
 export { gcTerminalTasks } from "./repo-task-gc.js";

@@ -176,14 +176,14 @@ describe("social module inbound routes", () => {
     expect(JSON.parse(res.body!)).toMatchObject({
       ok: true,
       event: inboundSignalReceived.name,
-      projectId: deriveDirectoryScopeId("/tmp"),
+      scopeId: deriveDirectoryScopeId("/tmp"),
       provider: "x",
       channel: "x.mention",
       actorTrust: "trusted",
     });
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp"),
+      scopeId: deriveDirectoryScopeId("/tmp"),
       provider: "x",
       channel: "x.mention",
       accountId: "x:owner-account",

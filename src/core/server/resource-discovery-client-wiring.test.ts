@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
+import type {
+  DaemonClientHandlers,
+  KotaClient,
+  LocalClientHandlers,
+} from "#root/client/kota-client.generated.js";
 import { DaemonControlClient } from "./daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "./daemon-client-test-stubs.js";
-import type { DaemonTransport } from "./daemon-transport.js";
 import {
-  type DaemonClientHandlers,
-  KOTA_CLIENT_NAMESPACES,
-  type KotaClient,
-  type LocalClientHandlers,
-} from "./kota-client.js";
+  completeDaemonClientHandlers,
+  createKotaClientTestDouble,
+} from "./daemon-client-test-support.js";
+import type { DaemonTransport } from "./daemon-transport.js";
 import { buildLocalKotaClient } from "./local-kota-client.js";
-import { createScopeScopedKotaClient } from "./project-scoped-kota-client.js";
+import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 type ResourceDiscoveryFilter = Parameters<
   KotaClient["resourceDiscovery"]["discover"]
@@ -53,39 +55,16 @@ function resourceDiscoveryHandler(
 function completeDaemonHandlers(
   overrides: Partial<DaemonClientHandlers> = {},
 ): DaemonClientHandlers {
-  return {
-    ...buildMigratedNamespaceTestStubs(),
-    ...overrides,
-  } as DaemonClientHandlers;
+  return completeDaemonClientHandlers(overrides);
 }
 
 function completeLocalHandlers(
   overrides: Partial<LocalClientHandlers> = {},
 ): LocalClientHandlers {
-  return {
-    ...buildMigratedNamespaceTestStubs(),
-    ...overrides,
-  } as LocalClientHandlers;
+  return completeDaemonClientHandlers(overrides);
 }
 
 describe("resourceDiscovery KotaClient wiring", () => {
-  it("declares resourceDiscovery as an observable namespace with migrated daemon test coverage", async () => {
-    expect(KOTA_CLIENT_NAMESPACES).toContain("resourceDiscovery");
-    const handler = buildMigratedNamespaceTestStubs().resourceDiscovery;
-    expect(handler, "observable resourceDiscovery test stub status").toBeDefined();
-    if (!handler) {
-      throw new Error("resourceDiscovery test stub is missing");
-    }
-
-    const result = await handler.discover("find setup metadata");
-
-    expect(result).toMatchObject({
-      ok: true,
-      query: "find setup metadata",
-      degradation: "keyword_only",
-    });
-  });
-
   it("exposes the module-contributed resourceDiscovery handler on DaemonControlClient", async () => {
     const capture: ResourceDiscoveryCapture = {};
     const client = DaemonControlClient.fromTransport(
@@ -131,17 +110,11 @@ describe("resourceDiscovery KotaClient wiring", () => {
 
   it("injects scope metadata into scoped resourceDiscovery calls", async () => {
     const capture: ResourceDiscoveryCapture = {};
-    const base = {
-      forProject: () => {
-        throw new Error("unexpected project scope");
-      },
-      forScope: () => {
-        throw new Error("unexpected nested scope");
-      },
+    const base = createKotaClientTestDouble({
       resourceDiscovery: resourceDiscoveryHandler(capture),
-    } as unknown as KotaClient;
+    });
 
-    const scoped = createScopeScopedKotaClient(base, "scope-rd");
+    const scoped = createScopedKotaClient(base, "scope-rd");
     const result = await scoped.resourceDiscovery.discover("rank scoped skills", {
       limit: 1,
     });

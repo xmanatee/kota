@@ -235,19 +235,19 @@ afterEach(() => {
 });
 
 describe("kota doctor — offline path", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = makeTmpDir();
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    scopeRoot = makeTmpDir();
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("passes disk check when .kota/ exists and is writable", async () => {
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const disk = results.find((r) => r.label.startsWith("Disk: .kota/ directory"));
     expect(disk?.status).toBe("pass");
     const writable = results.find((r) => r.label.startsWith("Disk: .kota/ writable"));
@@ -255,14 +255,14 @@ describe("kota doctor — offline path", () => {
   });
 
   it("fails disk check when .kota/ is missing", async () => {
-    rmSync(join(projectDir, ".kota"), { recursive: true });
-    const results = await runDoctorChecks(projectDir);
+    rmSync(join(scopeRoot, ".kota"), { recursive: true });
+    const results = await runDoctorChecks(scopeRoot);
     const disk = results.find((r) => r.label.startsWith("Disk: .kota/ directory"));
     expect(disk?.status).toBe("fail");
   });
 
   it("warns about daemon not running", async () => {
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const daemon = results.find((r) => r.label === "Daemon");
     expect(daemon?.status).toBe("warn");
   });
@@ -274,7 +274,7 @@ describe("kota doctor — offline path", () => {
       command: "/opt/node /repo/dist/cli.js daemon",
     });
 
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const daemon = results.find((r) => r.label === "Daemon");
     expect(daemon?.status).toBe("fail");
     expect(daemon?.detail).toContain("pid 4242");
@@ -283,39 +283,39 @@ describe("kota doctor — offline path", () => {
 
   it("does not treat daemon-state.json as a live daemon lock", async () => {
     writeFileSync(
-      join(projectDir, ".kota", "daemon-state.json"),
+      join(scopeRoot, ".kota", "daemon-state.json"),
       JSON.stringify({
         pid: 99999999,
         startedAt: "2026-04-22T10:00:00.000Z",
       }),
     );
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const daemon = results.find((r) => r.label === "Daemon");
     expect(daemon?.detail).toBe("No daemon-control.json found — daemon is not running");
   });
 
-  it("warns about missing project config", async () => {
-    const results = await runDoctorChecks(projectDir);
+  it("warns about missing scope config", async () => {
+    const results = await runDoctorChecks(scopeRoot);
     const cfg = results.find((r) => r.label.startsWith("Config: project"));
     expect(cfg?.status).toBe("warn");
   });
 
   it("fails config check for invalid JSON", async () => {
-    writeFileSync(join(projectDir, ".kota", "config.json"), "{ not valid json");
-    const results = await runDoctorChecks(projectDir);
+    writeFileSync(join(scopeRoot, ".kota", "config.json"), "{ not valid json");
+    const results = await runDoctorChecks(scopeRoot);
     const cfg = results.find((r) => r.label.startsWith("Config: project"));
     expect(cfg?.status).toBe("fail");
   });
 
   it("passes config check for valid config.json", async () => {
-    writeFileSync(join(projectDir, ".kota", "config.json"), JSON.stringify({ model: "claude-opus-4-7" }));
-    const results = await runDoctorChecks(projectDir);
+    writeFileSync(join(scopeRoot, ".kota", "config.json"), JSON.stringify({ model: "claude-opus-4-7" }));
+    const results = await runDoctorChecks(scopeRoot);
     const cfg = results.find((r) => r.label.startsWith("Config: project"));
     expect(cfg?.status).toBe("pass");
   });
 
   it("passes workflow check with valid shipped workflow definitions", async () => {
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const wf = results.find((r) => r.label.startsWith("Workflows"));
     expect(wf?.status).toBe("pass");
   });
@@ -323,7 +323,7 @@ describe("kota doctor — offline path", () => {
   it("passes registered agents into offline workflow validation", async () => {
     vi.mocked(validateWorkflowDefinitions).mockClear();
 
-    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
     const wf = results.find((r) => r.label.startsWith("Workflows"));
     expect(wf?.status).toBe("pass");
 
@@ -338,7 +338,7 @@ describe("kota doctor — offline path", () => {
   });
 
   it("returns results for all check categories", async () => {
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const labels = results.map((r) => r.label);
     expect(labels.some((l) => l.startsWith("Daemon"))).toBe(true);
     expect(labels.some((l) => l.startsWith("Config:"))).toBe(true);
@@ -390,7 +390,7 @@ describe("kota doctor — offline path", () => {
     };
     stub.mockReturnValueOnce(transport);
 
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     const ready = results.find((r) => r.label === "Capability: knowledge.search");
     expect(ready?.status).toBe("pass");
     expect(ready?.detail).toBe("ready text");
@@ -402,28 +402,28 @@ describe("kota doctor — offline path", () => {
   });
 
   it("warns about unexpected module state and stray runtime directories", async () => {
-    mkdirSync(join(projectDir, ".kota", "extensions", "tool-cache"), { recursive: true });
-    mkdirSync(join(projectDir, "runs"), { recursive: true });
-    mkdirSync(join(projectDir, "kota"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota", "extensions", "tool-cache"), { recursive: true });
+    mkdirSync(join(scopeRoot, "runs"), { recursive: true });
+    mkdirSync(join(scopeRoot, "kota"), { recursive: true });
 
-    const results = await runDoctorChecks(projectDir);
+    const results = await runDoctorChecks(scopeRoot);
     expect(results.find((r) => r.label === "Disk: stray .kota/extensions/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray runs/")?.status).toBe("warn");
     expect(results.find((r) => r.label === "Disk: stray kota/")?.status).toBe("warn");
   });
 
   it("warns about stale run-insight knowledge files", async () => {
-    mkdirSync(join(projectDir, ".kota", "data"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota", "data"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota", "data", "stale.md"),
+      join(scopeRoot, ".kota", "data", "stale.md"),
       "---\nid: stale\ntitle: Stale\ntype: run-insight\nstatus: active\n---\n\nRun summary\n",
     );
     writeFileSync(
-      join(projectDir, ".kota", "data", "note.md"),
+      join(scopeRoot, ".kota", "data", "note.md"),
       "---\nid: note\ntitle: Note\ntype: note\nstatus: active\n---\n\nKeep this\n",
     );
 
-    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
     const stale = results.find((r) => r.label === "Disk: stale run-insight data");
     expect(stale?.status).toBe("warn");
     expect(stale?.detail).toContain("1 file");
@@ -432,91 +432,91 @@ describe("kota doctor — offline path", () => {
 });
 
 describe("kota doctor --fix", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = makeTmpDir();
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    scopeRoot = makeTmpDir();
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("skips lock file when no daemon-control.json exists", () => {
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
     expect(lock?.action).toBe("skipped");
   });
 
   it("removes stale lock file when PID is not alive", () => {
-    const lockFile = join(projectDir, ".kota", "daemon-control.json");
+    const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
     writeFileSync(lockFile, JSON.stringify({ pid: 99999999, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
     expect(lock?.action).toBe("repaired");
     expect(existsSync(lockFile)).toBe(false);
   });
 
   it("skips lock file removal when PID is alive (own process)", () => {
-    const lockFile = join(projectDir, ".kota", "daemon-control.json");
+    const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
     writeFileSync(lockFile, JSON.stringify({ pid: process.pid, port: 9999, token: "x", startedAt: "2020-01-01T00:00:00Z" }));
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
     expect(lock?.action).toBe("skipped");
     expect(existsSync(lockFile)).toBe(true);
   });
 
   it("reports manual action for unparseable lock file", () => {
-    const lockFile = join(projectDir, ".kota", "daemon-control.json");
+    const lockFile = join(scopeRoot, ".kota", "daemon-control.json");
     writeFileSync(lockFile, "{ not valid json");
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     const lock = repairs.find((r) => r.item.includes("daemon-control.json"));
     expect(lock?.action).toBe("manual");
   });
 
   it("creates missing .kota/ and .kota/runs/ directories", () => {
-    rmSync(join(projectDir, ".kota"), { recursive: true });
-    const repairs = runDoctorFixes(projectDir);
+    rmSync(join(scopeRoot, ".kota"), { recursive: true });
+    const repairs = runDoctorFixes(scopeRoot);
     const kotaRepair = repairs.find((r) => r.item.includes("Directory:") && !r.item.includes("runs"));
     const runsRepair = repairs.find((r) => r.item.includes("runs"));
     const extensionsRepair = repairs.find((r) => r.item.includes(".kota/modules"));
     expect(kotaRepair?.action).toBe("repaired");
     expect(runsRepair?.action).toBe("repaired");
     expect(extensionsRepair?.action).toBe("repaired");
-    expect(existsSync(join(projectDir, ".kota"))).toBe(true);
-    expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(true);
-    expect(existsSync(join(projectDir, ".kota", "modules"))).toBe(true);
+    expect(existsSync(join(scopeRoot, ".kota"))).toBe(true);
+    expect(existsSync(join(scopeRoot, ".kota", "runs"))).toBe(true);
+    expect(existsSync(join(scopeRoot, ".kota", "modules"))).toBe(true);
   });
 
   it("skips directory creation when directories already exist", () => {
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(projectDir, ".kota", "modules"), { recursive: true });
-    const repairs = runDoctorFixes(projectDir);
+    mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota", "modules"), { recursive: true });
+    const repairs = runDoctorFixes(scopeRoot);
     const dirRepairs = repairs.filter((r) => r.item.startsWith("Directory:"));
     expect(dirRepairs.every((r) => r.action === "skipped")).toBe(true);
   });
 
   it("removes stray root runs/ and kota/ directories", () => {
-    mkdirSync(join(projectDir, "runs", "some-run"), { recursive: true });
-    mkdirSync(join(projectDir, "kota", "runs", "some-run"), { recursive: true });
-    const repairs = runDoctorFixes(projectDir);
+    mkdirSync(join(scopeRoot, "runs", "some-run"), { recursive: true });
+    mkdirSync(join(scopeRoot, "kota", "runs", "some-run"), { recursive: true });
+    const repairs = runDoctorFixes(scopeRoot);
     const runsRepair = repairs.find((r) => r.item === "Stray directory: runs/");
     const kotaRepair = repairs.find((r) => r.item === "Stray directory: kota/");
     expect(runsRepair?.action).toBe("repaired");
     expect(kotaRepair?.action).toBe("repaired");
-    expect(existsSync(join(projectDir, "runs"))).toBe(false);
-    expect(existsSync(join(projectDir, "kota"))).toBe(false);
+    expect(existsSync(join(scopeRoot, "runs"))).toBe(false);
+    expect(existsSync(join(scopeRoot, "kota"))).toBe(false);
   });
 
   it("does not report stray directories when they do not exist", () => {
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     const strayRepairs = repairs.filter((r) => r.item.startsWith("Stray directory:"));
     expect(strayRepairs).toHaveLength(0);
   });
 
   it("preserves daemon-state.json because daemon-control.json owns liveness", () => {
-    const stateFile = join(projectDir, ".kota", "daemon-state.json");
+    const stateFile = join(scopeRoot, ".kota", "daemon-state.json");
     writeFileSync(
       stateFile,
       JSON.stringify({
@@ -524,13 +524,13 @@ describe("kota doctor --fix", () => {
         startedAt: "2026-04-22T10:00:00.000Z",
       }),
     );
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     expect(repairs.some((r) => r.item.includes("daemon-state.json"))).toBe(false);
     expect(existsSync(stateFile)).toBe(true);
   });
 
   it("removes only stale run-insight knowledge files", () => {
-    const dataDir = join(projectDir, ".kota", "data");
+    const dataDir = join(scopeRoot, ".kota", "data");
     const staleFile = join(dataDir, "stale.md");
     const noteFile = join(dataDir, "note.md");
     mkdirSync(dataDir, { recursive: true });
@@ -543,7 +543,7 @@ describe("kota doctor --fix", () => {
       "---\nid: note\ntitle: Note\ntype: note\nstatus: active\n---\n\nKeep this\n",
     );
 
-    const repairs = runDoctorFixes(projectDir);
+    const repairs = runDoctorFixes(scopeRoot);
     const stale = repairs.find((r) => r.item === "Stale run-insight knowledge files");
     expect(stale?.action).toBe("repaired");
     expect(stale?.detail).toContain("Removed 1 file");
@@ -554,18 +554,18 @@ describe("kota doctor --fix", () => {
 });
 
 describe("kota doctor — provider connectivity check", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = makeTmpDir();
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    scopeRoot = makeTmpDir();
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     vi.mocked(loadConfig).mockReturnValue({
       model: "anthropic/claude-haiku-4-5-20251001",
     });
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -585,7 +585,7 @@ describe("kota doctor — provider connectivity check", () => {
       providerName: "anthropic",
     });
 
-    const results = await checkProviderConnectivity(projectDir);
+    const results = await checkProviderConnectivity(scopeRoot);
     expect(results[0]?.status).toBe("pass");
     expect(results[0]?.detail).toContain("Reachable");
     expect(results[0]?.detail).toContain("key: ANTHROPIC_API_KEY=(set)");
@@ -612,7 +612,7 @@ describe("kota doctor — provider connectivity check", () => {
     });
     void authErr;
 
-    const results = await checkProviderConnectivity(projectDir);
+    const results = await checkProviderConnectivity(scopeRoot);
     expect(results[0]?.status).toBe("fail");
     expect(results[0]?.detail).toContain("Authentication failed");
     expect(results[0]?.detail).toContain("key: ANTHROPIC_API_KEY=(set)");
@@ -625,7 +625,7 @@ describe("kota doctor — provider connectivity check", () => {
     const secret = "sk-ant-json-report-secret";
     vi.mocked(resolveApiKey).mockReturnValue(secret);
 
-    const report = await runDoctorReport(projectDir);
+    const report = await runDoctorReport(scopeRoot);
     const encoded = JSON.stringify(report);
     expect(encoded).toContain("ANTHROPIC_API_KEY=(set)");
     expect(encoded).not.toContain(secret);
@@ -641,7 +641,7 @@ describe("kota doctor — provider connectivity check", () => {
     });
     vi.mocked(resolveApiKey).mockReturnValueOnce(explicitKey);
 
-    const results = await checkProviderConnectivity(projectDir);
+    const results = await checkProviderConnectivity(scopeRoot);
     expect(results[0]?.detail).toContain("key: config.modelProvider.apiKey=(set)");
     expect(results[0]?.detail).not.toContain(explicitKey);
     expect(results[0]?.detail).not.toContain(explicitKey.slice(0, 8));
@@ -663,7 +663,7 @@ describe("kota doctor — provider connectivity check", () => {
       providerName: "ollama",
     });
 
-    const results = await checkProviderConnectivity(projectDir);
+    const results = await checkProviderConnectivity(scopeRoot);
     expect(results[0]?.status).toBe("fail");
     expect(results[0]?.detail).toContain("Unreachable");
   });
@@ -672,7 +672,7 @@ describe("kota doctor — provider connectivity check", () => {
     const { resolveApiKey } = await import("#modules/model-clients/factory.js");
     vi.mocked(resolveApiKey).mockReturnValueOnce("");
 
-    const results = await checkProviderConnectivity(projectDir);
+    const results = await checkProviderConnectivity(scopeRoot);
     expect(results[0]?.status).toBe("warn");
     expect(results[0]?.detail).toContain("not set");
   });
@@ -680,14 +680,14 @@ describe("kota doctor — provider connectivity check", () => {
   it("warns when no model provider is configured", async () => {
     vi.mocked(loadConfig).mockReturnValueOnce({ model: "claude-haiku-4-5-20251001" });
 
-    const results = await checkProviderConnectivity(projectDir);
+    const results = await checkProviderConnectivity(scopeRoot);
     expect(results[0]?.status).toBe("warn");
     expect(results[0]?.label).toBe("Provider connectivity");
     expect(results[0]?.detail).toContain("No model provider configured");
   });
 
   it("skips probe and warns when --skip-connectivity is passed", async () => {
-    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
     const conn = results.find((r) => r.label === "Provider connectivity");
     expect(conn?.status).toBe("warn");
     expect(conn?.detail).toContain("Skipped");
@@ -695,12 +695,12 @@ describe("kota doctor — provider connectivity check", () => {
 });
 
 describe("kota doctor --preset preflight", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   const ORIGINAL_ENV = { ...process.env };
 
   beforeEach(() => {
-    projectDir = makeTmpDir();
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+    scopeRoot = makeTmpDir();
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     delete process.env.OPENAI_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
     delete process.env.GEMINI_API_KEY;
@@ -709,13 +709,13 @@ describe("kota doctor --preset preflight", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     process.env = { ...ORIGINAL_ENV };
     vi.restoreAllMocks();
   });
 
   it("passes for codex preset without OPENAI_API_KEY when Codex ChatGPT login is active", async () => {
-    const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
@@ -736,7 +736,7 @@ describe("kota doctor --preset preflight", () => {
     registerReadinessHarness("gemini-cli", "native-cli", "ready");
     registerReadinessHarness("antigravity-cli", "native-cli", "ready");
 
-    const report = await runDoctorReport(projectDir, {
+    const report = await runDoctorReport(scopeRoot, {
       preset: "codex",
       skipConnectivity: true,
     });
@@ -770,7 +770,7 @@ describe("kota doctor --preset preflight", () => {
     registerReadinessHarness("gemini-cli", "native-cli", "ready");
     registerReadinessHarness("antigravity-cli", "native-cli", "ready");
 
-    const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
     const authRow = results.find((r) => r.label === "Preset auth: codex");
     expect(presetRow?.status).toBe("fail");
@@ -786,7 +786,7 @@ describe("kota doctor --preset preflight", () => {
     ["gemini-cli", "native-cli"],
     ["antigravity-cli", "native-cli"],
   ])("renders readiness rows for preset=%s", async (preset, adapterKind) => {
-    const results = await runDoctorChecks(projectDir, { preset, skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset, skipConnectivity: true });
     expect(results.find((r) => r.label === `Preset: ${preset}`)?.metadata?.presetReadiness?.presetId).toBe(preset);
     expect(results.find((r) => r.label === `Preset tiers: ${preset}`)?.detail).toContain("capable=");
     expect(results.find((r) => r.label === `Preset adapter: ${preset}`)?.detail).toContain(`kind=${adapterKind}`);
@@ -796,7 +796,7 @@ describe("kota doctor --preset preflight", () => {
   });
 
   it("fails for gemini preset when neither GEMINI_API_KEY nor GOOGLE_API_KEY is set", async () => {
-    const results = await runDoctorChecks(projectDir, { preset: "gemini", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "gemini", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: gemini");
     expect(presetRow?.status).toBe("fail");
     expect(presetRow?.detail).toMatch(/GEMINI_API_KEY.*GOOGLE_API_KEY/);
@@ -804,14 +804,14 @@ describe("kota doctor --preset preflight", () => {
 
   it("passes for openrouter preset when OPENROUTER_API_KEY is set", async () => {
     process.env.OPENROUTER_API_KEY = "sk-or-test";
-    const results = await runDoctorChecks(projectDir, { preset: "openrouter", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "openrouter", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: openrouter");
     expect(presetRow?.status).toBe("pass");
   });
 
   it("keeps codex preset independent of OPENAI_API_KEY when it is set", async () => {
     process.env.OPENAI_API_KEY = "sk-test";
-    const results = await runDoctorChecks(projectDir, { preset: "codex", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "codex", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: codex");
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
@@ -819,7 +819,7 @@ describe("kota doctor --preset preflight", () => {
 
   it("keeps gemini-cli preset independent of Gemini API-key env auth", async () => {
     process.env.GEMINI_API_KEY = "g-test";
-    const results = await runDoctorChecks(projectDir, { preset: "gemini-cli", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "gemini-cli", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: gemini-cli");
     expect(presetRow?.status).toBe("pass");
     expect(presetRow?.detail).toContain("harness-managed auth");
@@ -835,7 +835,7 @@ describe("kota doctor --preset preflight", () => {
     registerReadinessHarness("gemini-cli", "native-cli", "expiring");
     registerReadinessHarness("antigravity-cli", "native-cli", "ready");
 
-    const results = await runDoctorChecks(projectDir, {
+    const results = await runDoctorChecks(scopeRoot, {
       preset: "gemini-cli",
       skipConnectivity: true,
     });
@@ -855,7 +855,7 @@ describe("kota doctor --preset preflight", () => {
 
   it("keeps antigravity-cli preset independent of Gemini API-key env auth", async () => {
     process.env.GEMINI_API_KEY = "g-test";
-    const results = await runDoctorChecks(projectDir, { preset: "antigravity-cli", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "antigravity-cli", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: antigravity-cli");
     const tiersRow = results.find((r) => r.label === "Preset tiers: antigravity-cli");
     const unsupportedRow = results.find((r) => r.label === "Preset intentional limits: antigravity-cli");
@@ -872,13 +872,13 @@ describe("kota doctor --preset preflight", () => {
 
   it("passes for gemini preset when GOOGLE_API_KEY is set (alternate auth)", async () => {
     process.env.GOOGLE_API_KEY = "test";
-    const results = await runDoctorChecks(projectDir, { preset: "gemini", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "gemini", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset: gemini");
     expect(presetRow?.status).toBe("pass");
   });
 
   it("falls back to the shipped default (codex) when no preset is requested", async () => {
-    const results = await runDoctorChecks(projectDir, { skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { skipConnectivity: true });
     const presetRow = results.find((r) => r.label.startsWith("Preset:"));
     expect(presetRow).toBeDefined();
     expect(presetRow?.label).toBe("Preset: codex");
@@ -886,7 +886,7 @@ describe("kota doctor --preset preflight", () => {
   });
 
   it("fails for an unknown preset id rather than silently falling through", async () => {
-    const results = await runDoctorChecks(projectDir, { preset: "nope", skipConnectivity: true });
+    const results = await runDoctorChecks(scopeRoot, { preset: "nope", skipConnectivity: true });
     const presetRow = results.find((r) => r.label === "Preset");
     expect(presetRow?.status).toBe("fail");
     expect(presetRow?.detail).toContain("Unknown preset");

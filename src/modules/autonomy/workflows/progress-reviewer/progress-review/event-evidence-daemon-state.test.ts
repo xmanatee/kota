@@ -13,7 +13,7 @@ import {
   cleanupTempDirs,
   collectFromBatch,
   DROPPED_AT,
-  makeProjectDir,
+  makeScopeRoot,
   makeStateDir,
   NOW,
 } from "./event-evidence-test-support.js";
@@ -23,18 +23,17 @@ describe("progress-review daemon state evidence", () => {
     cleanupTempDirs();
   });
 
-  it("backfills from the daemon stateDir journal when project-local journal is absent", () => {
-    const projectDir = makeProjectDir("progress-reviewer-daemon-journal");
+  it("backfills from the daemon stateDir journal when the scope-local journal is absent", () => {
+    const workspaceRoot = makeScopeRoot("progress-reviewer-daemon-journal");
     const stateDir = makeStateDir("progress-reviewer-daemon-journal");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const droppedEnvelope = appendJournalEvent({
-      projectDir,
+      workspaceRoot,
       stateDir,
       event: "workflow.completed",
       receivedAt: DROPPED_AT,
       payload: {
         scopeId,
-        projectId: scopeId,
         workflow: "builder",
         runId: "state-dir-builder-run",
         status: "success",
@@ -42,8 +41,8 @@ describe("progress-review daemon state evidence", () => {
     });
 
     const evidence = collectFromBatch(
-      projectDir,
-      batchPayload({ projectDir }),
+      workspaceRoot,
+      batchPayload({ workspaceRoot }),
       {
         stateDir,
         eventJournal: new EventJournal(join(stateDir, "events")),
@@ -64,34 +63,33 @@ describe("progress-review daemon state evidence", () => {
       }),
     ]);
     expect(evidence.excluded.join("\n")).not.toContain(
-      join(projectDir, ".kota", "events"),
+      join(workspaceRoot, ".kota", "events"),
     );
   });
 
   it("loads global scope configuration from the daemon stateDir", () => {
-    const projectA = makeProjectDir("progress-reviewer-global-state-a");
-    const projectB = makeProjectDir("progress-reviewer-global-state-b");
+    const scopeARoot = makeScopeRoot("progress-reviewer-global-state-a");
+    const scopeBRoot = makeScopeRoot("progress-reviewer-global-state-b");
     const stateDir = makeStateDir("progress-reviewer-global-state");
-    const scopeA = deriveDirectoryScopeId(projectA);
-    const scopeB = deriveDirectoryScopeId(projectB);
+    const scopeAId = deriveDirectoryScopeId(scopeARoot);
+    const scopeBId = deriveDirectoryScopeId(scopeBRoot);
     new ScopeRegistry({
       stateDir,
-      projects: [
-        { projectDir: projectA, displayName: "scope a" },
-        { projectDir: projectB, displayName: "scope b" },
+      scopes: [
+        { scopeRoot: scopeARoot, displayName: "scope a" },
+        { scopeRoot: scopeBRoot, displayName: "scope b" },
       ],
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir: projectA,
-      scopeDir: projectA,
+      workspaceRoot: scopeARoot,
+      scopeRoot: scopeARoot,
       stateDir,
       trigger: {
         event: "autonomy.progress-review.requested",
         schemaRef: null,
         payload: {
           scopeId: GLOBAL_SCOPE_ID,
-          projectId: GLOBAL_SCOPE_ID,
         },
       },
       now: NOW,
@@ -99,8 +97,8 @@ describe("progress-review daemon state evidence", () => {
 
     expect(evidence.scope.scopeId).toBe(GLOBAL_SCOPE_ID);
     expect(evidence.scopes.map((scope) => scope.scope.scopeId)).toEqual([
-      scopeA,
-      scopeB,
+      scopeAId,
+      scopeBId,
     ]);
   });
 });

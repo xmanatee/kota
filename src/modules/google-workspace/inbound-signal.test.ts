@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type InboundSignalReceivedPayload,
@@ -21,7 +21,7 @@ import {
 } from "./inbound-signal.js";
 
 const context: GoogleWorkspaceInboundSignalContext = {
-  projectId: "project-google",
+  scopeId: "scope-google",
   accountId: "owner@example.com",
   receivedAt: "2026-05-25T03:25:00.000Z",
   trustedSenders: ["alice@example.com"],
@@ -89,7 +89,7 @@ function calendarEvent(
 }
 
 describe("Google Workspace inbound signal adapters", () => {
-  it("normalizes a trusted Gmail sender into a project-scoped inbound signal", () => {
+  it("normalizes a trusted Gmail sender into a scope-scoped inbound signal", () => {
     const result = gmailMessageToInboundSignal(
       gmailMessage("Alice Example <alice@example.com>"),
       context,
@@ -98,7 +98,7 @@ describe("Google Workspace inbound signal adapters", () => {
 
     expect(validateInboundSignalPayload(payload)).toMatchObject({ ok: true });
     expect(payload).toMatchObject({
-      projectId: "project-google",
+      scopeId: "scope-google",
       provider: "google-workspace",
       channel: "gmail.message",
       accountId: "google:gmail:owner@example.com",
@@ -158,7 +158,7 @@ describe("Google Workspace inbound signal adapters", () => {
 
     expect(validateInboundSignalPayload(payload)).toMatchObject({ ok: true });
     expect(payload).toMatchObject({
-      projectId: "project-google",
+      scopeId: "scope-google",
       provider: "google-workspace",
       channel: "calendar.event",
       accountId: "google:calendar:owner@example.com",
@@ -247,14 +247,14 @@ describe("Google Workspace inbound signal adapters", () => {
 
 type ProbeDecision = {
   decision: "accept" | "noop";
-  projectId: string;
+  scopeId: string;
   provider: string;
   channel: string;
   actorTrust: string;
 };
 
 type RoutedProbePayload = {
-  projectId: string;
+  scopeId: string;
   provider: string;
   channel: string;
   actorTrust: string;
@@ -273,7 +273,7 @@ const googleWorkspaceSignalProbeWorkflow: WorkflowDefinitionInput = {
       validate: (raw) =>
         expectStructuredOutput<ProbeDecision>(raw, [
           "decision",
-          "projectId",
+          "scopeId",
           "provider",
           "channel",
           "actorTrust",
@@ -282,7 +282,7 @@ const googleWorkspaceSignalProbeWorkflow: WorkflowDefinitionInput = {
         const payload = trigger.payload as RoutedProbePayload;
         return {
           decision: payload.actorTrust === "trusted" ? "accept" : "noop",
-          projectId: payload.projectId,
+          scopeId: payload.scopeId,
           provider: payload.provider,
           channel: payload.channel,
           actorTrust: payload.actorTrust,
@@ -351,7 +351,7 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
     expect(queued[0]).toMatchObject({
       event: inboundSignalWorkflowTargeted,
       payload: {
-        projectId: "project-google",
+        scopeId: "scope-google",
         routeId: "gmail-owner-capture",
         provider: "google-workspace",
         channel: "gmail.message",
@@ -360,16 +360,15 @@ describe("Google Workspace inbound signal workflow dispatch", () => {
       },
     });
 
-    const harness = new WorkflowTestHarness(googleWorkspaceSignalProbeWorkflow, {
+    const harness = new WorkflowScenarioDriver(googleWorkspaceSignalProbeWorkflow, {
       trigger: queued[0],
-      projectDir: "/tmp/kota-google-workspace-probe",
     });
     const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps.decide.output).toEqual({
       decision: "accept",
-      projectId: "project-google",
+      scopeId: "scope-google",
       provider: "google-workspace",
       channel: "gmail.message",
       actorTrust: "trusted",

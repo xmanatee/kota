@@ -21,11 +21,9 @@ export function builderTaskAssociation(
 
 export function scopeFromPayload(payload: Readonly<Record<string, unknown>>): {
   scopeId: string | null;
-  projectId: string | null;
 } {
   return {
     scopeId: stringField(payload.scopeId),
-    projectId: stringField(payload.projectId),
   };
 }
 

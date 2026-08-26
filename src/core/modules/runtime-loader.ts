@@ -16,9 +16,10 @@
  */
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
+import { discoverBundledModules } from "./bundled-module-discovery.js";
 import { discoverModules } from "./module-discovery.js";
 import { ModuleLoader } from "./module-loader.js";
-import { discoverProjectModules } from "./project-discovery.js";
+import { ProviderRegistry } from "./provider-registry.js";
 
 export type RuntimeLoaderOptions = {
   config: KotaConfig;
@@ -30,6 +31,8 @@ export type RuntimeLoaderOptions = {
   globalConfigPath?: string;
   /** Trusted source directory for modules executed in an isolated copy. */
   installedModuleSourceDir?: string;
+  /** Explicit host provider authority. Defaults to a fresh host registry. */
+  providerRegistry?: ProviderRegistry;
 };
 
 export async function loadRuntimeModules(
@@ -45,14 +48,15 @@ export async function loadRuntimeModules(
     mode: "runtime",
     globalConfigPath: options.globalConfigPath,
     installedModuleSourceDir: options.installedModuleSourceDir,
+    providerRegistry: options.providerRegistry ?? new ProviderRegistry(),
   });
   loader.setCwd(options.cwd);
   loader.setBus(options.eventBus);
-  const projectModules = await discoverProjectModules();
+  const bundledModules = await discoverBundledModules();
   const installedModuleSourceDir = options.installedModuleSourceDir ?? options.cwd;
   const installedModules = await discoverModules(installedModuleSourceDir, verbose, {
     globalConfigPath: options.globalConfigPath,
   });
-  await loader.loadAll(projectModules, installedModules);
+  await loader.loadAll(bundledModules, installedModules);
   return loader;
 }

@@ -3,10 +3,10 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const projectRoot = resolve(
+export const scopeRoot = resolve(
   fileURLToPath(new URL("..", import.meta.url)),
 );
-export const resultPath = join(projectRoot, "feature-slice-result.json");
+export const resultPath = join(scopeRoot, "feature-slice-result.json");
 export const testFile = "test/feature-slice.test.mjs";
 export const requiredFeatureCases = [
   "gift-wrap-fee-and-receipt",
@@ -37,7 +37,7 @@ export function fail(message) {
 
 function runCommand(args) {
   const result = spawnSync(process.execPath, args, {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 10000,

@@ -65,7 +65,7 @@ describe("E2E: core agent loop", () => {
 		]);
 
 		const result = await session.send("Say hello");
-		session.close();
+		await session.dispose();
 
 		expect(result).toBe("Hello! How can I help you?");
 
@@ -305,7 +305,7 @@ describe("E2E: event bus integration", () => {
 		const { session } = createTestSession([textResponse("Hello!")]);
 
 		await session.send("Hi");
-		session.close();
+		await session.dispose();
 
 		const startEvent = events.find((e) => e.name === "session.start");
 		expect(startEvent).toBeDefined();
@@ -330,7 +330,7 @@ describe("E2E: event bus integration", () => {
 		const { session } = createTestSession([textResponse("Fine")]);
 
 		await session.send("test");
-		session.close(true); // errored = true
+		await session.dispose(true); // errored = true
 
 		expect(endPayload).toBeDefined();
 		expect(endPayload!.error).toBeTruthy();
@@ -354,7 +354,7 @@ describe("E2E: multi-send session persistence", () => {
 
 		await session.send("I like TypeScript");
 		await session.send("Do you remember what I said?");
-		session.close();
+		await session.dispose();
 
 		expect(calls).toHaveLength(2);
 
@@ -404,7 +404,7 @@ describe("E2E: observation masking", () => {
 		});
 
 		const result = await session.send("Read the file many times");
-		session.close();
+		await session.dispose();
 
 		expect(result).toBe("Done reading.");
 
@@ -439,7 +439,7 @@ describe("E2E: mock client behavior", () => {
 		]);
 
 		const result = await session.send("test");
-		session.close();
+		await session.dispose();
 
 		expect(result).toBe("Done.");
 		expect(calls.length).toBeGreaterThanOrEqual(3);
@@ -483,7 +483,7 @@ describe("E2E: session state machine", () => {
 		await session.send("Hi");
 		expect(session.getState()).toBe("ready");
 
-		session.close();
+		await session.dispose();
 		expect(session.getState()).toBe("closed");
 
 		const stateEvents = transport.events
@@ -540,7 +540,7 @@ describe("E2E: session state machine", () => {
 
 		const { session } = createTestSession([textResponse("OK")]);
 		await session.send("test");
-		session.close();
+		await session.dispose();
 
 		// Should have captured state transitions via the bus
 		expect(stateEvents.length).toBeGreaterThanOrEqual(4);
@@ -560,7 +560,7 @@ describe("E2E: session state machine", () => {
 		await session.send("test");
 		expect(session.getState()).toBe("ready");
 
-		session.close();
+		await session.dispose();
 		expect(session.getState()).toBe("closed");
 	});
 });

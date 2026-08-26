@@ -28,7 +28,7 @@ the generated file content without touching the actual OS service manager
 (launchd/systemd). Tests cover:
 
 - Correct plist structure for macOS: `ProgramArguments`, `EnvironmentVariables`
-  (including `KOTA_PROJECT_DIR`), `StandardOutPath`, `StandardErrorPath`,
+  (including `KOTA_SCOPE_ROOT`), `StandardOutPath`, `StandardErrorPath`,
   `RunAtLoad`, `Label`.
 - Correct service unit for Linux: `[Unit]`, `[Service]` section fields
   (`ExecStart`, `Environment=`, `Restart`, `StandardOutput`, `StandardError`),

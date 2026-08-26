@@ -23,10 +23,7 @@ const toolRetryModule: KotaModule = {
 		const mw = createRetryMiddleware();
 		ctx.registerMiddleware(MIDDLEWARE_NAME, mw, PRIORITY);
 		ctx.log.info("Tool retry middleware enabled");
-	},
-
-	onUnload: () => {
-		resetRetryStats();
+		return { dispose: resetRetryStats };
 	},
 
 	skills: [{ name: "tool-retry", promptPath: "src/modules/tool-retry/tool-retry.md" }],

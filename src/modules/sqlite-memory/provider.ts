@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { Memory, MemoryProvider, ReindexResult } from "#core/modules/provider-types.js";
+import type { Memory, MemoryProvider } from "#core/modules/provider-types.js";
 import {
 	parseWorkMemoryMetadata,
 	type WorkMemoryMetadata,
@@ -230,22 +230,6 @@ CREATE INDEX IF NOT EXISTS idx_memories_created ON memories(created);`,
 		const rows = raw ? (JSON.parse(raw) as { name: string }[]) : [];
 		if (rows.some((row) => row.name === name)) return;
 		execSqlVoid(this.dbPath, `ALTER TABLE memories ADD COLUMN ${name} ${type};`);
-	}
-
-	supportsSemanticSearch(): boolean {
-		return false;
-	}
-
-	async semanticSearch(
-		_query: string,
-		_topK: number,
-		_options?: { tag?: string; since?: string },
-	): Promise<Memory[]> {
-		throw new Error("Semantic memory search requires an embedding-backed memory provider.");
-	}
-
-	async reindex(): Promise<ReindexResult> {
-		return { indexed: 0, failed: 0, skipped: true };
 	}
 
 	/** Get the database file path (for testing/diagnostics). */

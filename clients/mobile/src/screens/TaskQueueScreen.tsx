@@ -48,10 +48,10 @@ export function TaskQueueScreen() {
     setRefreshing(false);
   }
 
-  const counts: TaskCounts = state.tasks?.counts ?? {};
-  const doing: TaskEntry[] = state.tasks?.tasks.doing ?? [];
-  const ready: TaskEntry[] = state.tasks?.tasks.ready ?? [];
-  const blocked: TaskEntry[] = state.tasks?.tasks.blocked ?? [];
+  const counts: TaskCounts = state.activity.tasks?.counts ?? {};
+  const doing: TaskEntry[] = state.activity.tasks?.tasks.doing ?? [];
+  const ready: TaskEntry[] = state.activity.tasks?.tasks.ready ?? [];
+  const blocked: TaskEntry[] = state.activity.tasks?.tasks.blocked ?? [];
 
   return (
     <ScrollView
@@ -91,7 +91,7 @@ export function TaskQueueScreen() {
       {doing.length === 0 && ready.length === 0 && blocked.length === 0 && (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
-            {state.online ? 'No tasks in queue.' : 'Daemon offline.'}
+            {state.connection.online ? 'No tasks in queue.' : 'Daemon offline.'}
           </Text>
         </View>
       )}

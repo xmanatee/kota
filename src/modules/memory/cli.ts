@@ -140,14 +140,14 @@ export function registerMemoryCommands(program: Command, ctx: ModuleContext): vo
 
 	memCmd
 		.command("reindex")
-		.description(
-			"Rebuild the semantic search index for all memory entries. " +
-				"No-op when no embedding provider is configured.",
+			.description(
+				"Rebuild the semantic search index for all memory entries. " +
+					"Reports when no embedding provider is configured.",
 		)
 		.action(async () => {
 			await ensureCliProvidersFor(["memory"]);
 			const result = await ctx.client.memory.reindex();
-			if (result.skipped) {
+				if (!result.ok) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.memory` to an embedding-capable provider to enable.",

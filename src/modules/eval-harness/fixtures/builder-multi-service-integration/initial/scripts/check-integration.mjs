@@ -9,10 +9,10 @@ import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const resultPath = join(projectRoot, "integration-result.json");
-const requestLogPath = join(projectRoot, ".kota", "integration", "catalog-requests.jsonl");
-const requestDirPath = join(projectRoot, ".kota", "integration", "requests");
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const resultPath = join(scopeRoot, "integration-result.json");
+const requestLogPath = join(scopeRoot, ".kota", "integration", "catalog-requests.jsonl");
+const requestDirPath = join(scopeRoot, ".kota", "integration", "requests");
 const expectedRoute = "/api/bundles/starter-kit";
 const expectedSummary = "Starter Kit total: $34.50 (3 lines)";
 const expectedNodes = [
@@ -298,7 +298,7 @@ async function runIntegration() {
 
   const runToken = `catalog-${randomUUID()}`;
   const api = spawn(process.execPath, ["src/catalog-api.mjs"], {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     env: {
       ...process.env,
       CATALOG_REQUEST_DIR: requestDirPath,
@@ -324,7 +324,7 @@ async function runIntegration() {
     delete workerEnv.CATALOG_RUN_TOKEN;
 
     const worker = spawn(process.execPath, ["src/order-worker.mjs"], {
-      cwd: projectRoot,
+      cwd: scopeRoot,
       env: workerEnv,
       stdio: ["ignore", "pipe", "pipe"],
     });

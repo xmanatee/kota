@@ -47,7 +47,7 @@ export class FakeBackend implements A2ABackend {
   ): Promise<A2ATask> {
     this.sentInputs.push(input);
     const taskId = input.taskId ?? "task-1";
-    const contextId = input.contextId ?? input.projectId ?? taskId;
+    const contextId = input.contextId ?? input.scopeId ?? taskId;
     const working = task(taskId, contextId, "TASK_STATE_WORKING", "working");
     options?.onUpdate?.({
       statusUpdate: {
@@ -82,7 +82,7 @@ export class FakeBackend implements A2ABackend {
   async listTasks(filter: TaskListFilter): Promise<A2ATask[]> {
     if (this.failUnauthorized) throw unauthorized();
     this.listFilters.push(filter);
-    return [task("task-1", filter.contextId ?? filter.projectId ?? "proj-1", "TASK_STATE_COMPLETED", "done")];
+    return [task("task-1", filter.contextId ?? filter.scopeId ?? "proj-1", "TASK_STATE_COMPLETED", "done")];
   }
 
   async cancelTask(selector: TaskSelector): Promise<A2ATask> {
@@ -119,7 +119,7 @@ export function makeContext(): ModuleContext {
     getModuleSummaries: () => [
       {
         name: "example",
-        source: "project",
+        source: "bundled",
         dependencies: [],
         toolNames: [],
         workflowNames: [],

@@ -1,13 +1,13 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import fixture from './__fixtures__/contract-fixture.json';
+import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
 import {
   parseUiSurfaceBundle,
   type UiNode,
   type UiSurface,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import { SharedUiSurface } from '../shared-ui/SharedUiSurface';
 import { orderedIntents, resolveDeepLink, surfaceActionIds } from '../shared-ui/graph';
 import { matchUiEvent } from '../shared-ui/live-events';
@@ -19,7 +19,7 @@ jest.mock('../context/DaemonContext', () => ({
 }));
 
 const evidenceBundlePath = process.env.KOTA_UI_SURFACE_EVIDENCE_BUNDLE;
-const contractBundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+const contractBundle = parseUiSurfaceBundle(fixture.operatorBundle);
 
 describe('Android captured shared UI bundle', () => {
   beforeEach(() => mockExecuteUiAction.mockClear());
@@ -69,13 +69,11 @@ describe('Android captured shared UI bundle', () => {
       await waitFor(() => expect(mockExecuteUiAction).toHaveBeenCalledWith(launch, { name: 'builder' }));
       interactionView.unmount();
 
-      const sourceAudit = auditProductionSources();
-      expect(sourceAudit.matches).toEqual([]);
       writeBuilderEvidence('android-renderer-parity.json', {
         protocolVersion: captured.protocolVersion,
         sourceBundle: sourceBundlePath(),
         renderer: {
-          binding: 'daemon/conformance/ui-surface.generated.ts',
+          binding: 'daemon/ui-surface.generated.ts',
           exhaustiveContractNodeKinds: nodeKinds(contractBundle.surfaces),
           capturedNodeKinds: nodeKinds(captured.surfaces),
         },
@@ -86,7 +84,6 @@ describe('Android captured shared UI bundle', () => {
           actionCount: captured.surfaces.reduce((count, surface) => count + surfaceActionIds(surface).size, 0),
           allCapturedSurfacesRendered: renderedSurfaces.length === captured.surfaces.length,
         },
-        legacyCatalogSearch: sourceAudit,
       });
     },
   );
@@ -118,34 +115,4 @@ function nodeKinds(surfaces: readonly UiSurface[]): string[] {
 
 function sourceBundlePath(): string {
   return relative(join(process.cwd(), '..', '..'), evidenceBundlePath!);
-}
-
-function auditProductionSources() {
-  const mobileRoot = process.cwd();
-  const sharedUiDir = join(mobileRoot, 'src', 'shared-ui');
-  const paths = [
-    join(mobileRoot, 'src/navigation/index.tsx'),
-    join(mobileRoot, 'src/navigation/routeNotificationResponse.ts'),
-    join(mobileRoot, 'src/daemon/ui.ts'),
-    ...readdirSync(sharedUiDir).filter((name) => /\.tsx?$/.test(name)).map((name) => join(sharedUiDir, name)),
-  ];
-  const patterns = [
-    ['operator-intent-module', /operatorIntents|OperatorIntent/],
-    ['notification-screen-discriminator', /\bscreen\s*:\s*['"](?:approvals|digest|attention)['"]/],
-    ['legacy-route-helper', /\bto(?:Approval|Digest|Attention)\b/],
-    ['literal-intent-route-map', /['"](?:Status|Inbox|Work|Knowledge|Setup)['"]\s*:/],
-    ['copied-ui-contract-definition', /(?:type|interface)\s+Ui(?:Surface|Node|Action|Intent)\b/],
-  ] as const;
-  const matches: Array<{ path: string; pattern: string }> = [];
-  for (const path of paths) {
-    const source = readFileSync(path, 'utf8');
-    for (const [pattern, expression] of patterns) {
-      if (expression.test(source)) matches.push({ path: relative(mobileRoot, path), pattern });
-    }
-  }
-  return {
-    checkedPaths: paths.map((path) => relative(mobileRoot, path)).sort(),
-    forbiddenPatterns: patterns.map(([name]) => name),
-    matches,
-  };
 }

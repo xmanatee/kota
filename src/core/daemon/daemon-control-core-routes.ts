@@ -5,9 +5,9 @@ import type { BuiltinControlRouteDeps } from "./daemon-control-routes.js";
 import type { DaemonLiveStatus, InteractiveSession } from "./daemon-control-types.js";
 import {
   jsonResponse,
-  parseActiveProjectPatchBody,
+  parseActiveScopePatchBody,
   readBody,
-  resolveProjectIdParam,
+  resolveScopeIdParam,
 } from "./daemon-control-utils.js";
 import { decodeScopeAuthorityMutation } from "./scope-authority-codec.js";
 import {
@@ -17,7 +17,7 @@ import {
 } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityFailure, ScopeAuthorityMutation } from "./scope-authority-types.js";
 import { SCOPE_AUTHORITY_OPERATOR_ACTION_HEADER } from "./scope-authority-types.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
 
 type ParsedAuthorityBody =
   | { ok: true; value: ScopeAuthorityMutation }
@@ -25,15 +25,15 @@ type ParsedAuthorityBody =
 
 function listInteractiveSessions(
   deps: BuiltinControlRouteDeps,
-  projectId: ProjectId | undefined,
+  scopeId: ScopeId | undefined,
 ): InteractiveSession[] {
   const { handle, chatPool } = deps;
-  const resolvedProjectId = projectId ?? handle.getProjectRegistryProjection().defaultProjectId;
-  if (!chatPool) return handle.listSessions(resolvedProjectId);
-  const daemonEntries = chatPool.list(resolvedProjectId);
+  const resolvedScopeId = scopeId ?? handle.getScopeRegistryProjection().defaultScopeId;
+  if (!chatPool) return handle.listSessions(resolvedScopeId);
+  const daemonEntries = chatPool.list(resolvedScopeId);
   const daemonIds = new Set(daemonEntries.map((session) => session.id));
   const serveSessions = handle
-    .listSessions(resolvedProjectId)
+    .listSessions(resolvedScopeId)
     .filter((session) => !daemonIds.has(session.id))
     .map((session) => ({ ...session, source: "serve" as const }));
   return [...serveSessions, ...daemonEntries];
@@ -127,15 +127,15 @@ export function buildDaemonCoreControlRoutes(
       path: "/status",
       capabilityScope: "read",
       handler: (req, res) => {
-        const scope = resolveProjectIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
+        const scope = resolveScopeIdParam(h, new URL(req.url ?? "/", "http://127.0.0.1"));
         if (!scope.ok) {
           jsonResponse(res, scope.status, scope.error);
           return;
         }
         const body: DaemonLiveStatus = {
           ...h.getDaemonLiveState(),
-          workflow: h.getWorkflowLiveStatus(scope.projectId),
-          sessions: listInteractiveSessions(deps, scope.projectId),
+          workflow: h.getWorkflowLiveStatus(scope.scopeId),
+          sessions: listInteractiveSessions(deps, scope.scopeId),
           channels: h.listChannelStatuses(),
         };
         jsonResponse(res, 200, body);
@@ -143,18 +143,12 @@ export function buildDaemonCoreControlRoutes(
     },
     {
       method: "GET",
-      path: "/projects",
-      capabilityScope: "read",
-      handler: (_req, res) => jsonResponse(res, 200, {
-        ...h.getProjectRegistryProjection(),
-        activeProjectId: h.getActiveProjectId(),
-      }),
-    },
-    {
-      method: "GET",
       path: "/scopes",
       capabilityScope: "read",
-      handler: (_req, res) => jsonResponse(res, 200, h.getScopeRegistryProjection()),
+      handler: (_req, res) => jsonResponse(res, 200, {
+        ...h.getScopeRegistryProjection(),
+        activeScopeId: h.getActiveScopeId(),
+      }),
     },
     {
       method: "GET",
@@ -238,40 +232,39 @@ export function buildDaemonCoreControlRoutes(
     },
     {
       method: "GET",
-      path: "/projects/active",
+      path: "/scopes/active",
       capabilityScope: "read",
-      handler: (_req, res) => jsonResponse(res, 200, { activeProjectId: h.getActiveProjectId() }),
+      handler: (_req, res) => jsonResponse(res, 200, { activeScopeId: h.getActiveScopeId() }),
     },
     {
       method: "PATCH",
-      path: "/projects/active",
+      path: "/scopes/active",
       capabilityScope: "control",
       handler: async (req, res) => {
-        const next = parseActiveProjectPatchBody((await readBody(req)).toString("utf8"));
+        const next = parseActiveScopePatchBody((await readBody(req)).toString("utf8"));
         if (!next.ok) {
           jsonResponse(res, 400, next.error);
           return;
         }
-        const result = h.setActiveProjectId(next.projectId);
+        const result = h.setActiveScopeId(next.scopeId);
         if (!result.ok) {
           if (result.reason === "not_hosted") {
             jsonResponse(res, 409, {
-              error: `Project scope ${result.projectId} is ${result.state}`,
+              error: `Scope ${result.scopeId} is ${result.state}`,
               reason: "scope_not_hosted",
-              projectId: result.projectId,
-              scopeId: result.projectId,
+              scopeId: result.scopeId,
               state: result.state,
             });
             return;
           }
           jsonResponse(res, 404, {
-            error: "Unknown project",
-            reason: "unknown_project",
-            projectId: result.projectId,
+            error: "Unknown scope",
+            reason: "unknown_scope",
+            scopeId: result.scopeId,
           });
           return;
         }
-        jsonResponse(res, 200, { activeProjectId: result.activeProjectId });
+        jsonResponse(res, 200, { activeScopeId: result.activeScopeId });
       },
     },
     {

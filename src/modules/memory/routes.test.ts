@@ -3,10 +3,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import type { Memory, MemoryProvider } from "#core/modules/provider-types.js";
-import { MemoryProjectStores } from "./project-scope.js";
 import { handleAddMemory, handleDeleteMemory, handleGetMemory, handleListMemory, handleSearchMemory, handleUpdateMemory } from "./routes.js";
+import { MemoryScopeStores } from "./scope.js";
 
 function mockResponse() {
   const result = { status: 0, body: null as unknown };
@@ -52,9 +52,6 @@ function makeProvider(entries: Memory[]): MemoryProvider {
     search: vi.fn(() => entries),
     update: vi.fn(() => true),
     delete: vi.fn(() => true),
-    supportsSemanticSearch: vi.fn(() => true),
-    semanticSearch: vi.fn(async (_q: string, k: number) => entries.slice(0, k)),
-    reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
   };
 }
 
@@ -188,23 +185,23 @@ describe("memory-routes", () => {
     });
   });
 
-  describe("project-scoped routing", () => {
-    it("isolates project entries and rejects unknown project ids", async () => {
-      const root = mkdtempSync(join(tmpdir(), "kota-memory-projects-"));
+  describe("scope-scoped routing", () => {
+    it("isolates scope entries and rejects unknown scope ids", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-memory-scopes-"));
       try {
         mkdirSync(join(root, "a"));
         mkdirSync(join(root, "b"));
-        const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
-        const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
-        const stores = new MemoryProjectStores({
-          defaultProjectDir: projectA.projectDir,
-          defaultProjectId: projectA.projectId,
-          projects: [projectA, projectB],
+        const scopeA = buildDirectoryScope({ scopeRoot: join(root, "a") });
+        const scopeB = buildDirectoryScope({ scopeRoot: join(root, "b") });
+        const stores = new MemoryScopeStores({
+          defaultScopeRoot: scopeA.scopeRoot,
+          defaultScopeId: scopeA.scopeId,
+          scopes: [scopeA, scopeB],
         });
 
         const addA = mockResponse();
         await handleAddMemory(
-          makeRequestWithUrl(`/api/memory?projectId=${projectA.projectId}`, {
+          makeRequestWithUrl(`/api/memory?scopeId=${scopeA.scopeId}`, {
             content: "private alpha memory",
             tags: ["alpha"],
           }),
@@ -216,7 +213,7 @@ describe("memory-routes", () => {
 
         const searchA = mockResponse();
         await handleSearchMemory(
-          listRequest(`/api/memory/search?q=alpha&projectId=${projectA.projectId}`),
+          listRequest(`/api/memory/search?q=alpha&scopeId=${scopeA.scopeId}`),
           searchA.res,
           stores,
         );
@@ -227,7 +224,7 @@ describe("memory-routes", () => {
 
         const searchB = mockResponse();
         await handleSearchMemory(
-          listRequest(`/api/memory/search?q=alpha&projectId=${projectB.projectId}`),
+          listRequest(`/api/memory/search?q=alpha&scopeId=${scopeB.scopeId}`),
           searchB.res,
           stores,
         );
@@ -238,15 +235,15 @@ describe("memory-routes", () => {
 
         const unknown = mockResponse();
         handleListMemory(
-          listRequest("?projectId=missing-project"),
+          listRequest("?scopeId=missing-scope"),
           unknown.res,
           stores,
         );
         expect(unknown.result.status).toBe(404);
         expect(unknown.result.body).toEqual({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "missing-project",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "missing-scope",
         });
       } finally {
         rmSync(root, { recursive: true, force: true });

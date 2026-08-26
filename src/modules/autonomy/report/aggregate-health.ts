@@ -21,9 +21,9 @@ function countRows<TKey extends string>(
 }
 
 export function buildAutonomyHealthBreakdown(
-  projectDir: string,
+  workspaceRoot: string,
 ): AutonomyHealthBreakdown {
-  const projection = readAutonomyIssueProjection(projectDir);
+  const projection = readAutonomyIssueProjection(workspaceRoot);
   const bySeverity = new Map<string, number>();
   const byLabel = new Map<string, number>();
   const byScope = new Map<string, number>();
@@ -36,7 +36,7 @@ export function buildAutonomyHealthBreakdown(
   for (const issue of projection.issues) {
     totalSignals += issue.occurrenceCount;
     countMapAdd(bySeverity, issue.severity, issue.occurrenceCount);
-    countMapAdd(byScope, "project", issue.occurrenceCount);
+    countMapAdd(byScope, "scope", issue.occurrenceCount);
     countMapAdd(
       bySource,
       `${issue.source.kind}:${issue.source.id}`,
@@ -54,7 +54,7 @@ export function buildAutonomyHealthBreakdown(
       actionability: issue.actionability,
       signalCount: issue.occurrenceCount,
       source: `${issue.source.kind}:${issue.source.id}`,
-      scope: "project",
+      scope: "scope",
       status: issue.status,
     });
   }

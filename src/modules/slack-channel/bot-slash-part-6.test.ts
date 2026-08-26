@@ -47,7 +47,7 @@ describe("SlackBot", () => {
       const bot = makeBot({
         history: {
           list: vi.fn(),
-          listDiscoveredProjectRecords: vi.fn(),
+          listDiscoveredScopeRecords: vi.fn(),
           show: vi.fn(),
           delete: vi.fn(),
           search: searchFn,
@@ -74,7 +74,7 @@ describe("SlackBot", () => {
       const bot = makeBot({
         history: {
           list: vi.fn(),
-          listDiscoveredProjectRecords: vi.fn(),
+          listDiscoveredScopeRecords: vi.fn(),
           show: vi.fn(),
           delete: vi.fn(),
           search: searchFn,

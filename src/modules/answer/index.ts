@@ -31,7 +31,7 @@ import {
 } from "#modules/recall/recall-types.js";
 import {
   type AnswerHistoryStore,
-  answerHistoryRootForProject,
+  answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
@@ -49,9 +49,9 @@ import type {
   AnswerHistoryListFilter,
 } from "./client.js";
 import { buildAnswerDaemonHandler } from "./daemon-client.js";
-import { createAnswerProjectContextResolver } from "./project-context.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
+import { createAnswerScopeContextResolver } from "./scope-context.js";
 import {
   ANSWER_SYNTHESIS_SYSTEM_PROMPT,
   buildSynthesisUserPrompt,
@@ -97,7 +97,7 @@ function createDefaultSynthesizer(ctx: ModuleContext): Synthesizer {
       provider: config.modelProvider?.type,
       baseUrl: config.modelProvider?.baseUrl,
       apiKey: config.modelProvider?.apiKey,
-      projectDir: ctx.cwd,
+      scopeRoot: ctx.cwd,
     });
     const userPrompt = buildSynthesisUserPrompt(input);
     const response = await resolved.client.messages.create({
@@ -120,8 +120,14 @@ const answerModule: KotaModule = {
   uiSurfaces: [answerUiSurfaceSource],
 
   onLoad(ctx: ModuleRuntimeContext) {
-    const resolveProjectContext = createAnswerProjectContextResolver(ctx.cwd, () =>
-      activeHistory,
+    const stateRoot = join(ctx.cwd, ".kota");
+    const history = new DiskAnswerHistoryStore({
+      rootDir: answerHistoryRootForScope(stateRoot),
+    });
+    const resolveScopeContext = createAnswerScopeContextResolver(
+      ctx.cwd,
+      () => history,
+      ctx,
     );
     const recallSeam: AnswerRecallSeam = {
       async recall(query, filter) {
@@ -129,14 +135,10 @@ const answerModule: KotaModule = {
       },
     };
     const synthesizer = createDefaultSynthesizer(ctx);
-    const stateRoot = join(ctx.cwd, ".kota");
-    activeHistory = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(stateRoot),
-    });
-    activeProvider = new AnswerProviderImpl({
+    const provider = new AnswerProviderImpl({
       recall: recallSeam,
       synthesizer,
-      history: activeHistory,
+      history,
       onSynthesisError: (err) => {
         const msg = err instanceof Error ? err.message : String(err);
         ctx.log.warn(`answer: synthesis failed — ${msg}`);
@@ -146,7 +148,9 @@ const answerModule: KotaModule = {
         ctx.log.warn(`answer: history append failed — ${msg}`);
       },
     });
-    ctx.registerProvider(ANSWER_PROVIDER_TOKEN, activeProvider);
+    activeHistory = history;
+    activeProvider = provider;
+    ctx.registerProvider(ANSWER_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
       createAnswerReadinessSource({
@@ -162,7 +166,7 @@ const answerModule: KotaModule = {
           const requiredKeyName = apiKeyNameForProvider(provider);
           if (!requiredKeyName) return true;
           const explicit = config.modelProvider?.apiKey;
-          const key = resolveApiKey(provider, explicit, { projectDir: ctx.cwd });
+          const key = resolveApiKey(provider, explicit, { scopeRoot: ctx.cwd });
           return Boolean(key);
         },
       }),
@@ -185,11 +189,21 @@ const answerModule: KotaModule = {
       );
     }
     recallProvider.register(
-      createAnswerRecallContributor(activeHistory, resolveProjectContext),
+      createAnswerRecallContributor(history, resolveScopeContext),
     );
     recallContributorHost = recallProvider;
 
     ctx.log.info("answer: cited-answer seam ready");
+    return {
+      dispose: () => {
+        if (activeProvider === provider) {
+          recallProvider.unregister("answer");
+          activeProvider = null;
+          if (activeHistory === history) activeHistory = null;
+          if (recallContributorHost === recallProvider) recallContributorHost = null;
+        }
+      },
+    };
   },
 
   commands: (ctx) => {
@@ -204,45 +218,45 @@ const answerModule: KotaModule = {
     answerControlRoutes(
       resolveActiveProvider,
       resolveActiveHistory,
-      createAnswerProjectContextResolver(ctx.cwd, () => activeHistory),
+      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory, ctx),
     ),
 
   routes: (ctx) =>
     answerApiRoutes(
       resolveActiveProvider,
       resolveActiveHistory,
-      createAnswerProjectContextResolver(ctx.cwd, () => activeHistory),
+      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory, ctx),
     ),
 
   localClient: (ctx) => {
     const localStore = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(join(ctx.cwd, ".kota")),
+      rootDir: answerHistoryRootForScope(join(ctx.cwd, ".kota")),
     });
     const handler: AnswerClient = {
       async answer(query, filter) {
-        const resolver = createAnswerProjectContextResolver(ctx.cwd, () =>
+        const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
           activeHistory ?? localStore,
-        );
-        const project = resolver(filter?.projectId);
-        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
-        return resolveActiveProvider().answer(query, filter, project);
+        ctx);
+        const scope = resolver(filter?.scopeId);
+        if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
+        return resolveActiveProvider().answer(query, filter, scope);
       },
       async log(filter?: AnswerHistoryListFilter) {
-        const resolver = createAnswerProjectContextResolver(ctx.cwd, () =>
+        const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
           activeHistory ?? localStore,
-        );
-        const project = resolver(filter?.projectId);
-        if ("error" in project) throw new Error(`Unknown project: ${project.projectId}`);
-        const store = project.history;
+        ctx);
+        const scope = resolver(filter?.scopeId);
+        if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
+        const store = scope.history;
         const entries = await store.listAnswers(filter);
         return { entries };
       },
-      async show(id: string, project) {
-        const resolver = createAnswerProjectContextResolver(ctx.cwd, () =>
+      async show(id: string, scope) {
+        const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
           activeHistory ?? localStore,
-        );
-        const resolved = resolver(project?.projectId);
-        if ("error" in resolved) throw new Error(`Unknown project: ${resolved.projectId}`);
+        ctx);
+        const resolved = resolver(scope?.scopeId);
+        if ("error" in resolved) throw new Error(`Unknown scope: ${resolved.scopeId}`);
         const store = resolved.history;
         const record = await store.getAnswer(id);
         return record
@@ -255,14 +269,6 @@ const answerModule: KotaModule = {
 
   daemonClient: (link) => ({ answer: buildAnswerDaemonHandler(link) }),
 
-  onUnload() {
-    if (recallContributorHost) {
-      recallContributorHost.unregister("answer");
-      recallContributorHost = null;
-    }
-    activeProvider = null;
-    activeHistory = null;
-  },
 };
 
 export default answerModule;

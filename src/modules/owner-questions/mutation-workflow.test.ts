@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { resolveModuleWorkflows } from "#core/modules/module-definition.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import ownerQuestionsModule from "./index.js";
 
 describe("owner-question mutation workflow", () => {
@@ -17,10 +17,10 @@ describe("owner-question mutation workflow", () => {
   });
 
   it("durably owns requested dismissals after the requesting run commits", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-owner-question-writer-"));
-    roots.push(projectDir);
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-owner-question-writer-"));
+    roots.push(workspaceRoot);
     const queue = new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     );
     const question = queue.enqueue({
       context: "Fixture context",
@@ -41,8 +41,8 @@ describe("owner-question mutation workflow", () => {
     expect(writer).toBeDefined();
     if (!writer) return;
 
-    const result = await new WorkflowTestHarness(writer, {
-      projectDir,
+    const result = await new WorkflowScenarioDriver(writer, {
+      workspaceRoot,
       trigger: {
         event: "owner.question.mutation.requested",
         payload: {

@@ -9,25 +9,25 @@ function tempProject(): string {
 }
 
 function writeCheck(
-  projectDir: string,
+  repoRoot: string,
   relativePath: string,
   frontmatter: string,
   body = "Review the pull request against this policy.",
 ): void {
-  const filePath = join(projectDir, relativePath);
+  const filePath = join(repoRoot, relativePath);
   mkdirSync(dirname(filePath), { recursive: true });
   writeFileSync(filePath, `---\n${frontmatter}---\n\n${body}\n`, "utf8");
 }
 
 describe("repo AI check discovery", () => {
   it("loads valid root-level .agents and .continue checks with provenance", () => {
-    const projectDir = tempProject();
-    writeCheck(projectDir, ".agents/checks/security.md", "name: Security\n" +
+    const repoRoot = tempProject();
+    writeCheck(repoRoot, ".agents/checks/security.md", "name: Security\n" +
       "description: Review security-sensitive changes\n");
-    writeCheck(projectDir, ".continue/checks/style.md", "name: Style\n" +
+    writeCheck(repoRoot, ".continue/checks/style.md", "name: Style\n" +
       "description: Review code style\n");
 
-    const result = discoverRepoAiChecks(projectDir);
+    const result = discoverRepoAiChecks(repoRoot);
 
     expect(result.checks.map((check) => check.name)).toEqual(["Security", "Style"]);
     expect(result.checks[0]).toMatchObject({
@@ -47,15 +47,15 @@ describe("repo AI check discovery", () => {
   });
 
   it("fails loudly on malformed frontmatter", () => {
-    const projectDir = tempProject();
-    mkdirSync(join(projectDir, ".agents/checks"), { recursive: true });
+    const repoRoot = tempProject();
+    mkdirSync(join(repoRoot, ".agents/checks"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".agents/checks/broken.md"),
+      join(repoRoot, ".agents/checks/broken.md"),
       "---\nname Security\n---\nBody\n",
       "utf8",
     );
 
-    expect(() => discoverRepoAiChecks(projectDir)).toThrow(
+    expect(() => discoverRepoAiChecks(repoRoot)).toThrow(
       ".agents/checks/broken.md: malformed frontmatter line 1",
     );
   });
@@ -81,13 +81,13 @@ describe("repo AI check discovery", () => {
   });
 
   it("uses deterministic duplicate-name precedence and reports diagnostics", () => {
-    const projectDir = tempProject();
-    writeCheck(projectDir, ".continue/checks/security.md", "name: Security\n" +
+    const repoRoot = tempProject();
+    writeCheck(repoRoot, ".continue/checks/security.md", "name: Security\n" +
       "description: Continue copy\n", "Continue body");
-    writeCheck(projectDir, ".agents/checks/security.md", "name: Security\n" +
+    writeCheck(repoRoot, ".agents/checks/security.md", "name: Security\n" +
       "description: Agents copy\n", "Agents body");
 
-    const result = discoverRepoAiChecks(projectDir);
+    const result = discoverRepoAiChecks(repoRoot);
 
     expect(result.checks).toHaveLength(1);
     expect(result.checks[0]).toMatchObject({
@@ -108,15 +108,15 @@ describe("repo AI check discovery", () => {
   });
 
   it("ignores nested markdown files with deterministic diagnostics", () => {
-    const projectDir = tempProject();
-    writeCheck(projectDir, ".agents/checks/root.md", "name: Root\n" +
+    const repoRoot = tempProject();
+    writeCheck(repoRoot, ".agents/checks/root.md", "name: Root\n" +
       "description: Root check\n");
-    writeCheck(projectDir, ".agents/checks/nested/ignored.md", "name: Nested\n" +
+    writeCheck(repoRoot, ".agents/checks/nested/ignored.md", "name: Nested\n" +
       "description: Nested check\n");
-    writeCheck(projectDir, ".continue/checks/deeper/nested.md", "name: Deeper\n" +
+    writeCheck(repoRoot, ".continue/checks/deeper/nested.md", "name: Deeper\n" +
       "description: Deeper check\n");
 
-    const result = discoverRepoAiChecks(projectDir);
+    const result = discoverRepoAiChecks(repoRoot);
 
     expect(result.checks.map((check) => check.name)).toEqual(["Root"]);
     expect(result.diagnostics).toEqual([

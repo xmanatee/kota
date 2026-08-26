@@ -72,7 +72,7 @@ describe("process tool", () => {
     it("terminates a credential-bearing process when its session tears down", async () => {
       const context = {
         sessionId: "session-bg-secret",
-        scopeId: "project-bg-secret",
+        scopeId: "scope-bg-secret",
       };
       registerSessionEnvironment(context);
       try {
@@ -93,12 +93,12 @@ describe("process tool", () => {
         expect(result.content).toContain("background-secret");
         expect(getActiveProcessCount()).toBe(1);
 
-        unregisterSessionEnvironment(context);
+        await unregisterSessionEnvironment(context);
 
         expect(await waitForExit("p1")).toContain("exited");
         expect(getActiveProcessCount()).toBe(0);
       } finally {
-        unregisterSessionEnvironment(context);
+        await unregisterSessionEnvironment(context);
       }
     });
 

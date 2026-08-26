@@ -35,7 +35,7 @@ export type SecurityReviewDueTargetMissReason =
   | "no-matcher"
   | "no-surface-matcher"
   | "not-file"
-  | "outside-project"
+  | "outside-scope"
   | "read-error"
   | "skipped-directory"
   | "too-large"

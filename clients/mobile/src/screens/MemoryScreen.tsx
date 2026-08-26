@@ -23,13 +23,13 @@ export function MemoryScreen() {
     setMemoryQuery,
     searchMemory,
   } = useDaemon();
+  const { online } = state.connection;
   const {
-    online,
     memoryQuery,
     memoryResult,
     memoryLoading,
     memoryError,
-  } = state;
+  } = state.content;
 
   const trimmed = memoryQuery.trim();
   const hasQuery = trimmed.length > 0;
@@ -39,7 +39,7 @@ export function MemoryScreen() {
     void searchMemory(trimmed);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -47,7 +47,7 @@ export function MemoryScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -157,7 +157,7 @@ export function MemoryScreen() {
 function MemoryBody({
   result,
 }: {
-  result: NonNullable<ReturnType<typeof useDaemon>['state']['memoryResult']>;
+  result: NonNullable<ReturnType<typeof useDaemon>['state']['content']['memoryResult']>;
 }) {
   if (result.ok === false) {
     return (
@@ -183,7 +183,7 @@ function MemoryBody({
 }
 
 function renderHeaderBadge(
-  result: ReturnType<typeof useDaemon>['state']['memoryResult'],
+  result: ReturnType<typeof useDaemon>['state']['content']['memoryResult'],
 ): { label: string; active: boolean } | null {
   if (result === null) return null;
   if (result.ok === false) {

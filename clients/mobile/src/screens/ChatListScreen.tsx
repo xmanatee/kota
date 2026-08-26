@@ -42,30 +42,30 @@ export function ChatListScreen({
   const [newSessionMode, setNewSessionMode] =
     useState<AutonomyMode>('supervised');
 
-  const projectId = state.activeProjectId ?? undefined;
+  const scopeId = state.scope.activeScopeId ?? undefined;
 
   const fetchSessions = useCallback(async () => {
     if (!client) return;
     setLoading(true);
     try {
-      const res = await client.getSessions(projectId);
+      const res = await client.getSessions(scopeId);
       setSessions(res.sessions.filter((s) => s.source === 'daemon'));
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to load sessions.');
     } finally {
       setLoading(false);
     }
-  }, [client, projectId]);
+  }, [client, scopeId]);
 
   useEffect(() => {
-    if (state.online) void fetchSessions();
-  }, [state.online, fetchSessions]);
+    if (state.connection.online) void fetchSessions();
+  }, [state.connection.online, fetchSessions]);
 
   async function handleNewSession() {
     if (!client || creating) return;
     setCreating(true);
     try {
-      const res = await client.createSession(newSessionMode, projectId);
+      const res = await client.createSession(newSessionMode, scopeId);
       await fetchSessions();
       onSessionPress(res.session_id);
     } catch (e) {
@@ -86,7 +86,7 @@ export function ChatListScreen({
     }
   }
 
-  if (!state.online) {
+  if (!state.connection.online) {
     return (
       <View style={styles.center}>
         <Text style={styles.offlineIcon}>💬</Text>

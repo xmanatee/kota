@@ -91,7 +91,7 @@ describe("harness-parity model matrix eval fixtures", () => {
 
     const result = await runHarnessParityMatrix(
       {
-        projectDir: evalFixturesRoot,
+        scopeRoot: evalFixturesRoot,
         scenariosRoot: evalFixturesRoot,
         evalFixturesRoot,
         defaultOutBaseDir: outRoot,

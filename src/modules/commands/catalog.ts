@@ -55,17 +55,17 @@ function findSkill(
   return null;
 }
 
-function readSkillPrompt(skill: SkillDef, projectDir: string): string {
+function readSkillPrompt(skill: SkillDef, scopeRoot: string): string {
   const path = isAbsolute(skill.promptPath)
     ? skill.promptPath
-    : resolvePath(projectDir, skill.promptPath);
+    : resolvePath(scopeRoot, skill.promptPath);
   return readFileSync(path, "utf8").trim();
 }
 
 export type CatalogDeps = {
   getContributedWorkflows: () => readonly RegisteredWorkflowDefinitionInput[];
   getModuleSummaries: () => readonly ModuleSummary[];
-  projectDir: string;
+  scopeRoot: string;
 };
 
 export function buildSlashCommandCatalog(deps: CatalogDeps): SlashCommandCatalog {
@@ -106,7 +106,7 @@ export function buildSlashCommandCatalog(deps: CatalogDeps): SlashCommandCatalog
         const skillName = name.slice(SKILL_COMMAND_PREFIX.length);
         const found = findSkill(deps.getModuleSummaries(), skillName);
         if (!found) return null;
-        const prompt = readSkillPrompt(found.skill, deps.projectDir);
+        const prompt = readSkillPrompt(found.skill, deps.scopeRoot);
         if (!prompt) return null;
         return { kind: "skill", prompt };
       }
@@ -125,6 +125,6 @@ export function catalogFromModuleContext(ctx: ModuleContext): SlashCommandCatalo
   return buildSlashCommandCatalog({
     getContributedWorkflows: () => ctx.getContributedWorkflows(),
     getModuleSummaries: () => ctx.getModuleSummaries(),
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
   });
 }

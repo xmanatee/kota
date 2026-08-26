@@ -28,14 +28,14 @@ describe("a2a channel JSON-RPC routes", () => {
         message: {
           role: "ROLE_USER",
           parts: [{ text: "ship the slice", mediaType: "text/plain" }],
-          metadata: { projectId: "proj-1" },
+          metadata: { scopeId: "proj-1" },
         },
       },
     });
     expect(send.result.task.id).toBe("task-1");
     expect(send.result.task.status.state).toBe("TASK_STATE_COMPLETED");
     expect(backend.sentInputs[0]).toMatchObject({
-      projectId: "proj-1",
+      scopeId: "proj-1",
       text: "ship the slice",
     });
 
@@ -51,7 +51,7 @@ describe("a2a channel JSON-RPC routes", () => {
       },
     });
     expect(backend.sentInputs[1]).toMatchObject({
-      projectId: null,
+      scopeId: null,
       text: "use the unscoped route",
     });
 
@@ -62,7 +62,7 @@ describe("a2a channel JSON-RPC routes", () => {
       params: { id: "task-1", tenant: "proj-1" },
     });
     expect(get.result.status.state).toBe("TASK_STATE_COMPLETED");
-    expect(backend.getSelectors[0]).toEqual({ taskId: "task-1", projectId: "proj-1", contextId: null });
+    expect(backend.getSelectors[0]).toEqual({ taskId: "task-1", scopeId: "proj-1", contextId: null });
 
     const list = await postRpc(server.baseUrl, {
       jsonrpc: "2.0",
@@ -76,7 +76,7 @@ describe("a2a channel JSON-RPC routes", () => {
       totalSize: 1,
     });
     expect(list.result.tasks).toHaveLength(1);
-    expect(backend.listFilters[0]).toEqual({ projectId: "proj-1", contextId: null });
+    expect(backend.listFilters[0]).toEqual({ scopeId: "proj-1", contextId: null });
 
     await postRpc(server.baseUrl, {
       jsonrpc: "2.0",
@@ -84,16 +84,16 @@ describe("a2a channel JSON-RPC routes", () => {
       method: "ListTasks",
       params: { contextId: "proj-2" },
     });
-    expect(backend.listFilters[1]).toEqual({ projectId: null, contextId: "proj-2" });
+    expect(backend.listFilters[1]).toEqual({ scopeId: null, contextId: "proj-2" });
 
     const cancel = await postRpc(server.baseUrl, {
       jsonrpc: "2.0",
       id: 4,
       method: "CancelTask",
-      params: { id: "task-1", tenant: "proj-1", metadata: { projectId: "proj-1" } },
+      params: { id: "task-1", tenant: "proj-1", metadata: { scopeId: "proj-1" } },
     });
     expect(cancel.result.status.state).toBe("TASK_STATE_CANCELED");
-    expect(backend.cancelSelectors[0]).toEqual({ taskId: "task-1", projectId: "proj-1", contextId: null });
+    expect(backend.cancelSelectors[0]).toEqual({ taskId: "task-1", scopeId: "proj-1", contextId: null });
   });
 
   it("negotiates supported A2A v1.0 through the header and request parameter", async () => {
@@ -107,7 +107,7 @@ describe("a2a channel JSON-RPC routes", () => {
       jsonrpc: "2.0",
       id: "version-header",
       method: "ListTasks",
-      params: { projectId: "proj-1" },
+      params: { scopeId: "proj-1" },
     });
     expect(byHeader.result.tasks).toHaveLength(1);
 
@@ -117,7 +117,7 @@ describe("a2a channel JSON-RPC routes", () => {
         jsonrpc: "2.0",
         id: "version-query",
         method: "ListTasks",
-        params: { projectId: "proj-2" },
+        params: { scopeId: "proj-2" },
       },
       {
         includeDefaultVersion: false,
@@ -126,8 +126,8 @@ describe("a2a channel JSON-RPC routes", () => {
     );
     expect(byQuery.result.tasks).toHaveLength(1);
     expect(backend.listFilters).toEqual([
-      { projectId: "proj-1", contextId: null },
-      { projectId: "proj-2", contextId: null },
+      { scopeId: "proj-1", contextId: null },
+      { scopeId: "proj-2", contextId: null },
     ]);
   });
 });

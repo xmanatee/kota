@@ -27,7 +27,6 @@ function parseFilter(value: JsonBody[keyof JsonBody]): ResourceDiscoveryFilter |
     minScore?: number;
     includeUnavailable?: boolean;
     kinds?: string[];
-    projectId?: string;
     scopeId?: string;
   };
   const filter: ResourceDiscoveryFilter = {};
@@ -43,9 +42,6 @@ function parseFilter(value: JsonBody[keyof JsonBody]): ResourceDiscoveryFilter |
   if (Array.isArray(raw.kinds)) {
     const kinds = parseKinds(raw.kinds);
     if (kinds.length > 0) filter.kinds = kinds;
-  }
-  if (typeof raw.projectId === "string" && raw.projectId.trim() !== "") {
-    filter.projectId = raw.projectId;
   }
   if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
     filter.scopeId = raw.scopeId;

@@ -5,7 +5,7 @@ import XCTest
 /// macOS menu bar headline previously collapsed every connection failure
 /// into "Daemon offline", which masked the real reason the operator could
 /// not reach the daemon (no control file, stale lock, token rejected,
-/// wrong project, transport failure). These tests pin the operator-
+/// wrong scope, transport failure). These tests pin the operator-
 /// facing classification of each branch the task contract enumerates,
 /// without spinning up an HTTP server or instantiating `AppState`.
 ///
@@ -17,52 +17,52 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
 
     // MARK: - Local-mode classification
 
-    func testNoProjectWhenSelectedDirIsNil() {
+    func testNoScopeWhenSelectedDirIsNil() {
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: nil,
+            selectedScopeDir: nil,
             controlFileState: .missing,
             identityProbe: nil
         )
-        XCTAssertEqual(diag, .noProject)
+        XCTAssertEqual(diag, .noScope)
         XCTAssertFalse(diag.isConnected)
         XCTAssertEqual(diag.severity, .info)
-        XCTAssertEqual(diag.headline, "No project selected")
+        XCTAssertEqual(diag.headline, "No scope selected")
     }
 
-    func testNoControlFileWhenProjectHasNoLock() {
-        let dir = URL(fileURLWithPath: "/Users/op/Desktop/other-project")
+    func testNoControlFileWhenScopeHasNoLock() {
+        let dir = URL(fileURLWithPath: "/Users/op/Desktop/other-scope")
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .missing,
             identityProbe: nil
         )
-        XCTAssertEqual(diag, .noControlFile(projectDir: dir.path))
+        XCTAssertEqual(diag, .noControlFile(scopeRoot: dir.path))
         XCTAssertFalse(diag.isConnected)
-        XCTAssertEqual(diag.headline, "No daemon for other-project")
+        XCTAssertEqual(diag.headline, "No daemon for other-scope")
         XCTAssertTrue(diag.detail.contains("daemon-control.json is missing"))
     }
 
     func testUnreadableControlFile() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .unreadable,
             identityProbe: nil
         )
-        XCTAssertEqual(diag, .unreadableControlFile(projectDir: dir.path))
+        XCTAssertEqual(diag, .unreadableControlFile(scopeRoot: dir.path))
         XCTAssertEqual(diag.severity, .warn)
     }
 
     func testStaleControlFileFlagsPidGone() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .stale(port: 8765, pid: 99999),
             identityProbe: nil
         )
         XCTAssertEqual(
             diag,
-            .staleControlFile(projectDir: dir.path, pid: 99999, baseURL: "http://127.0.0.1:8765")
+            .staleControlFile(scopeRoot: dir.path, pid: 99999, baseURL: "http://127.0.0.1:8765")
         )
         XCTAssertEqual(diag.severity, .warn)
         XCTAssertTrue(diag.headline.contains("Stale daemon"))
@@ -73,13 +73,13 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
     func testFreshControlFileButIdentityProbeNeverRanIsUnreachable() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .fresh(port: 8765, pid: 12345),
             identityProbe: nil
         )
         XCTAssertEqual(
             diag,
-            .unreachable(projectDir: dir.path, baseURL: "http://127.0.0.1:8765", pid: 12345)
+            .unreachable(scopeRoot: dir.path, baseURL: "http://127.0.0.1:8765", pid: 12345)
         )
         XCTAssertEqual(diag.severity, .error)
         XCTAssertTrue(diag.detail.contains("pid 12345"))
@@ -88,7 +88,7 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
     func testFreshControlFileWithUnreachableProbe() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .fresh(port: 8765, pid: 12345),
             identityProbe: .unreachable
         )
@@ -102,27 +102,27 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
     func testFreshControlFileWithTokenRejection() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .fresh(port: 8765, pid: 1),
             identityProbe: .tokenRejected(status: 401)
         )
         XCTAssertEqual(
             diag,
-            .tokenRejected(projectDir: dir.path, baseURL: "http://127.0.0.1:8765", status: 401)
+            .tokenRejected(scopeRoot: dir.path, baseURL: "http://127.0.0.1:8765", status: 401)
         )
         XCTAssertEqual(diag.severity, .warn)
         XCTAssertTrue(diag.headline.contains("HTTP 401"))
     }
 
-    func testWrongProjectMismatchAfterIdentityProbe() {
+    func testWrongScopeMismatchAfterIdentityProbe() {
         let selected = URL(fileURLWithPath: "/Users/op/Desktop/other-app")
         let identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/Users/op/Desktop/mono/apps/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+            scopeName: "kota",
+            scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+            scopeRegistry: scopeRegistry(
+                defaultScopeId: "p-test",
+                scopes: [
+                    directoryScope(scopeId: "p-test", scopeRoot: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -131,33 +131,33 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
             dashboard: .unavailable(reason: "module_disabled", message: nil)
         )
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: selected,
+            selectedScopeDir: selected,
             controlFileState: .fresh(port: 8765, pid: 4242),
             identityProbe: .ok(identity)
         )
         XCTAssertEqual(
             diag,
-            .wrongProject(
+            .wrongScope(
                 selectedDir: selected.path,
-                daemonProjectName: "kota",
-                daemonProjectDir: identity.projectDir,
+                daemonScopeName: "kota",
+                daemonScopeDir: identity.scopeRoot,
                 baseURL: "http://127.0.0.1:8765"
             )
         )
         XCTAssertEqual(diag.severity, .warn)
-        XCTAssertEqual(diag.headline, "Wrong project — daemon is on kota")
+        XCTAssertEqual(diag.headline, "Wrong scope — daemon is on kota")
         XCTAssertTrue(diag.detail.contains(selected.path))
-        XCTAssertTrue(diag.detail.contains(identity.projectDir))
+        XCTAssertTrue(diag.detail.contains(identity.scopeRoot))
     }
 
-    func testConnectedWhenIdentityMatchesSelectedProjectDir() {
+    func testConnectedWhenIdentityMatchesSelectedScopeDir() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/mono/apps/kota")
         let identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: dir.path,
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [ConfiguredProjectEntry(projectId: "p-test", projectDir: dir.path, displayName: "kota")]
+            scopeName: "kota",
+            scopeRoot: dir.path,
+            scopeRegistry: scopeRegistry(
+                defaultScopeId: "p-test",
+                scopes: [directoryScope(scopeId: "p-test", scopeRoot: dir.path, displayName: "kota")]
             ),
             daemonVersion: "0.1.0",
             pid: 4242,
@@ -165,7 +165,7 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
             dashboard: .available(path: "/")
         )
         let diag = deriveLocalDaemonDiagnostic(
-            selectedProjectDir: dir,
+            selectedScopeDir: dir,
             controlFileState: .fresh(port: 8765, pid: 4242),
             identityProbe: .ok(identity)
         )
@@ -215,12 +215,12 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
 
     func testRemoteConnectedWithIdentity() {
         let identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/srv/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+            scopeName: "kota",
+            scopeRoot: "/srv/kota",
+            scopeRegistry: scopeRegistry(
+                defaultScopeId: "p-test",
+                scopes: [
+                    directoryScope(scopeId: "p-test", scopeRoot: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -265,41 +265,41 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
     // MARK: - classifyDaemonControlFile (filesystem behavior)
 
     func testClassifyDaemonControlFileMissing() throws {
-        let tmp = try makeTempProjectDir()
+        let tmp = try makeTempScopeDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
-        XCTAssertEqual(classifyDaemonControlFile(projectDir: tmp), .missing)
+        XCTAssertEqual(classifyDaemonControlFile(scopeRoot: tmp), .missing)
     }
 
     func testClassifyDaemonControlFileFresh() throws {
-        let tmp = try makeTempProjectDir()
+        let tmp = try makeTempScopeDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
         try writeControlFile(in: tmp, port: 8765, pid: 4242)
         let state = classifyDaemonControlFile(
-            projectDir: tmp,
+            scopeRoot: tmp,
             processIsAlive: { $0 == 4242 }
         )
         XCTAssertEqual(state, .fresh(port: 8765, pid: 4242))
     }
 
     func testClassifyDaemonControlFileStale() throws {
-        let tmp = try makeTempProjectDir()
+        let tmp = try makeTempScopeDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
         try writeControlFile(in: tmp, port: 8765, pid: 99999)
         let state = classifyDaemonControlFile(
-            projectDir: tmp,
+            scopeRoot: tmp,
             processIsAlive: { _ in false }
         )
         XCTAssertEqual(state, .stale(port: 8765, pid: 99999))
     }
 
     func testClassifyDaemonControlFileUnreadableJSON() throws {
-        let tmp = try makeTempProjectDir()
+        let tmp = try makeTempScopeDir()
         defer { try? FileManager.default.removeItem(at: tmp) }
         let kotaDir = tmp.appendingPathComponent(".kota")
         try FileManager.default.createDirectory(at: kotaDir, withIntermediateDirectories: true)
         let path = kotaDir.appendingPathComponent("daemon-control.json")
         try "<not json>".data(using: .utf8)!.write(to: path)
-        let state = classifyDaemonControlFile(projectDir: tmp)
+        let state = classifyDaemonControlFile(scopeRoot: tmp)
         XCTAssertEqual(state, .unreadable)
     }
 
@@ -313,11 +313,11 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
     func testBearerTokenValueIsNeverIncludedInDiagnosticRendering() throws {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: dir.path,
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [ConfiguredProjectEntry(projectId: "p-test", projectDir: dir.path, displayName: "kota")]
+            scopeName: "kota",
+            scopeRoot: dir.path,
+            scopeRegistry: scopeRegistry(
+                defaultScopeId: "p-test",
+                scopes: [directoryScope(scopeId: "p-test", scopeRoot: dir.path, displayName: "kota")]
             ),
             daemonVersion: "0.1.0",
             pid: 4242,
@@ -325,16 +325,16 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
             dashboard: .available(path: "/")
         )
         let cases: [DaemonConnectionDiagnostic] = [
-            .noProject,
-            .noControlFile(projectDir: dir.path),
-            .unreadableControlFile(projectDir: dir.path),
-            .staleControlFile(projectDir: dir.path, pid: 1, baseURL: "http://127.0.0.1:8765"),
-            .unreachable(projectDir: dir.path, baseURL: "http://127.0.0.1:8765", pid: 1),
-            .tokenRejected(projectDir: dir.path, baseURL: "http://127.0.0.1:8765", status: 401),
-            .wrongProject(
+            .noScope,
+            .noControlFile(scopeRoot: dir.path),
+            .unreadableControlFile(scopeRoot: dir.path),
+            .staleControlFile(scopeRoot: dir.path, pid: 1, baseURL: "http://127.0.0.1:8765"),
+            .unreachable(scopeRoot: dir.path, baseURL: "http://127.0.0.1:8765", pid: 1),
+            .tokenRejected(scopeRoot: dir.path, baseURL: "http://127.0.0.1:8765", status: 401),
+            .wrongScope(
                 selectedDir: dir.path,
-                daemonProjectName: "kota",
-                daemonProjectDir: "/srv/kota",
+                daemonScopeName: "kota",
+                daemonScopeDir: "/srv/kota",
                 baseURL: "http://127.0.0.1:8765"
             ),
             .connected(identity: identity, baseURL: "http://127.0.0.1:8765"),
@@ -375,12 +375,12 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
     /// Write-only side effect; no assertions depend on the file existing.
     func testWritesRenderedDiagnosticSnapshot() throws {
         let identity = ClientIdentity(
-            projectName: "kota",
-            projectDir: "/Users/op/Desktop/mono/apps/kota",
-            projects: ProjectRegistryProjection(
-                defaultProjectId: "p-test",
-                projects: [
-                    ConfiguredProjectEntry(projectId: "p-test", projectDir: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
+            scopeName: "kota",
+            scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+            scopeRegistry: scopeRegistry(
+                defaultScopeId: "p-test",
+                scopes: [
+                    directoryScope(scopeId: "p-test", scopeRoot: "/Users/op/Desktop/mono/apps/kota", displayName: "kota")
                 ]
             ),
             daemonVersion: "0.1.0",
@@ -389,33 +389,33 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
             dashboard: .available(path: "/")
         )
         let cases: [(String, DaemonConnectionDiagnostic)] = [
-            ("noProject", .noProject),
-            ("noControlFile", .noControlFile(projectDir: "/Users/op/Desktop/other-app")),
+            ("noScope", .noScope),
+            ("noControlFile", .noControlFile(scopeRoot: "/Users/op/Desktop/other-app")),
             ("unreadableControlFile",
-             .unreadableControlFile(projectDir: "/Users/op/Desktop/mono/apps/kota")),
+             .unreadableControlFile(scopeRoot: "/Users/op/Desktop/mono/apps/kota")),
             ("staleControlFile",
              .staleControlFile(
-                projectDir: "/Users/op/Desktop/mono/apps/kota",
+                scopeRoot: "/Users/op/Desktop/mono/apps/kota",
                 pid: 99999,
                 baseURL: "http://127.0.0.1:8765"
              )),
             ("unreachable",
              .unreachable(
-                projectDir: "/Users/op/Desktop/mono/apps/kota",
+                scopeRoot: "/Users/op/Desktop/mono/apps/kota",
                 baseURL: "http://127.0.0.1:8765",
                 pid: 12345
              )),
             ("tokenRejected",
              .tokenRejected(
-                projectDir: "/Users/op/Desktop/mono/apps/kota",
+                scopeRoot: "/Users/op/Desktop/mono/apps/kota",
                 baseURL: "http://127.0.0.1:8765",
                 status: 401
              )),
-            ("wrongProject",
-             .wrongProject(
+            ("wrongScope",
+             .wrongScope(
                 selectedDir: "/Users/op/Desktop/other-app",
-                daemonProjectName: "kota",
-                daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
+                daemonScopeName: "kota",
+                daemonScopeDir: "/Users/op/Desktop/mono/apps/kota",
                 baseURL: "http://127.0.0.1:8765"
              )),
             ("connected", .connected(identity: identity, baseURL: "http://127.0.0.1:8765")),
@@ -490,15 +490,15 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func makeTempProjectDir() throws -> URL {
+    private func makeTempScopeDir() throws -> URL {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("kota-diag-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
         return tmp
     }
 
-    private func writeControlFile(in projectDir: URL, port: Int, pid: Int) throws {
-        let kotaDir = projectDir.appendingPathComponent(".kota")
+    private func writeControlFile(in scopeRoot: URL, port: Int, pid: Int) throws {
+        let kotaDir = scopeRoot.appendingPathComponent(".kota")
         try FileManager.default.createDirectory(at: kotaDir, withIntermediateDirectories: true)
         let path = kotaDir.appendingPathComponent("daemon-control.json")
         let body = """

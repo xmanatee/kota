@@ -3,9 +3,8 @@ import {
   remoteMcpToolDescriptionQualityReport,
   type ToolDescriptionQualityReport,
 } from "#core/tools/description-quality.js";
-import type { McpToolAnnotations } from "#core/tools/effect.js";
-import type { McpClient, McpToolSchema } from "./client.js";
-import type { McpToolDeclarationFingerprint } from "./tool-declaration-fingerprint.js";
+import type { McpToolSchema } from "./client.js";
+import type { McpToolEntry } from "./remote-task-entry-resolution.js";
 import { fingerprintMcpToolDeclaration } from "./tool-declaration-fingerprint.js";
 import { namespaceTool, parseToolName } from "./tool-namespace.js";
 
@@ -14,19 +13,6 @@ export type RemoteMcpToolDescriptionQualityInput = {
   serverDisplayName: string;
   tasksSupported: boolean;
   tools: readonly McpToolSchema[];
-};
-
-type McpToolDescriptionQualityManagerEntry = {
-  serverConfigName: string;
-  client: Pick<McpClient, "getName">;
-  originalName: string;
-  tool: KotaTool;
-  declaration: McpToolDeclarationFingerprint;
-  annotations?: McpToolAnnotations;
-};
-
-type McpToolDescriptionQualityManagerState = {
-  toolMap?: Map<string, McpToolDescriptionQualityManagerEntry>;
 };
 
 type RemoteMcpToolDescriptionQualityManagerInput = {
@@ -39,9 +25,10 @@ type RemoteMcpToolDescriptionQualityManagerInput = {
 };
 
 export type McpToolDescriptionQualityManagerSnapshot = {
-  getTools(): readonly KotaTool[];
-  getToolDeclarationFingerprint(name: string): string | undefined;
-  isMcpTool(name: string): boolean;
+	getTools(): readonly KotaTool[];
+	getToolDeclarationFingerprint(name: string): string | undefined;
+	isMcpTool(name: string): boolean;
+	getMcpToolEntries?(): readonly McpToolEntry[];
 };
 
 export function remoteMcpToolDescriptionQualityReports(
@@ -119,15 +106,12 @@ function remoteMcpToolDescriptionQualityManagerInputs(
 }
 
 function managerEntries(
-  manager: McpToolDescriptionQualityManagerSnapshot,
-): McpToolDescriptionQualityManagerEntry[] {
-  const state = manager as McpToolDescriptionQualityManagerState;
-  const toolMap = state.toolMap;
-  if (!(toolMap instanceof Map)) return [];
-  return [...toolMap.values()];
+	manager: McpToolDescriptionQualityManagerSnapshot,
+): readonly McpToolEntry[] {
+	return manager.getMcpToolEntries?.() ?? [];
 }
 
-function declarationToolFromEntry(entry: McpToolDescriptionQualityManagerEntry): McpToolSchema {
+function declarationToolFromEntry(entry: McpToolEntry): McpToolSchema {
   return {
     ...declarationToolFromKotaTool(entry.serverConfigName, entry.originalName, entry.tool),
     ...(entry.annotations ? { annotations: { ...entry.annotations } } : {}),

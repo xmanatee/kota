@@ -7,7 +7,7 @@ import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-prune-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -42,16 +42,16 @@ function writeRun(
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 describe("WorkflowRunStore.pruneRuns", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns empty array when there are no runs", () => {
@@ -60,7 +60,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("does not delete runs within the retention window", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     writeRun(runsDir, "run-recent", "builder", Date.now() - DAY_MS);
     const deleted = store.pruneRuns({ retentionDays: 7 });
     expect(deleted).toEqual([]);
@@ -68,7 +68,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("deletes runs older than retentionDays beyond minKeepPerWorkflow", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     // 10 recent runs (within retention)
     for (let i = 0; i < 10; i++) {
@@ -107,7 +107,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("uses evidence-policy terminal run retention when retentionDays is omitted", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     writeRun(runsDir, "run-recent", "builder", now - 6 * DAY_MS);
     writeRun(runsDir, "run-old", "builder", now - 8 * DAY_MS);
@@ -120,7 +120,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("respects minKeepPerWorkflow — keeps N newest even if older than retention", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     // 5 old runs, all beyond retention
     for (let i = 0; i < 5; i++) {
@@ -132,7 +132,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("keeps minKeepPerWorkflow newest and deletes the rest when all are old", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     for (let i = 0; i < 8; i++) {
       writeRun(runsDir, `run-old-${i}`, "builder", now - (10 + i) * DAY_MS);
@@ -142,7 +142,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("never deletes the active run", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     const activeId = "run-old-active";
     writeRun(runsDir, activeId, "builder", now - 30 * DAY_MS);
@@ -157,7 +157,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("handles multiple workflows independently", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     // 2 old runs for builder, 2 old runs for explorer
     for (let i = 0; i < 2; i++) {
@@ -173,7 +173,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("dry-run returns candidates without deleting", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     for (let i = 0; i < 3; i++) {
       writeRun(runsDir, `run-old-${i}`, "builder", now - (10 + i) * DAY_MS);
@@ -191,7 +191,7 @@ describe("WorkflowRunStore.pruneRuns", () => {
   });
 
   it("does not delete old run directories that contain git-tracked evidence", () => {
-    const runsDir = join(projectDir, ".kota", "runs");
+    const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     writeRun(runsDir, "run-old-tracked", "builder", now - 30 * DAY_MS);
     writeRun(runsDir, "run-old-untracked", "builder", now - 31 * DAY_MS);
@@ -200,11 +200,11 @@ describe("WorkflowRunStore.pruneRuns", () => {
       "durable evidence\n",
     );
 
-    execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
     execFileSync(
       "git",
       ["add", ".kota/runs/run-old-tracked/evidence.txt"],
-      { cwd: projectDir, stdio: "ignore" },
+      { cwd: workspaceRoot, stdio: "ignore" },
     );
 
     const deleted = store.pruneRuns({ retentionDays: 7, minKeepPerWorkflow: 0 });
@@ -232,20 +232,20 @@ const minimalWorkflow: WorkflowDefinition = {
 };
 
 describe("WorkflowRunStore tags", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-tags-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("persists tags from trigger payload in metadata.json", () => {
@@ -294,7 +294,7 @@ describe("WorkflowRunStore tags", () => {
     expect(allRuns).toHaveLength(3);
   });
 
-  it("projects durable run trigger, metadata, agent inputs, messages, and step artifacts", () => {
+  it("scopes durable run trigger, metadata, agent inputs, messages, and step artifacts", () => {
     const secret = "storage-secret-token";
     const trigger = {
       event: "manual",
@@ -306,7 +306,7 @@ describe("WorkflowRunStore tags", () => {
       },
     };
     const handle = store.createRun(minimalWorkflow, trigger);
-    const runDir = join(projectDir, handle.metadata.runDir);
+    const runDir = join(workspaceRoot, handle.metadata.runDir);
 
     handle.writeAgentInputs(
       "agent",

@@ -59,7 +59,7 @@ function modelResponse(
 
 describe("runDelegateTurns", () => {
   it("reauthorizes each thin delegate child call through the shared live boundary", async () => {
-    const projectDir = "/tmp/delegate-live-policy";
+    const scopeRoot = "/tmp/delegate-live-policy";
     const scopeId = "scope-delegate-live-policy";
     const policy = (readOnly: boolean) => resolveScopePolicy({
       projection: {
@@ -71,7 +71,7 @@ describe("runDelegateTurns", () => {
             scopeId,
             displayName: "Delegate fixture",
             parentScopeId: "global",
-            directoryRoot: projectDir,
+            directoryRoot: scopeRoot,
           },
         ],
       },
@@ -94,13 +94,13 @@ describe("runDelegateTurns", () => {
       type: "tool_use" as const,
       id: "same-thin-child-call",
       name: LIVE_POLICY_TOOL,
-      input: { path: `${projectDir}/output.txt` },
+      input: { path: `${scopeRoot}/output.txt` },
     };
     const execute = () => executeDelegateToolBlocks({
       toolBlocks: [call],
       tools: [LIVE_POLICY_TOOL_DEFINITION],
       runners: { [LIVE_POLICY_TOOL]: runner },
-      runnerContext: { cwd: projectDir, scopeId, projectId: scopeId },
+      runnerContext: { cwd: scopeRoot, scopeId },
       toolExecutionOptions: {
         resultLimit: 50_000,
         verbose: false,

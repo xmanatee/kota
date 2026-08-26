@@ -5,11 +5,17 @@ This directory owns persistent, searchable agent notes that survive across sessi
 - Owns the file-based `MemoryStore` implementation (`store.ts`) and registers
   it as the `default` memory provider at module load through the provider
   registry.
-- Storage is project-scoped under `.kota/memory.json`. Daemon/API access
-  resolves a concrete project id before using the store. Omitted project ids
-  resolve to the daemon's active/default project at the route or client
-  boundary; explicit unknown ids return the typed `unknown_project` route
+- Storage is scope-scoped under `.kota/memory.json`. Daemon/API access
+  resolves a concrete scope id before using the store. Omitted scope ids
+  resolve to the daemon's active/default scope at the route or client
+  boundary; explicit unknown ids return the typed `unknown_scope` route
   error.
+- `persistence.ts` owns the versioned file contract and legacy migration.
+  Reads decode every record before it reaches `MemoryStore`; malformed or
+  future-version data is an explicit store error and is never treated as an
+  empty collection. Replacement writes are atomic. The daemon client parses
+  responses with the generated daemon-contract decoder rather than asserting
+  a handwritten transport type.
 - Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/memory/search`) and one shared line shape (`renderMemorySearchPlain`): Telegram `/memory`, terminal `kota memory search`, the Apple clients' shared `SharedUiSurfaceView`, and the mobile `MemoryScreen`.
 - The `stores` shared-UI surface is the memory module's live contribution;
@@ -20,3 +26,6 @@ This directory owns persistent, searchable agent notes that survive across sessi
 - Does not own session-scoped working memory (that belongs in `src/modules/working-memory/`) or structured knowledge entries (that belongs in `src/modules/knowledge/`).
 - The alternative SQLite-backed memory provider is in `src/modules/sqlite-memory/`, not here.
 - The embedding-backed memory provider is in `src/modules/memory-semantic/`, which layers on top of this module's store.
+- The base provider is keyword-only. Embedding-backed implementations declare
+  `semanticSearchCapability`; absence means unavailable and requires no false
+  support flag or placeholder methods.

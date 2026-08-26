@@ -22,9 +22,9 @@ function createStore(): RunStateDatabase {
   roots.push(root);
   const store = new RunStateDatabase(join(root, "state"));
   stores.push(store);
-  store.registerProject({
-    id: "project-a",
-    rootPath: join(root, "project-a"),
+  store.registerScope({
+    id: "scope-a",
+    rootPath: join(root, "scope-a"),
     createdAt: "2026-08-25T09:00:00.000Z",
   });
   return store;
@@ -108,7 +108,7 @@ function prepareInterruptedRun(
   const first = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
   store.admitRun({
     id: "run-a",
-    projectId: "project-a",
+    scopeId: "scope-a",
     workflow: "shared-automation",
     repository: "write",
     trigger: { event: "test.requested", schemaRef: null, payload: {} },

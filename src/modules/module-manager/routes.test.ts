@@ -18,7 +18,7 @@ function mockResponse() {
 function makeSummary(overrides: Partial<ModuleSummary> = {}): ModuleSummary {
   return {
     name: "test-module",
-    source: "project",
+    source: "bundled",
     version: "1.0.0",
     description: "A test module",
     dependencies: [],
@@ -145,7 +145,7 @@ describe("handleListModules", () => {
     expect(entries[0].manifest).toEqual(manifest);
   });
 
-  it("projects setup availability onto manifest projections for daemon and client list shapes", () => {
+  it("scopes setup availability onto manifest projections for daemon and client list shapes", () => {
     const manifest = makeManifest();
     const manifestWithSetup: NonNullable<ModuleSummary["manifest"]> = {
       ...manifest,
@@ -194,11 +194,11 @@ describe("handleListModules", () => {
           kind: "secret",
           title: "API token",
           required: true,
-          scope: "project",
+          scope: "scope",
           sensitivity: "secret",
           health: { capabilityIds: ["test-module.capability"] },
           setup,
-          secretRefs: [{ name: "TEST_MODULE_TOKEN", scope: "project" }],
+          secretRefs: [{ name: "TEST_MODULE_TOKEN", scope: "scope" }],
         },
       ],
     });
@@ -208,7 +208,7 @@ describe("handleListModules", () => {
       kind: "secret",
       title: "API token",
       required: true,
-      scope: "project",
+      scope: "scope",
       sensitivity: "secret",
       setup,
       state: "unavailable",

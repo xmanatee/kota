@@ -49,7 +49,7 @@ export function parseChangedTaskPaths(output: string): ChangedTaskPath[] {
 
 export async function changedTaskPaths(
   runCommand: WorkflowCommandRunner,
-  projectDir: string,
+  workspaceRoot: string,
   fromHead: string,
   toHead: string,
 ): Promise<ChangedTaskPath[] | null> {
@@ -65,7 +65,7 @@ export async function changedTaskPaths(
         "--",
         "data/tasks",
       ],
-      cwd: projectDir,
+      cwd: workspaceRoot,
       timeoutMs: 30_000,
       outputLimitBytes: 20 * 1024 * 1024,
       captureLimitBytesPerStream: 20 * 1024 * 1024,

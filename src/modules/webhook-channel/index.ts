@@ -42,7 +42,7 @@ function makeChannelDef(ctx: ModuleContext): ChannelDef {
         status: "started",
         adapter: {
           listScopeSessionIds(scopeId) {
-            return scopeId === channelCtx.getDefaultProjectRuntime().project.projectId
+            return scopeId === channelCtx.getDefaultScopeRuntime().scope.scopeId
               ? listWebhookSessionIds()
               : [];
           },

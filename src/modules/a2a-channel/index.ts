@@ -26,9 +26,7 @@ const a2aChannelModule: KotaModule = {
   routes: (ctx) => a2aRoutes(ctx),
   onLoad: (ctx) => {
     resumeStoredA2APushNotificationSubscriptions(ctx);
-  },
-  onUnload: () => {
-    stopSharedA2APushNotificationManagers();
+    return { dispose: stopSharedA2APushNotificationManagers };
   },
 };
 

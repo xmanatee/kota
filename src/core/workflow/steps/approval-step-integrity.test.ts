@@ -29,7 +29,7 @@ afterEach(() => {
 
 function makeContext() {
 	return {
-		projectDir: "/project",
+		workspaceRoot: "/project",
 		workflow: {
 			name: "test-wf",
 			definitionPath: "src/wf.ts",
@@ -58,7 +58,7 @@ function makeApprovalStep(
 	return { id: "gate", type: "approval", ...overrides };
 }
 
-describe("executeApprovalStep project-local record integrity", () => {
+describe("executeApprovalStep scope-local record integrity", () => {
 	it.each(["edit", "replace"] as const)(
 		"does not resume when a same-user writer %ss a pending gate record",
 		async (mutation) => {

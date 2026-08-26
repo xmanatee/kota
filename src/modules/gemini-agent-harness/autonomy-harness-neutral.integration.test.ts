@@ -97,18 +97,18 @@ describe("autonomy agent step on gemini", () => {
   });
 
   it("runs a representative workflow agent step without the gemini adapter rejecting claude-specific options", async () => {
-    const projectDir = join(
+    const scopeRoot = join(
       tmpdir(),
       `kota-gemini-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "Stay focused on the build.");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "Stay focused on the build.");
     writeFileSync(
-      join(projectDir, "AGENTS.md"),
+      join(scopeRoot, "AGENTS.md"),
       "# Project AGENTS\n\nPortable project rules live here.",
     );
-    mkdirSync(join(projectDir, ".kota/runs/run-gemini-ok"), { recursive: true });
-    mkdirSync(join(projectDir, ".kota/runs/run-gemini-ok/steps"), {
+    mkdirSync(join(scopeRoot, ".kota/runs/run-gemini-ok"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota/runs/run-gemini-ok/steps"), {
       recursive: true,
     });
 
@@ -129,13 +129,13 @@ describe("autonomy agent step on gemini", () => {
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeAgentStep(projectDir),
+      makeAgentStep(scopeRoot),
       makeMetadata(),
       { event: "autonomy.queue.available", schemaRef: null, payload: {} },
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.harness).toBe(GEMINI_AGENT_HARNESS_NAME);

@@ -38,23 +38,23 @@ const AGENT_OK_RESULT: AgentHarnessResult = {
   isError: false,
 };
 
-function makeProjectDir(): string {
-  const projectDir = join(
+function makeScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-agent-capability-auth-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
-  return projectDir;
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
+  return workspaceRoot;
 }
 
-function makeAgentStep(projectDir: string, harness: string): WorkflowAgentStep {
+function makeAgentStep(workspaceRoot: string, harness: string): WorkflowAgentStep {
   return {
     id: "agent",
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -62,7 +62,7 @@ function makeAgentStep(projectDir: string, harness: string): WorkflowAgentStep {
 }
 
 function makeDefinition(
-  projectDir: string,
+  workspaceRoot: string,
   step: WorkflowAgentStep,
 ): WorkflowDefinition {
   return {
@@ -70,7 +70,7 @@ function makeDefinition(
     enabled: true,
     repository: "read",
     definitionPath: "src/modules/test/workflows/capability/workflow.ts",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     triggers: [],
     steps: [step],
     tags: [],
@@ -100,34 +100,34 @@ function makeHarness(
 }
 
 function readCapabilityArtifact(
-  projectDir: string,
+  workspaceRoot: string,
   runDir: string,
 ): Record<string, unknown> {
   return JSON.parse(
     readFileSync(
-      join(projectDir, runDir, "steps", "agent.harness-capability.json"),
+      join(workspaceRoot, runDir, "steps", "agent.harness-capability.json"),
       "utf-8",
     ),
   ) as Record<string, unknown>;
 }
 
 describe("workflow agent-step capability artifacts for unverifiable auth", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("serializes unverifiable required auth and fails before native harness launch", async () => {
@@ -158,12 +158,12 @@ describe("workflow agent-step capability artifacts for unverifiable auth", () =>
     const harnessName = "capability-native-unverifiable-auth";
     registerAgentHarness(makeHarness(harnessName, run, readiness));
 
-    const step = makeAgentStep(projectDir, harnessName);
+    const step = makeAgentStep(workspaceRoot, harnessName);
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -174,7 +174,7 @@ describe("workflow agent-step capability artifacts for unverifiable auth", () =>
     );
     expect(run).not.toHaveBeenCalled();
 
-    expect(readCapabilityArtifact(projectDir, result.metadata.runDir)).toMatchObject({
+    expect(readCapabilityArtifact(workspaceRoot, result.metadata.runDir)).toMatchObject({
       harnessName,
       localReadiness: {
         localRuntime: {
@@ -223,19 +223,19 @@ describe("workflow agent-step capability artifacts for unverifiable auth", () =>
     const harnessName = "capability-native-expiring-auth";
     registerAgentHarness(makeHarness(harnessName, run, readiness));
 
-    const step = makeAgentStep(projectDir, harnessName);
+    const step = makeAgentStep(workspaceRoot, harnessName);
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
     expect(run).toHaveBeenCalledTimes(1);
 
-    expect(readCapabilityArtifact(projectDir, result.metadata.runDir)).toMatchObject({
+    expect(readCapabilityArtifact(workspaceRoot, result.metadata.runDir)).toMatchObject({
       harnessName,
       localReadiness: {
         localAuth: {

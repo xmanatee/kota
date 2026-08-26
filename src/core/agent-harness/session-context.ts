@@ -9,12 +9,11 @@ import type { AgentHarnessRunOptions } from "./types.js";
 export type AgentHarnessSessionContext = {
   sessionId: string;
   scopeId: string;
-  projectId: string;
 };
 
 export type AgentHarnessToolRunnerContext = Pick<
   ToolRunnerContext,
-  "sessionId" | "scopeId" | "projectId" | "workflow"
+  "sessionId" | "scopeId" | "workflow"
 >;
 
 function assertSessionScopeMatchesWorkflow(
@@ -23,10 +22,7 @@ function assertSessionScopeMatchesWorkflow(
 ): void {
   const workflow = options.workflowContext;
   if (workflow === undefined) return;
-  if (
-    session.scopeId !== workflow.scopeId ||
-    session.projectId !== workflow.projectId
-  ) {
+  if (session.scopeId !== workflow.scopeId) {
     throw new Error(
       "Agent harness session scope must match its workflow scope",
     );
@@ -52,7 +48,6 @@ export function agentHarnessToolRunnerContext(
       : {
           sessionId: workflow.spanId,
           scopeId: workflow.scopeId,
-          projectId: workflow.projectId,
         });
   return {
     ...(session !== undefined ? session : {}),

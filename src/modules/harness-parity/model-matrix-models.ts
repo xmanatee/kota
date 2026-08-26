@@ -181,12 +181,12 @@ export function buildModelSpecs(
 }
 
 export function resolveOpenRouterPreflight(
-  projectDir: string,
+  scopeRoot: string,
 ): MatrixOpenRouterPreflight {
   return {
     authEnv: "OPENROUTER_API_KEY",
     authResolver: "model-clients.resolveApiKey",
-    available: Boolean(resolveApiKey("openrouter", undefined, { projectDir })),
+    available: Boolean(resolveApiKey("openrouter", undefined, { scopeRoot })),
   };
 }
 

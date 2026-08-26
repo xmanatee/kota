@@ -17,7 +17,6 @@ import type {
 
 export type ProgressReviewRequestPayload = {
   scopeId?: string;
-  projectId?: string;
   reason?: string;
   requestedBy?: string;
   windowMs?: number;
@@ -29,9 +28,9 @@ export type ProgressReviewDirectorySource = {
   scopeId: string;
   displayName: string;
   /** Repository view used for Git and task evidence. */
-  projectDir: string;
+  workspaceRoot: string;
   /** Canonical configured scope root. */
-  scopeDir: string;
+  scopeRoot: string;
   /** Canonical durable runtime-state directory. */
   stateDir: string;
   idPrefix: string;

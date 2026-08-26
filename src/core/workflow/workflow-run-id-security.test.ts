@@ -12,7 +12,7 @@ import type { WorkflowDefinition } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-run-id-security-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -42,24 +42,24 @@ function workflow(name = "security-consumer"): WorkflowDefinition {
 }
 
 describe("workflow run id path safety", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let store: WorkflowRunStore;
   let runState: RunStateDatabase;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
-    runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
-    runState.registerProject({
+    scopeRoot = makeScopeRoot();
+    store = new WorkflowRunStore(scopeRoot);
+    runState = new RunStateDatabase(join(scopeRoot, ".kota", "state"));
+    runState.registerScope({
       id: "scope-test",
-      rootPath: projectDir,
+      rootPath: scopeRoot,
       createdAt: "2026-08-25T10:00:00.000Z",
     });
   });
 
   afterEach(() => {
     runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("does not let arbitrary event payload _runId control the queued run id", () => {
@@ -78,8 +78,8 @@ describe("workflow run id path safety", () => {
       store,
       runState,
       coordinator,
-      projectId: "scope-test",
-      projectDir,
+      scopeId: "scope-test",
+      scopeRoot,
       getScopeId: () => "scope-test",
       getActiveBackoff: () => null,
       workflowUsesAgent: () => false,
@@ -132,7 +132,7 @@ describe("workflow run id path safety", () => {
       }),
     ).toThrow("path-safe segment");
 
-    expect(existsSync(join(projectDir, ".kota", "outside-run"))).toBe(false);
+    expect(existsSync(join(scopeRoot, ".kota", "outside-run"))).toBe(false);
   });
 
   it("rejects path traversal in explicit queued run ids", () => {
@@ -144,6 +144,6 @@ describe("workflow run id path safety", () => {
       ),
     ).toThrow("path-safe segment");
 
-    expect(existsSync(join(projectDir, ".kota", "runs", "nested"))).toBe(false);
+    expect(existsSync(join(scopeRoot, ".kota", "runs", "nested"))).toBe(false);
   });
 });

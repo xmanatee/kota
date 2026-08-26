@@ -114,7 +114,7 @@ function approvalEventsById(
 }
 
 export function inspectAgentStream(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   stepId: string;
   runStatus: WorkflowRunMetadata["status"];
@@ -128,14 +128,14 @@ export function inspectAgentStream(args: {
   stream.denominator += 1;
   const capabilityPath = join(args.runDirPath, "steps", `${args.stepId}.harness-capability.json`);
   const capability = readJsonObject(capabilityPath);
-  const capabilityRef = artifactRef(args.projectDir, capabilityPath);
+  const capabilityRef = artifactRef(args.scopeRoot, capabilityPath);
   const eventsPath = join(args.runDirPath, "steps", `${args.stepId}.events.jsonl`);
   const trajectoryPath = trajectoryArtifactPath(args.runDirPath, args.stepId);
   if (boolField(capability?.emitsAgentMessageStream) === false) {
     args.addGap("agent-step-stream", "unsupported-agent-message-stream", args.stepId, [capabilityRef]);
   } else if (fileNonEmpty(eventsPath)) {
     stream.numerator += 1;
-    addEvidence(stream, artifactRef(args.projectDir, eventsPath));
+    addEvidence(stream, artifactRef(args.scopeRoot, eventsPath));
   } else if (args.runStatus === "interrupted" && args.stepStatus === null) {
     args.addUnknown(
       "agent-step-stream",
@@ -153,7 +153,7 @@ export function inspectAgentStream(args: {
       args.stepId,
       [
         capabilityRef,
-        artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`)),
+        artifactRef(args.scopeRoot, join(args.runDirPath, "steps", `${args.stepId}.json`)),
       ],
     );
   } else {
@@ -161,7 +161,7 @@ export function inspectAgentStream(args: {
     if (missingFrames > 0) {
       stream.numerator += 1;
       stream.warned += missingFrames;
-      addEvidence(stream, artifactRef(args.projectDir, trajectoryPath));
+      addEvidence(stream, artifactRef(args.scopeRoot, trajectoryPath));
       return;
     }
     args.addGap("agent-step-stream", "missing-agent-step-events", args.stepId, [capabilityRef]);
@@ -169,7 +169,7 @@ export function inspectAgentStream(args: {
 }
 
 export function inspectAutonomyMode(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   stepId: string;
   mode: string | null;
@@ -180,16 +180,16 @@ export function inspectAutonomyMode(args: {
   autonomy.denominator += 1;
   if (args.mode === "autonomous" || args.mode === "supervised" || args.mode === "passive") {
     autonomy.numerator += 1;
-    addEvidence(autonomy, runArtifactRef(args.projectDir, args.runDirPath, "workflow.json"));
+    addEvidence(autonomy, runArtifactRef(args.scopeRoot, args.runDirPath, "workflow.json"));
   } else {
     args.addGap("autonomy-mode", "missing-agent-step-autonomy-mode", args.stepId, [
-      runArtifactRef(args.projectDir, args.runDirPath, "workflow.json"),
+      runArtifactRef(args.scopeRoot, args.runDirPath, "workflow.json"),
     ], "error");
   }
 }
 
 export function inspectTrajectory(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   stepId: string;
   runStatus: WorkflowRunMetadata["status"];
@@ -209,7 +209,7 @@ export function inspectTrajectory(args: {
         "trajectory-diagnostics",
         "interrupted-before-trajectory-diagnostics-finalized",
         args.stepId,
-        [runArtifactRef(args.projectDir, args.runDirPath, "metadata.json")],
+        [runArtifactRef(args.scopeRoot, args.runDirPath, "metadata.json")],
       );
       return;
     }
@@ -221,12 +221,12 @@ export function inspectTrajectory(args: {
         "trajectory-diagnostics",
         "validation-buffer-discarded-trajectory-diagnostics",
         args.stepId,
-        [artifactRef(args.projectDir, join(args.runDirPath, "steps", `${args.stepId}.json`))],
+        [artifactRef(args.scopeRoot, join(args.runDirPath, "steps", `${args.stepId}.json`))],
       );
       return;
     }
     args.addGap("trajectory-diagnostics", "missing-trajectory-diagnostics", args.stepId, [
-      runArtifactRef(args.projectDir, args.runDirPath, "metadata.json"),
+      runArtifactRef(args.scopeRoot, args.runDirPath, "metadata.json"),
     ]);
     return;
   }
@@ -234,16 +234,16 @@ export function inspectTrajectory(args: {
   trajectory.warned += countField(counts, "warningCount");
   if (stringField(artifact.status) === "unsupported") {
     args.addGap("trajectory-diagnostics", "unsupported-trajectory-diagnostics", args.stepId, [
-      artifactRef(args.projectDir, path),
+      artifactRef(args.scopeRoot, path),
     ]);
     return;
   }
   trajectory.numerator += 1;
-  addEvidence(trajectory, artifactRef(args.projectDir, path));
+  addEvidence(trajectory, artifactRef(args.scopeRoot, path));
 }
 
 export function inspectToolPolicy(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   toolCallTools: string[];
   guardrailEvents: CoverageEvent[];
@@ -258,7 +258,7 @@ export function inspectToolPolicy(args: {
   for (const event of args.guardrailEvents) addEvidence(toolPolicy, event.evidenceRef);
   if (matches.missingToolCount > 0) {
     args.addGap("tool-policy", "missing-tool-policy-decision-evidence", `${matches.missingToolCount} tool call(s)`, [
-      runArtifactRef(args.projectDir, args.runDirPath, "metadata.json"),
+      runArtifactRef(args.scopeRoot, args.runDirPath, "metadata.json"),
     ]);
   }
   if (matches.unattributedEvents.length > 0) {
@@ -272,7 +272,7 @@ export function inspectToolPolicy(args: {
 }
 
 export function inspectInjectionDefense(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   externalPayloadTools: string[];
   injectionEvents: CoverageEvent[];
@@ -289,7 +289,7 @@ export function inspectInjectionDefense(args: {
   for (const event of args.injectionEvents) addEvidence(injection, event.evidenceRef);
   if (matches.missingToolCount > 0) {
     args.addGap("injection-defense", "external-payload-unscreened", `${matches.missingToolCount} external payload(s)`, [
-      runArtifactRef(args.projectDir, args.runDirPath, "metadata.json"),
+      runArtifactRef(args.scopeRoot, args.runDirPath, "metadata.json"),
     ], "error");
   }
   if (matches.unattributedEvents.length > 0) {
@@ -303,7 +303,7 @@ export function inspectInjectionDefense(args: {
 }
 
 export function inspectApprovalOwnerGates(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   steps: WorkflowRunMetadata["steps"];
   approvalRequestedEvents: CoverageEvent[];
@@ -318,7 +318,7 @@ export function inspectApprovalOwnerGates(args: {
   const resolvedById = approvalEventsById(args.approvalResolvedEvents);
   approvals.denominator = args.steps.length + requestedById.size;
   for (const step of args.steps) {
-    const ref = artifactRef(args.projectDir, join(args.runDirPath, "steps", `${step.id}.json`));
+    const ref = artifactRef(args.scopeRoot, join(args.runDirPath, "steps", `${step.id}.json`));
     if (step.status === "success") {
       approvals.numerator += 1;
       addEvidence(approvals, ref);
@@ -351,7 +351,7 @@ export function inspectApprovalOwnerGates(args: {
 }
 
 export function inspectRuntimeProbe(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   family: FamilyAccessor;
 }): number {
@@ -359,12 +359,12 @@ export function inspectRuntimeProbe(args: {
   if (!existsSync(join(args.runDirPath, "runtime-probe.json"))) return 0;
   probe.denominator = 1;
   probe.numerator = 1;
-  addEvidence(probe, runArtifactRef(args.projectDir, args.runDirPath, "runtime-probe.json"));
+  addEvidence(probe, runArtifactRef(args.scopeRoot, args.runDirPath, "runtime-probe.json"));
   return 1;
 }
 
 export function inspectAsyncReviewers(args: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   family: FamilyAccessor;

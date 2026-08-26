@@ -3,7 +3,7 @@ import type {
   UiFormField,
   UiJsonSchema,
   UiJsonValue,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 
 export type UiFieldValues = Readonly<Record<string, string | boolean>>;
 

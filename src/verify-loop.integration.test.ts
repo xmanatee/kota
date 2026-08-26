@@ -151,15 +151,13 @@ describe("tool-groups state reset on session close", () => {
     expect(getEnabledGroups()).toEqual([]);
   });
 
-  it("tool names revert to core-only after reset", () => {
-    enableGroup("web");
+	it("tool names revert to the pre-enable set after reset", () => {
+		const baseline = getActiveToolNames();
+		enableGroup("web");
     expect(getActiveToolNames().has("web_search")).toBe(true);
 
-    resetGroups();
-    expect(getActiveToolNames().has("web_search")).toBe(false);
-    // Core tools remain
-    expect(getActiveToolNames().has("shell")).toBe(true);
-    expect(getActiveToolNames().has("file_read")).toBe(true);
+		resetGroups();
+		expect(getActiveToolNames()).toEqual(baseline);
   });
 
   it("groups can be re-enabled after reset", () => {

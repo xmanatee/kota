@@ -1,7 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
-import { clearModuleCapabilityManifestProjections } from "#core/modules/module-manifest.js";
 import { registration as agentStatus } from "./agent-status.js";
 import { registration as approval } from "./approval.js";
 import { registration as askOwner } from "./ask-owner.js";
@@ -31,14 +31,17 @@ export type ToolRunnerContext = {
   toolUseId?: string;
   signal?: AbortSignal;
   /** Canonical directory root of the selected directory-backed scope. */
-  projectDir?: string;
+  scopeRoot?: string;
   /** Execution working directory, which may be an isolated worktree. */
   cwd?: string;
+  /** Exact filesystem roots declared for this agent invocation. */
+  agentWriteScope?: AgentWriteScope;
+  /** Runtime-owned output directory granted in addition to agentWriteScope. */
+  agentOutputDir?: string;
   env?: Record<string, string>;
   /** Machine-owned config document that arbitrary execution must not mutate. */
   authorityConfigPath?: string;
   scopeId?: string;
-  projectId?: string;
   tokenBudget?: AgentTokenBudgetLedger;
   workflow?: {
     workflowName: string;
@@ -46,7 +49,6 @@ export type ToolRunnerContext = {
     stepId: string;
     spanId: string;
     scopeId: string;
-    projectId: string;
   };
 };
 export type ToolRunner = (
@@ -178,7 +180,10 @@ export function registerTool(
   runners[tool.name] = runner;
   customToolNames.add(tool.name);
   if (meta) {
-    toolEffectRegistry.setModuleToolEffect(tool.name, meta);
+    toolEffectRegistry.setModuleToolEffect(tool.name, {
+      ...meta,
+      ...(moduleName ? { moduleName } : {}),
+    });
   }
   registerLocalToolApprovalBinding(tool, runner, meta);
   if (moduleName) {
@@ -290,7 +295,6 @@ export function clearCustomTools(): void {
   customToolNames.clear();
   moduleToolOwners.clear();
   toolEffectRegistry.clearModuleToolEffects();
-  clearModuleCapabilityManifestProjections();
 }
 
 // Inject registry functions into custom-tool module (breaks circular dependency)

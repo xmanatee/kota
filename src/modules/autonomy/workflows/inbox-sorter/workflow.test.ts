@@ -1,100 +1,68 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn().mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  }),
-}));
+const TASK_STATES = [
+  "backlog",
+  "ready",
+  "doing",
+  "blocked",
+  "done",
+  "dropped",
+] as const;
 
-vi.mock("#core/agent-harness/index.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
-    "#core/agent-harness/index.js",
-  );
+function createInboxRepo(captures: readonly string[] = []): string {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-inbox-sorter-"));
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  execFileSync("git", ["config", "user.email", "scenario@kota.local"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["config", "user.name", "KOTA scenario"], {
+    cwd: workspaceRoot,
+  });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  for (const state of TASK_STATES) {
+    const stateDir = join(workspaceRoot, "data", "tasks", state);
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(join(stateDir, "AGENTS.md"), `# ${state}\n`);
+  }
+  const inboxDir = join(workspaceRoot, "data", "inbox");
+  mkdirSync(inboxDir, { recursive: true });
+  writeFileSync(join(inboxDir, "AGENTS.md"), "# inbox\n");
+  captures.forEach((capture, index) => {
+    writeFileSync(join(inboxDir, `capture-${index + 1}.md`), `${capture}\n`);
+  });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "scenario baseline"], {
+    cwd: workspaceRoot,
+  });
+  return workspaceRoot;
+}
+
+function sorterAgentOutputs() {
   return {
-    ...actual,
-    createWorkflowAgentGuards: vi.fn(() => () => ({ allow: true })),
-    resolveAgentHarness: vi.fn(() => ({ name: "mock-harness" })),
-    routeKotaToolControlOptions: vi.fn(() => ({})),
-    runAgentHarness: vi.fn(async () => ({
-      text: JSON.stringify({
-        decision: "pass",
-        summary: "No advisory findings.",
-        citedArtifacts: [],
-        findings: [],
-      }),
-      streamedText: "",
-      turns: 1,
-      isError: false,
-      totalCostUsd: 0,
-    })),
-  };
-});
-
-vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
-  getRepoTaskQueueSnapshot: vi.fn(),
-  REPO_INBOX_DIR: "data/inbox",
-}));
-
-function makeSnapshot(inboxCount: number) {
-  return {
-    counts: {
-      backlog: 0,
-      ready: 0,
-      doing: 0,
-      blocked: 0,
-      done: 0,
-      dropped: 0,
+    "sort-inbox": { content: "Inbox entries sorted." },
+    "shadow-semantic-review": {
+      decision: "pass",
+      summary: "The sorting preserves source intent and queue integrity.",
+      citedArtifacts: ["metadata:inspect-inbox"],
+      findings: [],
     },
-    inboxCount,
-    openCount: inboxCount,
-    pullableCount: 0,
-    actionableCount: 0,
-    promotableBacklogCount: 0,
-    dispatchableCount: inboxCount,
-    hasDispatchableWork: inboxCount > 0,
-    dependencyBlockedTasks: [],
-    headSha: "abc1234",
   };
 }
 
 describe("inbox-sorter workflow", () => {
-  async function mockCleanWorktree() {
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: false,
-      trackedDirty: false,
-      entries: [],
-      fingerprint: "",
-      summary: "clean",
-      headSha: "abc1234",
-    });
-  }
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("skips sorting when inbox is empty", async () => {
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(0));
-
-    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+    const workspaceRoot = createInboxRepo();
+    const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
+      workspaceRoot,
       trigger: { event: "autonomy.inbox.available", payload: {} },
-    });
-
-    const result = await harness.run();
+    }).run();
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-inbox"].output).toMatchObject({
@@ -104,120 +72,79 @@ describe("inbox-sorter workflow", () => {
     expect(result.steps["sort-inbox"].status).toBe("skipped");
   });
 
-  it("runs task validation through the supervised command rail", async () => {
-    const sorterStep = inboxSorterWorkflow.steps.find(
-      (step): step is WorkflowAgentStepInput =>
-        "id" in step && step.id === "sort-inbox" && step.type === "agent",
-    );
-    const check = sorterStep?.repairLoop?.checks.find(
-      (entry) => entry.id === "task-queue-valid",
-    );
-    if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
-    const projectDir = "/tmp/inbox-sorter-command-test";
-    const runCommand = vi.fn(successfulWorkflowCommandRun);
-
-    await check.run(
-      { projectDir, runCommand } as unknown as WorkflowStepContext,
-      {} as never,
-    );
-
-    expect(runCommand).toHaveBeenCalledWith({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: projectDir,
-    });
-  });
-
   it("rejects untracked files outside inbox", async () => {
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: false,
-      entries: ["?? .DS_Store", "?? tmp/scratch.txt"],
-      fingerprint: "?? .DS_Store\n?? tmp/scratch.txt",
-      summary: ".DS_Store, tmp/scratch.txt",
-      headSha: "abc1234",
-    });
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
+    const workspaceRoot = createInboxRepo();
+    writeFileSync(join(workspaceRoot, "data", "inbox", "capture.md"), "Sort me.\n");
+    mkdirSync(join(workspaceRoot, "tmp"));
+    writeFileSync(join(workspaceRoot, "tmp", "scratch.txt"), "unrelated\n");
 
-    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+    const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
       trigger: { event: "autonomy.inbox.available", payload: {} },
-      stepMocks: {
-        "sort-inbox": { turns: [], totalCostUsd: 0.01 },
-      },
-    });
+    }).run();
 
-    const result = await harness.run();
-    expect(result.steps["inspect-inbox"].status).toBe("failed");
+    expect(result.status).toBe("failed");
+    expect(result.steps["inspect-inbox"].error).toContain(
+      "Repository has changes outside inbox",
+    );
   });
 
   it("allows untracked inbox entries", async () => {
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: false,
-      entries: ["?? data/inbox/task-capture.md"],
-      fingerprint: "?? data/inbox/task-capture.md",
-      summary: "data/inbox/task-capture.md",
-      headSha: "abc1234",
-    });
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
+    const workspaceRoot = createInboxRepo();
+    writeFileSync(join(workspaceRoot, "data", "inbox", "capture.md"), "Sort me.\n");
 
-    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+    const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
       trigger: { event: "autonomy.inbox.available", payload: {} },
-      stepMocks: {
-        "sort-inbox": { turns: [], totalCostUsd: 0.01 },
-      },
-    });
+      stepOutputs: sorterAgentOutputs(),
+      ports: { runCommand: successfulWorkflowCommandRun },
+    }).run();
 
-    const result = await harness.run();
-    expect(result.steps["inspect-inbox"].status).toBe("success");
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
+    expect(result.steps["inspect-inbox"].output).toMatchObject({
+      inboxCount: 1,
+      needsAttention: true,
+    });
     expect(result.steps["sort-inbox"].status).toBe("success");
   });
 
   it("rejects tracked changes outside inbox", async () => {
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: true,
-      entries: [" M src/core/foo.ts"],
-      fingerprint: " M src/core/foo.ts",
-      summary: "src/core/foo.ts",
-      headSha: "abc1234",
-    });
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(1));
+    const workspaceRoot = createInboxRepo(["Sort me."]);
+    writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n*.local\n");
 
-    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+    const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
       trigger: { event: "autonomy.inbox.available", payload: {} },
-    });
+    }).run();
 
-    const result = await harness.run();
-    expect(result.steps["inspect-inbox"].status).toBe("failed");
+    expect(result.status).toBe("failed");
+    expect(result.steps["inspect-inbox"].error).toContain(".gitignore");
   });
 
-  it("runs sorter when inbox has entries", async () => {
-    await mockCleanWorktree();
-    const { getRepoTaskQueueSnapshot } = await import("#modules/repo-tasks/repo-tasks-domain.js");
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot(2));
+  it("sorts populated inboxes and validates the resulting queue", async () => {
+    const workspaceRoot = createInboxRepo(["First capture.", "Second capture."]);
+    const runCommand = vi.fn(successfulWorkflowCommandRun);
 
-    const harness = new WorkflowTestHarness(inboxSorterWorkflow, {
+    const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
+      workspaceRoot,
       trigger: { event: "autonomy.inbox.available", payload: {} },
-      stepMocks: {
-        "sort-inbox": { turns: [], totalCostUsd: 0.01 },
-      },
+      stepOutputs: sorterAgentOutputs(),
+      ports: { runCommand },
+    }).run();
+
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
+    expect(result.steps["inspect-inbox"].output).toMatchObject({
+      inboxCount: 2,
+      needsAttention: true,
     });
-
-    const result = await harness.run();
-
-    expect(result.status).toBe("success");
     expect(result.steps["sort-inbox"].status).toBe("success");
+    expect(runCommand).toHaveBeenCalledWith(expect.objectContaining({
+      command: "pnpm",
+      args: ["run", "validate-tasks"],
+      cwd: result.workspaceDir,
+    }));
   });
 });

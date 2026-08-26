@@ -4,6 +4,12 @@
  * Voyage AI, and any API that follows the same request/response shape.
  */
 
+import {
+	OUTBOUND_HTTP_PROFILES,
+	type OutboundHttpRequestPort,
+	outboundHttp,
+} from "#core/outbound-http/index.js";
+
 export type EmbeddingProviderConfig = {
 	provider: "openai" | "voyage";
 	model: string;
@@ -30,8 +36,12 @@ export class HttpEmbeddingProvider implements EmbeddingProvider {
 	readonly model: string;
 	private baseUrl: string;
 	private apiKey: string;
+	private http: OutboundHttpRequestPort;
 
-	constructor(config: EmbeddingProviderConfig) {
+	constructor(
+		config: EmbeddingProviderConfig,
+		http: OutboundHttpRequestPort = outboundHttp,
+	) {
 		const preset = PRESETS[config.provider];
 		if (!preset && !config.baseUrl) {
 			throw new Error(
@@ -42,6 +52,7 @@ export class HttpEmbeddingProvider implements EmbeddingProvider {
 		this.model = config.model;
 		this.baseUrl = (config.baseUrl || preset.baseUrl).replace(/\/+$/, "");
 		this.apiKey = config.apiKey || process.env[preset?.apiKeyEnv ?? ""] || "";
+		this.http = http;
 		if (!this.apiKey) {
 			throw new Error(
 				`No API key for embedding provider "${config.provider}". ` +
@@ -53,7 +64,10 @@ export class HttpEmbeddingProvider implements EmbeddingProvider {
 	async embed(texts: string[]): Promise<number[][]> {
 		if (texts.length === 0) return [];
 		const url = `${this.baseUrl}/embeddings`;
-		const response = await fetch(url, {
+		const { response } = await this.http.request({
+			profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.baseUrl]),
+			operation: `semantic-index.${this.name}.embed`,
+			url,
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

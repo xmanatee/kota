@@ -3,118 +3,85 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import { inspectResearchRetryCandidatesInWorker } from "./blocking-operations.js";
+import {
+  computeResourceFingerprint,
+  evaluateCandidate,
+  renderRetryMarker,
+} from "./precondition.js";
 import researchRetryWorkflow from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-}));
-
-vi.mock("#core/agent-harness/index.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
-    "#core/agent-harness/index.js",
-  );
-  return {
-    ...actual,
-    createWorkflowAgentGuards: vi.fn(() => () => ({ allow: true })),
-    resolveAgentHarness: vi.fn(() => ({ name: "mock-harness" })),
-    routeKotaToolControlOptions: vi.fn(() => ({})),
-    runAgentHarness: vi.fn(async () => ({
-      text: JSON.stringify({
-        decision: "pass",
-        summary: "No advisory findings.",
-        citedArtifacts: [],
-        findings: [],
-      }),
-      streamedText: "",
-      turns: 1,
-      isError: false,
-      totalCostUsd: 0,
-    })),
-  };
-});
-
-vi.mock("./candidates.js", async () => {
-  const actual = await vi.importActual<typeof import("./candidates.js")>(
-    "./candidates.js",
-  );
-  return {
-    ...actual,
-    listResearchRetryCandidates: vi.fn(),
-  };
-});
-
-vi.mock("./runtime-detect.js", () => ({
-  isPlaywrightAvailable: vi.fn(() => false),
-  readBrowserConfig: vi.fn(() => ({})),
-}));
-
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
-}
-
-async function setCandidates(
-  candidates: Array<{ id: string; updatedAt: string; urls: string[]; body?: string }>,
-) {
-  const { listResearchRetryCandidates } = await import("./candidates.js");
-  vi.mocked(listResearchRetryCandidates).mockReturnValue(
-    candidates.map((c) => ({
-      id: c.id,
-      updatedAt: c.updatedAt,
-      urls: c.urls,
-      body: c.body ?? bodyFromUrls(c.urls),
-    })),
-  );
-}
 
 function bodyFromUrls(urls: string[]): string {
   return ["## Resources", "", ...urls.map((u) => `- ${u}`), ""].join("\n");
 }
 
-async function setCapability(opts: {
-  playwright?: boolean;
-  storageStatePath?: string | null;
-}) {
-  const { isPlaywrightAvailable, readBrowserConfig } = await import(
-    "./runtime-detect.js"
-  );
-  vi.mocked(isPlaywrightAvailable).mockReturnValue(opts.playwright ?? false);
-  vi.mocked(readBrowserConfig).mockReturnValue(
-    opts.storageStatePath ? { storageStatePath: opts.storageStatePath } : {},
-  );
+const roots: string[] = [];
+
+function createResearchProject(
+  candidates: Array<{ id: string; updatedAt: string; urls: string[]; marker?: string }> = [],
+): string {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-workflow-"));
+  roots.push(workspaceRoot);
+  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
+  }
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  for (const candidate of candidates) {
+    writeFileSync(
+      join(workspaceRoot, "data", "tasks", "blocked", `${candidate.id}.md`),
+      [
+        "---",
+        `id: ${candidate.id}`,
+        `title: ${candidate.id}`,
+        "status: blocked",
+        "priority: p2",
+        "area: research",
+        `summary: ${candidate.id} needs source access.`,
+        "created_at: 2026-04-01T00:00:00.000Z",
+        `updated_at: ${candidate.updatedAt}`,
+        "---",
+        "",
+        bodyFromUrls(candidate.urls),
+        ...(candidate.marker ? ["", candidate.marker] : []),
+        "",
+      ].join("\n"),
+    );
+  }
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["config", "user.name", "KOTA test"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "--quiet", "-m", "scenario input"], {
+    cwd: workspaceRoot,
+  });
+  return workspaceRoot;
 }
 
-function createTempProfile(): string {
-  const dir = mkdtempSync(join(tmpdir(), "research-retry-profile-"));
-  const path = join(dir, "storage-state.json");
-  writeFileSync(path, "{}");
-  return path;
-}
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
 function researchRetryTrigger(): WorkflowRunTrigger {
   return {
     event: "autonomy.blocked-research.attemptable",
     schemaRef: null,
     payload: {
-      projectId: "project-research-retry",
+      scopeId: "scope-research-retry",
       candidateCount: 1,
       attemptableCount: 1,
       counts: {
@@ -130,10 +97,6 @@ function researchRetryTrigger(): WorkflowRunTrigger {
 }
 
 describe("research-retry workflow", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   it("wakes only from blocked research availability", () => {
     expect(researchRetryWorkflow.triggers.map((trigger) => trigger.event)).toEqual([
       "autonomy.blocked-research.attemptable",
@@ -142,7 +105,7 @@ describe("research-retry workflow", () => {
 
   it("fails closed on unsupported triggers and malformed availability payloads", async () => {
     const validTrigger = researchRetryTrigger();
-    const unsupported = await new WorkflowTestHarness(researchRetryWorkflow, {
+    const unsupported = await new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: {
         event: "runtime.idle",
         payload: validTrigger.payload,
@@ -152,7 +115,7 @@ describe("research-retry workflow", () => {
       "accepts only autonomy.blocked-research.attemptable triggers",
     );
 
-    const malformed = await new WorkflowTestHarness(researchRetryWorkflow, {
+    const malformed = await new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: {
         event: "autonomy.blocked-research.attemptable",
         payload: {},
@@ -172,28 +135,27 @@ describe("research-retry workflow", () => {
       (entry) => entry.id === "task-queue-valid",
     );
     if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
-    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-command-"));
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-command-"));
     const runCommand = vi.fn(successfulWorkflowCommandRun);
 
     await check.run(
-      { projectDir, runCommand } as unknown as WorkflowStepContext,
+      { workspaceRoot, runCommand } as unknown as WorkflowStepContext,
       {} as never,
     );
 
     expect(runCommand).toHaveBeenCalledWith({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: projectDir,
+      cwd: workspaceRoot,
     });
   });
 
   it("skips the agent step when there are no blocked research candidates", async () => {
-    await mockCleanWorktree();
-    await setCandidates([]);
-    await setCapability({ playwright: true });
+    const workspaceRoot = createResearchProject();
 
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
+    const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: researchRetryTrigger(),
+      workspaceRoot,
     });
 
     const result = await harness.run();
@@ -209,121 +171,80 @@ describe("research-retry workflow", () => {
   });
 
   it("skips the agent step when worktree is dirty", async () => {
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: true,
-      trackedDirty: true,
-      entries: [" M data/tasks/blocked/x.md"],
-      fingerprint: " M data/tasks/blocked/x.md",
-      summary: "data/tasks/blocked/x.md",
-      headSha: "abc1234",
-    });
-    await setCapability({ playwright: true, storageStatePath: createTempProfile() });
-    await setCandidates([
-      { id: "task-a", updatedAt: "2026-04-20T00:00:00.000Z", urls: ["https://x.com/foo/status/1"] },
-    ]);
-
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: researchRetryTrigger(),
-    });
-
-    const result = await harness.run();
-
-    expect(result.steps.retry.status).toBe("skipped");
-    expect(result.steps["mark-attempt"].status).toBe("skipped");
-  });
-
-  it("skips when capability is absent for every candidate URL", async () => {
-    await mockCleanWorktree();
-    await setCapability({ playwright: false, storageStatePath: null });
-    await setCandidates([
+    const workspaceRoot = createResearchProject([
       {
-        id: "task-x",
-        updatedAt: "2026-04-14T00:29:07.947Z",
-        urls: [
-          "https://x.com/akshay_pachaar/status/2041146899319971922",
-          "https://openai.com/index/why-we-no-longer-evaluate/",
-        ],
+        id: "task-a",
+        updatedAt: "2026-04-20T00:00:00.000Z",
+        urls: ["https://example.com/article"],
       },
     ]);
+    writeFileSync(join(workspaceRoot, "dirty.txt"), "uncommitted\n");
 
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
+    const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: researchRetryTrigger(),
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
     });
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
-    const output = result.steps["inspect-candidates"].output as {
-      candidate: unknown;
-      examined: Array<{ id: string; skipReason: { kind: string } }>;
-    };
-    expect(output.candidate).toBeNull();
-    expect(output.examined).toHaveLength(1);
-    expect(output.examined[0].id).toBe("task-x");
-    expect(output.examined[0].skipReason.kind).toBe("capability-absent");
     expect(result.steps.retry.status).toBe("skipped");
     expect(result.steps["mark-attempt"].status).toBe("skipped");
   });
 
-  it("skips when fingerprint marker matches the current URL set", async () => {
-    await mockCleanWorktree();
-    await setCapability({ playwright: true, storageStatePath: createTempProfile() });
+  it("classifies candidates as unavailable when every URL lacks its capability", () => {
     const urls = [
       "https://x.com/akshay_pachaar/status/2041146899319971922",
-      "https://x.com/arlanr/status/2041215978957389908",
+      "https://openai.com/index/why-we-no-longer-evaluate/",
     ];
-    const { computeResourceFingerprint, renderRetryMarker } = await import(
-      "./precondition.js"
-    );
+    expect(evaluateCandidate({
+      urls,
+      body: bodyFromUrls(urls),
+      capability: {
+        playwrightAvailable: false,
+        authProfileConfigured: false,
+        authProfileExists: false,
+      },
+    }).skipReason).toEqual({
+      kind: "capability-absent",
+      classes: ["x-post", "js-rendered"],
+    });
+  });
+
+  it("classifies an unchanged URL fingerprint as already attempted", () => {
+    const urls = [
+      "https://example.com/research-a",
+      "https://example.com/research-b",
+    ];
     const fingerprint = computeResourceFingerprint(urls);
     const marker = renderRetryMarker({
       fingerprint,
       attemptedAt: "2026-04-22T23:47:08.339Z",
     });
-    const body = `${bodyFromUrls(urls)}\n\n${marker}\n`;
-
-    await setCandidates([
-      { id: "task-x", updatedAt: "2026-04-22T23:47:08.339Z", urls, body },
-    ]);
-
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: researchRetryTrigger(),
-    });
-
-    const result = await harness.run();
-    const output = result.steps["inspect-candidates"].output as {
-      candidate: unknown;
-      examined: Array<{ skipReason: { kind: string } }>;
-    };
-    expect(output.candidate).toBeNull();
-    expect(output.examined[0].skipReason.kind).toBe(
-      "no-change-since-last-attempt",
-    );
-    expect(result.steps.retry.status).toBe("skipped");
-    expect(result.steps["mark-attempt"].status).toBe("skipped");
+    expect(evaluateCandidate({
+      urls,
+      body: `${bodyFromUrls(urls)}\n${marker}\n`,
+      capability: {
+        playwrightAvailable: false,
+        authProfileConfigured: false,
+        authProfileExists: false,
+      },
+    }).skipReason).toEqual({ kind: "no-change-since-last-attempt", fingerprint });
   });
 
-  it("picks the next candidate when the oldest is stale", async () => {
-    await mockCleanWorktree();
-    await setCapability({ playwright: true, storageStatePath: createTempProfile() });
-    const staleUrls = ["https://x.com/foo/status/1"];
-    const { computeResourceFingerprint, renderRetryMarker } = await import(
-      "./precondition.js"
-    );
+  it("picks the next candidate when the oldest URL set was already attempted", () => {
+    const staleUrls = ["https://example.com/stale"];
     const staleMarker = renderRetryMarker({
       fingerprint: computeResourceFingerprint(staleUrls),
       attemptedAt: "2026-04-14T00:00:00.000Z",
     });
     const freshUrls = ["https://example.com/article"];
-
-    await setCandidates([
+    const workspaceRoot = createResearchProject([
       {
         id: "task-stale",
         updatedAt: "2026-04-14T00:00:00.000Z",
         urls: staleUrls,
-        body: `${bodyFromUrls(staleUrls)}\n\n${staleMarker}\n`,
+        marker: staleMarker,
       },
       {
         id: "task-fresh",
@@ -331,34 +252,17 @@ describe("research-retry workflow", () => {
         urls: freshUrls,
       },
     ]);
-
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
-      trigger: researchRetryTrigger(),
-      stepMocks: {
-        retry: { turns: [], totalCostUsd: 0.01 },
-        "mark-attempt": { written: false, reason: "task moved to done" },
-      },
-    });
-
-    const result = await harness.run();
-    const output = result.steps["inspect-candidates"].output as {
-      candidate: { id: string };
-      examined: Array<{ id: string }>;
-    };
-    expect(output.candidate.id).toBe("task-fresh");
+    const output = inspectResearchRetryCandidatesInWorker({ workspaceRoot });
+    expect(output.candidate).toMatchObject({ id: "task-fresh" });
     expect(output.examined.map((e) => e.id)).toEqual(["task-stale"]);
-    expect(result.steps.retry.status).toBe("success");
-    expect(result.steps["mark-attempt"].status).toBe("success");
   });
 
   it("picks the oldest candidate when capability is met and nothing is stale", async () => {
-    await mockCleanWorktree();
-    await setCapability({ playwright: true, storageStatePath: createTempProfile() });
-    await setCandidates([
+    const workspaceRoot = createResearchProject([
       {
         id: "task-old",
         updatedAt: "2026-04-14T00:29:07.947Z",
-        urls: ["https://openai.com/index/x/", "https://x.com/a/status/1"],
+        urls: ["https://example.com/old"],
       },
       {
         id: "task-new",
@@ -366,16 +270,22 @@ describe("research-retry workflow", () => {
         urls: ["https://example.com/article"],
       },
     ]);
-    const harness = new WorkflowTestHarness(researchRetryWorkflow, {
+    const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: researchRetryTrigger(),
-      stepMocks: {
-        retry: { turns: [], totalCostUsd: 0.01 },
-        "mark-attempt": { written: false, reason: "no resource URLs remain" },
+      workspaceRoot,
+      stepOutputs: {
+        retry: { content: "Research attempt completed." },
+        "shadow-semantic-review": {
+          decision: "pass",
+          summary: "The source decision matches the task state.",
+          citedArtifacts: ["metadata:inspect-candidates"],
+          findings: [],
+        },
       },
+      ports: { runCommand: successfulWorkflowCommandRun },
     });
 
     const result = await harness.run();
-
     expect(result.steps["inspect-candidates"].output).toMatchObject({
       candidate: { id: "task-old" },
       candidateCount: 2,
@@ -388,12 +298,12 @@ describe("research-retry workflow", () => {
     const { writeMarkerForCandidate, computeResourceFingerprint } = await import(
       "./precondition.js"
     );
-    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
     execFileSync("git", ["init", "-q", "-b", "main"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
-    const blockedDir = join(projectDir, "data", "tasks", "blocked");
+    const blockedDir = join(workspaceRoot, "data", "tasks", "blocked");
     mkdirSync(blockedDir, { recursive: true });
     const taskFile = join(blockedDir, "task-x.md");
     const initialUrls = [
@@ -417,7 +327,7 @@ describe("research-retry workflow", () => {
     );
 
     const result = writeMarkerForCandidate({
-      projectDir,
+      workspaceRoot,
       candidateId: "task-x",
       attemptedAt: "2026-04-23T00:00:00.000Z",
     });
@@ -433,8 +343,8 @@ describe("research-retry workflow", () => {
 
   it("writeMarkerForCandidate is a no-op when the task moved out of blocked", async () => {
     const { writeMarkerForCandidate } = await import("./precondition.js");
-    const projectDir = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
-    const doneDir = join(projectDir, "data", "tasks", "done");
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
+    const doneDir = join(workspaceRoot, "data", "tasks", "done");
     mkdirSync(doneDir, { recursive: true });
     const taskFile = join(doneDir, "task-y.md");
     writeFileSync(
@@ -454,7 +364,7 @@ describe("research-retry workflow", () => {
     );
 
     const result = writeMarkerForCandidate({
-      projectDir,
+      workspaceRoot,
       candidateId: "task-y",
     });
 

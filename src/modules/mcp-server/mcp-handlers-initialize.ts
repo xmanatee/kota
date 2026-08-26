@@ -33,7 +33,7 @@ import {
 export type InitializeOptions = {
 	serverName: string;
 	serverVersion: string;
-	projectDir: string;
+	scopeRoot: string;
 	advertiseSampling: () => boolean;
 	advertiseSkills: () => boolean;
 	warnDeprecatedCapability: (warning: DeprecatedMcpCapabilityWarning) => void;
@@ -285,17 +285,17 @@ export class InitializeHandler {
 		return true;
 	}
 
-	/** Returns legacy cached client workspace roots, or an empty array if none. */
+	/** Returns cached client roots, or an empty array if none. */
 	getClientRoots(): McpRoot[] {
 		return [...this.clientRoots];
 	}
 
 	/**
-	 * Returns the legacy effective project directory: the first cached client
+	 * Returns the effective scope root: the first cached client
 	 * root's file path when roots are provided, otherwise the configured
-	 * projectDir. Draft request handlers resolve roots from MRTR retry payloads.
+	 * scopeRoot. Draft request handlers resolve roots from MRTR retry payloads.
 	 */
-	getEffectiveProjectDir(): string {
+	getEffectiveScopeRoot(): string {
 		if (this.clientRoots.length > 0) {
 			const firstUri = this.clientRoots[0].uri;
 			if (firstUri.startsWith("file://")) {
@@ -306,7 +306,7 @@ export class InitializeHandler {
 				}
 			}
 		}
-		return this.options.projectDir;
+		return this.options.scopeRoot;
 	}
 
 	private async fetchClientRoots(): Promise<void> {

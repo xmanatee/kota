@@ -122,31 +122,27 @@ public final class DaemonClient {
     private(set) var connection: DaemonConnection?
     let decoder = JSONDecoder()
 
-    /// Append `projectId=<id>` to a path. Used by every project-scoped
-    /// daemon route — the daemon's `resolveProjectIdParam` reads this
+    /// Append `scopeId=<id>` to a path. Used by every scope-scoped
+    /// daemon route — the daemon's `resolveScopeIdParam` reads this
     /// query parameter and rejects unknown ids with a typed
-    /// `UnknownProjectError` body. Pass `nil` (or omit) to call the
+    /// `UnknownScopeError` body. Pass `nil` (or omit) to call the
     /// route without scoping; the daemon resolves the registry's default.
-    static func withQueryParameter(_ path: String, name: String, value: String?) -> String {
-        guard let value, !value.isEmpty,
-              let encoded = value.addingPercentEncoding(
+    static func withScope(_ path: String, scopeId: String?) -> String {
+        guard let scopeId, !scopeId.isEmpty,
+              let encoded = scopeId.addingPercentEncoding(
                 withAllowedCharacters: .urlQueryAllowed
               )
         else { return path }
         let separator = path.contains("?") ? "&" : "?"
-        return "\(path)\(separator)\(name)=\(encoded)"
-    }
-
-    static func withProject(_ path: String, projectId: String?) -> String {
-        withQueryParameter(path, name: "projectId", value: projectId)
+        return "\(path)\(separator)scopeId=\(encoded)"
     }
 
     static func pathComponent(_ value: String) -> String {
         value.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? value
     }
 
-    func refreshConnection(projectDir: URL) -> Bool {
-        let controlPath = projectDir
+    func refreshConnection(scopeRoot: URL) -> Bool {
+        let controlPath = scopeRoot
             .appendingPathComponent(".kota")
             .appendingPathComponent("daemon-control.json")
         guard
@@ -165,20 +161,20 @@ public final class DaemonClient {
         connection = DaemonConnection(baseURL: url, token: token)
     }
 
-    func fetchStatus(projectId: String? = nil) async throws -> DaemonStatusResponse {
-        try await get(Self.withProject("/status", projectId: projectId))
+    func fetchStatus(scopeId: String? = nil) async throws -> DaemonStatusResponse {
+        try await get(Self.withScope("/status", scopeId: scopeId))
     }
 
     /// `GET /identity` — typed thin-client identity payload. Returns the
-    /// project the daemon is bound to, the daemon version, and the
+    /// scope the daemon is bound to, the daemon version, and the
     /// dashboard availability discriminator. Mirrors the TypeScript
     /// `ClientIdentity` contract one-to-one.
     func fetchIdentity() async throws -> ClientIdentity {
         try await get("/identity")
     }
 
-    func fetchRecentRuns(limit: Int = 10, projectId: String? = nil) async throws -> RunHistoryResponse {
-        try await get(Self.withProject("/workflow/runs?limit=\(limit)", projectId: projectId))
+    func fetchRecentRuns(limit: Int = 10, scopeId: String? = nil) async throws -> RunHistoryResponse {
+        try await get(Self.withScope("/workflow/runs?limit=\(limit)", scopeId: scopeId))
     }
 
     func fetchSlashCommands() async throws -> SlashCommandsResponse {

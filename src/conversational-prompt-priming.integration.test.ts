@@ -92,7 +92,7 @@ describe("conversational prompt priming (capture / recall / answer / retract)", 
 
   afterAll(() => {
     resetDynamicStateProviders();
-    rmSync(fixture.projectRoot, { recursive: true, force: true });
+    rmSync(fixture.scopeRoot, { recursive: true, force: true });
   });
 
   it("(positive) per-turn system prompt contains all four conversational blocks when every tool is admitted", () => {

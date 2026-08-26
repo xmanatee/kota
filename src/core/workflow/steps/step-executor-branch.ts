@@ -1,5 +1,5 @@
 import type { EventBus } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { ActiveWorkflowRunHandle } from "../active-run-handle.js";
 import { buildStepCompletedPayload, buildStepStartedPayload, resolveStepAutonomyMode } from "../event-payloads.js";
 import { buildSkippedResult, executeWorkflowStep, type StepAccumulators } from "../run-executor-step.js";
@@ -20,7 +20,7 @@ type BranchRunDeps = {
   agentConfig: AgentStepConfig;
   acc: StepAccumulators;
   bus: EventBus;
-  pbus: ProjectScopedEventBus;
+  pbus: ScopedEventBus;
   log: (message: string) => void;
 };
 

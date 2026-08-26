@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Cross-module integration tests: init.ts → loop.ts (AgentSession) → context.ts → system-prompt.ts
-// Verifies environment/project detection flows through session startup into the system prompt.
+// Verifies environment/workspace detection flows through session startup into the system prompt.
 
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
@@ -20,8 +20,8 @@ vi.mock("./core/model/model-client.js", () => ({
   })),
   registerModelClientFactory: vi.fn(),
 }));
-vi.mock("./core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
+vi.mock("./core/modules/bundled-module-discovery.js", () => ({
+  discoverBundledModules: vi.fn(async () => []),
 }));
 vi.mock("./core/modules/module-discovery.js", () => ({
   discoverModules: vi.fn(async () => []),
@@ -76,27 +76,27 @@ describe("init → loop → context: session startup pipeline", () => {
     await closeSessionAfterInit(session);
   });
 
-  it("project detection flows into static prompt for code directories", async () => {
-    // Current directory is a Node.js project (has package.json)
+  it("workspace detection flows into static prompt for code directories", async () => {
+    // Current directory is a Node.js workspace (has package.json)
     const { AgentSession } = await import("./core/loop/loop.js");
 
     const session = new AgentSession({ autonomyMode: "autonomous" });
     const staticPrompt: string = (session as any).context.getStaticPrompt();
-    expect(staticPrompt).toContain("**Project**:");
-    expect(staticPrompt).toContain("Node.js project");
+		expect(staticPrompt).toContain("**Workspace**:");
+    expect(staticPrompt).toContain("Node.js workspace");
     await closeSessionAfterInit(session);
   });
 });
 
 describe("init → loop: environment detection for non-code workspaces (cross-module)", () => {
-  it("detectEnvironment output appears in warmup when no project detected", async () => {
+  it("detectEnvironment output appears in warmup when no workspace detected", async () => {
     const { buildSessionWarmup } = await import("./init.js");
-    const { detectEnvironment } = await import("#core/util/project-detection.js");
+    const { detectEnvironment } = await import("#core/util/workspace-detection.js");
     const fs = await import("node:fs");
     const os = await import("node:os");
     const path = await import("node:path");
 
-    // Create a temp dir with data files (no project files)
+    // Create a temp dir with data files (no workspace files)
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-env-test-"));
     try {
       fs.writeFileSync(path.join(tmpDir, "sales.csv"), "product,revenue\nA,100");
@@ -147,7 +147,7 @@ describe("init → loop: environment detection for non-code workspaces (cross-mo
     }
   });
 
-  it("project detection takes priority over environment detection in warmup", async () => {
+  it("workspace detection takes priority over environment detection in warmup", async () => {
     const { buildSessionWarmup } = await import("./init.js");
     const fs = await import("node:fs");
     const os = await import("node:os");
@@ -155,13 +155,13 @@ describe("init → loop: environment detection for non-code workspaces (cross-mo
 
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "kota-prio-test-"));
     try {
-      // Dir has both a project file AND data files
+      // Dir has both a workspace file AND data files
       fs.writeFileSync(path.join(tmpDir, "package.json"), '{"name":"test"}');
       fs.writeFileSync(path.join(tmpDir, "data.csv"), "a,b\n1,2");
 
       const warmup = buildSessionWarmup(tmpDir);
-      // Project should win, Environment should not appear
-      expect(warmup).toContain("**Project**:");
+		// Workspace technology should win; generic environment should not appear.
+		expect(warmup).toContain("**Workspace**:");
       expect(warmup).not.toContain("**Environment**:");
     } finally {
       fs.rmSync(tmpDir, { recursive: true });

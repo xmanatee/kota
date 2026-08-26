@@ -12,7 +12,7 @@ import {
 } from "#core/tools/tool-runner.js";
 import type { ValidatedToolUseBlock } from "./tool-loop.js";
 
-export function resolveProjectDir(options: AgentHarnessRunOptions): string {
+export function resolveScopeRoot(options: AgentHarnessRunOptions): string {
 	return options.cwd ?? process.cwd();
 }
 
@@ -32,23 +32,23 @@ function toMcpServerConfigMap(
 }
 
 function resolveMcpConfig(
-	projectDir: string,
+	scopeRoot: string,
 	sessionServers: AgentHarnessRunOptions["mcpServers"],
-	projectConfigPolicy: AgentHarnessRunOptions["mcpProjectConfigPolicy"],
+	scopeConfigPolicy: AgentHarnessRunOptions["mcpScopeConfigPolicy"],
 ): { mcpServers: Record<string, McpServerConfig> } | null {
-	const projectConfig = projectConfigPolicy === "disabled"
+	const scopeConfig = scopeConfigPolicy === "disabled"
 		? null
-		: McpManager.loadConfig(projectDir);
+		: McpManager.loadConfig(scopeRoot);
 	const sessionEntries = Object.entries(toMcpServerConfigMap(sessionServers));
-	if (!projectConfig && sessionEntries.length === 0) return null;
+	if (!scopeConfig && sessionEntries.length === 0) return null;
 
 	const mcpServers: Record<string, McpServerConfig> = {
-		...(projectConfig?.mcpServers ?? {}),
+		...(scopeConfig?.mcpServers ?? {}),
 	};
 	for (const [name, config] of sessionEntries) {
 		if (Object.hasOwn(mcpServers, name)) {
 			throw new Error(
-				`MCP server "${name}" is defined by both project config and session options`,
+				`MCP server "${name}" is defined by both scope config and session options`,
 			);
 		}
 		mcpServers[name] = config;
@@ -59,14 +59,14 @@ function resolveMcpConfig(
 export async function initializeMcpManager(
 	options: AgentHarnessRunOptions,
 ): Promise<McpManager | undefined> {
-	const projectDir = resolveProjectDir(options);
+	const scopeRoot = resolveScopeRoot(options);
 	const config = resolveMcpConfig(
-		projectDir,
+		scopeRoot,
 		options.mcpServers,
-		options.mcpProjectConfigPolicy,
+		options.mcpScopeConfigPolicy,
 	);
 	if (!config) return undefined;
-	const manager = new McpManager({ projectDir });
+	const manager = new McpManager({ scopeRoot });
 	await manager.initialize(config);
 	return manager;
 }
@@ -102,7 +102,7 @@ export function executeOpenaiToolCalls(
 		mcpPromptToolDeclarationFingerprints:
 			| McpPromptToolDeclarationFingerprints
 			| undefined;
-		projectDir: string;
+		scopeRoot: string;
 		abortSignal: AbortSignal | undefined;
 		messages: KotaMessage[];
 	},
@@ -110,7 +110,7 @@ export function executeOpenaiToolCalls(
 	return executeToolCalls(toolBlocks, {
 		...agentHarnessToolExecutionOptions(options, {
 			resultLimit: 50_000,
-			cwd: context.projectDir,
+			cwd: context.scopeRoot,
 			...(context.abortSignal !== undefined
 				? { signal: context.abortSignal }
 				: {}),

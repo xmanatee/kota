@@ -1,22 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 import type { UiSurface } from "#core/daemon/ui-surface.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
 
 function uiProjectionClient(): KotaClient {
-  const client = {
-    projects: {
+  return createKotaClientTestDouble({
+    scopes: {
       list: async () => ({
         ok: true as const,
-        projects: [],
-        defaultProjectId: "scope-a",
-        activeProjectId: null,
+        scopes: [],
+        defaultScopeId: "scope-a",
+        activeScopeId: null,
       }),
     },
-  } as unknown as KotaClient;
-  client.forProject = () => client;
-  client.forScope = () => client;
-  return client;
+  });
 }
 
 function demoSurface() {
@@ -40,7 +38,7 @@ describe("ModuleLoader live UI surfaces", () => {
     const surface = demoSurface();
     await loader.load({
       name: "ui-provider",
-      uiSurfaces: [{ sourceId: "demo", project: () => [surface] }],
+      uiSurfaces: [{ sourceId: "demo", scope: () => [surface] }],
     });
 
     await expect(loader.assembleUiSurfaceBundle({ client: uiProjectionClient() }))
@@ -49,7 +47,7 @@ describe("ModuleLoader live UI surfaces", () => {
       name: "bad-ui-provider",
       uiSurfaces: [{
         sourceId: "other-demo",
-        project: () => [{ ...surface, surfaceId: "other-demo" }],
+        scope: () => [{ ...surface, surfaceId: "other-demo" }],
       }],
     });
     await expect(loader.assembleUiSurfaceBundle({ client: uiProjectionClient() }))
@@ -64,7 +62,7 @@ describe("ModuleLoader live UI surfaces", () => {
     };
     await loader.load({
       name: "bad-ui-provider",
-      uiSurfaces: [{ sourceId: "bad-demo", project: () => [surface] }],
+      uiSurfaces: [{ sourceId: "bad-demo", scope: () => [surface] }],
     });
     await expect(loader.assembleUiSurfaceBundle({ client: uiProjectionClient() }))
       .rejects.toThrow(/node timeline\.kind "timeline" must be one of/);
@@ -74,11 +72,11 @@ describe("ModuleLoader live UI surfaces", () => {
     const loader = createRuntimeModuleLoader({});
     await loader.load({
       name: "first-ui-provider",
-      uiSurfaces: [{ sourceId: "status", project: () => [] }],
+      uiSurfaces: [{ sourceId: "status", scope: () => [] }],
     });
     await expect(loader.load({
       name: "second-ui-provider",
-      uiSurfaces: [{ sourceId: "status", project: () => [] }],
+      uiSurfaces: [{ sourceId: "status", scope: () => [] }],
     })).rejects.toThrow(
       /Duplicate UI surface source id "status" from modules "first-ui-provider" and "second-ui-provider"/,
     );
@@ -93,7 +91,7 @@ describe("ModuleLoader live UI surfaces", () => {
         const capturedTitle = title;
         return [{
           sourceId: "live",
-          project: ({ scopeId }) => [{
+          scope: ({ scopeId }) => [{
             ...demoSurface(),
             surfaceId: "live",
             extensionId: "live.surface",
@@ -107,7 +105,7 @@ describe("ModuleLoader live UI surfaces", () => {
     title = "After reload";
     const before = await loader.assembleUiSurfaceBundle({
       client: uiProjectionClient(),
-      selector: { projectId: "scope-b" },
+      selector: { scopeId: "scope-b" },
     });
     expect(before.surfaces[0]?.title).toBe("Before reload: scope-b");
 
@@ -120,37 +118,39 @@ describe("ModuleLoader live UI surfaces", () => {
   });
 
   it.each([
-    { label: "active", activeProjectId: "scope-active", expectedScopeId: "scope-active" },
-    { label: "default", activeProjectId: null, expectedScopeId: "scope-default" },
+    { label: "active", activeScopeId: "scope-active", expectedScopeId: "scope-active" },
+    { label: "default", activeScopeId: null, expectedScopeId: "scope-default" },
   ])("scopes contributor reads to the implicit $label scope", async ({
-    activeProjectId,
+    activeScopeId,
     expectedScopeId,
   }) => {
     const loader = createRuntimeModuleLoader({});
-    const baseMemoryList = vi.fn(async () => ({ entries: [{ content: "base" }] }));
-    const scopedMemoryList = vi.fn(async () => ({ entries: [{ content: "scoped" }] }));
-    const scopedClient = {
+    const baseMemoryList = vi.fn(async () => ({
+      entries: [{ id: "base", created: "2026-01-01", content: "base" }],
+    }));
+    const scopedMemoryList = vi.fn(async () => ({
+      entries: [{ id: "scoped", created: "2026-01-01", content: "scoped" }],
+    }));
+    const scopedClient = createKotaClientTestDouble({
       memory: { list: scopedMemoryList },
-    } as unknown as KotaClient;
+    });
     const forScope = vi.fn(() => scopedClient);
-    const client = {
-      projects: {
+    const client = createKotaClientTestDouble({
+      scopes: {
         list: async () => ({
           ok: true as const,
-          projects: [],
-          defaultProjectId: "scope-default",
-          activeProjectId,
+          scopes: [],
+          defaultScopeId: "scope-default",
+          activeScopeId,
         }),
       },
       memory: { list: baseMemoryList },
-      forProject: vi.fn(() => scopedClient),
-      forScope,
-    } as unknown as KotaClient;
+    }, forScope);
     await loader.load({
       name: "scoped-ui-provider",
       uiSurfaces: [{
         sourceId: "scoped",
-        project: async (context) => {
+        scope: async (context) => {
           const memory = await context.client.memory.list();
           return [{
             ...demoSurface(),
@@ -176,7 +176,7 @@ describe("ModuleLoader live UI surfaces", () => {
       name: "failing-ui-provider",
       uiSurfaces: [{
         sourceId: "failing",
-        project: () => {
+        scope: () => {
           throw new Error("backend unavailable");
         },
       }],

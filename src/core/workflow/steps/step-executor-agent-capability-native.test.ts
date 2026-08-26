@@ -18,29 +18,29 @@ import {
   makeAgentStep,
   makeDefinition,
   makeHarness,
-  makeProjectDir,
+  makeScopeRoot,
   readCapabilityArtifact,
-  removeProjectDir,
+  removeScopeRoot,
   TRIGGER,
 } from "./step-executor-agent-capability-fixtures.integration.js";
 
 describe("workflow native-harness capability artifacts", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
 
   beforeEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     resetHarnessHooks();
-    removeProjectDir(projectDir);
+    removeScopeRoot(workspaceRoot);
   });
 
   it("writes the artifact before unsupported native-harness options reject launch", async () => {
@@ -97,15 +97,15 @@ describe("workflow native-harness capability artifacts", () => {
       }),
     );
 
-    const step = makeAgentStep(projectDir, harnessName, {
+    const step = makeAgentStep(workspaceRoot, harnessName, {
       allowedTools: ["Read"],
       thinkingEnabled: true,
     });
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -120,7 +120,7 @@ describe("workflow native-harness capability artifacts", () => {
     expect(run).not.toHaveBeenCalled();
 
     const artifact = readCapabilityArtifact(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "agent",
     );
@@ -193,12 +193,12 @@ describe("workflow native-harness capability artifacts", () => {
       }),
     );
 
-    const step = makeAgentStep(projectDir, harnessName);
+    const step = makeAgentStep(workspaceRoot, harnessName);
     const { promise } = executeWorkflowRun(
-      makeDefinition(projectDir, step),
+      makeDefinition(workspaceRoot, step),
       TRIGGER,
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(projectDir, TRIGGER), bus, store, log: () => {} },
+        readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: createTestRunContext(workspaceRoot, TRIGGER), bus, store, log: () => {} },
     );
     const result = await promise;
 
@@ -215,7 +215,7 @@ describe("workflow native-harness capability artifacts", () => {
     expect(run).not.toHaveBeenCalled();
 
     const artifact = readCapabilityArtifact(
-      projectDir,
+      workspaceRoot,
       result.metadata.runDir,
       "agent",
     );

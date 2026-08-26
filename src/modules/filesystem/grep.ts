@@ -2,11 +2,11 @@ import { execFileSync } from "node:child_process";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
-  isProtectedProjectPath,
-  protectedProjectGlobIgnores,
-  protectedProjectGrepExcludes,
-  protectedProjectPathError,
-} from "#core/tools/protected-project-paths.js";
+  isProtectedScopePath,
+  protectedScopeGlobIgnores,
+  protectedScopeGrepExcludes,
+  protectedScopePathError,
+} from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { resolveToolPath } from "./path-resolver.js";
 
@@ -121,8 +121,8 @@ export async function runGrep(
   const contextLines =
     rawContextLines === undefined ? DEFAULT_CONTEXT_LINES : rawContextLines;
 
-  if (isProtectedProjectPath(path, context)) {
-    return { content: protectedProjectPathError(rawPath), is_error: true };
+  if (isProtectedScopePath(path, context)) {
+    return { content: protectedScopePathError(rawPath), is_error: true };
   }
 
   // Try ripgrep first, fall back to grep
@@ -151,7 +151,7 @@ export async function runGrep(
       if (contextLines > 0) args.push("-C", String(contextLines));
     }
     if (fileGlob) args.push("--glob", fileGlob);
-    for (const ignore of protectedProjectGlobIgnores(context)) {
+    for (const ignore of protectedScopeGlobIgnores(context)) {
       args.push("--iglob", `!${ignore}`);
     }
     args.push("--", pattern, path);
@@ -167,7 +167,7 @@ export async function runGrep(
     }
     if (fileGlob) args.push(`--include=${fileGlob}`);
     else if (!filesOnly && !countOnly) args.push("--include=*");
-    for (const exclude of protectedProjectGrepExcludes(context)) {
+    for (const exclude of protectedScopeGrepExcludes(context)) {
       args.push(`--exclude=${exclude}`);
     }
     args.push("--", pattern, path);

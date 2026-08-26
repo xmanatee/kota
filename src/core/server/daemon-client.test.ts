@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  KOTA_CLIENT_NAMESPACES,
+} from "#root/client/kota-client.generated.js";
+import {
   assembleDaemonClientHandlers,
   buildCoreStubDaemonClientHandlers,
 } from "./daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "./daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "./daemon-client-test-support.js";
 import type { DaemonTransport } from "./daemon-transport.js";
-import {
-  KOTA_CLIENT_NAMESPACES,
-} from "./kota-client.js";
 
 function makeFakeTransport(): DaemonTransport {
   return {
@@ -27,53 +27,21 @@ function makeFakeTransport(): DaemonTransport {
 describe("assembleDaemonClientHandlers", () => {
   const transport = makeFakeTransport();
 
-  it("the core stub covers every non-migrated namespace", () => {
-    const stub = buildCoreStubDaemonClientHandlers(transport);
-    for (const name of KOTA_CLIENT_NAMESPACES) {
-      expect(
-        stub[name],
-        `migrated namespace "${name}" must not appear in the core stub`,
-      ).toBeUndefined();
-    }
-  });
-
   it("assembly succeeds when migrated namespaces are contributed by a module", () => {
     const handlers = assembleDaemonClientHandlers(
       transport,
-      buildMigratedNamespaceTestStubs(),
+      completeDaemonClientHandlers(),
     );
     for (const name of KOTA_CLIENT_NAMESPACES) {
       expect(handlers[name], `assembled client must cover "${name}"`).toBeDefined();
     }
   });
 
-  it("shared migrated stubs include observable harness-parity matrix status", async () => {
-    const stubs = buildMigratedNamespaceTestStubs();
-    const result = await stubs.harnessParity?.matrix();
-    expect(result?.ok, "observable matrix status").toBe(true);
-    if (!result?.ok) throw new Error("matrix stub must report ok status");
-    expect(result.aggregate.runnableGroupCount).toBe(0);
-    expect(result.shadowComparisons).toEqual([]);
-  });
-
-  it("shared migrated stubs expose observable AGY no-candidate failure metadata", async () => {
-    const runAgyModels = buildMigratedNamespaceTestStubs().evalHarness
-      ?.runAgyModels;
-    if (!runAgyModels) throw new Error("eval-harness test stub must be present");
-
-    await expect(runAgyModels({} as never)).resolves.toEqual({
-      ok: false,
-      reason: "no_candidates",
-      message: "stub",
-      artifactDir: null,
-    });
-  });
-
   it("module-contributed handlers land verbatim on the assembled map", () => {
-    const customWorkflow = buildMigratedNamespaceTestStubs().workflow;
+    const customWorkflow = completeDaemonClientHandlers().workflow;
     if (!customWorkflow) throw new Error("test stub builder must include workflow");
     const merged = assembleDaemonClientHandlers(transport, {
-      ...buildMigratedNamespaceTestStubs(),
+      ...completeDaemonClientHandlers(),
       workflow: customWorkflow,
     });
     expect(merged.workflow).toBe(customWorkflow);
@@ -86,7 +54,7 @@ describe("assembleDaemonClientHandlers", () => {
 
   it("throws naming each migrated namespace when no module contributes it", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      /missing daemon handler\(s\) for: workflow, approvals, secrets, tasks, memory, ownerDecisions, ownerQuestions, history, inboundSignals, knowledge, sessions, modules, agents, skills, harnessParity, webhook, voice, web, mcpServer, audit, config, modulesAdmin, daemonOps, projects, ui, doctor, evalHarness, recall, resourceDiscovery, answer, capture, retract, setup/,
+      `missing daemon handler(s) for: ${KOTA_CLIENT_NAMESPACES.join(", ")}`,
     );
   });
 });

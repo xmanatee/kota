@@ -5,12 +5,12 @@ import {
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 
 export function inspectRepoWorktreeInWorker(input: {
-  projectDir: string;
+  workspaceRoot: string;
 }): RepoWorktreeStatus {
-  return getRepoWorktreeStatus(input.projectDir);
+  return getRepoWorktreeStatus(input.workspaceRoot);
 }
 
 export const repoWorktreeStatusOperation = defineWorkflowBlockingOperation<
-  { projectDir: string },
+  { workspaceRoot: string },
   RepoWorktreeStatus
 >(import.meta.url, "inspectRepoWorktreeInWorker");

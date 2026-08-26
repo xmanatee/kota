@@ -68,7 +68,7 @@ class FakeEmbeddingProvider implements EmbeddingProvider {
 	}
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
 	const dir = join(
 		tmpdir(),
 		`kota-tasks-sem-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -109,8 +109,8 @@ type TaskSpec = {
 	body?: string;
 };
 
-function writeTask(projectDir: string, spec: TaskSpec): void {
-	const filePath = join(projectDir, "data", "tasks", spec.state, `${spec.id}.md`);
+function writeTask(scopeRoot: string, spec: TaskSpec): void {
+	const filePath = join(scopeRoot, "data", "tasks", spec.state, `${spec.id}.md`);
 	const fmLines = [
 		"---",
 		`id: ${spec.id}`,
@@ -128,28 +128,28 @@ function writeTask(projectDir: string, spec: TaskSpec): void {
 }
 
 describe("SemanticTasksStore", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let provider: FakeEmbeddingProvider;
 	let store: SemanticTasksStore;
 	let errors: unknown[];
 
 	beforeEach(() => {
-		projectDir = makeProjectDir();
+		scopeRoot = makeScopeRoot();
 		provider = new FakeEmbeddingProvider();
 		errors = [];
 		store = new SemanticTasksStore({
-			projectDir,
+			scopeRoot,
 			provider,
 			onBackgroundError: (e) => errors.push(e),
 		});
 	});
 
 	afterEach(() => {
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 	});
 
 	it("returns the conceptually relevant task for a query whose words don't match the task body (substring would miss)", async () => {
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-cost-anomaly",
 			title: "Track spend anomaly alerts in the workflow run dashboard",
 			state: "done",
@@ -166,14 +166,14 @@ describe("SemanticTasksStore", () => {
 				"",
 			].join("\n"),
 		});
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-bread",
 			title: "Document bread baking recipe",
 			state: "done",
 			updatedAt: "2026-04-26T00:00:00.000Z",
 			body: "## Problem\nBaking bread at home.\n",
 		});
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-auth",
 			title: "Fix auth session cookie expiry",
 			state: "done",
@@ -195,8 +195,8 @@ describe("SemanticTasksStore", () => {
 		expect(result[0].title).toMatch(/spend anomaly/);
 	});
 
-	it("populates the sidecar index under <projectDir>/.kota/tasks-semantic", async () => {
-		writeTask(projectDir, {
+	it("populates the sidecar index under <scopeRoot>/.kota/tasks-semantic", async () => {
+		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
 			state: "ready",
@@ -204,7 +204,7 @@ describe("SemanticTasksStore", () => {
 		});
 		await store.reindex();
 
-		const sidecarDir = tasksSidecarDir(projectDir);
+		const sidecarDir = tasksSidecarDir(scopeRoot);
 		expect(existsSync(indexPathFor(sidecarDir))).toBe(true);
 
 		const file = new SemanticIndexFile(indexPathFor(sidecarDir));
@@ -216,20 +216,20 @@ describe("SemanticTasksStore", () => {
 	});
 
 	it("lazily fills the sidecar for tasks added after reindex", async () => {
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-original",
 			title: "Track spend",
 			state: "ready",
 			updatedAt: "2026-04-26T00:00:00.000Z",
 		});
 		await store.reindex();
-		const sidecarDir = tasksSidecarDir(projectDir);
+		const sidecarDir = tasksSidecarDir(scopeRoot);
 		const before = new SemanticIndexFile(indexPathFor(sidecarDir)).load(
 			provider.model,
 		);
 		expect(before.entries["task-newly-created"]).toBeUndefined();
 
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-newly-created",
 			title: "Monitor budget alerts",
 			state: "ready",
@@ -248,7 +248,7 @@ describe("SemanticTasksStore", () => {
 	});
 
 	it("re-embeds when a task's updated_at changes", async () => {
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-evolving",
 			title: "Document bread baking",
 			state: "doing",
@@ -256,13 +256,13 @@ describe("SemanticTasksStore", () => {
 		});
 		await store.reindex();
 
-		const sidecarDir = tasksSidecarDir(projectDir);
+		const sidecarDir = tasksSidecarDir(scopeRoot);
 		const before = new SemanticIndexFile(indexPathFor(sidecarDir)).load(
 			provider.model,
 		);
 		const fpBefore = before.entries["task-evolving"].fingerprint;
 
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-evolving",
 			title: "Track spend anomaly alerts",
 			state: "doing",
@@ -277,7 +277,7 @@ describe("SemanticTasksStore", () => {
 	});
 
 	it("surfaces query-time provider errors so the namespace can map to semantic_unavailable", async () => {
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
 			state: "ready",
@@ -290,13 +290,13 @@ describe("SemanticTasksStore", () => {
 	});
 
 	it("filters candidates by states when requested", async () => {
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-open-spend",
 			title: "Track spend in open work",
 			state: "ready",
 			updatedAt: "2026-04-26T00:00:00.000Z",
 		});
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-done-spend",
 			title: "Track spend in finished work",
 			state: "done",
@@ -311,7 +311,7 @@ describe("SemanticTasksStore", () => {
 	});
 
 	it("returns an empty list when topK is 0 without embedding", async () => {
-		writeTask(projectDir, {
+		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
 			state: "ready",
@@ -324,7 +324,4 @@ describe("SemanticTasksStore", () => {
 		expect(provider.calls).toBe(before);
 	});
 
-	it("supportsSemanticSearch returns true", () => {
-		expect(store.supportsSemanticSearch()).toBe(true);
-	});
 });

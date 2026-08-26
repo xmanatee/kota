@@ -35,17 +35,17 @@ type MutationPathSnapshot = {
   fileSystem: FileSystemPathSnapshot;
 };
 
-function gitBuffer(projectDir: string, args: readonly string[]): Buffer {
+function gitBuffer(workspaceRoot: string, args: readonly string[]): Buffer {
   return execFileSync("git", [...args], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "buffer",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-function absoluteMutationPath(projectDir: string, path: string): string {
-  const root = resolve(projectDir);
+function absoluteMutationPath(workspaceRoot: string, path: string): string {
+  const root = resolve(workspaceRoot);
   const absolutePath = resolve(root, path);
   const relativePath = relative(root, absolutePath);
   if (
@@ -109,10 +109,10 @@ function updateFileSystemFingerprint(
 }
 
 function captureMutationPath(
-  projectDir: string,
+  workspaceRoot: string,
   path: string,
 ): MutationPathSnapshot {
-  const indexEntries = gitBuffer(projectDir, [
+  const indexEntries = gitBuffer(workspaceRoot, [
     "--literal-pathspecs",
     "ls-files",
     "--stage",
@@ -121,7 +121,7 @@ function captureMutationPath(
     path,
   ]);
   const fileSystem = captureFileSystemPath(
-    absoluteMutationPath(projectDir, path),
+    absoluteMutationPath(workspaceRoot, path),
   );
   const hash = createHash("sha256");
   hash.update(indexEntries);
@@ -134,12 +134,12 @@ function captureMutationPath(
   };
 }
 
-function pathExistsInHead(projectDir: string, path: string): boolean {
+function pathExistsInHead(workspaceRoot: string, path: string): boolean {
   const result = spawnSync(
     "git",
     ["--literal-pathspecs", "cat-file", "-e", `HEAD:${path}`],
     {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "ignore", "ignore"],
@@ -173,7 +173,7 @@ function restoreFileSystemPath(
 }
 
 function restoreIndexPath(
-  projectDir: string,
+  workspaceRoot: string,
   path: string,
   indexEntries: Buffer,
 ): void {
@@ -181,14 +181,14 @@ function restoreIndexPath(
     "git",
     ["--literal-pathspecs", "update-index", "--force-remove", "--", path],
     {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       env: withProtectedGitBareRepositoryEnv(),
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
   if (indexEntries.length === 0) return;
   execFileSync("git", ["update-index", "-z", "--index-info"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env: withProtectedGitBareRepositoryEnv(),
     input: indexEntries,
     stdio: ["pipe", "pipe", "pipe"],
@@ -214,7 +214,7 @@ export class WorkflowMutationSnapshot {
   }
 
   restoreDenyAllMutations(
-    projectDir: string,
+    workspaceRoot: string,
     paths: readonly string[],
   ): void {
     if (paths.length === 0) return;
@@ -222,7 +222,7 @@ export class WorkflowMutationSnapshot {
       this.pathSnapshots.has(path)
     );
     const newTracked = paths.filter((path) =>
-      !this.pathSnapshots.has(path) && pathExistsInHead(projectDir, path)
+      !this.pathSnapshots.has(path) && pathExistsInHead(workspaceRoot, path)
     );
     const newUntracked = paths.filter((path) =>
       !this.pathSnapshots.has(path) && !newTracked.includes(path)
@@ -241,15 +241,15 @@ export class WorkflowMutationSnapshot {
           ...newTracked,
         ],
         {
-          cwd: projectDir,
+          cwd: workspaceRoot,
           env: withProtectedGitBareRepositoryEnv(),
           stdio: ["ignore", "pipe", "pipe"],
         },
       );
     }
     for (const path of newUntracked) {
-      restoreIndexPath(projectDir, path, Buffer.alloc(0));
-      rmSync(absoluteMutationPath(projectDir, path), {
+      restoreIndexPath(workspaceRoot, path, Buffer.alloc(0));
+      rmSync(absoluteMutationPath(workspaceRoot, path), {
         recursive: true,
         force: true,
       });
@@ -257,9 +257,9 @@ export class WorkflowMutationSnapshot {
     for (const path of preExistingDirty) {
       const snapshot = this.pathSnapshots.get(path);
       if (snapshot === undefined) continue;
-      restoreIndexPath(projectDir, path, snapshot.indexEntries);
+      restoreIndexPath(workspaceRoot, path, snapshot.indexEntries);
       restoreFileSystemPath(
-        absoluteMutationPath(projectDir, path),
+        absoluteMutationPath(workspaceRoot, path),
         snapshot.fileSystem,
       );
     }
@@ -267,7 +267,7 @@ export class WorkflowMutationSnapshot {
 }
 
 function captureSnapshotForPaths(
-  projectDir: string,
+  workspaceRoot: string,
   mutatedPaths: readonly string[],
 ): WorkflowMutationSnapshot {
   return new WorkflowMutationSnapshot(
@@ -275,26 +275,26 @@ function captureSnapshotForPaths(
     new Map(
       mutatedPaths.map((path) => [
         path,
-        captureMutationPath(projectDir, path),
+        captureMutationPath(workspaceRoot, path),
       ]),
     ),
   );
 }
 
 export function captureWorkflowMutationSnapshot(
-  projectDir: string,
+  workspaceRoot: string,
 ): WorkflowMutationSnapshot {
   return captureSnapshotForPaths(
-    projectDir,
-    listWorkflowMutatedPaths(projectDir),
+    workspaceRoot,
+    listWorkflowMutatedPaths(workspaceRoot),
   );
 }
 
 export function tryCaptureWorkflowMutationSnapshot(
-  projectDir: string,
+  workspaceRoot: string,
 ): WorkflowMutationSnapshot | undefined {
-  const mutatedPaths = tryListWorkflowMutatedPaths(projectDir);
+  const mutatedPaths = tryListWorkflowMutatedPaths(workspaceRoot);
   return mutatedPaths === undefined
     ? undefined
-    : captureSnapshotForPaths(projectDir, mutatedPaths);
+    : captureSnapshotForPaths(workspaceRoot, mutatedPaths);
 }

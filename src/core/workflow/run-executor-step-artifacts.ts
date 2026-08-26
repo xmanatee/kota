@@ -19,11 +19,11 @@ type TelemetryArtifact = {
 export function readToolCallSummary(
   stepId: string,
   runDir: string,
-  projectDir: string,
+  scopeRoot: string,
   log: (message: string) => void,
 ): ToolCallSummaryEntry[] | undefined {
   const path = join(
-    resolve(projectDir, runDir),
+    resolve(scopeRoot, runDir),
     "steps",
     `${stepId}.tool-telemetry.json`,
   );
@@ -52,14 +52,14 @@ export function readToolCallSummary(
 export function writeFailedAgentTrajectoryDiagnostics(args: {
   step: WorkflowStep;
   runDir: string;
-  projectDir: string;
+  scopeRoot: string;
   messages: readonly KotaAgentMessage[];
   log: (message: string) => void;
 }): TrajectoryDiagnosticsMetadata | undefined {
-  const { step, runDir, projectDir, messages, log } = args;
+  const { step, runDir, scopeRoot, messages, log } = args;
   if (step.type !== "agent" || step.validate !== undefined) return undefined;
   const artifactPath = join(
-    resolve(projectDir, runDir),
+    resolve(scopeRoot, runDir),
     "steps",
     `${step.id}.trajectory-diagnostics.json`,
   );
@@ -69,7 +69,7 @@ export function writeFailedAgentTrajectoryDiagnostics(args: {
       readAgentTrajectoryDiagnosticsCapabilityArtifact({
         stepId: step.id,
         runDir,
-        projectDir,
+        scopeRoot,
       }) ?? {
         emitsAgentMessageStream: resolveAgentHarness(step.harness)
           .emitsAgentMessageStream,
@@ -77,7 +77,7 @@ export function writeFailedAgentTrajectoryDiagnostics(args: {
     return writeAgentTrajectoryDiagnosticsArtifactFromCapability({
       stepId: step.id,
       runDir,
-      projectDir,
+      scopeRoot,
       capability,
       messages,
       changedFiles: [],

@@ -228,26 +228,26 @@ describe("machine authority execution sandbox", () => {
   it("blocks an encoded Node program from rewriting machine authority", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-authority-sandbox-"));
     roots.push(root);
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const configPath = join(root, "operator", "config.json");
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
     mkdirSync(dirname(configPath), { recursive: true });
-    writeFileSync(configPath, JSON.stringify({ trustedProjects: [] }), { mode: 0o600 });
+    writeFileSync(configPath, JSON.stringify({ trustedScopes: [] }), { mode: 0o600 });
 
     const result = await runShell({
       command:
         "node -e \"require('node:fs').writeFileSync(process.env.TARGET, process.env.PAYLOAD)\"",
       stream_output: false,
     }, {
-      cwd: projectDir,
+      cwd: scopeRoot,
       authorityConfigPath: configPath,
       env: {
         TARGET: configPath,
-        PAYLOAD: JSON.stringify({ trustedProjects: [projectDir] }),
+        PAYLOAD: JSON.stringify({ trustedScopes: [scopeRoot] }),
       },
     });
 
     expect(result.is_error).toBe(true);
-    expect(JSON.parse(readFileSync(configPath, "utf8"))).toEqual({ trustedProjects: [] });
+    expect(JSON.parse(readFileSync(configPath, "utf8"))).toEqual({ trustedScopes: [] });
   });
 });

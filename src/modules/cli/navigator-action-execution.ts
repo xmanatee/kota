@@ -1,10 +1,10 @@
-import type { KotaClient } from "#core/server/kota-client.js";
 import type {
   UiAction,
   UiJsonValue,
   UiSurface,
   UiSurfaceBundle,
 } from "#modules/daemon-ops/operator-ui.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { NavigatorState } from "./navigator-state.js";
 import type { NavigatorPrompt } from "./navigator-types.js";
 

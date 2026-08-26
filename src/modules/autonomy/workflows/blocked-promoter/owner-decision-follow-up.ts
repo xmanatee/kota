@@ -78,13 +78,13 @@ export function decodeBlockedOwnerDecisionResolution(
 }
 
 export function ownerAskCandidateForWorkspace(
-  projectDir: string,
+  workspaceRoot: string,
   candidate: BlockedOwnerDecisionCandidate,
 ): OwnerAskCandidate {
   return {
     ...candidate,
     taskPath: join(
-      projectDir,
+      workspaceRoot,
       "data",
       "tasks",
       "blocked",

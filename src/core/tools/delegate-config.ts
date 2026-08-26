@@ -39,7 +39,7 @@ export type DelegateConfig = {
   modelOutputTokenLimits?: ModelOutputTokenLimits;
   client?: ModelClient;
   cwd?: string;
-  projectContext?: string;
+  scopeContext?: string;
   instructionContext?: string;
   costTracker?: CostTracker;
   transport?: Transport;

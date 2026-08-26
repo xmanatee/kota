@@ -27,12 +27,12 @@ function getReservedToolNames(): Set<string> {
 	if (!_reservedToolNames) {
 		_reservedToolNames = new Set([
 			...getCoreRegistrations().map((r) => r.tool.name),
-			// Execution module tools (always loaded with the project module set)
+			// Execution module tools (always loaded with the installed module set)
 			"shell", "process", "code_exec", "computer_use", "screenshot",
-			// Filesystem module tools (always loaded with the project module set)
+			// Filesystem module tools (always loaded with the installed module set)
 			"file_read", "file_write", "file_edit", "multi_edit", "find_replace",
 			"glob", "grep", "file_watch", "files_overview",
-			// Web access module tools (always loaded with the project module set)
+			// Web access module tools (always loaded with the installed module set)
 			"web_fetch", "web_search", "http_request",
 			// Other repo module tools
 			"enable_tools",
@@ -67,7 +67,7 @@ export function validateManifest(manifest: unknown): ValidationError[] {
 	} else if (RESERVED_MODULE_NAMES.has(m.name)) {
 		errors.push({
 			field: "name",
-			message: `"${m.name}" conflicts with a project module`,
+			message: `"${m.name}" conflicts with an installed module`,
 		});
 	}
 
@@ -126,7 +126,7 @@ function validateTools(tools: unknown, errors: ValidationError[]): void {
 		} else if (getReservedToolNames().has(t.name as string)) {
 			errors.push({
 				field: `${prefix}.name`,
-				message: `"${t.name}" conflicts with a project tool`,
+				message: `"${t.name}" conflicts with an installed tool`,
 			});
 		} else if (seen.has(t.name as string)) {
 			errors.push({

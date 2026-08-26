@@ -10,28 +10,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
-import { getProjectHistoryStore, resetHistory } from "#modules/history/history.js";
-import { HistoryProjectStores } from "#modules/history/project-scope.js";
-import { KnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
+import { getScopeHistoryStore, resetHistory } from "#modules/history/history.js";
+import { HistoryScopeStores } from "#modules/history/scope.js";
+import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
-import { MemoryProjectStores } from "#modules/memory/project-scope.js";
+import { MemoryScopeStores } from "#modules/memory/scope.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import type { RecallHit } from "#modules/recall/client.js";
 import {
-  createProjectHistoryContributor,
-  createProjectKnowledgeContributor,
-  createProjectMemoryContributor,
-  createProjectTasksContributor,
+  createScopeHistoryContributor,
+  createScopeKnowledgeContributor,
+  createScopeMemoryContributor,
+  createScopeTasksContributor,
 } from "#modules/recall/contributors.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
-import type { RecallProjectContext } from "#modules/recall/recall-types.js";
+import type { RecallScopeContext } from "#modules/recall/recall-types.js";
 import { createRecallToolRunner } from "#modules/recall/tool.js";
-import { RepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
+import { RepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import {
   getEntry,
   getWorkingMemoryState,
@@ -88,7 +88,7 @@ type EvidenceSelection = {
 type SeededRecords = {
   memory: MemoryStore;
   knowledge: KnowledgeStore;
-  history: ReturnType<typeof getProjectHistoryStore>;
+  history: ReturnType<typeof getScopeHistoryStore>;
   tasks: RepoTasksDefaultStore;
   initialMemoryId: string;
   initialHistoryId: string;
@@ -136,33 +136,33 @@ type PersistedRecords = {
   };
 };
 
-function runGit(projectDir: string, args: readonly string[]): string {
+function runGit(scopeRoot: string, args: readonly string[]): string {
   return execFileSync("git", [...args], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-function createProject(parent: string): ConfiguredProject {
-  const projectDir = join(parent, "project");
-  mkdirSync(join(projectDir, "src"), { recursive: true });
-  mkdirSync(join(projectDir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-  runGit(projectDir, ["init", "--quiet", "--initial-branch=main"]);
-  runGit(projectDir, ["config", "user.email", "eval-harness@kota.local"]);
-  runGit(projectDir, ["config", "user.name", "KOTA Eval Harness"]);
-  runGit(projectDir, ["config", "commit.gpgsign", "false"]);
-  return buildConfiguredProject({ projectDir });
+function createProject(parent: string): DirectoryScope {
+  const scopeRoot = join(parent, "scope");
+  mkdirSync(join(scopeRoot, "src"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
+  runGit(scopeRoot, ["init", "--quiet", "--initial-branch=main"]);
+  runGit(scopeRoot, ["config", "user.email", "eval-harness@kota.local"]);
+  runGit(scopeRoot, ["config", "user.name", "KOTA Eval Harness"]);
+  runGit(scopeRoot, ["config", "commit.gpgsign", "false"]);
+  return buildDirectoryScope({ scopeRoot });
 }
 
 function seedConversation(params: {
-  history: ReturnType<typeof getProjectHistoryStore>;
-  projectDir: string;
+  history: ReturnType<typeof getScopeHistoryStore>;
+  scopeRoot: string;
   firstUserMessage: string;
   assistantMessage: string;
 }): string {
-  const id = params.history.create("test-model", params.projectDir);
+  const id = params.history.create("test-model", params.scopeRoot);
   params.history.save(
     id,
     [
@@ -175,14 +175,14 @@ function seedConversation(params: {
   return id;
 }
 
-function seedInitialState(project: ConfiguredProject): SeededRecords {
-  const memory = new MemoryStore(join(project.projectDir, ".kota"));
+function seedInitialState(scope: DirectoryScope): SeededRecords {
+  const memory = new MemoryStore(join(scope.scopeRoot, ".kota"));
   const knowledge = new KnowledgeStore(
-    project.projectDir,
-    join(project.projectDir, ".kota", "global-data"),
+    scope.scopeRoot,
+    join(scope.scopeRoot, ".kota", "global-data"),
   );
-  const history = getProjectHistoryStore(project.projectDir);
-  const tasks = new RepoTasksDefaultStore(project.projectDir);
+  const history = getScopeHistoryStore(scope.scopeRoot);
+  const tasks = new RepoTasksDefaultStore(scope.scopeRoot);
 
   const initialMemoryId = memory.save(
     [
@@ -194,7 +194,7 @@ function seedInitialState(project: ConfiguredProject): SeededRecords {
   );
   const initialHistoryId = seedConversation({
     history,
-    projectDir: project.projectDir,
+    scopeRoot: scope.scopeRoot,
     firstUserMessage:
       "Session 1: record the lifecycle routing decision for the operator escalation runbook.",
     assistantMessage:
@@ -217,10 +217,10 @@ function seedInitialState(project: ConfiguredProject): SeededRecords {
   };
 }
 
-function seedTaskDistractor(projectDir: string): string {
+function seedTaskDistractor(scopeRoot: string): string {
   const id = "task-aging-runbook-initial-router-polish";
   writeFileSync(
-    join(projectDir, "data", "tasks", "backlog", `${id}.md`),
+    join(scopeRoot, "data", "tasks", "backlog", `${id}.md`),
     `---
 id: ${id}
 title: Old lifecycle routing runbook polish ${INITIAL_POLICY}
@@ -243,7 +243,7 @@ runbook work, but its initial router guidance is superseded.
 }
 
 function applyRevisionAndDistractors(
-  project: ConfiguredProject,
+  scope: DirectoryScope,
   stores: SeededRecords,
 ): WriteRecord[] {
   const updatedInitial = stores.memory.update(stores.initialMemoryId, {
@@ -278,7 +278,7 @@ function applyRevisionAndDistractors(
   });
   const revisionHistoryId = seedConversation({
     history: stores.history,
-    projectDir: project.projectDir,
+    scopeRoot: scope.scopeRoot,
     firstUserMessage:
       "Session 2: revise the operator escalation lifecycle routing decision for the current release.",
     assistantMessage:
@@ -286,13 +286,13 @@ function applyRevisionAndDistractors(
   });
   const distractorHistoryId = seedConversation({
     history: stores.history,
-    projectDir: project.projectDir,
+    scopeRoot: scope.scopeRoot,
     firstUserMessage:
       "Session 2 distractor: brainstorm lifecycle routing visuals for launch slides.",
     assistantMessage:
       "Slide visuals may use colorful routes. This is unrelated to the current escalation runbook.",
   });
-  const staleTaskId = seedTaskDistractor(project.projectDir);
+  const staleTaskId = seedTaskDistractor(scope.scopeRoot);
 
   stores.currentMemoryId = currentMemoryId;
   stores.currentKnowledgeId = currentKnowledgeId;
@@ -348,66 +348,66 @@ function applyRevisionAndDistractors(
 }
 
 function buildRecallProvider(
-  project: ConfiguredProject,
+  scope: DirectoryScope,
   stores: SeededRecords,
 ): RecallProviderImpl {
-  const projectContext: RecallProjectContext = {
-    projectId: project.projectId,
-    projectDir: project.projectDir,
+  const scopeContext: RecallScopeContext = {
+    scopeId: scope.scopeId,
+    scopeRoot: scope.scopeRoot,
     knowledge: stores.knowledge,
     memory: stores.memory,
     history: stores.history,
     tasks: stores.tasks,
   };
-  const resolveProjectContext = (projectId: string | null | undefined) => {
-    const requested = projectId?.trim();
-    if (requested && requested !== project.projectId) {
-      return { error: "unknown_project" as const, projectId: requested };
+  const resolveScopeContext = (scopeId: string | null | undefined) => {
+    const requested = scopeId?.trim();
+    if (requested && requested !== scope.scopeId) {
+      return { error: "unknown_scope" as const, scopeId: requested };
     }
-    return projectContext;
+    return scopeContext;
   };
 
   const provider = new RecallProviderImpl({
-    resolveProjectContext,
+    resolveScopeContext,
     onContributorError: () => {},
   });
-  const projects = [project];
+  const scopes = [scope];
   provider.register(
-    createProjectKnowledgeContributor(
-      new KnowledgeProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeKnowledgeContributor(
+      new KnowledgeScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.knowledge,
       }),
     ),
   );
   provider.register(
-    createProjectMemoryContributor(
-      new MemoryProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeMemoryContributor(
+      new MemoryScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.memory,
       }),
     ),
   );
   provider.register(
-    createProjectHistoryContributor(
-      new HistoryProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeHistoryContributor(
+      new HistoryScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.history,
       }),
     ),
   );
   provider.register(
-    createProjectTasksContributor(
-      new RepoTasksProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeTasksContributor(
+      new RepoTasksScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.tasks,
       }),
     ),
@@ -415,9 +415,9 @@ function buildRecallProvider(
   return provider;
 }
 
-function writeInitialSourceFile(projectDir: string): void {
+function writeInitialSourceFile(scopeRoot: string): void {
   writeFileSync(
-    join(projectDir, "src", "operator-escalation-routing.ts"),
+    join(scopeRoot, "src", "operator-escalation-routing.ts"),
     `export const operatorEscalationRouting = {
   route: "unset",
   auditShard: "unset",
@@ -429,18 +429,18 @@ function writeInitialSourceFile(projectDir: string): void {
   );
 }
 
-function writeInitialSource(projectDir: string): void {
-  writeInitialSourceFile(projectDir);
-  runGit(projectDir, ["add", "-A"]);
-  runGit(projectDir, ["commit", "--quiet", "-m", "initial memory lifecycle fixture"]);
+function writeInitialSource(scopeRoot: string): void {
+  writeInitialSourceFile(scopeRoot);
+  runGit(scopeRoot, ["add", "-A"]);
+  runGit(scopeRoot, ["commit", "--quiet", "-m", "initial memory lifecycle fixture"]);
 }
 
-function applyLifecyclePatch(projectDir: string, evidenceText: string): {
+function applyLifecyclePatch(scopeRoot: string, evidenceText: string): {
   finalDiff: string;
   usedPolicy: string;
   usedLowFrequencyDetail: string | null;
 } {
-  const sourcePath = join(projectDir, "src", "operator-escalation-routing.ts");
+  const sourcePath = join(scopeRoot, "src", "operator-escalation-routing.ts");
   const current = readFileSync(sourcePath, "utf-8");
   const hasCurrent =
     evidenceText.includes(CURRENT_POLICY) &&
@@ -463,7 +463,7 @@ function applyLifecyclePatch(projectDir: string, evidenceText: string): {
           .replace('revision: "unset"', 'revision: "prompt-only"');
   writeFileSync(sourcePath, next, "utf-8");
   return {
-    finalDiff: runGit(projectDir, ["diff", "--", "src/operator-escalation-routing.ts"]),
+    finalDiff: runGit(scopeRoot, ["diff", "--", "src/operator-escalation-routing.ts"]),
     usedPolicy: hasCurrent ? CURRENT_POLICY : hasInitial ? INITIAL_POLICY : "prompt-only",
     usedLowFrequencyDetail: hasCurrent ? LOW_FREQUENCY_DETAIL : null,
   };
@@ -627,7 +627,7 @@ function persistedCurrentEvidenceIds(records: PersistedRecords): string[] {
 
 async function runCheckpoint(params: {
   checkpointId: CheckpointId;
-  projectDir: string;
+  scopeRoot: string;
   provider: RecallProviderImpl;
   prompt: string;
   recallQuery: string;
@@ -648,8 +648,8 @@ async function runCheckpoint(params: {
     ? { ...rawSelection, ignoredStaleEvidenceIds: [] }
     : rawSelection;
 
-  writeInitialSourceFile(params.projectDir);
-  const finalBehavior = applyLifecyclePatch(params.projectDir, toolResult.content);
+  writeInitialSourceFile(params.scopeRoot);
+  const finalBehavior = applyLifecyclePatch(params.scopeRoot, toolResult.content);
   const predicateResult = evaluateLifecyclePredicate({
     expectedPolicy: params.expectedPolicy,
     expectedEvidenceIds: params.expectedEvidenceIds,
@@ -685,15 +685,15 @@ function buildNegativeChecks(params: {
   currentMemoryId: string;
   currentKnowledgeId: string;
   staleIds: string[];
-  projectDir: string;
+  scopeRoot: string;
   persistedRecords: PersistedRecords;
 }): {
   staleRevisionUse: { finalDiff: string; predicateResult: PredicateResult };
   targetEvidenceLossAfterMaintenance: PredicateResult;
   promptOnlySuccess: { finalDiff: string; predicateResult: PredicateResult };
 } {
-  writeInitialSourceFile(params.projectDir);
-  const stalePatch = applyLifecyclePatch(params.projectDir, INITIAL_POLICY);
+  writeInitialSourceFile(params.scopeRoot);
+  const stalePatch = applyLifecyclePatch(params.scopeRoot, INITIAL_POLICY);
   const staleRevisionUse = evaluateLifecyclePredicate({
     expectedPolicy: CURRENT_POLICY,
     expectedEvidenceIds: [params.currentMemoryId, params.currentKnowledgeId],
@@ -720,8 +720,8 @@ function buildNegativeChecks(params: {
     requireStalePresent: true,
   });
 
-  writeInitialSourceFile(params.projectDir);
-  const promptOnlyPatch = applyLifecyclePatch(params.projectDir, "");
+  writeInitialSourceFile(params.scopeRoot);
+  const promptOnlyPatch = applyLifecyclePatch(params.scopeRoot, "");
   const promptOnlySuccess = evaluateLifecyclePredicate({
     expectedPolicy: CURRENT_POLICY,
     expectedEvidenceIds: [params.currentMemoryId, params.currentKnowledgeId],
@@ -749,10 +749,10 @@ function buildNegativeChecks(params: {
 }
 
 function writeVerificationArtifact(params: {
-  projectDir: string;
+  scopeRoot: string;
   artifact: unknown;
 }): string {
-  const artifactDir = join(params.projectDir, ".kota", "runs", ARTIFACT_RUN_ID);
+  const artifactDir = join(params.scopeRoot, ".kota", "runs", ARTIFACT_RUN_ID);
   mkdirSync(artifactDir, { recursive: true });
   const artifactPath = join(artifactDir, "verification-artifact.json");
   writeFileSync(artifactPath, JSON.stringify(params.artifact, null, 2), "utf-8");
@@ -788,9 +788,9 @@ describe("memory lifecycle aging fixture", () => {
   });
 
   it("retains, revises, retrieves, and uses current evidence across maintenance aging", async () => {
-    const project = createProject(root);
-    const stores = seedInitialState(project);
-    writeInitialSource(project.projectDir);
+    const scope = createProject(root);
+    const stores = seedInitialState(scope);
+    writeInitialSource(scope.scopeRoot);
     const initialWrites: WriteRecord[] = [
       {
         checkpointId: "checkpoint-1-initial-write",
@@ -805,11 +805,11 @@ describe("memory lifecycle aging fixture", () => {
         marker: INITIAL_POLICY,
       },
     ];
-    const provider = buildRecallProvider(project, stores);
+    const provider = buildRecallProvider(scope, stores);
 
     const firstCheckpoint = await runCheckpoint({
       checkpointId: "checkpoint-1-initial-write",
-      projectDir: project.projectDir,
+      scopeRoot: scope.scopeRoot,
       provider,
       prompt:
         "Session 1 check: update the operator escalation runbook with the recorded routing policy.",
@@ -822,10 +822,10 @@ describe("memory lifecycle aging fixture", () => {
     });
     expect(firstCheckpoint.predicateResult.passed).toBe(true);
 
-    const revisionWrites = applyRevisionAndDistractors(project, stores);
+    const revisionWrites = applyRevisionAndDistractors(scope, stores);
     const secondCheckpoint = await runCheckpoint({
       checkpointId: "checkpoint-2-revision-with-distractors",
-      projectDir: project.projectDir,
+      scopeRoot: scope.scopeRoot,
       provider,
       prompt:
         "Session 2 check: update the current release-blocking escalation runbook after similar notes accumulated.",
@@ -861,7 +861,7 @@ describe("memory lifecycle aging fixture", () => {
     ];
     const thirdCheckpoint = await runCheckpoint({
       checkpointId: "checkpoint-3-post-maintenance",
-      projectDir: project.projectDir,
+      scopeRoot: scope.scopeRoot,
       provider,
       prompt:
         "Session 3 check after maintenance: apply the escalation routing decision without a precomputed summary.",
@@ -884,7 +884,7 @@ describe("memory lifecycle aging fixture", () => {
         stores.staleKnowledgeId,
         stores.staleTaskId,
       ],
-      projectDir: project.projectDir,
+      scopeRoot: scope.scopeRoot,
       persistedRecords: maintenanceRecords,
     });
     expect(negativeChecks.staleRevisionUse.predicateResult.passed).toBe(false);
@@ -915,7 +915,7 @@ describe("memory lifecycle aging fixture", () => {
       objectiveMetrics,
     };
     const artifactPath = writeVerificationArtifact({
-      projectDir: project.projectDir,
+      scopeRoot: scope.scopeRoot,
       artifact,
     });
 

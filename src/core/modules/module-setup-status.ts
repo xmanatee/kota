@@ -1,4 +1,4 @@
-import { projectSetupStatusOntoManifest } from "./module-manifest.js";
+import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
 import type { ModuleSummary } from "./module-types.js";
 import {
   type ModuleSetupCapabilityStatus,
@@ -31,12 +31,12 @@ export function moduleSetupRequirementsFromSummaries(
 }
 
 export async function listModuleSetupStatusesFromSummaries(args: {
-  projectDir: string;
+  scopeRoot: string;
   getModuleSummaries: () => readonly ModuleSummary[];
   probeCapabilities: () => Promise<readonly ModuleSetupCapabilityStatus[]>;
 }): Promise<ModuleSetupStatusResponse> {
   const service = new ModuleSetupService({
-    projectDir: args.projectDir,
+    scopeRoot: args.scopeRoot,
     getRequirements: () => moduleSetupRequirementsFromSummaries(args.getModuleSummaries()),
     probeCapabilities: args.probeCapabilities,
   });
@@ -51,7 +51,7 @@ export function moduleSummariesWithSetupAvailability(
     if (summary.manifest === undefined) return summary;
     return {
       ...summary,
-      manifest: projectSetupStatusOntoManifest(summary.manifest, statuses),
+      manifest: scopeSetupStatusOntoManifest(summary.manifest, statuses),
     };
   });
 }

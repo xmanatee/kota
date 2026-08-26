@@ -27,12 +27,16 @@ projections.
   active for the supplied run and canonical scope. The shared runtime supplies
   its sandbox, logical resources, validation, integration, and recovery; the
   module does not create a task claim, lease, worktree, or second lock table.
-- Completion and production-replacement gates prove observable outcomes and
-  durable evidence. Tests exercise path safety, state transitions, validation,
-  clean-checkout results, and public projections without pinning source scans,
-  helper order, staging mechanics, or literal catalogs.
+- The domain mechanically owns identity, safe paths, lifecycle states,
+  dependencies, and mutation authorization. Whether a task outcome is good,
+  complete, or supported by proportionate evidence is an agent review decision,
+  not a growing set of task-class and artifact-shape gates.
+- Tests exercise distinct path-safety, state-transition, authorization, and
+  public-projection behavior without pinning source scans, helper order,
+  staging mechanics, evidence filenames, or literal catalogs.
 - `/api/tasks` and task search are module-owned surfaces. Visual clients and the
   CLI use the shared control/client contract rather than reading task files
   directly.
-- The default search provider ranks verified task content; `tasks-semantic` may
-  replace it when an embedding provider is configured.
+- The default search provider ranks verified task content. `tasks-semantic`
+  overrides ranking and declares `semanticSearchCapability` when an embedding
+  provider is configured; the base provider has no placeholder reindex method.

@@ -7,6 +7,7 @@ area: modules
 summary: Move modules closer to genuinely self-contained, pluggable capabilities instead of thin files over core internals.
 created_at: 2026-03-19
 updated_at: 2026-03-19
+---
 
 ---
 

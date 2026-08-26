@@ -29,7 +29,7 @@ import {
   listRunMetadata,
 } from "./workflow-run-routes.js";
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-wf-routes-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -291,19 +291,19 @@ function makeFakeResponse(status: number, body: unknown): Response {
 
 
 describe("workflow-routes", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let runsDir: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    store = new WorkflowRunStore(projectDir);
-    runsDir = join(projectDir, ".kota", "runs");
+    workspaceRoot = makeScopeRoot();
+    store = new WorkflowRunStore(workspaceRoot);
+    runsDir = join(workspaceRoot, ".kota", "runs");
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   describe("handleWorkflowStatus", () => {
@@ -610,14 +610,14 @@ describe("workflow-routes", () => {
       });
       const { res, result } = mockResponse();
       await handleWorkflowRetry(
-        makeRequest({ runId: "run-failed-01" }, "/api/workflow/retry?projectId=project-a"),
+        makeRequest({ runId: "run-failed-01" }, "/api/workflow/retry?scopeId=scope-a"),
         res,
         client,
       );
       expect(result.status).toBe(200);
       expect(client.calls).toContainEqual(expect.objectContaining({
         method: "POST",
-        path: "/workflow/trigger?projectId=project-a",
+        path: "/workflow/trigger?scopeId=scope-a",
         body: expect.objectContaining({
           name: "builder",
           event: "autonomy.builder.recovery.requested",
@@ -1045,7 +1045,7 @@ describe("workflow-routes", () => {
       expect((result.body as Record<string, unknown>).error).toMatch(/not active/);
     });
 
-    it("projects active KotaAgentMessage JSONL frames into typed SSE events", () => {
+    it("scopes active KotaAgentMessage JSONL frames into typed SSE events", () => {
       vi.useFakeTimers();
       const runId = "run-active-typed-001";
       const stepId = "build";
@@ -1286,7 +1286,7 @@ describe("workflow-routes", () => {
     });
 
     it("returns empty array when runs dir is missing", () => {
-      rmSync(join(projectDir, ".kota", "runs"), { recursive: true });
+      rmSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
       const runs = listRunMetadata(store, 10, 0);
       expect(runs).toEqual([]);
     });

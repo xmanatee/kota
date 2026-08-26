@@ -28,7 +28,7 @@ export function registerKnowledgeCommands(
 ): void {
 	const kCmd = program
 		.command("knowledge")
-		.description("Inspect and manage the project knowledge store");
+		.description("Inspect and manage the scope knowledge store");
 
 	kCmd
 		.command("list")
@@ -133,11 +133,11 @@ export function registerKnowledgeCommands(
 		.option("--type <type>", "Entry type", "note")
 		.option("--tag <tag>", "Tag (repeatable)", (val: string, acc: string[]) => [...acc, val], [] as string[])
 		.option("--status <status>", "Entry status", "active")
-		.option("--scope <scope>", "Storage scope: project or global", "project")
+		.option("--scope <scope>", "Storage scope: scope or global", "scope")
 		.action(async (opts: { title: string; content?: string; type: string; tag: string[]; status: string; scope: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			if (opts.scope !== "project" && opts.scope !== "global") {
-				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project" or "global".`, "error")));
+			if (opts.scope !== "scope" && opts.scope !== "global") {
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "scope" or "global".`, "error")));
 				process.exit(1);
 			}
 			let content = opts.content;
@@ -152,7 +152,7 @@ export function registerKnowledgeCommands(
 				type: opts.type,
 				tags: opts.tag,
 				status: opts.status,
-				scope: opts.scope as "project" | "global",
+				scope: opts.scope as "scope" | "global",
 			});
 			writeStdoutLine(result.id);
 		});
@@ -180,12 +180,12 @@ export function registerKnowledgeCommands(
 		.option("--type <type>", "Filter by type")
 		.option("--status <status>", "Filter by status")
 		.option("--tag <tag>", "Filter by tag")
-		.option("--scope <scope>", "Storage scope: project, global, or all", "project")
+		.option("--scope <scope>", "Storage scope: scope, global, or all", "scope")
 		.option("--format <fmt>", "Output format: json or jsonl", "jsonl")
 		.action(async (opts: { type?: string; status?: string; tag?: string; scope: string; format: string }) => {
 			await ensureCliProvidersFor(["knowledge"]);
-			if (opts.scope !== "project" && opts.scope !== "global" && opts.scope !== "all") {
-				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "project", "global", or "all".`, "error")));
+			if (opts.scope !== "scope" && opts.scope !== "global" && opts.scope !== "all") {
+				printToStderr(line(span(`Invalid scope "${opts.scope}". Use "scope", "global", or "all".`, "error")));
 				process.exit(1);
 			}
 			if (opts.format !== "json" && opts.format !== "jsonl") {
@@ -196,7 +196,7 @@ export function registerKnowledgeCommands(
 				type: opts.type,
 				status: opts.status,
 				tag: opts.tag,
-				scope: opts.scope as "project" | "global" | "all",
+				scope: opts.scope as "scope" | "global" | "all",
 			});
 			const exported = result.entries.map((e) => ({
 				title: e.title,
@@ -220,14 +220,14 @@ export function registerKnowledgeCommands(
 
 	kCmd
 		.command("reindex")
-		.description(
-			"Rebuild the semantic search index for all knowledge entries. " +
-				"No-op when no embedding provider is configured.",
+			.description(
+				"Rebuild the semantic search index for all knowledge entries. " +
+					"Reports when no embedding provider is configured.",
 		)
 		.action(async () => {
 			await ensureCliProvidersFor(["knowledge"]);
 			const result = await ctx.client.knowledge.reindex();
-			if (result.skipped) {
+				if (!result.ok) {
 				print(line(plain(
 					"Semantic search not configured — nothing to reindex. " +
 						"Set `providers.knowledge` to an embedding-capable provider to enable.",

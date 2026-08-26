@@ -358,7 +358,7 @@ export function validateTrigger(
     if (declared) {
       const allowed = new Set(declared.filterablePaths);
       for (const key of Object.keys(filter)) {
-        if (!isDeclaredOrScopeAlias(key, allowed)) {
+        if (!isDeclaredField(key, allowed)) {
           throw new WorkflowDefinitionError(
             `triggers[${index}].filter references field "${key}" not filterable on event "${event}" ` +
               `(declared by module "${declared.module}" schemaVersion ${declared.currentVersion}). ` +
@@ -379,7 +379,7 @@ export function validateTrigger(
     if (declared) {
       const allowed = new Set(declared.filterablePaths);
       for (const key of batch.groupBy) {
-        if (!isDeclaredOrScopeAlias(key, allowed)) {
+        if (!isDeclaredField(key, allowed)) {
           throw new WorkflowDefinitionError(
             `triggers[${index}].batch.groupBy references field "${key}" not filterable on event "${event}" ` +
               `(declared by module "${declared.module}" schemaVersion ${declared.currentVersion}). ` +
@@ -510,9 +510,6 @@ function validateBatchGroupBy(
   return fields.map((field) => field.trim());
 }
 
-function isDeclaredOrScopeAlias(key: string, allowed: Set<string>): boolean {
-  if (allowed.has(key)) return true;
-  if (key === "scopeId") return allowed.has("projectId");
-  if (key === "projectId") return allowed.has("scopeId");
-  return false;
+function isDeclaredField(key: string, allowed: Set<string>): boolean {
+  return allowed.has(key);
 }

@@ -15,7 +15,6 @@ import {
   stack,
 } from "#modules/rendering/primitives.js";
 import type { AutonomyReportData } from "./aggregate.js";
-import { renderAutonomyChangeDecisions } from "./render-autonomy-change-decisions.js";
 import { renderDecisionAttribution } from "./render-decision-attribution.js";
 import { renderDiffSummaryConsistency } from "./render-diff-summary-consistency.js";
 import {
@@ -32,7 +31,6 @@ import {
   renderBuilderBreakdown,
   renderExplorerBalance,
   renderReviewScrutiny,
-  renderReviewScrutinyEscalation,
   renderTrajectoryDiagnostics,
 } from "./render-run-sections.js";
 import { renderShadowSemanticReviews } from "./render-shadow-semantic-reviews.js";
@@ -75,9 +73,6 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     heading("Review scrutiny", 2),
     ...renderReviewScrutiny(data.reviewScrutiny),
     blank(),
-    heading("Review scrutiny escalation", 2),
-    ...renderReviewScrutinyEscalation(data.reviewScrutinyEscalation),
-    blank(),
     heading("Shadow semantic reviews", 2),
     ...renderShadowSemanticReviews(data.shadowSemanticReviews),
     blank(),
@@ -86,9 +81,6 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     blank(),
     heading("Process discipline", 2),
     ...renderProcessDiscipline(data.processDiscipline),
-    blank(),
-    heading("Autonomy change decisions", 2),
-    ...renderAutonomyChangeDecisions(data.autonomyChangeDecisions),
     blank(),
     heading("Post-completion follow-ups", 2),
     ...renderPostCompletionFollowUps(data.postCompletionFollowUps),

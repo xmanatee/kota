@@ -89,7 +89,7 @@ export function renderOverview(state: NavigatorState): RenderNode {
     sectionRule("Operator overview"),
     kvBlock([
       { label: "Daemon", value: valueFor(daemon), role: roleFor(daemon, "warn") },
-      { label: "Project", value: valueFor(entryFor(scopes, "Active"), status?.scopeId ?? "unavailable"), role: roleFor(entryFor(scopes, "Active")) },
+      { label: "Scope", value: valueFor(entryFor(scopes, "Active"), status?.scopeId ?? "unavailable"), role: roleFor(entryFor(scopes, "Active")) },
       { label: "Dispatch", value: valueFor(dispatch), role: roleFor(dispatch, "warn") },
       {
         label: "Active / queued",

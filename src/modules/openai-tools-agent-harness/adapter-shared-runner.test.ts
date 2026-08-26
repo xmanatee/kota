@@ -99,7 +99,6 @@ describe("openaiToolsAgentHarness shared runner", () => {
 				stepId: "step-1",
 				spanId: "run-1:step-1",
 				scopeId: "scope-a",
-				projectId: "scope-a",
 			},
 		});
 

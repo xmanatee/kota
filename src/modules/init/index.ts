@@ -49,7 +49,7 @@ export default config;
 
 type ScaffoldResult = { created: string[]; skipped: string[] };
 
-export function runInit(projectDir: string, force: boolean): ScaffoldResult {
+export function runInit(scopeRoot: string, force: boolean): ScaffoldResult {
   const created: string[] = [];
   const skipped: string[] = [];
 
@@ -69,17 +69,17 @@ export function runInit(projectDir: string, force: boolean): ScaffoldResult {
   }
 
   // kota.config.ts
-  const configPath = join(projectDir, "kota.config.ts");
+  const configPath = join(scopeRoot, "kota.config.ts");
   maybeWrite(configPath, KOTA_CONFIG_TEMPLATE, force);
 
   // data/ queue layout
-  const dataDir = join(projectDir, "data");
+  const dataDir = join(scopeRoot, "data");
   ensureDir(dataDir);
 
-  const inboxDir = join(projectDir, REPO_INBOX_DIR);
+  const inboxDir = join(scopeRoot, REPO_INBOX_DIR);
   ensureDir(inboxDir);
 
-  const tasksDir = join(projectDir, REPO_TASKS_DIR);
+  const tasksDir = join(scopeRoot, REPO_TASKS_DIR);
   ensureDir(tasksDir);
   for (const state of REPO_TASK_STATES) {
     const stateDir = join(tasksDir, state);
@@ -87,11 +87,11 @@ export function runInit(projectDir: string, force: boolean): ScaffoldResult {
   }
 
   // docs/
-  const docsDir = join(projectDir, "docs");
+  const docsDir = join(scopeRoot, "docs");
   ensureDir(docsDir);
 
   // .kota/ runtime directory
-  const kotaDir = join(projectDir, ".kota");
+  const kotaDir = join(scopeRoot, ".kota");
   ensureDir(kotaDir);
 
   return { created, skipped };
@@ -108,8 +108,8 @@ const initModule: KotaModule = {
       .description("Scaffold a new KOTA project in the current directory")
       .option("--force", "Overwrite kota.config.ts even if it already exists")
       .action((opts: { force?: boolean }) => {
-        const projectDir = process.cwd();
-        const { created, skipped } = runInit(projectDir, opts.force ?? false);
+        const scopeRoot = process.cwd();
+        const { created, skipped } = runInit(scopeRoot, opts.force ?? false);
         const sections: RenderNode[] = [];
 
         if (created.length > 0) {
@@ -131,7 +131,7 @@ const initModule: KotaModule = {
         print(stack(
           ...sections,
           ...(sections.length > 0 ? [blank()] : []),
-          line(span("Project scaffolded.", "success"), plain(" Next steps:")),
+          line(span("Workspace scaffolded.", "success"), plain(" Next steps:")),
           line(plain("1. Review kota.config.ts and uncomment any modules you need.")),
           line(plain("2. Run `kota doctor` to verify your setup.")),
         ));

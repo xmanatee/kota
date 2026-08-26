@@ -28,7 +28,7 @@ import {
 import { resolveTelegramStatusScope } from "./status-scope.js";
 import type {
   TelegramStatusCommandOptions,
-  TelegramStatusPollProjectRouting,
+  TelegramStatusPollScopeRouting,
   TelegramStatusScope,
   TelegramStatusSenders,
 } from "./status-types.js";
@@ -61,25 +61,25 @@ function commandMatches(text: string, command: string): boolean {
   return text === command || text.startsWith(`${command} `);
 }
 
-export function isTelegramProjectCommand(text: string): boolean {
-  return commandMatches(text, "/project");
+export function isTelegramScopeCommand(text: string): boolean {
+  return commandMatches(text, "/scope");
 }
 
 export function isTelegramStatusCommand(text: string): boolean {
   return STATUS_COMMANDS.some((command) => commandMatches(text, command));
 }
 
-export async function handleTelegramProjectCommand(options: {
+export async function handleTelegramScopeCommand(options: {
   text: string;
   messageChatId: number;
-  projectRouting?: TelegramStatusPollProjectRouting;
+  scopeRouting?: TelegramStatusPollScopeRouting;
   sendPlain: (body: string) => Promise<void>;
 }): Promise<boolean> {
-  const { text, messageChatId, projectRouting, sendPlain } = options;
-  if (!isTelegramProjectCommand(text)) return false;
-  if (!projectRouting) return false;
-  const requested = text === "/project" ? "" : text.slice("/project ".length);
-  const result = await projectRouting.selection.switchChat(messageChatId, requested);
+  const { text, messageChatId, scopeRouting, sendPlain } = options;
+  if (!isTelegramScopeCommand(text)) return false;
+  if (!scopeRouting) return false;
+  const requested = text === "/scope" ? "" : text.slice("/scope ".length);
+  const result = await scopeRouting.selection.switchChat(messageChatId, requested);
   await sendPlain(result.message);
   return true;
 }
@@ -87,7 +87,7 @@ export async function handleTelegramProjectCommand(options: {
 export async function handleTelegramStatusCommand(
   options: TelegramStatusCommandOptions,
 ): Promise<boolean> {
-  const { token, messageChatId, text, defaultScope, projectRouting } = options;
+  const { token, messageChatId, text, defaultScope, scopeRouting } = options;
 
   const sendPlain = async (body: string): Promise<void> => {
     await callTelegramApi(token, "sendMessage", {
@@ -104,11 +104,11 @@ export async function handleTelegramStatusCommand(
     });
   };
 
-  if (isTelegramProjectCommand(text)) {
-    return handleTelegramProjectCommand({
+  if (isTelegramScopeCommand(text)) {
+    return handleTelegramScopeCommand({
       text,
       messageChatId,
-      projectRouting,
+      scopeRouting,
       sendPlain,
     });
   }
@@ -118,7 +118,7 @@ export async function handleTelegramStatusCommand(
   const resolvedScope = await resolveTelegramStatusScope(
     messageChatId,
     defaultScope,
-    projectRouting,
+    scopeRouting,
   );
   if (!resolvedScope.ok) {
     await sendPlain(resolvedScope.message);
@@ -147,16 +147,16 @@ export async function handleResolvedTelegramStatusCommand(
   }
   if (text === "/digest") {
     const { text: body } = renderOnDemandDigest({
-      projectDir: scope.projectDir,
-      stateDir: join(scope.projectDir, ".kota"),
+      scopeRoot: scope.scopeRoot,
+      stateDir: join(scope.scopeRoot, ".kota"),
     });
     await sendPlain(truncateForTelegram(body));
     return true;
   }
   if (text === "/attention") {
-    const runsDir = join(scope.projectDir, ".kota", "runs");
+    const runsDir = join(scope.scopeRoot, ".kota", "runs");
     const { text: body } = renderOnDemandAttention({
-      projectDir: scope.projectDir,
+      scopeRoot: scope.scopeRoot,
       runsDir,
     });
     await sendPlain(truncateForTelegram(body));

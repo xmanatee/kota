@@ -6,10 +6,9 @@ import type {
   ConflictingScopeSelectorsError,
   DaemonControlHandle,
   ScopeNotHostedError,
-  UnknownProjectError,
   UnknownScopeError,
 } from "./daemon-control-types.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
 
 export class RequestBodyTooLargeError extends Error {
   constructor(readonly limitBytes: number) {
@@ -75,82 +74,76 @@ export function jsonResponse(res: ServerResponse, status: number, body: unknown)
 }
 
 /**
- * Result of resolving `?scopeId=` / `?projectId=` query parameters against
- * the daemon's configured directory scopes. Either resolves to the internal
- * directory-scope compatibility id (`projectId`, undefined for "use
- * default") or rejects with the typed error and status the route handler
- * returns.
+ * Result of resolving `?scopeId=` against the daemon's configured directory
+ * scopes. Either resolves to the canonical id (`scopeId`, undefined for "use
+ * default") or rejects with the typed error and status returned by the route.
  */
-export type ProjectScopeParam =
-  | { ok: true; projectId: ProjectId | undefined }
+export type ScopeParam =
+  | { ok: true; scopeId: ScopeId | undefined }
   | {
       ok: false;
       status: 400 | 404 | 409;
       error:
-        | UnknownProjectError
         | UnknownScopeError
         | ScopeNotHostedError
         | ConflictingScopeSelectorsError;
     };
 
 /**
- * Result of parsing the `PATCH /projects/active` request body. The
- * `ok` arm carries the validated `projectId` (`null` clears the
+ * Result of parsing the `PATCH /scopes/active` request body. The
+ * `ok` arm carries the validated `scopeId` (`null` clears the
  * selection); the rejection arm names the wire error the route handler
  * returns as a 400 body.
  */
-export type ActiveProjectPatchBody =
-  | { ok: true; projectId: string | null }
+export type ActiveScopePatchBody =
+  | { ok: true; scopeId: string | null }
   | { ok: false; error: { error: string; reason: "invalid_request" } };
 
-type ActiveProjectPatchInput = { projectId?: string | null };
+type ActiveScopePatchInput = { scopeId?: string | null };
 
 /**
- * Parse and validate the JSON body of `PATCH /projects/active`. The
+ * Parse and validate the JSON body of `PATCH /scopes/active`. The
  * boundary cast lives here so the route handler stays free of raw
  * `unknown` casts; the stable wire contract is the typed
- * {@link ActiveProjectPatchBody} sum returned to the route.
+ * {@link ActiveScopePatchBody} sum returned to the route.
  */
-export function parseActiveProjectPatchBody(raw: string): ActiveProjectPatchBody {
-  let parsed: ActiveProjectPatchInput;
+export function parseActiveScopePatchBody(raw: string): ActiveScopePatchBody {
+  let parsed: ActiveScopePatchInput;
   try {
-    parsed = JSON.parse(raw || "{}") as ActiveProjectPatchInput;
+    parsed = JSON.parse(raw || "{}") as ActiveScopePatchInput;
   } catch {
     return { ok: false, error: { error: "Invalid JSON body", reason: "invalid_request" } };
   }
-  const next = parsed.projectId;
+  const next = parsed.scopeId;
   if (next !== null && next !== undefined && typeof next !== "string") {
     return {
       ok: false,
       error: {
-        error: "projectId must be a string or null",
+        error: "scopeId must be a string or null",
         reason: "invalid_request",
       },
     };
   }
-  return { ok: true, projectId: next ?? null };
+  return { ok: true, scopeId: next ?? null };
 }
 
 /**
- * Read and validate optional `?scopeId=` / `?projectId=` query parameters for
- * a scope-scoped control-API route.
+ * Read and validate the optional `?scopeId=` query parameter for a
+ * scope-scoped control-API route.
  *
- * - When both parameters are absent or empty, returns the operator-selected
- *   active directory-scope id from the handle, or `{ projectId: undefined }`
+ * - When the parameter is absent or empty, returns the operator-selected
+ *   active directory-scope id from the handle, or `{ scopeId: undefined }`
  *   when no selection is in force so the handle resolves the registry's
  *   default directory scope.
- * - When both parameters are present, they must match exactly; mismatches are
- *   rejected as a malformed request instead of choosing one silently.
  * - When a parameter is present, validates against
- *   {@link DaemonControlHandle.hasProject}. Registered but unhosted scopes
+ *   {@link DaemonControlHandle.hasScope}. Registered but unhosted scopes
  *   return a typed 409; unknown ids return the typed wire-shape rejection that
- *   route handlers translate to a 404. Unknown error vocabulary follows the
- *   caller's selector spelling.
+ *   route handlers translate to a 404.
  */
-export function resolveProjectIdParam(
+export function resolveScopeIdParam(
   handle: DaemonControlHandle,
   url: URL,
-): ProjectScopeParam {
+): ScopeParam {
   const resolvedSelector = resolveScopeSelectorFromUrl(url);
   if (!resolvedSelector.ok) {
     return {
@@ -161,13 +154,13 @@ export function resolveProjectIdParam(
   }
   const selected = resolvedSelector.selectedId;
   if (!selected) {
-    const active = handle.getActiveProjectId();
-    return { ok: true, projectId: active ?? undefined };
+    const active = handle.getActiveScopeId();
+    return { ok: true, scopeId: active ?? undefined };
   }
-  if (!handle.hasProject(selected)) {
+  if (!handle.hasScope(selected)) {
     if (
-      handle.getProjectRegistryProjection().projects.some(
-        (project) => project.projectId === selected,
+      handle.getScopeRegistryProjection().scopes.some(
+        (scope) => scope.scopeId === selected,
       )
     ) {
       return {
@@ -177,7 +170,6 @@ export function resolveProjectIdParam(
           error: "Scope is not hosted",
           reason: "scope_not_hosted",
           scopeId: selected,
-          projectId: selected,
         },
       };
     }
@@ -196,11 +188,11 @@ export function resolveProjectIdParam(
       ok: false,
       status: 404,
       error: {
-        error: "Unknown project",
-        reason: "unknown_project",
-        projectId: selected,
+        error: "Unknown scope",
+        reason: "unknown_scope",
+        scopeId: selected,
       },
     };
   }
-  return { ok: true, projectId: selected };
+  return { ok: true, scopeId: selected };
 }

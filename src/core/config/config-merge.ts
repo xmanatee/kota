@@ -21,7 +21,7 @@ const CORE_KEYS: ReadonlySet<string> = new Set<keyof CoreKotaConfig>([
   "thinkingBudget",
   "verbose",
   "skipConfirmations",
-  "trustedProjects",
+  "trustedScopes",
   "scopePolicies",
   "scopeAuthority",
   "autoEnable",
@@ -111,10 +111,10 @@ function mergeCoreField(
   } else if (key === "runsGc" && typeof val === "object") {
     merged.runsGc = { ...a.runsGc, ...(val as CoreKotaConfig["runsGc"]) };
   } else if (key === "autoEnable" && Array.isArray(val)) {
-    // Project autoEnable replaces global (not merges) — project knows best.
+    // Scope autoEnable replaces global (not merges) — scope configuration knows best.
     merged.autoEnable = val as string[];
   } else if (key === "foreignModules" && Array.isArray(val)) {
-    // Project foreign modules append to global.
+    // Scope foreign modules append to global.
     merged.foreignModules = [...(a.foreignModules ?? []), ...(val as ForeignModuleConfig[])];
   } else if (key === "notifications" && typeof val === "object") {
     merged.notifications = { ...a.notifications, ...(val as CoreKotaConfig["notifications"]) };

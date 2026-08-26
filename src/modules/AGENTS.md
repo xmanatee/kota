@@ -1,6 +1,6 @@
 # Modules
 
-This directory contains the project-owned modules.
+This directory contains the scope-owned modules.
 
 - Treat a module as the ownership boundary for tools, workflows, channels,
   skills, agents, routes, and related helpers.
@@ -24,13 +24,12 @@ This directory contains the project-owned modules.
   docs catalog.
 - Module-owned events are typed declarations contributed through
   `KotaModule.events`. Pick one of two scope helpers in a co-located
-  `events.ts`: `defineProjectScopedModuleEvent<TPayload>(name, fields)` for
-  events that belong to one directory-backed scope (the helper prepends
-  canonical `scopeId` plus compatibility `projectId`, and the runtime rejects
-  emits that omit both selectors or provide conflicting values),
+  `events.ts`: `defineScopedModuleEvent<TPayload>(name, fields)` for
+  events that belong to one directory-backed scope (the helper prepends the
+  canonical `scopeId`, and the runtime rejects emits that omit it),
   or `defineDaemonWideModuleEvent<TPayload>(name, fields)` for daemon-process
   signals and session-bound events that stay daemon-default until
-  session-projectId attribution lands. Document the rationale next to a
+  session-scopeId attribution lands. Document the rationale next to a
   daemon-wide declaration so a future migration knows what changes. Register
   the declaration in the module definition's `events` list and import it
   where another module subscribes. Cross-module subscribers pass the
@@ -52,13 +51,13 @@ This directory contains the project-owned modules.
 
 Workflows are contributed by modules through `KotaModule.workflows`. The loader
 handles two contribution sources through a single path: modules KOTA ships in
-`src/modules/*` (`moduleSource: "project"`) and modules the target project
-ships under `<projectDir>/.kota/modules/*` (`moduleSource: "installed"`).
-Project-local modules inherit `moduleRoot = projectDir` by default, so their
-prompt paths resolve against the project tree; KOTA-shipped modules set their
+`src/modules/*` (`moduleSource: "bundled"`) and modules the target scope
+ships under `<scopeRoot>/.kota/modules/*` (`moduleSource: "installed"`).
+Scope-local modules inherit `moduleRoot = scopeRoot` by default, so their
+prompt paths resolve against the scope tree; KOTA-shipped modules set their
 own `moduleRoot` to their install root so shipped prompts keep resolving
-inside KOTA's tree even when the daemon is pointed at an external project.
+inside KOTA's tree even when the daemon is pointed at an external scope.
 Workflow names must be globally unique across every contributing module
 regardless of source — a collision is a load-time `WorkflowDefinitionError`
-that names both contributions. Project-local workflows therefore cannot
+that names both contributions. Scope-local workflows therefore cannot
 silently override KOTA-shipped ones; renaming is the single escape hatch.

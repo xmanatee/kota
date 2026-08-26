@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
-import { getProjectSecretStore } from "#core/config/secrets.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import { readConfigPath } from "./config-paths.js";
 import type {
   ModuleSetupBrowserProfileRequirement,
@@ -63,13 +63,13 @@ function requirementStatusFor(
     case "config":
       return configStatus(base, args.entry.requirement, args.config, capabilities);
     case "secret":
-      return secretStatus(base, args.entry.requirement, capabilities, args.projectDir);
+      return secretStatus(base, args.entry.requirement, capabilities, args.scopeRoot);
     case "oauth":
-      return oauthStatus(base, args.entry.requirement, capabilities, args.projectDir);
+      return oauthStatus(base, args.entry.requirement, capabilities, args.scopeRoot);
     case "browser-profile":
-      return browserProfileStatus(base, args.entry.requirement, args.config, capabilities, args.projectDir);
+      return browserProfileStatus(base, args.entry.requirement, args.config, capabilities, args.scopeRoot);
     case "external-url":
-      return externalUrlStatus(base, args.entry.requirement, args.config, capabilities, args.projectDir);
+      return externalUrlStatus(base, args.entry.requirement, args.config, capabilities, args.scopeRoot);
     case "capability":
       return capabilityStatus(base, capabilities);
   }
@@ -137,9 +137,9 @@ function secretStatus(
   base: Omit<ModuleSetupRequirementStatus, "state" | "reason" | "message">,
   req: ModuleSetupSecretRequirement | ModuleSetupOAuthRequirement,
   capabilities: ModuleSetupCapabilityStatus[],
-  projectDir: string,
+  scopeRoot: string,
 ): ModuleSetupRequirementStatus {
-  const refs = secretStatuses(req.secretRefs, projectDir);
+  const refs = secretStatuses(req.secretRefs, scopeRoot);
   if (refs.some((ref) => !ref.present)) {
     return withComputed(base, "missing", "secret_missing", "Required credential is missing", {
       secretRefs: refs,
@@ -156,9 +156,9 @@ function oauthStatus(
   base: Omit<ModuleSetupRequirementStatus, "state" | "reason" | "message">,
   req: ModuleSetupOAuthRequirement,
   capabilities: ModuleSetupCapabilityStatus[],
-  projectDir: string,
+  scopeRoot: string,
 ): ModuleSetupRequirementStatus {
-  const refs = secretStatuses(req.secretRefs, projectDir);
+  const refs = secretStatuses(req.secretRefs, scopeRoot);
   if (refs.some((ref) => !ref.present)) {
     return withComputed(base, "missing", "secret_missing", "Required credential is missing", {
       secretRefs: refs,
@@ -192,7 +192,7 @@ function browserProfileStatus(
   req: ModuleSetupBrowserProfileRequirement,
   config: Parameters<typeof readConfigPath>[0],
   capabilities: ModuleSetupCapabilityStatus[],
-  projectDir: string,
+  scopeRoot: string,
 ): ModuleSetupRequirementStatus {
   const configured = readConfigPath(config, req.storageStateConfigPath);
   const fields = req.setup.fields.map((field) => ({
@@ -208,7 +208,7 @@ function browserProfileStatus(
       capabilities,
     });
   }
-  const path = isAbsolute(configured) ? configured : resolve(projectDir, configured);
+  const path = isAbsolute(configured) ? configured : resolve(scopeRoot, configured);
   if (!existsSync(path)) {
     return withComputed(base, "unavailable", "browser_profile_file_missing", "Browser profile file does not exist", {
       configFields: fields,
@@ -226,9 +226,9 @@ function externalUrlStatus(
   req: ModuleSetupExternalUrlRequirement,
   config: Parameters<typeof readConfigPath>[0],
   capabilities: ModuleSetupCapabilityStatus[],
-  projectDir: string,
+  scopeRoot: string,
 ): ModuleSetupRequirementStatus {
-  const refs = req.secretRefs ? secretStatuses(req.secretRefs, projectDir) : [];
+  const refs = req.secretRefs ? secretStatuses(req.secretRefs, scopeRoot) : [];
   if (refs.some((ref) => !ref.present)) {
     return withComputed(base, "missing", "secret_missing", "Required credential is missing", {
       secretRefs: refs,
@@ -285,9 +285,9 @@ function capabilityStatusesFor(
 
 function secretStatuses(
   refs: readonly ModuleSetupSecretRef[],
-  projectDir: string,
+  scopeRoot: string,
 ): ModuleSetupSecretStatus[] {
-  const store = getProjectSecretStore(projectDir);
+  const store = getScopeSecretStore(scopeRoot);
   const listed = store.list();
   return refs.map((ref) => {
     const found = listed.find((entry) => entry.name === ref.name);

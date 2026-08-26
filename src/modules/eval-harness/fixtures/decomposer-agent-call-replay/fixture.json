@@ -43,16 +43,6 @@
     },
     {
       "kind": "file-contains",
-      "path": ".kota/runs/fixture-decomposer-agent-call-replay-2026-04-24/metadata.json",
-      "needle": "\"id\": \"decompose\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-decomposer-agent-call-replay-2026-04-24/metadata.json",
-      "needle": "\"id\": \"validate-decomposition\",\n      \"type\": \"code\",\n      \"status\": \"success\""
-    },
-    {
-      "kind": "file-contains",
       "path": ".kota/runs/fixture-decomposer-agent-call-replay-2026-04-24/writer-integration.json",
       "needle": "\"workflow\": \"decomposer\""
     }

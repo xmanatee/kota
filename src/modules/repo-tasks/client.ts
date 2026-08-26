@@ -11,7 +11,7 @@
  */
 
 import type {
-  ReindexResult,
+  ReindexOperationResult,
   RepoTaskSearchHit,
 } from "#core/modules/provider-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
@@ -40,12 +40,12 @@ export type RepoTaskListResult = {
 };
 
 /**
- * Optional project boundary for callers that already hold an explicit
- * project id, such as `KotaClient.forProject(...)` wrappers. When absent,
- * the implementation resolves the active/default project once at the client
+ * Optional scopeSelector boundary for callers that already hold an explicit
+ * scopeSelector id, such as `KotaClient.forScope(...)` wrappers. When absent,
+ * the implementation resolves the active/default scopeSelector once at the client
  * or route boundary.
  */
-export type RepoTaskProjectSelection = ScopeSelector;
+export type RepoTaskScopeSelection = ScopeSelector;
 
 /**
  * Result of `tasks.show(id)`. The full file content is returned with the
@@ -116,7 +116,7 @@ export type RepoTaskGcResult = {
 };
 
 /** Filter for `RepoTasksClient.search`. */
-export type RepoTaskSearchFilter = RepoTaskProjectSelection & {
+export type RepoTaskSearchFilter = RepoTaskScopeSelection & {
   /** Restrict matches to the listed states. Defaults to all states. */
   states?: ReadonlyArray<RepoTaskState>;
   /** Maximum hits returned, ranked by score. Defaults to 20. */
@@ -141,7 +141,7 @@ export type RepoTaskSearchResult =
   | { ok: false; reason: "semantic_unavailable" };
 
 /** Result of `tasks.reindex`. Mirrors the provider's `ReindexResult`. */
-export type RepoTaskReindexResult = ReindexResult;
+export type RepoTaskReindexResult = ReindexOperationResult;
 
 /**
  * Repo-task queue operations (the `data/tasks/*` filesystem queue).
@@ -161,24 +161,24 @@ export interface RepoTasksClient {
    */
   list(
     states?: RepoTaskState[],
-    project?: RepoTaskProjectSelection,
+    scopeSelector?: RepoTaskScopeSelection,
   ): Promise<RepoTaskListResult>;
-  show(id: string, project?: RepoTaskProjectSelection): Promise<RepoTaskShowResult>;
+  show(id: string, scopeSelector?: RepoTaskScopeSelection): Promise<RepoTaskShowResult>;
   move(
     id: string,
     toState: RepoTaskState,
-    project?: RepoTaskProjectSelection,
+    scopeSelector?: RepoTaskScopeSelection,
   ): Promise<RepoTaskMoveResult>;
   /** Replace the markdown body of one non-terminal task while preserving its front matter. */
   updateBody?(
     id: string,
     body: string,
-    project?: RepoTaskProjectSelection,
+    scopeSelector?: RepoTaskScopeSelection,
   ): Promise<RepoTaskUpdateBodyResult>;
   create(options: RepoTaskCreateOptions): Promise<RepoTaskCreateResult>;
   capture(
     title: string,
-    project?: RepoTaskProjectSelection,
+    scopeSelector?: RepoTaskScopeSelection,
   ): Promise<RepoTaskCaptureResult>;
   gc(options?: RepoTaskGcOptions): Promise<RepoTaskGcResult>;
   /**
@@ -190,5 +190,5 @@ export interface RepoTasksClient {
    */
   search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult>;
   /** Rebuild the semantic index over the repo task queue when the active provider supports it. */
-  reindex(project?: RepoTaskProjectSelection): Promise<RepoTaskReindexResult>;
+  reindex(scopeSelector?: RepoTaskScopeSelection): Promise<RepoTaskReindexResult>;
 }

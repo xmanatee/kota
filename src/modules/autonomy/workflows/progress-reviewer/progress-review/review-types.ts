@@ -18,7 +18,7 @@ export type ProgressReviewFollowUpTaskOutput = {
   priority: "p0" | "p1" | "p2" | "p3";
   area: string;
   evidenceIds: string[];
-  acceptanceEvidence: string;
+  howWeWillKnow: string;
 };
 
 export type ProgressReviewFindingGroup = {

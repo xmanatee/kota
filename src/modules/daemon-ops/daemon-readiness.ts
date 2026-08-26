@@ -7,20 +7,20 @@ import {
 const DEFAULT_READY_TIMEOUT_MS = 10_000;
 const DEFAULT_READY_POLL_MS = 100;
 
-export async function isDaemonControlPlaneReady(projectDir: string): Promise<boolean> {
-  const address = readLiveDaemonControlAddress(join(projectDir, ".kota"));
+export async function isDaemonControlPlaneReady(scopeRoot: string): Promise<boolean> {
+  const address = readLiveDaemonControlAddress(join(scopeRoot, ".kota"));
   return address !== null && await isDaemonControlAddressReachable(address);
 }
 
 export async function waitForDaemonControlPlane(
-  projectDir: string,
+  scopeRoot: string,
   options: { timeoutMs?: number; pollMs?: number } = {},
 ): Promise<boolean> {
   const timeoutMs = options.timeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
   const pollMs = options.pollMs ?? DEFAULT_READY_POLL_MS;
   const deadline = Date.now() + timeoutMs;
   do {
-    if (await isDaemonControlPlaneReady(projectDir)) return true;
+    if (await isDaemonControlPlaneReady(scopeRoot)) return true;
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) return false;
     await new Promise<void>((resolve) => {

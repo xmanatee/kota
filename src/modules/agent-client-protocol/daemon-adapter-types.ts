@@ -2,16 +2,16 @@ import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { AcpPermissionDecision, JsonObject } from "./protocol.js";
 
-export type AcpProject = {
-  projectId: string;
-  projectDir: string;
+export type AcpScope = {
+  scopeId: string;
+  scopeRoot: string;
   displayName: string;
 };
 
-export type AcpProjectList = {
-  projects: AcpProject[];
-  defaultProjectId: string;
-  activeProjectId: string | null;
+export type AcpScopeList = {
+  scopes: AcpScope[];
+  defaultScopeId: string;
+  activeScopeId: string | null;
 };
 
 export type AcpPromptUpdate = JsonObject;
@@ -52,10 +52,10 @@ export type PromptSessionArgs = {
 export type PromptSessionResult = { stopReason: "end_turn" };
 
 export interface AcpDaemonClient {
-  listProjects(): Promise<AcpProjectList>;
-  createSession(project: AcpProject): Promise<{ sessionId: string }>;
-  listSessions(project: AcpProject): Promise<AcpDaemonSession[]>;
-  resumeSession(project: AcpProject, sessionId: string): Promise<{ sessionId: string }>;
+  listScopes(): Promise<AcpScopeList>;
+  createSession(scope: AcpScope): Promise<{ sessionId: string }>;
+  listSessions(scope: AcpScope): Promise<AcpDaemonSession[]>;
+  resumeSession(scope: AcpScope, sessionId: string): Promise<{ sessionId: string }>;
   promptSession(args: PromptSessionArgs): Promise<PromptSessionResult>;
   cancelSession(sessionId: string): Promise<void>;
   closeSession(sessionId: string): Promise<void>;
@@ -68,10 +68,16 @@ export class AcpPromptCancelledError extends Error {
   }
 }
 
-export type ProjectsWireBody = {
-  projects: AcpProject[];
-  defaultProjectId: string;
-  activeProjectId?: string | null;
+export type ScopesWireBody = {
+  rootScopeId: string;
+  scopes: Array<{
+    scopeId: string;
+    displayName: string;
+    parentScopeId?: string;
+    directoryRoot?: string;
+  }>;
+  defaultScopeId: string;
+  activeScopeId?: string | null;
 };
 
 export type CreateSessionWireBody = { session_id?: string; error?: string };
@@ -82,7 +88,7 @@ export type SessionListWireEntry = {
   lastActive?: number;
   source?: "daemon" | "serve";
   busy?: boolean;
-  projectId?: string;
+  scopeId?: string;
   conversationId?: string;
 };
 
@@ -90,7 +96,7 @@ export type SessionListWireBody = { sessions?: SessionListWireEntry[] };
 
 export type SessionBindingWireEntry = {
   sessionId?: string;
-  projectId?: string;
+  scopeId?: string;
   conversationId?: string;
   createdAt?: string;
   lastActiveAt?: string;

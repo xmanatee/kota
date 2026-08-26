@@ -18,15 +18,15 @@ export class WorkflowTracer {
   private runSpans = new Map<string, Span>();
   private stepSpans = new Map<string, Span>();
   private modelLookup: Map<string, string>;
-  private projectDir: string;
+  private scopeRoot: string;
   private onEnrichmentError: TracerLogger;
 
   constructor(
-    projectDir: string,
+    scopeRoot: string,
     modelLookup: Map<string, string>,
     onEnrichmentError: TracerLogger = () => {},
   ) {
-    this.projectDir = projectDir;
+    this.scopeRoot = scopeRoot;
     this.modelLookup = modelLookup;
     this.onEnrichmentError = onEnrichmentError;
   }
@@ -195,7 +195,7 @@ export class WorkflowTracer {
   }
 
   private readAgentStepOutput(runDir: string, stepId: string): AgentStepOutput | undefined {
-    const filePath = join(resolve(this.projectDir, runDir), "steps", `${stepId}.json`);
+    const filePath = join(resolve(this.scopeRoot, runDir), "steps", `${stepId}.json`);
     if (!existsSync(filePath)) return undefined;
     try {
       const raw = JSON.parse(readFileSync(filePath, "utf-8"));

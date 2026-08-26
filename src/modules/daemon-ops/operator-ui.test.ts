@@ -18,8 +18,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
-    projectDir: "/repo",
-    projectName: "repo",
+    scopeRoot: "/repo",
+    scopeName: "repo",
     controlFile: { kind: "missing" },
     runProjection: {
       available: true,
@@ -32,7 +32,7 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
 
 function inbox(overrides: Partial<OperatorInboxSnapshot> = {}): OperatorInboxSnapshot {
   return {
-    projectDir: "/repo",
+    scopeRoot: "/repo",
     generatedAt: "2026-06-12T08:00:00.000Z",
     items: [
       {

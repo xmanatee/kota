@@ -110,10 +110,7 @@ const guardrailsAuditModule: KotaModule = {
 			};
 			store.record({ tool, risk: risk as RiskLevel, policy: policy as Policy, reason }, session);
 		});
-	},
-
-	onUnload() {
-		resetAuditStore();
+		return { dispose: resetAuditStore };
 	},
 };
 

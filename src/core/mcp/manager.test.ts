@@ -127,12 +127,12 @@ function sseMessage(message: Record<string, any>): string {
   return `event: message\ndata: ${JSON.stringify(message)}\n\n`;
 }
 
-function remoteTaskStorePath(projectDir: string): string {
-  return join(projectDir, ".kota", "mcp-remote-tasks.json");
+function remoteTaskStorePath(scopeRoot: string): string {
+  return join(scopeRoot, ".kota", "mcp-remote-tasks.json");
 }
 
-function readRemoteTaskStore(projectDir: string): { tasks: Array<Record<string, any>> } {
-  return JSON.parse(readFileSync(remoteTaskStorePath(projectDir), "utf-8"));
+function readRemoteTaskStore(scopeRoot: string): { tasks: Array<Record<string, any>> } {
+  return JSON.parse(readFileSync(remoteTaskStorePath(scopeRoot), "utf-8"));
 }
 
 async function waitFor(assertion: () => void, timeoutMs = 2_000): Promise<void> {
@@ -2017,7 +2017,7 @@ describe("McpManager", () => {
   });
 
   it("exposes MCP-served skills as explicit list and read operations with untrusted provenance", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-remote-skills-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-remote-skills-"));
     const { fetchSpy } = mockMcpHttpFetch((request) => {
       if (request.body.method === "server/discover") {
         return jsonRpcResponse(request.body.id, {
@@ -2083,7 +2083,7 @@ describe("McpManager", () => {
       }
       return jsonRpcResponse(request.body.id, {});
     });
-    const manager = new McpManager({ projectDir });
+    const manager = new McpManager({ scopeRoot });
 
     try {
       await manager.initialize({
@@ -2164,17 +2164,17 @@ describe("McpManager", () => {
       expect(unresolvedTemplate.is_error).toBe(true);
       expect(unresolvedTemplate.content).toContain("URI templates must be resolved before reading");
 
-      expect(existsSync(join(projectDir, ".kota", "skills"))).toBe(false);
+      expect(existsSync(join(scopeRoot, ".kota", "skills"))).toBe(false);
       const loader = new ModuleLoader({});
       loader.setBus(new EventBus());
-      loader.setCwd(projectDir);
+      loader.setCwd(scopeRoot);
       await loader.load({ name: "empty-module" });
       expect(loader.getSkillsPromptFor("all", "builder")).not.toContain("Remote skill guidance");
       expect(loader.getSkillsPromptFor(["git-workflow"], "builder")).not.toContain("Remote skill guidance");
     } finally {
       await manager.close();
       fetchSpy.mockRestore();
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

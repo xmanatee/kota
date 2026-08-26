@@ -59,6 +59,10 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
+      - name: Check generated contract bindings
+        working-directory: .
+        run: node scripts/generate-ui-surface-bindings.mjs --check
+
       - name: Cache Swift build
         uses: actions/cache@v4
         with:

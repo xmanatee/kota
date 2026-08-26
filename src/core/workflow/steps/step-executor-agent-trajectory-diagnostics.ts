@@ -23,10 +23,10 @@ type PersistedTrajectoryDiagnosticsCapability = {
 export function readAgentTrajectoryDiagnosticsCapabilityArtifact(args: {
   stepId: string;
   runDir: string;
-  projectDir: string;
+  scopeRoot: string;
 }): AgentTrajectoryDiagnosticsCapability | null {
   const filePath = resolve(
-    args.projectDir,
+    args.scopeRoot,
     args.runDir,
     "steps",
     `${args.stepId}.harness-capability.json`,
@@ -40,7 +40,7 @@ export function readAgentTrajectoryDiagnosticsCapabilityArtifact(args: {
 export function writeAgentTrajectoryDiagnosticsArtifact(args: {
   stepId: string;
   runDir: string;
-  projectDir: string;
+  scopeRoot: string;
   harness: AgentHarness;
   messages: readonly KotaAgentMessage[];
   changedFiles: readonly string[];
@@ -48,7 +48,7 @@ export function writeAgentTrajectoryDiagnosticsArtifact(args: {
   return writeAgentTrajectoryDiagnosticsArtifactFromCapability({
     stepId: args.stepId,
     runDir: args.runDir,
-    projectDir: args.projectDir,
+    scopeRoot: args.scopeRoot,
     capability: {
       emitsAgentMessageStream: args.harness.emitsAgentMessageStream,
     },
@@ -60,7 +60,7 @@ export function writeAgentTrajectoryDiagnosticsArtifact(args: {
 export function writeAgentTrajectoryDiagnosticsArtifactFromCapability(args: {
   stepId: string;
   runDir: string;
-  projectDir: string;
+  scopeRoot: string;
   capability: AgentTrajectoryDiagnosticsCapability;
   messages: readonly KotaAgentMessage[];
   changedFiles: readonly string[];
@@ -70,7 +70,7 @@ export function writeAgentTrajectoryDiagnosticsArtifactFromCapability(args: {
     "steps",
     `${args.stepId}.${TRAJECTORY_DIAGNOSTICS_ARTIFACT_NAME}`,
   );
-  const filePath = resolve(args.projectDir, relativeArtifactPath);
+  const filePath = resolve(args.scopeRoot, relativeArtifactPath);
   mkdirSync(dirname(filePath), { recursive: true });
   const artifact = buildTrajectoryDiagnosticsArtifact({
     capability: args.capability,

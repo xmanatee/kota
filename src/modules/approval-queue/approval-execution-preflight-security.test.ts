@@ -72,20 +72,20 @@ function stdioServer(script: string): StdioServerConfig {
 }
 
 function writeMcpConfig(
-	projectDir: string,
+	scopeRoot: string,
 	servers: Record<string, StdioServerConfig>,
 ): void {
-	mkdirSync(join(projectDir, ".kota"), { recursive: true });
+	mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
 	writeFileSync(
-		join(projectDir, ".kota", "mcp.json"),
+		join(scopeRoot, ".kota", "mcp.json"),
 		JSON.stringify({ mcpServers: servers }, null, 2),
 	);
 }
 
-async function currentPromptSnapshot(projectDir: string): Promise<PromptSnapshot> {
-	const config = McpManager.loadConfig(projectDir);
+async function currentPromptSnapshot(scopeRoot: string): Promise<PromptSnapshot> {
+	const config = McpManager.loadConfig(scopeRoot);
 	if (!config) throw new Error("expected MCP test config");
-	const manager = new McpManager({ projectDir });
+	const manager = new McpManager({ scopeRoot });
 	try {
 		await manager.initialize(config);
 		const declarationFingerprint = manager.getToolDeclarationFingerprint(
@@ -138,21 +138,21 @@ describe("MCP approval execution preflight process boundary", () => {
 		}
 	});
 
-	function makeProjectAndQueue(): { projectDir: string; queue: ApprovalQueue } {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-preflight-project-"));
+	function makeProjectAndQueue(): { scopeRoot: string; queue: ApprovalQueue } {
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-preflight-scope-"));
 		const queueDir = mkdtempSync(join(tmpdir(), "kota-mcp-preflight-queue-"));
-		dirs.push(projectDir, queueDir);
-		return { projectDir, queue: new ApprovalQueue(queueDir) };
+		dirs.push(scopeRoot, queueDir);
+		return { scopeRoot, queue: new ApprovalQueue(queueDir) };
 	}
 
 	it("rejects a changed reviewed stdio transport before it can start", async () => {
-		const { projectDir, queue } = makeProjectAndQueue();
-		writeMcpConfig(projectDir, {
+		const { scopeRoot, queue } = makeProjectAndQueue();
+		writeMcpConfig(scopeRoot, {
 			remote: stdioServer(mcpServerScript({ description: "Stable lookup" })),
 		});
-		const prompt = await currentPromptSnapshot(projectDir);
-		const markerPath = join(projectDir, "changed-transport-started");
-		writeMcpConfig(projectDir, {
+		const prompt = await currentPromptSnapshot(scopeRoot);
+		const markerPath = join(scopeRoot, "changed-transport-started");
+		writeMcpConfig(scopeRoot, {
 			remote: stdioServer(mcpServerScript({
 				description: "Stable lookup",
 				markerPath,
@@ -161,7 +161,7 @@ describe("MCP approval execution preflight process boundary", () => {
 
 		const preflight = await prepareApprovalExecutionBatch(
 			[approvalSnapshot(queue, prompt)],
-			{ cwd: projectDir },
+			{ cwd: scopeRoot },
 		);
 
 		expect(preflight).toMatchObject({
@@ -172,25 +172,25 @@ describe("MCP approval execution preflight process boundary", () => {
 	});
 
 	it("does not start a newly added stdio server when declaration drift rejects preflight", async () => {
-		const { projectDir, queue } = makeProjectAndQueue();
-		const descriptionPath = join(projectDir, "tool-description.txt");
+		const { scopeRoot, queue } = makeProjectAndQueue();
+		const descriptionPath = join(scopeRoot, "tool-description.txt");
 		writeFileSync(descriptionPath, "Reviewed lookup");
 		const reviewedServer = stdioServer(mcpServerScript({
 			descriptionFile: descriptionPath,
 		}));
-		writeMcpConfig(projectDir, { remote: reviewedServer });
-		const prompt = await currentPromptSnapshot(projectDir);
+		writeMcpConfig(scopeRoot, { remote: reviewedServer });
+		const prompt = await currentPromptSnapshot(scopeRoot);
 
 		writeFileSync(descriptionPath, "Changed lookup");
-		const markerPath = join(projectDir, "new-server-started");
-		writeMcpConfig(projectDir, {
+		const markerPath = join(scopeRoot, "new-server-started");
+		writeMcpConfig(scopeRoot, {
 			remote: reviewedServer,
 			unreviewed: stdioServer(mcpServerScript({ markerPath })),
 		});
 
 		const preflight = await prepareApprovalExecutionBatch(
 			[approvalSnapshot(queue, prompt)],
-			{ cwd: projectDir },
+			{ cwd: scopeRoot },
 		);
 
 		expect(preflight).toMatchObject({

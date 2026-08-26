@@ -1,9 +1,9 @@
 import {
   type AcpDaemonClient,
   type AcpDaemonSession,
-  type AcpProject,
-  type AcpProjectList,
-  resolveAcpProject,
+  type AcpScope,
+  type AcpScopeList,
+  resolveAcpScope,
 } from "./daemon-adapter.js";
 import { AcpProtocolError, type JsonObject } from "./protocol.js";
 
@@ -36,15 +36,15 @@ export function normalizeAcpError(err: Error | AcpProtocolError | string): AcpPr
   );
 }
 
-export function resolveProjectForCwd(
-  projects: AcpProjectList,
+export function resolveScopeForCwd(
+  scopes: AcpScopeList,
   cwd: string,
-): AcpProject {
-  const project = resolveAcpProject(projects, cwd);
-  if (project) return project;
+): AcpScope {
+  const scope = resolveAcpScope(scopes, cwd);
+  if (scope) return scope;
   throw new AcpProtocolError(
     -32602,
-    "cwd must match a daemon-configured project root",
+    "cwd must match a daemon-configured scope root",
     { code: "invalid_params", field: "cwd" },
   );
 }

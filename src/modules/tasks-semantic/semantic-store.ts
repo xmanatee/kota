@@ -3,7 +3,7 @@
  * embedding-index engine. Delegates listing to the underlying default
  * implementation and answers `searchTasks` with embedding-backed cosine
  * ranking. The sidecar `.embeddings.json` lives under
- * `<projectDir>/.kota/tasks-semantic/` so it stays out of the git-tracked
+ * `<scopeRoot>/.kota/tasks-semantic/` so it stays out of the git-tracked
  * `data/tasks/` tree (the file is a runtime cache, not source state).
  *
  * Staleness is detected via each task's frontmatter `updated_at` ISO
@@ -17,6 +17,7 @@ import type {
 	RepoTaskSearchHit,
 	RepoTasksProvider,
 	RepoTasksSearchOptions,
+	RepoTasksSemanticSearchCapability,
 } from "#core/modules/provider-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import {
@@ -34,7 +35,7 @@ import {
 export const TASKS_SIDECAR_DIRNAME = "tasks-semantic";
 
 export type SemanticTasksStoreOptions = {
-	projectDir: string;
+	scopeRoot: string;
 	provider: EmbeddingProvider;
 	/**
 	 * Called when background embedding fails. Defaults to a terminal diagnostic.
@@ -45,16 +46,16 @@ export type SemanticTasksStoreOptions = {
 
 const DEFAULT_TOP_K = 20;
 
-export function tasksSidecarDir(projectDir: string): string {
-	return join(projectDir, ".kota", TASKS_SIDECAR_DIRNAME);
+export function tasksSidecarDir(scopeRoot: string): string {
+	return join(scopeRoot, ".kota", TASKS_SIDECAR_DIRNAME);
 }
 
 function buildAdapter(
-	projectDir: string,
+	scopeRoot: string,
 	sidecarDir: string,
 ): SemanticStoreAdapter<RepoTaskFullRecord> {
 	const findById = (id: string): RepoTaskFullRecord | null => {
-		const all = listFullRepoTasks(projectDir);
+		const all = listFullRepoTasks(scopeRoot);
 		return all.find((entry) => entry.id === id) ?? null;
 	};
 	return {
@@ -67,14 +68,15 @@ function buildAdapter(
 	};
 }
 
-export class SemanticTasksStore implements RepoTasksProvider {
-	private projectDir: string;
+export class SemanticTasksStore implements RepoTasksProvider, RepoTasksSemanticSearchCapability {
+	readonly semanticSearchCapability: RepoTasksSemanticSearchCapability = this;
+	private scopeRoot: string;
 	private sidecarDir: string;
 	private manager: SemanticIndexManager<RepoTaskFullRecord>;
 
 	constructor(options: SemanticTasksStoreOptions) {
-		this.projectDir = options.projectDir;
-		this.sidecarDir = tasksSidecarDir(options.projectDir);
+		this.scopeRoot = options.scopeRoot;
+		this.sidecarDir = tasksSidecarDir(options.scopeRoot);
 			mkdirSync(this.sidecarDir, { recursive: true });
 			const onError =
 				options.onBackgroundError ??
@@ -85,14 +87,10 @@ export class SemanticTasksStore implements RepoTasksProvider {
 						err instanceof Error ? err.message : String(err),
 					));
 			this.manager = new SemanticIndexManager({
-			adapter: buildAdapter(this.projectDir, this.sidecarDir),
+			adapter: buildAdapter(this.scopeRoot, this.sidecarDir),
 			provider: options.provider,
 			onError,
 		});
-	}
-
-	supportsSemanticSearch(): boolean {
-		return true;
 	}
 
 	async searchTasks(
@@ -106,7 +104,7 @@ export class SemanticTasksStore implements RepoTasksProvider {
 			: [...REPO_TASK_STATES];
 		const topK = options?.topK ?? DEFAULT_TOP_K;
 		if (topK <= 0) return [];
-		const candidates = listFullRepoTasks(this.projectDir, states);
+		const candidates = listFullRepoTasks(this.scopeRoot, states);
 		const ranked = await this.manager.rankBySimilarityScored(
 			trimmed,
 			candidates,
@@ -125,7 +123,7 @@ export class SemanticTasksStore implements RepoTasksProvider {
 	}
 
 	async reindex(): Promise<ReindexResult> {
-		const records = listFullRepoTasks(this.projectDir);
+		const records = listFullRepoTasks(this.scopeRoot);
 		return this.manager.rebuildIndex(records);
 	}
 

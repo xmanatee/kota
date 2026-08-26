@@ -45,7 +45,7 @@ export type EnqueueWebhookRunResult = {
 
 export type ExecuteWorkflowRequest = Readonly<{
   workflow: string;
-  projectId: string;
+  scopeId: string;
   event: string;
   payload: Readonly<Record<string, unknown>>;
   parent?: Readonly<{ runId: string; triggerId: string }>;

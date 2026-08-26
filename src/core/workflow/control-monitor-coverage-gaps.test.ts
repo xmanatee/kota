@@ -14,12 +14,12 @@ import {
 
 describe("control monitor coverage gaps", () => {
   let fixture: ControlCoverageFixture;
-  let projectDir: string;
+  let scopeRoot: string;
   let runDirPath: string;
 
   beforeEach(() => {
     fixture = createControlCoverageFixture("kota-control-coverage-gaps");
-    projectDir = fixture.projectDir;
+    scopeRoot = fixture.workspaceRoot;
     runDirPath = fixture.runDirPath;
   });
 
@@ -52,7 +52,7 @@ describe("control monitor coverage gaps", () => {
     ]);
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,
@@ -110,7 +110,7 @@ describe("control monitor coverage gaps", () => {
     });
 
     const artifact = buildControlMonitorCoverageArtifact({
-      projectDir,
+      scopeRoot,
       runDirPath,
       metadata,
       headSha: null,

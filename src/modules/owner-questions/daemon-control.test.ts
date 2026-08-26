@@ -32,10 +32,11 @@ import {
   OwnerQuestionQueue,
   resetOwnerQuestionQueue,
 } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  buildScopeRegistryProjection,
+  type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import {
   initProviderRegistry,
@@ -86,16 +87,16 @@ function makeHandle(): DaemonControlHandle {
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getScopeRegistryProjection: vi.fn(() => ({ rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] })),
+    hasScope: vi.fn((id: string) => id === "test-scope-id"),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
+      scopeName: "test-scope",
+      scopeRoot: "/tmp/test-scope",
+      scopeRegistry: { rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -131,41 +132,41 @@ function seed(queue: OwnerQuestionQueue) {
   });
 }
 
-function registerProjectQueueProvider(
+function registerScopeQueueProvider(
   entries: Array<{
-    project: ConfiguredProject;
+    scope: DirectoryScope;
     approvalQueue: ApprovalQueue;
     ownerDecisionStore: OwnerDecisionStore;
     ownerQuestionQueue: OwnerQuestionQueue;
   }>,
 ): void {
   const defaultEntry = entries[0];
-  if (!defaultEntry) throw new Error("expected at least one project");
-  const byId = new Map(entries.map((entry) => [entry.project.projectId, entry]));
+  if (!defaultEntry) throw new Error("expected at least one scope");
+  const byId = new Map(entries.map((entry) => [entry.scope.scopeId, entry]));
   const registry = initProviderRegistry();
-  registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "test", {
-    getProjectRegistryProjection: () => ({
-      defaultProjectId: defaultEntry.project.projectId,
-      projects: entries.map((entry) => entry.project),
-    }),
-    getActiveProjectId: () => null,
-    resolveProjectRuntime: (projectId) => {
-      const selected = projectId?.trim() || defaultEntry.project.projectId;
+  registry.register(DAEMON_SCOPE_PROVIDER_TYPE, "test", {
+    getScopeRegistryProjection: () => buildScopeRegistryProjection(
+      defaultEntry.scope.scopeId,
+      entries.map((entry) => entry.scope),
+    ),
+    getActiveScopeId: () => null,
+    resolveScopeRuntime: (scopeId) => {
+      const selected = scopeId?.trim() || defaultEntry.scope.scopeId;
       const entry = byId.get(selected);
       if (!entry) {
         return {
           ok: false,
           error: {
-            error: "Unknown project",
-            reason: "unknown_project",
-            projectId: selected,
+            error: "Unknown scope",
+            reason: "unknown_scope",
+            scopeId: selected,
           },
         };
       }
       return {
         ok: true,
         runtime: {
-          project: entry.project,
+          scope: entry.scope,
           approvalQueue: entry.approvalQueue,
           secretStore: {} as never,
           ownerDecisionStore: entry.ownerDecisionStore,
@@ -262,43 +263,43 @@ describe("owner-questions module daemon-control routes", () => {
       expect(await res.json()).toEqual({ questions: [] });
     });
 
-    it("uses the projectId query to list and mutate the selected project's queue", async () => {
-      mkdirSync(join(queueDir, "project-a"));
-      mkdirSync(join(queueDir, "project-b"));
-      const projectA = buildConfiguredProject({
-        projectDir: join(queueDir, "project-a"),
-        displayName: "Project A",
+    it("uses the scopeId query to list and mutate the selected scope's queue", async () => {
+      mkdirSync(join(queueDir, "scope-a"));
+      mkdirSync(join(queueDir, "scope-b"));
+      const scopeA = buildDirectoryScope({
+        scopeRoot: join(queueDir, "scope-a"),
+        displayName: "Scope A",
       });
-      const projectB = buildConfiguredProject({
-        projectDir: join(queueDir, "project-b"),
-        displayName: "Project B",
+      const scopeB = buildDirectoryScope({
+        scopeRoot: join(queueDir, "scope-b"),
+        displayName: "Scope B",
       });
-      const approvalA = new ApprovalQueue(join(projectA.projectDir, ".kota", "approvals"));
-      const approvalB = new ApprovalQueue(join(projectB.projectDir, ".kota", "approvals"));
-      const decisionA = new OwnerDecisionStore(join(projectA.projectDir, ".kota", "owner-decisions"), projectA.projectId);
-      const decisionB = new OwnerDecisionStore(join(projectB.projectDir, ".kota", "owner-decisions"), projectB.projectId);
-      const ownerA = new OwnerQuestionQueue(join(projectA.projectDir, ".kota", "owner-questions"));
-      const ownerB = new OwnerQuestionQueue(join(projectB.projectDir, ".kota", "owner-questions"));
-      registerProjectQueueProvider([
-        { project: projectA, approvalQueue: approvalA, ownerDecisionStore: decisionA, ownerQuestionQueue: ownerA },
-        { project: projectB, approvalQueue: approvalB, ownerDecisionStore: decisionB, ownerQuestionQueue: ownerB },
+      const approvalA = new ApprovalQueue(join(scopeA.scopeRoot, ".kota", "approvals"));
+      const approvalB = new ApprovalQueue(join(scopeB.scopeRoot, ".kota", "approvals"));
+      const decisionA = new OwnerDecisionStore(join(scopeA.scopeRoot, ".kota", "owner-decisions"), scopeA.scopeId);
+      const decisionB = new OwnerDecisionStore(join(scopeB.scopeRoot, ".kota", "owner-decisions"), scopeB.scopeId);
+      const ownerA = new OwnerQuestionQueue(join(scopeA.scopeRoot, ".kota", "owner-questions"));
+      const ownerB = new OwnerQuestionQueue(join(scopeB.scopeRoot, ".kota", "owner-questions"));
+      registerScopeQueueProvider([
+        { scope: scopeA, approvalQueue: approvalA, ownerDecisionStore: decisionA, ownerQuestionQueue: ownerA },
+        { scope: scopeB, approvalQueue: approvalB, ownerDecisionStore: decisionB, ownerQuestionQueue: ownerB },
       ]);
 
       const itemA = seed(ownerA);
       const itemB = seed(ownerB);
 
-      const listB = await fetchWith(port, `/owner-questions?projectId=${projectB.projectId}`);
+      const listB = await fetchWith(port, `/owner-questions?scopeId=${scopeB.scopeId}`);
       expect(listB.status).toBe(200);
       const body = (await listB.json()) as { questions: Array<{ id: string }> };
       expect(body.questions.map((item) => item.id)).toEqual([itemB.id]);
 
       const answerB = await fetchWith(
         port,
-        `/owner-questions/${itemB.id}/answer?projectId=${projectB.projectId}`,
+        `/owner-questions/${itemB.id}/answer?scopeId=${scopeB.scopeId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ answer: "project b answer" }),
+          body: JSON.stringify({ answer: "scope b answer" }),
         },
       );
       expect(answerB.status).toBe(200);

@@ -1,5 +1,4 @@
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import type { ReviewScrutinyEscalationReport } from "#modules/autonomy/review-scrutiny-escalation.js";
 import {
   blank,
   line,
@@ -201,66 +200,6 @@ export function renderReviewScrutiny(report: ReviewScrutinyReport): RenderNode[]
   return lines;
 }
 
-export function renderReviewScrutinyEscalation(
-  report: ReviewScrutinyEscalationReport,
-): RenderNode[] {
-  if (
-    report.activePatterns.length === 0 &&
-    report.cooldownPatterns.length === 0 &&
-    report.belowThresholdPatterns.length === 0
-  ) {
-    return [line(span("(no recurring thin-acceptance patterns)", "muted"))];
-  }
-  const lines: RenderNode[] = [];
-  if (report.activePatterns.length > 0) {
-    lines.push(line(span("Active patterns", "muted", true)));
-    for (const pattern of report.activePatterns) {
-      lines.push(line(
-        plain("  "),
-        span(`${pattern.surface}`.padEnd(17), "warn"),
-        plain(" "),
-        plain(`${pattern.workflow} ${pattern.taskArea}/${pattern.taskClass}`.padEnd(32)),
-        plain(" "),
-        span(`${pattern.thinAcceptances}/${pattern.approvalLikeDecisions}`, "warn"),
-        plain(" -> "),
-        span(pattern.repairTaskId, "accent"),
-      ));
-    }
-  }
-  if (report.cooldownPatterns.length > 0) {
-    if (lines.length > 0) lines.push(blank());
-    lines.push(line(span("Cooldown-suppressed patterns", "muted", true)));
-    for (const pattern of report.cooldownPatterns) {
-      lines.push(line(
-        plain("  "),
-        span(pattern.surface.padEnd(17), "warn"),
-        plain(" "),
-        plain(`${pattern.workflow} ${pattern.taskArea}/${pattern.taskClass}`.padEnd(32)),
-        plain(" "),
-        span(pattern.repairTaskId, "muted"),
-      ));
-    }
-  }
-  if (report.belowThresholdPatterns.length > 0) {
-    if (lines.length > 0) lines.push(blank());
-    lines.push(line(span("Below-threshold patterns", "muted", true)));
-    for (const pattern of report.belowThresholdPatterns) {
-      lines.push(line(
-        plain("  "),
-        plain(pattern.surface.padEnd(17)),
-        plain(" "),
-        plain(`${pattern.workflow} ${pattern.taskArea}/${pattern.taskClass}`.padEnd(32)),
-        plain(" "),
-        span(
-          `${pattern.thinAcceptances}/${pattern.approvalLikeDecisions} thin`,
-          "muted",
-        ),
-      ));
-    }
-  }
-  return lines;
-}
-
 export function renderTrajectoryDiagnostics(
   report: TrajectoryDiagnosticReport,
 ): RenderNode[] {
@@ -278,8 +217,6 @@ export function renderTrajectoryDiagnostics(
       plain(`${pattern.workflow}/${pattern.stepId}`.padEnd(30)),
       plain(" "),
       span(pattern.code, "info"),
-      plain(" -> "),
-      span(pattern.repairTaskId, "accent"),
     ));
   }
   return lines;

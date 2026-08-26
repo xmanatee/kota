@@ -243,7 +243,7 @@ function buildTasksUiSurface(
 
 export const repoTasksUiSurfaceSource: UiSurfaceSource = {
   sourceId: "tasks",
-  project: async (context) => {
+  scope: async (context) => {
     const tasks = await context.read("tasks", () =>
       context.client.tasks.list(["doing", "ready", "blocked", "backlog"]),
     );

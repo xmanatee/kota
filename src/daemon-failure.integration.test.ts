@@ -7,7 +7,7 @@ import {
   commitFixtureFiles,
   makeDaemon,
   mockedExecuteWithAgentSDK,
-  projectDir,
+  scopeRoot,
   stateDir,
   wait,
 } from "./daemon-test-support.integration.js";
@@ -23,7 +23,7 @@ describe("Daemon failure and lifecycle", () => {
 
   it("fails before publishing control state when workflow definitions are invalid", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     const daemon = makeDaemon({
@@ -73,7 +73,7 @@ describe("Daemon failure and lifecycle", () => {
 
   it("aborts active workflow runs immediately on foreground interrupt", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     const captured: { signal?: AbortSignal } = {};
@@ -120,7 +120,7 @@ describe("Daemon failure and lifecycle", () => {
 
   it("persists completed run state to disk", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -167,10 +167,10 @@ describe("Daemon failure and lifecycle", () => {
 
   it("can be started again after stop", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
-    commitFixtureFiles(projectDir);
+    commitFixtureFiles(scopeRoot);
     mockedExecuteWithAgentSDK.mockResolvedValue({
       text: "done",
       streamedText: "",

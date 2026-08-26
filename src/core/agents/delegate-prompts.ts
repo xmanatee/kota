@@ -1,7 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ResolvedToolSet, ToolRunner } from "#core/tools/index.js";
 import { resolveRegisteredToolSetByEffect } from "#core/tools/index.js";
-import { detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
+import { detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
 import { formatResolvedToolGuidance, formatResolvedToolNameGuidance } from "./tool-guidance.js";
 
 // --- Sub-agent system prompts ---
@@ -16,7 +16,7 @@ export const EXPLORE_PROMPT = `You are a research sub-agent. Gather information 
 - For structured data, capture machine-readable data and analyze it programmatically when available; do not manually transcribe tables or numbers.
 - Batch independent read-only calls when the tool interface supports it.
 - Cross-reference findings across multiple sources. Note disagreements with dates so recency is clear.
-- You have read-only access - do not modify project files. Use command tools for information gathering only.
+- You have read-only access - do not modify workspace files. Use command tools for information gathering only.
 
 ## Response Format
 - Lead with the answer, not the process you followed.
@@ -70,7 +70,7 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 ## Error Recovery
 - If an edit fails because content changed, re-read the current content and retry with an exact patch.
 - If a command or runtime check fails, read the error output, adjust approach, and retry differently.
-- If a dependency is missing, install it explicitly with the project's package manager before retrying.
+- If a dependency is missing, install it explicitly with the workspace's package manager before retrying.
 
 ## Response Format
 - Summarize: what changed, which files, why.
@@ -139,13 +139,13 @@ export function getExecuteToolSet(): ResolvedToolSet {
 
 export type PromptConfig = {
   cwd?: string;
-  projectContext?: string;
+  scopeContext?: string;
   instructionContext?: string;
   tools?: readonly KotaTool[];
   toolNames?: readonly string[];
 };
 
-/** Build a sub-agent system prompt enriched with project context. */
+/** Build a sub-agent system prompt enriched with scope context. */
 export function buildSubAgentPrompt(
   base: string,
   config: PromptConfig,
@@ -160,13 +160,13 @@ export function buildSubAgentPrompt(
   }
   if (config.cwd) {
     parts.push(`\nWorking directory: ${config.cwd}`);
-    const project = detectProject(config.cwd);
-    if (project) parts.push(`Project: ${project}`);
+    const workspace = detectWorkspaceTechnology(config.cwd);
+    if (workspace) parts.push(`Workspace: ${workspace}`);
     const overview = getDirectoryOverview(config.cwd);
     if (overview) parts.push(`Directory:\n${overview}`);
   }
-  if (config.projectContext) {
-    parts.push(`\n${config.projectContext}`);
+  if (config.scopeContext) {
+    parts.push(`\n${config.scopeContext}`);
   }
   if (config.instructionContext) {
     parts.push(`\n${config.instructionContext}`);

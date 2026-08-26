@@ -1,22 +1,35 @@
 # Tasks
 
-This directory is the normalized live work queue after ideas leave `data/inbox/`.
+This directory is the normalized live work queue after ideas leave
+`data/inbox/`. State directories define their lifecycle boundaries; read the
+nearest `AGENTS.md` before changing a task.
 
-State directories define their own lifecycle contracts. Read the local `AGENTS.md` before touching tasks in a state directory.
+## Task contract
 
-State and priority are separate concepts. Priority describes importance; state describes scheduling and lifecycle.
+- Use the task command to create and move tasks. The repo-tasks domain owns
+  identifiers, safe paths, lifecycle states, dependencies, and mutation
+  authorization.
+- Tasks usually state `Problem`, `Desired Outcome`, `Constraints`, and `How We
+  Will Know`. These are authoring prompts, not validator-required keywords;
+  natural prose is valid when it preserves the same intent. Builders own the
+  implementation plan.
+- Preserve owner wording, observed runtime evidence, research provenance, and
+  urgency. Do not normalize away why the task exists.
+- Represent hard predecessors with `depends_on`; do not duplicate ordering in
+  prose or add transitive edges.
+- Choose the strongest proportionate observation for the outcome. A live
+  journey may be useful for operator-facing work and a focused behavior check
+  may be sufficient for an internal change, but task labels never prescribe a
+  fixed artifact, filename, or test category.
+- Task metadata helps routing and prioritization. It must not turn preferences,
+  reviewer judgment, or implementation details into mechanical completion
+  gates.
 
-## Task Format
+The scaffold and validator remain the machine-readable format authority. Do
+not copy their field catalogs or accepted-value lists into instructions.
 
-- Use `pnpm kota task create` to scaffold tasks. The scaffold and validator are
-  the schema boundary.
-- Use `depends_on: [task-id, ...]` as the canonical hard-predecessor representation;
-  do not encode hard ordering only in prose. Open tasks may name only existing,
-  non-dropped immediate predecessors; omit transitively implied edges.
 - If a blocked task uses an `## Unblock Precondition` of `kind: task-done`,
   its `depends_on` list must be exactly the same task id.
-- Tasks describe what must become true and why it matters; builders own the
-  plan. Runtime replacements follow the proof contract in the repo-tasks module.
 - Every open task sets `task_class: Product`, `Safety`, `Platform`, or `Meta`
   in frontmatter. Product is owner-visible capability or UX; Safety is
   security, credential, permission, policy, or destructive-action risk;
@@ -24,15 +37,17 @@ State and priority are separate concepts. Priority describes importance; state d
   autonomous process, evaluators, repair loops, prompts, or queue machinery.
 - Replace generated autonomy-issue placeholder text with a concrete behavioral
   `## Desired Outcome` before the proposal enters the open queue.
-- Preserve owner wording, runtime evidence, research source, and urgency in
-  `## Source / Intent`; do not normalize away the reason the task exists.
 - `## Acceptance Evidence` may name proportionate proof when that helps the
   builder understand the outcome. It is guidance, not a prose-parsing runtime
   gate; the critic judges the actual result and available evidence.
 - Keep central research and decision refs visible in `## Source / Intent` or decision
   sections. Cite watchlist refs instead of copied metadata; record access blockers.
 
-## Strategic Anchor Tasks
+An anchor tracks a multi-stage initiative whose outcome is achieved by its
+owned slices. Keep it in backlog as a progress and decision record; do not
+dispatch it as a builder-sized task. Update stage state and ownership as work
+lands, and remove obsolete tracked slices rather than preserving a historical
+inventory.
 
 A task may declare itself a strategic anchor by setting `anchor: true` in its
 frontmatter. Anchors track an initiative across a sequenced set of sub-slice
@@ -61,10 +76,12 @@ sub-slice tasks exist in the queue.
 - Before finishing, ensure task validation would pass: safe task paths, unique
   ids, valid metadata and dependencies, and matching status/directories.
 
-## Blocked Tasks
+## Blocked work
 
-Every task in `data/tasks/blocked/` must declare exactly one `## Unblock
-Precondition` using the typed vocabulary enforced by the validator:
+Blocked tasks name one concrete external precondition that can be evaluated
+without reinterpreting the whole task: completion of a prerequisite, local
+capability availability, an owner decision, or an operator-only action. The
+state owner defines the typed representation.
 
 - `task-done` — promote when the referenced enabler task is in `done/`.
 - `capability-installed` — promote when the deterministic local capability

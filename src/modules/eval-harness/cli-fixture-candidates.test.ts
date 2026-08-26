@@ -7,20 +7,20 @@ import { buildEvalCommand } from "./cli.js";
 import { makeFakeCtx } from "./cli-test-support.js";
 
 describe("kota eval fixture-candidates CLI", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "candidate-cli-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "candidate-cli-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
   it("writes JSON and readable summary artifacts for a bounded run-id scan", async () => {
     const runId = "run-cli-candidate";
-    const runDir = join(projectDir, ".kota/runs", runId);
+    const runDir = join(workspaceRoot, ".kota/runs", runId);
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "metadata.json"),
@@ -45,7 +45,7 @@ describe("kota eval fixture-candidates CLI", () => {
         2,
       ),
     );
-    writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
+    writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
       runId,
       changedPaths: ["src/modules/eval-harness/fixture-candidates.ts"],
       publishedHead: "abc123",
@@ -63,7 +63,7 @@ describe("kota eval fixture-candidates CLI", () => {
       return true;
     });
 
-    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
+    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
     await cmd.parseAsync(
       [
         "fixture-candidates",
@@ -76,11 +76,11 @@ describe("kota eval fixture-candidates CLI", () => {
     );
 
     const reportPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota/runs/candidate-output/fixture-candidates.json",
     );
     const summaryPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota/runs/candidate-output/fixture-candidates.md",
     );
     const report = JSON.parse(readFileSync(reportPath, "utf-8")) as {
@@ -97,7 +97,7 @@ describe("kota eval fixture-candidates CLI", () => {
 
   it("creates accepted backlog tasks when requested", async () => {
     const runId = "run-cli-accepted-candidate";
-    const runDir = join(projectDir, ".kota/runs", runId);
+    const runDir = join(workspaceRoot, ".kota/runs", runId);
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
       join(runDir, "metadata.json"),
@@ -122,7 +122,7 @@ describe("kota eval fixture-candidates CLI", () => {
         2,
       ),
     );
-    writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
+    writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
       runId,
       changedPaths: ["src/modules/eval-harness/fixture-candidates.ts"],
     });
@@ -131,7 +131,7 @@ describe("kota eval fixture-candidates CLI", () => {
       JSON.stringify({ ok: true }, null, 2),
     );
 
-    const cmd = buildEvalCommand(makeFakeCtx(projectDir));
+    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
     await cmd.parseAsync(
       [
         "fixture-candidates",
@@ -146,7 +146,7 @@ describe("kota eval fixture-candidates CLI", () => {
 
     const report = JSON.parse(
       readFileSync(
-        join(projectDir, ".kota/runs/candidate-output/fixture-candidates.json"),
+        join(workspaceRoot, ".kota/runs/candidate-output/fixture-candidates.json"),
         "utf-8",
       ),
     ) as {
@@ -155,6 +155,6 @@ describe("kota eval fixture-candidates CLI", () => {
     expect(report.candidates[0]?.disposition).toBe("accepted");
     const acceptedPath = report.candidates[0]?.acceptedAction?.path;
     expect(acceptedPath).toMatch(/^data\/tasks\/backlog\/task-eval-candidate-/);
-    expect(readFileSync(join(projectDir, acceptedPath ?? ""), "utf-8")).toContain(runId);
+    expect(readFileSync(join(workspaceRoot, acceptedPath ?? ""), "utf-8")).toContain(runId);
   });
 });

@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
-const transcriptPath = join(projectRoot, ".kota/dialogue-simulator/transcript.json");
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const transcriptPath = join(scopeRoot, ".kota/dialogue-simulator/transcript.json");
 const facts = {
   requirementId: "nova-launch-sms-v1",
   channel: "sms",

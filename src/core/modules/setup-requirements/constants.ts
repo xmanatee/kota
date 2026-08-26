@@ -9,7 +9,7 @@ export const SETUP_KINDS = [
   "external-url",
   "capability",
 ] as const;
-export const SETUP_SCOPES = ["project", "global"] as const;
+export const SETUP_SCOPES = ["scope", "global"] as const;
 export const SETUP_SENSITIVITIES = ["none", "secret", "oauth", "browser-profile"] as const;
 export const SETUP_MODES = ["form", "url", "none"] as const;
 export const FORM_FIELD_TYPES = ["string", "number", "boolean"] as const;

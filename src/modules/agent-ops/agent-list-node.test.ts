@@ -8,7 +8,7 @@ const ROWS = [
   {
     name: "builder",
     source: "autonomy",
-    moduleSource: "project" as const,
+    moduleSource: "bundled" as const,
     sourcePath: "src/modules/autonomy",
     sourcePaths: [
       "src/modules/autonomy",
@@ -16,6 +16,7 @@ const ROWS = [
     ],
     role: "Implements one normalized task end-to-end",
     model: "claude-opus-4-7",
+    effort: "xhigh" as const,
     promptPath: "src/modules/autonomy/workflows/builder/prompt.md",
     writeScope: [],
     resolvedSkills: [],
@@ -28,7 +29,7 @@ const ROWS = [
   {
     name: "critic",
     source: "autonomy",
-    moduleSource: "project" as const,
+    moduleSource: "bundled" as const,
     sourcePath: "src/modules/autonomy",
     sourcePaths: [
       "src/modules/autonomy",
@@ -36,6 +37,7 @@ const ROWS = [
     ],
     role: "Judge the diff and runtime artifacts of a builder run",
     model: "claude-opus-4-7",
+    effort: "xhigh" as const,
     promptPath: "src/modules/autonomy/workflows/builder/critic-prompt.md",
     writeScope: [],
     resolvedSkills: [],

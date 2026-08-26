@@ -23,7 +23,7 @@ the protocol and registry.
   and tool lists). KOTA-routable loops must honor them; other adapters declare
   them in `unsupportedRunOptions`, so `runAgentHarness` rejects them before
   hooks or launch.
-- Harnesses enforce `AgentDef.writeScope` before project mutation; Git checks
+- Harnesses enforce `AgentDef.writeScope` before scope mutation; Git checks
   backstop it. Workflow agents receive one separately propagated per-run output
   directory, never the canonical run directory containing runtime state.
 - Nested handoffs and delegates are authorization boundaries: carry both
@@ -38,7 +38,7 @@ the protocol and registry.
   nested launches reuse it.
 - `guards.ts` owns hidden agent/worktree nesting, commit, daemon-control, and
   authority guards. Its OS sandbox gives opaque code and native CLIs minimal
-  environments, isolated home/temp, project package-manager runtimes,
+  environments, isolated home/temp, scope package-manager runtimes,
   declared auth/read roots, and provider-only egress through a host-owned proxy.
   Native tools lack direct host, loopback, metadata-service, or internet routes.
   KOTA native sandboxes protect `.kota`; only validated `KOTA_RUN_DIR` /
@@ -75,7 +75,7 @@ Owner questions are a protocol capability, not a provider field.
 - `unsupportedRunOptions` is enforced before hooks or launch and mirrored in
   readiness. Native CLIs without KOTA's tool gate declare `canUseTool`,
   `allowedTools`, and `disallowedTools`; they still honor scope write policy
-  through `projectNativeCliScope` and the shared native sandbox.
+  through `scopeNativeCliScope` and the shared native sandbox.
 - `routeKotaToolControlOptions` preserves effective scope policy for fail-closed
   native preflight. Hosted loops refresh policy per call; launched native loops
   abort on stricter revisions.
@@ -120,14 +120,13 @@ Provider SDK knobs stay off `AgentHarnessRunOptions`. The neutral surface
 carries KOTA concepts, ModelClient selection, and portable transport fields.
 Adapter-private options travel through validated `harnessOverrides` as opaque
 `AgentHarnessStepOverrides`.
-`no-sdk-shaped-neutral-fields.test.ts` keeps provider-shaped IDs off
-the neutral protocol surface.
+`neutral-protocol-shape.test.ts` checks the public type boundary; provider
+adapters own translation of their private field names.
 
-Nothing in core treats a provider's type surface as its internal protocol.
-Every tool, message, block, thinking config, and model response on a core
-interface is a KOTA-owned neutral type from `message-protocol.ts`; adapter
-modules translate at their seam. `no-anthropic-imports-in-core.test.ts`
-enforces this mechanically.
+Core interfaces use KOTA-owned neutral types from `message-protocol.ts`;
+adapters translate provider types at their seam. Biome enforces the boundary.
+`message-codec.ts` is the runtime decoder for neutral messages that cross a
+durable or foreign boundary; trusted loop code consumes the decoded type.
 
 ## Per-step harness-specific options
 

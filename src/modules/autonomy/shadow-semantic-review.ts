@@ -18,7 +18,6 @@ import {
 import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
 import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
-  shadowSemanticReviewShouldBlock,
   validateShadowSemanticReviewerDeclaration,
   writeShadowSemanticReviewArtifact,
 } from "./shadow-semantic-review-artifact.js";
@@ -50,7 +49,6 @@ export type ShadowSemanticReviewStepResult = {
   artifactPath: string;
   status: ShadowSemanticReviewStatus;
   decision: ShadowSemanticReviewDecision;
-  blocked: boolean;
 };
 
 export type ExecutableShadowSemanticReviewerDeclaration =
@@ -65,13 +63,6 @@ export type ShadowSemanticReviewInvoker = (
   cwd: string,
   declaration: ShadowSemanticReviewerDeclaration,
 ) => Promise<AgentHarnessResult>;
-
-class ShadowSemanticReviewBlockingError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ShadowSemanticReviewBlockingError";
-  }
-}
 
 async function defaultInvoker(
   prompt: string,
@@ -126,9 +117,8 @@ export function resolveShadowSemanticReviewRunContract(
 function resultFromArtifact(
   path: string,
   artifact: Pick<ShadowSemanticReviewArtifact, "status" | "decision">,
-  blocked: boolean,
 ): ShadowSemanticReviewStepResult {
-  return { artifactPath: path, status: artifact.status, decision: artifact.decision, blocked };
+  return { artifactPath: path, status: artifact.status, decision: artifact.decision };
 }
 
 export async function runShadowSemanticReview(args: {
@@ -137,7 +127,7 @@ export async function runShadowSemanticReview(args: {
   invoker?: ShadowSemanticReviewInvoker;
 }): Promise<ShadowSemanticReviewStepResult> {
   const { ctx, declaration } = args;
-  validateShadowSemanticReviewerDeclaration(ctx.projectDir, declaration);
+  validateShadowSemanticReviewerDeclaration(declaration);
   const resolution = await declaration.targetResolver(ctx);
   if (resolution.kind === "skip") {
     const { path } = writeShadowSemanticReviewArtifact(ctx, declaration, {
@@ -150,14 +140,14 @@ export async function runShadowSemanticReview(args: {
       usage: UNKNOWN_AGENT_USAGE,
       durationMs: null,
     });
-    return resultFromArtifact(path, { status: "skipped", decision: "skip" }, false);
+    return resultFromArtifact(path, { status: "skipped", decision: "skip" });
   }
 
   const startedAt = Date.now();
   let observedUsage = UNKNOWN_AGENT_USAGE;
   try {
     const prompt = buildShadowSemanticReviewPrompt(declaration, resolution);
-    const cwd = ctx.projectDir;
+    const cwd = ctx.workspaceRoot;
     const response = args.invoker
       ? await args.invoker(prompt, cwd, declaration)
       : await defaultInvoker(prompt, cwd, declaration, ctx);
@@ -177,17 +167,8 @@ export async function runShadowSemanticReview(args: {
       usage: response.usage,
       durationMs: Date.now() - startedAt,
     });
-    const blocked = shadowSemanticReviewShouldBlock(artifact);
-    if (blocked) {
-      throw new ShadowSemanticReviewBlockingError(
-        `Blocking shadow reviewer "${declaration.id}" rejected the target`,
-      );
-    }
-    return resultFromArtifact(path, artifact, false);
+    return resultFromArtifact(path, artifact);
   } catch (error) {
-    if (error instanceof ShadowSemanticReviewBlockingError) {
-      throw error;
-    }
     const status: ShadowSemanticReviewStatus =
       error instanceof ShadowSemanticReviewParseError ? "malformed" : "error";
     const decision: ShadowSemanticReviewDecision = "error";
@@ -206,8 +187,7 @@ export async function runShadowSemanticReview(args: {
       usage: observedUsage,
       durationMs: Date.now() - startedAt,
     });
-    if (declaration.mode === "blocking") throw error;
-    return resultFromArtifact(path, { status, decision }, false);
+    return resultFromArtifact(path, { status, decision });
   }
 }
 
@@ -225,7 +205,6 @@ export function createShadowSemanticReviewStep(args: {
         "artifactPath",
         "status",
         "decision",
-        "blocked",
       ]),
     resolveAgentContract: (runtime) =>
       resolveShadowSemanticReviewRunContract(runtime, args.declaration),

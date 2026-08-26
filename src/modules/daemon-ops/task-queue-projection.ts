@@ -9,7 +9,7 @@ export class DaemonTaskQueueProjection {
   private current: RepoTaskQueueSnapshot | undefined;
   private refreshInFlight: Promise<void> | null = null;
 
-  constructor(private readonly projectDir: string) {}
+  constructor(private readonly repoRoot: string) {}
 
   getSnapshot(): RepoTaskQueueSnapshot | undefined {
     return this.current;
@@ -19,7 +19,7 @@ export class DaemonTaskQueueProjection {
     if (this.refreshInFlight !== null) return this.refreshInFlight;
     const refresh = runWorkflowBlockingOperation(
       repoTaskQueueSnapshotOperation,
-      { projectDir: this.projectDir },
+      { repoRoot: this.repoRoot },
       { signal },
     ).then((snapshot) => {
       this.current = snapshot;

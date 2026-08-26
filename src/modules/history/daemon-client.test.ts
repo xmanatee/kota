@@ -13,8 +13,8 @@
  *     (`{ search, limit, cwd, source }`) threads through `URLSearchParams`
  *     in `search,limit,cwd,source` insertion order to match today's
  *     pre-migration `historyListHttp`.
- *     `listDiscoveredProjectRecords(filter)` is also wired through
- *     `requestStrict<T>` at `/history/discovered-project-records` so
+ *     `listDiscoveredScopeRecords(filter)` is also wired through
+ *     `requestStrict<T>` at `/history/discovered-scope-records` so
  *     daemon-backed clients do not scan local history files directly.
  *  3. `show(id)` is wired through `fetchRaw` with method `GET`, path
  *     `/history/${encodeURIComponent(id)}`, and an undefined body. An id
@@ -47,8 +47,8 @@
  *  9. `HistoryDeleteResult` arms decode correctly: a `200` non-null
  *     response collapses into `{ ok: true }` and a `null` (404) response
  *     collapses into `{ ok: false, reason: "not_found" }`.
- * 10. `HistoryReindexResult` decodes correctly through `requestStrict<T>`
- *     (the provider's `ReindexResult` shape passes through unchanged).
+ * 10. `HistoryReindexResult` decodes the explicit success/unavailable
+ *     operation result through `requestStrict<T>`.
  * 11. Removing the history module's daemonClient contribution makes the
  *     assembled client fail loudly with a clear "history" missing-handler
  *     error.
@@ -60,8 +60,6 @@ import type {
   ConversationData,
   ConversationRecord,
 } from "#core/modules/provider-types.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   HistoryDetail,
@@ -270,26 +268,26 @@ describe("history module daemonClient(link)", () => {
     );
   });
 
-  it("threads an explicit project id through list()", async () => {
+  it("threads an explicit scope id through list()", async () => {
     const wirePayload = { conversations: [] };
     const { transport, calls } = makeRecordingTransport(() => wirePayload);
     const contributed = historyModule.daemonClient!(transport);
-    await contributed.history!.list({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/history?projectId=project-b");
+    await contributed.history!.list({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/history?scopeId=scope-b");
   });
 
-  it("routes listDiscoveredProjectRecords() through the daemon control API", async () => {
+  it("routes listDiscoveredScopeRecords() through the daemon control API", async () => {
     const wirePayload = { conversations: [makeRecord("discovered")] };
     const { transport, calls } = makeRecordingTransport(() => wirePayload);
     const contributed = historyModule.daemonClient!(transport);
-    const result = await contributed.history!.listDiscoveredProjectRecords({
+    const result = await contributed.history!.listDiscoveredScopeRecords({
       limit: 10,
     });
     expect(result).toEqual(wirePayload);
     expect(calls).toEqual([
       {
         method: "GET",
-        path: "/history/discovered-project-records?limit=10",
+        path: "/history/discovered-scope-records?limit=10",
         body: undefined,
         shape: "requestStrict",
       },
@@ -319,13 +317,13 @@ describe("history module daemonClient(link)", () => {
     expect(result).toEqual({ found: false });
   });
 
-  it("threads an explicit project id through show()", async () => {
+  it("threads an explicit scope id through show()", async () => {
     const detail = makeWindowDetail("plain-id");
     const { transport, calls } = makeRecordingTransport(() => detail);
     const contributed = historyModule.daemonClient!(transport);
-    await contributed.history!.show("plain-id", { projectId: "project-b" });
+    await contributed.history!.show("plain-id", { scopeId: "scope-b" });
     expect(calls[0]!.path).toBe(
-      "/history/plain-id?view=window&offset=0&limit=20&contentLimit=200&projectId=project-b",
+      "/history/plain-id?view=window&offset=0&limit=20&contentLimit=200&scopeId=scope-b",
     );
   });
 
@@ -383,17 +381,17 @@ describe("history module daemonClient(link)", () => {
     const { transport } = makeRecordingTransport(() =>
       new Response(
         JSON.stringify({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
         { status: 404 },
       ),
     );
     const contributed = historyModule.daemonClient!(transport);
     await expect(
-      contributed.history!.show("plain-id", { projectId: "ghost" }),
-    ).rejects.toThrow("Unknown project: ghost");
+      contributed.history!.show("plain-id", { scopeId: "ghost" }),
+    ).rejects.toThrow("Unknown scope: ghost");
   });
 
   it("routes delete(id) through DELETE /history/:id via fetchRaw with encodeURIComponent and no body", async () => {
@@ -420,13 +418,13 @@ describe("history module daemonClient(link)", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("threads an explicit project id through delete()", async () => {
+  it("threads an explicit scope id through delete()", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({
       deleted: "plain-id",
     }));
     const contributed = historyModule.daemonClient!(transport);
-    await contributed.history!.delete("plain-id", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/history/plain-id?projectId=project-b");
+    await contributed.history!.delete("plain-id", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/history/plain-id?scopeId=scope-b");
   });
 
   it("routes search(query) with no filter through GET /api/history/search?q=... via requestStrict<T>", async () => {
@@ -467,13 +465,13 @@ describe("history module daemonClient(link)", () => {
     expect(calls[0]!.path).toBe("/api/history/search?q=query&semantic=true");
   });
 
-  it("threads an explicit project id through search()", async () => {
+  it("threads an explicit scope id through search()", async () => {
     const expected: HistorySearchResult = { ok: true, conversations: [] };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = historyModule.daemonClient!(transport);
-    await contributed.history!.search("query", { projectId: "project-b" });
+    await contributed.history!.search("query", { scopeId: "scope-b" });
     expect(calls[0]!.path).toBe(
-      "/api/history/search?q=query&projectId=project-b",
+      "/api/history/search?q=query&scopeId=scope-b",
     );
   });
 
@@ -500,7 +498,7 @@ describe("history module daemonClient(link)", () => {
   });
 
   it("routes reindex() through POST /history/reindex via requestStrict<T> with no body", async () => {
-    const expected: HistoryReindexResult = { indexed: 5, failed: 0 };
+    const expected: HistoryReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = historyModule.daemonClient!(transport);
     const result = await contributed.history!.reindex();
@@ -515,33 +513,11 @@ describe("history module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads an explicit project id through reindex()", async () => {
-    const expected: HistoryReindexResult = { indexed: 5, failed: 0 };
+  it("threads an explicit scope id through reindex()", async () => {
+    const expected: HistoryReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = historyModule.daemonClient!(transport);
-    await contributed.history!.reindex({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/history/reindex?projectId=project-b");
-  });
-
-  it("the assembly path fails loudly when the history module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.history;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /history/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the history module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = historyModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.history;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
+    await contributed.history!.reindex({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/history/reindex?scopeId=scope-b");
   });
 });

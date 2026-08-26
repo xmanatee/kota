@@ -37,8 +37,7 @@ function deadLetterFixture(overrides: Partial<DeadLetterItem> = {}): DeadLetterI
     id: "dlq-test-1",
     type: "workflow-dispatch",
     status: "open",
-    scopeId: "test-project-id",
-    projectId: "test-project-id",
+    scopeId: "test-scope-id",
     owningModule: "workflow-runtime",
     sourceEventIds: ["evtj-000000000001"],
     affectedWorkflowNames: ["telegram-ingest"],
@@ -111,19 +110,29 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
       summary: { ready: 0, unavailable: 0, init_failed: 0 },
     })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
+      scopeName: "test-scope",
+      scopeRoot: "/tmp/test-scope",
+      scopeRegistry: {
+        rootScopeId: "global",
+        defaultScopeId: "test-scope-id",
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
+          {
+            scopeId: "test-scope-id",
+            displayName: "test-scope",
+            parentScopeId: "global",
+            directoryRoot: "/tmp/test-scope",
+          },
+        ],
+      },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -136,24 +145,24 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     ...daemonSetupControlHandleStubs(),
     getScopeRegistryProjection: vi.fn(() => ({
       rootScopeId: "global",
-      defaultScopeId: "test-project-id",
+      defaultScopeId: "test-scope-id",
       scopes: [
         { scopeId: "global", displayName: "Global" },
         {
-          scopeId: "test-project-id",
-          displayName: "test-project",
+          scopeId: "test-scope-id",
+          displayName: "test-scope",
           parentScopeId: "global",
-          directoryRoot: "/tmp/test-project",
+          directoryRoot: "/tmp/test-scope",
         },
         {
           scopeId: "test-feature",
           displayName: "test-feature",
-          parentScopeId: "test-project-id",
-          directoryRoot: "/tmp/test-project/feature",
+          parentScopeId: "test-scope-id",
+          directoryRoot: "/tmp/test-scope/feature",
         },
       ],
     })),
-    hasScope: vi.fn((id: string) => id === "global" || id === "test-project-id" || id === "test-feature"),
+    hasScope: vi.fn((id: string) => id === "global" || id === "test-scope-id" || id === "test-feature"),
     getScopePolicy: vi.fn((scopeId: string) => ({
       revision: 4,
       policy: {
@@ -161,12 +170,12 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
         lineage: scopeId === "global"
           ? ["global"]
           : scopeId === "test-feature"
-            ? ["global", "test-project-id", "test-feature"]
+            ? ["global", "test-scope-id", "test-feature"]
             : ["global", scopeId],
-        ...(scopeId === "test-project-id"
-          ? { directoryRoot: "/tmp/test-project" }
+        ...(scopeId === "test-scope-id"
+          ? { directoryRoot: "/tmp/test-scope" }
           : scopeId === "test-feature"
-            ? { directoryRoot: "/tmp/test-project/feature" }
+            ? { directoryRoot: "/tmp/test-scope/feature" }
             : {}),
         autonomy: { defaultMode: "autonomous" as const, maxMode: "autonomous" as const, source: { scopeId: "global", reason: "test" } },
         writes: { mode: "unrestricted" as const, source: { scopeId: "global", reason: "test" } },
@@ -551,25 +560,6 @@ describe("DaemonControlServer", () => {
     });
   });
 
-  describe("GET /projects", () => {
-    it("returns the typed project registry projection plus active selection", async () => {
-      const res = await fetchWithToken(port, "/projects");
-      expect(res.status).toBe(200);
-      const body = await res.json();
-      expect(body).toEqual({
-        defaultProjectId: "test-project-id",
-        activeProjectId: null,
-        projects: [
-          {
-            projectId: "test-project-id",
-            projectDir: "/tmp/test-project",
-            displayName: "test-project",
-          },
-        ],
-      });
-    });
-  });
-
   describe("GET /scopes", () => {
     it("returns the global root plus nested directory-backed child scopes", async () => {
       const res = await fetchWithToken(port, "/scopes");
@@ -577,23 +567,24 @@ describe("DaemonControlServer", () => {
       const body = await res.json();
       expect(body).toEqual({
         rootScopeId: "global",
-        defaultScopeId: "test-project-id",
+        defaultScopeId: "test-scope-id",
+        activeScopeId: null,
         scopes: [
           {
             scopeId: "global",
             displayName: "Global",
           },
           {
-            scopeId: "test-project-id",
-            displayName: "test-project",
+            scopeId: "test-scope-id",
+            displayName: "test-scope",
             parentScopeId: "global",
-            directoryRoot: "/tmp/test-project",
+            directoryRoot: "/tmp/test-scope",
           },
           {
             scopeId: "test-feature",
             displayName: "test-feature",
-            parentScopeId: "test-project-id",
-            directoryRoot: "/tmp/test-project/feature",
+            parentScopeId: "test-scope-id",
+            directoryRoot: "/tmp/test-scope/feature",
           },
         ],
       });
@@ -610,8 +601,8 @@ describe("DaemonControlServer", () => {
       const body = await res.json();
       expect(body.revision).toBe(4);
       expect(body.policy.scopeId).toBe("test-feature");
-      expect(body.policy.lineage).toEqual(["global", "test-project-id", "test-feature"]);
-      expect(body.policy.directoryRoot).toBe("/tmp/test-project/feature");
+      expect(body.policy.lineage).toEqual(["global", "test-scope-id", "test-feature"]);
+      expect(body.policy.directoryRoot).toBe("/tmp/test-scope/feature");
       expect(handle.getScopePolicy).toHaveBeenCalledWith("test-feature");
     });
 
@@ -627,69 +618,69 @@ describe("DaemonControlServer", () => {
     });
   });
 
-  describe("active project selection", () => {
-    it("GET /projects/active returns the current active project (null by default)", async () => {
-      const res = await fetchWithToken(port, "/projects/active");
+  describe("active scope selection", () => {
+    it("GET /scopes/active returns the current active scope (null by default)", async () => {
+      const res = await fetchWithToken(port, "/scopes/active");
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body).toEqual({ activeProjectId: null });
+      expect(body).toEqual({ activeScopeId: null });
     });
 
-    it("PATCH /projects/active sets the active project and routes a subsequent omitted-projectId request to it", async () => {
-      const patchRes = await fetchWithToken(port, "/projects/active", {
+    it("PATCH /scopes/active sets the active scope and routes a subsequent omitted-scopeId request to it", async () => {
+      const patchRes = await fetchWithToken(port, "/scopes/active", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "test-project-id" }),
+        body: JSON.stringify({ scopeId: "test-scope-id" }),
       });
       expect(patchRes.status).toBe(200);
-      expect(await patchRes.json()).toEqual({ activeProjectId: "test-project-id" });
-      expect(handle.setActiveProjectId).toHaveBeenCalledWith("test-project-id");
+      expect(await patchRes.json()).toEqual({ activeScopeId: "test-scope-id" });
+      expect(handle.setActiveScopeId).toHaveBeenCalledWith("test-scope-id");
 
       const lookup = handle.getWorkflowLiveStatus as ReturnType<typeof vi.fn>;
       lookup.mockClear();
-      handle.getActiveProjectId = vi.fn(() => "test-project-id");
+      handle.getActiveScopeId = vi.fn(() => "test-scope-id");
       await fetchWithToken(port, "/workflow/status");
-      expect(lookup).toHaveBeenCalledWith("test-project-id");
+      expect(lookup).toHaveBeenCalledWith("test-scope-id");
     });
 
-    it("PATCH /projects/active with null clears the selection", async () => {
-      const res = await fetchWithToken(port, "/projects/active", {
+    it("PATCH /scopes/active with null clears the selection", async () => {
+      const res = await fetchWithToken(port, "/scopes/active", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: null }),
+        body: JSON.stringify({ scopeId: null }),
       });
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ activeProjectId: null });
-      expect(handle.setActiveProjectId).toHaveBeenCalledWith(null);
+      expect(await res.json()).toEqual({ activeScopeId: null });
+      expect(handle.setActiveScopeId).toHaveBeenCalledWith(null);
     });
 
-    it("PATCH /projects/active rejects unknown ids with the typed 404 shape", async () => {
-      const res = await fetchWithToken(port, "/projects/active", {
+    it("PATCH /scopes/active rejects unknown ids with the typed 404 shape", async () => {
+      const res = await fetchWithToken(port, "/scopes/active", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: "ghost" }),
+        body: JSON.stringify({ scopeId: "ghost" }),
       });
       expect(res.status).toBe(404);
       expect(await res.json()).toEqual({
-        error: "Unknown project",
-        reason: "unknown_project",
-        projectId: "ghost",
+        error: "Unknown scope",
+        reason: "unknown_scope",
+        scopeId: "ghost",
       });
     });
 
-    it("PATCH /projects/active rejects malformed request bodies", async () => {
-      const res = await fetchWithToken(port, "/projects/active", {
+    it("PATCH /scopes/active rejects malformed request bodies", async () => {
+      const res = await fetchWithToken(port, "/scopes/active", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId: 42 }),
+        body: JSON.stringify({ scopeId: 42 }),
       });
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.reason).toBe("invalid_request");
     });
 
-    it("omitted ?projectId= falls back to the registry default when no active selection is set", async () => {
-      handle.getActiveProjectId = vi.fn(() => null);
+    it("omitted ?scopeId= falls back to the registry default when no active selection is set", async () => {
+      handle.getActiveScopeId = vi.fn(() => null);
       const lookup = handle.getWorkflowLiveStatus as ReturnType<typeof vi.fn>;
       lookup.mockClear();
       await fetchWithToken(port, "/workflow/status");
@@ -697,40 +688,40 @@ describe("DaemonControlServer", () => {
     });
   });
 
-  describe("project-scoped route validation", () => {
-    it("returns 404 with the typed unknown_project shape when ?projectId= names an unconfigured project", async () => {
+  describe("scope-scoped route validation", () => {
+    it("returns 404 with the typed unknown_scope shape when ?scopeId= names an unconfigured scope", async () => {
       const res = await fetchWithToken(
         port,
-        "/workflow/status?projectId=p-not-configured",
+        "/workflow/status?scopeId=p-not-configured",
       );
       expect(res.status).toBe(404);
       const body = await res.json();
       expect(body).toEqual({
-        error: "Unknown project",
-        reason: "unknown_project",
-        projectId: "p-not-configured",
+        error: "Unknown scope",
+        reason: "unknown_scope",
+        scopeId: "p-not-configured",
       });
     });
 
-    it("forwards a configured projectId through to the handle", async () => {
+    it("forwards a configured scopeId through to the handle", async () => {
       const res = await fetchWithToken(
         port,
-        "/workflow/status?projectId=test-project-id",
+        "/workflow/status?scopeId=test-scope-id",
       );
       expect(res.status).toBe(200);
       expect(handle.getWorkflowLiveStatus).toHaveBeenCalledWith(
-        "test-project-id",
+        "test-scope-id",
       );
     });
 
     it("forwards a configured scopeId through to the same scoped handle path", async () => {
       const res = await fetchWithToken(
         port,
-        "/workflow/status?scopeId=test-project-id",
+        "/workflow/status?scopeId=test-scope-id",
       );
       expect(res.status).toBe(200);
       expect(handle.getWorkflowLiveStatus).toHaveBeenCalledWith(
-        "test-project-id",
+        "test-scope-id",
       );
     });
 
@@ -747,22 +738,6 @@ describe("DaemonControlServer", () => {
       });
     });
 
-    it("rejects conflicting projectId and scopeId selectors", async () => {
-      const lookup = handle.getWorkflowLiveStatus as ReturnType<typeof vi.fn>;
-      lookup.mockClear();
-      const res = await fetchWithToken(
-        port,
-        "/workflow/status?projectId=test-project-id&scopeId=other-project",
-      );
-      expect(res.status).toBe(400);
-      expect(await res.json()).toEqual({
-        error: "Conflicting scope selectors",
-        reason: "conflicting_scope_selectors",
-        projectId: "test-project-id",
-        scopeId: "other-project",
-      });
-      expect(lookup).not.toHaveBeenCalled();
-    });
   });
 
   describe("GET /channels", () => {
@@ -945,7 +920,7 @@ describe("DaemonControlServer", () => {
         kind: "oauth",
         title: "OAuth",
         required: true,
-        scope: "project",
+        scope: "scope",
         sensitivity: "oauth",
         setup: {
           mode: "url",
@@ -958,7 +933,7 @@ describe("DaemonControlServer", () => {
         secretRefs: [
           {
             name: "DEMO_TOKEN",
-            scope: "project",
+            scope: "scope",
             present: false,
           },
         ],
@@ -1148,7 +1123,7 @@ describe("DaemonControlServer", () => {
 
       const list = await fetchWithToken(
         port,
-        "/workflow/dead-letter?status=open&type=workflow-dispatch&workflow=telegram-ingest&limit=5&projectId=test-project-id",
+        "/workflow/dead-letter?status=open&type=workflow-dispatch&workflow=telegram-ingest&limit=5&scopeId=test-scope-id",
       );
       expect(list.status).toBe(200);
       expect(await list.json()).toMatchObject({
@@ -1160,7 +1135,7 @@ describe("DaemonControlServer", () => {
         type: "workflow-dispatch",
         workflowName: "telegram-ingest",
         limit: 5,
-        projectId: "test-project-id",
+        scopeId: "test-scope-id",
       });
 
       const show = await fetchWithToken(port, `/workflow/dead-letter/${item.id}`);
@@ -1760,19 +1735,19 @@ describe("DaemonControlServer", () => {
     it("passes workflow filter and limit to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?workflow=builder&limit=5");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: "builder", limit: 5, tag: undefined, causedByRunId: undefined, projectId: undefined });
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: "builder", limit: 5, tag: undefined, causedByRunId: undefined, scopeId: undefined });
     });
 
     it("passes tag filter to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?tag=my-tag");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: "my-tag", causedByRunId: undefined, projectId: undefined });
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: "my-tag", causedByRunId: undefined, scopeId: undefined });
     });
 
     it("passes causedByRunId filter to handle", async () => {
       const res = await fetchWithToken(port, "/workflow/runs?causedByRunId=upstream-run-id");
       expect(res.status).toBe(200);
-      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: undefined, causedByRunId: "upstream-run-id", projectId: undefined });
+      expect(handle.listWorkflowRuns).toHaveBeenCalledWith({ workflow: undefined, limit: 20, tag: undefined, causedByRunId: "upstream-run-id", scopeId: undefined });
     });
 
     it("returns 401 without token", async () => {
@@ -2060,7 +2035,7 @@ describe("DaemonControlServer", () => {
       emit({
         type: "workflow.step.completed",
         payload: {
-          projectId: "test-project",
+          scopeId: "test-scope",
           workflow: "builder",
           runId: "test-run",
           stepId: "step-1",
@@ -2177,7 +2152,7 @@ describe("DaemonControlServer", () => {
           type: "workflow.started",
           schemaRef: null,
           payload: {
-            projectId: "scope-a",
+            scopeId: "scope-a",
             workflow: "builder",
             runId: "run-1",
             triggerEvent: "autonomy.queue.available",
@@ -2190,7 +2165,7 @@ describe("DaemonControlServer", () => {
           type: "workflow.completed",
           schemaRef: null,
           payload: {
-            projectId: "scope-a",
+            scopeId: "scope-a",
             workflow: "builder",
             runId: "run-2",
             status: "success",

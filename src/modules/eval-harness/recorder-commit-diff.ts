@@ -20,16 +20,16 @@ type CommitDiffEntry =
   | { kind: "delete"; path: string }
   | { kind: "rename"; oldPath: string; newPath: string };
 
-function runGit(projectDir: string, args: readonly string[]): string {
+function runGit(workspaceRoot: string, args: readonly string[]): string {
   const result = spawnSync("git", args, {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
   });
   if (result.status !== 0) {
     throw new Error(
-      `git ${args.join(" ")} failed in ${projectDir}: ${result.stderr.trim()}`,
+      `git ${args.join(" ")} failed in ${workspaceRoot}: ${result.stderr.trim()}`,
     );
   }
   return result.stdout;
@@ -38,11 +38,11 @@ function runGit(projectDir: string, args: readonly string[]): string {
 const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 
 export function resolveSourceIntegrationRange(
-  projectDir: string,
+  workspaceRoot: string,
   sourceRunId: string,
 ): { baseHead: string; publishedHead: string } {
   const evidence = readWriterIntegrationEvidence(
-    join(projectDir, ".kota", "runs"),
+    join(workspaceRoot, ".kota", "runs"),
     sourceRunId,
   );
   if (evidence === null) {
@@ -73,11 +73,11 @@ export function resolveSourceIntegrationRange(
 // separators: each record is a status token followed by one path (two
 // paths for R/C entries).
 function listCommitChanges(
-  projectDir: string,
+  workspaceRoot: string,
   baseHead: string,
   publishedHead: string,
 ): CommitDiffEntry[] {
-  const stdout = runGit(projectDir, [
+  const stdout = runGit(workspaceRoot, [
     "diff",
     "--find-renames",
     "-z",
@@ -126,8 +126,8 @@ function listCommitChanges(
   return entries;
 }
 
-function isInsideProject(projectDir: string, path: string): boolean {
-  return !relative(projectDir, resolve(projectDir, path)).startsWith("..");
+function isInsideWorkspace(workspaceRoot: string, path: string): boolean {
+  return !relative(workspaceRoot, resolve(workspaceRoot, path)).startsWith("..");
 }
 
 function isRunDirPath(path: string, sourceRunDir: string): boolean {
@@ -135,21 +135,21 @@ function isRunDirPath(path: string, sourceRunDir: string): boolean {
 }
 
 export function extractCommitDiffOperations(
-  projectDir: string,
+  workspaceRoot: string,
   sourceRunId: string,
   baseHead: string,
   publishedHead: string,
-): { ops: AgentStepFileOperation[]; skippedOutsideProject: string[] } {
+): { ops: AgentStepFileOperation[]; skippedOutsideWorkspace: string[] } {
   const sourceRunDir = join(".kota", "runs", sourceRunId);
   const ops: AgentStepFileOperation[] = [];
-  const skippedOutsideProject: string[] = [];
+  const skippedOutsideWorkspace: string[] = [];
   const readAt = (path: string): string =>
-    runGit(projectDir, ["show", `${publishedHead}:${path}`]);
-  for (const entry of listCommitChanges(projectDir, baseHead, publishedHead)) {
+    runGit(workspaceRoot, ["show", `${publishedHead}:${path}`]);
+  for (const entry of listCommitChanges(workspaceRoot, baseHead, publishedHead)) {
     if (entry.kind === "rename") {
       if (isRunDirPath(entry.oldPath, sourceRunDir) || isRunDirPath(entry.newPath, sourceRunDir)) continue;
-      if (!isInsideProject(projectDir, entry.oldPath) || !isInsideProject(projectDir, entry.newPath)) {
-        skippedOutsideProject.push(entry.oldPath, entry.newPath);
+      if (!isInsideWorkspace(workspaceRoot, entry.oldPath) || !isInsideWorkspace(workspaceRoot, entry.newPath)) {
+        skippedOutsideWorkspace.push(entry.oldPath, entry.newPath);
         continue;
       }
       ops.push({ op: "delete", path: entry.oldPath });
@@ -157,12 +157,12 @@ export function extractCommitDiffOperations(
       continue;
     }
     if (isRunDirPath(entry.path, sourceRunDir)) continue;
-    if (!isInsideProject(projectDir, entry.path)) {
-      skippedOutsideProject.push(entry.path);
+    if (!isInsideWorkspace(workspaceRoot, entry.path)) {
+      skippedOutsideWorkspace.push(entry.path);
       continue;
     }
     if (entry.kind === "delete") ops.push({ op: "delete", path: entry.path });
     else ops.push({ op: "write", path: entry.path, content: readAt(entry.path) });
   }
-  return { ops, skippedOutsideProject };
+  return { ops, skippedOutsideWorkspace };
 }

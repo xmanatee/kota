@@ -44,8 +44,8 @@ vi.mock("#core/model/streaming.js", () => ({
   streamMessage: mockStreamMessage,
 }));
 
-vi.mock("#core/loop/project-context.js", () => ({
-  loadProjectContext: vi.fn(() => ""),
+vi.mock("#core/loop/scope-context.js", () => ({
+  loadScopeContext: vi.fn(() => ""),
 }));
 
 vi.mock("#core/loop/instruction-files.js", () => ({
@@ -64,8 +64,8 @@ vi.mock("#core/mcp/manager.js", () => ({
   },
 }));
 
-vi.mock("#core/modules/project-discovery.js", () => ({
-  discoverProjectModules: vi.fn(async () => []),
+vi.mock("#core/modules/bundled-module-discovery.js", () => ({
+  discoverBundledModules: vi.fn(async () => []),
 }));
 
 vi.mock("#core/modules/module-discovery.js", () => ({
@@ -99,7 +99,7 @@ describe("daemon config reload live-session guardrails", () => {
   afterEach(async () => {
     if (subject) {
       await subject.server.stop();
-      rmSync(subject.projectDir, { recursive: true, force: true });
+      rmSync(subject.scopeRoot, { recursive: true, force: true });
       subject = null;
     }
     clearCustomTools();

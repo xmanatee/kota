@@ -22,7 +22,7 @@ const BUILDER_TASK_PATH_PATTERN =
   /^data\/tasks\/(?:ready|doing)\/(task-[a-z0-9][a-z0-9-]*)\.md$/;
 
 export async function readTaskReviewMutationStatus(
-  projectDir: string,
+  workspaceRoot: string,
   runCommand: WorkflowCommandRunner,
 ): Promise<string> {
   const result = await runCommand({
@@ -35,26 +35,26 @@ export async function readTaskReviewMutationStatus(
       "data/tasks/done/",
       "data/tasks/blocked/",
     ],
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
   return result.stdout.text;
 }
 
 export function findTaskReviewTarget(
-  projectDir: string,
+  workspaceRoot: string,
   mutationStatus: string,
 ): TaskReviewTarget | null {
-  const doing = findTaskInState(projectDir, "doing");
+  const doing = findTaskInState(workspaceRoot, "doing");
   if (doing) return doing;
 
-  const mutated = findMutatedTask(projectDir, mutationStatus);
+  const mutated = findMutatedTask(workspaceRoot, mutationStatus);
   if (mutated) return mutated;
 
   return null;
 }
 
 export function findExpectedTaskReviewTarget(
-  projectDir: string,
+  workspaceRoot: string,
   expected: TaskReviewContract,
 ): TaskReviewTarget {
   const pathTaskId = expected.taskPath.match(BUILDER_TASK_PATH_PATTERN)?.[1];
@@ -67,7 +67,7 @@ export function findExpectedTaskReviewTarget(
   const filename = `${expected.taskId}.md`;
   const candidates = EXACT_REVIEW_STATES.flatMap((state) => {
     const path = `data/tasks/${state}/${filename}`;
-    const absolutePath = join(projectDir, path);
+    const absolutePath = join(workspaceRoot, path);
     return existsSync(absolutePath)
       ? [{ path, state, content: readFileSync(absolutePath, "utf8") }]
       : [];
@@ -98,8 +98,8 @@ export function findExpectedTaskReviewTarget(
   return candidate;
 }
 
-function findTaskInState(projectDir: string, state: TaskReviewState): TaskReviewTarget | null {
-  const dir = join(projectDir, "data/tasks", state);
+function findTaskInState(workspaceRoot: string, state: TaskReviewState): TaskReviewTarget | null {
+  const dir = join(workspaceRoot, "data/tasks", state);
   if (!existsSync(dir)) return null;
 
   const files = readdirSync(dir)
@@ -112,12 +112,12 @@ function findTaskInState(projectDir: string, state: TaskReviewState): TaskReview
   return {
     path: relPath,
     state,
-    content: readFileSync(join(projectDir, relPath), "utf8"),
+    content: readFileSync(join(workspaceRoot, relPath), "utf8"),
   };
 }
 
 function findMutatedTask(
-  projectDir: string,
+  workspaceRoot: string,
   status: string,
 ): TaskReviewTarget | null {
   const candidates: TaskReviewTarget[] = [];
@@ -130,7 +130,7 @@ function findMutatedTask(
     const state = match[1] as TaskReviewState;
     if (!REVIEW_STATES.includes(state)) continue;
 
-    const absPath = join(projectDir, relPath);
+    const absPath = join(workspaceRoot, relPath);
     if (!existsSync(absPath)) continue;
 
     candidates.push({

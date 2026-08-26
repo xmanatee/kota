@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
@@ -31,13 +31,13 @@ import {
   runEvalHarness,
 } from "./eval-operations.js";
 
-export function makeFakeCtx(projectDir: string): ModuleContext {
+export function makeFakeCtx(workspaceRoot: string): ModuleContext {
   const evalHarness: EvalHarnessClient = {
     async list() {
       return listEvalFixtures();
     },
     async run(options) {
-      return runEvalHarness(projectDir, options ?? {});
+      return runEvalHarness(workspaceRoot, options ?? {});
     },
     async runAgyModels() {
       return {
@@ -48,11 +48,11 @@ export function makeFakeCtx(projectDir: string): ModuleContext {
       };
     },
     async calibration(options) {
-      return runEvalCalibration(projectDir, options ?? {});
+      return runEvalCalibration(workspaceRoot, options ?? {});
     },
   };
-  const client = { evalHarness } as KotaClient;
-  return { cwd: projectDir, client } as ModuleContext;
+  const client = createKotaClientTestDouble({ evalHarness });
+  return { cwd: workspaceRoot, client } as ModuleContext;
 }
 
 export function makeListCtx(result: EvalListResult): ModuleContext {
@@ -89,7 +89,7 @@ export function makeListCtx(result: EvalListResult): ModuleContext {
       return SAMPLE_CALIBRATION_RESULT;
     },
   };
-  const client = { evalHarness } as KotaClient;
+  const client = createKotaClientTestDouble({ evalHarness });
   return { cwd: "/tmp/project", client } as ModuleContext;
 }
 
@@ -136,7 +136,7 @@ export function makeRunRecordingCtx(
       return SAMPLE_CALIBRATION_RESULT;
     },
   };
-  const client = { evalHarness } as KotaClient;
+  const client = createKotaClientTestDouble({ evalHarness });
   return { cwd: "/tmp/project", client } as ModuleContext;
 }
 
@@ -166,7 +166,7 @@ export function makeAgyRecordingCtx(
       return SAMPLE_CALIBRATION_RESULT;
     },
   };
-  const client = { evalHarness } as KotaClient;
+  const client = createKotaClientTestDouble({ evalHarness });
   return { cwd: "/tmp/project", client } as ModuleContext;
 }
 

@@ -2,7 +2,7 @@
  * `kota eval` CLI surface.
  *
  * Operators run `kota eval run` to execute a fixture or a full set against
- * the current project's subprocess workflow trigger. CLI subcommands route
+ * the current scope's subprocess workflow trigger. CLI subcommands route
  * through `ctx.client.evalHarness.<method>()` so daemon-up and daemon-down
  * operators see the same fixture set, run report shape, and calibration
  * aggregate. The `record-agent-step` developer subcommand stays local —
@@ -65,7 +65,7 @@ function resolveCliIsolationBackend(opts: {
   providerEgressNetwork?: string;
   providerEgressProxy?: string;
   providerEgressProvider?: string;
-}, projectDir: string): EvalRunOptions["isolationBackend"] | undefined {
+}, workspaceRoot: string): EvalRunOptions["isolationBackend"] | undefined {
   const isolation = opts.isolation ?? "host-subprocess";
   const requestedNetworkPolicy = opts.containerNetworkPolicy ?? "offline";
   if (isolation === "host-subprocess") {
@@ -111,7 +111,7 @@ function resolveCliIsolationBackend(opts: {
       providerEgressProxy: opts.providerEgressProxy,
       providerEgressProvider: opts.providerEgressProvider,
     },
-    projectDir,
+    workspaceRoot,
   );
   return {
     kind: "container",
@@ -124,7 +124,7 @@ function resolveCliIsolationBackend(opts: {
 
 function resolveProviderEgressProvider(
   rawProvider: string | undefined,
-  projectDir: string,
+  workspaceRoot: string,
 ): ProviderEgressProvider {
   if (rawProvider !== undefined) {
     if (
@@ -140,7 +140,7 @@ function resolveProviderEgressProvider(
     );
   }
   return providerEgressProviderForPreset(
-    resolveActivePresetFromConfig(loadConfig(projectDir)),
+    resolveActivePresetFromConfig(loadConfig(workspaceRoot)),
   );
 }
 
@@ -151,7 +151,7 @@ function resolveCliContainerNetworkPolicy(
     providerEgressProxy?: string;
     providerEgressProvider?: string;
   },
-  projectDir: string,
+  workspaceRoot: string,
 ): NonNullable<
   Extract<EvalRunOptions["isolationBackend"], { kind: "container" }>["networkPolicy"]
 > {
@@ -193,7 +193,7 @@ function resolveCliContainerNetworkPolicy(
     kind: "provider-egress",
     provider: resolveProviderEgressProvider(
       opts.providerEgressProvider,
-      projectDir,
+      workspaceRoot,
     ),
     enforcement: {
       kind: "docker-internal-proxy",
@@ -480,7 +480,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       }
       if (opts.judge !== undefined) {
         const result = extractJudgeCallRecording({
-          projectDir: ctx.cwd,
+          workspaceRoot: ctx.cwd,
           sourceRunId: opts.runId,
           label: opts.judge,
           fixtureDir,
@@ -502,7 +502,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
         return;
       }
       const result = extractAgentStepRecording({
-        projectDir: ctx.cwd,
+        workspaceRoot: ctx.cwd,
         sourceRunId: opts.runId,
         stepId: opts.step!,
         fixtureDir,
@@ -537,15 +537,15 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
           plain("  file operations extracted: "),
           span(String(result.recording.fileOperations.length), "accent"),
         ),
-        ...(result.skippedWritesOutsideProject.length > 0
+        ...(result.skippedWritesOutsideWorkspace.length > 0
           ? [
               line(
                 span(
-                  `  skipped ${result.skippedWritesOutsideProject.length} path(s) outside the project (audit if relevant):`,
+                  `  skipped ${result.skippedWritesOutsideWorkspace.length} path(s) outside the project (audit if relevant):`,
                   "warn",
                 ),
               ),
-              ...result.skippedWritesOutsideProject.map((p) =>
+              ...result.skippedWritesOutsideWorkspace.map((p) =>
                 line(span(`    ${p}`, "muted")),
               ),
             ]
@@ -576,7 +576,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     )
     .option(
       "--runs-dir <path>",
-      "Override runs directory (default <projectDir>/.kota/runs)",
+      "Override runs directory (default <workspaceRoot>/.kota/runs)",
     )
     .option("--json", "Emit the aggregate + decision as JSON for CI consumption")
     .action(async (opts: {
@@ -681,7 +681,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       (v, prev: string[]) => [...prev, v],
       [] as string[],
     )
-    .option("--runs-dir <path>", "Override runs directory (default <projectDir>/.kota/runs)")
+    .option("--runs-dir <path>", "Override runs directory (default <workspaceRoot>/.kota/runs)")
     .option("--workflow <name>", "Only include runs from this workflow")
     .option("--limit <n>", `Maximum recent runs to scan when --run-id is absent (default ${20})`, "20")
     .option("--since <iso>", "Only scan runs at or after this ISO timestamp when --run-id is absent")

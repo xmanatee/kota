@@ -7,10 +7,11 @@
  */
 
 import { Command } from "commander";
-import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
+import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { blank, json, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
+import type { KotaClientPort } from "#root/client/kota-client.generated.js";
 import type {
   ConfigClient,
   ConfigGetResult,
@@ -36,7 +37,7 @@ function writeConfigValueJson(value: Extract<ConfigGetResult, { found: true }>["
   writeStdoutLine(serialized);
 }
 
-export function buildConfigCommand(ctx: ModuleContext): Command {
+export function buildConfigCommand(ctx: { client: KotaClientPort<"config"> }): Command {
   const cmd = new Command("config").description("Inspect and validate KOTA configuration");
 
   cmd

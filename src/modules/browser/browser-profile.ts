@@ -1,5 +1,6 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { isScopePolicyPathWithin } from "#core/daemon/scope-policy-paths.js";
 import type { BrowserSessionIdentity } from "./browser-session-identity.js";
 import {
   type BrowserNetworkProfile,
@@ -16,7 +17,7 @@ export type BrowserProfileOptions = {
 
 export type BrowserProfileOwner = {
   scopeId: string;
-  projectDir: string;
+  scopeRoot: string;
 };
 
 export type BrowserProfileSnapshot = {
@@ -40,7 +41,7 @@ export function configureBrowserProfile(
   profile = options;
   profileOwner = {
     scopeId: owner.scopeId,
-    projectDir: resolve(owner.projectDir),
+    scopeRoot: resolve(owner.scopeRoot),
   };
 }
 
@@ -60,13 +61,14 @@ export function snapshotConfiguredBrowserProfile(): BrowserProfileSnapshot {
  */
 function canonicalStoragePath(path: string): string | null {
   try {
+    if (lstatSync(path).isSymbolicLink()) return null;
+  } catch {
+    // A missing final path is valid when its existing parent is stable.
+  }
+  try {
     return realpathSync(path);
   } catch {
-    try {
-      if (lstatSync(path).isSymbolicLink()) return null;
-    } catch {
-      // A missing final path is valid for an operator capturing a new profile.
-    }
+    // Resolve a missing final path from its canonical parent below.
   }
 
   try {
@@ -76,16 +78,24 @@ function canonicalStoragePath(path: string): string | null {
   }
 }
 
-function canonicalProjectDir(projectDir: string): string {
+function canonicalWriteRoot(path: string): string {
   try {
-    return realpathSync(projectDir);
+    return realpathSync(path);
   } catch {
-    return resolve(projectDir);
+    return resolve(path);
+  }
+}
+
+function canonicalScopeRoot(scopeRoot: string): string {
+  try {
+    return realpathSync(scopeRoot);
+  } catch {
+    return resolve(scopeRoot);
   }
 }
 
 /**
- * Resolve a profile path for one invoking scope. Project-local relative paths
+ * Resolve a profile path for one invoking scope. Scope-local relative paths
  * are per-scope; absolute and escaping paths remain bound to their config owner.
  */
 export function resolveBrowserProfileStoragePath(
@@ -96,7 +106,7 @@ export function resolveBrowserProfileStoragePath(
   if (!configuredPath) return null;
   const resolvedPath = resolveStorageStatePath(
     configuredPath,
-    identity.projectDir,
+    identity.scopeRoot,
   );
   if (!resolvedPath) return null;
 
@@ -104,19 +114,46 @@ export function resolveBrowserProfileStoragePath(
   if (!canonicalPath) return null;
 
   const projectRelativePath = relative(
-    canonicalProjectDir(identity.projectDir),
+    canonicalScopeRoot(identity.scopeRoot),
     canonicalPath,
   );
-  const isProjectExternal =
+  const isExternalScope =
     isAbsolute(configuredPath) ||
     projectRelativePath === ".." ||
     projectRelativePath.startsWith(`..${sep}`) ||
     isAbsolute(projectRelativePath);
-  if (!isProjectExternal) return canonicalPath;
+  if (!isExternalScope) return canonicalPath;
 
   const owner = snapshot.profileOwner;
   return owner?.scopeId === identity.scopeId &&
-    owner.projectDir === identity.projectDir
+    owner.scopeRoot === identity.scopeRoot
     ? canonicalPath
     : null;
+}
+
+/** Recheck target identity and agent authority immediately before persistence. */
+export function resolveBrowserProfilePersistencePath(
+  snapshot: BrowserProfileSnapshot,
+  identity: BrowserSessionIdentity,
+  capturedPath: string | null,
+  allowedWriteRoots: readonly string[] | undefined,
+): string | null {
+  const currentPath = resolveBrowserProfileStoragePath(snapshot, identity);
+  if (currentPath !== capturedPath) {
+    throw new Error(
+      "Cannot persist browser profile: storage target changed during the session.",
+    );
+  }
+  if (currentPath === null) return null;
+  if (
+    allowedWriteRoots !== undefined &&
+    !allowedWriteRoots.some((root) =>
+      isScopePolicyPathWithin(canonicalWriteRoot(root), currentPath)
+    )
+  ) {
+    throw new Error(
+      `Cannot persist browser profile outside the agent write scope: ${currentPath}`,
+    );
+  }
+  return currentPath;
 }

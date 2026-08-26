@@ -1,3 +1,4 @@
+import { isObviouslyNonPublicOutboundHost } from "#core/outbound-http/index.js";
 import {
   invalidParams,
   isJsonObject,
@@ -5,7 +6,6 @@ import {
   objectField,
   routingScopeMismatch,
 } from "./protocol.js";
-import { isPrivateCallbackHost } from "./push-notification-callback-hosts.js";
 
 export type A2APushNotificationAuthentication = JsonObject & {
   scheme: string;
@@ -23,7 +23,7 @@ export type A2ATaskPushNotificationConfig = JsonObject & {
 export type PushNotificationConfigInput = {
   id: string | null;
   taskId: string;
-  projectId: string | null;
+  scopeId: string | null;
   contextId: string | null;
   url: string;
   token: string | null;
@@ -33,13 +33,13 @@ export type PushNotificationConfigInput = {
 export type PushNotificationConfigSelector = {
   taskId: string;
   configId: string;
-  projectId: string | null;
+  scopeId: string | null;
   contextId: string | null;
 };
 
 export type PushNotificationConfigListFilter = {
   taskId: string;
-  projectId: string | null;
+  scopeId: string | null;
   contextId: string | null;
   pageSize: number | null;
   pageToken: string | null;
@@ -70,7 +70,7 @@ export function decodeCreatePushNotificationConfigParams(
   return {
     id: optionalStringField(config, "id") ?? optionalStringField(params, "id"),
     taskId,
-    projectId: decodeRoutingProjectId({ params, message: config }),
+    scopeId: decodeRoutingScopeId({ params, message: config }),
     contextId: optionalStringField(config, "contextId") ?? optionalStringField(params, "contextId"),
     url,
     token,
@@ -88,7 +88,7 @@ export function decodePushNotificationConfigSelector(
   return {
     taskId,
     configId,
-    projectId: decodeRoutingProjectId({ params }),
+    scopeId: decodeRoutingScopeId({ params }),
     contextId: optionalStringField(params, "contextId"),
   };
 }
@@ -100,7 +100,7 @@ export function decodePushNotificationConfigListFilter(
   if (!taskId) throw invalidParams("taskId must be a non-empty string");
   return {
     taskId,
-    projectId: decodeRoutingProjectId({ params }),
+    scopeId: decodeRoutingScopeId({ params }),
     contextId: optionalStringField(params, "contextId"),
     pageSize: decodePositiveInteger(params, "pageSize"),
     pageToken: decodePageToken(params),
@@ -172,7 +172,7 @@ function assertAllowedCallbackUrl(rawUrl: string): URL {
   if (parsed.username || parsed.password) {
     throw invalidParams("url must not contain embedded credentials");
   }
-  if (isPrivateCallbackHost(parsed.hostname)) {
+  if (isObviouslyNonPublicOutboundHost(parsed.hostname)) {
     throw invalidParams("url must use a non-local callback host");
   }
   return parsed;
@@ -210,7 +210,7 @@ function optionalStringField(obj: JsonObject, key: string): string | null {
   return value;
 }
 
-function decodeRoutingProjectId(input: RoutingScopeInput): string | null {
+function decodeRoutingScopeId(input: RoutingScopeInput): string | null {
   const scopes = [
     input.params,
     objectField(input.params, "metadata"),
@@ -218,14 +218,14 @@ function decodeRoutingProjectId(input: RoutingScopeInput): string | null {
     input.message ? objectField(input.message, "metadata") : null,
   ].filter((obj): obj is JsonObject => obj !== null);
   const tenant = firstMatchingScopeValue(scopes, "tenant");
-  const projectId = firstMatchingScopeValue(scopes, "projectId");
-  if (tenant !== null && projectId !== null && tenant !== projectId) {
-    throw routingScopeMismatch(tenant, projectId);
+  const scopeId = firstMatchingScopeValue(scopes, "scopeId");
+  if (tenant !== null && scopeId !== null && tenant !== scopeId) {
+    throw routingScopeMismatch(tenant, scopeId);
   }
-  return tenant ?? projectId;
+  return tenant ?? scopeId;
 }
 
-function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "projectId"): string | null {
+function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "scopeId"): string | null {
   let selected: string | null = null;
   for (const scope of scopes) {
     const value = optionalStringField(scope, key);

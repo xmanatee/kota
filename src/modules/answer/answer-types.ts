@@ -8,7 +8,7 @@
  * keyed by `{ source, id }`.
  */
 
-import type { ProjectId } from "#core/daemon/scope-registry.js";
+import type { ScopeId } from "#core/daemon/scope-registry.js";
 import {
   defineProviderToken,
   type ProviderToken,
@@ -78,9 +78,9 @@ export type SynthesisInput = {
  */
 export type Synthesizer = (input: SynthesisInput) => Promise<string>;
 
-export type AnswerProjectContext = {
-  projectId: ProjectId;
-  projectDir: string;
+export type AnswerScopeContext = {
+  scopeId: ScopeId;
+  scopeRoot: string;
   history: AnswerHistoryStore;
 };
 
@@ -100,7 +100,7 @@ export interface AnswerProvider {
   answer(
     query: string,
     filter?: AnswerFilter,
-    project?: AnswerProjectContext,
+    scope?: AnswerScopeContext,
   ): Promise<AnswerResult>;
 }
 

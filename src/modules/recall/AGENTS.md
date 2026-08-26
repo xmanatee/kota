@@ -12,9 +12,9 @@ corpus contributed by the answer module.
 - One daemon-control route (`POST /recall`) plus its user-facing twin
   (`POST /api/recall`) — both share `createRecallRouteHandler` so the wire
   shape cannot drift between operator surfaces.
-- Both routes resolve a concrete project id before provider execution. The
-  provider passes a `RecallProjectContext` into contributors, so composed
-  recall reads project-scoped stores instead of module-global providers.
+- Both routes resolve a concrete scope id before provider execution. The
+  provider passes a `RecallScopeContext` into contributors, so composed
+  recall reads scope-scoped stores instead of module-global providers.
 - One `KotaClient.recall` namespace and one `kota recall <query>` CLI
   subcommand.
 - One agent-callable tool (`recall`) contributed through the standard
@@ -30,7 +30,7 @@ corpus contributed by the answer module.
 - One per-turn dynamic system-prompt contributor (entry point
   `buildRecallDynamicStateProvider` in `system-prompt.ts`, registered
   through `ctx.registerDynamicStateProvider` during `onLoad`). The block
-  covers when to ground fact-shaped questions in the second brain before
+  covers when to ground fact-shaped questions in knowledge, memory, and history before
   answering.
 
 ## How a new store joins
@@ -38,8 +38,8 @@ corpus contributed by the answer module.
 A new contributor — owned by whichever module owns the underlying store —
 follows the same registration seam every other contributor uses:
 
-1. Extends the recall source and hit unions in
-   `src/core/server/kota-client.ts`.
+1. Extends the recall source and hit unions in this module's `client.ts`;
+   generated client bindings pick up the new arm from the canonical wire root.
 2. Adds a matching arm to `RawRecallEntry` in `recall-types.ts`.
 3. Builds a `RecallContributor` adapter wherever the store is owned.
 4. From the owning module's `onLoad`, looks up the live `RecallProvider`
@@ -47,7 +47,7 @@ follows the same registration seam every other contributor uses:
    (`ctx.getProvider<RecallProvider>("recall")`) and calls
    `register(contributor)`. Declares `recall` in the module's
    `dependencies` so the loader populates the registry first.
-5. From the same module's `onUnload`, calls
+5. From the same module activation's returned disposer, calls
    `recallProvider.unregister(<source>)` to withdraw the contributor.
 
 The four first-party raw-store contributors (`knowledge`, `memory`,
@@ -86,8 +86,8 @@ cannot answer.
   contributors delegate to each store's existing semantic-search interface.
 - No replacement of the per-store query paths. `searchKnowledge`,
   `searchMemory`, `searchHistory`, and `searchTasks` remain as-is.
-- New contributors that read project data must consume the supplied project
-  context; global provider getters are only for the default-project resolver.
+- New contributors that read scope data must consume the supplied scope
+  context; global provider getters are only for the default-scope resolver.
 - The recall module does not seed a parallel multi-surface fan-out chain
   by itself. Surface adoption (Telegram, Slack, macOS, mobile, web) lands
   as honest single-task follow-ups owned by the surface module. Each

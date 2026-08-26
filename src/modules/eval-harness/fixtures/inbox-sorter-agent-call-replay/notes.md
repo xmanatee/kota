@@ -3,8 +3,8 @@
 End-to-end replay of inbox-sorter's `sort-inbox` agent step through the
 eval-harness replay adapter, plus the surrounding `inspect-inbox` and
 semantic-review behavior. The fixture regression-gates the inbox-sorter
-workflow-layer paths — the `task-queue-valid` repair check with
-`--min-ready 0`, the `inspect-inbox` `needsAttention` gating, the
+workflow-layer paths — the `task-queue-valid` repair check, the
+`inspect-inbox` `needsAttention` gating, the
 `autonomy.inbox.available` trigger receipt path, and runtime-owned writer
 integration — against the same subprocess executor path the daemon runs
 in production, without invoking a real LLM.
@@ -78,8 +78,7 @@ workflow-layer path the real run hit after trigger receipt:
   calls;
 - the repair check runs (`task-queue-valid` via the stubbed
   `validate-tasks` script that forwards to KOTA's own validator against
-  the fixture project root with `--min-ready 0` so the post-sort empty
-  ready-queue baseline is acceptable);
+  the fixture project root);
 - runtime-owned writer integration publishes the replay's exact mutation set.
 
 ## Smoke-gate inclusion
@@ -90,9 +89,8 @@ workflow-runtime branch the existing three smoke fixtures do not — the
 `autonomy.inbox.available` trigger receipt path, the `inspect-inbox`
 `needsAttention` gating shape (which runs a `getRepoTaskQueueSnapshot`
 and a tracked-changes-outside-inbox guard before the agent step), and
-the inbox-sorter-specific repair-check tuple (`task-queue-valid` with
-`--min-ready 0` rather than the strategic-coverage variant the explorer
-fixture runs). A regression in any of those paths now blocks a
+the inbox-sorter-specific `task-queue-valid` repair-check path. A
+regression in any of those paths now blocks a
 `pnpm test` run instead of surviving until the weekly cadence.
 
 ## Complementary fixtures

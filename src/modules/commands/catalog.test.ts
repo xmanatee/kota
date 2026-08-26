@@ -29,7 +29,7 @@ function makeSummary(
 ): ModuleSummary {
   return {
     name,
-    source: "project",
+    source: "bundled",
     dependencies: [],
     toolNames: [],
     workflowNames: [],
@@ -60,7 +60,7 @@ describe("buildSlashCommandCatalog", () => {
         makeWorkflow("internal-dispatcher", {}),
       ],
       getModuleSummaries: () => [],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
 
     const names = catalog.list().map((c) => c.name);
@@ -87,7 +87,7 @@ describe("buildSlashCommandCatalog", () => {
           },
         ]),
       ],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
 
     const cmds = catalog.list();
@@ -107,7 +107,7 @@ describe("buildSlashCommandCatalog", () => {
         makeWorkflow("builder", { tags: [COMMAND_WORKFLOW_TAG] }),
       ],
       getModuleSummaries: () => [],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
     expect(catalog.resolve("builder")).toEqual({ kind: "workflow", workflow: "builder" });
   });
@@ -116,7 +116,7 @@ describe("buildSlashCommandCatalog", () => {
     const catalog = buildSlashCommandCatalog({
       getContributedWorkflows: () => [makeWorkflow("internal", {})],
       getModuleSummaries: () => [],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
     expect(catalog.resolve("internal")).toBeNull();
   });
@@ -130,7 +130,7 @@ describe("buildSlashCommandCatalog", () => {
           { name: "deep-research", promptPath: "skills/deep-research.md" },
         ]),
       ],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
     expect(catalog.resolve("skill:deep-research")).toEqual({
       kind: "skill",
@@ -142,7 +142,7 @@ describe("buildSlashCommandCatalog", () => {
     const catalog = buildSlashCommandCatalog({
       getContributedWorkflows: () => [],
       getModuleSummaries: () => [],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
     expect(catalog.resolve("nope")).toBeNull();
     expect(catalog.resolve("skill:nope")).toBeNull();
@@ -161,7 +161,7 @@ describe("buildSlashCommandCatalog", () => {
           { name: "a", promptPath: "skills/a.md" },
         ]),
       ],
-      projectDir: tmp,
+      scopeRoot: tmp,
     });
     expect(catalog.list().map((c) => c.name)).toEqual([
       "mbuilder",

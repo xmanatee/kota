@@ -3,7 +3,7 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { buildAgentPrompt } from "#core/workflow/steps/step-executor-agent-prompt.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import type {
@@ -52,7 +52,7 @@ function makeTrigger(overrides: MentionPayload = {}) {
   const result = githubIssueCommentMentionToInboundSignal(
     makePayload() as GitHubIssueCommentMentionEventPayload,
     {
-      projectId: "project-test",
+      scopeId: "scope-test",
       occurredAt: "2026-05-25T02:45:00.000Z",
       receivedAt: "2026-05-25T02:45:02.000Z",
     },
@@ -76,7 +76,6 @@ function makeTrigger(overrides: MentionPayload = {}) {
     schemaRef: null,
     payload: {
       scopeId: signal.scopeId,
-      projectId: signal.projectId,
       routeId: "github-issue-comment-mentions",
       decision: "dispatched",
       sourceStatus: "active",
@@ -175,7 +174,7 @@ describe("github-mention-responder workflow", () => {
 
   it("posts a prepared intake comment without running the response agent", async () => {
     const tools = toolSpy();
-    const result = await new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const result = await new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: {
         event: "github-mention-intake.comment.requested",
         payload: {
@@ -188,7 +187,8 @@ describe("github-mention-responder workflow", () => {
           idempotencyKey: "github-mention-intake:owner/repo:1234:created",
         },
       },
-      contextOverrides: { runTool: tools.runTool },
+      approvals: { "approve-comment": { decision: "approve" } },
+      ports: { runTool: tools.runTool },
     }).run();
 
     expect(result.status).toBe("success");
@@ -206,14 +206,15 @@ describe("github-mention-responder workflow", () => {
 
   it("runs an allowed mention through draft, approval, and exactly one github_comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      approvals: { "approve-comment": { decision: "approve" } },
+      stepOutputs: {
         "draft-response": {
           body: "The queue is paused because all actionable work is blocked or already claimed.",
         },
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -253,12 +254,12 @@ describe("github-mention-responder workflow", () => {
 
   it("skips blocked actors before agent or comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger({
         actorIntegrity: "blocked_actor",
         actorIntegrityReason: "blocked actor 'blocked-user' matched github-webhook actorIntegrity.blockedActors",
       }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -279,12 +280,12 @@ describe("github-mention-responder workflow", () => {
 
   it("skips low-trust actors before agent or comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger({
         actorIntegrity: "low_trust_actor",
         actorIntegrityReason: "author association 'FIRST_TIMER' is below the configured trust threshold",
       }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -302,12 +303,12 @@ describe("github-mention-responder workflow", () => {
 
   it("skips missing actor metadata before agent or comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger({
         actorIntegrity: null,
         actorIntegrityReason: null,
       }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -325,9 +326,9 @@ describe("github-mention-responder workflow", () => {
 
   it("skips malformed normalized payloads before agent or comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger({ issueNumber: null }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -345,9 +346,9 @@ describe("github-mention-responder workflow", () => {
 
   it("records unsupported comment actions before agent or comment write", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger({ action: "edited" }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -365,11 +366,11 @@ describe("github-mention-responder workflow", () => {
 
   it("leaves implementation requests to the intake workflow without running the agent or posting from the responder", async () => {
     const tools = toolSpy();
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger({
         commentBody: "@kota please implement the feature and open a pull request",
       }),
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });
@@ -394,9 +395,9 @@ describe("github-mention-responder workflow", () => {
     const tools = toolSpy();
     const privateKeyHeader = "-----BEGIN PRIVATE KEY-----";
     const privateKeyMaterial = "fake-private-material";
-    const harness = new WorkflowTestHarness(githubMentionResponderWorkflow, {
+    const harness = new WorkflowScenarioDriver(githubMentionResponderWorkflow, {
       trigger: makeTrigger(),
-      stepMocks: {
+      stepOutputs: {
         "draft-response": {
           body: [
             "The answer accidentally included credential material.",
@@ -406,7 +407,7 @@ describe("github-mention-responder workflow", () => {
           ].join("\n"),
         },
       },
-      contextOverrides: {
+      ports: {
         runTool: tools.runTool,
       },
     });

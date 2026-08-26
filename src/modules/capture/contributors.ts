@@ -33,7 +33,7 @@ import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import type {
   CaptureContributor,
   CaptureContributorInput,
-  CaptureProjectContext,
+  CaptureScopeContext,
 } from "./capture-types.js";
 
 const KNOWLEDGE_TITLE_MAX = 80;
@@ -53,13 +53,13 @@ function firstLine(text: string, max: number): string {
   return "";
 }
 
-function requireProject(
-  project: CaptureProjectContext | undefined,
-): CaptureProjectContext {
-  if (!project) {
-    throw new Error("Capture contributor requires a project context");
+function requireScope(
+  scope: CaptureScopeContext | undefined,
+): CaptureScopeContext {
+  if (!scope) {
+    throw new Error("Capture contributor requires a scope context");
   }
-  return project;
+  return scope;
 }
 
 function createMemoryRecord(
@@ -154,11 +154,11 @@ export function createMemoryContributor(
   };
 }
 
-export function createProjectMemoryContributor(): CaptureContributor {
+export function createScopeMemoryContributor(): CaptureContributor {
   return {
     target: "memory",
     async capture(input: CaptureContributorInput) {
-      return createMemoryRecord(requireProject(input.project).memory, input);
+      return createMemoryRecord(requireScope(input.scope).memory, input);
     },
   };
 }
@@ -174,11 +174,11 @@ export function createKnowledgeContributor(
   };
 }
 
-export function createProjectKnowledgeContributor(): CaptureContributor {
+export function createScopeKnowledgeContributor(): CaptureContributor {
   return {
     target: "knowledge",
     async capture(input: CaptureContributorInput) {
-      return createKnowledgeRecord(requireProject(input.project).knowledge, input);
+      return createKnowledgeRecord(requireScope(input.scope).knowledge, input);
     },
   };
 }
@@ -194,13 +194,13 @@ export function createTasksContributor(
   };
 }
 
-export function createProjectTasksContributor(): CaptureContributor {
+export function createScopeTasksContributor(): CaptureContributor {
   return {
     target: "tasks",
     async capture(input: CaptureContributorInput) {
-		const { projectId } = requireProject(input.project);
+        const { scopeId } = requireScope(input.scope);
 		return createTasksRecord(
-			{ authority: "canonical", projectId },
+            { authority: "canonical", scopeId },
 			input,
 		);
     },
@@ -218,13 +218,13 @@ export function createInboxContributor(
   };
 }
 
-export function createProjectInboxContributor(): CaptureContributor {
+export function createScopeInboxContributor(): CaptureContributor {
   return {
     target: "inbox",
     async capture(input: CaptureContributorInput) {
-		const { projectId } = requireProject(input.project);
+        const { scopeId } = requireScope(input.scope);
 		return createInboxRecord(
-			{ authority: "canonical", projectId },
+            { authority: "canonical", scopeId },
 			input,
 		);
     },

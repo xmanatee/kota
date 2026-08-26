@@ -39,8 +39,8 @@ type PreparedPath = {
   fileName: string;
   parentParts: string[];
   parentPath: string;
-  projectRootIdentity: FileIdentity;
-  projectRootPath: string;
+  repoRootIdentity: FileIdentity;
+  repoRootPath: string;
 };
 
 type HelperRequest = PreparedPath &
@@ -101,7 +101,7 @@ function requireMarkdownPathInside(rootDir: string, filePath: string): void {
 }
 
 function preparePath(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
   createParent: boolean;
@@ -119,34 +119,34 @@ function preparePath(args: {
   }
   requireMarkdownPathInside(args.rootDir, args.filePath);
 
-  const logicalRoot = resolve(args.projectDir);
+  const logicalRoot = resolve(args.repoRoot);
   relativePathInside(logicalRoot, args.rootDir);
   const relativeFile = relativePathInside(logicalRoot, args.filePath);
   const logicalStats = lstatSync(logicalRoot);
   if (logicalStats.isSymbolicLink()) {
     throw unsafeRepoMutationPath(
       logicalRoot,
-      "symbolic-link project roots are forbidden",
+      "symbolic-link repository roots are forbidden",
     );
   }
   if (!logicalStats.isDirectory()) {
-    throw unsafeRepoMutationPath(logicalRoot, "project root must be a directory");
+    throw unsafeRepoMutationPath(logicalRoot, "repository root must be a directory");
   }
-  const projectRootPath = realpathSync.native(logicalRoot);
-  const canonicalStats = lstatSync(projectRootPath);
+  const repoRootPath = realpathSync.native(logicalRoot);
+  const canonicalStats = lstatSync(repoRootPath);
   if (
     !canonicalStats.isDirectory() ||
     !sameFileIdentity(identity(logicalStats), identity(canonicalStats))
   ) {
     throw unsafeRepoMutationPath(
       logicalRoot,
-      "project root identity changed during canonicalization",
+      "repository root identity changed during canonicalization",
     );
   }
 
-  const canonicalFilePath = join(projectRootPath, relativeFile);
+  const canonicalFilePath = join(repoRootPath, relativeFile);
   const parentPath = dirname(canonicalFilePath);
-  const parentParts = relative(projectRootPath, parentPath)
+  const parentParts = relative(repoRootPath, parentPath)
     .split(sep)
     .filter((part) => part.length > 0);
   return {
@@ -154,8 +154,8 @@ function preparePath(args: {
     fileName: basename(canonicalFilePath),
     parentParts,
     parentPath,
-    projectRootIdentity: identity(canonicalStats),
-    projectRootPath,
+    repoRootIdentity: identity(canonicalStats),
+    repoRootPath,
   };
 }
 
@@ -193,7 +193,7 @@ function runHelper(
 }
 
 export function readVerifiedRepoMarkdownFileWithIdentity(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
 }): VerifiedFile | null {
@@ -215,7 +215,7 @@ export function readVerifiedRepoMarkdownFileWithIdentity(args: {
 }
 
 export function listVerifiedRepoMarkdownFiles(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   directoryPath: string;
 }): Array<{ name: string; content: string; snapshot: FileSnapshot }> {
@@ -223,7 +223,7 @@ export function listVerifiedRepoMarkdownFiles(args: {
     {
       operation: "list",
       ...preparePath({
-        projectDir: args.projectDir,
+        repoRoot: args.repoRoot,
         rootDir: args.rootDir,
         filePath: join(args.directoryPath, ".kota-listing.md"),
         createParent: false,
@@ -241,7 +241,7 @@ export function listVerifiedRepoMarkdownFiles(args: {
 }
 
 export function readVerifiedRepoMarkdownFile(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
 }): string | null {
@@ -250,7 +250,7 @@ export function readVerifiedRepoMarkdownFile(args: {
 
 export function writeAnchoredRepoMarkdownFile(
   args: {
-    projectDir: string;
+    repoRoot: string;
     rootDir: string;
     filePath: string;
     content: string;
@@ -280,7 +280,7 @@ export function writeAnchoredRepoMarkdownFile(
 }
 
 export function removeAnchoredRepoMarkdownFile(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
   expectedSnapshot: FileSnapshot;

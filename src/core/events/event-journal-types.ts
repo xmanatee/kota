@@ -14,7 +14,6 @@ export type EventEnvelopeScope =
   | {
       kind: "scope";
       scopeId: string;
-      projectId: string;
       lineage: readonly string[];
     };
 

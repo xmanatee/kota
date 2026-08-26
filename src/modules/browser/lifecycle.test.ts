@@ -58,9 +58,9 @@ describe("browser lifecycle — session isolation", () => {
     const lifecycle = await loadConfiguredLifecycle(workDir);
     const page = await lifecycle.getPage(context);
 
-    sessionEnvironment.unregisterSessionEnvironment(context);
+    await sessionEnvironment.unregisterSessionEnvironment(context);
 
-    await vi.waitFor(() => expect(page.isClosed()).toBe(true));
+    expect(page.isClosed()).toBe(true);
     expect(lifecycleTestState.closedContexts).toBe(1);
   });
 
@@ -87,42 +87,32 @@ describe("browser lifecycle — session isolation", () => {
     await expect(lifecycle.getPage()).rejects.toThrow("session identity");
     await expect(
       lifecycle.getPage({ sessionId: "session-a", cwd: workDir }),
-    ).rejects.toThrow("project scope");
+    ).rejects.toThrow("scope");
     await expect(
       lifecycle.getPage({ sessionId: "session-a", scopeId: "scope-a" }),
-    ).rejects.toThrow("project directory");
-    await expect(
-      lifecycle.getPage({
-        sessionId: "session-a",
-        scopeId: "scope-a",
-        projectId: "scope-b",
-        projectDir: workDir,
-        cwd: workDir,
-      }),
-    ).rejects.toThrow("values conflict");
+    ).rejects.toThrow("scope root");
     await expect(
       lifecycle.getPage({
         sessionId: "ended-session",
         scopeId: "scope-a",
-        projectId: "scope-a",
-        projectDir: workDir,
+        scopeRoot: workDir,
         cwd: workDir,
       }),
     ).rejects.toThrow("live session");
   });
 
-  it("detects project-local Playwright without CommonJS globals", async () => {
+  it("detects scope-local Playwright without CommonJS globals", async () => {
     const lifecycle = await import("./lifecycle.js");
-    const projectDir = join(workDir, "project");
-    const packageDir = join(projectDir, "node_modules", "playwright");
+    const scopeRoot = join(workDir, "scope");
+    const packageDir = join(scopeRoot, "node_modules", "playwright");
     mkdirSync(packageDir, { recursive: true });
-    writeFileSync(join(projectDir, "package.json"), '{"name":"fixture"}\n');
+    writeFileSync(join(scopeRoot, "package.json"), '{"name":"fixture"}\n');
     writeFileSync(
       join(packageDir, "package.json"),
       '{"name":"playwright","version":"0.0.0","main":"index.js"}\n',
     );
     writeFileSync(join(packageDir, "index.js"), "module.exports = {};\n");
 
-    expect(lifecycle.isPlaywrightAvailable(projectDir)).toBe(true);
+    expect(lifecycle.isPlaywrightAvailable(scopeRoot)).toBe(true);
   });
 });

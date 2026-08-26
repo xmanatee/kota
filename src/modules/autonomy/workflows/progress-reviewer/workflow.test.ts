@@ -12,7 +12,6 @@ import {
   type AgentHarness,
   type AgentHarnessRunOptions,
   registerAgentHarness,
-  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import {
   createWorkflowDispatchDeadLetter,
@@ -36,7 +35,7 @@ import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.
 import { safeJsonStringify } from "#core/workflow/run-io.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
@@ -47,6 +46,7 @@ import {
 } from "#core/workflow/validation.js";
 import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
+import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
   automaticProgressReviewRequested,
@@ -74,8 +74,8 @@ import {
 import {
   channelBatchPayload,
   commitProgressReviewFixture,
-  makeProgressReviewProjectDir,
   makeProgressReviewRunContext,
+  makeProgressReviewScopeRoot,
   NOW,
   readProgressReviewFixture,
   reviewOutput,
@@ -83,24 +83,12 @@ import {
 
 const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("#core/util/repo-worktree.js")>(
-      "#core/util/repo-worktree.js",
-    );
-  return {
-    ...actual,
-    getRepoWorktreeStatus: vi.fn(),
-  };
-});
 
 const readFixture = readProgressReviewFixture;
 
 function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: string,
   id: string,
   options: {
@@ -108,7 +96,7 @@ function writeTask(
     updatedAt?: string;
     area?: string;
     taskClass?: "Product" | "Safety" | "Platform" | "Meta";
-    acceptanceEvidence?: string;
+    howWeWillKnow?: string;
     sourceIntent?: string;
   } = {},
 ): void {
@@ -127,75 +115,53 @@ function writeTask(
     `updated_at: ${updatedAt}`,
     ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
     "---",
-    "",
-    "## Problem",
-    "",
-    "Review fixture problem.",
-    "",
-    "## Desired Outcome",
-    "",
-    "Review fixture outcome.",
-    "",
-    "## Constraints",
-    "",
-    "- Keep evidence cited.",
-    "",
-    "## Done When",
-    "",
-    "- Done.",
-    "",
-    "## Source / Intent",
-    "",
-    options.sourceIntent ?? "Progress reviewer test fixture.",
-    "",
-    "## Initiative",
-    "",
-    "Outcome-aware autonomy progress review.",
-    "",
-    "## Acceptance Evidence",
-    "",
-    options.acceptanceEvidence ?? "- Test fixture.",
-    "",
+    renderRepoTaskIntent({
+      problem: "Review fixture problem.",
+      desiredOutcome: "Review fixture outcome.",
+      constraints: "- Keep cited context available to the reviewer.",
+      howWeWillKnow: options.howWeWillKnow ?? "- The fixture outcome is observable.",
+      context: options.sourceIntent ?? "Progress reviewer test fixture.",
+    }),
   ].join("\n");
-  writeFileSync(join(projectDir, "data", "tasks", state, `${id}.md`), content);
+  writeFileSync(join(workspaceRoot, "data", "tasks", state, `${id}.md`), content);
 }
 
-function writeInboxEntry(projectDir: string, id: string, title: string): void {
-  mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
+function writeInboxEntry(workspaceRoot: string, id: string, title: string): void {
+  mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
   writeFileSync(
-    join(projectDir, "data", "inbox", `${id}.md`),
+    join(workspaceRoot, "data", "inbox", `${id}.md`),
     `# ${title}\n`,
   );
 }
 
 function writeRun(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   workflow: string,
   status: string,
   startedAt: string,
 ): void {
-  const runDir = join(projectDir, ".kota", "runs", id);
+  const runDir = join(workspaceRoot, ".kota", "runs", id);
   mkdirSync(runDir, { recursive: true });
   writeFileSync(
     join(runDir, "metadata.json"),
     JSON.stringify(
-      {
-        id,
-        workflow,
-        definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
-        trigger: {
-          event: "autonomy.queue.available",
-          schemaRef: null,
-          payload: {},
-        },
-        status,
-        startedAt,
-        completedAt: startedAt,
-        durationMs: 1000,
-        runDir: `.kota/runs/${id}`,
-        steps: [],
-      },
+		{
+			id,
+			workflow,
+			definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+			runDir: `.kota/runs/${id}`,
+			trigger: {
+				event: "autonomy.queue.available",
+				schemaRef: null,
+				payload: {},
+			},
+			status,
+			startedAt,
+			completedAt: startedAt,
+			durationMs: 1000,
+			steps: [],
+		},
       null,
       2,
     ),
@@ -207,7 +173,7 @@ function writeRun(
 }
 
 function writePendingWorkflowRun(
-  projectDir: string,
+  workspaceRoot: string,
   pendingRun: {
     runId: string;
     workflowName: string;
@@ -217,16 +183,16 @@ function writePendingWorkflowRun(
     payload?: Record<string, unknown>;
   },
 ): void {
-  const projectId = deriveDirectoryScopeId(projectDir);
-  const state = new RunStateDatabase(join(projectDir, ".kota"));
-  state.registerProject({
-    id: projectId,
-    rootPath: projectDir,
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
+  const state = new RunStateDatabase(join(workspaceRoot, ".kota"));
+  state.registerScope({
+    id: scopeId,
+    rootPath: workspaceRoot,
     createdAt: pendingRun.enqueuedAt,
   });
   state.admitRun({
     id: pendingRun.runId,
-    projectId,
+    scopeId,
     workflow: pendingRun.workflowName,
     repository: "read",
     trigger: {
@@ -244,26 +210,26 @@ function writePendingWorkflowRun(
 }
 
 function writeRunArtifactFile(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
   relativePath: string,
   contents: string,
 ): void {
-  const path = join(projectDir, ".kota", "runs", runId, ...relativePath.split("/"));
+  const path = join(workspaceRoot, ".kota", "runs", runId, ...relativePath.split("/"));
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, contents);
 }
 
 function writeApproval(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   status: "approved" | "rejected" | "expired" | "pending",
   createdAt: string,
   resolvedAt?: string,
 ): void {
-  mkdirSync(join(projectDir, ".kota", "approvals"), { recursive: true });
+  mkdirSync(join(workspaceRoot, ".kota", "approvals"), { recursive: true });
   writeFileSync(
-    join(projectDir, ".kota", "approvals", `${id}.json`),
+    join(workspaceRoot, ".kota", "approvals", `${id}.json`),
     JSON.stringify(
       {
         id,
@@ -282,13 +248,12 @@ function writeApproval(
   );
 }
 
-function runCountBatchPayload(projectDir: string, runId: string): WorkflowBatchFlushPayload {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+function runCountBatchPayload(workspaceRoot: string, runId: string): WorkflowBatchFlushPayload {
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   return {
     scopeId,
-    projectId: scopeId,
     sourceEventName: "workflow.completed",
-    groupingKey: `projectId=${scopeId}`,
+    groupingKey: `scopeId=${scopeId}`,
     reason: "count",
     count: 1,
     window: {
@@ -303,7 +268,6 @@ function runCountBatchPayload(projectDir: string, runId: string): WorkflowBatchF
         receivedAt: "2026-06-04T11:59:00.000Z",
         payload: {
           scopeId,
-          projectId: scopeId,
           workflow: "builder",
           runId,
           status: "success",
@@ -351,7 +315,7 @@ function parseReviewInputFromAgentPrompt(
   options: AgentHarnessRunOptions,
 ): ProgressReviewAgentEvidencePacket {
   const match = options.prompt.match(
-    /<step id="prepare-review-input">\n([\s\S]*?)\n<\/step>/,
+    /<untrusted-content source="workflow\.step-output\.prepare-review-input">[\s\S]*?\n(`{3,})json\n([\s\S]*?)\n\1\n[\s\S]*?<\/untrusted-content>/,
   );
   if (!match) {
     throw new Error("expected prepare-review-input to be exposed to the agent");
@@ -359,43 +323,29 @@ function parseReviewInputFromAgentPrompt(
   if (options.prompt.includes('<step id="collect-evidence">')) {
     throw new Error("collect-evidence must not be exposed to the agent");
   }
-  return JSON.parse(match[1]!) as ProgressReviewAgentEvidencePacket;
-}
-
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
+  return JSON.parse(match[2]!) as ProgressReviewAgentEvidencePacket;
 }
 
 describe("progress-reviewer workflow", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
-    await mockCleanWorktree();
   });
 
   afterEach(() => {
     vi.useRealTimers();
     resetModuleEventRegistry();
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
-  function trackProjectDir(label?: string): string {
-    const dir = makeProgressReviewProjectDir(label);
-    projectDirs.push(dir);
+  function trackScopeRoot(label?: string): string {
+    const dir = makeProgressReviewScopeRoot(label);
+    scopeRoots.push(dir);
     return dir;
   }
 
@@ -444,31 +394,39 @@ describe("progress-reviewer workflow", () => {
     ).toEqual(expect.not.objectContaining({ exposeOutputToAgent: true }));
     expect(
       progressReviewerWorkflow.steps.find((step) => step.id === "prepare-review-input"),
-    ).toEqual(expect.objectContaining({ exposeOutputToAgent: true }));
+    ).toEqual(expect.objectContaining({
+      exposeOutputToAgent: true,
+      exposedOutputTrust: "untrusted",
+    }));
   });
 
   it("writes an explicit no-op artifact for an autonomous coding scope review", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-coding");
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    writeTask(projectDir, "done", "task-ship-coding-slice", {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-coding");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    writeTask(workspaceRoot, "done", "task-ship-coding-slice", {
       title: "Ship coding slice",
       updatedAt: "2026-06-04T11:30:00.000Z",
     });
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
       "2026-06-04T11:20:00.000Z",
     );
+    commitProgressReviewFixture(
+      workspaceRoot,
+      "prepare coding review fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
-      projectDir,
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
+      workspaceRoot,
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": readFixture("autonomous-coding-review"),
       },
     });
@@ -479,7 +437,7 @@ describe("progress-reviewer workflow", () => {
     expect(result.steps["apply-actions"].status).toBe("success");
     expect(result.steps["write-commit-message"].status).toBe("skipped");
     expect(result.steps["validate-changes"].status).toBe("skipped");
-    const artifactPath = join(projectDir, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
+    const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { scope: { scopeId: string }; runs: Array<{ workflow: string }>; tasks: Array<{ taskId: string }> };
       reviewInput: { evidence: Array<{ id: string }> };
@@ -497,26 +455,26 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("cleans native harness scratch artifacts before write-scope enforcement", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-scratch-cleanup");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-scratch-cleanup");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
       "2026-06-04T11:20:00.000Z",
     );
     registerProgressReviewHarness(async () => {
-      mkdirSync(join(projectDir, ".playwright-mcp"), { recursive: true });
+      mkdirSync(join(workspaceRoot, ".playwright-mcp"), { recursive: true });
       writeFileSync(
-        join(projectDir, ".playwright-mcp", "console-2026-06-24T15-31-34-323Z.log"),
+        join(workspaceRoot, ".playwright-mcp", "console-2026-06-24T15-31-34-323Z.log"),
         "browser console scratch\n",
       );
       writeFileSync(
-        join(projectDir, ".playwright-mcp", "page-2026-06-24T15-31-36-771Z.yml"),
+        join(workspaceRoot, ".playwright-mcp", "page-2026-06-24T15-31-36-771Z.yml"),
         "browser page scratch\n",
       );
-      writeFileSync(join(projectDir, "x-article-body.txt"), "article scratch\n");
+      writeFileSync(join(workspaceRoot, "x-article-body.txt"), "article scratch\n");
       const output = reviewOutput({
         verdict: "on-track",
         summary: "The reviewer returned schema-valid JSON after native scratch cleanup.",
@@ -536,12 +494,12 @@ describe("progress-reviewer workflow", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
-        usage: UNKNOWN_AGENT_USAGE,
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
         isError: false,
       };
     });
     commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "prepare scratch-cleanup fixture",
       "2026-06-04T11:30:00.000Z",
     );
@@ -551,16 +509,16 @@ describe("progress-reviewer workflow", () => {
       {
         event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        payload: { scopeId, windowMs: 3_600_000 },
       },
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
         runContext: makeProgressReviewRunContext(
-          projectDir,
+          workspaceRoot,
           "scratch-cleanup-review",
         ),
         bus: new EventBus(),
-        store: new WorkflowRunStore(projectDir),
+        store: new WorkflowRunStore(workspaceRoot),
         log: vi.fn(),
       },
     );
@@ -568,12 +526,12 @@ describe("progress-reviewer workflow", () => {
     const result = await promise;
 
     expect(result.metadata.status).toBe("success");
-    expect(existsSync(join(projectDir, ".playwright-mcp"))).toBe(false);
-    expect(existsSync(join(projectDir, "x-article-body.txt"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".playwright-mcp"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, "x-article-body.txt"))).toBe(false);
     expect(
       existsSync(
         join(
-          projectDir,
+          workspaceRoot,
           ".kota",
           "runs",
           "scratch-cleanup-review",
@@ -594,31 +552,35 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("classifies an explicit request in the review artifact", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-schedule");
-    writeTask(projectDir, "done", "task-ship-coding-slice", {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-schedule");
+    writeTask(workspaceRoot, "done", "task-ship-coding-slice", {
       title: "Ship coding slice",
       updatedAt: "2026-06-04T11:30:00.000Z",
     });
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
       "2026-06-04T11:20:00.000Z",
     );
+    commitProgressReviewFixture(
+      workspaceRoot,
+      "prepare explicit review fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
-      projectDir,
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
+      workspaceRoot,
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
         payload: {
-          scopeId: deriveDirectoryScopeId(projectDir),
-          projectId: deriveDirectoryScopeId(projectDir),
+          scopeId: deriveDirectoryScopeId(workspaceRoot),
           reason: "operator requested a milestone review",
         },
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": readFixture("autonomous-coding-review"),
       },
     });
@@ -626,7 +588,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    const artifactPath = join(projectDir, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
+    const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { triggerKind: string; triggerEvent: string };
     };
@@ -635,46 +597,59 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("writes a global review artifact for an explicit global request", async () => {
-    const projectA = trackProjectDir("progress-reviewer-scheduled-global-a");
-    const projectB = trackProjectDir("progress-reviewer-scheduled-global-b");
-    writeTask(projectA, "done", "task-scheduled-scope-a", {
+    const scopeARoot = trackScopeRoot("progress-reviewer-scheduled-global-a");
+    const scopeBRoot = trackScopeRoot("progress-reviewer-scheduled-global-b");
+    writeTask(scopeARoot, "done", "task-scheduled-scope-a", {
       updatedAt: "2026-06-04T11:30:00.000Z",
     });
-    writeTask(projectB, "done", "task-scheduled-scope-b", {
+    writeTask(scopeBRoot, "done", "task-scheduled-scope-b", {
       updatedAt: "2026-06-04T11:25:00.000Z",
     });
     writeRun(
-      projectA,
+      scopeARoot,
       "scheduled-run-scope-a",
       "builder",
       "success",
       "2026-06-04T11:20:00.000Z",
     );
     writeRun(
-      projectB,
+      scopeBRoot,
       "scheduled-run-scope-b",
       "builder",
       "success",
       "2026-06-04T11:15:00.000Z",
     );
-    const scopeA = deriveDirectoryScopeId(projectA);
-    const scopeB = deriveDirectoryScopeId(projectB);
+    const scopeAId = deriveDirectoryScopeId(scopeARoot);
+    const scopeBId = deriveDirectoryScopeId(scopeBRoot);
     new ScopeRegistry({
-      stateDir: join(projectA, ".kota"),
-      projects: [
-        { projectDir: projectA, displayName: "scope a" },
-        { projectDir: projectB, displayName: "scope b" },
+      stateDir: join(scopeARoot, ".kota"),
+      scopes: [
+        { scopeRoot: scopeARoot, displayName: "scope a" },
+        { scopeRoot: scopeBRoot, displayName: "scope b" },
       ],
     });
+    commitProgressReviewFixture(
+      scopeARoot,
+      "prepare global scope a fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
+    commitProgressReviewFixture(
+      scopeBRoot,
+      "prepare global scope b fixture",
+      "2026-06-04T11:31:00.000Z",
+    );
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
-      projectDir: projectA,
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
+      workspaceRoot: scopeARoot,
+      ports: {
+        runCommand: createWorkflowCommandRunner({ cwd: scopeARoot }),
+      },
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
         payload: { scopeId: GLOBAL_SCOPE_ID, reason: "operator global review" },
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": reviewOutput({
           verdict: "on-track",
           summary: "Scheduled global review includes both configured scopes.",
@@ -684,8 +659,8 @@ describe("progress-reviewer workflow", () => {
                 id: "claim-global-scheduled",
                 claim: "The scheduled global review includes evidence from both configured scopes.",
                 evidenceIds: [
-                  `scope:${scopeA}:run:scheduled-run-scope-a`,
-                  `scope:${scopeB}:task:task-scheduled-scope-b`,
+                  `scope:${scopeAId}:run:scheduled-run-scope-a`,
+                  `scope:${scopeBId}:task:task-scheduled-scope-b`,
                 ],
                 confidence: "high",
               },
@@ -698,7 +673,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    const artifactPath = join(projectA, ".kota", "runs", "harness", PROGRESS_REVIEW_ARTIFACT);
+    const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: {
         triggerKind: string;
@@ -746,8 +721,8 @@ describe("progress-reviewer workflow", () => {
     );
     expect(artifact.evidence.runs.map((run) => run.id)).toEqual(
       expect.arrayContaining([
-        `scope:${scopeA}:run:scheduled-run-scope-a`,
-        `scope:${scopeB}:run:scheduled-run-scope-b`,
+        `scope:${scopeAId}:run:scheduled-run-scope-a`,
+        `scope:${scopeBId}:run:scheduled-run-scope-b`,
       ]),
     );
     expect(artifact.evidence.scopes).toEqual(
@@ -755,14 +730,14 @@ describe("progress-reviewer workflow", () => {
         expect.objectContaining({
           scope: expect.objectContaining({
             kind: "directory",
-            scopeId: scopeA,
+            scopeId: scopeAId,
             displayName: "scope a",
-            directoryRoot: projectA,
+            directoryRoot: scopeARoot,
           }),
           window: artifact.evidence.window,
           excluded: [],
           runs: expect.arrayContaining([
-            expect.objectContaining({ id: `scope:${scopeA}:run:scheduled-run-scope-a` }),
+            expect.objectContaining({ id: `scope:${scopeAId}:run:scheduled-run-scope-a` }),
           ]),
           tasks: expect.arrayContaining([
             expect.objectContaining({ taskId: "task-scheduled-scope-a" }),
@@ -771,14 +746,14 @@ describe("progress-reviewer workflow", () => {
         expect.objectContaining({
           scope: expect.objectContaining({
             kind: "directory",
-            scopeId: scopeB,
+            scopeId: scopeBId,
             displayName: "scope b",
-            directoryRoot: projectB,
+            directoryRoot: scopeBRoot,
           }),
           window: artifact.evidence.window,
           excluded: [],
           runs: expect.arrayContaining([
-            expect.objectContaining({ id: `scope:${scopeB}:run:scheduled-run-scope-b` }),
+            expect.objectContaining({ id: `scope:${scopeBId}:run:scheduled-run-scope-b` }),
           ]),
           tasks: expect.arrayContaining([
             expect.objectContaining({ taskId: "task-scheduled-scope-b" }),
@@ -789,12 +764,12 @@ describe("progress-reviewer workflow", () => {
     expect(artifact.reviewInput.scopes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          scope: expect.objectContaining({ scopeId: scopeA }),
+          scope: expect.objectContaining({ scopeId: scopeAId }),
           window: artifact.evidence.window,
           excluded: [],
         }),
         expect.objectContaining({
-          scope: expect.objectContaining({ scopeId: scopeB }),
+          scope: expect.objectContaining({ scopeId: scopeBId }),
           window: artifact.evidence.window,
           excluded: [],
         }),
@@ -807,25 +782,26 @@ describe("progress-reviewer workflow", () => {
       ]),
     );
     expect(artifact.review.findings.crossScope.claims[0]?.evidenceIds).toEqual([
-      `scope:${scopeA}:run:scheduled-run-scope-a`,
-      `scope:${scopeB}:task:task-scheduled-scope-b`,
+      `scope:${scopeAId}:run:scheduled-run-scope-a`,
+      `scope:${scopeBId}:task:task-scheduled-scope-b`,
     ]);
     expect(artifact.review.findings.localScope.claims).toHaveLength(0);
   });
 
   it("creates one follow-up transition and suppresses unchanged record rewrites and attention", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-channel");
-    const payload = channelBatchPayload(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-channel");
+    const payload = channelBatchPayload(workspaceRoot);
     const review = readFixture("channel-processing-review");
     review.ownerQuestions = [];
 
-    const harness = new WorkflowTestHarness(progressReviewerWorkflow, {
-      projectDir,
-      contextOverrides: {
+    const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
+      ports: {
         runCommand: async (input) => ({
           command: input.command,
           args: input.args ?? [],
-          cwd: input.cwd ?? projectDir,
+          cwd: input.cwd ?? workspaceRoot,
           identity: {
             pid: 1,
             processGroupId: 1,
@@ -841,7 +817,7 @@ describe("progress-reviewer workflow", () => {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         payload,
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": review,
       },
     });
@@ -856,10 +832,10 @@ describe("progress-reviewer workflow", () => {
     ]);
     expect(actions.ownerQuestionIds).toHaveLength(0);
     expect(
-      readTaskStatus(projectDir, "task-add-channel-progress-review-routing-fixture"),
+      readTaskStatus(workspaceRoot, "task-add-channel-progress-review-routing-fixture"),
     ).toBe("ready");
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
-    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
+    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
+    expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
     expect(result.emitted.map((event) => event.event)).toContain(
       "workflow.attention.digest",
     );
@@ -871,15 +847,16 @@ describe("progress-reviewer workflow", () => {
       ...repeatedReview.findings.localScope.followUpTasks[0]!,
       title: "Reworded channel routing follow-up",
       summary: "The model rephrased the same evidence-backed proposal.",
-      acceptanceEvidence: "The same evidence would support a differently worded check.",
+      howWeWillKnow: "The same evidence would support a differently worded check.",
     };
-    const repeated = await new WorkflowTestHarness(progressReviewerWorkflow, {
-      projectDir,
+    const repeated = await new WorkflowScenarioDriver(progressReviewerWorkflow, {
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         payload,
       },
-      stepMocks: {
+      stepOutputs: {
         "review-evidence": repeatedReview,
       },
     }).run();
@@ -897,7 +874,7 @@ describe("progress-reviewer workflow", () => {
     expect(
       readFileSync(
         join(
-          projectDir,
+          workspaceRoot,
           "data",
           "tasks",
           "ready",
@@ -909,12 +886,12 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("stages an owner question when a topic changes from task to owner decision", () => {
-    const projectDir = trackProjectDir("progress-reviewer-proposal-kind-change");
-    const payload = channelBatchPayload(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-proposal-kind-change");
+    const payload = channelBatchPayload(workspaceRoot);
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -927,8 +904,7 @@ describe("progress-reviewer workflow", () => {
       .findings.localScope.followUpTasks[0]!;
 
     const created = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "task-disposition-run",
       evidence,
       review: reviewOutput({
@@ -942,8 +918,7 @@ describe("progress-reviewer workflow", () => {
     const taskId = created.createdTaskIds[0]!;
 
     const changed = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "question-disposition-run",
       evidence,
       review: reviewOutput({
@@ -959,7 +934,7 @@ describe("progress-reviewer workflow", () => {
       }),
     });
 
-    expect(readTaskStatus(projectDir, taskId)).toBe("dropped");
+    expect(readTaskStatus(workspaceRoot, taskId)).toBe("dropped");
     expect(changed.ownerQuestionIds).toHaveLength(0);
     expect(changed.touchedTaskQueue).toBe(true);
     expect(changed.applied).toEqual(
@@ -968,12 +943,12 @@ describe("progress-reviewer workflow", () => {
         expect.objectContaining({ kind: "owner-question-pending" }),
       ]),
     );
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
   });
 
   it("does not treat build commits as semantic progress boundaries", () => {
-    const projectDir = trackProjectDir("progress-reviewer-batch-kind");
-    const channelBatch = channelBatchPayload(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-batch-kind");
+    const channelBatch = channelBatchPayload(workspaceRoot);
     const runBatch = {
       ...channelBatch,
       sourceEventName: "workflow.completed",
@@ -983,7 +958,7 @@ describe("progress-reviewer workflow", () => {
           schemaRef: null,
           receivedAt: NOW.toISOString(),
           payload: {
-            projectId: channelBatch.projectId,
+            scopeId: channelBatch.scopeId,
             workflow: "builder",
             runId: "run-1",
             status: "success",
@@ -1005,7 +980,7 @@ describe("progress-reviewer workflow", () => {
           schemaRef: null,
           receivedAt: NOW.toISOString(),
           payload: {
-            projectId: channelBatch.projectId,
+            scopeId: channelBatch.scopeId,
             runId: "run-1",
             taskId: "task-one",
             commitMessage: "ship task",
@@ -1037,10 +1012,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("keeps workflow batch run ids citeable when recent runs are truncated", () => {
-    const projectDir = trackProjectDir("progress-reviewer-batch-run-evidence");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-batch-run-evidence");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "batched-builder-run",
       "builder",
       "success",
@@ -1048,7 +1023,7 @@ describe("progress-reviewer workflow", () => {
     );
     for (let index = 0; index < PROGRESS_REVIEW_MAX_RUNS; index += 1) {
       writeRun(
-        projectDir,
+        workspaceRoot,
         `newer-run-${String(index).padStart(2, "0")}`,
         "workflow-failure-escalator",
         "success",
@@ -1057,9 +1032,8 @@ describe("progress-reviewer workflow", () => {
     }
     const payload: WorkflowBatchFlushPayload = {
       scopeId,
-      projectId: scopeId,
       sourceEventName: "workflow.completed",
-      groupingKey: `projectId=${scopeId}`,
+      groupingKey: `scopeId=${scopeId}`,
       reason: "count",
       count: 1,
       window: {
@@ -1074,7 +1048,6 @@ describe("progress-reviewer workflow", () => {
           receivedAt: "2026-06-04T11:59:00.000Z",
           payload: {
             scopeId,
-            projectId: scopeId,
             workflow: "builder",
             runId: "batched-builder-run",
             status: "success",
@@ -1096,9 +1069,9 @@ describe("progress-reviewer workflow", () => {
     };
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1140,10 +1113,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("builds a bounded review-agent packet and validates only exposed ids", () => {
-    const projectDir = trackProjectDir("progress-reviewer-agent-packet");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-agent-packet");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "batched-builder-run",
       "builder",
       "success",
@@ -1151,14 +1124,14 @@ describe("progress-reviewer workflow", () => {
     );
     for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
       writeRunArtifactFile(
-        projectDir,
+        workspaceRoot,
         "batched-builder-run",
         `artifact-${String(index).padStart(2, "0")}.json`,
         JSON.stringify({ index }),
       );
     }
     const deadLetterQueue = new DeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(workspaceRoot, ".kota", "dead-letter-queue"),
       () => NOW,
     );
     const deadLetter = createWorkflowDispatchDeadLetter({
@@ -1168,16 +1141,15 @@ describe("progress-reviewer workflow", () => {
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId },
+        payload: { scopeId },
       },
       reason: 'Step "review-evidence" timed out after 1800000ms',
       errorClass: "execution",
     });
     const payload: WorkflowBatchFlushPayload = {
       scopeId,
-      projectId: scopeId,
       sourceEventName: "workflow.completed",
-      groupingKey: `projectId=${scopeId}`,
+      groupingKey: `scopeId=${scopeId}`,
       reason: "count",
       count: 1,
       window: {
@@ -1192,7 +1164,6 @@ describe("progress-reviewer workflow", () => {
           receivedAt: "2026-06-04T11:59:00.000Z",
           payload: {
             scopeId,
-            projectId: scopeId,
             workflow: "builder",
             runId: "batched-builder-run",
             status: "success",
@@ -1214,9 +1185,9 @@ describe("progress-reviewer workflow", () => {
     };
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1287,18 +1258,18 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("keeps high-signal run artifacts in the bounded review-agent packet", () => {
-    const projectDir = trackProjectDir("progress-reviewer-high-signal-artifacts");
+    const workspaceRoot = trackScopeRoot("progress-reviewer-high-signal-artifacts");
     const noiseRunId = "aaaa-blocked-promoter-run";
     const builderRunId = "zzzz-builder-run";
     writeRun(
-      projectDir,
+      workspaceRoot,
       noiseRunId,
       "blocked-promoter",
       "success",
       "2026-06-04T10:59:00.000Z",
     );
     writeRun(
-      projectDir,
+      workspaceRoot,
       builderRunId,
       "builder",
       "success",
@@ -1307,7 +1278,7 @@ describe("progress-reviewer workflow", () => {
     const noiseArtifactCount = 24;
     for (let index = 0; index < noiseArtifactCount; index += 1) {
       writeRunArtifactFile(
-        projectDir,
+        workspaceRoot,
         noiseRunId,
         `steps/noise-${String(index).padStart(2, "0")}.json`,
         JSON.stringify({ index }),
@@ -1319,27 +1290,27 @@ describe("progress-reviewer workflow", () => {
       "evaluator-calibration.json",
     ]) {
       writeRunArtifactFile(
-        projectDir,
+        workspaceRoot,
         builderRunId,
         file,
         JSON.stringify({ file }),
       );
     }
     writeRunArtifactFile(
-      projectDir,
+      workspaceRoot,
       builderRunId,
       "steps/build.json",
       JSON.stringify({ id: "build", status: "success" }),
     );
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
-        payload: runCountBatchPayload(projectDir, builderRunId),
+        payload: runCountBatchPayload(workspaceRoot, builderRunId),
       },
       now: NOW,
     });
@@ -1479,33 +1450,33 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("reports task_class distribution and Product operator-journey risks", () => {
-    const projectDir = trackProjectDir("progress-reviewer-task-class-risk");
-    writeTask(projectDir, "done", "task-product-tests-only", {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-task-class-risk");
+    writeTask(workspaceRoot, "done", "task-product-tests-only", {
       title: "Improve dashboard empty state",
       area: "client",
       taskClass: "Product",
-      acceptanceEvidence: "- Unit tests pass.",
+      howWeWillKnow: "- Unit tests pass.",
     });
-    writeTask(projectDir, "done", "task-safety-check", {
+    writeTask(workspaceRoot, "done", "task-safety-check", {
       title: "Tighten approval guard",
       area: "modules",
       taskClass: "Safety",
     });
-    writeTask(projectDir, "done", "task-platform-api", {
+    writeTask(workspaceRoot, "done", "task-platform-api", {
       title: "Add setup contract field",
       area: "modules",
       taskClass: "Platform",
     });
-    writeTask(projectDir, "done", "task-meta-with-link", {
+    writeTask(workspaceRoot, "done", "task-meta-with-link", {
       title: "Improve evaluator calibration",
       area: "autonomy",
       taskClass: "Meta",
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1529,24 +1500,24 @@ describe("progress-reviewer workflow", () => {
     );
   });
 
-  it("classifies workflow-generated follow-up tasks in evidence and frontmatter", () => {
-    const projectDir = trackProjectDir("progress-reviewer-generated-task-class");
-    writeTask(projectDir, "done", "task-security-generated", {
+  it("classifies workflow-generated follow-up tasks in frontmatter without gating them", () => {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-generated-task-class");
+    writeTask(workspaceRoot, "done", "task-security-generated", {
       title: "Security review: tighten approval replay",
       area: "security",
       sourceIntent: "Created by security-review workflow run security-review-run.",
     });
-    writeTask(projectDir, "done", "task-platform-generated", {
+    writeTask(workspaceRoot, "done", "task-platform-generated", {
       title: "Add observability evidence for platform DLQ cleanup",
       area: "platform",
       sourceIntent: "Created by progress-reviewer workflow run progress-review-run.",
     });
-    writeTask(projectDir, "done", "task-clear-stale-builder-dlq-items-after-repair-merge", {
+    writeTask(workspaceRoot, "done", "task-clear-stale-builder-dlq-items-after-repair-merge", {
       title: "Clear stale builder DLQ items after repair merge",
       area: "platform",
       sourceIntent: "Follow-up from `task-resolve-current-builder-workflow-dead-letters`.",
     });
-    writeTask(projectDir, "done", "task-meta-generated", {
+    writeTask(workspaceRoot, "done", "task-meta-generated", {
       title: "Clear runtime repair reviewer drift",
       area: "autonomy",
       sourceIntent: "Created by progress-reviewer workflow run progress-review-run.",
@@ -1557,12 +1528,12 @@ describe("progress-reviewer workflow", () => {
       "data/tasks/done/task-platform-generated.md",
       "data/tasks/done/task-clear-stale-builder-dlq-items-after-repair-merge.md",
       "data/tasks/done/task-meta-generated.md",
-    ], { cwd: projectDir });
+    ], { cwd: workspaceRoot });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1587,8 +1558,7 @@ describe("progress-reviewer workflow", () => {
       .toBe("Meta");
 
     const actionResult = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "progress-review-run",
       evidence,
       review: reviewOutput({
@@ -1603,7 +1573,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "security",
               evidenceIds: ["task:task-security-generated"],
-              acceptanceEvidence: "Generated task frontmatter records task_class: Safety.",
+              howWeWillKnow: "Generated task frontmatter records task_class: Safety.",
             },
             {
               topicKey: "platform-generated-follow-up",
@@ -1612,17 +1582,17 @@ describe("progress-reviewer workflow", () => {
               priority: "p3",
               area: "platform",
               evidenceIds: ["task:task-platform-generated"],
-              acceptanceEvidence: "Generated task frontmatter records task_class: Platform.",
+              howWeWillKnow: "Generated task frontmatter records task_class: Platform.",
             },
             {
               topicKey: "meta-generated-follow-up",
               title: "Meta generated follow-up",
-              summary: "Runtime repair follow-up should enter the Meta balance.",
+              summary: "Runtime repair follow-up should retain Meta routing metadata.",
               priority: "p3",
               area: "autonomy",
               evidenceIds: ["task:task-meta-generated"],
-              acceptanceEvidence:
-                "Generated task frontmatter records task_class: Meta.",
+              howWeWillKnow:
+                "Generated task frontmatter records task_class: Meta without changing queue eligibility.",
             },
           ],
         },
@@ -1637,7 +1607,7 @@ describe("progress-reviewer workflow", () => {
     const createdTasks = new Map(
       actionResult.createdTaskIds.map((taskId) => {
         const raw = readFileSync(
-          join(projectDir, "data", "tasks", "ready", `${taskId}.md`),
+          join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`),
           "utf-8",
         );
         return [taskId, { raw, attrs: parseFlatFrontMatter(raw).attrs }];
@@ -1650,24 +1620,26 @@ describe("progress-reviewer workflow", () => {
       "Platform",
     );
     expect(createdTasks.get("task-meta-generated-follow-up")?.attrs.task_class).toBe("Meta");
-    expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain("## Context");
-    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
+    expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain(
+      "## How We Will Know",
+    );
+    expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
   it("normalizes untrusted follow-up task fields before writing task files", () => {
-    const projectDir = trackProjectDir("progress-reviewer-task-content-injection");
-    writeTask(projectDir, "done", "task-review-source", {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-task-content-injection");
+    writeTask(workspaceRoot, "done", "task-review-source", {
       title: "Review source task",
       area: "security",
       taskClass: "Safety",
       sourceIntent: "Created by channel content containing untrusted markdown.",
     });
-    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: projectDir });
+    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: workspaceRoot });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1677,8 +1649,7 @@ describe("progress-reviewer workflow", () => {
     });
 
     const actionResult = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "progress-review-run",
       evidence,
       review: reviewOutput({
@@ -1707,7 +1678,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "security\nstatus: done",
               evidenceIds: ["task:task-review-source"],
-              acceptanceEvidence: [
+              howWeWillKnow: [
                 "Regression command passes.",
                 "safe evidence prefix\u2029## Source / Intent",
                 "Injected replacement source intent.",
@@ -1723,7 +1694,7 @@ describe("progress-reviewer workflow", () => {
     ]);
     const raw = readFileSync(
       join(
-        projectDir,
+        workspaceRoot,
         "data",
         "tasks",
         "ready",
@@ -1746,9 +1717,8 @@ describe("progress-reviewer workflow", () => {
       "## Problem",
       "## Desired Outcome",
       "## Constraints",
-      "## Done When",
+      "## How We Will Know",
       "## Context",
-      "## Acceptance Evidence",
       "## Generated Work Provenance",
     ]);
     expect(raw).toContain("    ## Acceptance Evidence");
@@ -1756,24 +1726,24 @@ describe("progress-reviewer workflow", () => {
     expect(raw).toContain("    safe review prefix\n    ## Acceptance Evidence");
     expect(raw).toContain("    safe evidence prefix\n    ## Source / Intent");
     expect(raw).not.toMatch(/[\u2028\u2029]/u);
-    expect(raw).toContain("Regression command passes.");
-    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
+    expect(raw).toContain("## How We Will Know");
+    expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
   it("preserves bracket-wrapped follow-up task frontmatter fields as scalars", () => {
-    const projectDir = trackProjectDir("progress-reviewer-task-frontmatter-brackets");
-    writeTask(projectDir, "done", "task-review-source", {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-task-frontmatter-brackets");
+    writeTask(workspaceRoot, "done", "task-review-source", {
       title: "Review source task",
       area: "security",
       taskClass: "Safety",
       sourceIntent: "Created by channel content containing bracket-wrapped scalars.",
     });
-    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: projectDir });
+    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: workspaceRoot });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1783,8 +1753,7 @@ describe("progress-reviewer workflow", () => {
     });
 
     const actionResult = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "progress-review-run",
       evidence,
       review: reviewOutput({
@@ -1799,7 +1768,7 @@ describe("progress-reviewer workflow", () => {
               priority: "p2",
               area: "[a, b]",
               evidenceIds: ["task:task-review-source"],
-              acceptanceEvidence: "Generated task frontmatter parses bracket fields as strings.",
+              howWeWillKnow: "Generated task frontmatter parses bracket fields as strings.",
             },
           ],
         },
@@ -1808,7 +1777,7 @@ describe("progress-reviewer workflow", () => {
 
     expect(actionResult.createdTaskIds).toEqual(["task-security"]);
     const raw = readFileSync(
-      join(projectDir, "data", "tasks", "ready", "task-security.md"),
+      join(workspaceRoot, "data", "tasks", "ready", "task-security.md"),
       "utf-8",
     );
     expect(raw).toContain('title: "[security]"');
@@ -1823,26 +1792,26 @@ describe("progress-reviewer workflow", () => {
     expect(Array.isArray(parsed.attrs.title)).toBe(false);
     expect(Array.isArray(parsed.attrs.area)).toBe(false);
     expect(Array.isArray(parsed.attrs.summary)).toBe(false);
-    expect(() => assertTaskQueueValid(projectDir)).not.toThrow();
+    expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
   it("runs review-evidence with schema-valid JSON when raw run-count evidence exceeds the step output limit", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-runtime-large-packet");
+    const workspaceRoot = trackScopeRoot("progress-reviewer-runtime-large-packet");
     const runId = "batched-builder-run";
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     for (let index = 0; index < 80; index += 1) {
       writeFileSync(
-        join(projectDir, `changed-${String(index).padStart(2, "0")}.txt`),
+        join(workspaceRoot, `changed-${String(index).padStart(2, "0")}.txt`),
         `large packet git fixture ${index}\n`,
       );
     }
     commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "seed large progress review fixture",
       "2026-06-04T11:10:00.000Z",
     );
     writeRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "builder",
       "success",
@@ -1850,7 +1819,7 @@ describe("progress-reviewer workflow", () => {
     );
     for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
       writeRunArtifactFile(
-        projectDir,
+        workspaceRoot,
         runId,
         `artifact-${String(index).padStart(2, "0")}.json`,
         JSON.stringify({ index, body: "x".repeat(256) }),
@@ -1859,12 +1828,12 @@ describe("progress-reviewer workflow", () => {
     const hiddenArtifactId =
       `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
     for (let index = 0; index < 24; index += 1) {
-      writeTask(projectDir, "done", `task-large-packet-${String(index).padStart(2, "0")}`, {
+      writeTask(workspaceRoot, "done", `task-large-packet-${String(index).padStart(2, "0")}`, {
         updatedAt: `2026-06-04T10:${String(index).padStart(2, "0")}:00.000Z`,
       });
     }
     const deadLetterQueue = new DeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(workspaceRoot, ".kota", "dead-letter-queue"),
       () => NOW,
     );
     const largeSourceEventIds = Array.from(
@@ -1875,7 +1844,6 @@ describe("progress-reviewer workflow", () => {
     const deadLetter = deadLetterQueue.record({
       type: "workflow-dispatch",
       scopeId,
-      projectId: scopeId,
       owningModule: "workflow-runtime",
       sourceEventIds: largeSourceEventIds,
       affectedWorkflowNames: ["progress-reviewer"],
@@ -1894,7 +1862,7 @@ describe("progress-reviewer workflow", () => {
       redactedProjection: {},
       retention: { kind: "retain" },
     });
-    const payload = runCountBatchPayload(projectDir, runId);
+    const payload = runCountBatchPayload(workspaceRoot, runId);
     const harnessCalls: AgentHarnessRunOptions[] = [];
     registerProgressReviewHarness(async (options) => {
       harnessCalls.push(options);
@@ -1931,7 +1899,7 @@ describe("progress-reviewer workflow", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
-        usage: UNKNOWN_AGENT_USAGE,
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
         isError: false,
       };
     });
@@ -1944,9 +1912,9 @@ describe("progress-reviewer workflow", () => {
         outputFormat: "json",
       }),
     );
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "prepare large run-count fixture",
       "2026-06-04T11:30:00.000Z",
     );
@@ -1958,9 +1926,9 @@ describe("progress-reviewer workflow", () => {
         payload,
       },
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
         runContext: makeProgressReviewRunContext(
-          projectDir,
+          workspaceRoot,
           "runtime-large-run-count-packet",
         ),
         bus: new EventBus(),
@@ -1980,7 +1948,7 @@ describe("progress-reviewer workflow", () => {
       ]),
     );
     const evidenceArtifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "runtime-large-run-count-packet",
@@ -2021,7 +1989,7 @@ describe("progress-reviewer workflow", () => {
     );
     expect(reviewResult?.durationMs).toBeLessThan(30 * 60 * 1000);
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "runtime-large-run-count-packet",
@@ -2056,10 +2024,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("normalizes review-evidence output that cites compacted-away child ids", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-runtime-hidden-id");
+    const workspaceRoot = trackScopeRoot("progress-reviewer-runtime-hidden-id");
     const runId = "batched-builder-run";
     writeRun(
-      projectDir,
+      workspaceRoot,
       runId,
       "builder",
       "success",
@@ -2067,7 +2035,7 @@ describe("progress-reviewer workflow", () => {
     );
     for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
       writeRunArtifactFile(
-        projectDir,
+        workspaceRoot,
         runId,
         `artifact-${String(index).padStart(2, "0")}.json`,
         JSON.stringify({ index, body: "x".repeat(256) }),
@@ -2075,7 +2043,7 @@ describe("progress-reviewer workflow", () => {
     }
     const hiddenArtifactId =
       `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
-    const payload = runCountBatchPayload(projectDir, runId);
+    const payload = runCountBatchPayload(workspaceRoot, runId);
     registerProgressReviewHarness(async (options) => {
       const reviewInput = parseReviewInputFromAgentPrompt(options);
       expect(reviewInput.evidence.map((item) => item.id)).not.toContain(hiddenArtifactId);
@@ -2097,12 +2065,12 @@ describe("progress-reviewer workflow", () => {
         text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
         streamedText: "",
         turns: 1,
-        usage: UNKNOWN_AGENT_USAGE,
+        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
         isError: false,
       };
     });
     commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "prepare compacted evidence fixture",
       "2026-06-04T11:30:00.000Z",
     );
@@ -2114,13 +2082,13 @@ describe("progress-reviewer workflow", () => {
         payload,
       },
       {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
         runContext: makeProgressReviewRunContext(
-          projectDir,
+          workspaceRoot,
           "runtime-hidden-id-packet",
         ),
         bus: new EventBus(),
-        store: new WorkflowRunStore(projectDir),
+        store: new WorkflowRunStore(workspaceRoot),
         log: vi.fn(),
       },
     );
@@ -2129,7 +2097,7 @@ describe("progress-reviewer workflow", () => {
 
     expect(result.metadata.status).toBe("success");
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "runtime-hidden-id-packet",
@@ -2147,27 +2115,27 @@ describe("progress-reviewer workflow", () => {
     ]);
   });
 
-  it("keeps directory scope evidence isolated to the selected project directory", () => {
-    const projectA = trackProjectDir("progress-reviewer-scope-a");
-    const projectB = trackProjectDir("progress-reviewer-scope-b");
-    writeTask(projectA, "done", "task-scope-a", { updatedAt: "2026-06-04T11:00:00.000Z" });
-    writeTask(projectB, "done", "task-scope-b", { updatedAt: "2026-06-04T11:00:00.000Z" });
-    writeRun(projectA, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
-    writeRun(projectB, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
-    const scopeA = deriveDirectoryScopeId(projectA);
+  it("keeps directory scope evidence isolated to the selected scope directory", () => {
+    const scopeARoot = trackScopeRoot("progress-reviewer-scope-a");
+    const scopeBRoot = trackScopeRoot("progress-reviewer-scope-b");
+    writeTask(scopeARoot, "done", "task-scope-a", { updatedAt: "2026-06-04T11:00:00.000Z" });
+    writeTask(scopeBRoot, "done", "task-scope-b", { updatedAt: "2026-06-04T11:00:00.000Z" });
+    writeRun(scopeARoot, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
+    writeRun(scopeBRoot, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
+    const scopeAId = deriveDirectoryScopeId(scopeARoot);
 
     const evidence = collectProgressReviewEvidence({
-      projectDir: projectA,
-      scopeDir: projectA,
-      stateDir: join(projectA, ".kota"),
+      workspaceRoot: scopeARoot,
+      scopeRoot: scopeARoot,
+      stateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId: scopeA, projectId: scopeA, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId: scopeAId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
 
-    expect(evidence.scope.scopeId).toBe(scopeA);
+    expect(evidence.scope.scopeId).toBe(scopeAId);
     expect(evidence.tasks.map((task) => task.taskId)).toContain("task-scope-a");
     expect(evidence.tasks.map((task) => task.taskId)).not.toContain("task-scope-b");
     expect(evidence.runs.map((run) => run.id)).toContain("run:run-scope-a");
@@ -2175,10 +2143,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("collects approval outcomes as citeable review evidence", () => {
-    const projectDir = trackProjectDir("progress-reviewer-approvals");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-approvals");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeApproval(
-      projectDir,
+      workspaceRoot,
       "a1b2c3d4",
       "approved",
       "2026-06-04T10:30:00.000Z",
@@ -2186,12 +2154,12 @@ describe("progress-reviewer workflow", () => {
     );
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2239,47 +2207,47 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("collects nested step artifacts as citeable run evidence", () => {
-    const projectDir = trackProjectDir("progress-reviewer-step-artifacts");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-step-artifacts");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
       "2026-06-04T11:20:00.000Z",
     );
     writeRunArtifactFile(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "steps/build.json",
       JSON.stringify({ id: "build", status: "success" }),
     );
     writeRunArtifactFile(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "steps/build.input.md",
       "# User Prompt\n\nImplement the task.",
     );
     writeRunArtifactFile(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "steps/build.events.jsonl",
       "{\"type\":\"assistant\",\"text\":\"done\"}\n",
     );
     writeRunArtifactFile(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "steps/build.tool-telemetry.json",
       JSON.stringify({ summary: "1 tool call", tools: { shell: { calls: 1 } } }),
     );
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2326,64 +2294,56 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("rejects unsafe or mismatched run metadata ids before path lookup", () => {
-    const projectDir = trackProjectDir("progress-reviewer-run-id-boundary");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-run-id-boundary");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
       "2026-06-04T11:20:00.000Z",
     );
     writeRun(
-      projectDir,
+      workspaceRoot,
       "renamed-run",
       "builder",
       "success",
       "2026-06-04T11:30:00.000Z",
     );
-    writeRunArtifactFile(projectDir, "builder-success", "artifact.txt", "inside");
+    writeRunArtifactFile(workspaceRoot, "builder-success", "artifact.txt", "inside");
     writeFileSync(
-      join(projectDir, ".kota", "runs", "builder-success", "metadata.json"),
+      join(workspaceRoot, ".kota", "runs", "builder-success", "metadata.json"),
       JSON.stringify(
-        {
-          id: "../../../outside-run-root",
-          workflow: "builder",
-          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-          trigger: {
-            event: "autonomy.queue.available",
-            schemaRef: null,
-            payload: {},
-          },
-          status: "success",
+		{
+			id: "../../../outside-run-root",
+			workflow: "builder",
+			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+			runDir: ".kota/runs/builder-success",
+			trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+			status: "success",
           startedAt: "2026-06-04T11:20:00.000Z",
           completedAt: "2026-06-04T11:20:00.000Z",
-          durationMs: 1000,
-          runDir: ".kota/runs/builder-success",
-          steps: [],
+			durationMs: 1000,
+			steps: [],
         },
         null,
         2,
       ),
     );
     writeFileSync(
-      join(projectDir, ".kota", "runs", "renamed-run", "metadata.json"),
+      join(workspaceRoot, ".kota", "runs", "renamed-run", "metadata.json"),
       JSON.stringify(
-        {
-          id: "other-run",
-          workflow: "builder",
-          definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-          trigger: {
-            event: "autonomy.queue.available",
-            schemaRef: null,
-            payload: {},
-          },
-          status: "success",
+		{
+			id: "other-run",
+			workflow: "builder",
+			definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+			runDir: ".kota/runs/renamed-run",
+			trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+			status: "success",
           startedAt: "2026-06-04T11:30:00.000Z",
           completedAt: "2026-06-04T11:30:00.000Z",
-          durationMs: 1000,
-          runDir: ".kota/runs/renamed-run",
-          steps: [],
+			durationMs: 1000,
+			steps: [],
         },
         null,
         2,
@@ -2391,12 +2351,12 @@ describe("progress-reviewer workflow", () => {
     );
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2415,24 +2375,24 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("collects pending workflow runs as citeable run evidence", () => {
-    const projectDir = trackProjectDir("progress-reviewer-pending-run");
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    writePendingWorkflowRun(projectDir, {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-pending-run");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    writePendingWorkflowRun(workspaceRoot, {
       runId: "security-review-pending",
       workflowName: "security-review",
       triggerEvent: "autonomy.security-review.due",
       enqueuedAt: "2026-06-04T11:45:00.000Z",
       notBeforeAt: "2026-06-04T11:50:00.000Z",
-      payload: { scopeId, projectId: scopeId, reason: "high-risk-security-sensitive-change" },
+      payload: { scopeId, reason: "high-risk-security-sensitive-change" },
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2458,10 +2418,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("collects open dead-letter queue counts and citeable item evidence", () => {
-    const projectDir = trackProjectDir("progress-reviewer-dlq");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-dlq");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const deadLetterQueue = new DeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(workspaceRoot, ".kota", "dead-letter-queue"),
       () => NOW,
     );
     const item = createWorkflowDispatchDeadLetter({
@@ -2474,7 +2434,6 @@ describe("progress-reviewer workflow", () => {
         eventId: "evtj-000000000042",
         payload: {
           scopeId,
-          projectId: scopeId,
           chatId: "chat-1",
           botToken: "secret",
         },
@@ -2484,13 +2443,13 @@ describe("progress-reviewer workflow", () => {
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2527,15 +2486,15 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("keeps tasks referenced by dead-letter reasons citeable", () => {
-    const projectDir = trackProjectDir("progress-reviewer-dlq-task-reference");
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    const taskId = "task-add-loop-quality-audits-for-autonomous-workflows";
-    writeTask(projectDir, "backlog", taskId, {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-dlq-task-reference");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const taskId = "task-review-autonomous-workflow-failure";
+    writeTask(workspaceRoot, "backlog", taskId, {
       updatedAt: "2026-06-01T12:00:00.000Z",
       taskClass: "Meta",
     });
     const queue = new DeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(workspaceRoot, ".kota", "dead-letter-queue"),
       () => NOW,
     );
     const item = createWorkflowDispatchDeadLetter({
@@ -2545,22 +2504,22 @@ describe("progress-reviewer workflow", () => {
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId },
+        payload: { scopeId },
       },
       reason:
-        `- [task-validation] ${projectDir}/data/tasks/ready/${taskId}.md ` +
-        "failed validation while the workflow was processing it.",
+        `- [meta-task-missing-product-safety-link] ${workspaceRoot}/data/tasks/ready/${taskId}.md ` +
+        "is actionable task_class=Meta work but does not explain which Product or Safety blocker it closes.",
       errorClass: "validation",
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2597,17 +2556,16 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("bounds dead-letter ids in the compact agent packet", () => {
-    const projectDir = trackProjectDir("progress-reviewer-dead-letter-agent-packet");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-dead-letter-agent-packet");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const queue = new DeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(workspaceRoot, ".kota", "dead-letter-queue"),
       () => NOW,
     );
     for (let index = 0; index < 6; index += 1) {
       queue.record({
         type: "workflow-dispatch",
         scopeId,
-        projectId: scopeId,
         owningModule: "workflow-runtime",
         sourceEventIds: [`evtj-${String(index).padStart(12, "0")}`],
         affectedWorkflowNames: ["trajectory-diagnostic-escalator"],
@@ -2629,13 +2587,13 @@ describe("progress-reviewer workflow", () => {
     }
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
-        payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2661,10 +2619,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("stops artifact traversal at the max artifact count", () => {
-    const projectDir = trackProjectDir("progress-reviewer-artifact-count");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-artifact-count");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
@@ -2672,14 +2630,14 @@ describe("progress-reviewer workflow", () => {
     );
     for (let index = 0; index < PROGRESS_REVIEW_MAX_ARTIFACTS; index += 1) {
       writeRunArtifactFile(
-        projectDir,
+        workspaceRoot,
         "builder-success",
         `artifact-${String(index).padStart(2, "0")}.txt`,
         "artifact",
       );
     }
     const beyondLimitDir = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "builder-success",
@@ -2689,12 +2647,12 @@ describe("progress-reviewer workflow", () => {
     writeFileSync(join(beyondLimitDir, "blocked.txt"), "blocked");
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2709,10 +2667,10 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("does not traverse artifact directories at the max artifact depth", () => {
-    const projectDir = trackProjectDir("progress-reviewer-artifact-depth");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-artifact-depth");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeRun(
-      projectDir,
+      workspaceRoot,
       "builder-success",
       "builder",
       "success",
@@ -2724,7 +2682,7 @@ describe("progress-reviewer workflow", () => {
     );
     const tooDeepPath = [...maxDepthDirParts, "too-deep.txt"].join("/");
     const maxDepthDir = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "builder-success",
@@ -2734,12 +2692,12 @@ describe("progress-reviewer workflow", () => {
     writeFileSync(join(maxDepthDir, "too-deep.txt"), "too deep");
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
-        schemaRef: null, payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+        schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
       },
       now: NOW,
     });
@@ -2751,14 +2709,14 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("collects recent committed file changes through the workflow command rail", async () => {
-    const projectDir = trackProjectDir("progress-reviewer-git-commit");
-    const scopeId = deriveDirectoryScopeId(projectDir);
-    writeFileSync(join(projectDir, "README.md"), "initial\n");
-    commitProgressReviewFixture(projectDir, "initial fixture", "2026-06-04T10:00:00.000Z");
-    mkdirSync(join(projectDir, "src"), { recursive: true });
-    writeFileSync(join(projectDir, "src", "coding.ts"), "export const shipped = true;\n");
+    const workspaceRoot = trackScopeRoot("progress-reviewer-git-commit");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    writeFileSync(join(workspaceRoot, "README.md"), "initial\n");
+    commitProgressReviewFixture(workspaceRoot, "initial fixture", "2026-06-04T10:00:00.000Z");
+    mkdirSync(join(workspaceRoot, "src"), { recursive: true });
+    writeFileSync(join(workspaceRoot, "src", "coding.ts"), "export const shipped = true;\n");
     const commit = commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "ship coding slice",
       "2026-06-04T11:40:00.000Z",
     );
@@ -2767,20 +2725,20 @@ describe("progress-reviewer workflow", () => {
     const trigger = {
       event: progressReviewRequested.name,
       schemaRef: null,
-      payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      payload: { scopeId, windowMs: 3_600_000 },
     } as const;
     const gitEvidenceByScope = await collectProgressReviewGitEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger,
       now: NOW,
-      runCommand: createWorkflowCommandRunner({ cwd: projectDir }),
+      runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
     });
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger,
       now: NOW,
       gitEvidenceByScope,
@@ -2811,31 +2769,30 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("collects global scope evidence from every configured directory scope", () => {
-    const projectA = trackProjectDir("progress-reviewer-global-a");
-    const projectB = trackProjectDir("progress-reviewer-global-b");
-    writeTask(projectA, "done", "task-scope-a", { updatedAt: "2026-06-04T11:00:00.000Z" });
-    writeTask(projectB, "done", "task-scope-b", { updatedAt: "2026-06-04T11:00:00.000Z" });
-    writeRun(projectA, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
-    writeRun(projectB, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
-    const scopeA = deriveDirectoryScopeId(projectA);
-    const scopeB = deriveDirectoryScopeId(projectB);
+    const scopeARoot = trackScopeRoot("progress-reviewer-global-a");
+    const scopeBRoot = trackScopeRoot("progress-reviewer-global-b");
+    writeTask(scopeARoot, "done", "task-scope-a", { updatedAt: "2026-06-04T11:00:00.000Z" });
+    writeTask(scopeBRoot, "done", "task-scope-b", { updatedAt: "2026-06-04T11:00:00.000Z" });
+    writeRun(scopeARoot, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
+    writeRun(scopeBRoot, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
+    const scopeAId = deriveDirectoryScopeId(scopeARoot);
+    const scopeBId = deriveDirectoryScopeId(scopeBRoot);
     new ScopeRegistry({
-      stateDir: join(projectA, ".kota"),
-      projects: [
-        { projectDir: projectA, displayName: "scope a" },
-        { projectDir: projectB, displayName: "scope b" },
+      stateDir: join(scopeARoot, ".kota"),
+      scopes: [
+        { scopeRoot: scopeARoot, displayName: "scope a" },
+        { scopeRoot: scopeBRoot, displayName: "scope b" },
       ],
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir: projectA,
-      scopeDir: projectA,
-      stateDir: join(projectA, ".kota"),
+      workspaceRoot: scopeARoot,
+      scopeRoot: scopeARoot,
+      stateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
           scopeId: GLOBAL_SCOPE_ID,
-          projectId: GLOBAL_SCOPE_ID,
           windowMs: 3_600_000,
         },
       },
@@ -2848,47 +2805,46 @@ describe("progress-reviewer workflow", () => {
     );
     expect(evidence.runs.map((run) => run.id)).toEqual(
       expect.arrayContaining([
-        `scope:${scopeA}:run:run-scope-a`,
-        `scope:${scopeB}:run:run-scope-b`,
+        `scope:${scopeAId}:run:run-scope-a`,
+        `scope:${scopeBId}:run:run-scope-b`,
       ]),
     );
   });
 
   it("bounds global evidence independently for each configured directory scope", () => {
-    const projectA = trackProjectDir("progress-reviewer-global-bounds-a");
-    const projectB = trackProjectDir("progress-reviewer-global-bounds-b");
-    const scopeA = deriveDirectoryScopeId(projectA);
-    const scopeB = deriveDirectoryScopeId(projectB);
+    const scopeARoot = trackScopeRoot("progress-reviewer-global-bounds-a");
+    const scopeBRoot = trackScopeRoot("progress-reviewer-global-bounds-b");
+    const scopeAId = deriveDirectoryScopeId(scopeARoot);
+    const scopeBId = deriveDirectoryScopeId(scopeBRoot);
     for (let index = 0; index <= PROGRESS_REVIEW_MAX_RUNS; index += 1) {
       const minute = String(index).padStart(2, "0");
-      writeRun(projectA, `run-a-${minute}`, "builder", "success", `2026-06-04T11:${minute}:00.000Z`);
-      writeRun(projectB, `run-b-${minute}`, "builder", "success", `2026-06-04T11:${minute}:00.000Z`);
+      writeRun(scopeARoot, `run-a-${minute}`, "builder", "success", `2026-06-04T11:${minute}:00.000Z`);
+      writeRun(scopeBRoot, `run-b-${minute}`, "builder", "success", `2026-06-04T11:${minute}:00.000Z`);
     }
     new ScopeRegistry({
-      stateDir: join(projectA, ".kota"),
-      projects: [
-        { projectDir: projectA, displayName: "scope a" },
-        { projectDir: projectB, displayName: "scope b" },
+      stateDir: join(scopeARoot, ".kota"),
+      scopes: [
+        { scopeRoot: scopeARoot, displayName: "scope a" },
+        { scopeRoot: scopeBRoot, displayName: "scope b" },
       ],
     });
 
     const evidence = collectProgressReviewEvidence({
-      projectDir: projectA,
-      scopeDir: projectA,
-      stateDir: join(projectA, ".kota"),
+      workspaceRoot: scopeARoot,
+      scopeRoot: scopeARoot,
+      stateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
           scopeId: GLOBAL_SCOPE_ID,
-          projectId: GLOBAL_SCOPE_ID,
           windowMs: 3_600_000,
         },
       },
       now: NOW,
     });
 
-    const scopeAEntry = evidence.scopes.find((scope) => scope.scope.scopeId === scopeA);
-    const scopeBEntry = evidence.scopes.find((scope) => scope.scope.scopeId === scopeB);
+    const scopeAEntry = evidence.scopes.find((scope) => scope.scope.scopeId === scopeAId);
+    const scopeBEntry = evidence.scopes.find((scope) => scope.scope.scopeId === scopeBId);
     expect(evidence.runs).toHaveLength(PROGRESS_REVIEW_MAX_RUNS * 2);
     expect(scopeAEntry?.runs).toHaveLength(PROGRESS_REVIEW_MAX_RUNS);
     expect(scopeBEntry?.runs).toHaveLength(PROGRESS_REVIEW_MAX_RUNS);
@@ -2909,22 +2865,21 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("does not use a related inbox title as generated-work identity", () => {
-    const projectDir = trackProjectDir("progress-reviewer-inbox-dedupe");
-    const payload = channelBatchPayload(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-inbox-dedupe");
+    const payload = channelBatchPayload(workspaceRoot);
     writeInboxEntry(
-      projectDir,
+      workspaceRoot,
       "task-add-channel-progress-review-routing-fixture",
       "Add channel progress review routing fixture",
     );
 
     const result = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "inbox-dedupe-run",
       evidence: collectProgressReviewEvidence({
-        projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+        workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
         trigger: {
           event: WORKFLOW_BATCH_FLUSH_EVENT,
           schemaRef: null,
@@ -2945,29 +2900,28 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("uses scope-local proposal identity instead of cross-scope title matching", () => {
-    const projectA = trackProjectDir("progress-reviewer-global-dedupe-a");
-    const projectB = trackProjectDir("progress-reviewer-global-dedupe-b");
-    const scopeB = deriveDirectoryScopeId(projectB);
-    writeTask(projectB, "ready", "task-repair-scoped-progress-drift", {
+    const scopeARoot = trackScopeRoot("progress-reviewer-global-dedupe-a");
+    const scopeBRoot = trackScopeRoot("progress-reviewer-global-dedupe-b");
+    const scopeBId = deriveDirectoryScopeId(scopeBRoot);
+    writeTask(scopeBRoot, "ready", "task-repair-scoped-progress-drift", {
       title: "Repair scoped progress drift",
       updatedAt: "2026-06-04T11:30:00.000Z",
     });
     new ScopeRegistry({
-      stateDir: join(projectA, ".kota"),
-      projects: [
-        { projectDir: projectA, displayName: "scope a" },
-        { projectDir: projectB, displayName: "scope b" },
+      stateDir: join(scopeARoot, ".kota"),
+      scopes: [
+        { scopeRoot: scopeARoot, displayName: "scope a" },
+        { scopeRoot: scopeBRoot, displayName: "scope b" },
       ],
     });
     const evidence = collectProgressReviewEvidence({
-      projectDir: projectA,
-      scopeDir: projectA,
-      stateDir: join(projectA, ".kota"),
+      workspaceRoot: scopeARoot,
+      scopeRoot: scopeARoot,
+      stateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
           scopeId: GLOBAL_SCOPE_ID,
-          projectId: GLOBAL_SCOPE_ID,
           windowMs: 3_600_000,
         },
       },
@@ -2975,8 +2929,7 @@ describe("progress-reviewer workflow", () => {
     });
 
     const result = applyProgressReviewActions({
-      projectDir: projectA,
-      scopeDir: projectA,
+      workspaceRoot: scopeARoot,
       runId: "global-dedupe-run",
       evidence,
       review: reviewOutput({
@@ -2990,8 +2943,8 @@ describe("progress-reviewer workflow", () => {
               summary: "The progress-review finding is already represented by a task in the affected scope.",
               priority: "p2",
               area: "autonomy",
-              evidenceIds: [`scope:${scopeB}:task:task-repair-scoped-progress-drift`],
-              acceptanceEvidence: "The existing scope task remains the single follow-up.",
+              evidenceIds: [`scope:${scopeBId}:task:task-repair-scoped-progress-drift`],
+              howWeWillKnow: "The existing scope task remains the single follow-up.",
             },
           ],
         },
@@ -3007,7 +2960,7 @@ describe("progress-reviewer workflow", () => {
     expect(
       existsSync(
         join(
-          projectA,
+          scopeARoot,
           "data",
           "tasks",
           "ready",
@@ -3072,7 +3025,7 @@ describe("progress-reviewer workflow", () => {
                 priority: "urgent",
                 area: "autonomy",
                 evidenceIds: ["task:task-autonomous-coding-review-fixture"],
-                acceptanceEvidence: "Schema rejects invalid follow-up priority.",
+                howWeWillKnow: "Schema rejects invalid follow-up priority.",
               },
             ],
           },
@@ -3084,12 +3037,12 @@ describe("progress-reviewer workflow", () => {
   });
 
   it("rejects review evidence ids outside the collected packet", () => {
-    const projectDir = trackProjectDir("progress-reviewer-evidence-ids");
-    const payload = channelBatchPayload(projectDir);
+    const workspaceRoot = trackScopeRoot("progress-reviewer-evidence-ids");
+    const payload = channelBatchPayload(workspaceRoot);
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,

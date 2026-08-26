@@ -74,25 +74,25 @@ Responsive daemon control.
 }
 
 function makeProject(prefix: string): string {
-  const projectDir = mkdtempSync(join(tmpdir(), prefix));
+  const workspaceRoot = mkdtempSync(join(tmpdir(), prefix));
   for (const state of TASK_STATES) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.email", "kota@example.test"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
   execFileSync("git", ["config", "user.name", "KOTA Test"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-  return projectDir;
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  return workspaceRoot;
 }
 
-function commitFixture(projectDir: string): void {
-  execFileSync("git", ["add", "-A"], { cwd: projectDir });
+function commitFixture(workspaceRoot: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "-q", "-m", "initial"], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
 }
 
@@ -100,7 +100,7 @@ describe("queue and discovery blocking operations", () => {
   it("runs production queue mutation, decomposition, and recursive discovery in real workers", async () => {
     const backlogProject = makeProject("kota-backlog-worker-");
     const decomposerProject = makeProject("kota-decomposer-worker-");
-    const discoveryProject = makeProject("kota-repo-ai-worker-");
+    const discoveryScope = makeProject("kota-repo-ai-worker-");
     try {
       writeFileSync(
         join(backlogProject, "data/tasks/backlog/task-worker-promotion.md"),
@@ -140,13 +140,13 @@ describe("queue and discovery blocking operations", () => {
         failedBuilderMetadata(dispatch, { errorKind: "repair-no-progress" }),
       );
 
-      const checksDir = join(discoveryProject, ".agents", "checks");
+      const checksDir = join(discoveryScope, ".agents", "checks");
       mkdirSync(checksDir, { recursive: true });
       writeFileSync(
         join(checksDir, "responsiveness.md"),
         "---\nname: Responsiveness\ndescription: Check daemon responsiveness\n---\n\nKeep control requests responsive.\n",
       );
-      commitFixture(discoveryProject);
+      commitFixture(discoveryScope);
 
       const artifactDir = ".kota/runs/worker-boundary/repo-ai-checks";
       let timerFired = false;
@@ -155,11 +155,11 @@ describe("queue and discovery blocking operations", () => {
       }, 0);
       const [promotion, decomposition, discovery] = await Promise.all([
         runWorkflowBlockingOperation(applyBacklogPromotionOperation, {
-          projectDir: backlogProject,
+          workspaceRoot: backlogProject,
           taskIds: ["task-worker-promotion"],
         }),
         runWorkflowBlockingOperation(applyDecompositionOperation, {
-          projectDir: decomposerProject,
+          workspaceRoot: decomposerProject,
           stateDir,
           assessment: {
             shouldDecompose: true,
@@ -183,19 +183,16 @@ describe("queue and discovery blocking operations", () => {
                 problem: "The original work requires a smaller execution unit.",
                 desiredOutcome: "The bounded slice is independently verifiable.",
                 constraints: ["Preserve the original task intent."],
-                doneWhen: ["Focused evidence proves the bounded result."],
-                sourceIntent: "Recover an exhausted builder task without blocking control.",
-                initiative: "Responsive daemon control.",
-                acceptanceEvidence: ["Focused worker integration output."],
+                howWeWillKnow: ["The bounded result is observable through the worker boundary."],
                 dependsOn: [],
               },
             ],
           },
         }),
         runWorkflowBlockingOperation(discoverRepoAiChecksOperation, {
-          projectDir: discoveryProject,
+          workspaceRoot: discoveryScope,
           artifactDir,
-          artifactDirPath: join(discoveryProject, artifactDir),
+          artifactDirPath: join(discoveryScope, artifactDir),
           assessment: {
             skip: false,
             repo: "owner/repo",
@@ -243,12 +240,12 @@ describe("queue and discovery blocking operations", () => {
         ],
       });
       expect(
-        existsSync(join(discoveryProject, artifactDir, "discovery.json")),
+        existsSync(join(discoveryScope, artifactDir, "discovery.json")),
       ).toBe(true);
     } finally {
       rmSync(backlogProject, { recursive: true, force: true });
       rmSync(decomposerProject, { recursive: true, force: true });
-      rmSync(discoveryProject, { recursive: true, force: true });
+      rmSync(discoveryScope, { recursive: true, force: true });
     }
   });
 });

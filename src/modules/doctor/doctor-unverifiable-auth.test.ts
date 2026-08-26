@@ -101,7 +101,7 @@ function registerAntigravityHarnessWithUnverifiableAuth(): void {
 }
 
 describe("kota doctor unverifiable harness auth", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalGeminiApiKey: string | undefined;
 
   beforeEach(() => {
@@ -112,7 +112,7 @@ describe("kota doctor unverifiable harness auth", () => {
     });
     clearAgentHarnessRegistryForTest();
     registerAntigravityHarnessWithUnverifiableAuth();
-    projectDir = makeTmpDir();
+    scopeRoot = makeTmpDir();
   });
 
   afterEach(() => {
@@ -122,13 +122,13 @@ describe("kota doctor unverifiable harness auth", () => {
       process.env.GEMINI_API_KEY = originalGeminiApiKey;
     }
     clearAgentHarnessRegistryForTest();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("warns without claiming Antigravity CLI auth is missing or ready", async () => {
     process.env.GEMINI_API_KEY = "g-test";
 
-    const results = await runDoctorChecks(projectDir, {
+    const results = await runDoctorChecks(scopeRoot, {
       preset: "antigravity-cli",
       skipConnectivity: true,
     });

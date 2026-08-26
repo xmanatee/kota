@@ -4,9 +4,10 @@ import type {
   CreateSessionOptions,
   ModuleSession,
 } from "#core/modules/module-types.js";
+import type { HistoryProvider } from "#core/modules/provider-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonConfig } from "./daemon-config.js";
-import type { ProjectRuntimeRegistry } from "./project-runtime.js";
+import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 type DaemonAgentSessionOptions = CreateSessionOptions & {
   resumeConversation?: string;
@@ -14,12 +15,13 @@ type DaemonAgentSessionOptions = CreateSessionOptions & {
 
 export function createDaemonAgentSessionFactories(
   config: DaemonConfig,
-  projectRuntimes: ProjectRuntimeRegistry,
+  scopeRuntimes: ScopeRuntimeRegistry,
+  resolveHistoryProvider?: (scopeId: string) => HistoryProvider,
 ): {
   makeAgentSession: (
     transport: Transport,
     autonomyMode: AutonomyMode,
-    projectId: string,
+    scopeId: string,
     options?: DaemonAgentSessionOptions,
   ) => AgentSession;
   createModuleSession: (options: CreateSessionOptions) => ModuleSession;
@@ -27,10 +29,10 @@ export function createDaemonAgentSessionFactories(
   const makeAgentSession = (
     transport: Transport,
     autonomyMode: AutonomyMode,
-    projectId: string,
+    scopeId: string,
     options: DaemonAgentSessionOptions = {},
   ): AgentSession => {
-    const runtime = projectRuntimes.get(projectId);
+    const runtime = scopeRuntimes.get(scopeId);
     return new AgentSession({
       autonomyMode,
       model: options.model ?? config.model ?? config.config?.model,
@@ -42,9 +44,10 @@ export function createDaemonAgentSessionFactories(
       noHistory: options.noHistory,
       historySource: options.historySource,
       reflectionEnabled: options.reflectionEnabled,
-      projectDir: runtime.project.projectDir,
-      projectRuntime: runtime,
+      scopeRoot: runtime.scope.scopeRoot,
+      scopeRuntime: runtime,
       moduleLoader: config.runtimeModuleHost?.moduleLoader,
+      historyProvider: resolveHistoryProvider?.(scopeId),
     });
   };
 
@@ -61,7 +64,7 @@ export function createDaemonAgentSessionFactories(
       return makeAgentSession(
         options.transport ?? new NullTransport(),
         autonomyMode,
-        options.projectId ?? projectRuntimes.getDefaultProjectId(),
+        options.scopeId ?? scopeRuntimes.getDefaultScopeId(),
         options,
       );
     },

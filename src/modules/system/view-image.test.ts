@@ -457,12 +457,12 @@ describe("runViewImage", () => {
 
 	it("resolves relative paths against runner context cwd", async () => {
 		setPlatform("win32");
-		const projectDir = "/selected/project";
-		const filePath = join(projectDir, "images", "chart.png");
+		const scopeRoot = "/selected/project";
+		const filePath = join(scopeRoot, "images", "chart.png");
 
 		const result = await runViewImage(
 			{ path: "images/chart.png", detail: "original" },
-			{ cwd: projectDir },
+			{ cwd: scopeRoot },
 		);
 
 		expect(result.is_error).toBeUndefined();

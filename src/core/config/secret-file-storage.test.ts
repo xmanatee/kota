@@ -50,19 +50,19 @@ describe("FileProvider secure storage", () => {
   });
 
   it("rejects a symbolic-link parent without changing files in its target", () => {
-    const projectDir = join(dir, "project");
+    const scopeRoot = join(dir, "project");
     const outsideDir = join(dir, "outside");
     const target = join(outsideDir, "secrets.json");
     const original = '{"SAFE":"unchanged"}\n';
-    mkdirSync(projectDir);
+    mkdirSync(scopeRoot);
     mkdirSync(outsideDir);
     writeFileSync(target, original);
     chmodSync(outsideDir, 0o755);
     chmodSync(target, 0o644);
-    symlinkSync(outsideDir, join(projectDir, ".kota"), "dir");
+    symlinkSync(outsideDir, join(scopeRoot, ".kota"), "dir");
 
     const provider = new FileProvider(
-      join(projectDir, ".kota", "secrets.json"),
+      join(scopeRoot, ".kota", "secrets.json"),
     );
 
     expect(() => provider.set("ATTACKER", "secret-value")).toThrow(

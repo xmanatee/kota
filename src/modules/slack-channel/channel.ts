@@ -3,6 +3,7 @@ import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
+import { SlackApprovalBindingStore } from "./approval-bindings.js";
 import { SlackBot } from "./bot.js";
 import { getSlackChannelConfig } from "./config.js";
 
@@ -34,7 +35,7 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				config: moduleCtx.config,
 				autonomyMode,
 				moduleLoader: ctx.moduleLoader,
-				getDefaultProjectRuntime: ctx.getDefaultProjectRuntime,
+				getDefaultScopeRuntime: ctx.getDefaultScopeRuntime,
 				recall: moduleCtx.client.recall,
 				answer: moduleCtx.client.answer,
 				capture: moduleCtx.client.capture,
@@ -43,37 +44,38 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				knowledge: moduleCtx.client.knowledge,
 				history: moduleCtx.client.history,
 				tasks: moduleCtx.client.tasks,
-				approvals: moduleCtx.client.approvals,
+				getApprovals: (scopeId) => moduleCtx.client.forScope(scopeId).approvals,
 				inboundSignals: config.inboundSignals
 					? {
-							getProjectId: () =>
-								ctx.getDefaultProjectRuntime().project.projectId,
+							getScopeId: () =>
+								ctx.getDefaultScopeRuntime().scope.scopeId,
 							config: config.inboundSignals,
 							events: moduleCtx.events,
 						}
 					: undefined,
 				attention: {
 					snapshot: () => renderOnDemandAttention({
-						projectDir: ctx.getDefaultProjectRuntime().project.projectDir,
+						scopeRoot: ctx.getDefaultScopeRuntime().scope.scopeRoot,
 						runsDir: ctx.getWorkflowStatus().runsDir,
 					}),
 				},
 				digest: {
 					snapshot: () => {
-						const projectDir = ctx.getDefaultProjectRuntime().project.projectDir;
+						const scopeRoot = ctx.getDefaultScopeRuntime().scope.scopeRoot;
 						return renderOnDemandDigest({
-							projectDir,
-							stateDir: join(projectDir, ".kota"),
+							scopeRoot,
+							stateDir: join(scopeRoot, ".kota"),
 						});
 					},
 				},
-			});
+			}, new SlackApprovalBindingStore(moduleCtx.storage));
 
 			const unsubscribeApproval = moduleCtx.events.subscribe(
 				"approval.requested",
 				(payload) => {
 					const id = payload.id as string;
-					void moduleCtx.client.approvals.list({ status: "pending" }).then((listed) => {
+					const scopedApprovals = moduleCtx.client.forScope(payload.scopeId).approvals;
+					void scopedApprovals.list({ status: "pending" }).then((listed) => {
 						const approval = listed.approvals.find((item) => item.id === id);
 						return approval ? bot.postApproval(approval) : undefined;
 					}).catch((error) => {

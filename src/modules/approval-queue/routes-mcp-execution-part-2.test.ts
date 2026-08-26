@@ -97,14 +97,14 @@ function mcpServerScript(toolDescription: string, toolResult: string): string {
 }
 
 function writeMcpConfig(
-	projectDir: string,
+	scopeRoot: string,
 	toolDescription: string,
 	toolResult = "remote executed",
 	serverOverrides: Record<string, unknown> = {},
 ): void {
-	mkdirSync(join(projectDir, ".kota"), { recursive: true });
+	mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
 	writeFileSync(
-		join(projectDir, ".kota", "mcp.json"),
+		join(scopeRoot, ".kota", "mcp.json"),
 		JSON.stringify({
 			mcpServers: {
 				remote: {
@@ -124,10 +124,10 @@ type McpPromptSnapshot = {
 	serverTransportIdentityFingerprint: string;
 };
 
-async function currentMcpPromptSnapshot(projectDir: string): Promise<McpPromptSnapshot> {
-	const config = McpManager.loadConfig(projectDir);
+async function currentMcpPromptSnapshot(scopeRoot: string): Promise<McpPromptSnapshot> {
+	const config = McpManager.loadConfig(scopeRoot);
 	if (!config) throw new Error("expected MCP test config");
-	const manager = new McpManager({ projectDir });
+	const manager = new McpManager({ scopeRoot });
 	try {
 		await manager.initialize(config);
 		const declarationFingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
@@ -184,13 +184,13 @@ describe("approval route MCP execution", () => {
 	);
 
 	it("rejects an MCP approval when the server transport identity changed under the same tool declaration", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-transport-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-approval-mcp-transport-"));
 		try {
 			const toolDescription = "Stable lookup declaration";
-			writeMcpConfig(projectDir, toolDescription, "old remote");
-			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
-			writeMcpConfig(projectDir, toolDescription, "new remote");
-			const currentSnapshot = await currentMcpPromptSnapshot(projectDir);
+			writeMcpConfig(scopeRoot, toolDescription, "old remote");
+			const promptSnapshot = await currentMcpPromptSnapshot(scopeRoot);
+			writeMcpConfig(scopeRoot, toolDescription, "new remote");
+			const currentSnapshot = await currentMcpPromptSnapshot(scopeRoot);
 			expect(currentSnapshot.declarationFingerprint).toBe(promptSnapshot.declarationFingerprint);
 			expect(currentSnapshot.serverTransportIdentityFingerprint).not.toBe(
 				promptSnapshot.serverTransportIdentityFingerprint,
@@ -215,7 +215,7 @@ describe("approval route MCP execution", () => {
 			);
 			const { res, result } = mockResponse();
 
-			await withCwd(projectDir, () =>
+			await withCwd(scopeRoot, () =>
 				handleApproveApproval(approvalRequest(queue, item.id), res, item.id, null, queue)
 			);
 
@@ -235,6 +235,6 @@ describe("approval route MCP execution", () => {
 			expect(queue.get(item.id)?.status).toBe("pending");
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 		}
 	});});

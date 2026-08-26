@@ -50,10 +50,10 @@ export async function apiJson<T>(
   return response.json() as Promise<T>;
 }
 
-export function withProject(path: string, projectId: string): string {
-  if (!projectId) return path;
+export function withScope(path: string, scopeId: string): string {
+  if (!scopeId) return path;
   const separator = path.includes("?") ? "&" : "?";
-  return `${path}${separator}projectId=${encodeURIComponent(projectId)}`;
+  return `${path}${separator}scopeId=${encodeURIComponent(scopeId)}`;
 }
 
 export async function apiDecoded<T>(

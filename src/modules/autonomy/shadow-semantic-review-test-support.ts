@@ -11,13 +11,14 @@ import { createTestTransactionalRunState } from "#core/workflow/testing/run-cont
 import type { ExecutableShadowSemanticReviewerDeclaration } from "./shadow-semantic-review.js";
 
 export function makeShadowReviewContext(
-  projectDir: string,
+  workspaceRoot: string,
   runDirPath: string,
 ): WorkflowStepContext {
   return {
-    projectDir,
-    scopeDir: projectDir,
-    stateDir: join(projectDir, ".kota"),
+    scopeId: "test-scope",
+    workspaceRoot,
+    scopeRoot: workspaceRoot,
+    stateDir: join(workspaceRoot, ".kota"),
     state: createTestTransactionalRunState(),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
@@ -72,24 +73,24 @@ export function baseShadowReviewDeclaration(
   };
 }
 
-export function makeShadowReviewDirs(): { projectDir: string; runDirPath: string } {
-  const projectDir = mkdtempSync(join(tmpdir(), "shadow-review-"));
-  const runDirPath = join(projectDir, ".kota", "runs", "run-shadow-fixture");
+export function makeShadowReviewDirs(): { workspaceRoot: string; runDirPath: string } {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "shadow-review-"));
+  const runDirPath = join(workspaceRoot, ".kota", "runs", "run-shadow-fixture");
   mkdirSync(runDirPath, { recursive: true });
-  return { projectDir, runDirPath };
+  return { workspaceRoot, runDirPath };
 }
 
-export function git(projectDir: string, args: readonly string[]): string {
+export function git(workspaceRoot: string, args: readonly string[]): string {
   return execFileSync("git", [...args], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     env: withProtectedGitBareRepositoryEnv(),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-export function writeProjectFile(projectDir: string, path: string, content: string): void {
-  const absolutePath = join(projectDir, path);
+export function writeProjectFile(workspaceRoot: string, path: string, content: string): void {
+  const absolutePath = join(workspaceRoot, path);
   mkdirSync(dirname(absolutePath), { recursive: true });
   writeFileSync(absolutePath, content, "utf8");
 }

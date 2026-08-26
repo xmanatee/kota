@@ -15,8 +15,8 @@ function status(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workflowPaused: false,
     sessions: 0,
     pendingApprovals: 0,
-    projectDir: "/repo",
-    projectName: "repo",
+    scopeRoot: "/repo",
+    scopeName: "repo",
     controlFile: { kind: "missing" },
     runProjection: {
       available: true,
@@ -36,7 +36,7 @@ describe("Status UI run sandboxes", () => {
         runs: [
           {
             runId: "run-ui",
-            projectId: "project-repo",
+            scopeId: "scope-repo",
             workflow: "builder",
             state: "needs_attention",
             resources: ["repository:write", "port:41000-41019"],

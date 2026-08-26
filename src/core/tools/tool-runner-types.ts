@@ -73,7 +73,7 @@ export type ToolCallExecutionOptions = {
 	getScopePolicySnapshot?: ScopePolicySnapshotAccessor;
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
-	projectDir?: string;
+	scopeRoot?: string;
 	cwd?: string;
 	agentWriteScope?: AgentWriteScope;
 	agentOutputDir?: string;
@@ -81,7 +81,6 @@ export type ToolCallExecutionOptions = {
 	authorityConfigPath?: string;
 	workflowContext?: AgentHarnessWorkflowContext;
 	scopeId?: string;
-	projectId?: string;
 	messages?: KotaMessage[];
 	idempotencyStore?: IdempotencyStore;
 	tokenBudget?: AgentTokenBudgetLedger;

@@ -64,8 +64,8 @@ const CHECK_ROOTS: readonly CheckRoot[] = [
   { source: "continue", root: ".continue/checks", precedence: 1 },
 ];
 
-function normalizeRelativePath(projectDir: string, filePath: string): string {
-  return relative(projectDir, filePath).split(sep).join("/");
+function normalizeRelativePath(repoRoot: string, filePath: string): string {
+  return relative(repoRoot, filePath).split(sep).join("/");
 }
 
 function isMarkdownFile(name: string): boolean {
@@ -86,10 +86,10 @@ function fail(filePath: string, message: string): never {
   throw new RepoAiCheckDiscoveryError(`${filePath}: ${message}`);
 }
 
-function parseCheckFile(projectDir: string, root: CheckRoot, filePath: string): ParsedCheckCandidate {
+function parseCheckFile(repoRoot: string, root: CheckRoot, filePath: string): ParsedCheckCandidate {
   const content = readFileSync(filePath, "utf8");
   const split = splitFrontMatter(content);
-  const relativePath = normalizeRelativePath(projectDir, filePath);
+  const relativePath = normalizeRelativePath(repoRoot, filePath);
   if (!split) {
     fail(relativePath, "check file must start with valid frontmatter");
   }
@@ -131,24 +131,24 @@ function parseCheckFile(projectDir: string, root: CheckRoot, filePath: string): 
   };
 }
 
-function listNestedMarkdownFiles(dir: string, projectDir: string): string[] {
+function listNestedMarkdownFiles(dir: string, repoRoot: string): string[] {
   const nested: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
     const fullPath = join(dir, entry.name);
     if (entry.isDirectory()) {
-      nested.push(...listNestedMarkdownFiles(fullPath, projectDir));
+      nested.push(...listNestedMarkdownFiles(fullPath, repoRoot));
     } else if (entry.isFile() && isMarkdownFile(entry.name)) {
-      nested.push(normalizeRelativePath(projectDir, fullPath));
+      nested.push(normalizeRelativePath(repoRoot, fullPath));
     }
   }
   return nested.sort((a, b) => a.localeCompare(b));
 }
 
-function discoverRoot(projectDir: string, root: CheckRoot): {
+function discoverRoot(repoRoot: string, root: CheckRoot): {
   candidates: ParsedCheckCandidate[];
   diagnostics: RepoAiCheckDiagnostic[];
 } {
-  const rootPath = join(projectDir, root.root);
+  const rootPath = join(repoRoot, root.root);
   if (!existsSync(rootPath)) return { candidates: [], diagnostics: [] };
   if (!statSync(rootPath).isDirectory()) {
     throw new RepoAiCheckDiscoveryError(`${root.root}: check root exists but is not a directory`);
@@ -160,11 +160,11 @@ function discoverRoot(projectDir: string, root: CheckRoot): {
   for (const entry of entries) {
     const filePath = join(rootPath, entry.name);
     if (entry.isFile() && isMarkdownFile(entry.name)) {
-      candidates.push(parseCheckFile(projectDir, root, filePath));
+      candidates.push(parseCheckFile(repoRoot, root, filePath));
       continue;
     }
     if (entry.isDirectory()) {
-      for (const path of listNestedMarkdownFiles(filePath, projectDir)) {
+      for (const path of listNestedMarkdownFiles(filePath, repoRoot)) {
         diagnostics.push({
           type: "ignored-nested-file",
           path,
@@ -245,11 +245,11 @@ function chooseDuplicateWinners(candidates: ParsedCheckCandidate[]): {
   };
 }
 
-export function discoverRepoAiChecks(projectDir: string): RepoAiCheckDiscovery {
+export function discoverRepoAiChecks(repoRoot: string): RepoAiCheckDiscovery {
   const allCandidates: ParsedCheckCandidate[] = [];
   const diagnostics: RepoAiCheckDiagnostic[] = [];
   for (const root of CHECK_ROOTS) {
-    const discovered = discoverRoot(projectDir, root);
+    const discovered = discoverRoot(repoRoot, root);
     allCandidates.push(...discovered.candidates);
     diagnostics.push(...discovered.diagnostics);
   }

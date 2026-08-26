@@ -16,10 +16,10 @@ export type DaemonOwnershipFilename =
 
 export type DaemonStateRoot =
   | {
-      kind: "project-owned";
+      kind: "scope-owned";
       path: string;
-      projectRootPath: string;
-      projectRootIdentity: FileIdentity;
+      scopeRootPath: string;
+      scopeRootIdentity: FileIdentity;
       directoryIdentity: FileIdentity;
     }
   | {
@@ -34,28 +34,28 @@ export type AnchoredFileSnapshot =
 type HelperRequest =
   | {
       operation: "ensure";
-      projectRootPath: string;
-      projectRootIdentity: FileIdentity;
+      scopeRootPath: string;
+      scopeRootIdentity: FileIdentity;
     }
   | {
       operation: "read";
-      projectRootPath: string;
-      projectRootIdentity: FileIdentity;
+      scopeRootPath: string;
+      scopeRootIdentity: FileIdentity;
       directoryIdentity: FileIdentity;
       filename: DaemonOwnershipFilename;
     }
   | {
       operation: "create";
-      projectRootPath: string;
-      projectRootIdentity: FileIdentity;
+      scopeRootPath: string;
+      scopeRootIdentity: FileIdentity;
       directoryIdentity: FileIdentity;
       filename: DaemonOwnershipFilename;
       contents: string;
     }
   | {
       operation: "remove";
-      projectRootPath: string;
-      projectRootIdentity: FileIdentity;
+      scopeRootPath: string;
+      scopeRootIdentity: FileIdentity;
       directoryIdentity: FileIdentity;
       filename: DaemonOwnershipFilename;
       expectedIdentity: FileIdentity;
@@ -103,51 +103,51 @@ function unwrap(response: HelperResponse, path: string): Extract<HelperResponse,
 }
 
 function anchoredRequest(
-  root: Extract<DaemonStateRoot, { kind: "project-owned" }>,
+  root: Extract<DaemonStateRoot, { kind: "scope-owned" }>,
 ): Pick<
   Extract<HelperRequest, { operation: "read" }>,
-  "projectRootPath" | "projectRootIdentity" | "directoryIdentity"
+  "scopeRootPath" | "scopeRootIdentity" | "directoryIdentity"
 > {
   return {
-    projectRootPath: root.projectRootPath,
-    projectRootIdentity: root.projectRootIdentity,
+    scopeRootPath: root.scopeRootPath,
+    scopeRootIdentity: root.scopeRootIdentity,
     directoryIdentity: root.directoryIdentity,
   };
 }
 
 export function prepareDaemonStateRoot(
-  projectDir: string,
+  scopeRoot: string,
   configuredStateDir: string | undefined,
 ): DaemonStateRoot {
   if (configuredStateDir !== undefined) {
     return { kind: "operator-configured", path: configuredStateDir };
   }
 
-  const projectRootPath = realpathSync.native(resolve(projectDir));
-  const projectStats = lstatSync(projectRootPath);
-  if (!projectStats.isDirectory()) {
-    throw new Error(`${projectRootPath}: daemon project root must be a directory`);
+  const scopeRootPath = realpathSync.native(resolve(scopeRoot));
+  const scopeStats = lstatSync(scopeRootPath);
+  if (!scopeStats.isDirectory()) {
+    throw new Error(`${scopeRootPath}: daemon scope root must be a directory`);
   }
-  const projectRootIdentity = identity(projectStats);
-  const path = join(projectRootPath, ".kota");
+  const scopeRootIdentity = identity(scopeStats);
+  const path = join(scopeRootPath, ".kota");
   const response = unwrap(
-    runHelper({ operation: "ensure", projectRootPath, projectRootIdentity }),
+    runHelper({ operation: "ensure", scopeRootPath, scopeRootIdentity }),
     path,
   );
   if (response.directoryIdentity === undefined) {
     throw new Error("isolated daemon state filesystem helper omitted the directory identity");
   }
   return {
-    kind: "project-owned",
+    kind: "scope-owned",
     path,
-    projectRootPath,
-    projectRootIdentity,
+    scopeRootPath,
+    scopeRootIdentity,
     directoryIdentity: response.directoryIdentity,
   };
 }
 
 export function readAnchoredDaemonOwnershipFile(
-  root: Extract<DaemonStateRoot, { kind: "project-owned" }>,
+  root: Extract<DaemonStateRoot, { kind: "scope-owned" }>,
   filename: DaemonOwnershipFilename,
 ): AnchoredFileSnapshot {
   const response = unwrap(
@@ -161,7 +161,7 @@ export function readAnchoredDaemonOwnershipFile(
 }
 
 export function createAnchoredDaemonOwnershipFile(
-  root: Extract<DaemonStateRoot, { kind: "project-owned" }>,
+  root: Extract<DaemonStateRoot, { kind: "scope-owned" }>,
   filename: DaemonOwnershipFilename,
   contents: string,
 ): boolean {
@@ -176,7 +176,7 @@ export function createAnchoredDaemonOwnershipFile(
 }
 
 export function removeAnchoredDaemonOwnershipFile(
-  root: Extract<DaemonStateRoot, { kind: "project-owned" }>,
+  root: Extract<DaemonStateRoot, { kind: "scope-owned" }>,
   filename: DaemonOwnershipFilename,
   expectedIdentity: FileIdentity,
 ): boolean {

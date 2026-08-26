@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, type Mock, vi } from "vitest";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { ApprovalsClient } from "#modules/approval-queue/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
@@ -40,7 +40,7 @@ vi.mock("./client.js", async () => {
   });
   return {
     ...actual,
-    callSlackApi: vi.fn().mockResolvedValue({}),
+    callSlackApi: vi.fn().mockResolvedValue({ channel: "C1", ts: "1234.5678" }),
     openSocketModeUrl: vi.fn().mockResolvedValue("wss://fake.slack.com/ws"),
     SlackTransport,
     RECONNECT_DELAY_MS: 0,
@@ -127,7 +127,7 @@ export function makeStubClients(): {
     },
     history: {
       list: vi.fn(),
-      listDiscoveredProjectRecords: vi.fn(),
+      listDiscoveredScopeRecords: vi.fn(),
       show: vi.fn(),
       delete: vi.fn(),
       search: vi.fn(),
@@ -167,13 +167,15 @@ export function makeStubClients(): {
 }
 
 export function makeBot(overrides?: Partial<ConstructorParameters<typeof SlackBot>[0]>) {
+  const { approvals, ...clients } = makeStubClients();
+  const { getApprovals, ...optionOverrides } = overrides ?? {};
   const runtime = {
-    project: {
-      projectId: "test-project",
-      projectDir: "/tmp/test-project",
+    scope: {
+      scopeId: "test-scope",
+      scopeRoot: "/tmp/test-scope",
       displayName: "Test Project",
     },
-  } as ProjectRuntime;
+  } as ScopeRuntime;
   return new SlackBot({
     botToken: "xoxb-test",
     appToken: "xapp-test",
@@ -181,9 +183,10 @@ export function makeBot(overrides?: Partial<ConstructorParameters<typeof SlackBo
     allowedUserIds: ["U1", "U2", "U-SLASH", "U-FREE"],
     notifyChannel: "C-NOTIFY",
     autonomyMode: "supervised",
-    getDefaultProjectRuntime: () => runtime,
-    ...makeStubClients(),
-    ...overrides,
+    getDefaultScopeRuntime: () => runtime,
+    ...clients,
+    getApprovals: getApprovals ?? (() => approvals),
+    ...optionOverrides,
   });
 }
 
@@ -235,7 +238,7 @@ export function setupSlackBotTestHooks(): void {
     MockWebSocket.reset();
     vi.stubGlobal("WebSocket", MockWebSocket);
     mockedCallSlackApi.mockReset();
-    mockedCallSlackApi.mockResolvedValue({} as never);
+    mockedCallSlackApi.mockResolvedValue({ channel: "C1", ts: "1234.5678" } as never);
     mockedOpenSocketModeUrl.mockReset();
     mockedOpenSocketModeUrl.mockResolvedValue("wss://fake.slack.com/ws");
     agentSessionMock.mockClear();

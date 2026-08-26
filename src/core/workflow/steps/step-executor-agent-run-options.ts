@@ -61,20 +61,19 @@ export function buildAgentHarnessRunOptions(input: {
     onMessage,
     tokenBudget,
   } = input;
-  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
+  const workspaceDir = agentConfig.workspaceRoot ?? agentConfig.scopeRoot;
   const agentWriteScope = step.agentName === undefined
     ? undefined
     : agentConfig.resolveAgentDef?.(step.agentName)?.writeScope;
   const agentOutputDir = resolveAgentRunDir({
     metadata,
-    projectDir: agentConfig.projectDir,
+    scopeRoot: agentConfig.scopeRoot,
     ...(agentConfig.runtimeResources === undefined
       ? {}
       : { runtimeResources: agentConfig.runtimeResources }),
   });
   mkdirSync(agentOutputDir, { recursive: true });
-  const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.projectDir);
-  const projectId = agentConfig.projectId ?? scopeId;
+  const scopeId = agentConfig.scopeId ?? deriveDirectoryScopeId(agentConfig.scopeRoot);
   const scopePolicyAuthority = agentConfig.scopePolicyAuthority;
   const getScopePolicySnapshot = scopePolicyAuthority === undefined
     ? undefined
@@ -116,7 +115,7 @@ export function buildAgentHarnessRunOptions(input: {
   return {
     options: {
       ...contract.options,
-      projectDir: agentConfig.projectDir,
+      scopeRoot: agentConfig.scopeRoot,
       cwd: workspaceDir,
       ...(agentWriteScope !== undefined ? { agentWriteScope } : {}),
       agentOutputDir,
@@ -145,7 +144,6 @@ export function buildAgentHarnessRunOptions(input: {
         stepId: step.id,
         spanId: `${metadata.id}:${step.id}`,
         scopeId,
-        projectId,
       },
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
       ...(agentConfig.onUsage !== undefined ? { onUsage: agentConfig.onUsage } : {}),

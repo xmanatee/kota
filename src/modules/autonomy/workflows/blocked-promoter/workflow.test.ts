@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { AwaitEventStepOutput } from "#core/workflow/steps/step-executor-await-event.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import {
   readOperatorCaptureInstructedMarker,
   renderOperatorCaptureInstructedMarker,
@@ -88,23 +89,13 @@ function makeStubQueue(state: StubQueueState) {
   };
 }
 
-function awaitAnsweredOutput(): AwaitEventStepOutput {
-  return {
-    kind: "event",
-    event: "owner.question.resolved",
-    matchField: "id",
-    matchValue: "q-stub-blocked-1",
-    payload: { id: "q-stub-blocked-1", answered: true },
-  };
-}
-
 async function runOwnerDecisionCycle(args: {
-  projectDir: string;
+  workspaceRoot: string;
   queue: ReturnType<typeof makeStubQueue>;
 }): Promise<{
-  requestRun: Awaited<ReturnType<WorkflowTestHarness["run"]>>;
-  followUpRun: Awaited<ReturnType<WorkflowTestHarness["run"]>>;
-  resolutionRun: Awaited<ReturnType<WorkflowTestHarness["run"]>>;
+  requestRun: Awaited<ReturnType<WorkflowScenarioDriver["run"]>>;
+  followUpRun: Awaited<ReturnType<WorkflowScenarioDriver["run"]>>;
+  resolutionRun: Awaited<ReturnType<WorkflowScenarioDriver["run"]>>;
 }> {
   const { getOwnerQuestionQueue } = await import(
     "#core/daemon/owner-question-queue.js"
@@ -112,38 +103,37 @@ async function runOwnerDecisionCycle(args: {
   vi.mocked(getOwnerQuestionQueue).mockReturnValue(
     args.queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
   );
-  const requestRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
-    trigger: { event: "autonomy.queue.available", payload: {} },
-    projectDir: args.projectDir,
-  }).run();
+  const requestRun = await runBlockedScenario(args.workspaceRoot, {
+    event: "autonomy.queue.available",
+    payload: {},
+  });
   const request = requestRun.emitted.find(
     (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   )?.payload as BlockedOwnerDecisionRequest | undefined;
   if (!request) throw new Error("blocked-promoter did not emit an owner request");
-  const followUpRun = await new WorkflowTestHarness(
+  const followUpRun = await new WorkflowScenarioDriver(
     blockedPromoterOwnerDecisionWorkflow,
     {
       trigger: {
         event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
         payload: request,
       },
-      projectDir: args.projectDir,
-      stepMocks: {
-        "blocked-promoter-owner-decision-wait": awaitAnsweredOutput(),
-      },
+      workspaceRoot: args.workspaceRoot,
+      events: [{
+        afterStep: "blocked-promoter-owner-decision-wait",
+        event: "owner.question.resolved",
+        payload: { id: "q-stub-blocked-1", answered: true, answer: "" },
+      }],
     },
   ).run();
   const resolution = followUpRun.emitted.find(
     (event) => event.event === BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
   )?.payload as BlockedOwnerDecisionResolution | undefined;
   if (!resolution) throw new Error("owner follow-up did not emit a resolution");
-  const resolutionRun = await new WorkflowTestHarness(blockedPromoterWorkflow, {
-    trigger: {
+  const resolutionRun = await runBlockedScenario(args.workspaceRoot, {
       event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
       payload: resolution,
-    },
-    projectDir: args.projectDir,
-  }).run();
+  });
   return { requestRun, followUpRun, resolutionRun };
 }
 
@@ -195,12 +185,13 @@ const TASK_TEMPLATE = (
   ].join("\n");
 };
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "blocked-promoter-wf-"));
   writeFileSync(
     join(dir, "package.json"),
     JSON.stringify({ scripts: { "validate-tasks": "true" } }),
   );
+  writeFileSync(join(dir, ".gitignore"), ".kota/\n");
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
@@ -217,6 +208,17 @@ function commitInitial(dir: string) {
   execFileSync("git", ["commit", "-m", "initial", "--quiet"], { cwd: dir });
 }
 
+function runBlockedScenario(
+  workspaceRoot: string,
+  trigger: Pick<WorkflowRunTrigger, "event" | "payload">,
+) {
+  return new WorkflowScenarioDriver(blockedPromoterWorkflow, {
+    trigger,
+    workspaceRoot,
+    ports: { runCommand: successfulWorkflowCommandRun },
+  }).run();
+}
+
 describe("blocked-promoter workflow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -224,16 +226,16 @@ describe("blocked-promoter workflow", () => {
 
   it("auto-promotes tasks whose deterministic preconditions are satisfied", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
 
     // Enabler in done/
     writeFileSync(
-      join(projectDir, "data", "tasks", "done", "task-enabler.md"),
+      join(workspaceRoot, "data", "tasks", "done", "task-enabler.md"),
       "---\nid: task-enabler\nstatus: done\n---\n# done\n",
     );
     // task-done precondition referencing the enabler
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-depends-on-enabler.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-depends-on-enabler.md"),
       TASK_TEMPLATE(
         "task-depends-on-enabler",
         [
@@ -247,11 +249,11 @@ describe("blocked-promoter workflow", () => {
       ),
     );
     // operator-capture precondition with a proof artifact
-    const completeCaptureDir = join(projectDir, ".kota", "runs", "harness-parity-x");
+    const completeCaptureDir = join(workspaceRoot, ".kota", "runs", "harness-parity-x");
     mkdirSync(completeCaptureDir, { recursive: true });
     writeFileSync(join(completeCaptureDir, "capture-proof.md"), "operator proof\n");
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-needs-capture.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-needs-capture.md"),
       TASK_TEMPLATE(
         "task-needs-capture",
         [
@@ -267,7 +269,7 @@ describe("blocked-promoter workflow", () => {
     );
     // capability-installed (storageState) precondition that does NOT match yet
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-needs-storage.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-needs-storage.md"),
       TASK_TEMPLATE(
         "task-needs-storage",
         [
@@ -280,14 +282,12 @@ describe("blocked-promoter workflow", () => {
         ].join("\n"),
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
+    const result = await runBlockedScenario(workspaceRoot, {
+      event: "autonomy.queue.available",
+      payload: {},
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     const promotion = result.steps["promote-deterministic"].output as {
@@ -301,30 +301,30 @@ describe("blocked-promoter workflow", () => {
     // The task-needs-storage one stayed blocked (capability not present).
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "blocked", "task-needs-storage.md"),
+        join(result.workspaceDir, "data", "tasks", "blocked", "task-needs-storage.md"),
       ),
     ).toBe(true);
     // Promoted tasks landed in backlog (p2 → backlog).
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "backlog", "task-depends-on-enabler.md"),
+        join(result.workspaceDir, "data", "tasks", "backlog", "task-depends-on-enabler.md"),
       ),
     ).toBe(true);
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "backlog", "task-needs-capture.md"),
+        join(result.workspaceDir, "data", "tasks", "backlog", "task-needs-capture.md"),
       ),
     ).toBe(true);
   });
 
   it("keeps a partial operator-capture directory blocked and refreshes instructions", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
-    const captureDir = join(projectDir, ".kota", "runs", "telegram-deploy-staging");
+    const workspaceRoot = makeScopeRoot();
+    const captureDir = join(workspaceRoot, ".kota", "runs", "telegram-deploy-staging");
     mkdirSync(captureDir, { recursive: true });
     writeFileSync(join(captureDir, "smoke.txt"), "daemon smoke test passed\n");
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
       TASK_TEMPLATE(
         "task-needs-telegram-proof",
         [
@@ -338,14 +338,12 @@ describe("blocked-promoter workflow", () => {
         ].join("\n"),
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
+    const result = await runBlockedScenario(workspaceRoot, {
+      event: "autonomy.queue.available",
+      payload: {},
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     const promotion = result.steps["promote-deterministic"].output as {
@@ -356,12 +354,12 @@ describe("blocked-promoter workflow", () => {
     );
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+        join(result.workspaceDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
       ),
     ).toBe(true);
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "backlog", "task-needs-telegram-proof.md"),
+        join(result.workspaceDir, "data", "tasks", "backlog", "task-needs-telegram-proof.md"),
       ),
     ).toBe(false);
     const instructions = (
@@ -376,7 +374,7 @@ describe("blocked-promoter workflow", () => {
     });
     expect(instructions[0].reason).toContain("no operator-visible proof");
     const taskBody = readFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      join(result.workspaceDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(taskBody)).not.toBeNull();
@@ -403,9 +401,9 @@ describe("blocked-promoter workflow", () => {
 
   it("re-asks the owner for a due owner-decision and promotes on approval", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
@@ -421,11 +419,11 @@ describe("blocked-promoter workflow", () => {
         ].join("\n"),
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const queue = makeStubQueue({ status: "answered", answer: "unblock" });
     const { requestRun, followUpRun, resolutionRun: result } =
-      await runOwnerDecisionCycle({ projectDir, queue });
+      await runOwnerDecisionCycle({ workspaceRoot, queue });
 
     expect(requestRun.status).toBe("success");
     expect(followUpRun.steps["blocked-promoter-owner-decision-ask"].status).toBe("success");
@@ -441,16 +439,16 @@ describe("blocked-promoter workflow", () => {
     expect(followups.map((p) => p.id)).toContain("task-pick-variant");
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "backlog", "task-pick-variant.md"),
+        join(result.workspaceDir, "data", "tasks", "backlog", "task-pick-variant.md"),
       ),
     ).toBe(true);
   });
 
   it("refreshes the asked marker on a non-approval answer without promoting", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
@@ -466,18 +464,18 @@ describe("blocked-promoter workflow", () => {
         ].join("\n"),
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const queue = makeStubQueue({ status: "answered", answer: "still thinking" });
     const { resolutionRun: result } = await runOwnerDecisionCycle({
-      projectDir,
+      workspaceRoot,
       queue,
     });
 
     expect(result.status).toBe("success");
     expect(result.steps["promote-after-approval"].status).toBe("skipped");
     const taskBody = readFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(result.workspaceDir, "data", "tasks", "blocked", "task-pick-variant.md"),
       "utf-8",
     );
     expect(taskBody).toContain("blocked-promoter-asked: slot=pick-variant");
@@ -486,13 +484,13 @@ describe("blocked-promoter workflow", () => {
 
   it("skips owner ask when the marker is fresher than 14 days", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const recentMarker = renderOwnerAskMarker({
       slot: "pick-variant",
       lastAskedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     });
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
@@ -509,14 +507,12 @@ describe("blocked-promoter workflow", () => {
         recentMarker,
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
+    const result = await runBlockedScenario(workspaceRoot, {
+      event: "autonomy.queue.available",
+      payload: {},
     });
-
-    const result = await harness.run();
 
     expect(result.steps["emit-owner-decision-requested"].status).toBe("skipped");
     expect(result.steps["promote-after-approval"].status).toBe("skipped");
@@ -530,10 +526,10 @@ describe("blocked-promoter workflow", () => {
 
   it("instructs an aged operator-capture blocker and writes the run artifact", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-aged-capture.md"),
       TASK_TEMPLATE(
         "task-aged-capture",
         [
@@ -549,13 +545,12 @@ describe("blocked-promoter workflow", () => {
         oldUpdatedAt,
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
+    const result = await runBlockedScenario(workspaceRoot, {
+      event: "autonomy.queue.available",
+      payload: {},
     });
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["instruct-operator-capture"].status).toBe("success");
@@ -567,7 +562,7 @@ describe("blocked-promoter workflow", () => {
     expect(instructions.map((i) => i.taskId)).toEqual(["task-aged-capture"]);
     // The marker is written to the task body.
     const body = readFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      join(result.workspaceDir, "data", "tasks", "blocked", "task-aged-capture.md"),
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(body)).not.toBeNull();
@@ -590,13 +585,13 @@ describe("blocked-promoter workflow", () => {
 
   it("does not re-instruct an aged operator-capture within the cadence", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
     const recentMarker = renderOperatorCaptureInstructedMarker({
       lastInstructedAt: new Date(Date.now() - 1 * MS_PER_DAY).toISOString(),
     });
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-aged-capture.md"),
       TASK_TEMPLATE(
         "task-aged-capture",
         [
@@ -612,13 +607,12 @@ describe("blocked-promoter workflow", () => {
         oldUpdatedAt,
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
+    const result = await runBlockedScenario(workspaceRoot, {
+      event: "autonomy.queue.available",
+      payload: {},
     });
-    const result = await harness.run();
 
     expect(result.steps["instruct-operator-capture"].status).toBe("skipped");
     // The artifact still records the recent classification but no new instruction.
@@ -636,9 +630,9 @@ describe("blocked-promoter workflow", () => {
 
   it("surfaces the recommended option in the owner-ask question", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
@@ -654,7 +648,7 @@ describe("blocked-promoter workflow", () => {
         ].join("\n"),
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
     const recordedEnqueueArgs: Array<{
       proposedAnswers?: string[];
@@ -678,7 +672,7 @@ describe("blocked-promoter workflow", () => {
       queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
     );
 
-    await runOwnerDecisionCycle({ projectDir, queue });
+    await runOwnerDecisionCycle({ workspaceRoot, queue });
 
     expect(recordedEnqueueArgs).toHaveLength(1);
     expect(recordedEnqueueArgs[0].proposedAnswers?.[0]).toBe("variant-a");
@@ -688,13 +682,13 @@ describe("blocked-promoter workflow", () => {
 
   it("promotes already-resolved owner-decision tasks deterministically", async () => {
     await mockCleanWorktree();
-    const projectDir = makeProjectDir();
+    const workspaceRoot = makeScopeRoot();
     const resolvedMarker = renderOwnerResolvedMarker({
       slot: "pick-variant",
       resolvedAt: "2026-04-24T00:00:00.000Z",
     });
     writeFileSync(
-      join(projectDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
@@ -711,20 +705,19 @@ describe("blocked-promoter workflow", () => {
         resolvedMarker,
       ),
     );
-    commitInitial(projectDir);
+    commitInitial(workspaceRoot);
 
-    const harness = new WorkflowTestHarness(blockedPromoterWorkflow, {
-      trigger: { event: "autonomy.queue.available", payload: {} },
-      projectDir,
+    const result = await runBlockedScenario(workspaceRoot, {
+      event: "autonomy.queue.available",
+      payload: {},
     });
-    const result = await harness.run();
     const promotion = result.steps["promote-deterministic"].output as {
       promotions: Array<{ id: string }>;
     };
     expect(promotion.promotions.map((p) => p.id)).toContain("task-pick-variant");
     expect(
       existsSync(
-        join(projectDir, "data", "tasks", "backlog", "task-pick-variant.md"),
+        join(result.workspaceDir, "data", "tasks", "backlog", "task-pick-variant.md"),
       ),
     ).toBe(true);
   });

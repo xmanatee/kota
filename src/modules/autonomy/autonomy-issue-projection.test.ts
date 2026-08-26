@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_FILE,
@@ -51,17 +51,17 @@ function observation(args: {
 }
 
 describe("durable autonomy issue projection", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("reduces observations and dispositions without writing private state", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-autonomy-issues-"));
-    projectDirs.push(projectDir);
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-issues-"));
+    scopeRoots.push(workspaceRoot);
     const observations = [
       observation({ runId: "run-1", observedAt: "2026-06-17T12:00:00.000Z" }),
       observation({ runId: "run-2", observedAt: "2026-06-17T13:00:00.000Z" }),
@@ -97,12 +97,12 @@ describe("durable autonomy issue projection", () => {
       disposition: { kind: "task", semanticRevision: 2 },
       links: { taskIds: ["task-health-builder"] },
     });
-    expect(existsSync(join(projectDir, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
+    expect(existsSync(join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
   });
 
   it("stages one CAS and materializes only from the published state row", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-autonomy-publish-"));
-    projectDirs.push(projectDir);
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-publish-"));
+    scopeRoots.push(workspaceRoot);
     const state = createTestTransactionalRunState();
     const current = emptyAutonomyIssueProjection();
     const next = applyAutonomyIssueObservations({
@@ -123,7 +123,7 @@ describe("durable autonomy issue projection", () => {
       emit,
       stepId: "publish:test",
     })).toBe(true);
-    expect(existsSync(join(projectDir, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
+    expect(existsSync(join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
     expect(emit).toHaveBeenCalledWith(
       AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
       {
@@ -133,8 +133,8 @@ describe("durable autonomy issue projection", () => {
       { delivery: "on-run-success", stepId: "publish:test" },
     );
 
-    const result = await new WorkflowTestHarness(materializationWorkflow, {
-      projectDir,
+    const result = await new WorkflowScenarioDriver(materializationWorkflow, {
+      workspaceRoot,
       trigger: {
         event: AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
         schemaRef: null,
@@ -143,10 +143,10 @@ describe("durable autonomy issue projection", () => {
           stateRevision: 1,
         },
       },
-      contextOverrides: { state },
+      ports: { state },
     }).run();
     expect(result.status).toBe("success");
-    expect(readAutonomyIssueProjection(projectDir)).toEqual(next);
+    expect(readAutonomyIssueProjection(workspaceRoot)).toEqual(next);
     expect(state.read<AutonomyIssueProjection>(
       AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
     )).toEqual({ revision: 1, value: next });

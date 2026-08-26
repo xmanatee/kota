@@ -11,8 +11,8 @@ import {
 import type { DoctorCheckResult } from "./client.js";
 import { fail, pass, warn } from "./doctor-results.js";
 
-export function checkProvidersConfig(projectDir: string): DoctorCheckResult[] {
-  const providers = loadConfig(projectDir).providers ?? {};
+export function checkProvidersConfig(scopeRoot: string): DoctorCheckResult[] {
+  const providers = loadConfig(scopeRoot).providers ?? {};
   const names = Object.entries(providers);
   return names.length === 0
     ? [pass("Providers: configuration", "Using defaults")]
@@ -46,9 +46,9 @@ function providerCredentialDisplay(
 }
 
 export async function checkProviderConnectivity(
-  projectDir: string,
+  scopeRoot: string,
 ): Promise<DoctorCheckResult[]> {
-  const config = loadConfig(projectDir);
+  const config = loadConfig(scopeRoot);
   const mpConfig = config.modelProvider;
   const modelSpec = config.model ?? resolveActivePresetFromConfig(config).defaultModel;
   const providerType = resolveModelProviderName(modelSpec, mpConfig?.type);
@@ -60,7 +60,7 @@ export async function checkProviderConnectivity(
   }
   const explicitKey = mpConfig?.apiKey;
   const requiredKeyName = apiKeyNameForProvider(providerType);
-  const apiKey = resolveApiKey(providerType, explicitKey, { projectDir });
+  const apiKey = resolveApiKey(providerType, explicitKey, { scopeRoot });
   const model = PROBE_MODEL[providerType] ?? modelSpec;
   const label = `Provider connectivity: ${providerType}`;
   const keyDisplay = providerCredentialDisplay(requiredKeyName, explicitKey, apiKey);
@@ -74,7 +74,7 @@ export async function checkProviderConnectivity(
       provider: providerType,
       baseUrl: mpConfig?.baseUrl,
       apiKey,
-      projectDir,
+      scopeRoot,
     });
     await resolved.client.messages.create({
       model: resolved.model,

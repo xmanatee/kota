@@ -8,18 +8,22 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import type { Memory, ReindexResult } from "#core/modules/provider-types.js";
+import type { Memory } from "#core/modules/provider-types.js";
 import {
 	parseWorkMemoryMetadata,
 	type WorkMemoryMetadata,
 } from "#core/modules/work-memory-metadata.js";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 
-type MemoryFile = {
-  memories: Memory[];
-};
+import {
+  decodeMemoryFile,
+  MEMORY_FILE_SCHEMA_VERSION,
+  type MemoryFile,
+  MemoryFileDecodeError,
+} from "./persistence.js";
 
 const MAX_MEMORIES = 100;
 
@@ -27,6 +31,7 @@ export class MemoryStore {
   private memories: Memory[] = [];
   private filePath: string;
   private loaded = false;
+  private loadError: MemoryStoreLoadError | null = null;
 
   constructor(dir?: string) {
     const base = dir || join(homedir(), ".kota");
@@ -35,29 +40,38 @@ export class MemoryStore {
 
   /** Load memories from disk (lazy, once). */
   private ensureLoaded(): void {
-    if (this.loaded) return;
+    if (this.loaded) {
+      if (this.loadError) throw this.loadError;
+      return;
+    }
     this.loaded = true;
     if (!existsSync(this.filePath)) return;
     try {
       const raw = readFileSync(this.filePath, "utf-8");
-      const data = JSON.parse(raw) as Partial<MemoryFile>;
-      this.memories = Array.isArray(data.memories)
-        ? data.memories
-            .map((entry) => normalizeMemory(entry))
-            .filter((entry): entry is Memory => entry !== null)
-        : [];
-    } catch {
-      // Corrupted file — start fresh
-      this.memories = [];
+      const decoded = decodeMemoryFile(JSON.parse(raw) as unknown);
+      this.memories = decoded.file.memories;
+      if (decoded.migrated) this.persist();
+    } catch (error) {
+      this.loadError = new MemoryStoreLoadError(
+        this.filePath,
+        error instanceof SyntaxError
+          ? "invalid_json"
+          : error instanceof MemoryFileDecodeError
+            ? error.reason
+            : "read_failed",
+        error instanceof Error ? error.message : String(error),
+      );
+      throw this.loadError;
     }
   }
 
   /** Persist memories to disk. */
   private persist(): void {
-    const dir = dirname(this.filePath);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    const data: MemoryFile = { memories: this.memories };
-    writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
+    const data: MemoryFile = {
+      schemaVersion: MEMORY_FILE_SCHEMA_VERSION,
+      memories: this.memories,
+    };
+    writeJsonFileAtomic(this.filePath, data);
   }
 
   /** Save a new memory. Returns the assigned ID. */
@@ -172,77 +186,27 @@ export class MemoryStore {
     return dirname(this.filePath);
   }
 
-  supportsSemanticSearch(): boolean {
-    return false;
-  }
-
-  async semanticSearch(
-    _query: string,
-    _topK: number,
-    _options?: { tag?: string; since?: string },
-  ): Promise<Memory[]> {
-    throw new Error("Semantic memory search requires an embedding-backed memory provider.");
-  }
-
-  async reindex(): Promise<ReindexResult> {
-    return { indexed: 0, failed: 0, skipped: true };
-  }
 }
 
-// Singleton for the memory tool, CLI, and routes to share.
-let store: MemoryStore | undefined;
-
-export function getMemoryStore(dir?: string): MemoryStore {
-  if (!store) store = new MemoryStore(dir);
-  return store;
-}
-
-export function getProjectMemoryStore(projectDir: string): MemoryStore {
-  return getMemoryStore(join(projectDir, ".kota"));
-}
-
-export function resetMemoryStore(): void {
-  store = undefined;
-}
-
-function normalizeMemory(entry: Partial<Memory> | null): Memory | null {
-  if (!entry || typeof entry !== "object") return null;
-  if (
-    typeof entry.id !== "string" ||
-    typeof entry.content !== "string" ||
-    !Array.isArray(entry.tags) ||
-    typeof entry.created !== "string"
+export class MemoryStoreLoadError extends Error {
+  constructor(
+    readonly path: string,
+    readonly reason:
+      | "invalid_json"
+      | "invalid_root"
+      | "unsupported_version"
+      | "invalid_memories"
+      | "invalid_entry"
+      | "read_failed",
+    message: string,
   ) {
-    return null;
+    super(`Cannot load memory store ${path}: ${message}`);
+    this.name = "MemoryStoreLoadError";
   }
-  const created = normalizeTimestamp(entry.created) ?? entry.created;
-  const updated =
-    typeof entry.updated === "string"
-      ? normalizeTimestamp(entry.updated) ?? entry.updated
-      : created;
-  const metadata = parseWorkMemoryMetadata({
-    provenance: entry.provenance ?? null,
-    freshness: entry.freshness ?? null,
-  });
-  return {
-    id: entry.id,
-    content: entry.content,
-    tags: entry.tags.filter((tag): tag is string => typeof tag === "string"),
-    created,
-    updated,
-    ...(metadata.ok && metadata.metadata?.provenance && {
-      provenance: metadata.metadata.provenance,
-    }),
-    ...(metadata.ok && metadata.metadata?.freshness && {
-      freshness: metadata.metadata.freshness,
-    }),
-  };
 }
 
-function normalizeTimestamp(value: string): string | null {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toISOString();
+export function getScopeMemoryStore(scopeRoot: string): MemoryStore {
+  return new MemoryStore(join(scopeRoot, ".kota"));
 }
 
 function normalizeWorkMemoryMetadata(

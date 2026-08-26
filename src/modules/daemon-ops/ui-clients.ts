@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "#core/daemon/project-scope-provider.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { assembleUiSurfaceBundle } from "#core/modules/module-ui-surfaces.js";
@@ -28,9 +28,9 @@ export function buildSharedUiSurfaceBundle(
   const normalized = normalizeScopeSelector(selector);
   let effectiveSelector = normalized;
   if (selectedScopeSelectorId(normalized) === undefined) {
-    const scopeProvider = ctx.getProvider(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE);
-    const scopeId = scopeProvider?.getActiveProjectId()
-      ?? scopeProvider?.getProjectRegistryProjection().defaultProjectId;
+    const scopeProvider = ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE);
+    const scopeId = scopeProvider?.getActiveScopeId()
+      ?? scopeProvider?.getScopeRegistryProjection().defaultScopeId;
     if (scopeId !== undefined) effectiveSelector = { scopeId };
   }
   return assembleUiSurfaceBundle(
@@ -65,9 +65,9 @@ function waitForChildSpawn(child: ReturnType<typeof spawn>): Promise<void> {
 }
 
 async function requestDetachedDaemonStart(
-  projectDir: string,
+  scopeRoot: string,
 ): Promise<UiActionExecutionResult> {
-  const current = localDaemonStatus({ projectDir });
+  const current = localDaemonStatus({ scopeRoot });
   if (current.state === "running") {
     return { ok: true, message: `Daemon already running pid ${current.status.pid}.` };
   }
@@ -84,12 +84,12 @@ async function requestDetachedDaemonStart(
   try {
     const child = spawn(
       process.execPath,
-      [...process.execArgv, cliEntrypoint, "daemon", "start", "--project-dir", projectDir],
-      { cwd: projectDir, detached: true, env, stdio: "ignore" },
+      [...process.execArgv, cliEntrypoint, "daemon", "start", "--scope-root", scopeRoot],
+      { cwd: scopeRoot, detached: true, env, stdio: "ignore" },
     );
     await waitForChildSpawn(child);
     child.unref();
-    if (!await waitForDaemonControlPlane(projectDir)) {
+    if (!await waitForDaemonControlPlane(scopeRoot)) {
       return {
         ok: false,
         reason: "unavailable",
@@ -117,7 +117,7 @@ function localUiNamespaceExecutor(
       return {
         ok: false,
         reason: "scope-unavailable",
-        message: `Scope ${scopeId} is unavailable from the local project runtime.`,
+        message: `Scope ${scopeId} is unavailable from the local scope runtime.`,
       };
     }
     return requestDetachedDaemonStart(ctx.cwd);

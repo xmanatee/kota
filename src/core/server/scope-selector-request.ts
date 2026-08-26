@@ -44,5 +44,5 @@ export function readSelectedScopeSelectorIdQueryOrErrorResponse(
   base = "http://localhost",
 ): string | null | undefined {
   const selector = readScopeSelectorQueryOrErrorResponse(req, res, base);
-  return selector === null ? null : (selector.scopeId ?? selector.projectId);
+  return selector === null ? null : selector.scopeId;
 }

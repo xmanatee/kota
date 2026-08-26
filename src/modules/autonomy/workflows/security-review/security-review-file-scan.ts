@@ -22,7 +22,7 @@ export function securityReviewSurfacesForPath(path: string): SecurityReviewSurfa
   );
 }
 
-function listScannableFiles(projectDir: string, dir = projectDir): string[] {
+function listScannableFiles(workspaceRoot: string, dir = workspaceRoot): string[] {
   const entries = readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
     a.name.localeCompare(b.name)
   );
@@ -30,12 +30,12 @@ function listScannableFiles(projectDir: string, dir = projectDir): string[] {
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (SKIPPED_SECURITY_REVIEW_DIRS.has(entry.name)) continue;
-      files.push(...listScannableFiles(projectDir, join(dir, entry.name)));
+      files.push(...listScannableFiles(workspaceRoot, join(dir, entry.name)));
       continue;
     }
     if (!entry.isFile()) continue;
     const fullPath = join(dir, entry.name);
-    if (shouldScanSecurityReviewFile(fullPath)) files.push(relative(projectDir, fullPath));
+    if (shouldScanSecurityReviewFile(fullPath)) files.push(relative(workspaceRoot, fullPath));
   }
   return files;
 }
@@ -94,7 +94,7 @@ export function compareSecurityReviewCandidates(
 }
 
 export function scanSecurityReviewCandidatesForPath(
-  projectDir: string,
+  workspaceRoot: string,
   path: string,
 ): SecurityReviewCandidate[] {
   const normalized = normalizeRepoPath(path);
@@ -106,7 +106,7 @@ export function scanSecurityReviewCandidatesForPath(
     return [];
   }
 
-  const fullPath = join(projectDir, normalized);
+  const fullPath = join(workspaceRoot, normalized);
   let fileSize = 0;
   try {
     const stats = statSync(fullPath);
@@ -146,20 +146,20 @@ export function scanSecurityReviewCandidatesForPath(
 }
 
 export function securityReviewSurfacesForChangedPath(
-  projectDir: string,
+  workspaceRoot: string,
   path: string,
 ): SecurityReviewSurface[] {
   const surfaces = new Set<SecurityReviewSurface>(securityReviewSurfacesForPath(path));
-  for (const candidate of scanSecurityReviewCandidatesForPath(projectDir, path)) {
+  for (const candidate of scanSecurityReviewCandidatesForPath(workspaceRoot, path)) {
     surfaces.add(candidate.surface);
   }
   return SECURITY_REVIEW_SURFACES.filter((surface) => surfaces.has(surface));
 }
 
-export function collectSecurityReviewCandidates(projectDir: string): SecurityReviewCandidate[] {
+export function collectSecurityReviewCandidates(workspaceRoot: string): SecurityReviewCandidate[] {
   const candidates: SecurityReviewCandidate[] = [];
-  for (const path of listScannableFiles(projectDir)) {
-    candidates.push(...scanSecurityReviewCandidatesForPath(projectDir, path));
+  for (const path of listScannableFiles(workspaceRoot)) {
+    candidates.push(...scanSecurityReviewCandidatesForPath(workspaceRoot, path));
   }
   return candidates.sort(compareSecurityReviewCandidates);
 }

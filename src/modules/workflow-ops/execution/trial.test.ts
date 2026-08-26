@@ -34,8 +34,6 @@ import {
 } from "#core/events/module-event.js";
 import {
   buildModuleCapabilityManifestProjection,
-  clearModuleCapabilityManifestProjections,
-  registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
@@ -46,6 +44,10 @@ import {
   readOnlyLocalEffect,
 } from "#core/tools/effect.js";
 import { deregisterTool, executeTool, registerTool } from "#core/tools/index.js";
+import {
+  clearModuleToolEffects,
+  registerModuleToolManifestProjection,
+} from "#core/tools/tool-effect-registry.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { fileWriteTool, runFileWrite } from "#modules/filesystem/file-write.js";
 import {
@@ -64,21 +66,21 @@ const AGENT_HARNESS = "workflow_trial_agent_harness_test";
 const PROCESS_ENV_AGENT_HARNESS = "workflow_trial_process_env_agent_harness_test";
 const PROCESS_ENV_KEY = "KOTA_WORKFLOW_TRIAL_PROCESS_ENV_TEST";
 
-function trustProject(projectDir: string): void {
+function trustProject(scopeRoot: string): void {
   const configDir = join(FAKE_HOME, ".kota");
   const configPath = join(configDir, "config.json");
   mkdirSync(configDir, { recursive: true });
-  const trustedProjects = existsSync(configPath)
-    ? (JSON.parse(readFileSync(configPath, "utf-8")) as { trustedProjects: string[] })
-      .trustedProjects
+  const trustedScopes = existsSync(configPath)
+    ? (JSON.parse(readFileSync(configPath, "utf-8")) as { trustedScopes: string[] })
+      .trustedScopes
     : [];
   writeFileSync(
     configPath,
-    JSON.stringify({ trustedProjects: [...trustedProjects, projectDir] }),
+    JSON.stringify({ trustedScopes: [...trustedScopes, scopeRoot] }),
   );
 }
 
-function makeProjectDir(): string {
+function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-workflow-trial-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -91,8 +93,8 @@ function makeProjectDir(): string {
   return dir;
 }
 
-function writeProjectModule(projectDir: string, code: string): void {
-  const moduleDir = join(projectDir, ".kota", "modules", "trial-fixture");
+function writeProjectModule(scopeRoot: string, code: string): void {
+  const moduleDir = join(scopeRoot, ".kota", "modules", "trial-fixture");
   mkdirSync(moduleDir, { recursive: true });
   writeFileSync(join(moduleDir, "index.mjs"), code, "utf-8");
 }
@@ -105,13 +107,13 @@ function makeTrialCliProgram(ctx: { client: unknown; cwd: string }): Command {
 }
 
 function makeDefinition(
-  projectDir: string,
+  scopeRoot: string,
   overrides: Partial<WorkflowDefinition> = {},
 ): WorkflowDefinition {
   return {
     name: "trial-fixture",
     enabled: true,
-    moduleRoot: projectDir,
+    moduleRoot: scopeRoot,
     definitionPath: "fixture-workflow.ts",
     repository: "write",
     integration: { validationCommand: ["true"] },
@@ -121,10 +123,10 @@ function makeDefinition(
       {
         id: "write-marker",
         type: "code",
-        run: ({ projectDir, trigger, emit }) => {
-          mkdirSync(join(projectDir, "data"), { recursive: true });
+        run: ({ workspaceRoot, trigger, emit }) => {
+          mkdirSync(join(workspaceRoot, "data"), { recursive: true });
           writeFileSync(
-            join(projectDir, "data", "trial-marker.txt"),
+            join(workspaceRoot, "data", "trial-marker.txt"),
             String(trigger.payload.marker ?? "missing"),
             "utf-8",
           );
@@ -138,11 +140,11 @@ function makeDefinition(
 }
 
 function makeRuntimeFactory(
-  build: (projectDir: string) => WorkflowDefinition[],
+  build: (scopeRoot: string) => WorkflowDefinition[],
 ): WorkflowTrialRuntimeFactory {
-  return async (projectDir) => ({
+  return async (workspaceRoot) => ({
     config: {} as KotaConfig,
-    workflows: build(projectDir),
+    workflows: build(workspaceRoot),
   });
 }
 
@@ -159,7 +161,7 @@ describe("workflow trial execution", () => {
     deregisterTool(PROCESS_ENV_TOOL);
     deregisterTool("file_write");
     deregisterTool("shell");
-    clearModuleCapabilityManifestProjections();
+    clearModuleToolEffects();
     delete process.env[PROCESS_ENV_KEY];
     rmSync(FAKE_HOME, { recursive: true, force: true });
     for (const dir of cleanup.splice(0)) {
@@ -167,9 +169,9 @@ describe("workflow trial execution", () => {
     }
   });
 
-  it("runs in an isolated project and reports changed files, steps, and bus events", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+  it("runs in an isolated scope and reports changed files, steps, and bus events", async () => {
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const trialFixtureEvent = defineDaemonWideModuleEvent<{ marker: string }>(
       "trial.fixture",
       ["marker"],
@@ -184,20 +186,20 @@ describe("workflow trial execution", () => {
     initModuleEventRegistry().register("workflow-trial-test", trialFixtureEvent);
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "trial-fixture",
       options: { payload: { marker: "isolated" } },
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir),
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot),
       ]),
     });
 
     expect(summary.status).toBe("passed");
     expect(summary.attempts).toHaveLength(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
-    expect(existsSync(join(projectDir, "data", "trial-marker.txt"))).toBe(false);
-    expect(readFileSync(join(attempt.trialProjectPath, "data", "trial-marker.txt"), "utf-8")).toBe("isolated");
+    cleanup.push(attempt.trialWorkspaceRoot);
+    expect(existsSync(join(workspaceRoot, "data", "trial-marker.txt"))).toBe(false);
+    expect(readFileSync(join(attempt.trialWorkspaceRoot, "data", "trial-marker.txt"), "utf-8")).toBe("isolated");
     expect(attempt.changedFiles).toContainEqual({
       path: "data/trial-marker.txt",
       change: "created",
@@ -210,22 +212,22 @@ describe("workflow trial execution", () => {
       schemaRef: { name: trialFixtureEvent.name, version: 1 },
       payload: { marker: "isolated" },
     });
-    expect(existsSync(join(projectDir, summary.reportDir, "summary.json"))).toBe(true);
+    expect(existsSync(join(workspaceRoot, summary.reportDir, "summary.json"))).toBe(true);
   });
 
-  it("projects sensitive trial report payloads, bus events, and queued workflows", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+  it("scopes sensitive trial report payloads, bus events, and queued workflows", async () => {
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const secret = "trial-secret-token";
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "sensitive-trial-fixture",
       options: {
         payload: { marker: "primary", token: secret },
       },
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "sensitive-trial-fixture",
           steps: [
             {
@@ -248,14 +250,14 @@ describe("workflow trial execution", () => {
             },
           ],
         }),
-        makeDefinition(trialProjectDir, { name: "child-trial-fixture" }),
+        makeDefinition(trialWorkspaceRoot, { name: "child-trial-fixture" }),
       ]),
     });
 
     expect(summary.status).toBe("passed");
     expect(summary.payload.token).toBe("[redacted]");
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.payload.token).toBe("[redacted]");
     expect(attempt.busEvents.find((event) => event.type === "trial.sensitive")?.payload)
       .toMatchObject({
@@ -269,22 +271,22 @@ describe("workflow trial execution", () => {
       marker: "child",
       token: "[redacted]",
     });
-    const persisted = readFileSync(join(projectDir, summary.reportDir, "summary.json"), "utf-8");
+    const persisted = readFileSync(join(workspaceRoot, summary.reportDir, "summary.json"), "utf-8");
     expect(persisted).not.toContain(secret);
   });
 
-  it("roots local filesystem tool steps inside the isolated project copy", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+  it("roots local filesystem tool steps inside the isolated scope copy", async () => {
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     registerTool(fileWriteTool, runFileWrite, "workflow-trial-test", {
       effect: localWriteEffect(),
     });
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "tool-write-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "tool-write-fixture",
           steps: [
             {
@@ -302,9 +304,9 @@ describe("workflow trial execution", () => {
 
     expect(summary.status).toBe("passed");
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
-    expect(existsSync(join(projectDir, "data", "tool-marker.txt"))).toBe(false);
-    expect(readFileSync(join(attempt.trialProjectPath, "data", "tool-marker.txt"), "utf-8")).toBe("trial tool write");
+    cleanup.push(attempt.trialWorkspaceRoot);
+    expect(existsSync(join(workspaceRoot, "data", "tool-marker.txt"))).toBe(false);
+    expect(readFileSync(join(attempt.trialWorkspaceRoot, "data", "tool-marker.txt"), "utf-8")).toBe("trial tool write");
     expect(attempt.changedFiles).toContainEqual({
       path: "data/tool-marker.txt",
       change: "created",
@@ -312,8 +314,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks explicit external side-effect tool steps before execution", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     registerTool(
       {
         name: EXTERNAL_TOOL,
@@ -326,10 +328,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "external-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "external-fixture",
           repository: "none",
           integration: undefined,
@@ -345,7 +347,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(attempt.workflowRunId).toBeDefined();
     expect(attempt.stepStatuses).toContainEqual(
@@ -360,8 +362,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks tool side effects from the module manifest projection before registry metadata", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const externalRunner = vi.fn(async () => ({ content: "sent" }));
     registerTool(
       {
@@ -373,7 +375,7 @@ describe("workflow trial execution", () => {
       "workflow-trial-test",
       { effect: readOnlyLocalEffect() },
     );
-    registerModuleCapabilityManifestProjection(
+    registerModuleToolManifestProjection(
       buildModuleCapabilityManifestProjection(
         "workflow-trial-test",
         {
@@ -421,10 +423,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "manifest-side-effect-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "manifest-side-effect-fixture",
           steps: [{ id: "send-live", type: "tool", tool: EXTERNAL_TOOL }],
         }),
@@ -434,7 +436,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(externalRunner).not.toHaveBeenCalled();
     expect(attempt.blockedExternalSideEffects).toEqual([
       expect.objectContaining({
@@ -456,8 +458,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks daemon-state and unscoped local write tool steps before execution", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const daemonRunner = vi.fn(async () => ({ content: "mutated daemon" }));
     const localRunner = vi.fn(async () => ({ content: "mutated local" }));
     registerTool(
@@ -482,10 +484,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "blocked-tool-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "blocked-tool-fixture",
           repository: "none",
           integration: undefined,
@@ -509,7 +511,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(attempt.workflowRunId).toBeDefined();
     expect(daemonRunner).not.toHaveBeenCalled();
@@ -531,8 +533,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks process-env tool steps before they can mutate the daemon environment", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const processEnvRunner = vi.fn(async () => {
       process.env[PROCESS_ENV_KEY] = "mutated";
       return { content: "injected" };
@@ -549,10 +551,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "process-env-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "process-env-fixture",
           steps: [{
             id: "inject-process-env",
@@ -566,7 +568,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(processEnvRunner).not.toHaveBeenCalled();
     expect(process.env[PROCESS_ENV_KEY]).toBeUndefined();
@@ -580,8 +582,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks shell tool steps instead of treating cwd rewriting as isolation", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const shellRunner = vi.fn(async () => ({ content: "ran shell" }));
     registerTool(
       {
@@ -601,10 +603,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "shell-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "shell-fixture",
           steps: [
             {
@@ -623,7 +625,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(attempt.workflowRunId).toBeDefined();
     expect(attempt.stepStatuses).toContainEqual(
@@ -634,14 +636,14 @@ describe("workflow trial execution", () => {
       expect.objectContaining({
         stepId: "run-shell",
         tool: "shell",
-        reason: expect.stringContaining("cannot root in the isolated project"),
+        reason: expect.stringContaining("cannot root in the isolated scope"),
       }),
     ]);
   });
 
   it("executes the runtime and skips unreachable dangerous tool declarations", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const externalRunner = vi.fn(async () => ({ content: "sent" }));
     registerTool(
       {
@@ -655,10 +657,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "unreachable-tool-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "unreachable-tool-fixture",
           steps: [
             {
@@ -682,7 +684,7 @@ describe("workflow trial execution", () => {
 
     expect(summary.status).toBe("passed");
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(externalRunner).not.toHaveBeenCalled();
     expect(attempt.blockedExternalSideEffects).toEqual([]);
     expect(attempt.stepStatuses).toEqual([
@@ -693,8 +695,8 @@ describe("workflow trial execution", () => {
   });
 
   it("records every blocked runtime ctx.runTool side effect even when code catches the errors", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const externalRunner = vi.fn(async () => ({ content: "sent external" }));
     const daemonRunner = vi.fn(async () => ({ content: "wrote daemon state" }));
     registerTool(
@@ -719,10 +721,10 @@ describe("workflow trial execution", () => {
     );
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "runtime-tool-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "runtime-tool-fixture",
           repository: "none",
           integration: undefined,
@@ -750,7 +752,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(attempt.stepStatuses).toContainEqual(
       expect.objectContaining({ id: "code-attempts-tools", status: "success" }),
@@ -770,8 +772,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks KOTA-controlled agent process-env tools before adapter execution", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const processEnvRunner = vi.fn(async () => {
       process.env[PROCESS_ENV_KEY] = "mutated";
       return { content: "injected" };
@@ -817,10 +819,10 @@ describe("workflow trial execution", () => {
     });
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "agent-process-env-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "agent-process-env-fixture",
           steps: [
             {
@@ -828,7 +830,7 @@ describe("workflow trial execution", () => {
               type: "agent",
               harness: PROCESS_ENV_AGENT_HARNESS,
               promptPath: "AGENTS.md",
-              moduleRoot: trialProjectDir,
+              moduleRoot: trialWorkspaceRoot,
               model: "test-model",
               effort: "low",
               autonomyMode: "autonomous",
@@ -841,7 +843,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(processEnvRunner).not.toHaveBeenCalled();
     expect(process.env[PROCESS_ENV_KEY]).toBeUndefined();
@@ -858,8 +860,8 @@ describe("workflow trial execution", () => {
   });
 
   it("blocks KOTA-controlled agent tool side effects before adapter execution", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
     const externalRunner = vi.fn(async () => ({ content: "sent external" }));
     registerTool(
       {
@@ -902,10 +904,10 @@ describe("workflow trial execution", () => {
     });
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "agent-tool-fixture",
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir, {
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot, {
           name: "agent-tool-fixture",
           steps: [
             {
@@ -913,7 +915,7 @@ describe("workflow trial execution", () => {
               type: "agent",
               harness: AGENT_HARNESS,
               promptPath: "AGENTS.md",
-              moduleRoot: trialProjectDir,
+              moduleRoot: trialWorkspaceRoot,
               model: "test-model",
               effort: "low",
               autonomyMode: "autonomous",
@@ -926,7 +928,7 @@ describe("workflow trial execution", () => {
     expect(summary.status).toBe("failed");
     expect(summary.blocked).toBe(1);
     const attempt = summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
+    cleanup.push(attempt.trialWorkspaceRoot);
     expect(attempt.status).toBe("blocked");
     expect(externalRunner).not.toHaveBeenCalled();
     expect(attempt.stepStatuses).toContainEqual(
@@ -941,11 +943,11 @@ describe("workflow trial execution", () => {
   });
 
   it("records repeat attempts and comparison variants in one summary", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
 
     const summary = await runWorkflowTrial({
-      sourceProjectDir: projectDir,
+      sourceScopeRoot: workspaceRoot,
       workflowName: "trial-fixture",
       options: {
         payload: { marker: "primary" },
@@ -953,9 +955,9 @@ describe("workflow trial execution", () => {
         compareWorkflows: ["trial-fixture-b"],
         comparePayloads: [{ marker: "variant" }],
       },
-      runtimeFactory: makeRuntimeFactory((trialProjectDir) => [
-        makeDefinition(trialProjectDir),
-        makeDefinition(trialProjectDir, { name: "trial-fixture-b" }),
+      runtimeFactory: makeRuntimeFactory((trialWorkspaceRoot) => [
+        makeDefinition(trialWorkspaceRoot),
+        makeDefinition(trialWorkspaceRoot, { name: "trial-fixture-b" }),
       ]),
     });
 
@@ -965,7 +967,7 @@ describe("workflow trial execution", () => {
     expect(summary.comparison.payloadVariants).toEqual([{ marker: "variant" }]);
     expect(summary.attempts).toHaveLength(6);
     const persisted = JSON.parse(
-      readFileSync(join(projectDir, summary.reportDir, "summary.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, summary.reportDir, "summary.json"), "utf-8"),
     );
     expect(persisted.attempts.map((attempt: { payload: unknown }) => attempt.payload)).toEqual([
       { marker: "primary" },
@@ -976,21 +978,21 @@ describe("workflow trial execution", () => {
       { marker: "variant" },
     ]);
     expect(JSON.stringify(persisted)).not.toContain("[Circular]");
-    for (const attempt of summary.attempts) cleanup.push(attempt.trialProjectPath);
+    for (const attempt of summary.attempts) cleanup.push(attempt.trialWorkspaceRoot);
   });
 
-  it("runs a local trial against the requested configured project id", async () => {
-    const defaultProjectDir = makeProjectDir();
-    const selectedProjectDir = makeProjectDir();
-    cleanup.push(defaultProjectDir, selectedProjectDir);
+  it("runs a local trial against the requested configured scope id", async () => {
+    const defaultScopeRoot = makeScopeRoot();
+    const selectedScopeRoot = makeScopeRoot();
+    cleanup.push(defaultScopeRoot, selectedScopeRoot);
     new ScopeRegistry({
-      stateDir: join(defaultProjectDir, ".kota"),
-      projects: [
-        { projectDir: defaultProjectDir },
-        { projectDir: selectedProjectDir },
+      stateDir: join(defaultScopeRoot, ".kota"),
+      scopes: [
+        { scopeRoot: defaultScopeRoot },
+        { scopeRoot: selectedScopeRoot },
       ],
     });
-    writeProjectModule(selectedProjectDir, `
+    writeProjectModule(selectedScopeRoot, `
       import { mkdirSync, writeFileSync } from "node:fs";
       import { join } from "node:path";
 
@@ -1005,37 +1007,38 @@ describe("workflow trial execution", () => {
           steps: [{
             id: "write-selected-marker",
             type: "code",
-            run: ({ projectDir, trigger }) => {
-              mkdirSync(join(projectDir, "data"), { recursive: true });
-              writeFileSync(join(projectDir, "data", "selected-marker.txt"), String(trigger.payload.marker), "utf-8");
+            run: ({ workspaceRoot, trigger }) => {
+              mkdirSync(join(workspaceRoot, "data"), { recursive: true });
+              writeFileSync(join(workspaceRoot, "data", "selected-marker.txt"), String(trigger.payload.marker), "utf-8");
             },
           }],
         }],
       };
     `);
-    const selectedProjectId = deriveDirectoryScopeId(selectedProjectDir);
+    const selectedScopeId = deriveDirectoryScopeId(selectedScopeRoot);
 
     const result = await runLocalWorkflowTrial(
-      { cwd: defaultProjectDir } as ModuleContext,
+      { cwd: defaultScopeRoot } as ModuleContext,
       "selected-trial-fixture",
-      { projectId: selectedProjectId, payload: { marker: "selected" } },
+      { scopeId: selectedScopeId, payload: { marker: "selected" } },
     );
 
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.message);
-    expect(result.summary.projectId).toBe(selectedProjectId);
-    expect(result.summary.sourceProjectPath).toBe(realpathSync(selectedProjectDir));
-    expect(existsSync(join(defaultProjectDir, "data", "selected-marker.txt"))).toBe(false);
-    expect(existsSync(join(selectedProjectDir, "data", "selected-marker.txt"))).toBe(false);
+    expect(result.summary.scopeId).toBe(selectedScopeId);
+    expect(result.summary.sourceScopeRoot).toBe(realpathSync(selectedScopeRoot));
+    expect(existsSync(join(defaultScopeRoot, "data", "selected-marker.txt"))).toBe(false);
+    expect(existsSync(join(selectedScopeRoot, "data", "selected-marker.txt"))).toBe(false);
     const attempt = result.summary.attempts[0]!;
-    cleanup.push(attempt.trialProjectPath);
-    expect(readFileSync(join(attempt.trialProjectPath, "data", "selected-marker.txt"), "utf-8")).toBe("selected");
+    expect(attempt.error).toBeUndefined();
+    cleanup.push(attempt.trialWorkspaceRoot);
+    expect(readFileSync(join(attempt.trialWorkspaceRoot, "data", "selected-marker.txt"), "utf-8")).toBe("selected");
   });
 
   it("default runtime factory preserves workflow inputs and registered agent resolution", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
-    writeProjectModule(projectDir, `
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
+    writeProjectModule(workspaceRoot, `
       export default {
         name: "trial-agent-fixture-module",
         agents: [{
@@ -1060,7 +1063,7 @@ describe("workflow trial execution", () => {
       };
     `);
 
-    const runtime = await createDefaultWorkflowTrialRuntimeFactory()(projectDir);
+    const runtime = await createDefaultWorkflowTrialRuntimeFactory()(workspaceRoot);
     try {
       const definition = runtime.workflows.find((d) => d.name === "trial-agent-fixture");
       expect(definition?.steps[0]).toMatchObject({
@@ -1079,20 +1082,20 @@ describe("workflow trial execution", () => {
     }
   });
 
-  it("rejects an unknown requested project id before trial execution", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
+  it("rejects an unknown requested scope id before trial execution", async () => {
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
 
     const result = await runLocalWorkflowTrial(
-      { cwd: projectDir } as ModuleContext,
+      { cwd: workspaceRoot } as ModuleContext,
       "trial-fixture",
-      { projectId: "ghost-project" },
+      { scopeId: "ghost-scope" },
     );
 
     expect(result).toEqual({
       ok: false,
-      reason: "unknown_project",
-      message: "Unknown project: ghost-project",
+      reason: "unknown_scope",
+      message: "Unknown scope: ghost-scope",
     });
   });
 
@@ -1107,7 +1110,7 @@ describe("workflow trial execution", () => {
       summary: {
         runId: "trial-run",
         workflow: "trial-fixture",
-        sourceProjectPath: "/project",
+        sourceScopeRoot: "/project",
         reportDir: ".kota/runs/trial-run/workflow-trial",
         payload: { marker: "daemon" },
         repeat: 1,
@@ -1148,9 +1151,9 @@ describe("workflow trial execution", () => {
   });
 
   it("CLI falls back to the local isolated-project runner when the daemon is unavailable", async () => {
-    const projectDir = makeProjectDir();
-    cleanup.push(projectDir);
-    writeProjectModule(projectDir, `
+    const workspaceRoot = makeScopeRoot();
+    cleanup.push(workspaceRoot);
+    writeProjectModule(workspaceRoot, `
       import { mkdirSync, writeFileSync } from "node:fs";
       import { join } from "node:path";
 
@@ -1165,9 +1168,9 @@ describe("workflow trial execution", () => {
           steps: [{
             id: "write-marker",
             type: "code",
-            run: ({ projectDir, trigger }) => {
-              mkdirSync(join(projectDir, "data"), { recursive: true });
-              writeFileSync(join(projectDir, "data", "trial-marker.txt"), String(trigger.payload.marker), "utf-8");
+            run: ({ workspaceRoot, trigger }) => {
+              mkdirSync(join(workspaceRoot, "data"), { recursive: true });
+              writeFileSync(join(workspaceRoot, "data", "trial-marker.txt"), String(trigger.payload.marker), "utf-8");
             },
           }],
         }],
@@ -1184,7 +1187,7 @@ describe("workflow trial execution", () => {
       message: "daemon down",
     }));
     const program = makeTrialCliProgram({
-      cwd: projectDir,
+      cwd: workspaceRoot,
       client: { workflow: { trial } },
     });
 
@@ -1202,7 +1205,7 @@ describe("workflow trial execution", () => {
     }
 
     expect(trial).toHaveBeenCalledOnce();
-    expect(existsSync(join(projectDir, "data", "trial-marker.txt"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, "data", "trial-marker.txt"))).toBe(false);
     const output = stdout.join("");
     expect(output).toContain("Workflow trial ");
     expect(output).toContain(": passed");

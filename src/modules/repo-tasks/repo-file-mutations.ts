@@ -17,7 +17,7 @@ export {
 };
 
 export function writeRepoMarkdownFile(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
   content: string;
@@ -26,7 +26,7 @@ export function writeRepoMarkdownFile(args: {
 }
 
 export function moveRepoMarkdownFile(args: {
-  projectDir: string;
+  repoRoot: string;
   sourceRootDir: string;
   sourcePath: string;
   destinationRootDir: string;
@@ -38,7 +38,7 @@ export function moveRepoMarkdownFile(args: {
 }
 
 export function removeRepoMarkdownFile(args: {
-  projectDir: string;
+  repoRoot: string;
   rootDir: string;
   filePath: string;
 }): void {

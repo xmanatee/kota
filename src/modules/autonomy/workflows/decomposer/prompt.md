@@ -20,15 +20,14 @@ progress, and split or sharpen it only where real conceptual seams exist.
 ## Plan Rules
 
 - Make subtasks sequenceable and independently completable when possible.
-- Preserve the original task's Product/Safety urgency in the resulting
-  sequence; create Meta repair subtasks only when they close a visible Product,
-  Safety, or runtime blocker.
+- Preserve the original urgency and owner intent in the resulting sequence.
 - Do not split only to reduce diff size. Keep a cohesive change together when
   that produces a cleaner result.
 - Express dependencies as zero-based indexes into earlier entries in
   `subtasks`; never depend on the same or a later entry.
-- Fill every required task field with concrete implementation intent and
-  acceptance evidence. Do not return markdown task files or shell commands.
+- For each subtask, state the problem, desired outcome, material constraints,
+  and observable signals that will show the outcome is real. Do not return
+  markdown task files or shell commands.
 
 ## Output
 

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { progressReviewRequested } from "../events.js";
 import {
-  makeProgressReviewProjectDir,
+  makeProgressReviewScopeRoot,
   NOW,
 } from "../workflow.test-helpers.js";
 import { compactProgressReviewEvidenceForAgent } from "./agent-packet.js";
@@ -36,21 +36,21 @@ function task(args: {
 }
 
 describe("progress-reviewer canonical state evidence", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("keeps the complete open queue while the compact agent packet points to canonical refs", () => {
-    const projectDir = makeProgressReviewProjectDir("progress-canonical-queue");
-    projectDirs.push(projectDir);
+    const workspaceRoot = makeProgressReviewScopeRoot("progress-canonical-queue");
+    scopeRoots.push(workspaceRoot);
     for (let index = 0; index < 25; index += 1) {
       const id = `task-open-${String(index).padStart(2, "0")}`;
       writeFileSync(
-        join(projectDir, "data", "tasks", "backlog", `${id}.md`),
+        join(workspaceRoot, "data", "tasks", "backlog", `${id}.md`),
         task({
           id,
           anchor: index === 0,
@@ -60,9 +60,9 @@ describe("progress-reviewer canonical state evidence", () => {
     }
 
     const evidence = collectProgressReviewEvidence({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,

@@ -24,7 +24,7 @@ afterEach(() => {
 
 describe("automation authoring adapter", () => {
   it("compiles hook-style event authoring into a normal workflow run contract", () => {
-    const projectDir = createTempProject();
+    const workspaceRoot = createTempProject();
     const workflowInput = defineHook({
       repository: "read",
       name: "release-gate",
@@ -61,7 +61,7 @@ describe("automation authoring adapter", () => {
     ]);
 
     const registered = registerWorkflowDefinition(definitionPath, workflowInput);
-    const [validated] = validateWorkflowDefinitions([registered], projectDir);
+    const [validated] = validateWorkflowDefinitions([registered], workspaceRoot);
 
     expect(validated).toMatchObject({
       name: "release-gate",
@@ -85,13 +85,13 @@ describe("automation authoring adapter", () => {
       event: "automation.release-gate.done",
     });
 
-    const store = new WorkflowRunStore(projectDir);
+    const store = new WorkflowRunStore(workspaceRoot);
     const trigger = {
       event: "task.ready",
       schemaRef: null, payload: {
         _runId: "hook-run-1",
         taskId: "task-123",
-        projectId: "scope-1",
+        scopeId: "scope-1",
       },
     };
     store.createRun(validated, trigger);
@@ -107,7 +107,7 @@ describe("automation authoring adapter", () => {
     });
 
     const workflowSnapshot = JSON.parse(
-      readFileSync(join(projectDir, ".kota", "runs", "hook-run-1", "workflow.json"), "utf-8"),
+      readFileSync(join(workspaceRoot, ".kota", "runs", "hook-run-1", "workflow.json"), "utf-8"),
     );
     expect(workflowSnapshot).toMatchObject({
       name: "release-gate",
@@ -120,7 +120,7 @@ describe("automation authoring adapter", () => {
   });
 
   it("keeps schedule, watch, interval, and webhook automations on workflow triggers", () => {
-    const projectDir = createTempProject();
+    const workspaceRoot = createTempProject();
     const workflowInput = defineAutomation({
       repository: "read",
       kind: "automation",
@@ -136,7 +136,7 @@ describe("automation authoring adapter", () => {
 
     const [validated] = validateWorkflowDefinitions(
       [registerWorkflowDefinition("src/modules/test/workflows/intake/workflow.ts", workflowInput)],
-      projectDir,
+      workspaceRoot,
     );
 
     expect(validated.triggers).toEqual([

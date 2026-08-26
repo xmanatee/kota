@@ -68,7 +68,7 @@ public struct SharedOperatorRootView: View {
     private func menuBarContent(_ inventory: SharedUiInventory) -> some View {
         VStack(spacing: 0) {
             SharedOperatorConnectionBar()
-            ProjectSelectorView()
+            ScopeSelectorView()
             Divider()
             Picker("Surface", selection: selectedSurfaceBinding(inventory)) {
                 ForEach(inventory.intents, id: \.rawValue) { intent in
@@ -101,7 +101,7 @@ public struct SharedOperatorRootView: View {
 
     private func tabContent(_ inventory: SharedUiInventory) -> some View {
         VStack(spacing: 0) {
-            ProjectSelectorView()
+            ScopeSelectorView()
             TabView(selection: selectedIntentBinding(inventory)) {
                 ForEach(inventory.intents, id: \.rawValue) { intent in
                     NavigationStack {

@@ -13,11 +13,11 @@ function makeSnap(overrides: Partial<StatusSnapshot> = {}): StatusSnapshot {
     workflowPaused: false,
     sessions: 1,
     pendingApprovals: 0,
-    projectDir: "/Users/op/Desktop/mono/apps/kota",
-    projectName: "kota",
+    scopeRoot: "/Users/op/Desktop/mono/apps/kota",
+    scopeName: "kota",
     controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-    daemonProjectDir: "/Users/op/Desktop/mono/apps/kota",
-    daemonProjectName: "kota",
+    daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
+    daemonScopeName: "kota",
     dashboard: { available: true, url: "http://127.0.0.1:8765/" },
     runProjection: {
       available: true,
@@ -33,7 +33,7 @@ function writeSandboxRun(
 ): StatusSnapshot["runProjection"]["runs"][number] {
   return {
     runId: "run-active",
-    projectId: "project-kota",
+    scopeId: "scope-kota",
     workflow: "builder",
     state: "running",
     resources: ["repository:write", "port:41000-41019"],

@@ -33,9 +33,9 @@ export type {
 export { RUNTIME_HEALTH_AUDIT_ARTIFACT };
 
 export function collectRuntimeHealthAudit(args: {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
-  scopeDir: string;
+  scopeRoot: string;
   options?: RuntimeHealthAuditOptions;
 }): RuntimeHealthAudit {
   const nowIso = args.options?.nowIso ?? new Date().toISOString();
@@ -46,9 +46,9 @@ export function collectRuntimeHealthAudit(args: {
   const windowMs = args.options?.windowMs ?? DEFAULT_WINDOW_MS;
   const windowStartMs = nowMs - windowMs;
   const ctx: RuntimeHealthAuditContext = {
-    projectDir: args.projectDir,
+    workspaceRoot: args.workspaceRoot,
     stateDir: args.stateDir,
-    scopeDir: args.scopeDir,
+    scopeRoot: args.scopeRoot,
     nowIso,
     nowMs,
     windowStartMs,
@@ -108,9 +108,9 @@ export function writeRuntimeHealthAuditArtifact(
 }
 
 export type RuntimeHealthAuditOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
-  scopeDir: string;
+  scopeRoot: string;
   runDirPath: string;
   nowIso: string;
 };
@@ -124,9 +124,9 @@ export function collectRuntimeHealthAuditInWorker(
   input: RuntimeHealthAuditOperationInput,
 ): RuntimeHealthAuditOperationOutput {
   const audit = collectRuntimeHealthAudit({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     stateDir: input.stateDir,
-    scopeDir: input.scopeDir,
+    scopeRoot: input.scopeRoot,
     options: { nowIso: input.nowIso },
   });
   return {

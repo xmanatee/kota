@@ -1,13 +1,31 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import type {
   RunMetadataSnapshot,
   WorkflowRunMetadataSnapshot,
 } from "./subprocess-executor-types.js";
 
 function isTerminalRunStatus(status: string): boolean {
-  return status !== "running";
+	return status !== "running";
+}
+
+function readRunSnapshot(path: string): {
+	id: string;
+	workflow: string;
+	status: string;
+} | null {
+	try {
+		const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+		if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
+		const record = raw as Record<string, unknown>;
+		return typeof record.id === "string" &&
+			typeof record.workflow === "string" &&
+			typeof record.status === "string"
+			? { id: record.id, workflow: record.workflow, status: record.status }
+			: null;
+	} catch {
+		return null;
+	}
 }
 
 export function readWorkflowRunsForWorkflow(
@@ -25,7 +43,7 @@ export function readWorkflowRunsForWorkflow(
     if (!entry.name.includes(workflowName)) continue;
     const metadataPath = join(runsDir, entry.name, "metadata.json");
     if (!existsSync(metadataPath)) continue;
-    const raw = readWorkflowRunMetadataFile(metadataPath);
+		const raw = readRunSnapshot(metadataPath);
     if (!raw) continue;
     if (raw.workflow !== workflowName) continue;
     if (typeof raw.status !== "string" || typeof raw.id !== "string") continue;

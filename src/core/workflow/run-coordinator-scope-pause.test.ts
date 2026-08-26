@@ -28,10 +28,10 @@ function createStore(): RunStateDatabase {
   roots.push(root);
   const store = new RunStateDatabase(root);
   stores.push(store);
-  for (const projectId of ["project-a", "project-b"]) {
-    store.registerProject({
-      id: projectId,
-      rootPath: join(root, projectId),
+  for (const scopeId of ["scope-a", "scope-b"]) {
+    store.registerScope({
+      id: scopeId,
+      rootPath: join(root, scopeId),
       createdAt: "2026-08-25T10:00:00.000Z",
     });
   }
@@ -41,12 +41,12 @@ function createStore(): RunStateDatabase {
 function admit(
   store: RunStateDatabase,
   runId: string,
-  projectId: string,
+  scopeId: string,
   admittedAt: string,
 ): void {
   store.admitRun({
     id: runId,
-    projectId,
+    scopeId,
     workflow: "test-workflow",
     repository: "none",
     trigger: { event: "test.requested", schemaRef: null, payload: { runId } },
@@ -59,12 +59,12 @@ function createRuntime(
   store: RunStateDatabase,
   coordinator: RunCoordinator,
   daemonEpoch: number,
-  projectId: string,
+  scopeId: string,
 ): WorkflowRuntime {
   return new WorkflowRuntime({
     bus: new EventBus(),
-    projectDir: store.getProjectRoot(projectId)!,
-    projectId,
+    scopeRoot: store.getScopeRoot(scopeId)!,
+    scopeId,
     runState: store,
     runCoordinator: coordinator,
     daemonEpoch,
@@ -81,9 +81,9 @@ describe("RunCoordinator scope admission pause", () => {
   test("skips a paused project without leaving capacity idle", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a-1", "project-a", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-a-2", "project-a", "2026-08-25T10:00:02.000Z");
-    admit(store, "run-b", "project-b", "2026-08-25T10:00:03.000Z");
+    admit(store, "run-a-1", "scope-a", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-a-2", "scope-a", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-b", "scope-b", "2026-08-25T10:00:03.000Z");
 
     const bOutcome = deferred<RunExecutionOutcome>();
     const bStarted = deferred<void>();
@@ -95,7 +95,7 @@ describe("RunCoordinator scope admission pause", () => {
       concurrency: 1,
       execute: async (run) => {
         started.push(run.id);
-        if (run.projectId === "project-b") {
+        if (run.scopeId === "scope-b") {
           bStarted.resolve();
           return bOutcome.promise;
         }
@@ -103,15 +103,15 @@ describe("RunCoordinator scope admission pause", () => {
         return { kind: "terminal", state: "succeeded" };
       },
     });
-    const projectA = createRuntime(store, coordinator, epoch, "project-a");
+    const scopeA = createRuntime(store, coordinator, epoch, "scope-a");
 
-    projectA.setDispatchPaused(true);
+    scopeA.setDispatchPaused(true);
     await bStarted.promise;
-    expect(coordinator.isProjectAdmissionPaused("project-a")).toBe(true);
+    expect(coordinator.isScopeAdmissionPaused("scope-a")).toBe(true);
     expect(started).toEqual(["run-b"]);
 
-    projectA.setDispatchPaused(false);
-    expect(coordinator.isProjectAdmissionPaused("project-a")).toBe(false);
+    scopeA.setDispatchPaused(false);
+    expect(coordinator.isScopeAdmissionPaused("scope-a")).toBe(false);
     expect(started).toEqual(["run-b"]);
 
     bOutcome.resolve({ kind: "terminal", state: "succeeded" });
@@ -123,8 +123,8 @@ describe("RunCoordinator scope admission pause", () => {
   test("project resume cannot clear a global emergency pause", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-b", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-a", "scope-a", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-b", "2026-08-25T10:00:02.000Z");
     const started: string[] = [];
     const coordinator = new RunCoordinator({
       store,
@@ -135,11 +135,11 @@ describe("RunCoordinator scope admission pause", () => {
         return { kind: "terminal", state: "succeeded" };
       },
     });
-    const projectA = createRuntime(store, coordinator, epoch, "project-a");
+    const scopeA = createRuntime(store, coordinator, epoch, "scope-a");
 
     coordinator.pauseGlobalAdmission();
-    projectA.setDispatchPaused(true);
-    projectA.setDispatchPaused(false);
+    scopeA.setDispatchPaused(true);
+    scopeA.setDispatchPaused(false);
     expect(coordinator.isGlobalAdmissionPaused()).toBe(true);
     expect(coordinator.refill()).toBe(0);
     expect(started).toEqual([]);
@@ -152,8 +152,8 @@ describe("RunCoordinator scope admission pause", () => {
   test("runtime stop cancels and waits only for its project", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
-    admit(store, "run-a", "project-a", "2026-08-25T10:00:01.000Z");
-    admit(store, "run-b", "project-b", "2026-08-25T10:00:02.000Z");
+    admit(store, "run-a", "scope-a", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-b", "2026-08-25T10:00:02.000Z");
     const startedA = deferred<void>();
     const startedB = deferred<void>();
     const finishB = deferred<RunExecutionOutcome>();
@@ -162,7 +162,7 @@ describe("RunCoordinator scope admission pause", () => {
       daemonEpoch: epoch,
       concurrency: 2,
       execute: (run, signal) => {
-        if (run.projectId === "project-b") {
+        if (run.scopeId === "scope-b") {
           startedB.resolve();
           return finishB.promise;
         }
@@ -176,14 +176,14 @@ describe("RunCoordinator scope admission pause", () => {
         });
       },
     });
-    const projectA = createRuntime(store, coordinator, epoch, "project-a");
+    const scopeA = createRuntime(store, coordinator, epoch, "scope-a");
 
     coordinator.refill();
     await Promise.all([startedA.promise, startedB.promise]);
-    await projectA.stop(1, 1_000);
+    await scopeA.stop(1, 1_000);
 
-    expect(coordinator.isProjectBusy("project-a")).toBe(false);
-    expect(coordinator.activeRunIdsForProject("project-b")).toEqual(["run-b"]);
+    expect(coordinator.isScopeBusy("scope-a")).toBe(false);
+    expect(coordinator.activeRunIdsForScope("scope-b")).toEqual(["run-b"]);
     expect(store.getRun("run-a")?.state).toBe("cancelled");
     expect(store.getRun("run-b")?.state).toBe("running");
 

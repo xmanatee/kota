@@ -15,11 +15,11 @@ describe("stored workflow runtime state", () => {
   });
 
   it("does not create a database while reading missing offline state", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-offline-state-"));
-    roots.push(projectDir);
-    const stateDir = join(projectDir, "explicit-daemon-state");
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-offline-state-"));
+    roots.push(workspaceRoot);
+    const stateDir = join(workspaceRoot, "explicit-daemon-state");
 
-    expect(readStoredWorkflowRuntimeState(projectDir, stateDir)).toMatchObject({
+    expect(readStoredWorkflowRuntimeState(workspaceRoot, stateDir)).toMatchObject({
       activeRuns: [],
       pendingRuns: [],
       operatorPaused: false,
@@ -28,11 +28,11 @@ describe("stored workflow runtime state", () => {
   });
 
   it("does not create a database for offline mutation", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-offline-control-"));
-    roots.push(projectDir);
-    const stateDir = join(projectDir, "explicit-daemon-state");
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-offline-control-"));
+    roots.push(workspaceRoot);
+    const stateDir = join(workspaceRoot, "explicit-daemon-state");
 
-    expect(() => setStoredDispatchPaused(projectDir, stateDir, true)).toThrow(
+    expect(() => setStoredDispatchPaused(workspaceRoot, stateDir, true)).toThrow(
       /no canonical workflow state/i,
     );
     expect(existsSync(stateDir)).toBe(false);

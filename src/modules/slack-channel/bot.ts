@@ -8,10 +8,11 @@
 
 import type { ChannelSession } from "#core/channels/channel.js";
 import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { NullTransport } from "#core/loop/transport.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { admitSlackInteraction, admitSlackMessage, reportSlackAdmission } from "./admission.js";
+import { SlackApprovalBindingStore } from "./approval-bindings.js";
 import { handleSlackApprovalAction, postSlackApproval } from "./approval-interactions.js";
 import { consumeSlackInboundSignal } from "./bot-inbound-signal.js";
 import type { SlackBotOptions } from "./bot-options.js";
@@ -36,7 +37,10 @@ export class SlackBot {
   private sessions = new Map<string, ChannelSession>();
   private busyUsers = new Set<string>();
 
-  constructor(private options: SlackBotOptions) {}
+  constructor(
+    private options: SlackBotOptions,
+    private approvalBindings = new SlackApprovalBindingStore(),
+  ) {}
 
   async start(): Promise<void> {
     this.running = true;
@@ -55,18 +59,26 @@ export class SlackBot {
 
   /** Post an approval request to the configured notify channel (if set). */
   async postApproval(approval: ApprovalClientProjection): Promise<void> {
-    await postSlackApproval(this.options, approval);
+    const posted = await postSlackApproval(this.options, approval);
+    if (!posted || approval.review.status !== "available") return;
+    this.approvalBindings.set({
+      scopeId: approval.scopeId,
+      approvalId: approval.id,
+      reviewDigest: approval.review.digest,
+      channelId: posted.channelId,
+      messageTs: posted.messageTs,
+    });
   }
 
   listScopeSessionIds(scopeId: string): string[] {
     return [...this.sessions.entries()]
-      .filter(([, session]) => session.identity?.meta?.projectId === scopeId)
+      .filter(([, session]) => session.identity?.meta?.scopeId === scopeId)
       .map(([sessionKey]) => `slack:${sessionKey}`);
   }
 
   closeScopeSessions(scopeId: string): void {
     for (const [key, session] of this.sessions) {
-      if (session.identity?.meta?.projectId !== scopeId) continue;
+      if (session.identity?.meta?.scopeId !== scopeId) continue;
       session.agent.close();
       this.sessions.delete(key);
     }
@@ -212,7 +224,7 @@ export class SlackBot {
     try {
       session = this.getOrCreateSession(
         userId,
-        this.options.getDefaultProjectRuntime(),
+        this.options.getDefaultScopeRuntime(),
       );
       session.proxy.target = transport;
       session.lastActive = Date.now();
@@ -277,11 +289,11 @@ export class SlackBot {
 
   private async handleBlockAction(payload: SlackInteractivePayload): Promise<void> {
     if (!reportSlackAdmission(admitSlackInteraction(this.options, payload), "callback")) return;
-    await handleSlackApprovalAction(this.options, payload);
+    await handleSlackApprovalAction(this.options, payload, this.approvalBindings);
   }
 
-  private getOrCreateSession(userId: string, runtime: ProjectRuntime): ChannelSession {
-    const sessionKey = `${userId}:${runtime.project.projectId}`;
+  private getOrCreateSession(userId: string, runtime: ScopeRuntime): ChannelSession {
+    const sessionKey = `${userId}:${runtime.scope.scopeId}`;
     let session = this.sessions.get(sessionKey);
     if (session) return session;
     session = createSlackChannelSession(this.options, userId, runtime);

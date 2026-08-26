@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  buildConfiguredProject,
+  buildDirectoryScope,
   deriveDirectoryScopeId,
 } from "./scope-registry.js";
 
@@ -15,7 +15,7 @@ afterEach(() => {
   }
 });
 
-function makeProjectDir(label: string): string {
+function makeScopeRoot(label: string): string {
   const path = mkdtempSync(join(tmpdir(), `kota-scope-identity-${label}-`));
   paths.push(path);
   return path;
@@ -23,9 +23,9 @@ function makeProjectDir(label: string): string {
 
 describe("deriveDirectoryScopeId", () => {
   it("derives stable ids for resolved directory roots", () => {
-    const root = makeProjectDir("root");
+    const root = makeScopeRoot("root");
     const alias = `${root}-alias`;
-    const other = makeProjectDir("other");
+    const other = makeScopeRoot("other");
     symlinkSync(root, alias, "dir");
     paths.push(alias);
 
@@ -35,8 +35,8 @@ describe("deriveDirectoryScopeId", () => {
   });
 
   it("rejects empty roots instead of normalizing them to cwd", () => {
-    expect(() => deriveDirectoryScopeId("")).toThrow(/projectDir must be a non-empty string/);
-    expect(() => deriveDirectoryScopeId("   ")).toThrow(/projectDir must be a non-empty string/);
+    expect(() => deriveDirectoryScopeId("")).toThrow(/scopeRoot must be a non-empty string/);
+    expect(() => deriveDirectoryScopeId("   ")).toThrow(/scopeRoot must be a non-empty string/);
   });
 
   it("rejects roots that do not resolve to live directories", () => {
@@ -46,32 +46,32 @@ describe("deriveDirectoryScopeId", () => {
   });
 });
 
-describe("buildConfiguredProject", () => {
+describe("buildDirectoryScope", () => {
   it("fills displayName from basename when omitted", () => {
-    const root = makeProjectDir("sample-project");
-    const project = buildConfiguredProject({ projectDir: root });
-    expect(project).toMatchObject({
+    const root = makeScopeRoot("sample-project");
+    const scope = buildDirectoryScope({ scopeRoot: root });
+    expect(scope).toMatchObject({
       displayName: basename(root),
-      projectDir: realpathSync.native(root),
-      projectId: deriveDirectoryScopeId(root),
+      scopeRoot: realpathSync.native(root),
+      scopeId: deriveDirectoryScopeId(root),
     });
   });
 
   it("normalizes operator-supplied display names", () => {
-    const named = makeProjectDir("named");
-    const unnamed = makeProjectDir("unnamed");
+    const named = makeScopeRoot("named");
+    const unnamed = makeScopeRoot("unnamed");
     expect(
-      buildConfiguredProject({ projectDir: named, displayName: "  my project  " })
+      buildDirectoryScope({ scopeRoot: named, displayName: "  my project  " })
         .displayName,
     ).toBe("my project");
-    expect(buildConfiguredProject({ projectDir: unnamed, displayName: "   " }).displayName).toBe(
+    expect(buildDirectoryScope({ scopeRoot: unnamed, displayName: "   " }).displayName).toBe(
       basename(unnamed),
     );
   });
 
-  it("rejects empty projectDir input", () => {
-    expect(() => buildConfiguredProject({ projectDir: "" })).toThrow(
-      /projectDir must be a non-empty string/,
+  it("rejects empty scopeRoot input", () => {
+    expect(() => buildDirectoryScope({ scopeRoot: "" })).toThrow(
+      /scopeRoot must be a non-empty string/,
     );
   });
 });

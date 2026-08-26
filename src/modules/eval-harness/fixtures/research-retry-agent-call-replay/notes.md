@@ -112,8 +112,7 @@ workflow-runtime surface is distinct from the other five replays:
 - The `mark-attempt` post-agent step that re-reads the candidate's
   task body from `blocked/`, computes the fresh URL fingerprint, and
   upserts the `<!-- research-retry-attempt: fingerprint=… -->` marker.
-- The research-retry-specific `task-queue-valid` repair check with the
-  default `min-ready` behavior.
+- The research-retry-specific `task-queue-valid` repair check.
 
 The two existing `pr-reviewer` workflows are intentionally out of
 scope: their external-context needs (real PR payload) are different

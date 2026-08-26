@@ -36,10 +36,10 @@ export type AutonomyHealthIssueEvidence = {
 const DEFAULT_CARD_LIMIT = 12;
 
 export function collectCurrentAutonomyHealthIssueCards(
-  projectDir: string,
+  workspaceRoot: string,
   options: { limit?: number; nowIso?: string } = {},
 ): AutonomyHealthIssueEvidence {
-  const projection = readAutonomyIssueProjection(projectDir);
+  const projection = readAutonomyIssueProjection(workspaceRoot);
   const limit = options.limit ?? DEFAULT_CARD_LIMIT;
   const issueCards = projection.issues
     .filter((issue) => issue.status !== "resolved")

@@ -46,10 +46,10 @@ function printSessionError(message: string): void {
 
 async function readSessionStatus(
   ctx: ModuleContext,
-  projectId: string | undefined,
+  scopeId: string | undefined,
 ): Promise<DaemonLiveStatus | null> {
   const result = await ctx.client.daemonOps.status(
-    projectId ? { projectId } : undefined,
+    scopeId ? { scopeId } : undefined,
   );
   return result.state === "running" ? result.status : null;
 }
@@ -63,11 +63,11 @@ export function buildSessionCommand(ctx: ModuleContext): Command {
     .description("List all active sessions (interactive and workflow)")
     .option("--json", "Output as JSON")
     .option(
-      "--project <id>",
-      "Filter to one configured project (default: daemon's active project)",
+      "--scope <id>",
+      "Filter to one configured scope (default: daemon's active scope)",
     )
-    .action(async (opts: { json?: boolean; project?: string }) => {
-      const status = await readSessionStatus(ctx, opts.project);
+    .action(async (opts: { json?: boolean; scope?: string }) => {
+      const status = await readSessionStatus(ctx, opts.scope);
       if (!status) {
         if (opts.json) {
           writeJson({ sessions: [], offline: true });
@@ -121,11 +121,11 @@ export function buildSessionCommand(ctx: ModuleContext): Command {
     .description("Show detail for a single active session")
     .option("--json", "Output as JSON")
     .option(
-      "--project <id>",
-      "Look up the session in one configured project (default: daemon's active project)",
+      "--scope <id>",
+      "Look up the session in one configured scope (default: daemon's active scope)",
     )
-    .action(async (id: string, opts: { json?: boolean; project?: string }) => {
-      const status = await readSessionStatus(ctx, opts.project);
+    .action(async (id: string, opts: { json?: boolean; scope?: string }) => {
+      const status = await readSessionStatus(ctx, opts.scope);
       if (!status) {
         printSessionError("Daemon is offline.");
         process.exit(1);

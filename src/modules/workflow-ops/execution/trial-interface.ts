@@ -30,7 +30,7 @@ function parseTrialOptionsFromBody(body: TrialRequestBody): {
     && body.comparePayloads.every(isJsonObject)
     ? body.comparePayloads
     : undefined;
-  const projectId = typeof body.projectId === "string" ? body.projectId : undefined;
+  const scopeId = typeof body.scopeId === "string" ? body.scopeId : undefined;
   return {
     name,
     options: {
@@ -38,7 +38,7 @@ function parseTrialOptionsFromBody(body: TrialRequestBody): {
       ...(repeat !== undefined && { repeat }),
       ...(compareWorkflows !== undefined && { compareWorkflows }),
       ...(comparePayloads !== undefined && { comparePayloads }),
-      ...(projectId !== undefined && { projectId }),
+      ...(scopeId !== undefined && { scopeId }),
     },
   };
 }
@@ -62,11 +62,11 @@ export async function handleWorkflowTrialControl(
   }
   const result = await runLocalWorkflowTrial(ctx, name, options);
   if (!result.ok) {
-    if (result.reason === "unknown_project") {
+    if (result.reason === "unknown_scope") {
       jsonResponse(res, 404, {
-        error: "Unknown project",
-        reason: "unknown_project",
-        projectId: options.projectId,
+        error: "Unknown scope",
+        reason: "unknown_scope",
+        scopeId: options.scopeId,
       });
       return;
     }

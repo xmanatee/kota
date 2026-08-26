@@ -42,20 +42,20 @@ import {
 } from "./workflow-step-executor-fixture.integration.js";
 
 describe("executeAgentStep", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let agentConfig: AgentStepConfig;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-step-executor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
+    mkdirSync(join(scopeRoot, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
+      join(scopeRoot, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
-    agentConfig = { projectDir };
+    agentConfig = { scopeRoot };
     mockedExecuteWithAgentSDK.mockReset();
   });
 
@@ -68,7 +68,7 @@ describe("executeAgentStep", () => {
       .mockResolvedValue(SUCCESS_RESULT);
 
     const logs: string[] = [];
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 2 },
     });
 
@@ -96,7 +96,7 @@ describe("executeAgentStep", () => {
     mockedExecuteWithAgentSDK.mockRejectedValue(providerError);
 
     const logs: string[] = [];
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       retry: { maxAttempts: 3, initialDelayMs: 1, backoffFactor: 1 },
     });
 
@@ -122,7 +122,7 @@ describe("executeAgentStep", () => {
       new Error("agent produced nonsense"),
     );
 
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       retry: { maxAttempts: 3, initialDelayMs: 1, backoffFactor: 1 },
     });
 
@@ -150,7 +150,7 @@ describe("executeAgentStep", () => {
       });
       mockedExecuteWithAgentSDK.mockRejectedValue(providerError);
 
-      const step = makeStep(projectDir); // no retry — default applies implicitly
+      const step = makeStep(scopeRoot); // no retry — default applies implicitly
 
       const promise = executeAgentStep(
         makeDefinition(),
@@ -188,7 +188,7 @@ describe("executeAgentStep", () => {
       throw reason instanceof Error ? reason : new Error("aborted");
     });
 
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
     });
 

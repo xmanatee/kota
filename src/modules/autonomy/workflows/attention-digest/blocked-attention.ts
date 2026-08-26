@@ -88,11 +88,11 @@ function findOperatorGatedAged(
     .sort((a, b) => b.ageDays - a.ageDays);
 }
 
-export function blockedAttentionItems(projectDir: string): AttentionItem[] {
-  const blockedCount = countRepoTaskState(projectDir, "blocked");
+export function blockedAttentionItems(workspaceRoot: string): AttentionItem[] {
+  const blockedCount = countRepoTaskState(workspaceRoot, "blocked");
   if (blockedCount === 0) return [];
 
-  const records = listRepoTasksInState(projectDir, "blocked");
+  const records = listRepoTasksInState(workspaceRoot, "blocked");
   const nowMs = Date.now();
   const longBlocked = findLongBlocked(
     records,

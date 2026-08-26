@@ -4,13 +4,17 @@ import {
   resolveAgentHarness,
   UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resolveModuleChannels } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import {
+  createKotaClientTestDouble,
+  type DeclaredKotaClientHandlers,
+} from "#core/server/daemon-client-test-support.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi, } from "./client.js";
 import telegramModule from "./index.js";
 
@@ -66,9 +70,9 @@ vi.mock("#core/daemon/owner-question-queue.js", () => ({
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
 const mockedResolveAgentHarness = vi.mocked(resolveAgentHarness);
 
-const TEST_PROJECT: ConfiguredProject = {
-  projectId: "test-project",
-  projectDir: "/tmp/test",
+const TEST_SCOPE: DirectoryScope = {
+  scopeId: "test-scope",
+  scopeRoot: "/tmp/test",
   displayName: "KOTA",
 };
 
@@ -76,12 +80,12 @@ function makeChannelStartContext(
   overrides: { reportFailure?: (message: string) => void } = {},
 ) {
   const runtime = {
-    project: TEST_PROJECT,
+    scope: TEST_SCOPE,
     scheduler: { count: () => 0 },
   } as never;
   return {
-    getDefaultProjectRuntime: () => runtime,
-    getProjectRuntime: () => runtime,
+    getDefaultScopeRuntime: () => runtime,
+    getScopeRuntime: () => runtime,
     log: () => {},
     reportFailure: overrides.reportFailure ?? (() => {}),
     getWorkflowStatus: () => ({
@@ -93,15 +97,15 @@ function makeChannelStartContext(
 }
 
 function makeStubClient(
-  overrides: Partial<KotaClient> = {},
+  overrides: DeclaredKotaClientHandlers = {},
 ): KotaClient {
-  const client = {
-    projects: {
+  return createKotaClientTestDouble({
+    scopes: {
       list: vi.fn(async () => ({
         ok: true as const,
-        defaultProjectId: TEST_PROJECT.projectId,
-        activeProjectId: null,
-        projects: [TEST_PROJECT],
+        defaultScopeId: TEST_SCOPE.scopeId,
+        activeScopeId: null,
+        scopes: [TEST_SCOPE],
       })),
       use: vi.fn(),
     },
@@ -110,10 +114,8 @@ function makeStubClient(
       answer: vi.fn(),
       dismiss: vi.fn(),
     },
-  } as Partial<KotaClient>;
-  client.forProject = vi.fn(() => client as KotaClient);
-  Object.assign(client, overrides);
-  return client as KotaClient;
+    ...overrides,
+  });
 }
 
 function makeStubCtx(

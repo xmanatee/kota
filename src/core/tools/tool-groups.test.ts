@@ -1,10 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  CORE_TOOL_NAMES,
   clearCustomGroups,
   detectToolGroups,
   enableGroup,
-  enableToolsTool,
   filterTools,
   getActiveToolNames,
   getEnabledGroups,
@@ -34,26 +32,6 @@ describe("tool-groups", () => {
   afterEach(() => {
     clearCustomGroups();
     resetGroups();
-  });
-
-  describe("CORE_TOOL_NAMES", () => {
-    it("includes essential tools", () => {
-      for (const name of ["shell", "file_read", "file_edit", "grep", "glob", "delegate", "handoff_agent", "enable_tools"]) {
-        expect(CORE_TOOL_NAMES.has(name)).toBe(true);
-      }
-    });
-
-    it("does not include extended tools", () => {
-      for (const name of ["web_search", "code_exec", "todo", "multi_edit"]) {
-        expect(CORE_TOOL_NAMES.has(name)).toBe(false);
-      }
-    });
-
-    it("does not include gui, orchestration, or relocated tools", () => {
-      for (const name of ["computer_use", "screenshot", "view_image", "clipboard", "batch", "pipe", "map", "notify", "sqlite"]) {
-        expect(CORE_TOOL_NAMES.has(name)).toBe(false);
-      }
-    });
   });
 
   describe("enableGroup", () => {
@@ -141,12 +119,8 @@ describe("tool-groups", () => {
   });
 
   describe("getActiveToolNames", () => {
-    it("returns only core tools by default", () => {
-      const active = getActiveToolNames();
-      for (const name of CORE_TOOL_NAMES) {
-        expect(active.has(name)).toBe(true);
-      }
-      expect(active.has("web_search")).toBe(false);
+    it("has no active grouped tools by default", () => {
+      expect(getActiveToolNames()).toEqual(new Set());
     });
 
     it("includes group tools after enabling", () => {
@@ -195,7 +169,14 @@ describe("tool-groups", () => {
     });
 
     it("does not duplicate enable_tools if already in input", () => {
-      const withEnableTools = [...mockTools, enableToolsTool];
+      const withEnableTools = [
+        ...mockTools,
+        {
+          name: "enable_tools",
+          description: "Enable tools",
+          input_schema: { type: "object" as const, properties: {} },
+        },
+      ];
       const filtered = filterTools(withEnableTools);
       const count = filtered.filter((t) => t.name === "enable_tools").length;
       expect(count).toBe(1);
@@ -212,11 +193,7 @@ describe("tool-groups", () => {
     });
   });
 
-  describe("enableToolsTool", () => {
-    it("has correct name", () => {
-      expect(enableToolsTool.name).toBe("enable_tools");
-    });
-
+  describe("enable_tools", () => {
     it("filterTools always includes a fresh enable_tools with current groups", () => {
       // enable_tools description is rebuilt dynamically by filterTools, not from the static export
       const filtered = filterTools([]);

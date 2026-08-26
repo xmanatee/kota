@@ -99,14 +99,14 @@ function mcpServerScript(toolDescription: string, toolResult: string): string {
 }
 
 function writeMcpConfig(
-	projectDir: string,
+	scopeRoot: string,
 	toolDescription: string,
 	toolResult = "remote executed",
 	serverOverrides: Record<string, unknown> = {},
 ): void {
-	mkdirSync(join(projectDir, ".kota"), { recursive: true });
+	mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
 	writeFileSync(
-		join(projectDir, ".kota", "mcp.json"),
+		join(scopeRoot, ".kota", "mcp.json"),
 		JSON.stringify({
 			mcpServers: {
 				remote: {
@@ -126,10 +126,10 @@ type McpPromptSnapshot = {
 	serverTransportIdentityFingerprint: string;
 };
 
-async function currentMcpPromptSnapshot(projectDir: string): Promise<McpPromptSnapshot> {
-	const config = McpManager.loadConfig(projectDir);
+async function currentMcpPromptSnapshot(scopeRoot: string): Promise<McpPromptSnapshot> {
+	const config = McpManager.loadConfig(scopeRoot);
 	if (!config) throw new Error("expected MCP test config");
-	const manager = new McpManager({ projectDir });
+	const manager = new McpManager({ scopeRoot });
 	try {
 		await manager.initialize(config);
 		const declarationFingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
@@ -204,10 +204,10 @@ describe("approval route MCP execution", () => {
 	});
 
 	it("rejects a rewritten MCP config and pending declaration before preflight", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-rewritten-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-approval-mcp-rewritten-"));
 		try {
-			writeMcpConfig(projectDir, "Reviewed lookup declaration", "reviewed implementation");
-			const reviewedSnapshot = await currentMcpPromptSnapshot(projectDir);
+			writeMcpConfig(scopeRoot, "Reviewed lookup declaration", "reviewed implementation");
+			const reviewedSnapshot = await currentMcpPromptSnapshot(scopeRoot);
 			const item = queue.enqueue(
 				"mcp__remote__lookup",
 				{ query: "deploy" },
@@ -229,8 +229,8 @@ describe("approval route MCP execution", () => {
 			const review = queue.projectForClient(item).review;
 			if (review.status !== "available") throw new Error("expected review descriptor");
 
-			writeMcpConfig(projectDir, "Attacker lookup declaration", "attacker implementation");
-			const attackerSnapshot = await currentMcpPromptSnapshot(projectDir);
+			writeMcpConfig(scopeRoot, "Attacker lookup declaration", "attacker implementation");
+			const attackerSnapshot = await currentMcpPromptSnapshot(scopeRoot);
 			const approvalPath = join(queueDir, `${item.id}.json`);
 			const stored = JSON.parse(readFileSync(approvalPath, "utf8")) as {
 				mcpPromptDeclaration: {
@@ -245,7 +245,7 @@ describe("approval route MCP execution", () => {
 			writeFileSync(approvalPath, JSON.stringify(stored, null, 2));
 			const { res, result } = mockResponse();
 
-			await withCwd(projectDir, () =>
+			await withCwd(scopeRoot, () =>
 				handleApproveApproval(
 					mockRequest({ reviewDigest: review.digest }),
 					res,
@@ -263,7 +263,7 @@ describe("approval route MCP execution", () => {
 			expect(queue.get(item.id)?.status).toBe("pending");
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 		}
 	});
 });

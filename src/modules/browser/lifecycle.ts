@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
+import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
   registerSessionEnvironmentResource,
@@ -12,6 +13,7 @@ import {
 import {
   type BrowserProfileOptions,
   type BrowserProfileOwner,
+  resolveBrowserProfilePersistencePath,
   resolveBrowserProfileStoragePath,
   snapshotConfiguredBrowserProfile,
 } from "./browser-profile.js";
@@ -40,6 +42,8 @@ type BrowserSessionResource = {
   identity: BrowserSessionIdentity;
   profile: BrowserProfileOptions;
   profileOwner: BrowserProfileOwner | null;
+  storagePath: string | null;
+  allowedWriteRoots: readonly string[] | undefined;
   context: PlaywrightContext | null;
   page: PlaywrightPage | null;
   pagePromise: Promise<PlaywrightPage> | null;
@@ -81,7 +85,7 @@ function allResources(): BrowserSessionResource[] {
 }
 
 function resolveStoragePath(resource: BrowserSessionResource): string | null {
-  return resolveBrowserProfileStoragePath(resource, resource.identity);
+  return resource.storagePath;
 }
 
 async function initializeResource(
@@ -106,9 +110,20 @@ function createResource(
   runnerContext: ToolRunnerContext,
 ): BrowserSessionResource {
   const configuredProfile = snapshotConfiguredBrowserProfile();
+  const storagePath = resolveBrowserProfileStoragePath(
+    configuredProfile,
+    identity,
+  );
+  const allowedWriteRoots = resolveAgentFilesystemWriteRoots(
+    runnerContext.cwd ?? identity.scopeRoot,
+    runnerContext.agentWriteScope,
+    runnerContext.agentOutputDir,
+  );
   const resource: BrowserSessionResource = {
     identity,
     ...configuredProfile,
+    storagePath,
+    allowedWriteRoots,
     context: null,
     page: null,
     pagePromise: null,
@@ -121,9 +136,7 @@ function createResource(
   storeResource(resource);
   resource.detachSessionCleanup = registerSessionEnvironmentResource(
     runnerContext,
-    () => {
-      void closeSessionResource(resource).catch(() => {});
-    },
+    () => closeSessionResource(resource),
   );
   resource.initializing = initializeResource(resource).catch(async (error) => {
     resource.closed = true;
@@ -144,9 +157,9 @@ async function ensureResource(
   }
   const existing = resourceForIdentity(identity);
   if (existing) {
-    if (existing.identity.projectDir !== identity.projectDir) {
+    if (existing.identity.scopeRoot !== identity.scopeRoot) {
       throw new Error(
-        "Browser session scope was invoked with a different project directory",
+        "Browser session scope was invoked with a different scope directory",
       );
     }
     await existing.initializing;
@@ -202,7 +215,12 @@ export async function getPage(
 async function persistResource(resource: BrowserSessionResource): Promise<void> {
   if (!resource.profile.persist || !resource.profile.storageStatePath) return;
   if (!resource.context) return;
-  const resolved = resolveStoragePath(resource);
+  const resolved = resolveBrowserProfilePersistencePath(
+    resource,
+    resource.identity,
+    resource.storagePath,
+    resource.allowedWriteRoots,
+  );
   if (!resolved) return;
   const dir = dirname(resolved);
   if (!existsSync(dir)) {
@@ -221,9 +239,9 @@ export async function persistBrowserProfile(
   const identity = resolveBrowserSessionIdentity(context);
   const resource = resourceForIdentity(identity);
   if (!resource) return;
-  if (resource.identity.projectDir !== identity.projectDir) {
+  if (resource.identity.scopeRoot !== identity.scopeRoot) {
     throw new Error(
-      "Browser session scope was invoked with a different project directory",
+      "Browser session scope was invoked with a different scope directory",
     );
   }
   await resource.initializing;
@@ -249,16 +267,23 @@ async function closeSessionResource(
 
   resource.closing = (async () => {
     await resource.initializing.catch(() => {});
-    await persistResource(resource).catch(() => {});
-    if (resource.page && !resource.page.isClosed()) {
-      await resource.page.close().catch(() => {});
+    let persistenceError: unknown;
+    try {
+      await persistResource(resource);
+    } catch (error) {
+      persistenceError = error;
+    } finally {
+      if (resource.page && !resource.page.isClosed()) {
+        await resource.page.close().catch(() => {});
+      }
+      resource.page = null;
+      if (resource.context) {
+        await resource.context.close().catch(() => {});
+      }
+      resource.context = null;
+      await closeSharedBrowserIfUnused();
     }
-    resource.page = null;
-    if (resource.context) {
-      await resource.context.close().catch(() => {});
-    }
-    resource.context = null;
-    await closeSharedBrowserIfUnused();
+    if (persistenceError !== undefined) throw persistenceError;
   })();
   return resource.closing;
 }
@@ -270,9 +295,9 @@ export async function closeBrowserSession(
   const identity = resolveBrowserSessionIdentity(context);
   const resource = resourceForIdentity(identity);
   if (!resource) return;
-  if (resource.identity.projectDir !== identity.projectDir) {
+  if (resource.identity.scopeRoot !== identity.scopeRoot) {
     throw new Error(
-      "Browser session scope was invoked with a different project directory",
+      "Browser session scope was invoked with a different scope directory",
     );
   }
   await closeSessionResource(resource);

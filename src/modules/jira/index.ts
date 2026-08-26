@@ -23,6 +23,11 @@
 
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpMethod,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import type { JiraTaskProviderConfig } from "./task-provider.js";
 import { JiraTaskProvider } from "./task-provider.js";
 
@@ -52,10 +57,13 @@ function makeJiraFetch(
   baseUrl: string,
   apiToken: string,
   userEmail: string,
-): (path: string, options?: { method?: string; body?: unknown }) => Promise<unknown> {
+): (path: string, options?: { method?: OutboundHttpMethod; body?: unknown }) => Promise<unknown> {
   const credentials = Buffer.from(`${userEmail}:${apiToken}`).toString("base64");
   return async (path, options = {}) => {
-    const res = await fetch(`${baseUrl}${path}`, {
+    const { response: res } = await outboundHttp.request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([baseUrl]),
+      operation: `jira.${(options.method ?? "GET").toLowerCase()}`,
+      url: `${baseUrl}${path}`,
       method: options.method ?? "GET",
       headers: {
         Authorization: `Basic ${credentials}`,
@@ -115,7 +123,10 @@ const jiraModule: KotaModule = {
     const provider = new JiraTaskProvider(config.taskProvider, jiraFetch);
     try {
       await provider.init();
-      ctx.registerProvider(TASK_PROVIDER_TOKEN, provider);
+      ctx.registerProvider(TASK_PROVIDER_TOKEN, {
+        provider,
+        mutations: provider,
+      });
       ctx.log.info("Jira Cloud task provider registered");
     } catch (err) {
       ctx.log.warn(

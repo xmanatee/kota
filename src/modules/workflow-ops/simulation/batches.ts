@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { WorkflowEventBatchManager } from "#core/workflow/event-batches.js";
-import { ProjectRuntimeStateStore } from "#core/workflow/project-runtime-state.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { ScopeRuntimeStateStore } from "#core/workflow/scope-runtime-state.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import {
@@ -44,37 +44,37 @@ export function eventFromQueuedBatchFlush(
 export function createBatchSimulationState(
   definitions: readonly WorkflowDefinition[],
 ): BatchSimulationState {
-  const tempProjectDir = mkdtempSync(join(tmpdir(), "kota-workflow-simulation-"));
+  const tempScopeRoot = mkdtempSync(join(tmpdir(), "kota-workflow-simulation-"));
   const bus = new EventBus();
-  const store = new WorkflowRunStore(tempProjectDir);
-  const projectId = deriveDirectoryScopeId(tempProjectDir);
+  const store = new WorkflowRunStore(tempScopeRoot);
+  const scopeId = deriveDirectoryScopeId(tempScopeRoot);
   const runState = new RunStateDatabase(join(store.rootDir, "state"));
-  runState.registerProject({
-    id: projectId,
-    rootPath: tempProjectDir,
+  runState.registerScope({
+    id: scopeId,
+    rootPath: tempScopeRoot,
     createdAt: new Date().toISOString(),
   });
-  const projectState = new ProjectRuntimeStateStore(runState, projectId);
+  const scopeState = new ScopeRuntimeStateStore(runState, scopeId);
   const queuedFlushes: QueuedBatchFlushPreview[] = [];
-  const scopedBuses = new Map<string, ProjectScopedEventBus>();
+  const scopedBuses = new Map<string, ScopedEventBus>();
   let currentScopeId = "default";
 
-  const projectBus = (): ProjectScopedEventBus => {
+  const scopeBus = (): ScopedEventBus => {
     const existing = scopedBuses.get(currentScopeId);
     if (existing) return existing;
-    const created = new ProjectScopedEventBus(bus, currentScopeId);
+    const created = new ScopedEventBus(bus, currentScopeId);
     scopedBuses.set(currentScopeId, created);
     return created;
   };
 
   const manager = new WorkflowEventBatchManager(
-    projectState,
+    scopeState,
     () => false,
     (definition, _trigger, runTrigger) => {
       queuedFlushes.push({ definition, runTrigger });
     },
     () => {},
-    projectBus,
+    scopeBus,
     () => {},
   );
   manager.setup([...definitions]);
@@ -89,7 +89,7 @@ export function createBatchSimulationState(
     cleanup() {
       manager.clearAll();
       runState.close();
-      rmSync(tempProjectDir, { recursive: true, force: true });
+      rmSync(tempScopeRoot, { recursive: true, force: true });
     },
   };
 }

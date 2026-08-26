@@ -17,6 +17,11 @@ Owns KOTA's autonomous workflows and their shared policy.
 - **Outcome evidence.** Evaluators probe behavior, and owner-facing product work
   includes rendered evidence. Critic input is artifacts and repository state,
   never thinking traces or self-reports.
+- **Feedback over proxies.** Operator corrections, task reopens, repeated repair
+  loops, integration/publication failures, dead letters, and measured
+  regressions can justify improvement work. Trajectory heuristics, review-shape
+  scores, and static metrics remain diagnostic context and never create work on
+  their own.
 - **Honest measurement.** Resource allocation is distinct from kill thresholds;
   report profiles, judge repetition, `pass@k`, and `pass^k` explicitly.
 - **Proportional change review.** Judge material workflow, prompt, routing,
@@ -32,7 +37,7 @@ Owns KOTA's autonomous workflows and their shared policy.
 - **Eval provenance.** Retired SWE-bench fixtures are reference-only; new
   fixtures come from local failures or justified non-vacuous smoke cases.
 - **Repository isolation is runtime-owned.** Workflows declare repository
-  access and logical resources. The runtime supplies the isolated `projectDir`
+  access and logical resources. The runtime supplies the isolated `scopeRoot`
   and canonical `scopeDir`, then owns integration, recovery, and cleanup.
   Workflows do not own worktrees, branches, commits, merges, leases, or
   finalizers.
@@ -71,5 +76,5 @@ its entries, and tests exercise decision behavior rather than catalog identity.
 - Explorer may update the watchlist, create useful work, or finish with no
   change. Inaccessible sources block rather than invite synthesis. Cooldowns
   pace exploration and builder work without hard caps.
-- Operator reports, fan-out consolidation, and evaluator drift must remain
-  observation/governance surfaces and never leak cost bias into agent context.
+- Operator reports and evaluator drift remain observation/governance surfaces
+  and never leak cost bias into agent context.

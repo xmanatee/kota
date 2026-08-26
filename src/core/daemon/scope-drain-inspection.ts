@@ -4,7 +4,7 @@ import {
   type ProviderRegistry,
   type ProviderToken,
 } from "#core/modules/provider-registry.js";
-import type { ConfiguredProject } from "./scope-registry.js";
+import type { DirectoryScope } from "./scope-registry.js";
 
 export type ScopeDrainDisposition =
   | "select-another-default"
@@ -32,7 +32,7 @@ export type ScopeExternalDrainBlocker = ScopeDrainBlocker & {
 };
 
 export interface ScopeDrainInspectionSource {
-  inspect(project: ConfiguredProject): readonly ScopeExternalDrainBlocker[];
+  inspect(scope: DirectoryScope): readonly ScopeExternalDrainBlocker[];
 }
 
 export const SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE: ProviderToken<ScopeDrainInspectionSource> =
@@ -40,7 +40,7 @@ export const SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE: ProviderToken<ScopeDrainInspe
 
 export function inspectExternalScopeDrainBlockers(
   registry: ProviderRegistry | null,
-  project: ConfiguredProject,
+  scope: DirectoryScope,
 ): ScopeDrainBlocker[] {
   if (registry === null) return [];
   const blockers: ScopeDrainBlocker[] = [];
@@ -48,7 +48,7 @@ export function inspectExternalScopeDrainBlockers(
     const source = registry.getByName(SCOPE_DRAIN_INSPECTION_PROVIDER_TYPE, name);
     if (source === null) continue;
     try {
-      blockers.push(...source.inspect(project));
+      blockers.push(...source.inspect(scope));
     } catch (error) {
       blockers.push({
         kind: "inspection_failure",

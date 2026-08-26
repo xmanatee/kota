@@ -2,25 +2,25 @@ import { rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   MS_PER_DAY,
-  makeProjectDir,
+  makeScopeRoot,
   NOW,
   ownerInterventionReport,
   writeQuestion,
 } from "./owner-intervention-escalation.test-helpers.js";
 
 describe("owner intervention escalation report", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    workspaceRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("surfaces active recurring patterns and generated task ids in the operator report", () => {
-    writeQuestion(projectDir, {
+  it("surfaces active recurring corrections as observation-only patterns", () => {
+    writeQuestion(workspaceRoot, {
       id: "correct1",
       status: "answered",
       runId: "run-a",
@@ -28,7 +28,7 @@ describe("owner intervention escalation report", () => {
       proposedAnswers: ["Continue"],
       answer: "Use the blocked-promoter path instead.",
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "correct2",
       status: "answered",
       runId: "run-b",
@@ -37,24 +37,23 @@ describe("owner intervention escalation report", () => {
       answer: "Do not continue; use the blocked-promoter path instead.",
     });
 
-    const data = ownerInterventionReport(projectDir);
+    const data = ownerInterventionReport(workspaceRoot);
 
     expect(data.recurringPatterns.activePatterns).toHaveLength(1);
     expect(data.recurringPatterns.activePatterns[0]).toMatchObject({
       kind: "repeated-freeform-correction",
-      action: "create",
+      questionIds: ["correct1", "correct2"],
     });
-    expect(data.recurringPatterns.activePatterns[0]?.repairTaskId).toMatch(
-      /^task-repair-owner-intervention-pattern-/,
-    );
     const serialized = JSON.stringify(data);
+    expect(serialized).not.toContain("repairTaskId");
+    expect(serialized).not.toContain('"action"');
     expect(serialized).not.toContain("Private prompt context");
     expect(serialized).not.toContain("blocked-promoter path instead");
     expect(serialized).not.toMatch(/\bcost\b/i);
   });
 
-  it("reports stale record-only health-reviewer recurrence without opening an active repair task", () => {
-    writeQuestion(projectDir, {
+  it("reports ignored stale record-only health-reviewer recurrence", () => {
+    writeQuestion(workspaceRoot, {
       id: "health-stale-a",
       status: "pending",
       runId: "health-run-a",
@@ -64,7 +63,7 @@ describe("owner intervention escalation report", () => {
       answerBehavior: "record-only",
       createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
     });
-    writeQuestion(projectDir, {
+    writeQuestion(workspaceRoot, {
       id: "health-stale-b",
       status: "pending",
       runId: "health-run-b",
@@ -75,16 +74,12 @@ describe("owner intervention escalation report", () => {
       createdAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
     });
 
-    const data = ownerInterventionReport(projectDir);
+    const data = ownerInterventionReport(workspaceRoot);
 
     expect(data.recurringPatterns.activePatterns).toEqual([]);
     expect(data.recurringPatterns.ignoredPatterns).toHaveLength(1);
     expect(data.recurringPatterns.ignoredPatterns[0]).toMatchObject({
       kind: "repeated-stale-or-expired",
-      action: "ignored",
-      repairTaskId: expect.stringMatching(
-        /^task-repair-owner-intervention-pattern-/,
-      ),
       questionIds: ["health-stale-a", "health-stale-b"],
       runIds: ["health-run-a", "health-run-b"],
     });

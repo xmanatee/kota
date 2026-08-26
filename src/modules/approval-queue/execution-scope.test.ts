@@ -20,10 +20,10 @@ import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
   makeApprovalScopeEntry as makeEntry,
-  type ApprovalScopeProjectRuntimeEntry as ProjectRuntimeEntry,
   REGISTERED_APPROVAL_SCOPE_TOOL_NAMES as REGISTERED_TOOL_NAMES,
   registerApprovalScopeTools,
-  registerApprovalScopeProjectProvider as registerProjectQueueProvider,
+  registerApprovalScopeProvider as registerScopeQueueProvider,
+  type ApprovalScopeRuntimeEntry as ScopeRuntimeEntry,
   APPROVAL_SCOPE_TOOL_NAMES as TOOL_NAMES,
 } from "./execution-scope-tools.integration.js";
 import {
@@ -73,11 +73,11 @@ function approvalDecisionBody(queue: ApprovalQueue, id: string): Record<string, 
   return { reviewDigest: review.digest };
 }
 
-describe("approval execution project scope", () => {
+describe("approval execution scope scope", () => {
   let rootDir: string;
   let originalCwd: string;
-  let defaultEntry: ProjectRuntimeEntry;
-  let projectB: ProjectRuntimeEntry;
+  let defaultEntry: ScopeRuntimeEntry;
+  let scopeB: ScopeRuntimeEntry;
   let contexts: ToolRunnerContext[];
   let toolOutputs: Array<{ tool: string; content: string }>;
 
@@ -88,10 +88,10 @@ describe("approval execution project scope", () => {
     resetApprovalQueue();
     contexts = [];
     toolOutputs = [];
-    defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
-    projectB = makeEntry(join(rootDir, "project-b"), "Project B");
-    process.chdir(defaultEntry.project.projectDir);
-    registerProjectQueueProvider([defaultEntry, projectB]);
+    defaultEntry = makeEntry(join(rootDir, "scope-a"), "Scope A");
+    scopeB = makeEntry(join(rootDir, "scope-b"), "Scope B");
+    process.chdir(defaultEntry.scope.scopeRoot);
+    registerScopeQueueProvider([defaultEntry, scopeB]);
     registerApprovalScopeTools(contexts, toolOutputs);
   });
 
@@ -107,11 +107,11 @@ describe("approval execution project scope", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("keeps concurrent project approvals scoped through enqueue, listing, approval, and execution", async () => {
-    setApprovalQueueInstance(projectB.approvalQueue);
+  it("keeps concurrent scope approvals scoped through enqueue, listing, approval, and execution", async () => {
+    setApprovalQueueInstance(scopeB.approvalQueue);
 
     const queueWrite = (
-      entry: ProjectRuntimeEntry,
+      entry: ScopeRuntimeEntry,
       sessionId: string,
       content: string,
     ) => executeToolCalls(
@@ -127,14 +127,13 @@ describe("approval execution project scope", () => {
         autonomyMode: "supervised",
         approvalQueue: entry.approvalQueue,
         sessionId,
-        scopeId: entry.project.projectId,
-        projectId: entry.project.projectId,
+        scopeId: entry.scope.scopeId,
       },
     );
 
     await Promise.all([
-      queueWrite(defaultEntry, "session-a", "project-a"),
-      queueWrite(projectB, "session-b", "project-b"),
+      queueWrite(defaultEntry, "session-a", "scope-a"),
+      queueWrite(scopeB, "session-b", "scope-b"),
     ]);
 
     const aListResponse = mockResponse();
@@ -145,14 +144,14 @@ describe("approval execution project scope", () => {
         null,
         undefined,
         "pending",
-        defaultEntry.project.projectId,
+        defaultEntry.scope.scopeId,
       ),
       handleListApprovals(
         bListResponse.res,
         null,
         undefined,
         "pending",
-        projectB.project.projectId,
+        scopeB.scope.scopeId,
       ),
     ]);
 
@@ -160,8 +159,8 @@ describe("approval execution project scope", () => {
     const bApprovals = (bListResponse.result.body as { approvals: Array<{ id: string; scopeId: string }> }).approvals;
     expect(aApprovals).toHaveLength(1);
     expect(bApprovals).toHaveLength(1);
-    expect(aApprovals[0]?.scopeId).toBe(defaultEntry.project.projectId);
-    expect(bApprovals[0]?.scopeId).toBe(projectB.project.projectId);
+    expect(aApprovals[0]?.scopeId).toBe(defaultEntry.scope.scopeId);
+    expect(bApprovals[0]?.scopeId).toBe(scopeB.scope.scopeId);
 
     const aApproveResponse = mockResponse();
     const bApproveResponse = mockResponse();
@@ -172,40 +171,40 @@ describe("approval execution project scope", () => {
         aApprovals[0]!.id,
         null,
         undefined,
-        defaultEntry.project.projectId,
+        defaultEntry.scope.scopeId,
       ),
       handleApproveApproval(
-        mockRequest(approvalDecisionBody(projectB.approvalQueue, bApprovals[0]!.id)),
+        mockRequest(approvalDecisionBody(scopeB.approvalQueue, bApprovals[0]!.id)),
         bApproveResponse.res,
         bApprovals[0]!.id,
         null,
         undefined,
-        projectB.project.projectId,
+        scopeB.scope.scopeId,
       ),
     ]);
 
     expect(aApproveResponse.result.status).toBe(200);
     expect(bApproveResponse.result.status).toBe(200);
-    expect(readFileSync(join(defaultEntry.project.projectDir, "concurrent-marker.txt"), "utf-8"))
-      .toBe("project-a");
-    expect(readFileSync(join(projectB.project.projectDir, "concurrent-marker.txt"), "utf-8"))
-      .toBe("project-b");
+    expect(readFileSync(join(defaultEntry.scope.scopeRoot, "concurrent-marker.txt"), "utf-8"))
+      .toBe("scope-a");
+    expect(readFileSync(join(scopeB.scope.scopeRoot, "concurrent-marker.txt"), "utf-8"))
+      .toBe("scope-b");
     expect(contexts).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        cwd: defaultEntry.project.projectDir,
-        scopeId: defaultEntry.project.projectId,
+        cwd: defaultEntry.scope.scopeRoot,
+        scopeId: defaultEntry.scope.scopeId,
         sessionId: "session-a",
       }),
       expect.objectContaining({
-        cwd: projectB.project.projectDir,
-        scopeId: projectB.project.projectId,
+        cwd: scopeB.scope.scopeRoot,
+        scopeId: scopeB.scope.scopeId,
         sessionId: "session-b",
       }),
     ]));
   });
 
-  it("rejects execution when a queued approval is attributed to another project", async () => {
-    const item = projectB.approvalQueue.enqueue(
+  it("rejects execution when a queued approval is attributed to another scope", async () => {
+    const item = scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileWrite,
       { path: "scope-mismatch.txt", content: "must-not-run" },
       "moderate",
@@ -217,15 +216,15 @@ describe("approval execution project scope", () => {
       "session-a",
     );
     const itemPath = join(
-      projectB.project.projectDir,
+      scopeB.scope.scopeRoot,
       ".kota",
       "approvals",
       `${item.id}.json`,
     );
     const stored = JSON.parse(readFileSync(itemPath, "utf-8")) as Record<string, unknown>;
-    stored.scopeId = defaultEntry.project.projectId;
+    stored.scopeId = defaultEntry.scope.scopeId;
     writeFileSync(itemPath, JSON.stringify(stored, null, 2));
-    expect(() => projectB.approvalQueue.list("pending")).toThrow(
+    expect(() => scopeB.approvalQueue.list("pending")).toThrow(
       /belongs to scope/,
     );
 
@@ -236,14 +235,14 @@ describe("approval execution project scope", () => {
       item.id,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(409);
     expect(result.body).toMatchObject({
       reason: "approval_scope_mismatch",
-      expectedScopeId: projectB.project.projectId,
+      expectedScopeId: scopeB.scope.scopeId,
     });
-    expect(existsSync(join(projectB.project.projectDir, "scope-mismatch.txt"))).toBe(false);
-    expect(projectB.approvalQueue.get(item.id)?.status).toBe("pending");
+    expect(existsSync(join(scopeB.scope.scopeRoot, "scope-mismatch.txt"))).toBe(false);
+    expect(scopeB.approvalQueue.get(item.id)?.status).toBe("pending");
   });});

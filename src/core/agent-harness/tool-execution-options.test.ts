@@ -32,7 +32,7 @@ describe("agentHarnessToolExecutionOptions", () => {
       effort: "xhigh",
       verbose: true,
       autonomyMode: "supervised",
-      projectDir: "/project",
+      scopeRoot: "/project",
       cwd: "/project/.worktrees/run-a",
       agentWriteScope: ["generated/"],
       agentOutputDir: "/project/.kota/runs/run-a/agent-output",
@@ -52,7 +52,6 @@ describe("agentHarnessToolExecutionOptions", () => {
       sessionContext: {
         sessionId: "session-a",
         scopeId: "scope-a",
-        projectId: "scope-a",
       },
       workflowContext: {
         workflowName: "builder",
@@ -60,7 +59,6 @@ describe("agentHarnessToolExecutionOptions", () => {
         stepId: "build",
         spanId: "span-a",
         scopeId: "scope-a",
-        projectId: "scope-a",
       },
     };
 
@@ -76,14 +74,13 @@ describe("agentHarnessToolExecutionOptions", () => {
       clientApprovalResolver,
       approvalQueue,
       sessionId: "session-a",
-      projectDir: "/project",
+      scopeRoot: "/project",
       cwd: "/project/.worktrees/run-a",
       agentWriteScope: ["generated/"],
       agentOutputDir: "/project/.kota/runs/run-a/agent-output",
       authorityConfigPath: "/operator/machine/config.json",
       env: { KOTA_TEST_VALUE: "1" },
       scopeId: "scope-a",
-      projectId: "scope-a",
       workflowContext: options.workflowContext,
       idempotencyStore,
       tokenBudget,
@@ -103,14 +100,14 @@ describe("agentHarnessToolExecutionOptions", () => {
     expect(projected.authorityConfigPath).toMatch(/[/\\]\.kota[/\\]config\.json$/);
   });
 
-  it("uses the harness cwd as the project root when an interactive caller has one directory", () => {
+  it("uses the harness cwd as the scope root when an interactive caller has one directory", () => {
     const projected = agentHarnessToolExecutionOptions(
       { prompt: "go", effort: "xhigh", cwd: "/project" },
       { resultLimit: 100 },
     );
 
     expect(projected).toMatchObject({
-      projectDir: "/project",
+      scopeRoot: "/project",
       cwd: "/project",
     });
   });

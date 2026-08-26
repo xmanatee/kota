@@ -22,6 +22,7 @@ import {
   makeMetadata,
   makeStep,
   mockedExecuteWithAgentSDK,
+  resolveFixtureAgentHarness,
   SUCCESS_RESULT,
   TRIGGER,
 } from "./workflow-step-executor-fixture.integration.js";
@@ -29,7 +30,7 @@ import {
 const REPAIR_CHECK_TOOL = "repair_check_b_fixture";
 
 describe("executeStep repair loop", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let agentConfig: AgentStepConfig;
 
   beforeAll(() => {
@@ -50,24 +51,25 @@ describe("executeStep repair loop", () => {
   });
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-repair-loop-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
+    mkdirSync(join(scopeRoot, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
+      join(scopeRoot, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
-    agentConfig = { projectDir };
+    agentConfig = { scopeRoot, resolveAgentHarness: resolveFixtureAgentHarness };
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   function makeRepairContext(runTool: WorkflowStepContext["runTool"]): WorkflowStepContext {
     return {
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeId: "test-scope",
+      scopeRoot,
+      workspaceRoot: scopeRoot,
+      stateDir: join(scopeRoot, ".kota"),
       state: createTestTransactionalRunState(),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
@@ -75,7 +77,7 @@ describe("executeStep repair loop", () => {
         definitionPath: "src/modules/test/workflows/test/workflow.ts",
         runId: "run-1",
         runDir: ".kota/runs/run-1",
-        runDirPath: `${projectDir}/.kota/runs/run-1`,
+        runDirPath: `${scopeRoot}/.kota/runs/run-1`,
       },
       trigger: TRIGGER,
       previousOutput: null,
@@ -106,7 +108,7 @@ describe("executeStep repair loop", () => {
       .mockRejectedValue(new Error("typecheck error: type mismatch")); // checks always fail
 
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [{ id: "check-typecheck", tool: REPAIR_CHECK_TOOL, input: { command: "npm run typecheck" } }],
@@ -141,7 +143,7 @@ describe("executeStep repair loop", () => {
       .fn()
       .mockRejectedValue(new Error("advisory warning"));
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [
@@ -194,7 +196,7 @@ describe("executeStep repair loop", () => {
       .mockReturnValue({ ok: true });
 
     const context = makeRepairContext(vi.fn());
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       repairLoop: {
         maxRepairAttempts: 2,
         checks: [
@@ -242,7 +244,7 @@ describe("executeStep repair loop", () => {
       .mockResolvedValue({ content: "lint passed", is_error: false });
 
     const context = makeRepairContext(runTool);
-    const step = makeStep(projectDir, {
+    const step = makeStep(scopeRoot, {
       agentName: "builder",
       thinkingEnabled: true,
       thinkingBudget: 4096,

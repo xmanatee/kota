@@ -8,26 +8,26 @@ import {
 } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   buildModuleCapabilityManifestProjection,
-  registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import type { ToolEffect } from "./effect.js";
 import { registerTool, type ToolRunner } from "./index.js";
+import { registerModuleToolManifestProjection } from "./tool-effect-registry.js";
 
 export {
-  initGitTestProject as initHandoffPolicyGitProject,
-} from "#core/util/git-project-test-support.js";
+  initGitTestRepository as initHandoffPolicyGitRepository,
+} from "#core/util/git-repository-test-support.js";
 
 export const HANDOFF_POLICY_HARNESS = "handoff-hosted-scope-policy";
 export const HANDOFF_POLICY_MODULE = "handoff-policy-fixture";
 
 export function handoffScopePolicy(
-  projectDir: string,
+  scopeRoot: string,
   restriction: Omit<ScopePolicyFragment, "scopeId" | "reason"> = {},
 ): ResolvedScopePolicy {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
   return resolveScopePolicy({
     projection: {
       rootScopeId: "global",
@@ -38,7 +38,7 @@ export function handoffScopePolicy(
           scopeId,
           displayName: "Fixture",
           parentScopeId: "global",
-          directoryRoot: projectDir,
+          directoryRoot: scopeRoot,
         },
       ],
     },
@@ -61,13 +61,13 @@ export function handoffScopePolicyAuthority(
 }
 
 export function handoffApprovalQueue(
-  projectDir: string,
+  scopeRoot: string,
   scopeId: string,
   bus: EventBus = new EventBus(),
 ): ApprovalQueue {
   return new ApprovalQueue(
-    join(projectDir, ".kota", "approvals"),
-    new ProjectScopedEventBus(bus, scopeId),
+    join(scopeRoot, ".kota", "approvals"),
+    new ScopedEventBus(bus, scopeId),
     { scopeId },
   );
 }
@@ -97,7 +97,7 @@ export function registerHandoffPolicyManifest(
   name: string,
   effect: ToolEffect,
 ): void {
-  registerModuleCapabilityManifestProjection(
+  registerModuleToolManifestProjection(
     buildModuleCapabilityManifestProjection(
       HANDOFF_POLICY_MODULE,
       {
@@ -105,7 +105,7 @@ export function registerHandoffPolicyManifest(
         capabilities: [{
           id: `${HANDOFF_POLICY_MODULE}.tool`,
           description: "Tool used to prove module-policy inheritance.",
-          scope: "project",
+          scope: "scope",
           scopePolicyHooks: ["writes"],
         }],
         dataClasses: [],

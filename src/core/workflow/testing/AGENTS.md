@@ -1,15 +1,16 @@
 # Workflow Testing
 
-This directory contains the `WorkflowTestHarness` — an in-process harness for unit-testing workflow definitions without a running daemon or real agent.
+Workflow behavior is owned by the production run host and step executors.
 
-- Use the harness to test `when` predicates, step skip/run logic, branch conditions, and foreach iteration in isolation.
-- Keep the public `WorkflowTestHarness` class and stable harness types in
-  `index.ts`, private execution helpers in focused sibling files, and the
-  public API surface in `testing-api.ts`. Tests belong here alongside the
-  harness code.
-- Agent steps require a `stepMocks` entry; missing mocks throw a descriptive error. Code steps run for real.
-- The harness defaults `projectDir` to the OS temp directory; tests that need a
-  populated repo must pass an explicit fixture directory.
-- When adding a new step type to the workflow runtime, add matching harness support here and cover it with a co-located test.
-- Do not add production runtime flags or hooks to support harness testing. The harness exercises real workflow logic through explicit inputs and context overrides.
-- Export only stable types and the `WorkflowTestHarness` class through `testing-api.ts`; keep internal utilities unexported.
+- Exercise definitions through the production host with a temporary scope and
+  controlled external ports. Assert admission, durable outputs, effects, and
+  lifecycle results rather than a second interpreter's internal steps.
+- Pure predicates and value transformations may be tested directly as ordinary
+  functions when they contain a distinct decision.
+- Agent/model calls, clocks, credentials, and outbound processes may be faked
+  at their typed ports. Scheduling, branching, retries, persistence, and
+  recovery are not fake ports.
+- `WorkflowScenarioDriver` delegates validation and every step semantic to the
+  production executor. It may adapt typed host ports, but must never interpret
+  steps, scheduling, branching, persistence, retries, or recovery itself.
+- Testing exports remain narrow and must not become a public alternate runtime.

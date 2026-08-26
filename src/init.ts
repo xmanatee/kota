@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { basename } from "node:path";
-import { detectEnvironment, detectProject, getDirectoryOverview } from "#core/util/project-detection.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { detectEnvironment, detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
 import { getScheduler } from "./core/daemon/scheduler.js";
 import {
   getHistoryProvider,
@@ -78,7 +78,7 @@ function getSystemContext(): string {
   return `Date: ${date} (${days[now.getDay()]}) | Platform: ${platforms[process.platform] || process.platform}`;
 }
 
-/** Search persistent memory for entries relevant to the current project. */
+/** Search persistent memory for entries relevant to the current workspace. */
 function recallMemories(cwd: string): string | null {
   try {
     const provider = getMemoryProvider();
@@ -121,11 +121,11 @@ function recallSchedules(): string | null {
   }
 }
 
-/** Recall recent knowledge entries relevant to the current project. */
+/** Recall recent knowledge entries relevant to the current workspace. */
 function recallKnowledge(): string | null {
   try {
     const provider = getKnowledgeProvider();
-    const entries = provider.list({ scope: "project" });
+    const entries = provider.list({ scope: "scope" });
     if (entries.length === 0) return null;
 
     const shown = entries.slice(0, 5);
@@ -179,9 +179,9 @@ export function buildSessionWarmup(cwd?: string): string {
   sections.push(`**Working directory**: ${dir}`);
   sections.push(`**System**: ${getSystemContext()}`);
 
-  const project = detectProject(dir);
-  if (project) {
-    sections.push(`**Project**: ${project}`);
+  const workspace = detectWorkspaceTechnology(dir);
+  if (workspace) {
+    sections.push(`**Workspace**: ${workspace}`);
   } else {
     const env = detectEnvironment(dir);
     if (env) sections.push(`**Environment**: ${env}`);

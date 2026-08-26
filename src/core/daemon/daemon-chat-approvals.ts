@@ -134,7 +134,7 @@ export function createDaemonChatClientApprovalResolver(
         id: approvalId,
         kind: "tool_call",
         tool: request.toolName,
-        scopeId: session.projectId,
+        scopeId: session.scopeId,
         risk: request.risk,
         reason: request.reason,
         sessionId: session.id,

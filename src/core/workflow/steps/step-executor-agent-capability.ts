@@ -12,14 +12,14 @@ import type { WorkflowRunMetadata } from "../run-types.js";
 export function writeHarnessCapabilityArtifact(
   stepId: string,
   metadata: WorkflowRunMetadata,
-  projectDir: string,
+  workspaceRoot: string,
   harness: AgentHarness,
   model: string,
   effort: AgentEffort,
 ): HarnessCapabilitySnapshot {
   const snapshot = buildHarnessCapabilitySnapshot(harness, { model, effort });
   const filePath = join(
-    resolve(projectDir, metadata.runDir),
+    resolve(workspaceRoot, metadata.runDir),
     "steps",
     `${stepId}.harness-capability.json`,
   );

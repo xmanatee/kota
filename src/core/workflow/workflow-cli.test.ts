@@ -90,20 +90,20 @@ describe("getEligibleAtMs (cooldown check)", () => {
 // ---------------------------------------------------------------------------
 
 describe("WorkflowRunStore causal chain", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-wf-causal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   const workflow: WorkflowDefinition = {
@@ -225,20 +225,20 @@ function makeNonAgentStepResult(
 }
 
 describe("WorkflowRunStore cost aggregation", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-wf-cost-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("omits usage when no agent steps exist", () => {
@@ -371,20 +371,20 @@ describe("workflow show step cost display", () => {
 // ---------------------------------------------------------------------------
 
 describe("workflow show --step flag", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-wf-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns full JSON output for a step with output", () => {

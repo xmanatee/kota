@@ -2,7 +2,6 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import {
   createNativeAgentInvalidationLifecycle,
-  resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
@@ -57,20 +56,23 @@ export async function executeRepairAgentIteration(
     "utf-8",
   );
   const promptDir = dirname(resolve(step.moduleRoot, step.promptPath));
-  const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.projectDir);
+  const contextStartDir = resolvePromptContextStartDir(promptDir, agentConfig.scopeRoot);
   const systemPrompt = buildKotaSystemPrompt(
     agentConfig.config,
     promptBody,
     contextStartDir,
-    agentConfig.projectDir,
+    agentConfig.scopeRoot,
   );
-  const harness = resolveAgentHarness(step.harness);
+  const harness = agentConfig.resolveAgentHarness?.(step.harness);
+  if (harness === undefined) {
+    throw new Error(`Repair iteration has no harness resolver for "${step.harness}"`);
+  }
   const repairSessionId = harness.unsupportedRunOptions?.some(
     (entry) => entry.runOption === "resumeSessionId",
   )
     ? undefined
     : resumeSessionId;
-  const workspaceDir = agentConfig.workspaceDir ?? agentConfig.projectDir;
+  const workspaceDir = agentConfig.workspaceRoot ?? agentConfig.scopeRoot;
   const scopedAgent = step.agentName && agentConfig.resolveAgentDef
     ? agentConfig.resolveAgentDef(step.agentName)
     : undefined;

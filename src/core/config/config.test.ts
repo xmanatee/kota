@@ -23,7 +23,7 @@ describe("loadConfig", () => {
 
   function loadTrustedConfig(overrides: Partial<KotaConfig> = {}): KotaConfig {
     const globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 
@@ -34,7 +34,7 @@ describe("loadConfig", () => {
     expect(config).toEqual({});
   });
 
-  it("loads project config from .kota/config.json", () => {
+  it("loads scope config from .kota/config.json", () => {
     const configDir = join(tmpDir, ".kota");
     mkdirSync(configDir, { recursive: true });
     writeFileSync(
@@ -69,7 +69,7 @@ describe("loadConfig", () => {
     });
   });
 
-  it("ignores project config from an untrusted project", () => {
+  it("ignores scope config from an untrusted scope", () => {
     const configDir = join(tmpDir, ".kota");
     mkdirSync(configDir, { recursive: true });
     writeFileSync(

@@ -64,7 +64,7 @@ import {
 } from "./scoring.js";
 
 export type EvalSetParams = {
-  projectDir: string;
+  workspaceRoot: string;
   fixtures: readonly LoadedFixture[];
   executor: WorkflowExecutor;
   requestedProfile: ResourceProfile;
@@ -171,7 +171,7 @@ export async function runEvalSet(params: EvalSetParams): Promise<EvalSetReport> 
   const codeHealth = aggregateCodeHealthDiagnostics(runs);
   const completedAt = new Date().toISOString();
   const runConfiguration = buildEvalRunConfiguration({
-    projectDir: params.projectDir,
+    workspaceRoot: params.workspaceRoot,
     fixtures: params.fixtures,
     resourceProfile,
     executionProfile,

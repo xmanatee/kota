@@ -11,7 +11,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadConfig, loadConfigWithDiagnostics, updateProjectConfig } from "#core/config/config.js";
+import { loadConfig, loadConfigWithDiagnostics, updateScopeConfig } from "#core/config/config.js";
 import { KNOWN_CONFIG_KEYS } from "#core/config/config-warnings.js";
 import type {
   ConfigGetResult,
@@ -40,17 +40,17 @@ function isKnownKey(key: string, moduleKeys: ReadonlySet<string>): boolean {
 }
 
 export function validateConfig(
-  projectDir: string,
+  scopeRoot: string,
   moduleKeys: ReadonlySet<string>,
 ): ConfigValidateResult {
   const globalPath = join(homedir(), ".kota", "config.json");
-  const projectPath = join(projectDir, ".kota", "config.json");
-  const diagnostics = loadConfigWithDiagnostics(projectDir);
+  const workspacePath = join(scopeRoot, ".kota", "config.json");
+  const diagnostics = loadConfigWithDiagnostics(scopeRoot);
   const resolved = diagnostics.config;
 
   const sources: ConfigValidateResult["sources"] = [];
   if (existsSync(globalPath)) sources.push({ label: "global", path: globalPath });
-  if (existsSync(projectPath)) sources.push({ label: "project", path: projectPath });
+  if (existsSync(workspacePath)) sources.push({ label: "scope", path: workspacePath });
 
   const warnings: string[] = [...diagnostics.warnings];
   for (const { label, path } of sources) {
@@ -70,8 +70,8 @@ export function validateConfig(
   };
 }
 
-export function getConfigValue(projectDir: string, key: string): ConfigGetResult {
-  return getConfigPath(loadConfig(projectDir), key.split("."));
+export function getConfigValue(scopeRoot: string, key: string): ConfigGetResult {
+  return getConfigPath(loadConfig(scopeRoot), key.split("."));
 }
 
 function parseRawValue(rawValue: string): unknown {
@@ -83,7 +83,7 @@ function parseRawValue(rawValue: string): unknown {
 }
 
 export function setConfigValue(
-  projectDir: string,
+  scopeRoot: string,
   moduleKeys: ReadonlySet<string>,
   key: string,
   rawValue: string,
@@ -92,7 +92,7 @@ export function setConfigValue(
   const parts = key.split(".") as [string, ...string[]];
   const topKey = parts[0];
 
-  updateProjectConfig(projectDir, (raw) => setConfigPath(raw, parts, parsed));
+  updateScopeConfig(scopeRoot, (raw) => setConfigPath(raw, parts, parsed));
 
   return {
     ok: true,

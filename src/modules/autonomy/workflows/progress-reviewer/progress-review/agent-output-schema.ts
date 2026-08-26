@@ -15,7 +15,7 @@ const reviewFollowUpTaskSchema = z.object({
   priority: z.enum(["p0", "p1", "p2", "p3"]),
   area: z.string().min(1),
   evidenceIds: z.array(z.string().min(1)).min(1),
-  acceptanceEvidence: z.string().min(1),
+  howWeWillKnow: z.string().min(1),
 }).strict();
 
 const reviewOwnerQuestionSchema = z.object({

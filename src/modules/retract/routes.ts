@@ -17,8 +17,8 @@ import type {
 import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import type { RetractRequest, RetractResult } from "./client.js";
-import type { ResolveRetractProjectContext } from "./project-context.js";
 import type { RetractProvider } from "./retract-types.js";
+import type { ResolveRetractScopeContext } from "./scope-context.js";
 
 type RequestParseResult =
   | { ok: true; request: RetractRequest }
@@ -32,36 +32,31 @@ export function parseRetractRequestBody(value: unknown): RequestParseResult {
   if (typeof raw.target !== "string") {
     return { ok: false, error: "target is required" };
   }
-  const project =
-    typeof raw.projectId === "string" && raw.projectId.trim() !== ""
-      ? { projectId: raw.projectId }
-      : {};
   const scope =
     typeof raw.scopeId === "string" && raw.scopeId.trim() !== ""
       ? { scopeId: raw.scopeId }
       : {};
-  const selector = { ...project, ...scope };
   switch (raw.target) {
     case "memory":
       if (typeof raw.id !== "string" || raw.id === "") {
         return { ok: false, error: "memory retract requires `id`" };
       }
-      return { ok: true, request: { target: "memory", id: raw.id, ...selector } };
+      return { ok: true, request: { target: "memory", id: raw.id, ...scope } };
     case "knowledge":
       if (typeof raw.slug !== "string" || raw.slug === "") {
         return { ok: false, error: "knowledge retract requires `slug`" };
       }
-      return { ok: true, request: { target: "knowledge", slug: raw.slug, ...selector } };
+      return { ok: true, request: { target: "knowledge", slug: raw.slug, ...scope } };
     case "tasks":
       if (typeof raw.id !== "string" || raw.id === "") {
         return { ok: false, error: "tasks retract requires `id`" };
       }
-      return { ok: true, request: { target: "tasks", id: raw.id, ...selector } };
+      return { ok: true, request: { target: "tasks", id: raw.id, ...scope } };
     case "inbox":
       if (typeof raw.path !== "string" || raw.path === "") {
         return { ok: false, error: "inbox retract requires `path`" };
       }
-      return { ok: true, request: { target: "inbox", path: raw.path, ...selector } };
+      return { ok: true, request: { target: "inbox", path: raw.path, ...scope } };
     default:
       return {
         ok: false,
@@ -72,7 +67,7 @@ export function parseRetractRequestBody(value: unknown): RequestParseResult {
 
 export function createRetractRouteHandler(
   resolveProvider: () => RetractProvider,
-  resolveProjectContext?: ResolveRetractProjectContext,
+  resolveScopeContext?: ResolveRetractScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -93,17 +88,17 @@ export function createRetractRouteHandler(
     try {
       const selectedId = selectedScopeSelectorIdOrErrorResponse(res, parsed.request);
       if (selectedId === null) return;
-      const project = resolveProjectContext?.(selectedId);
-      if (project && "error" in project) {
+      const scope = resolveScopeContext?.(selectedId);
+      if (scope && "error" in scope) {
         jsonResponse(res, 404, {
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: project.projectId,
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: scope.scopeId,
         });
         return;
       }
       const provider = resolveProvider();
-      const result = await provider.retract(parsed.request, project);
+      const result = await provider.retract(parsed.request, scope);
       jsonResponse(res, 200, result satisfies RetractResult);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -114,27 +109,27 @@ export function createRetractRouteHandler(
 
 export function retractControlRoutes(
   resolveProvider: () => RetractProvider,
-  resolveProjectContext?: ResolveRetractProjectContext,
+  resolveScopeContext?: ResolveRetractScopeContext,
 ): ControlRouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/retract",
       capabilityScope: "control",
-      handler: createRetractRouteHandler(resolveProvider, resolveProjectContext),
+      handler: createRetractRouteHandler(resolveProvider, resolveScopeContext),
     },
   ];
 }
 
 export function retractApiRoutes(
   resolveProvider: () => RetractProvider,
-  resolveProjectContext?: ResolveRetractProjectContext,
+  resolveScopeContext?: ResolveRetractScopeContext,
 ): RouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/api/retract",
-      handler: createRetractRouteHandler(resolveProvider, resolveProjectContext),
+      handler: createRetractRouteHandler(resolveProvider, resolveScopeContext),
     },
   ];
 }

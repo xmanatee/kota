@@ -1,26 +1,19 @@
-import {
-  removeHarnessHooks,
-  resetHarnessHooks,
-} from "#core/agent-harness/hooks.js";
+import { removeHarnessHooks } from "#core/agent-harness/hooks.js";
 import { unregisterConfigSlicesForOwner } from "#core/config/config-slice.js";
 import { getModuleEventRegistry } from "#core/events/module-event.js";
-import { removeCleanupHooks, resetCleanupHooks } from "#core/loop/cleanup-hooks.js";
-import {
-  removeDynamicStateProviders,
-  resetDynamicStateProviders,
-} from "#core/loop/dynamic-state.js";
-import { removePreSendHooks, resetPreSendHooks } from "#core/loop/pre-send-hooks.js";
-import type { LocalClientHandlers } from "#core/server/kota-client.js";
+import { removeCleanupHooks } from "#core/loop/cleanup-hooks.js";
+import { removeDynamicStateProviders } from "#core/loop/dynamic-state.js";
+import { removePreSendHooks } from "#core/loop/pre-send-hooks.js";
 import { deregisterModuleTools } from "#core/tools/index.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
+import type { LocalClientHandlers } from "#root/client/kota-client.generated.js";
 import { clearModuleEventSubscriptions } from "./module-event-lifecycle.js";
 import type { LoaderState } from "./module-loader-state.js";
-import {
-  clearModuleCapabilityManifestProjections,
-  unregisterModuleCapabilityManifestProjection,
-} from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
-import { getProviderRegistry, getRenderingProvider } from "./provider-registry.js";
+import {
+  getRenderingProvider,
+  type ProviderRegistry,
+} from "./provider-registry.js";
 import {
   createTerminalDiagnostic,
   printTerminalDiagnostic,
@@ -34,6 +27,7 @@ export interface ModuleLoadFailure {
 export interface LifecycleEnv {
   resetBus: () => void;
   verbose: boolean;
+  providerRegistry: ProviderRegistry;
 }
 
 export function getModuleDependents(moduleName: string, modules: readonly KotaModule[]): string[] {
@@ -52,10 +46,10 @@ function deleteLocalClientHandler<K extends keyof LocalClientHandlers>(
 export function discardModuleLoadState(
   moduleName: string,
   state: LoaderState,
+  providerRegistry: ProviderRegistry,
 ): void {
   clearModuleEventSubscriptions(state, moduleName);
   deregisterModuleTools(moduleName);
-  unregisterModuleCapabilityManifestProjection(moduleName);
   getToolMiddleware().removeByOwner(moduleName);
 
   const wfDefs = state.moduleWorkflowDefs.get(moduleName);
@@ -115,6 +109,7 @@ export function discardModuleLoadState(
   state.moduleCommandErrors.delete(moduleName);
   state.moduleControlRouteErrors.delete(moduleName);
   state.moduleRegistry.delete(moduleName);
+  state.moduleActivations.delete(moduleName);
   for (const [key, owner] of state.registeredConfigKeys) {
     if (owner === moduleName) state.registeredConfigKeys.delete(key);
   }
@@ -122,6 +117,7 @@ export function discardModuleLoadState(
   removeDynamicStateProviders(moduleName);
   removePreSendHooks(moduleName);
   removeHarnessHooks(moduleName);
+  providerRegistry.unregisterOwner(moduleName);
 }
 
 export async function unloadModule(
@@ -139,87 +135,41 @@ export async function unloadModule(
     );
   }
 
-  const mod = state.modules[idx];
-
-  if (mod.onUnload) {
+  const activation = state.moduleActivations.get(moduleName);
+  if (activation) {
     try {
-      await mod.onUnload();
+      await activation.dispose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      printTerminalDiagnostic(`[kota] Module "${moduleName}" unload error: ${msg}`, "error");
+      printTerminalDiagnostic(`[kota] Module "${moduleName}" dispose error: ${msg}`, "error");
     }
   }
 
   state.modules.splice(idx, 1);
-  discardModuleLoadState(moduleName, state);
+  discardModuleLoadState(moduleName, state, env.providerRegistry);
 
   if (env.verbose) printTerminalDiagnostic(`[kota] Module "${moduleName}" unloaded`);
   return true;
 }
 
 export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): Promise<void> {
-  const owners = [...new Set(state.registeredConfigKeys.values())];
   const loadedModules = [...state.modules];
-  const eventOwners = loadedModules.map((m) => m.name);
-  const renderingProvider = getRenderingProvider();
+  const activations = new Map(state.moduleActivations);
+  const renderingProvider = getRenderingProvider(env.providerRegistry);
 
-  // AgentSession.close() is synchronous, so this cleanup must happen before
-  // any async onUnload hook can yield and race the next session's module load.
+  // Withdraw executable contributions synchronously before any disposer can
+  // yield. Each remaining contribution is then removed by its owner; unrelated
+  // process-owned registries are never reset as a side effect of this host.
   for (const mod of loadedModules) deregisterModuleTools(mod.name);
   clearModuleEventSubscriptions(state);
   state.modules.splice(0);
-  state.moduleRegistry.clear();
-  state.moduleStorages.clear();
-  state.moduleToolCounts.clear();
-  state.moduleToolDefs.clear();
-  state.moduleWorkflowDefs.clear();
-  state.moduleChannelDefs.clear();
-  state.moduleUiSurfaceSources.clear();
-  state.moduleSkillDefs.clear();
-  state.moduleAgentDefs.clear();
-  state.moduleSetupRequirementDefs.clear();
-  state.moduleManifests.clear();
-  state.moduleLocalClientNamespaces.clear();
-  for (const namespace of Object.keys(state.localClientHandlers) as (keyof LocalClientHandlers)[]) {
-    deleteLocalClientHandler(state.localClientHandlers, namespace);
-  }
-  state.daemonClientFactories.splice(0);
-  clearModuleCapabilityManifestProjections();
-
-  const reg = getProviderRegistry();
-  if (reg) reg.clear();
-  getToolMiddleware().clear();
-  resetCleanupHooks();
-  resetDynamicStateProviders();
-  resetPreSendHooks();
-  resetHarnessHooks();
-
-  for (const owner of owners) unregisterConfigSlicesForOwner(owner);
-  const registry = getModuleEventRegistry();
-  if (registry) {
-    for (const owner of eventOwners) registry.unregisterModule(owner);
-  }
-  state.registeredConfigKeys.clear();
-  state.contributedWorkflows.splice(0);
-  state.contributedChannels.splice(0);
-  state.skillContentsByName.clear();
-  state.skillDefsByName.clear();
-  state.importedSkillNames.clear();
-  state.explicitOnlySkillNames.clear();
-  state.moduleRoutes.clear();
-  state.moduleCommands.clear();
-  state.moduleControlRoutes.clear();
-  state.moduleRouteErrors.clear();
-  state.moduleCommandErrors.clear();
-  state.moduleControlRouteErrors.clear();
-  state.moduleSources.clear();
-  state.loadFailures.clear();
-  env.resetBus();
 
   for (const mod of loadedModules.reverse()) {
-    if (mod.onUnload) {
+    const activation = activations.get(mod.name);
+    const dispose = activation?.dispose;
+    if (dispose) {
       try {
-        await mod.onUnload();
+        await dispose();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         const message = `[kota] Module "${mod.name}" unload error: ${msg}`;
@@ -230,5 +180,10 @@ export async function unloadAllModules(state: LoaderState, env: LifecycleEnv): P
         }
       }
     }
+    discardModuleLoadState(mod.name, state, env.providerRegistry);
   }
+
+  state.moduleSources.clear();
+  state.loadFailures.clear();
+  env.resetBus();
 }

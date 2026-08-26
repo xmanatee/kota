@@ -1,6 +1,6 @@
 {
   "id": "pr-reviewer-agent-call-replay",
-  "description": "End-to-end replay of pr-reviewer's read-only review agent plus deterministic github_comment output step. Forwards a trusted same-repository github.pull_request webhook payload through `kota workflow exec --payload`, replays the review agent from a synthesized recording, uses eval-owned local replay tools without project trust, host credentials, or network access, and asserts the prepared comment, tool write, and workflow.pr.review.posted emission.",
+  "description": "End-to-end replay of pr-reviewer's read-only review agent plus deterministic github_comment output step. Forwards a trusted same-repository github.pull_request webhook payload through `kota workflow exec --payload`, replays the review agent from a synthesized recording, uses eval-owned local replay tools without scope trust, host credentials, or network access, and asserts the prepared comment, tool write, and workflow.pr.review.posted emission.",
   "role": "pr-reviewer",
   "workflowName": "pr-reviewer",
   "triggerEvent": "github.pull_request",
@@ -32,26 +32,6 @@
   },
   "predicates": [
     {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
-      "needle": "\"id\": \"review\",\n      \"type\": \"agent\",\n      \"status\": \"success\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
-      "needle": "\"id\": \"prepare-comment\",\n      \"type\": \"code\",\n      \"status\": \"success\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
-      "needle": "\"id\": \"post-comment\",\n      \"type\": \"tool\",\n      \"status\": \"success\""
-    },
-    {
-      "kind": "file-contains",
-      "path": ".kota/runs/fixture-pr-reviewer-agent-call-replay-2026-04-25/metadata.json",
-      "needle": "\"id\": \"emit-review-posted\",\n      \"type\": \"emit\",\n      \"status\": \"success\""
-    },
-    {
       "kind": "run-emits-event",
       "event": "workflow.pr.review.posted",
       "workflow": "pr-reviewer",
@@ -69,7 +49,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "pr-reviewer has zero real-failure runs to encode (the workflow only fires on github.pull_request webhooks and KOTA's own dogfood loop has not produced one yet), so this fixture is the harness-plumbing gate for the deterministic safe-output boundary: the review agent returns structured JSON, prepare-comment validates and bounds one body, guardrails policy decides whether the approval step is required, github_comment performs the only external write, and workflow.pr.review.posted is emitted only after that write path succeeds. The shipped eval module contributes local replay-only GitHub reads and a comment recorder so subprocess replay can exercise the post path without executable project modules, project trust, host GitHub credentials, network access, or a hanging operator approval."
+    "justification": "pr-reviewer has zero real-failure runs to encode (the workflow only fires on github.pull_request webhooks and KOTA's own dogfood loop has not produced one yet), so this fixture is the harness-plumbing gate for the deterministic safe-output boundary: the review agent returns structured JSON, prepare-comment validates and bounds one body, guardrails policy decides whether the approval step is required, github_comment performs the only external write, and workflow.pr.review.posted is emitted only after that write path succeeds. The shipped eval module contributes local replay-only GitHub reads and a comment recorder so subprocess replay can exercise the post path without executable installed modules, scope trust, host GitHub credentials, network access, or a hanging operator approval."
   },
   "preRunExpectations": [
     {

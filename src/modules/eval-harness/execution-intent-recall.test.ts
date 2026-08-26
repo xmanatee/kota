@@ -10,38 +10,38 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import {
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { getProjectHistoryStore, resetHistory } from "#modules/history/history.js";
+import { getScopeHistoryStore, resetHistory } from "#modules/history/history.js";
 import {
-  HistoryProjectStores,
-} from "#modules/history/project-scope.js";
-import { KnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
+  HistoryScopeStores,
+} from "#modules/history/scope.js";
+import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
-import { MemoryProjectStores } from "#modules/memory/project-scope.js";
+import { MemoryScopeStores } from "#modules/memory/scope.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import {
-  createProjectHistoryContributor,
-  createProjectKnowledgeContributor,
-  createProjectMemoryContributor,
-  createProjectTasksContributor,
+  createScopeHistoryContributor,
+  createScopeKnowledgeContributor,
+  createScopeMemoryContributor,
+  createScopeTasksContributor,
 } from "#modules/recall/contributors.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
-import type { RecallProjectContext } from "#modules/recall/recall-types.js";
+import type { RecallScopeContext } from "#modules/recall/recall-types.js";
 import { createRecallToolRunner } from "#modules/recall/tool.js";
-import { RepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
+import { RepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 
 const HIDDEN_DECISION_MARKER = "TABLE_FIRST_STATUS_RENDERER";
 const FIXTURE_PROVENANCE = {
   kind: "smoke-fixture",
   source: "https://github.com/Alienfader/continuity-benchmarks",
   justification:
-    "Compact plumbing guard for execution-intent recall: it proves the existing project-scoped recall tool can surface a hidden prior decision before a deterministic code edit, without importing Continuity Benchmarks data or adding a second benchmark runner.",
+    "Compact plumbing guard for execution-intent recall: it proves the existing scope-scoped recall tool can surface a hidden prior decision before a deterministic code edit, without importing Continuity Benchmarks data or adding a second benchmark runner.",
 } as const;
 
 type PredicateResult = {
@@ -49,30 +49,30 @@ type PredicateResult = {
   detail: string;
 };
 
-function runGit(projectDir: string, args: readonly string[]): string {
+function runGit(scopeRoot: string, args: readonly string[]): string {
   return execFileSync("git", [...args], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-function createProject(parent: string): ConfiguredProject {
-  const projectDir = join(parent, "project");
-  mkdirSync(join(projectDir, "src"), { recursive: true });
-  mkdirSync(join(projectDir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-  mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-  runGit(projectDir, ["init", "--quiet", "--initial-branch=main"]);
-  runGit(projectDir, ["config", "user.email", "eval-harness@kota.local"]);
-  runGit(projectDir, ["config", "user.name", "KOTA Eval Harness"]);
-  runGit(projectDir, ["config", "commit.gpgsign", "false"]);
-  return buildConfiguredProject({ projectDir });
+function createProject(parent: string): DirectoryScope {
+  const scopeRoot = join(parent, "scope");
+  mkdirSync(join(scopeRoot, "src"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks", "ready"), { recursive: true });
+  mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
+  runGit(scopeRoot, ["init", "--quiet", "--initial-branch=main"]);
+  runGit(scopeRoot, ["config", "user.email", "eval-harness@kota.local"]);
+  runGit(scopeRoot, ["config", "user.name", "KOTA Eval Harness"]);
+  runGit(scopeRoot, ["config", "commit.gpgsign", "false"]);
+  return buildDirectoryScope({ scopeRoot });
 }
 
-function seedTask(projectDir: string): void {
+function seedTask(scopeRoot: string): void {
   writeFileSync(
-    join(projectDir, "data", "tasks", "backlog", "task-status-display-card-polish.md"),
+    join(scopeRoot, "data", "tasks", "backlog", "task-status-display-card-polish.md"),
     `---
 id: task-status-display-card-polish
 title: Polish status display card spacing
@@ -93,17 +93,17 @@ not the operator runtime view.
   );
 }
 
-function seedPriorState(project: ConfiguredProject): {
+function seedPriorState(scope: DirectoryScope): {
   memory: MemoryStore;
   knowledge: KnowledgeStore;
-  history: ReturnType<typeof getProjectHistoryStore>;
+  history: ReturnType<typeof getScopeHistoryStore>;
   tasks: RepoTasksDefaultStore;
   relevantMemoryId: string;
 } {
-  const memory = new MemoryStore(join(project.projectDir, ".kota"));
-  const knowledge = new KnowledgeStore(project.projectDir);
-  const history = getProjectHistoryStore(project.projectDir);
-  const tasks = new RepoTasksDefaultStore(project.projectDir);
+  const memory = new MemoryStore(join(scope.scopeRoot, ".kota"));
+  const knowledge = new KnowledgeStore(scope.scopeRoot);
+  const history = getScopeHistoryStore(scope.scopeRoot);
+  const tasks = new RepoTasksDefaultStore(scope.scopeRoot);
 
   const relevantMemoryId = memory.save(
     [
@@ -123,7 +123,7 @@ function seedPriorState(project: ConfiguredProject): {
       "Use progressive disclosure for first-run mobile onboarding. This is unrelated to runtime supervision pages.",
     tags: ["decision", "distractor"],
   });
-  const historyId = history.create("test-model", project.projectDir);
+  const historyId = history.create("test-model", scope.scopeRoot);
   history.save(
     historyId,
     [
@@ -139,71 +139,71 @@ function seedPriorState(project: ConfiguredProject): {
     0,
     0,
   );
-  seedTask(project.projectDir);
+  seedTask(scope.scopeRoot);
   return { memory, knowledge, history, tasks, relevantMemoryId };
 }
 
 function buildRecallProvider(
-  project: ConfiguredProject,
+  scope: DirectoryScope,
   stores: ReturnType<typeof seedPriorState>,
 ): RecallProviderImpl {
-  const projectContext: RecallProjectContext = {
-    projectId: project.projectId,
-    projectDir: project.projectDir,
+  const scopeContext: RecallScopeContext = {
+    scopeId: scope.scopeId,
+    scopeRoot: scope.scopeRoot,
     knowledge: stores.knowledge,
     memory: stores.memory,
     history: stores.history,
     tasks: stores.tasks,
   };
-  const resolveProjectContext = (projectId: string | null | undefined) => {
-    const requested = projectId?.trim();
-    if (requested && requested !== project.projectId) {
-      return { error: "unknown_project" as const, projectId: requested };
+  const resolveScopeContext = (scopeId: string | null | undefined) => {
+    const requested = scopeId?.trim();
+    if (requested && requested !== scope.scopeId) {
+      return { error: "unknown_scope" as const, scopeId: requested };
     }
-    return projectContext;
+    return scopeContext;
   };
 
   const provider = new RecallProviderImpl({
-    resolveProjectContext,
+    resolveScopeContext,
     onContributorError: () => {},
   });
-  const projects = [project];
+  const scopes = [scope];
   provider.register(
-    createProjectKnowledgeContributor(
-      new KnowledgeProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeKnowledgeContributor(
+      new KnowledgeScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.knowledge,
       }),
     ),
   );
   provider.register(
-    createProjectMemoryContributor(
-      new MemoryProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeMemoryContributor(
+      new MemoryScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.memory,
       }),
     ),
   );
   provider.register(
-    createProjectHistoryContributor(
-      new HistoryProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeHistoryContributor(
+      new HistoryScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.history,
       }),
     ),
   );
   provider.register(
-    createProjectTasksContributor(
-      new RepoTasksProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeTasksContributor(
+      new RepoTasksScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.tasks,
       }),
     ),
@@ -211,9 +211,9 @@ function buildRecallProvider(
   return provider;
 }
 
-function writeInitialSource(projectDir: string): void {
+function writeInitialSource(scopeRoot: string): void {
   writeFileSync(
-    join(projectDir, "src", "operator-status.ts"),
+    join(scopeRoot, "src", "operator-status.ts"),
     `export const operatorStatusView = {
   layout: "summary-cards",
   rowDensity: "comfortable",
@@ -222,12 +222,12 @@ function writeInitialSource(projectDir: string): void {
 `,
     "utf-8",
   );
-  runGit(projectDir, ["add", "-A"]);
-  runGit(projectDir, ["commit", "--quiet", "-m", "initial execution-intent fixture"]);
+  runGit(scopeRoot, ["add", "-A"]);
+  runGit(scopeRoot, ["commit", "--quiet", "-m", "initial execution-intent fixture"]);
 }
 
-function applyRecallBackedPatch(projectDir: string, toolOutput: string): string {
-  const sourcePath = join(projectDir, "src", "operator-status.ts");
+function applyRecallBackedPatch(scopeRoot: string, toolOutput: string): string {
+  const sourcePath = join(scopeRoot, "src", "operator-status.ts");
   const current = readFileSync(sourcePath, "utf-8");
   const next = toolOutput.includes(HIDDEN_DECISION_MARKER)
     ? current
@@ -238,7 +238,7 @@ function applyRecallBackedPatch(projectDir: string, toolOutput: string): string 
         .replace('layout: "summary-cards"', 'layout: "comfortable-refresh"')
         .replace('decision: "unset"', 'decision: "prompt-only"');
   writeFileSync(sourcePath, next, "utf-8");
-  return runGit(projectDir, ["diff", "--", "src/operator-status.ts"]);
+  return runGit(scopeRoot, ["diff", "--", "src/operator-status.ts"]);
 }
 
 function evaluateExecutionIntentPredicate(params: {
@@ -274,10 +274,10 @@ describe("execution-intent recall fixture", () => {
   });
 
   it("recovers a hidden prior decision through the session recall tool before patching", async () => {
-    const project = createProject(root);
-    const stores = seedPriorState(project);
-    writeInitialSource(project.projectDir);
-    const provider = buildRecallProvider(project, stores);
+    const scope = createProject(root);
+    const stores = seedPriorState(scope);
+    writeInitialSource(scope.scopeRoot);
+    const provider = buildRecallProvider(scope, stores);
     const recallTool = createRecallToolRunner(() => provider);
 
     const laterPrompt =
@@ -297,7 +297,7 @@ describe("execution-intent recall fixture", () => {
     });
 
     const finalDiff = applyRecallBackedPatch(
-      project.projectDir,
+      scope.scopeRoot,
       toolResult.content,
     );
     const predicateResult = evaluateExecutionIntentPredicate({
@@ -326,7 +326,7 @@ describe("execution-intent recall fixture", () => {
       predicateResult,
     };
     const artifactDir = join(
-      project.projectDir,
+      scope.scopeRoot,
       ".kota",
       "runs",
       "execution-intent-recall-smoke",

@@ -11,7 +11,7 @@ import {
   parseRecallResult,
   parseRetractResult,
   parseTasksSearchResponse,
-} from "../../../conformance/decoders";
+} from "../../../conformance/daemon-contract.generated";
 import { apiDecoded, apiJson } from "./client-runtime";
 import type {
   AnswerHistoryListFilter,

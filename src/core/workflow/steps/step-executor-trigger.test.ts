@@ -11,15 +11,15 @@ function makeContext(
   overrides: Partial<WorkflowStepContext> = {},
 ): WorkflowStepContext {
   return {
-    projectDir: "/project",
-    scopeDir: "/project",
-    stateDir: "/project/.kota",
+    workspaceRoot: "/scope",
+    scopeRoot: "/scope",
+    stateDir: "/scope/.kota",
     workflow: {
       name: "parent",
       definitionPath: "src/modules/test/workflows/parent/workflow.ts",
       runId: "run-1",
       runDir: ".kota/runs/run-1",
-      runDirPath: "/project/.kota/runs/run-1",
+      runDirPath: "/scope/.kota/runs/run-1",
     },
     trigger: { event: "runtime.idle", schemaRef: null, payload: { taskId: "task-123" } },
     previousOutput: null,
@@ -39,6 +39,7 @@ function makeContext(
     reportProgress: () => {},
     triggerWorkflow: vi.fn().mockResolvedValue({ runId: "child-run-1", status: "queued" }),
     ...overrides,
+    scopeId: overrides.scopeId ?? "test-scope",
     agentRuntime: overrides.agentRuntime ?? resolveAgentRuntime(undefined),
     runAgentHarness:
       overrides.runAgentHarness ?? unexpectedWorkflowAgentHarnessRun,

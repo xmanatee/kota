@@ -27,7 +27,7 @@ function isolationBackendForRun(
 }
 
 function providerEgressTaskBoundaryForRun(
-  projectDir: string,
+  workspaceRoot: string,
   backend: SubprocessIsolationBackend,
   env: NodeJS.ProcessEnv,
 ): ProviderEgressTaskSubprocessBoundaryRequest | undefined {
@@ -37,7 +37,7 @@ function providerEgressTaskBoundaryForRun(
   ) {
     return undefined;
   }
-  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir), env);
+  const activePreset = resolveActivePresetFromConfig(loadConfig(workspaceRoot), env);
   const harness = resolveAgentHarness(activePreset.harness);
   return {
     agentHarness: activePreset.harness,
@@ -86,11 +86,11 @@ function isolatedHostAuthEnvForRun(
 }
 
 export function executorExtraEnvForRun(
-  projectDir: string,
+  workspaceRoot: string,
   backend: SubprocessIsolationBackend,
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
-  const activePreset = resolveActivePresetFromConfig(loadConfig(projectDir), env);
+  const activePreset = resolveActivePresetFromConfig(loadConfig(workspaceRoot), env);
   return {
     [PRESET_ENV_VAR]: activePreset.id,
     ...(envForKeys(activePreset.authEnv, env) ?? {}),
@@ -127,19 +127,19 @@ export type EvalRunExecution = {
 };
 
 export function createEvalRunExecution(
-  projectDir: string,
+  workspaceRoot: string,
   options: EvalRunOptions,
   env: NodeJS.ProcessEnv = process.env,
 ): EvalRunExecution {
   const isolationBackend = isolationBackendForRun(options);
-  const executorEnv = executorExtraEnvForRun(projectDir, isolationBackend, env);
+  const executorEnv = executorExtraEnvForRun(workspaceRoot, isolationBackend, env);
   return {
     executor: createSubprocessExecutor({
       kotaBinaryPath: resolveKotaBinary(),
       isolationBackend,
       extraEnv: executorEnv,
       providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
-        projectDir,
+        workspaceRoot,
         isolationBackend,
         env,
       ),

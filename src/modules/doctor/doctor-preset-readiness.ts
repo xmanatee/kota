@@ -209,10 +209,10 @@ function renderPresetReadinessChecks(
 }
 
 export function checkPresetHarnessReadiness(
-  projectDir: string,
+  scopeRoot: string,
   requestedPresetId: string | undefined,
 ): DoctorCheckResult[] {
-  const config = loadConfig(projectDir);
+  const config = loadConfig(scopeRoot);
   let resolution: ReturnType<typeof resolvePreset>;
   try {
     resolution = resolvePreset({

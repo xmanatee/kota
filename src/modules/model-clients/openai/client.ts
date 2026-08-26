@@ -12,6 +12,11 @@ import type {
 	MessageStreamParams,
 	ModelClient,
 } from "#core/model/model-client.js";
+import {
+	OUTBOUND_HTTP_PROFILES,
+	type OutboundHttpStreamingPort,
+	outboundHttp,
+} from "#core/outbound-http/index.js";
 import type { EffortTranslator } from "../reasoning.js";
 import { formatOpenAIHttpError } from "./http-error.js";
 import { buildOpenAIRequestBody } from "./request-body.js";
@@ -52,6 +57,8 @@ export type OpenAIClientOptions = {
 	modelCapabilities?: OAIModelCapabilities;
 	/** Adapter-private provider wire options; core callers keep using the neutral protocol. */
 	requestOptions?: OAIRequestOptions;
+	/** Shared outbound request boundary; supplied by tests or alternate hosts. */
+	http?: OutboundHttpStreamingPort;
 };
 
 /** ModelClient backed by any OpenAI-compatible API (OpenAI, Ollama, Groq, etc.). */
@@ -63,6 +70,7 @@ export class OpenAIModelClient implements ModelClient {
 	private effortTranslator: EffortTranslator | undefined;
 	private modelCapabilities: OAIModelCapabilities | undefined;
 	private requestOptions: OAIRequestOptions;
+	private http: OutboundHttpStreamingPort;
 
 	constructor(options: OpenAIClientOptions) {
 		this.baseUrl = options.baseUrl.replace(/\/+$/, "");
@@ -71,6 +79,7 @@ export class OpenAIModelClient implements ModelClient {
 		this.effortTranslator = options.effortTranslator;
 		this.modelCapabilities = options.modelCapabilities;
 		this.requestOptions = options.requestOptions ?? {};
+		this.http = options.http ?? outboundHttp;
 
 		this.messages = {
 			stream: (params: MessageStreamParams) => this.doStream(params),
@@ -93,13 +102,18 @@ export class OpenAIModelClient implements ModelClient {
 		const { signal } = params;
 
 		return new OpenAIStream(
-			() =>
-				fetch(url, {
+			async () => {
+				const { response } = await this.http.requestStream({
+					profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.baseUrl]),
+					operation: "model.openai.chat-stream",
+					url,
 					method: "POST",
 					headers,
 					body: JSON.stringify(body),
 					...(signal ? { signal } : {}),
-				}),
+				});
+				return response;
+			},
 			params.model,
 		);
 	}
@@ -110,7 +124,10 @@ export class OpenAIModelClient implements ModelClient {
 		const body = this.buildRequestBody(params, false);
 		const url = `${this.baseUrl}/chat/completions`;
 
-		const response = await fetch(url, {
+		const { response } = await this.http.request({
+			profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.baseUrl]),
+			operation: "model.openai.chat-create",
+			url,
 			method: "POST",
 			headers: this.buildHeaders(),
 			body: JSON.stringify(body),

@@ -5,7 +5,9 @@ export const ISSUE_DISPOSITION_ACTIONS = [
   "create-task",
   "ask-owner",
   "observe",
-  "resolve",
+  "accept",
+  "duplicate",
+  "no-action",
 ] as const;
 
 const issueDispositionSchema = z.object({
@@ -16,17 +18,18 @@ const issueDispositionSchema = z.object({
   taskPriority: z.enum(["p0", "p1", "p2", "p3"]),
   taskArea: z.string(),
   taskClass: z.enum(["Product", "Safety", "Platform", "Meta"]),
-  taskAcceptanceEvidence: z.string(),
+  taskHowWeWillKnow: z.string(),
   ownerQuestion: z.string(),
   ownerReason: z.string(),
   proposedAnswers: z.array(z.string().min(1)),
+  duplicateOfIssueKey: z.string().optional(),
 }).strict().superRefine((value, ctx) => {
   if (value.action === "create-task") {
     for (const [field, text] of [
       ["taskTitle", value.taskTitle],
       ["taskSummary", value.taskSummary],
       ["taskArea", value.taskArea],
-      ["taskAcceptanceEvidence", value.taskAcceptanceEvidence],
+      ["taskHowWeWillKnow", value.taskHowWeWillKnow],
     ] as const) {
       if (!text.trim()) {
         ctx.addIssue({
@@ -53,6 +56,13 @@ const issueDispositionSchema = z.object({
       });
     }
   }
+  if (value.action === "duplicate" && !value.duplicateOfIssueKey?.trim()) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["duplicateOfIssueKey"],
+      message: "duplicateOfIssueKey is required for duplicate",
+    });
+  }
 });
 
 export type IssueDisposition = z.infer<typeof issueDispositionSchema>;
@@ -73,7 +83,7 @@ export const issueDispositionOutputSchema = {
     "taskPriority",
     "taskArea",
     "taskClass",
-    "taskAcceptanceEvidence",
+    "taskHowWeWillKnow",
     "ownerQuestion",
     "ownerReason",
     "proposedAnswers",
@@ -90,9 +100,10 @@ export const issueDispositionOutputSchema = {
       type: "string",
       enum: ["Product", "Safety", "Platform", "Meta"],
     },
-    taskAcceptanceEvidence: { type: "string" },
+    taskHowWeWillKnow: { type: "string" },
     ownerQuestion: { type: "string" },
     ownerReason: { type: "string" },
     proposedAnswers: { type: "array", items: { type: "string" } },
+    duplicateOfIssueKey: { type: "string" },
   },
 } satisfies JsonSchemaObject;

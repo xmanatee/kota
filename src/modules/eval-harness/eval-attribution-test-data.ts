@@ -185,6 +185,7 @@ export function fixtureRun(
     fixtureId: "alpha",
     runIndex: 0,
     repeatCount: 3,
+    executionMode: "live",
     outcome: "pass",
     resourceProfile: config.components.resourceProfile,
     executionProfile: config.components.executionProfile,

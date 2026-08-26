@@ -52,7 +52,7 @@ export type WebhookSecretRemoveResult =
  * configured for each. `secretGenerate` writes a new HMAC secret into
  * `.kota/config.json` for the given workflow and returns the secret once.
  * `secretRemove` clears the secret. All three operations work daemon-up and
- * daemon-down — the daemon-side persists through the same updateProjectConfig
+ * daemon-down — the daemon-side persists through the same updateScopeConfig
  * helper the local handler uses, so config-file mutation cannot diverge.
  */
 export interface WebhookClient {

@@ -28,7 +28,7 @@ export class ScopeAuthorityStore implements ScopeAuthorityPersistence {
 
   read(): ScopeAuthorityStoredState {
     const raw = readGlobalConfig(this.configPath);
-    const trustedProjects = decodeTrustedProjects(raw.trustedProjects);
+    const trustedScopes = decodeTrustedScopes(raw.trustedScopes);
     const policies = raw.scopePolicies === undefined
       ? { ok: true as const, value: [] }
       : decodeScopePolicyFragments(raw.scopePolicies);
@@ -36,7 +36,7 @@ export class ScopeAuthorityStore implements ScopeAuthorityPersistence {
     const metadata = decodeScopeAuthorityMetadata(raw.scopeAuthority);
     if (!metadata.ok) throw new Error(`${this.configPath}: ${metadata.error}`);
     return {
-      trustedProjects,
+      trustedScopes,
       scopePolicies: policies.value,
       metadata: metadata.value,
     };
@@ -57,9 +57,9 @@ export class ScopeAuthorityStore implements ScopeAuthorityPersistence {
       const raw = readGlobalConfig(this.configPath);
       const updated: GlobalConfigRecord = {
         ...raw,
-        ...(next.trustedProjects.length > 0
-          ? { trustedProjects: [...next.trustedProjects] }
-          : { trustedProjects: undefined }),
+        ...(next.trustedScopes.length > 0
+          ? { trustedScopes: [...next.trustedScopes] }
+          : { trustedScopes: undefined }),
         ...(next.scopePolicies.length > 0
           ? { scopePolicies: [...next.scopePolicies] }
           : { scopePolicies: undefined }),
@@ -72,17 +72,17 @@ export class ScopeAuthorityStore implements ScopeAuthorityPersistence {
   }
 }
 
-function decodeTrustedProjects(raw: BoundaryValue): string[] {
+function decodeTrustedScopes(raw: BoundaryValue): string[] {
   if (raw === undefined) return [];
-  if (!Array.isArray(raw)) throw new Error("trustedProjects must be an array");
+  if (!Array.isArray(raw)) throw new Error("trustedScopes must be an array");
   const paths = raw.map((entry, index) => {
     if (typeof entry !== "string" || entry.trim().length === 0) {
-      throw new Error(`trustedProjects[${index}] must be a non-empty string`);
+      throw new Error(`trustedScopes[${index}] must be a non-empty string`);
     }
     return entry;
   });
   if (new Set(paths).size !== paths.length) {
-    throw new Error("trustedProjects must not contain duplicates");
+    throw new Error("trustedScopes must not contain duplicates");
   }
   return paths;
 }

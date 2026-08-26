@@ -43,7 +43,7 @@ function parseEventJournalQuery(url: URL): EventJournalQuery {
   const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : undefined;
   const typeParam = url.searchParams.get("type");
   const idParam = url.searchParams.get("id");
-  const scopeIdParam = url.searchParams.get("scopeId") ?? url.searchParams.get("projectId");
+  const scopeIdParam = url.searchParams.get("scopeId");
   const sourceIdParam = url.searchParams.get("sourceId");
   return {
     ...(idParam ? { id: idParam } : {}),

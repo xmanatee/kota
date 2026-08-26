@@ -19,34 +19,34 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -76,7 +76,7 @@ function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDe
 
 const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
 
-function registerWorkflowTestHarness(
+function registerWorkflowScenarioDriver(
   name: string,
   run: AgentHarness["run"],
 ): void {
@@ -93,17 +93,17 @@ function registerWorkflowTestHarness(
 }
 
 function makeAgentStep(
-  projectDir: string,
+  workspaceRoot: string,
   harness: string,
   overrides: Partial<WorkflowAgentStep> = {},
 ): WorkflowAgentStep {
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
   return {
     id: "agent",
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -112,30 +112,30 @@ function makeAgentStep(
 }
 
 describe("workflow agent token budget", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
   let bus: EventBus;
   const log = vi.fn();
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-workflow-token-budget-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(workspaceRoot, { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
     bus = new EventBus();
     log.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("shares a config token-budget ledger across agent steps in one run", async () => {
     const harness = "workflow-run-scoped-token-budget";
     const executedSteps: string[] = [];
-    registerWorkflowTestHarness(harness, async (options: AgentHarnessRunOptions) => {
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
       executedSteps.push(options.workflowContext?.stepId ?? "unknown");
       return {
         text: "done",
@@ -147,16 +147,16 @@ describe("workflow agent token budget", () => {
     });
 
     const definition = makeDefinition({
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       steps: [
-        makeAgentStep(projectDir, harness, { id: "first" }),
-        makeAgentStep(projectDir, harness, { id: "second" }),
+        makeAgentStep(workspaceRoot, harness, { id: "first" }),
+        makeAgentStep(workspaceRoot, harness, { id: "second" }),
       ],
     });
 
     const { promise } = executeWorkflowRun(definition, TRIGGER, {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(projectDir, TRIGGER),
+      runContext: makeRunContext(workspaceRoot, TRIGGER),
       bus,
       store,
       log,
@@ -176,7 +176,7 @@ describe("workflow agent token budget", () => {
 
     const secondArtifact = JSON.parse(
       readFileSync(
-        join(projectDir, result.metadata.runDir, "steps", "second.token-budget.json"),
+        join(workspaceRoot, result.metadata.runDir, "steps", "second.token-budget.json"),
         "utf-8",
       ),
     ) as { snapshot: { usage: { totalTokens: number }; exhausted: boolean } };

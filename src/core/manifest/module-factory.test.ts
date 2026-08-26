@@ -70,7 +70,7 @@ describe("validateManifest", () => {
 	it("rejects reserved module names", () => {
 		for (const name of ["memory", "secrets", "scheduler", "web", "telegram"]) {
 			const errors = validateManifest({ name });
-			expect(errors.some((e) => e.message.includes("project module"))).toBe(true);
+			expect(errors.some((e) => e.message.includes("installed module"))).toBe(true);
 		}
 	});
 
@@ -96,7 +96,7 @@ describe("validateManifest", () => {
 		expect(errors.some((e) => e.message.includes("parameters.type"))).toBe(true);
 	});
 
-	it("rejects tools with reserved project tool names", () => {
+	it("rejects tools with reserved installed-tool names", () => {
 		const errors = validateManifest({
 			name: "test-mod",
 			tools: [{
@@ -105,7 +105,7 @@ describe("validateManifest", () => {
 				code: "print(1)",
 			}],
 		});
-		expect(errors.some((e) => e.message.includes("project tool"))).toBe(true);
+		expect(errors.some((e) => e.message.includes("installed tool"))).toBe(true);
 	});
 
 	it("rejects duplicate tool names within a module", () => {

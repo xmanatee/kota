@@ -16,7 +16,7 @@
     "scope": {
       "kind": "scope",
       "scopeId": "scope-a",
-      "projectId": "scope-a",
+      "scopeId": "scope-a",
       "lineage": ["global", "scope-a"]
     },
     "timestamps": {
@@ -57,7 +57,7 @@
       "kind": "inline",
       "payload": {
         "scopeId": "scope-a",
-        "projectId": "scope-a",
+        "scopeId": "scope-a",
         "provider": "telegram",
         "channel": "telegram",
         "accountId": "acct-1",
@@ -97,7 +97,7 @@
     "type": "inbound.signal.received",
     "payload": {
       "scopeId": "scope-a",
-      "projectId": "scope-a",
+      "scopeId": "scope-a",
       "provider": "telegram",
       "channel": "telegram",
       "accountId": "acct-1",
@@ -135,7 +135,7 @@
     "scope": {
       "kind": "scope",
       "scopeId": "scope-a",
-      "projectId": "scope-a",
+      "scopeId": "scope-a",
       "lineage": ["global", "scope-a"]
     },
     "source": {

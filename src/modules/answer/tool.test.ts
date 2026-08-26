@@ -104,7 +104,7 @@ describe("answer tool — runner failure arms", () => {
 
     const result = await runner({ query: "anything" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("No matching sources");
+    expect(result.content).toContain("No matching knowledge, memory, or history sources");
   });
 
   it("surfaces semantic_unavailable verbatim from the recall seam", async () => {

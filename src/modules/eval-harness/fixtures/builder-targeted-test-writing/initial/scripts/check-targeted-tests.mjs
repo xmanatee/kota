@@ -12,7 +12,7 @@ import {
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const manifestPath = "test/targeted-tests.json";
 const targetTestFile = "test/pricing.test.mjs";
 const evidencePath = "artifacts/test-writing-evidence.json";
@@ -64,7 +64,7 @@ function fail(message) {
 }
 
 function relativePath(path) {
-  return relative(projectRoot, path).replaceAll("\\", "/");
+  return relative(scopeRoot, path).replaceAll("\\", "/");
 }
 
 function readJson(path) {
@@ -239,17 +239,17 @@ function validateChangedPaths(paths) {
 }
 
 function writeEvidence(evidence) {
-  const absolute = join(projectRoot, evidencePath);
+  const absolute = join(scopeRoot, evidencePath);
   mkdirSync(dirname(absolute), { recursive: true });
   writeFileSync(absolute, JSON.stringify(evidence, null, 2) + "\n");
 }
 
 function runMainCheck({ metricOnly }) {
-  rmSync(join(projectRoot, evidencePath), { force: true });
-  const manifestEntries = readManifest(projectRoot);
-  validatePlacementAndNames(projectRoot, manifestEntries);
+  rmSync(join(scopeRoot, evidencePath), { force: true });
+  const manifestEntries = readManifest(scopeRoot);
+  validatePlacementAndNames(scopeRoot, manifestEntries);
 
-  const baseline = runTargetedTests(projectRoot);
+  const baseline = runTargetedTests(scopeRoot);
   if (baseline.status !== 0 || baseline.error !== undefined) {
     writeEvidence({
       schemaVersion: 1,
@@ -263,7 +263,7 @@ function runMainCheck({ metricOnly }) {
     fail(`targeted tests must pass on the unmutated baseline`);
   }
 
-  const absoluteSource = join(projectRoot, sourcePath);
+  const absoluteSource = join(scopeRoot, sourcePath);
   const originalSource = readFileSync(absoluteSource, "utf8");
   const mutationResults = [];
   try {
@@ -276,7 +276,7 @@ function runMainCheck({ metricOnly }) {
         originalSource.replace(mutation.search, mutation.replacement),
         "utf8",
       );
-      const result = runTargetedTests(projectRoot);
+      const result = runTargetedTests(scopeRoot);
       mutationResults.push({
         id: mutation.id,
         description: mutation.description,

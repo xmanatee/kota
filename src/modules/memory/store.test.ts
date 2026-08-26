@@ -1,8 +1,8 @@
-import { mkdtempSync, } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { MemoryStore } from "./store.js";
+import { MemoryStore, MemoryStoreLoadError } from "./store.js";
 
 describe("MemoryStore", () => {
   let dir: string;
@@ -66,6 +66,54 @@ describe("MemoryStore", () => {
     const store2 = new MemoryStore(dir);
     expect(store2.list()).toHaveLength(1);
     expect(store2.list()[0].content).toBe("persistent fact");
+    expect(JSON.parse(readFileSync(join(dir, "memory.json"), "utf8"))).toMatchObject({
+      schemaVersion: 1,
+    });
+  });
+
+  it("migrates the unversioned memory document through the owned decoder", () => {
+    writeFileSync(
+      join(dir, "memory.json"),
+      JSON.stringify({
+        memories: [{
+          id: "legacy-1",
+          content: "legacy memory",
+          tags: ["legacy"],
+          created: "2026-01-01T00:00:00Z",
+        }],
+      }),
+    );
+
+    expect(store.list()[0]).toMatchObject({
+      id: "legacy-1",
+      updated: "2026-01-01T00:00:00.000Z",
+    });
+    expect(JSON.parse(readFileSync(join(dir, "memory.json"), "utf8"))).toMatchObject({
+      schemaVersion: 1,
+    });
+  });
+
+  it("reports malformed durable data without replacing it with an empty store", () => {
+    const path = join(dir, "memory.json");
+    const malformed = JSON.stringify({ schemaVersion: 1, memories: [{ id: 42 }] });
+    writeFileSync(path, malformed);
+
+    expect(() => store.list()).toThrowError(MemoryStoreLoadError);
+    try {
+      store.list();
+    } catch (error) {
+      expect(error).toMatchObject({ reason: "invalid_entry", path });
+    }
+    expect(readFileSync(path, "utf8")).toBe(malformed);
+  });
+
+  it("rejects unknown future schema versions explicitly", () => {
+    writeFileSync(
+      join(dir, "memory.json"),
+      JSON.stringify({ schemaVersion: 99, memories: [] }),
+    );
+
+    expect(() => store.list()).toThrow("unsupported memory schema version: 99");
   });
 
   describe("search", () => {

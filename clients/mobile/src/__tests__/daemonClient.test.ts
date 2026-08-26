@@ -166,33 +166,33 @@ describe('DaemonClient', () => {
     expect(lastCall()[0]).toBe(`${baseUrl}/workflow/resume`);
   });
 
-  test('project-scoped routes append ?projectId=<id> when provided', async () => {
+  test('scope-scoped routes append ?scopeId=<id> when provided', async () => {
     fetchSpy.mockImplementation(async () =>
       jsonResponse({ runs: [], sessions: [], running: true, pid: 1, startedAt: 't', completedRuns: 0, workflow: {} }),
     );
     const c = client();
     await c.getStatus('p-other');
-    expect(lastCall()[0]).toBe(`${baseUrl}/status?projectId=p-other`);
+    expect(lastCall()[0]).toBe(`${baseUrl}/status?scopeId=p-other`);
 
     await c.getRuns(undefined, 30, 'p-other');
     expect(lastCall()[0]).toBe(
-      `${baseUrl}/workflow/runs?limit=30&projectId=p-other`,
+      `${baseUrl}/workflow/runs?limit=30&scopeId=p-other`,
     );
 
     await c.getSessions('p-other');
-    expect(lastCall()[0]).toBe(`${baseUrl}/sessions?projectId=p-other`);
+    expect(lastCall()[0]).toBe(`${baseUrl}/sessions?scopeId=p-other`);
 
     fetchSpy.mockResolvedValueOnce(jsonResponse({ session_id: 's' }));
     await c.createSession(undefined, 'p-other');
-    expect(lastCall()[0]).toBe(`${baseUrl}/sessions?projectId=p-other`);
+    expect(lastCall()[0]).toBe(`${baseUrl}/sessions?scopeId=p-other`);
 
     await c.getRunDetail('run-1', 'p-other');
     expect(lastCall()[0]).toBe(
-      `${baseUrl}/workflow/runs/run-1?projectId=p-other`,
+      `${baseUrl}/workflow/runs/run-1?scopeId=p-other`,
     );
   });
 
-  test('project-scoped routes omit ?projectId= when no id is supplied', async () => {
+  test('scoped routes omit ?scopeId= when no id is supplied', async () => {
     fetchSpy.mockImplementation(async () =>
       jsonResponse({ running: true, pid: 1, startedAt: 't', completedRuns: 0, workflow: {} }),
     );
@@ -200,40 +200,44 @@ describe('DaemonClient', () => {
     expect(lastCall()[0]).toBe(`${baseUrl}/status`);
   });
 
-  test('getIdentity decodes the project registry projection through the conformance parser', async () => {
+  test('getIdentity decodes the scope registry projection through the conformance parser', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({
-        projectName: 'kota',
-        projectDir: '/tmp/kota',
+        scopeName: 'kota',
+        scopeRoot: '/tmp/kota',
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
-        projects: {
-          defaultProjectId: 'p-default',
-          projects: [
-            { projectId: 'p-default', projectDir: '/tmp/kota', displayName: 'kota' },
-            { projectId: 'p-other', projectDir: '/tmp/other', displayName: 'other' },
+        dashboard: { available: true, path: '/' },
+        scopeRegistry: {
+          rootScopeId: 'global',
+          defaultScopeId: 'p-default',
+          scopes: [
+            { scopeId: 'global', displayName: 'Global' },
+            { scopeId: 'p-default', directoryRoot: '/tmp/kota', displayName: 'kota', parentScopeId: 'global' },
+            { scopeId: 'p-other', directoryRoot: '/tmp/other', displayName: 'other', parentScopeId: 'global' },
           ],
         },
       }),
     );
     const id = await client().getIdentity();
-    expect(id.projects.defaultProjectId).toBe('p-default');
-    expect(id.projects.projects.map((p) => p.projectId)).toEqual([
+    expect(id.scopeRegistry.defaultScopeId).toBe('p-default');
+    expect(id.scopeRegistry.scopes.map((scope) => scope.scopeId)).toEqual([
+      'global',
       'p-default',
       'p-other',
     ]);
   });
 
-  test('getIdentity rejects an empty projects array loudly', async () => {
+  test('getIdentity rejects an empty scope registry loudly', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({
-        projectName: 'kota',
-        projectDir: '/tmp/kota',
+        scopeName: 'kota',
+        scopeRoot: '/tmp/kota',
         daemonVersion: '0.1.0',
         pid: 1,
         startedAt: 't',
-        projects: { defaultProjectId: 'p-x', projects: [] },
+        scopeRegistry: { rootScopeId: 'global', defaultScopeId: 'p-x', scopes: [] },
       }),
     );
     await expect(client().getIdentity()).rejects.toThrow();

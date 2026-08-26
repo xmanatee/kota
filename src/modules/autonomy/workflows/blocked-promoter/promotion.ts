@@ -42,9 +42,9 @@ export type BlockedTaskRecord = {
  * promoter does not silently retry malformed bodies.
  */
 export function listBlockedTasksWithPreconditions(
-  projectDir: string,
+  workspaceRoot: string,
 ): BlockedTaskRecord[] {
-  const dir = getRepoTaskStateDir(projectDir, "blocked");
+  const dir = getRepoTaskStateDir(workspaceRoot, "blocked");
   const records: BlockedTaskRecord[] = [];
   if (!existsSync(dir)) return records;
   const entries = readdirSync(dir);
@@ -92,20 +92,22 @@ export type DeterministicPromotionResult = {
  * inside this call.
  */
 export function promoteSatisfiedBlockedTasks(
-  projectDir: string,
+  workspaceRoot: string,
+  scopeRoot: string = workspaceRoot,
 ): DeterministicPromotionResult {
-  const records = listBlockedTasksWithPreconditions(projectDir);
+  const records = listBlockedTasksWithPreconditions(workspaceRoot);
   const promotions: MoveTaskResult[] = [];
   for (const record of records) {
-    const waitingOn = getUnfinishedTaskDependencies(projectDir, record.dependsOn);
+    const waitingOn = getUnfinishedTaskDependencies(workspaceRoot, record.dependsOn);
     if (waitingOn.length > 0) continue;
     const evaluation = evaluateBlockedPrecondition(record.precondition, {
-      projectDir,
+      workspaceRoot,
+      scopeRoot,
       taskBody: record.body,
     });
     if (!evaluation.satisfied) continue;
     const target = promotionTargetState(record.priority);
-    promotions.push(moveTaskById(projectDir, record.id, target));
+    promotions.push(moveTaskById(workspaceRoot, record.id, target));
   }
   return { promotions };
 }
@@ -207,12 +209,12 @@ export function extractRecommendedAnswer(
  * next cycle does not re-ask within the cadence window.
  */
 export function applyAskOutcome(args: {
-  projectDir: string;
+  workspaceRoot: string;
   candidate: OwnerAskCandidate;
   approved: boolean;
   now: Date;
 }): AskOutcomeApplication[] {
-  const { projectDir, candidate, approved, now } = args;
+  const { workspaceRoot, candidate, approved, now } = args;
   const stamp = now.toISOString();
   const filePath = candidate.taskPath;
   if (!existsSync(filePath)) {
@@ -250,7 +252,7 @@ export function applyAskOutcome(args: {
     });
   }
   const rebuilt = `---\n${split.frontmatter}\n---\n${body}`;
-  writeRepoTaskFile(projectDir, filePath, rebuilt);
+  writeRepoTaskFile(workspaceRoot, filePath, rebuilt);
   return applications;
 }
 
@@ -296,14 +298,16 @@ function ageDays(updatedAt: string, nowMs: number): number | null {
  */
 export function listOperatorCaptureInstructCandidates(
   records: BlockedTaskRecord[],
-  projectDir: string,
+  workspaceRoot: string,
   nowMs: number,
+  scopeRoot: string = workspaceRoot,
 ): OperatorCaptureInstructCandidate[] {
   const candidates: OperatorCaptureInstructCandidate[] = [];
   for (const record of records) {
     if (record.precondition.kind !== "operator-capture") continue;
     const evaluation = evaluateBlockedPrecondition(record.precondition, {
-      projectDir,
+      workspaceRoot,
+      scopeRoot,
       taskBody: record.body,
     });
     if (evaluation.satisfied) continue;
@@ -354,11 +358,11 @@ export type OperatorCaptureInstruction = {
  * artifact.
  */
 export function applyOperatorCaptureInstruction(args: {
-  projectDir: string;
+  workspaceRoot: string;
   candidate: OperatorCaptureInstructCandidate;
   now: Date;
 }): OperatorCaptureInstruction {
-  const { projectDir, candidate, now } = args;
+  const { workspaceRoot, candidate, now } = args;
   const stamp = now.toISOString();
   const filePath = candidate.taskPath;
   if (!existsSync(filePath)) {
@@ -372,7 +376,7 @@ export function applyOperatorCaptureInstruction(args: {
   const marker: OperatorCaptureInstructedMarker = { lastInstructedAt: stamp };
   const body = upsertOperatorCaptureInstructedMarker(split.body, marker);
   const rebuilt = `---\n${split.frontmatter}\n---\n${body}`;
-  writeRepoTaskFile(projectDir, filePath, rebuilt);
+  writeRepoTaskFile(workspaceRoot, filePath, rebuilt);
   return {
     taskId: candidate.taskId,
     taskPath: filePath,
@@ -471,13 +475,14 @@ export type BlockerAction =
  */
 export function classifyBlockedActions(
   records: BlockedTaskRecord[],
-  projectDir: string,
+  workspaceRoot: string,
   nowMs: number,
+  scopeRoot: string = workspaceRoot,
 ): BlockerAction[] {
   const actions: BlockerAction[] = [];
   for (const record of records) {
     const age = ageDays(record.updatedAt, nowMs);
-    const waitingOn = getUnfinishedTaskDependencies(projectDir, record.dependsOn);
+    const waitingOn = getUnfinishedTaskDependencies(workspaceRoot, record.dependsOn);
     if (
       waitingOn.length > 0 &&
       !(record.precondition.kind === "task-done" && waitingOn.length === 1 && waitingOn[0] === record.precondition.ref)
@@ -492,7 +497,8 @@ export function classifyBlockedActions(
       continue;
     }
     const eval_ = evaluateBlockedPrecondition(record.precondition, {
-      projectDir,
+      workspaceRoot,
+      scopeRoot,
       taskBody: record.body,
     });
     switch (record.precondition.kind) {

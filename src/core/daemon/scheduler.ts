@@ -1,16 +1,16 @@
-/** Timed reminders and event-triggered tasks, persisted per project. */
+/** Timed reminders and event-triggered tasks, persisted per scope. */
 
 import { join } from "node:path";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope } from "#core/events/event-bus-types.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
-import { projectStorageIdentity } from "./project-storage-identity.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import {
   getPendingSummary,
   matchesFilter,
-  projectHash,
+  scopeHash,
 } from "./schedule-parser.js";
 import { loadFromFile, persistToFile } from "./scheduler-store.js";
+import { scopeStorageIdentity } from "./scope-storage-identity.js";
 
 export type { ScheduledItem } from "./schedule-parser.js";
 export { parseRepeat, parseTime } from "./schedule-parser.js";
@@ -19,25 +19,25 @@ export class Scheduler {
   private items: import("./schedule-parser.js").ScheduledItem[] = [];
   private nextId = 1;
   private filePath: string | null;
-  private project: string;
+  private scope: string;
   private loaded = false;
   private timer: ReturnType<typeof setInterval> | null = null;
   private busUnsub: (() => void) | null = null;
-  private pbus: ProjectScopedEventBus | null;
+  private pbus: ScopedEventBus | null;
 
   constructor(
-    projectDir?: string,
+    scopeRoot?: string,
     storageDir?: string | null,
-    pbus?: ProjectScopedEventBus | null,
+    pbus?: ScopedEventBus | null,
   ) {
-    this.project = projectStorageIdentity(projectDir || process.cwd());
+    this.scope = scopeStorageIdentity(scopeRoot || process.cwd());
     this.pbus = pbus ?? null;
     if (storageDir === null) {
       this.filePath = null;
       this.loaded = true;
     } else {
-      const baseDir = storageDir || join(this.project, ".kota");
-      this.filePath = join(baseDir, `schedules-${projectHash(this.project)}.json`);
+      const baseDir = storageDir || join(this.scope, ".kota");
+      this.filePath = join(baseDir, `schedules-${scopeHash(this.scope)}.json`);
     }
   }
 
@@ -45,7 +45,7 @@ export class Scheduler {
     if (this.loaded) return;
     this.loaded = true;
     if (!this.filePath) return;
-    const data = loadFromFile(this.filePath, this.project);
+    const data = loadFromFile(this.filePath, this.scope);
     this.items = data.items;
     this.nextId = data.nextId;
   }
@@ -56,14 +56,14 @@ export class Scheduler {
       this.ensureLoaded();
       return;
     }
-    const data = loadFromFile(this.filePath, this.project);
+    const data = loadFromFile(this.filePath, this.scope);
     this.items = data.items;
     this.nextId = data.nextId;
     this.loaded = true;
   }
 
   private persist(): void {
-    this.items = persistToFile(this.filePath, this.project, this.items, this.nextId);
+    this.items = persistToFile(this.filePath, this.scope, this.items, this.nextId);
   }
 
   add(
@@ -264,24 +264,24 @@ let instance: Scheduler | undefined;
 
 /**
  * Initialize the scheduler singleton. Idempotent — if an instance already
- * exists for the same project directory, it is reused rather than replaced.
+ * exists for the same scope directory, it is reused rather than replaced.
  */
 export function initScheduler(
-  projectDir?: string,
+  scopeRoot?: string,
   storageDir?: string | null,
 ): void {
   if (instance) return;
-  instance = new Scheduler(projectDir, storageDir);
+  instance = new Scheduler(scopeRoot, storageDir);
 }
 
 /**
  * Install a pre-built {@link Scheduler} as the module-level singleton.
- * Used by the per-project runtime bundle factory to register the default
- * project's instance without re-binding `projectDir` outside the bundle.
+ * Used by the per-scope runtime bundle factory to register the default
+ * scope's instance without re-binding `scopeRoot` outside the bundle.
  */
 export function setSchedulerInstance(scheduler: Scheduler): void {
   // The daemon's scope runtime host owns each scheduler's live subscriptions.
-  // Rebinding the compatibility singleton must not tear down the prior scope,
+  // Rebinding the process singleton must not tear down the prior scope,
   // which remains hosted after a default-scope change.
   instance = scheduler;
 }

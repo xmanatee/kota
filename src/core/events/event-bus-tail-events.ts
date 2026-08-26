@@ -1,10 +1,10 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowDeadLetterBusEvents } from "./event-bus-dead-letter-events.js";
-import type { ProjectId, ScopeId } from "./project-scope.js";
+import type { ScopeId } from "./scope.js";
 
 export type TailBusEvents = WorkflowDeadLetterBusEvents & {
   "approval.requested": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     tool: string;
     risk: string;
@@ -13,7 +13,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     sessionId: string;
   };
   "approval.resolved": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     tool: string;
     approved: boolean;
@@ -22,7 +22,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     sessionId: string;
   };
   "workflow.failure.alert": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflow: string;
     runId: string;
     status: "failed" | "interrupted";
@@ -31,7 +31,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     text: string;
   };
   "workflow.interrupted.alert": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflow: string;
     runId: string;
     durationMs: number;
@@ -39,7 +39,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     text: string;
   };
   "workflow.attention.digest": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     items: { label: string; detail: string }[];
     text: string;
   };
@@ -53,7 +53,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
    * `payload.text` as the human-readable body.
    */
   "workflow.daily.digest": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     /** ISO timestamp at the start of the window covered. */
     windowStartedAt: string;
     /** ISO timestamp at the end of the window covered. */
@@ -64,18 +64,18 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     quiet: boolean;
   };
   "approval.expired": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     tool: string;
   };
   "workflow.approval.timeout": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     tool: string;
     defaultResolution: "deny" | "approve";
   };
   "workflow.approval.expired": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflowName: string;
     runId: string;
     stepId: string;
@@ -91,12 +91,12 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     session?: string;
   };
   "approval.changed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     pendingCount: number;
   };
   "owner.question.asked": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     question: string;
     reason: string;
@@ -119,28 +119,28 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     defaultAnswer: string | null;
   };
   "owner.question.resolved": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     answered: boolean;
     answer: string;
   };
   "owner.question.dismissed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     reason: string;
   };
   "owner.question.expired": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     defaultResolution: "dismiss" | "answer";
   };
   "owner.question.changed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     pendingCount: number;
   };
   "owner.decision.requested": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     status: "pending" | "answered" | "canceled" | "expired" | "consumed";
     kind: "single-choice" | "multi-choice" | "free-text" | "form";
@@ -152,7 +152,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     pendingCount: number;
   };
   "owner.decision.changed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     status: "pending" | "answered" | "canceled" | "expired" | "consumed";
     kind: "single-choice" | "multi-choice" | "free-text" | "form";
@@ -164,7 +164,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     pendingCount: number;
   };
   "owner.decision.resolved": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     status: "pending" | "answered" | "canceled" | "expired" | "consumed";
     kind: "single-choice" | "multi-choice" | "free-text" | "form";
@@ -176,7 +176,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     pendingCount: number;
   };
   "owner.decision.consumed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     id: string;
     status: "pending" | "answered" | "canceled" | "expired" | "consumed";
     kind: "single-choice" | "multi-choice" | "free-text" | "form";
@@ -188,19 +188,17 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     pendingCount: number;
   };
   "task.changed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     counts: { pending: number; in_progress: number; done: number };
   };
   "session.registered": {
     scopeId: ScopeId;
-    projectId: ProjectId;
     id: string;
     createdAt: string;
     autonomyMode: AutonomyMode;
   };
   "session.unregistered": {
     scopeId: ScopeId;
-    projectId: ProjectId;
     id: string;
   };
   "module.failed": {
@@ -234,7 +232,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
    * against fixed outcomes; this event catches evaluator drift on live runs.
    */
   "evaluator-calibration.regression.detected": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     windowStartMs: number;
     windowEndMs: number;
     totalRuns: number;
@@ -250,14 +248,6 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
      * Drift kinds the gate fired on. Both can fire in the same payload.
      */
     driftKinds: ("pass-contradiction" | "pass-with-warnings-escalation")[];
-    /**
-     * Outcome of the deterministic corrective action attempted by the
-     * monitor against the repo-tasks queue. `noop` means an existing repair
-     * task was already in flight; `created`/`recreated`/`promoted` mean a
-     * concrete next action lands in `ready/`. `skipped` means the monitor
-     * could not run the corrective path (worktree dirty or recovery trigger).
-     */
-    repairAction: "noop" | "created" | "recreated" | "promoted" | "skipped";
     reason: string;
   };
   /**
@@ -268,7 +258,7 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
    * host-class, noise band, drop, and a typed reason string from the gate).
    */
   "eval-harness.regression.detected": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     baseline: {
       fixtureCount: number;
       repeatCount: number;

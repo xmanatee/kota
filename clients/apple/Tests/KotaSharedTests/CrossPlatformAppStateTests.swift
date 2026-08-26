@@ -14,9 +14,9 @@ import XCTest
 ///     and an inert `NotificationManaging`, and must not start polling
 ///     when `startPollingOnInit: false`.
 ///   - the construction must not request notification authorization,
-///     must not open URLs, and must not surface a project picker.
+///     must not open URLs, and must not surface a scope picker.
 ///   - the platform-affordance defaults must mirror the iOS shape
-///     (`supportsQuit == false`, `supportsNativeProjectPicker ==
+///     (`supportsQuit == false`, `supportsNativeScopePicker ==
 ///     false`, `openURL` returns false). Each shell overrides these
 ///     in its own concrete impl; the inert default is what tests and
 ///     unbooted fallbacks see.
@@ -25,11 +25,11 @@ final class CrossPlatformAppStateTests: XCTestCase {
 
     final class RecordingPlatform: PlatformAffordances {
         private(set) var openURLCalls: [URL] = []
-        private(set) var pickProjectCalls = 0
+        private(set) var pickScopeCalls = 0
         private(set) var openSettingsCalls = 0
         private(set) var quitCalls = 0
         var supportsQuit: Bool = false
-        var supportsNativeProjectPicker: Bool = false
+        var supportsNativeScopePicker: Bool = false
 
         @MainActor
         @discardableResult
@@ -39,8 +39,8 @@ final class CrossPlatformAppStateTests: XCTestCase {
         }
 
         @MainActor
-        func pickProjectDirectory() async -> URL? {
-            pickProjectCalls += 1
+        func pickScopeDirectory() async -> URL? {
+            pickScopeCalls += 1
             return nil
         }
 
@@ -69,7 +69,7 @@ final class CrossPlatformAppStateTests: XCTestCase {
     }
 
     private func clearDefaults() {
-        UserDefaults.standard.removeObject(forKey: "projectDirectory")
+        UserDefaults.standard.removeObject(forKey: "scopeDirectory")
         UserDefaults.standard.removeObject(forKey: "remoteDaemonURL")
         UserDefaults.standard.removeObject(forKey: "notificationsEnabled")
     }
@@ -93,15 +93,15 @@ final class CrossPlatformAppStateTests: XCTestCase {
             "Construction must not open any URL via the platform shim."
         )
         XCTAssertEqual(
-            platform.pickProjectCalls, 0,
-            "Construction must not surface a project picker."
+            platform.pickScopeCalls, 0,
+            "Construction must not surface a scope picker."
         )
     }
 
     func testInertPlatformAffordancesAreNoOps() async {
         let inert = InertPlatformAffordances()
         XCTAssertFalse(inert.supportsQuit)
-        XCTAssertFalse(inert.supportsNativeProjectPicker)
+        XCTAssertFalse(inert.supportsNativeScopePicker)
         let dummyURL = URL(string: "http://example.test/")!
         await MainActor.run {
             XCTAssertFalse(
@@ -111,7 +111,7 @@ final class CrossPlatformAppStateTests: XCTestCase {
             inert.openAppSettings()
             inert.quitApp()
         }
-        let picked = await inert.pickProjectDirectory()
+        let picked = await inert.pickScopeDirectory()
         XCTAssertNil(picked, "Inert picker must return nil so callers fall back to manual entry.")
     }
 

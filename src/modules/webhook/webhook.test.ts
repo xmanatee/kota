@@ -1,12 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import webhookModule from "./index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import { createWebhookModule } from "./index.js";
 
 const mockFetch = vi.fn();
-vi.stubGlobal("fetch", mockFetch);
+const webhookModule = createWebhookModule(outboundHttpRequestPort((request) =>
+  mockFetch(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+));
 
 function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeContext {
   const b = bus ?? new EventBus();
@@ -65,10 +73,6 @@ describe("webhookModule notifications", () => {
   beforeEach(() => {
     mockFetch.mockReset();
     mockFetch.mockResolvedValue({ ok: true, status: 200 });
-  });
-
-  afterEach(async () => {
-    await webhookModule.onUnload?.();
   });
 
   it("POSTs to configured URL on workflow.failure.alert", async () => {
@@ -184,8 +188,8 @@ describe("webhookModule notifications", () => {
 
   it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
-    webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
-    await webhookModule.onUnload?.();
+    const activation = await webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
+    await activation?.dispose();
     bus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",

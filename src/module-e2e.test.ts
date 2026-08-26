@@ -217,7 +217,7 @@ describe("Module E2E: event bus integration with modules", () => {
 		]);
 
 		await session.send("test");
-		session.close();
+		await session.dispose();
 
 		// Both lifecycle events should have fired
 		expect(events.find((e) => e.name === "session.start")).toBeDefined();
@@ -236,7 +236,7 @@ describe("Module E2E: event bus integration with modules", () => {
 		const { session } = createTestSession([textResponse("Hi!")]);
 
 		await session.send("Hello");
-		session.close();
+		await session.dispose();
 
 		// Should have received session lifecycle events via wildcard
 		const types = envelopes.map((e) => e.type);

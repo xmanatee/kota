@@ -42,16 +42,16 @@ import {
 } from "./workflow-step-executor-fixture.integration.js";
 
 describe("buildAgentPrompt", () => {
-  let projectDir: string;
+  let scopeRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-build-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, "src", "modules", "test", "workflows", "test"), { recursive: true });
+    mkdirSync(join(scopeRoot, "src", "modules", "test", "workflows", "test"), { recursive: true });
     writeFileSync(
-      join(projectDir, "src", "modules", "test", "workflows", "test", "prompt.md"),
+      join(scopeRoot, "src", "modules", "test", "workflows", "test", "prompt.md"),
       "Test prompt.\n",
     );
   });
@@ -59,10 +59,10 @@ describe("buildAgentPrompt", () => {
   it("omits the exposed step outputs section when nothing is exposed", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -72,10 +72,10 @@ describe("buildAgentPrompt", () => {
   it("states that the agent should choose its own investigation path", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -85,10 +85,10 @@ describe("buildAgentPrompt", () => {
   it("points high-stakes decisions at the owner-question MCP tool", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -100,10 +100,10 @@ describe("buildAgentPrompt", () => {
       makeDefinition({
         steps: [{ id: "some-step", type: "code", run: async () => ({ ok: true }) }],
       }),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       { "some-step": { counts: { ready: 2 } } },
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -122,10 +122,10 @@ describe("buildAgentPrompt", () => {
           },
         ],
       }),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       { "some-step": { skipped: true } },
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -145,10 +145,10 @@ describe("buildAgentPrompt", () => {
           },
         ],
       }),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       { "inspect-ready-queue": output },
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -179,10 +179,10 @@ describe("buildAgentPrompt", () => {
           },
         ],
       }),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       outputs,
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -196,10 +196,10 @@ describe("buildAgentPrompt", () => {
   it("omits the trigger payload block when the payload is empty", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       TRIGGER,
-      projectDir,
+      scopeRoot,
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );
@@ -209,10 +209,10 @@ describe("buildAgentPrompt", () => {
   it("includes the trigger payload block when the payload has runtime facts", () => {
     const { prompt } = buildAgentPrompt(
       makeDefinition(),
-      makeStep(projectDir),
+      makeStep(scopeRoot),
       makeMetadata(),
       { event: "workflow.completed", schemaRef: null, payload: { runId: "run-123" } },
-      projectDir,
+      scopeRoot,
       {},
       KOTA_OWNER_QUESTIONS_MCP_TOOL,
     );

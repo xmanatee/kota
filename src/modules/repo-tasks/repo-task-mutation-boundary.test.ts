@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import {
   WORKFLOW_DISPATCHER_PROVIDER_TYPE,
@@ -28,18 +28,18 @@ afterEach(() => {
 });
 
 function projectWithTask() {
-  const projectDir = join(tmpdir(), `kota-task-mutation-${Date.now()}-${Math.random()}`);
-  roots.push(projectDir);
-  mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-  const taskPath = join(projectDir, "data", "tasks", "ready", "task-example.md");
+  const workspaceRoot = join(tmpdir(), `kota-task-mutation-${Date.now()}-${Math.random()}`);
+  roots.push(workspaceRoot);
+  mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+  const taskPath = join(workspaceRoot, "data", "tasks", "ready", "task-example.md");
   writeFileSync(
     taskPath,
     "---\nid: task-example\ntitle: Example\nstatus: ready\n---\n\n## Problem\n\nOld.\n",
   );
   return {
-    projectDir,
+    workspaceRoot,
     taskPath,
-    projectId: buildConfiguredProject({ projectDir }).projectId,
+    scopeId: buildDirectoryScope({ scopeRoot: workspaceRoot }).scopeId,
   };
 }
 
@@ -54,7 +54,7 @@ function registerDispatcher(execute: WorkflowDispatcher["execute"]): void {
 describe("repo-task mutation", () => {
   it("fails closed when canonical mutation has no active workflow runtime", async () => {
     const value = projectWithTask();
-    await expect(mutateRepoTask({ authority: "canonical", projectId: value.projectId }, {
+    await expect(mutateRepoTask({ authority: "canonical", scopeId: value.scopeId }, {
       kind: "update-body",
       id: "task-example",
       body: "## Problem\n\nUpdated.",
@@ -71,14 +71,14 @@ describe("repo-task mutation", () => {
     });
     registerDispatcher(execute);
 
-    await expect(mutateRepoTask({ authority: "canonical", projectId: value.projectId }, {
+    await expect(mutateRepoTask({ authority: "canonical", scopeId: value.scopeId }, {
       kind: "update-body",
       id: "task-example",
       body: "## Problem\n\nUpdated.",
     })).resolves.toMatchObject({ ok: true, id: "task-example" });
     expect(execute).toHaveBeenCalledWith({
       workflow: "repo-task-mutation",
-      projectId: value.projectId,
+      scopeId: value.scopeId,
       event: "repo-task.mutation.requested",
       payload: {
         request: {
@@ -111,7 +111,7 @@ describe("repo-task mutation", () => {
     const scopeDir = join(tmpdir(), `kota-task-revoked-${Date.now()}-${Math.random()}`);
     roots.push(scopeDir);
     const target = createRepoTaskRuntimeSandbox(scopeDir, "repo-task-revoked-test");
-    finishRepoTaskRuntimeSandbox(target.projectDir);
+    finishRepoTaskRuntimeSandbox(target.workspaceRoot);
 
     await expect(mutateRepoTask(target, {
       kind: "move",
@@ -121,15 +121,15 @@ describe("repo-task mutation", () => {
   });
 
   it("uses one logical resource identity for capture and retraction", () => {
-    const projectDir = join(tmpdir(), `kota-inbox-resource-${Date.now()}`);
-    roots.push(projectDir);
-    mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
-    expect(repoTaskMutationResources(projectDir, {
+    const workspaceRoot = join(tmpdir(), `kota-inbox-resource-${Date.now()}`);
+    roots.push(workspaceRoot);
+    mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
+    expect(repoTaskMutationResources(workspaceRoot, {
       kind: "capture-inbox",
       id: "note-owned",
       content: "owned\n",
     })).toEqual(["inbox:note-owned"]);
-    expect(repoTaskMutationResources(projectDir, {
+    expect(repoTaskMutationResources(workspaceRoot, {
       kind: "retract-inbox",
       path: "data/inbox/note-owned.md",
     })).toEqual(["inbox:note-owned"]);
@@ -150,8 +150,8 @@ describe("repo-task mutation", () => {
     const scopeDir = join(tmpdir(), `kota-task-collision-${Date.now()}`);
     roots.push(scopeDir);
     const target = createRepoTaskRuntimeSandbox(scopeDir, "repo-task-collision-test");
-    mkdirSync(join(target.projectDir, "data", "inbox"), { recursive: true });
-    const path = join(target.projectDir, "data", "inbox", "task-example.md");
+    mkdirSync(join(target.workspaceRoot, "data", "inbox"), { recursive: true });
+    const path = join(target.workspaceRoot, "data", "inbox", "task-example.md");
     writeFileSync(path, "original\n");
 
     await expect(mutateRepoTask(target, {

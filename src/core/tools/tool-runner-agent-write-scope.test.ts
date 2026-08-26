@@ -49,17 +49,17 @@ describe("agent write-scope tool gate", () => {
         scopes: [
           { scopeId: "global", displayName: "Global" },
           {
-            scopeId: "project",
-            displayName: "Project",
+            scopeId: "scope",
+            displayName: "Scope",
             parentScopeId: "global",
             directoryRoot: "/tmp/project",
           },
         ],
       },
-      scopeId: "project",
+      scopeId: "scope",
       fragments: [{
-        scopeId: "project",
-        reason: "Project writes stay in task data.",
+        scopeId: "scope",
+        reason: "Scope writes stay in task data.",
         writes: { mode: "paths", paths: ["data/tasks"] },
       }],
     });
@@ -125,17 +125,17 @@ describe("agent write-scope tool gate", () => {
         scopes: [
           { scopeId: "global", displayName: "Global" },
           {
-            scopeId: "project",
-            displayName: "Project",
+            scopeId: "scope",
+            displayName: "Scope",
             parentScopeId: "global",
             directoryRoot: "/tmp/project",
           },
         ],
       },
-      scopeId: "project",
+      scopeId: "scope",
       fragments: [{
-        scopeId: "project",
-        reason: "Project writes stay in task data.",
+        scopeId: "scope",
+        reason: "Scope writes stay in task data.",
         writes: { mode: "paths", paths: ["data/tasks"] },
       }],
     });

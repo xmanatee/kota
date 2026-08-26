@@ -13,12 +13,12 @@ const TERMINAL_STATES: RepoTaskState[] = ["done", "dropped"];
 
 /** Remove old terminal tasks; Git history is the default archive. */
 export function gcTerminalTasks(
-  projectDir: string,
+  repoRoot: string,
   options: RepoTaskGcOptions = {},
 ): RepoTaskGcResult {
   const days = options.days ?? 30;
   const dryRun = options.dryRun ?? false;
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   const removed: string[] = [];
 
@@ -31,7 +31,7 @@ export function gcTerminalTasks(
     for (const file of files) {
       const filePath = join(dir, file);
       const content = readVerifiedRepoMarkdownFile({
-        projectDir,
+        repoRoot,
         rootDir: tasksDir,
         filePath,
       });
@@ -48,7 +48,7 @@ export function gcTerminalTasks(
       }
       if (!dryRun) {
         removeRepoMarkdownFile({
-          projectDir,
+          repoRoot,
           rootDir: tasksDir,
           filePath,
         });

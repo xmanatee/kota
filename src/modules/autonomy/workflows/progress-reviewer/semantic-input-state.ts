@@ -25,11 +25,11 @@ export function progressReviewDispatchKey(
 }
 
 export function emptyProgressReviewConsumptionState(
-  scopeDir: string,
+  scopeRoot: string,
 ): ProgressReviewConsumptionState {
   return {
     schemaVersion: 1,
-    scopeId: deriveDirectoryScopeId(scopeDir),
+    scopeId: deriveDirectoryScopeId(scopeRoot),
     lastConsumedRevision: 0,
     consumedAt: null,
   };
@@ -37,10 +37,10 @@ export function emptyProgressReviewConsumptionState(
 
 export function decodeProgressReviewConsumptionState(
   value: unknown,
-  scopeDir: string,
+  scopeRoot: string,
 ): ProgressReviewConsumptionState {
   if (value === null || value === undefined) {
-    return emptyProgressReviewConsumptionState(scopeDir);
+    return emptyProgressReviewConsumptionState(scopeRoot);
   }
   if (typeof value !== "object" || Array.isArray(value)) {
     throw new Error("progress review semantic state must be an object");
@@ -48,7 +48,7 @@ export function decodeProgressReviewConsumptionState(
   const state = value as Partial<ProgressReviewConsumptionState>;
   if (
     state.schemaVersion !== 1 ||
-    state.scopeId !== deriveDirectoryScopeId(scopeDir) ||
+    state.scopeId !== deriveDirectoryScopeId(scopeRoot) ||
     !Number.isSafeInteger(state.lastConsumedRevision) ||
     state.lastConsumedRevision! < 0 ||
     (state.consumedAt !== null && typeof state.consumedAt !== "string")

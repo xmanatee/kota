@@ -5,7 +5,7 @@ import type {
 import type { DaemonRuntimeContext } from "./daemon-runtime-context.js";
 
 export function buildDaemonDashboardSnapshot(ctx: DaemonRuntimeContext) {
-  const workflows = ctx.projectRuntimes.getDefault().workflowRuntime;
+  const workflows = ctx.scopeRuntimes.getDefault().workflowRuntime;
   const state = workflows.getState();
   const dispatchWindow = workflows.getDispatchWindowStatus();
   const dispatchPause = workflows.getDispatchPauseStatus();

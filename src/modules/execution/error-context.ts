@@ -56,7 +56,7 @@ function resolvePath(path: string, basedir?: string): string {
 
 /**
  * Extract file:line references from error output.
- * Returns unique references to existing project files, max 5.
+ * Returns unique references to existing repository files, max 5.
  * When basedir is provided, relative paths are resolved against it.
  */
 export function extractFileReferences(output: string, basedir?: string): FileRef[] {

@@ -7,9 +7,8 @@
  * workflow-dispatcher seam (`#core/workflow/workflow-dispatcher-provider`)
  * to enqueue pending runs without holding a `DaemonControlHandle`.
  *
- * The wire contract matches the legacy core handler verbatim — same status
- * codes (200 / 400 / 404 / 409 / 503) and response envelopes — so existing
- * `DaemonControlClient` and CLI consumers keep working unchanged.
+ * This module owns the canonical daemon-control response envelopes consumed
+ * by `DaemonControlClient` and the CLI.
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -19,7 +18,21 @@ import {
   SLASH_COMMAND_PROVIDER_TYPE,
   type SlashCommandCatalog,
 } from "#core/modules/slash-command-provider.js";
+import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+
+export type CommandsControlRouteDeps = {
+  getCatalog: () => SlashCommandCatalog | null;
+  getDispatcher: () => WorkflowDispatcher | null;
+};
+
+const processRegistryDeps: CommandsControlRouteDeps = {
+  getCatalog: () => {
+    const registry = getProviderRegistry();
+    return registry?.get(SLASH_COMMAND_PROVIDER_TYPE) ?? null;
+  },
+  getDispatcher: getWorkflowDispatcher,
+};
 
 function jsonResponse(res: ServerResponse, status: number, body: unknown): void {
   const data = JSON.stringify(body);
@@ -36,17 +49,12 @@ function readBody(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
-function getCatalog(): SlashCommandCatalog | null {
-  const registry = getProviderRegistry();
-  if (!registry) return null;
-  return registry.get(SLASH_COMMAND_PROVIDER_TYPE);
-}
-
 export function handleListCommandsControl(
   _req: IncomingMessage,
   res: ServerResponse,
+  deps: CommandsControlRouteDeps = processRegistryDeps,
 ): void {
-  const catalog = getCatalog();
+  const catalog = deps.getCatalog();
   if (!catalog) {
     jsonResponse(res, 503, { error: "Slash-command catalog unavailable" });
     return;
@@ -57,6 +65,7 @@ export function handleListCommandsControl(
 export async function handleInvokeCommandControl(
   req: IncomingMessage,
   res: ServerResponse,
+  deps: CommandsControlRouteDeps = processRegistryDeps,
 ): Promise<void> {
   let buf: Buffer;
   try {
@@ -65,7 +74,7 @@ export async function handleInvokeCommandControl(
     jsonResponse(res, 500, { error: "Internal error" });
     return;
   }
-  const catalog = getCatalog();
+  const catalog = deps.getCatalog();
   if (!catalog) {
     jsonResponse(res, 503, { error: "Slash-command catalog unavailable" });
     return;
@@ -91,7 +100,7 @@ export async function handleInvokeCommandControl(
     jsonResponse(res, 200, { kind: "skill", prompt: action.prompt });
     return;
   }
-  const dispatcher = getWorkflowDispatcher();
+  const dispatcher = deps.getDispatcher();
   if (!dispatcher) {
     jsonResponse(res, 503, { error: "Workflow dispatcher unavailable" });
     return;
@@ -116,19 +125,21 @@ export async function handleInvokeCommandControl(
   });
 }
 
-export function commandsControlRoutes(): ControlRouteRegistration[] {
+export function commandsControlRoutes(
+  deps: CommandsControlRouteDeps = processRegistryDeps,
+): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/commands",
       capabilityScope: "read",
-      handler: handleListCommandsControl,
+      handler: (req, res) => handleListCommandsControl(req, res, deps),
     },
     {
       method: "POST",
       path: "/commands/invoke",
       capabilityScope: "control",
-      handler: handleInvokeCommandControl,
+      handler: (req, res) => handleInvokeCommandControl(req, res, deps),
     },
   ];
 }

@@ -19,7 +19,7 @@ import {
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "./module-event.js";
-import { defineProjectScopedModuleEvent } from "./project-scope.js";
+import { defineScopedModuleEvent } from "./scope.js";
 
 type TelegramSignal = {
   provider: string;
@@ -52,7 +52,7 @@ type TelegramSignal = {
   };
 };
 
-const telegramSignalReceived = defineProjectScopedModuleEvent<TelegramSignal>(
+const telegramSignalReceived = defineScopedModuleEvent<TelegramSignal>(
   "inbound.signal.received",
   [
     "provider",
@@ -134,7 +134,6 @@ function makeTempDir(): string {
 function makeTelegramPayload() {
   return {
     scopeId: "scope-a",
-    projectId: "scope-a",
     provider: "telegram",
     channel: "telegram",
     accountId: "acct-1",
@@ -489,52 +488,6 @@ describe("EventJournal", () => {
     });
     expect(item.sourceEventIds).toEqual([]);
     expect(item.redactedProjection.token).toBe("[redacted]");
-  });
-
-  it("dead-letters event journal middleware failures", () => {
-    const store = new DeadLetterQueueStore(join(trackTempDir(), "dlq"));
-    const bus = new EventBus();
-    const journal = new EventJournal(trackTempDir());
-    bus.addEmitFailureHandler((failure) => {
-      if (failure.stage !== "middleware") return;
-      createEventEnvelopeDeadLetter({
-        store,
-        scopeId: "scope-a",
-        eventName: failure.event,
-        schemaRef: failure.schemaRef,
-        payload: failure.payload,
-        redriveEnvelope: failure.envelope,
-        reason: failure.error.message,
-        errorClass: "execution",
-      });
-    });
-    installEventJournal(bus, journal);
-
-    expect(() =>
-      bus.emit("custom.scope-conflict", {
-        scopeId: "scope-a",
-        projectId: "scope-b",
-        token: "secret",
-      }),
-    ).toThrow(/scope conflict/);
-
-    const item = store.list()[0]!;
-    expect(item).toMatchObject({
-      type: "event-envelope",
-      status: "open",
-      scopeId: "scope-a",
-      failure: { lastErrorClass: "execution" },
-      source: {
-        kind: "event-envelope",
-        eventName: "custom.scope-conflict",
-      },
-    });
-    expect(item.redactedProjection.token).toBe("[redacted]");
-    expect(item.redrive).toEqual({
-      kind: "none",
-      reason: "event redrive requires the event journal",
-    });
-    expect(journal.query()).toEqual([]);
   });
 
   it("redacts secret-shaped keys when no event schema is registered", () => {

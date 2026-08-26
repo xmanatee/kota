@@ -5,7 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { fileURLToPath } from "node:url";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const transcriptPath = ".kota/dialogue-simulator/transcript.json";
 const resultPath = "dialogue-result.json";
 const sourcePath = "src/notification-copy.mjs";
@@ -30,7 +30,7 @@ function fail(message) {
 }
 
 function readJson(relativePath) {
-  const absolute = join(projectRoot, relativePath);
+  const absolute = join(scopeRoot, relativePath);
   if (!existsSync(absolute)) fail(`missing JSON file: ${relativePath}`);
   try {
     return JSON.parse(readFileSync(absolute, "utf8"));
@@ -40,7 +40,7 @@ function readJson(relativePath) {
 }
 
 function writeJson(relativePath, value) {
-  const absolute = join(projectRoot, relativePath);
+  const absolute = join(scopeRoot, relativePath);
   mkdirSync(dirname(absolute), { recursive: true });
   writeFileSync(absolute, `${JSON.stringify(value, null, 2)}\n`);
 }
@@ -90,7 +90,7 @@ function validateTranscript(transcript) {
 
 function runLocalTests() {
   const result = spawnSync(process.execPath, ["--test", "test/notification-copy.test.mjs"], {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 10000,
@@ -107,11 +107,11 @@ function runLocalTests() {
 }
 
 function sourceText() {
-  return readFileSync(join(projectRoot, sourcePath), "utf8");
+  return readFileSync(join(scopeRoot, sourcePath), "utf8");
 }
 
 async function loadImplementation() {
-  const url = pathToFileURL(join(projectRoot, sourcePath));
+  const url = pathToFileURL(join(scopeRoot, sourcePath));
   url.search = `check=${Date.now()}`;
   return import(url.href);
 }
@@ -153,7 +153,7 @@ function validateImplementationOutput(formatLaunchNotification, facts, source) {
 }
 
 async function runMain({ metricOnly }) {
-  rmSync(join(projectRoot, resultPath), { force: true });
+  rmSync(join(scopeRoot, resultPath), { force: true });
   const transcript = validateTranscript(readJson(transcriptPath));
   const tests = runLocalTests();
   if (tests.status !== 0 || tests.error !== undefined) {

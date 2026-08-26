@@ -12,7 +12,8 @@ import { useDaemon } from '../context/DaemonContext';
 
 export function AttentionScreen() {
   const { state, refreshAttention } = useDaemon();
-  const { online, attention, attentionLoading, attentionError } = state;
+  const { online } = state.connection;
+  const { attention, attentionLoading, attentionError } = state.content;
 
   useEffect(() => {
     if (
@@ -25,7 +26,7 @@ export function AttentionScreen() {
     }
   }, [online, attention, attentionLoading, attentionError, refreshAttention]);
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -33,7 +34,7 @@ export function AttentionScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -41,7 +42,7 @@ export function AttentionScreen() {
     );
   }
 
-  const itemCount = attention?.data.items.length ?? null;
+  const itemCount = attention?.items.length ?? null;
 
   return (
     <ScrollView

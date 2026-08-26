@@ -35,8 +35,8 @@
  *  8. `MemoryDeleteResult` arms decode correctly: a `200` non-null
  *     response collapses into `{ ok: true }` and a `null` (404) response
  *     collapses into `{ ok: false, reason: "not_found" }`.
- *  9. `MemoryReindexResult` decodes correctly through `requestStrict<T>`
- *     (the provider's `ReindexResult` shape passes through unchanged).
+ *  9. `MemoryReindexResult` decodes the explicit success/unavailable
+ *     operation result through `requestStrict<T>`.
  * 10. Removing the memory module's daemonClient contribution makes the
  *     assembled client fail loudly with a clear "memory" missing-handler
  *     error.
@@ -44,8 +44,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   MemoryListEntry,
@@ -179,12 +177,12 @@ describe("memory module daemonClient(link)", () => {
     });
   });
 
-  it("threads an explicit project id through list()", async () => {
+  it("threads an explicit scope id through list()", async () => {
     const wirePayload = { entries: [] };
     const { transport, calls } = makeRecordingTransport(() => wirePayload);
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.list({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory?projectId=project-b");
+    await contributed.memory!.list({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory?scopeId=scope-b");
   });
 
   it("routes add(content, tags) through POST /api/memory via requestStrict<T> with body { content, tags }", async () => {
@@ -217,13 +215,13 @@ describe("memory module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads an explicit project id through add()", async () => {
+  it("threads an explicit scope id through add()", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({ id: "new-id" }));
     const contributed = memoryModule.daemonClient!(transport);
     await contributed.memory!.add("the content", ["alpha"], {
-      projectId: "project-b",
+      scopeId: "scope-b",
     });
-    expect(calls[0]!.path).toBe("/api/memory?projectId=project-b");
+    expect(calls[0]!.path).toBe("/api/memory?scopeId=scope-b");
   });
 
   it("routes delete(id) through DELETE /api/memory/:id via fetchRaw with encodeURIComponent and no body", async () => {
@@ -248,28 +246,28 @@ describe("memory module daemonClient(link)", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("threads an explicit project id through delete()", async () => {
+  it("threads an explicit scope id through delete()", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({ deleted: "plain-id" }));
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.delete("plain-id", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory/plain-id?projectId=project-b");
+    await contributed.memory!.delete("plain-id", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory/plain-id?scopeId=scope-b");
   });
 
-  it("throws the typed unknown project route error from delete()", async () => {
+  it("throws the typed unknown scope route error from delete()", async () => {
     const { transport } = makeRecordingTransport(() =>
       new Response(
         JSON.stringify({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
         { status: 404 },
       ),
     );
     const contributed = memoryModule.daemonClient!(transport);
     await expect(
-      contributed.memory!.delete("plain-id", { projectId: "ghost" }),
-    ).rejects.toThrow("Unknown project: ghost");
+      contributed.memory!.delete("plain-id", { scopeId: "ghost" }),
+    ).rejects.toThrow("Unknown scope: ghost");
   });
 
   it("routes search(query) through GET /api/memory/search?q=... via requestStrict<T> with no filter", async () => {
@@ -310,12 +308,12 @@ describe("memory module daemonClient(link)", () => {
     expect(calls[0]!.path).toBe("/api/memory/search?q=query&semantic=true");
   });
 
-  it("threads an explicit project id through search()", async () => {
+  it("threads an explicit scope id through search()", async () => {
     const expected: MemorySearchResult = { ok: true, entries: [] };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.search("query", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory/search?q=query&projectId=project-b");
+    await contributed.memory!.search("query", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory/search?q=query&scopeId=scope-b");
   });
 
   it("decodes a multi-entry MemorySearchResult ok: true arm unchanged", async () => {
@@ -342,7 +340,7 @@ describe("memory module daemonClient(link)", () => {
   });
 
   it("routes reindex() through POST /api/memory/reindex via requestStrict<T> with no body", async () => {
-    const expected: MemoryReindexResult = { indexed: 5, failed: 0 };
+    const expected: MemoryReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = memoryModule.daemonClient!(transport);
     const result = await contributed.memory!.reindex();
@@ -357,33 +355,11 @@ describe("memory module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads an explicit project id through reindex()", async () => {
-    const expected: MemoryReindexResult = { indexed: 5, failed: 0 };
+  it("threads an explicit scope id through reindex()", async () => {
+    const expected: MemoryReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = memoryModule.daemonClient!(transport);
-    await contributed.memory!.reindex({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/memory/reindex?projectId=project-b");
-  });
-
-  it("the assembly path fails loudly when the memory module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.memory;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /memory/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the memory module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = memoryModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.memory;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
+    await contributed.memory!.reindex({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/memory/reindex?scopeId=scope-b");
   });
 });

@@ -5,29 +5,29 @@ import {
   captureOutput,
   cleanupFakeHome,
   makeProgram,
-  makeProjectDir,
-  projectConfigExists,
-  readProjectConfig,
+  makeScopeRoot,
+  readScopeConfig,
+  scopeConfigExists,
   stubCtxWithLocalClient,
-  trustProjectConfig,
+  trustScopeConfig,
   workflowDef,
-  writeProjectConfig,
+  writeScopeConfig,
 } from "./cli-test-support.js";
 
 describe("kota webhook list", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let ctx: ModuleContext;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    ctx = stubCtxWithLocalClient(projectDir, [
+    scopeRoot = makeScopeRoot();
+    ctx = stubCtxWithLocalClient(scopeRoot, [
       workflowDef("my-webhook-flow", [{ event: "webhook", webhook: true }]),
       workflowDef("no-webhook-flow", [{ event: "runtime.idle" }]),
     ]);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     cleanupFakeHome();
   });
 
@@ -47,8 +47,8 @@ describe("kota webhook list", () => {
   });
 
   it("shows configured status when a secret exists in config", async () => {
-    trustProjectConfig(projectDir);
-    writeProjectConfig(projectDir, {
+    trustScopeConfig(scopeRoot);
+    writeScopeConfig(scopeRoot, {
       webhooks: { "my-webhook-flow": { secret: "abc123" } },
     });
 
@@ -60,8 +60,8 @@ describe("kota webhook list", () => {
   });
 
   it("never prints secret values", async () => {
-    trustProjectConfig(projectDir);
-    writeProjectConfig(projectDir, {
+    trustScopeConfig(scopeRoot);
+    writeScopeConfig(scopeRoot, {
       webhooks: { "my-webhook-flow": { secret: "supersecretvalue" } },
     });
 
@@ -73,16 +73,16 @@ describe("kota webhook list", () => {
 });
 
 describe("kota webhook secret generate", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let ctx: ModuleContext;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    ctx = stubCtxWithLocalClient(projectDir);
+    scopeRoot = makeScopeRoot();
+    ctx = stubCtxWithLocalClient(scopeRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     cleanupFakeHome();
   });
 
@@ -98,8 +98,8 @@ describe("kota webhook secret generate", () => {
       ]);
     });
 
-    expect(projectConfigExists(projectDir)).toBe(true);
-    const saved = readProjectConfig(projectDir) as {
+    expect(scopeConfigExists(scopeRoot)).toBe(true);
+    const saved = readScopeConfig(scopeRoot) as {
       webhooks?: Record<string, { secret?: string }>;
     };
     const secret = saved.webhooks?.["my-webhook-flow"]?.secret;
@@ -120,7 +120,7 @@ describe("kota webhook secret generate", () => {
       ]);
     });
 
-    const saved = readProjectConfig(projectDir) as {
+    const saved = readScopeConfig(scopeRoot) as {
       webhooks?: Record<string, { secret?: string }>;
     };
     const secret = saved.webhooks?.["my-webhook-flow"]?.secret;
@@ -147,8 +147,8 @@ describe("kota webhook secret generate", () => {
   });
 
   it("warns when overwriting an existing secret", async () => {
-    trustProjectConfig(projectDir);
-    writeProjectConfig(projectDir, {
+    trustScopeConfig(scopeRoot);
+    writeScopeConfig(scopeRoot, {
       webhooks: { "my-webhook-flow": { secret: "old-secret" } },
     });
 
@@ -181,7 +181,7 @@ describe("kota webhook secret generate", () => {
   });
 
   it("preserves other config fields when writing", async () => {
-    writeProjectConfig(projectDir, { model: "claude-opus-4", webhooks: {} });
+    writeScopeConfig(scopeRoot, { model: "claude-opus-4", webhooks: {} });
 
     await captureOutput(async () => {
       await makeProgram(ctx).parseAsync([
@@ -194,7 +194,7 @@ describe("kota webhook secret generate", () => {
       ]);
     });
 
-    const saved = readProjectConfig(projectDir) as {
+    const saved = readScopeConfig(scopeRoot) as {
       model?: string;
       webhooks?: Record<string, { secret?: string }>;
     };
@@ -204,22 +204,22 @@ describe("kota webhook secret generate", () => {
 });
 
 describe("kota webhook secret remove", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let ctx: ModuleContext;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
-    ctx = stubCtxWithLocalClient(projectDir);
+    scopeRoot = makeScopeRoot();
+    ctx = stubCtxWithLocalClient(scopeRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
     cleanupFakeHome();
   });
 
   it("removes webhook entry from config", async () => {
-    trustProjectConfig(projectDir);
-    writeProjectConfig(projectDir, {
+    trustScopeConfig(scopeRoot);
+    writeScopeConfig(scopeRoot, {
       webhooks: {
         "my-webhook-flow": { secret: "todelete" },
         other: { secret: "keep" },
@@ -237,7 +237,7 @@ describe("kota webhook secret remove", () => {
       ]);
     });
 
-    const saved = readProjectConfig(projectDir) as {
+    const saved = readScopeConfig(scopeRoot) as {
       webhooks?: Record<string, { secret?: string }>;
     };
     expect(saved.webhooks?.["my-webhook-flow"]).toBeUndefined();
@@ -245,8 +245,8 @@ describe("kota webhook secret remove", () => {
   });
 
   it("removes webhooks key entirely when last entry is deleted", async () => {
-    trustProjectConfig(projectDir);
-    writeProjectConfig(projectDir, {
+    trustScopeConfig(scopeRoot);
+    writeScopeConfig(scopeRoot, {
       webhooks: { "my-webhook-flow": { secret: "only" } },
     });
 
@@ -261,7 +261,7 @@ describe("kota webhook secret remove", () => {
       ]);
     });
 
-    const saved = readProjectConfig(projectDir) as { webhooks?: unknown };
+    const saved = readScopeConfig(scopeRoot) as { webhooks?: unknown };
     expect(saved.webhooks).toBeUndefined();
   });
 

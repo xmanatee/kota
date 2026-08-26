@@ -10,181 +10,162 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { JsonFileError } from "#core/util/json-file.js";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  type DirectoryScope,
   deriveDirectoryScopeId,
   loadRegistryFileFromDisk,
-  resolveConfiguredProjects,
+  resolveConfiguredScopes,
   ScopeRegistry,
 } from "./scope-registry.js";
 
 function makeStateDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), "kota-project-registry-"));
+  const dir = mkdtempSync(join(tmpdir(), "kota-scope-registry-"));
   mkdirSync(dir, { recursive: true });
   return dir;
 }
 
-function makeProjectDir(name: string): string {
+function makeScopeRoot(name: string): string {
   return mkdtempSync(join(tmpdir(), `kota-scope-registry-${name}-`));
 }
 
 describe("ScopeRegistry", () => {
-  it("rejects an empty project list", () => {
+  it("rejects an empty scope list", () => {
     const stateDir = makeStateDir();
-    expect(() => new ScopeRegistry({ stateDir, projects: [] })).toThrow(
-      /at least one project/,
+    expect(() => new ScopeRegistry({ stateDir, scopes: [] })).toThrow(
+      /at least one scope/,
     );
   });
 
-  it("rejects two configured inputs that resolve to the same projectId", () => {
+  it("rejects two configured inputs that resolve to the same scopeId", () => {
     const stateDir = makeStateDir();
-    const duplicate = makeProjectDir("duplicate");
+    const duplicate = makeScopeRoot("duplicate");
     expect(
       () =>
         new ScopeRegistry({
           stateDir,
-          projects: [
-            { projectDir: duplicate },
-            { projectDir: duplicate },
+          scopes: [
+            { scopeRoot: duplicate },
+            { scopeRoot: duplicate },
           ],
         }),
-    ).toThrow(/duplicate projectDir/);
+    ).toThrow(/duplicate scopeRoot/);
   });
 
-  it("constructs from a single project and treats it as the default", () => {
+  it("constructs from a single scope and treats it as the default", () => {
     const stateDir = makeStateDir();
-    const projectDir = makeProjectDir("solo");
+    const scopeRoot = makeScopeRoot("solo");
     const registry = new ScopeRegistry({
       stateDir,
-      projects: [{ projectDir }],
+      scopes: [{ scopeRoot }],
     });
     const list = registry.list();
     expect(list).toHaveLength(1);
-    expect(list[0]?.projectDir).toBe(realpathSync.native(projectDir));
-    expect(registry.getDefault().projectDir).toBe(realpathSync.native(projectDir));
-    expect(registry.getDefaultProjectId()).toBe(deriveDirectoryScopeId(projectDir));
+    expect(list[0]?.scopeRoot).toBe(realpathSync.native(scopeRoot));
+    expect(registry.getDefault().scopeRoot).toBe(realpathSync.native(scopeRoot));
+    expect(registry.getDefaultScopeId()).toBe(deriveDirectoryScopeId(scopeRoot));
   });
 
   it("supports lookup by id and by resolved directory", () => {
     const stateDir = makeStateDir();
-    const projectA = makeProjectDir("lookup-a");
-    const projectB = makeProjectDir("lookup-b");
+    const scopeA = makeScopeRoot("lookup-a");
+    const scopeB = makeScopeRoot("lookup-b");
     const registry = new ScopeRegistry({
       stateDir,
-      projects: [
-        { projectDir: projectA, displayName: "Alpha" },
-        { projectDir: projectB, displayName: "Beta" },
+      scopes: [
+        { scopeRoot: scopeA, displayName: "Alpha" },
+        { scopeRoot: scopeB, displayName: "Beta" },
       ],
     });
-    const alpha = registry.list()[0] as ConfiguredProject;
-    const beta = registry.list()[1] as ConfiguredProject;
-    expect(registry.get(alpha.projectId)).toEqual(alpha);
-    expect(registry.getByDir(projectB)).toEqual(beta);
-    expect(registry.getByDir(join(stateDir, "missing"))).toBeUndefined();
+    const alpha = registry.list()[0] as DirectoryScope;
+    const beta = registry.list()[1] as DirectoryScope;
+    expect(registry.get(alpha.scopeId)).toEqual(alpha);
+    expect(registry.getByRoot(scopeB)).toEqual(beta);
+    expect(registry.getByRoot(join(stateDir, "missing"))).toBeUndefined();
   });
 
   it("rejects empty directory lookups instead of normalizing them to cwd", () => {
     const stateDir = makeStateDir();
-    const projectDir = makeProjectDir("empty-lookup");
+    const scopeRoot = makeScopeRoot("empty-lookup");
     const registry = new ScopeRegistry({
       stateDir,
-      projects: [{ projectDir }],
+      scopes: [{ scopeRoot }],
     });
-    expect(() => registry.getByDir("")).toThrow(/projectDir must be a non-empty string/);
+    expect(() => registry.getByRoot("")).toThrow(/scopeRoot must be a non-empty string/);
   });
 
-  it("first input is the default project", () => {
+  it("first input is the default scope", () => {
     const stateDir = makeStateDir();
-    const first = makeProjectDir("first");
-    const second = makeProjectDir("second");
+    const first = makeScopeRoot("first");
+    const second = makeScopeRoot("second");
     const registry = new ScopeRegistry({
       stateDir,
-      projects: [
-        { projectDir: first },
-        { projectDir: second },
+      scopes: [
+        { scopeRoot: first },
+        { scopeRoot: second },
       ],
     });
-    expect(registry.getDefault().projectDir).toBe(realpathSync.native(first));
+    expect(registry.getDefault().scopeRoot).toBe(realpathSync.native(first));
   });
 
   it("persists a typed registry file under the state dir", () => {
     const stateDir = makeStateDir();
-    const hostA = makeProjectDir("host-a");
-    const hostB = makeProjectDir("host-b");
+    const hostA = makeScopeRoot("host-a");
+    const hostB = makeScopeRoot("host-b");
     new ScopeRegistry({
       stateDir,
-      projects: [
-        { projectDir: hostA, displayName: "Host A" },
-        { projectDir: hostB, displayName: "Host B" },
+      scopes: [
+        { scopeRoot: hostA, displayName: "Host A" },
+        { scopeRoot: hostB, displayName: "Host B" },
       ],
     });
     const file = loadRegistryFileFromDisk(stateDir);
     expect(file).not.toBeNull();
     expect(file?.schema).toBe(1);
-    expect(file?.projects).toHaveLength(2);
-    expect(file?.projects[0]?.displayName).toBe("Host A");
-    expect(file?.defaultProjectId).toBe(deriveDirectoryScopeId(hostA));
+    expect(file?.scopes).toHaveLength(2);
+    expect(file?.scopes[0]?.displayName).toBe("Host A");
+    expect(file?.defaultScopeId).toBe(deriveDirectoryScopeId(hostA));
 
-    const raw = JSON.parse(readFileSync(join(stateDir, "project-registry.json"), "utf8"));
+    const raw = JSON.parse(readFileSync(join(stateDir, "scope-registry.json"), "utf8"));
     expect(raw.schema).toBe(1);
   });
 
   it("restores persisted mutations instead of treating later config as authority", () => {
     const stateDir = makeStateDir();
-    const scopeA = makeProjectDir("authority-a");
-    const scopeB = makeProjectDir("authority-b");
-    const ignoredSeed = makeProjectDir("authority-ignored");
-    const registry = new ScopeRegistry({ stateDir, projects: [{ projectDir: scopeA }] });
-    const added = buildConfiguredProject({ projectDir: scopeB, displayName: "Scope B" });
+    const scopeA = makeScopeRoot("authority-a");
+    const scopeB = makeScopeRoot("authority-b");
+    const ignoredSeed = makeScopeRoot("authority-ignored");
+    const registry = new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] });
+    const added = buildDirectoryScope({ scopeRoot: scopeB, displayName: "Scope B" });
     registry.add(added);
-    registry.updateDisplayName(added.projectId, "Persisted B");
-    registry.setDefault(added.projectId);
+    registry.updateDisplayName(added.scopeId, "Persisted B");
+    registry.setDefault(added.scopeId);
 
     const restored = new ScopeRegistry({
       stateDir,
-      projects: [{ projectDir: ignoredSeed }],
+      scopes: [{ scopeRoot: ignoredSeed }],
     });
-    expect(restored.list().map((project) => project.projectDir)).toEqual([
+    expect(restored.list().map((scope) => scope.scopeRoot)).toEqual([
       realpathSync.native(scopeA),
       realpathSync.native(scopeB),
     ]);
     expect(restored.getDefault()).toMatchObject({
-      projectId: added.projectId,
+      scopeId: added.scopeId,
       displayName: "Persisted B",
     });
   });
 
-  it("toProjection emits the typed wire shape", () => {
+  it("toProjection emits global plus directory-backed child scopes", () => {
     const stateDir = makeStateDir();
-    const wireA = makeProjectDir("wire-a");
-    const wireB = makeProjectDir("wire-b");
+    const scopeA = makeScopeRoot("scope-a");
+    const scopeB = makeScopeRoot("scope-b");
     const registry = new ScopeRegistry({
       stateDir,
-      projects: [
-        { projectDir: wireA, displayName: "Wire A" },
-        { projectDir: wireB, displayName: "Wire B" },
+      scopes: [
+        { scopeRoot: scopeA, displayName: "Scope A" },
+        { scopeRoot: scopeB, displayName: "Scope B" },
       ],
     });
     const projection = registry.toProjection();
-    expect(projection.defaultProjectId).toBe(deriveDirectoryScopeId(wireA));
-    expect(projection.projects.map((p) => p.displayName)).toEqual([
-      "Wire A",
-      "Wire B",
-    ]);
-  });
-
-  it("toScopeProjection emits global plus directory-backed child scopes", () => {
-    const stateDir = makeStateDir();
-    const scopeA = makeProjectDir("scope-a");
-    const scopeB = makeProjectDir("scope-b");
-    const registry = new ScopeRegistry({
-      stateDir,
-      projects: [
-        { projectDir: scopeA, displayName: "Scope A" },
-        { projectDir: scopeB, displayName: "Scope B" },
-      ],
-    });
-    const projection = registry.toScopeProjection();
     expect(projection.rootScopeId).toBe("global");
     expect(projection.defaultScopeId).toBe(deriveDirectoryScopeId(scopeA));
     expect(projection.scopes).toEqual([
@@ -214,23 +195,23 @@ describe("loadRegistryFileFromDisk", () => {
   it("rejects an unsupported schema version", () => {
     const stateDir = makeStateDir();
     writeFileSync(
-      join(stateDir, "project-registry.json"),
-      JSON.stringify({ schema: 99, defaultProjectId: "x", projects: [] }),
+      join(stateDir, "scope-registry.json"),
+      JSON.stringify({ schema: 99, defaultScopeId: "x", scopes: [] }),
     );
     expect(() => loadRegistryFileFromDisk(stateDir)).toThrow(JsonFileError);
   });
 
-  it("rejects a defaultProjectId that does not match any registered project", () => {
+  it("rejects a defaultScopeId that does not match any registered scope", () => {
     const stateDir = makeStateDir();
     writeFileSync(
-      join(stateDir, "project-registry.json"),
+      join(stateDir, "scope-registry.json"),
       JSON.stringify({
         schema: 1,
-        defaultProjectId: "no-such-id",
-        projects: [
+        defaultScopeId: "no-such-id",
+        scopes: [
           {
-            projectId: "scope-x",
-            projectDir: resolve("/tmp/x"),
+            scopeId: "scope-x",
+            scopeRoot: resolve("/tmp/x"),
             displayName: "x",
           },
         ],
@@ -240,59 +221,59 @@ describe("loadRegistryFileFromDisk", () => {
   });
 });
 
-describe("resolveConfiguredProjects", () => {
+describe("resolveConfiguredScopes", () => {
   it("returns the explicit list when provided", () => {
-    const result = resolveConfiguredProjects({
-      projects: [{ projectDir: "/tmp/explicit" }],
-      projectDir: "/tmp/ignored",
-      fallbackProjectDir: "/tmp/fallback",
+    const result = resolveConfiguredScopes({
+      scopes: [{ scopeRoot: "/tmp/explicit" }],
+      scopeRoot: "/tmp/ignored",
+      fallbackScopeRoot: "/tmp/fallback",
     });
-    expect(result).toEqual([{ projectDir: "/tmp/explicit" }]);
+    expect(result).toEqual([{ scopeRoot: "/tmp/explicit" }]);
   });
 
-  it("falls back to projectDir for single-project operators", () => {
-    const result = resolveConfiguredProjects({
-      projectDir: "/tmp/single",
-      fallbackProjectDir: "/tmp/fallback",
+  it("falls back to scopeRoot for single-scope operators", () => {
+    const result = resolveConfiguredScopes({
+      scopeRoot: "/tmp/single",
+      fallbackScopeRoot: "/tmp/fallback",
     });
-    expect(result).toEqual([{ projectDir: "/tmp/single" }]);
+    expect(result).toEqual([{ scopeRoot: "/tmp/single" }]);
   });
 
   it("uses the daemon-supplied fallback when neither input is set", () => {
-    const result = resolveConfiguredProjects({ fallbackProjectDir: "/tmp/cwd" });
-    expect(result).toEqual([{ projectDir: "/tmp/cwd" }]);
+    const result = resolveConfiguredScopes({ fallbackScopeRoot: "/tmp/cwd" });
+    expect(result).toEqual([{ scopeRoot: "/tmp/cwd" }]);
   });
 
-  it("treats an empty projects array as 'not provided'", () => {
-    const result = resolveConfiguredProjects({
-      projects: [],
-      projectDir: "/tmp/single",
-      fallbackProjectDir: "/tmp/fallback",
+  it("treats an empty scopes array as 'not provided'", () => {
+    const result = resolveConfiguredScopes({
+      scopes: [],
+      scopeRoot: "/tmp/single",
+      fallbackScopeRoot: "/tmp/fallback",
     });
-    expect(result).toEqual([{ projectDir: "/tmp/single" }]);
+    expect(result).toEqual([{ scopeRoot: "/tmp/single" }]);
   });
 
-  it("rejects empty DaemonConfig projectDir shorthand input", () => {
+  it("rejects empty DaemonConfig scopeRoot shorthand input", () => {
     expect(() =>
-      resolveConfiguredProjects({
-        projectDir: "",
-        fallbackProjectDir: "/tmp/fallback",
+      resolveConfiguredScopes({
+        scopeRoot: "",
+        fallbackScopeRoot: "/tmp/fallback",
       }),
-    ).toThrow(/projectDir must be a non-empty string/);
+    ).toThrow(/scopeRoot must be a non-empty string/);
   });
 
-  it("rejects empty DaemonConfig projects entries", () => {
+  it("rejects empty DaemonConfig scopes entries", () => {
     expect(() =>
-      resolveConfiguredProjects({
-        projects: [{ projectDir: "" }],
-        fallbackProjectDir: "/tmp/fallback",
+      resolveConfiguredScopes({
+        scopes: [{ scopeRoot: "" }],
+        fallbackScopeRoot: "/tmp/fallback",
       }),
-    ).toThrow(/projects\[0\]\.projectDir must be a non-empty string/);
+    ).toThrow(/scopes\[0\]\.scopeRoot must be a non-empty string/);
   });
 
   it("rejects empty daemon fallback input", () => {
-    expect(() => resolveConfiguredProjects({ fallbackProjectDir: "" })).toThrow(
-      /fallbackProjectDir must be a non-empty string/,
+    expect(() => resolveConfiguredScopes({ fallbackScopeRoot: "" })).toThrow(
+      /fallbackScopeRoot must be a non-empty string/,
     );
   });
 });

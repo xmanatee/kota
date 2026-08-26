@@ -31,7 +31,7 @@ import type {
   DeadLetterRedriveTarget,
 } from "./dead-letter-queue.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
 
 export type {
   DaemonSseEvent,
@@ -43,17 +43,11 @@ export type {
 export type { DaemonControlHandle } from "./daemon-control-handle.js";
 
 /**
- * Typed wire-shape for the daemon's "unknown projectId" rejection on a
- * project-scoped route. Built by `daemon-control-utils` when the route
- * validates `?projectId=` and the id does not match a configured directory
+ * Typed wire-shape for the daemon's "unknown scopeId" rejection on a
+ * scope-bound route. Built by `daemon-control-utils` when the route
+ * validates `?scopeId=` and the id does not match a configured directory
  * scope.
  */
-export type UnknownProjectError = {
-  error: "Unknown project";
-  reason: "unknown_project";
-  projectId: string;
-};
-
 export type UnknownScopeError = {
   error: "Unknown scope";
   reason: "unknown_scope";
@@ -63,39 +57,38 @@ export type UnknownScopeError = {
 export type ConflictingScopeSelectorsError = {
   error: "Conflicting scope selectors";
   reason: "conflicting_scope_selectors";
-  scopeId: string;
-  projectId: string;
+  requestedScopeId: string;
+  boundScopeId: string;
 };
 
 export type ScopeNotHostedError = {
   error: "Scope is not hosted";
   reason: "scope_not_hosted";
   scopeId: string;
-  projectId: string;
 };
 
 /**
- * Result of {@link DaemonControlHandle.setActiveProjectId}. The success
+ * Result of {@link DaemonControlHandle.setActiveScopeId}. The success
  * arm carries the new active selection (echoing the requested value back
  * so callers don't need a follow-up read); the rejection arm names the
  * unknown id so route handlers can 404 with the typed shape.
  */
-export type SetActiveProjectResult =
-  | { ok: true; activeProjectId: ProjectId | null }
-  | { ok: false; reason: "not_found"; projectId: string }
+export type SetActiveScopeResult =
+  | { ok: true; activeScopeId: ScopeId | null }
+  | { ok: false; reason: "not_found"; scopeId: string }
   | {
       ok: false;
       reason: "not_hosted";
-      projectId: string;
+      scopeId: string;
       state: Exclude<ScopeHostingState, "hosted">;
     };
 
 export type RegisterSessionResult =
-  | { ok: true; scopeId: ProjectId }
+  | { ok: true; scopeId: ScopeId }
   | {
       ok: false;
       reason: "scope_not_hosted";
-      scopeId: ProjectId;
+      scopeId: ScopeId;
       state: Exclude<ScopeHostingState, "hosted">;
     };
 
@@ -222,8 +215,7 @@ export type WorkflowRunDetail = WorkflowRunSummary & {
 
 export type InteractiveSession = {
   id: string;
-  scopeId: ProjectId;
-  projectId: ProjectId;
+  scopeId: ScopeId;
   createdAt: string;
   lastActive: number;
   /** Operator supervision mode the session runs under. */
@@ -266,7 +258,7 @@ export type DeadLetterQueueListOptions = {
   type?: DeadLetterItemType;
   workflowName?: string;
   limit?: number;
-  projectId?: ProjectId;
+  scopeId?: ScopeId;
 };
 
 export type DeadLetterQueueListResult = {

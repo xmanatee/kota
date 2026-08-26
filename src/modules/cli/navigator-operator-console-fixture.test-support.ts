@@ -36,7 +36,7 @@ function statusSurfaces(): UiSurfaceBundle["surfaces"] {
       intent: "Status",
       order: 15,
       actions: [
-        consoleAction({ surfaceId: "scopes", actionId: "projects.list", label: "Reload scope registry", namespace: "projects", method: "list" }),
+        consoleAction({ surfaceId: "scopes", actionId: "scopes.list", label: "Reload scope registry", namespace: "scopes", method: "list" }),
       ],
       nodes: [{
         kind: "status-summary",

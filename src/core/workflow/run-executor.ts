@@ -1,7 +1,8 @@
 import { join } from "node:path";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { createDelegateBudget } from "#core/tools/delegate-budget.js";
 import {
   activeTimingMetadata,
@@ -55,18 +56,18 @@ export function executeWorkflowRun(
     },
   };
   // Resolve `pbus` once: callers from the daemon path supply the
-  // per-project wrapper directly; standalone callers (CLI exec, focused
-  // tests) get a wrapper bound to their own `projectDir`. Either way the
+  // per-scope wrapper directly; standalone callers (CLI exec, focused
+  // tests) get a wrapper bound to their own `workspaceRoot`. Either way the
   // run is attributed to the project producing it, never the registry's
   // default.
   const pbus = inputDeps.pbus
-    ?? new ProjectScopedEventBus(
+    ?? new ScopedEventBus(
       inputDeps.bus,
-      deriveDirectoryScopeId(runContext.project.root),
+      deriveDirectoryScopeId(runContext.scope.root),
     );
   const approvalQueue = inputDeps.approvalQueue
     ?? new ApprovalQueue(
-      join(runContext.project.root, ".kota", "approvals"),
+      join(runContext.scope.root, ".kota", "approvals"),
       pbus,
       {
         scopeId: pbus.getScopeId(),
@@ -74,18 +75,19 @@ export function executeWorkflowRun(
       },
     );
   const deps: RunExecutorDeps & {
-    projectDir: string;
-    scopeDir: string;
-    pbus: ProjectScopedEventBus;
+    workspaceRoot: string;
+    scopeRoot: string;
+    pbus: ScopedEventBus;
     runtimeResources: WorkflowRuntimeResources;
     approvalQueue: ApprovalQueue;
   } = {
     ...inputDeps,
-    projectDir: runContext.sandbox.workspaceDir,
-    scopeDir: runContext.project.root,
+    workspaceRoot: runContext.sandbox.workspaceDir,
+    scopeRoot: runContext.scope.root,
     runtimeResources,
     pbus,
     approvalQueue,
+    resolveAgentHarness: inputDeps.resolveAgentHarness ?? resolveAgentHarness,
   };
   const run = deps.store.createRun(
     definition,
@@ -165,14 +167,15 @@ export function executeWorkflowRun(
         const agentConfig: AgentStepConfig = {
           model: deps.model,
           config: deps.config,
-          projectDir: deps.scopeDir,
-          workspaceDir: deps.projectDir,
+          scopeRoot: deps.scopeRoot,
+          workspaceRoot: deps.workspaceRoot,
           authorityConfigPath: deps.authorityConfigPath,
           runtimeResources: contextDeps.runtimeResources,
           repository: runContext.sandbox.repository,
           log: deps.log,
           resolveAgentDef: deps.resolveAgentDef,
           resolveSkillsPrompt: deps.resolveSkillsPrompt,
+          resolveAgentHarness: deps.resolveAgentHarness,
           createCanUseTool: deps.createAgentCanUseTool,
           delegateBudget,
           runTokenBudget,
@@ -180,7 +183,6 @@ export function executeWorkflowRun(
           idempotencyStore: deps.idempotencyStore,
           onProcessSpawn: runContext.processes.register,
           scopeId,
-          projectId: deps.pbus.getProjectId(),
           scopePolicyAuthority: deps.scopePolicyAuthority,
           scopePolicySnapshot,
           scopePolicy: scopePolicySnapshot?.policy,

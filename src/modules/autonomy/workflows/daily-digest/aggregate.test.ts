@@ -41,7 +41,7 @@ function writeBuilderIntegrationEvidence(
       version: 1,
       runId: id,
       workflow: "builder",
-      projectId: "project-daily-digest",
+      scopeId: "scope-daily-digest",
       targetBranch: "main",
       baseHead: "a".repeat(40),
       integratedFromHead: "b".repeat(40),
@@ -73,12 +73,12 @@ function builderTrigger(taskId: string, title: string): Record<string, unknown> 
 }
 
 function writeBlockedTask(
-  projectDir: string,
+  workspaceRoot: string,
   id: string,
   body: string,
   daysAgo = 20,
 ): void {
-  const dir = join(projectDir, "data", "tasks", "blocked");
+  const dir = join(workspaceRoot, "data", "tasks", "blocked");
   mkdirSync(dir, { recursive: true });
   const updatedAt = new Date(NOW - daysAgo * 24 * 60 * 60 * 1000).toISOString();
   const content = `---\nid: ${id}\ntitle: ${id}\nstatus: blocked\npriority: p2\narea: autonomy\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n## Problem\n\nTest.\n\n${body}`;
@@ -88,30 +88,30 @@ function writeBlockedTask(
 const NOW = Date.parse("2026-04-26T08:00:00.000Z");
 
 describe("aggregateDailyDigest", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
   let ownerQuestions: OwnerQuestionQueue;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `daily-digest-aggregate-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runsDir = join(projectDir, ".kota", "runs");
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
     ownerQuestions = new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     );
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   function aggregate(opts?: { previous?: { backlog: number; ready: number; doing: number; blocked: number } }) {
     return aggregateDailyDigest({
       runsDir,
-      projectDir,
+      workspaceRoot,
       ownerQuestions,
       windowEndMs: NOW,
       previousQueueCounts: opts?.previous ?? null,
@@ -280,14 +280,14 @@ describe("aggregateDailyDigest", () => {
     const newer = ownerQuestions.enqueue(newerInput);
     // backdate older question by writing the file directly through enqueue+rewrite
     writeFileSync(
-      join(projectDir, ".kota", "owner-questions", `${older.id}.json`),
+      join(workspaceRoot, ".kota", "owner-questions", `${older.id}.json`),
       JSON.stringify({
         ...older,
         createdAt: new Date(NOW - 5 * 24 * 60 * 60 * 1000).toISOString(),
       }),
     );
     writeFileSync(
-      join(projectDir, ".kota", "owner-questions", `${newer.id}.json`),
+      join(workspaceRoot, ".kota", "owner-questions", `${newer.id}.json`),
       JSON.stringify({
         ...newer,
         createdAt: new Date(NOW - 1 * 24 * 60 * 60 * 1000).toISOString(),
@@ -303,7 +303,7 @@ describe("aggregateDailyDigest", () => {
 
   it("surfaces aged operator-capture preconditions past 14 days", () => {
     writeBlockedTask(
-      projectDir,
+      workspaceRoot,
       "task-needs-screenshot",
       [
         "## Unblock Precondition",
@@ -327,7 +327,7 @@ describe("aggregateDailyDigest", () => {
 
   it("does not surface operator-capture preconditions under 14 days", () => {
     writeBlockedTask(
-      projectDir,
+      workspaceRoot,
       "task-recent-capture",
       [
         "## Unblock Precondition",

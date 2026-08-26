@@ -19,50 +19,44 @@ import {
 } from "./workflow.test-helpers.js";
 
 describe("scope-improver semantic consumption", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   function track(label: string): string {
-    const projectDir = makeScopeFixture(label);
-    projectDirs.push(projectDir);
-    return projectDir;
-  }
-
-  function inspect(
-    projectDir: string,
-    state: Parameters<typeof inspectScopeSemanticBoundary>[0]["state"],
-  ) {
-    return inspectScopeSemanticBoundary({
-      projectDir,
-      scopeId: deriveDirectoryScopeId(projectDir),
-      stateDir: join(projectDir, ".kota"),
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
-      state,
-    });
+    const workspaceRoot = makeScopeFixture(label);
+    scopeRoots.push(workspaceRoot);
+    return workspaceRoot;
   }
 
   it("reserves one later review only after durable guidance changes", () => {
-    const projectDir = track("policy-change");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = track("policy-change");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const first = computeScopeContentFingerprint(
-      projectDir,
-      scopePolicySnapshotForTest(projectDir).policy,
+      workspaceRoot,
+      scopePolicySnapshotForTest(workspaceRoot).policy,
     );
     const consumed = {
       ...emptyScopeImprovementState(scopeId),
       lastRunAt: SCOPE_TEST_NOW.toISOString(),
       consumedFingerprint: first.fingerprint,
     };
-    expect(inspect(projectDir, consumed).shouldEmit).toBe(false);
+    expect(inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      state: consumed,
+    }).shouldEmit).toBe(false);
 
-    writeFileSync(join(projectDir, "AGENTS.md"), "# Scope\n\n- Preserve owner policy.\n");
-    runScopeFixtureGit(projectDir, ["add", "AGENTS.md"]);
-    runScopeFixtureGit(projectDir, [
+    writeFileSync(join(workspaceRoot, "AGENTS.md"), "# Scope\n\n- Preserve owner policy.\n");
+    runScopeFixtureGit(workspaceRoot, ["add", "AGENTS.md"]);
+    runScopeFixtureGit(workspaceRoot, [
       "-c",
       "user.email=kota@example.test",
       "-c",
@@ -74,7 +68,14 @@ describe("scope-improver semantic consumption", () => {
       "change scope guidance",
     ]);
 
-    const boundary = inspect(projectDir, consumed);
+    const boundary = inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      state: consumed,
+    });
     expect(boundary).toMatchObject({
       shouldEmit: true,
       payload: { boundary: "content-policy-changed", automatic: true },
@@ -86,18 +87,18 @@ describe("scope-improver semantic consumption", () => {
   });
 
   it("keeps explicit requests independent of the automatic fingerprint", () => {
-    const projectDir = track("explicit");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = track("explicit");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const fingerprint = computeScopeContentFingerprint(
-      projectDir,
-      scopePolicySnapshotForTest(projectDir).policy,
+      workspaceRoot,
+      scopePolicySnapshotForTest(workspaceRoot).policy,
     );
     const state = {
       ...emptyScopeImprovementState(scopeId),
       consumedFingerprint: fingerprint.fingerprint,
     };
     const inputs = collectScopeImprovementInputs({
-      projectDir,
+      workspaceRoot,
       state,
       trigger: {
         event: "autonomy.scope-improvement.requested",
@@ -110,7 +111,7 @@ describe("scope-improver semantic consumption", () => {
         },
       },
       now: SCOPE_TEST_NOW,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
     });
 
     expect(inputs.alreadyConsumed).toBe(false);
@@ -118,11 +119,11 @@ describe("scope-improver semantic consumption", () => {
   });
 
   it("persists deferred automatic input and resumes it after cleanup", () => {
-    const projectDir = track("dirty-auto");
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const workspaceRoot = track("dirty-auto");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const fingerprint = computeScopeContentFingerprint(
-      projectDir,
-      scopePolicySnapshotForTest(projectDir).policy,
+      workspaceRoot,
+      scopePolicySnapshotForTest(workspaceRoot).policy,
     );
     const pending = reserveScopeImprovementInput(
       emptyScopeImprovementState(scopeId),
@@ -134,7 +135,7 @@ describe("scope-improver semantic consumption", () => {
       },
     );
     const inputs = collectScopeImprovementInputs({
-      projectDir,
+      workspaceRoot,
       state: pending,
       trigger: {
         event: "autonomy.scope-improvement.requested",
@@ -146,7 +147,7 @@ describe("scope-improver semantic consumption", () => {
         },
       },
       now: SCOPE_TEST_NOW,
-      scopePolicySnapshot: scopePolicySnapshotForTest(projectDir),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
     });
     const deferred = deferScopeImprovementInput(pending, inputs);
     expect(deferred).toMatchObject({
@@ -156,7 +157,14 @@ describe("scope-improver semantic consumption", () => {
       pendingDeliveryAttempt: 1,
     });
 
-    const resumed = inspect(projectDir, deferred);
+    const resumed = inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId: pending.scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      state: deferred,
+    });
     expect(resumed).toMatchObject({
       shouldEmit: true,
       payload: {

@@ -12,7 +12,7 @@ export {
 export {
 	formatRelative,
 	matchesFilter,
-	projectHash,
+	scopeHash,
 } from "./schedule-parser.js";
 export {
 	getScheduler,
@@ -41,15 +41,15 @@ export {
 	ScopePolicyValidationError,
 } from "./scope-policy.js";
 export {
-	buildConfiguredProject,
-	type ConfiguredProject,
-	type ConfiguredProjectInput,
+	buildDirectoryScope,
+	type DirectoryScope,
+	type DirectoryScopeInput,
 	deriveDirectoryScopeId,
 	loadRegistryFileFromDisk,
-	type ProjectId,
-	type ProjectRegistryProjection,
-	resolveConfiguredProjects,
+	resolveConfiguredScopes,
+	type ScopeId,
 	ScopeRegistry,
+	type ScopeRegistryProjection,
 } from "./scope-registry.js";
 export {
 	formatTaskHint,

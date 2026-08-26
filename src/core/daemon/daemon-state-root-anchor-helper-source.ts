@@ -33,37 +33,37 @@ function validateIdentity(value, field) {
   }
 }
 
-function inspectProjectRoot(request) {
-  const pathStats = lstatSync(request.projectRootPath);
+function inspectScopeRoot(request) {
+  const pathStats = lstatSync(request.scopeRootPath);
   if (
     pathStats.isSymbolicLink() ||
     !pathStats.isDirectory() ||
-    !sameFile(identity(pathStats), request.projectRootIdentity) ||
-    realpathSync.native(request.projectRootPath) !== request.projectRootPath
+    !sameFile(identity(pathStats), request.scopeRootIdentity) ||
+    realpathSync.native(request.scopeRootPath) !== request.scopeRootPath
   ) {
-    refuse("project root changed during daemon state access");
+    refuse("scope root changed during daemon state access");
   }
 }
 
-function anchorProjectRoot(request) {
-  inspectProjectRoot(request);
+function anchorScopeRoot(request) {
+  inspectScopeRoot(request);
   const fd = openSync(
-    request.projectRootPath,
+    request.scopeRootPath,
     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
   );
   try {
     const openedStats = fstatSync(fd);
     if (
       !openedStats.isDirectory() ||
-      !sameFile(identity(openedStats), request.projectRootIdentity)
+      !sameFile(identity(openedStats), request.scopeRootIdentity)
     ) {
-      refuse("project root changed while daemon state was opened");
+      refuse("scope root changed while daemon state was opened");
     }
-    process.chdir(request.projectRootPath);
-    if (!sameFile(identity(statSync(".")), request.projectRootIdentity)) {
-      refuse("project root changed while daemon state was anchored");
+    process.chdir(request.scopeRootPath);
+    if (!sameFile(identity(statSync(".")), request.scopeRootIdentity)) {
+      refuse("scope root changed while daemon state was anchored");
     }
-    inspectProjectRoot(request);
+    inspectScopeRoot(request);
     return fd;
   } catch (error) {
     closeSync(fd);
@@ -72,7 +72,7 @@ function anchorProjectRoot(request) {
 }
 
 function inspectStateDirectory(request) {
-  inspectProjectRoot(request);
+  inspectScopeRoot(request);
   const pathStats = lstatSync(STATE_DIRECTORY);
   if (pathStats.isSymbolicLink()) {
     refuse("default daemon state directory must not be a symbolic link");
@@ -102,11 +102,11 @@ function anchorStateDirectory(request) {
     process.chdir(STATE_DIRECTORY);
     if (
       !sameFile(identity(statSync(".")), request.directoryIdentity) ||
-      !sameFile(identity(statSync("..")), request.projectRootIdentity)
+      !sameFile(identity(statSync("..")), request.scopeRootIdentity)
     ) {
       refuse("default daemon state directory changed while it was anchored");
     }
-    inspectProjectRoot(request);
+    inspectScopeRoot(request);
     return fd;
   } catch (error) {
     closeSync(fd);
@@ -115,7 +115,7 @@ function anchorStateDirectory(request) {
 }
 
 function ensureStateDirectory(request) {
-  inspectProjectRoot(request);
+  inspectScopeRoot(request);
   if (lstatOptional(STATE_DIRECTORY) === undefined) {
     mkdirSync(STATE_DIRECTORY, { mode: DIRECTORY_MODE });
   }
@@ -139,7 +139,7 @@ function ensureStateDirectory(request) {
       refuse("default daemon state directory changed while it was opened");
     }
     fchmodSync(fd, DIRECTORY_MODE);
-    inspectProjectRoot(request);
+    inspectScopeRoot(request);
     return identity(openedStats);
   } finally {
     closeSync(fd);

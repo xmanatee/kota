@@ -18,20 +18,20 @@ const minimalWorkflow: WorkflowDefinition = {
 };
 
 describe("WorkflowRunStore workflow definition tags", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let store: WorkflowRunStore;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-tags-definition-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    store = new WorkflowRunStore(projectDir);
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+    store = new WorkflowRunStore(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("persists workflow definition tags in metadata.json", () => {

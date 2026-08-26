@@ -1,9 +1,9 @@
 import type { ToolDef } from "#core/modules/module-types.js";
 import { networkDestructiveEffect, networkReadEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { apiError, githubFetch } from "./github-auth.js";
+import { apiError, type GitHubFetch, githubFetch } from "./github-auth.js";
 
-function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
+function makeCreatePr(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -31,7 +31,7 @@ function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
       const repo = (input.repo as string | undefined) ?? defaultRepo;
       if (!repo) return { content: "No repository configured. Set modules.github.repo or ensure git remote origin is a GitHub URL.", is_error: true };
 
-      const res = await githubFetch(token, "POST", `/repos/${repo}/pulls`, {
+      const res = await fetch(token, "POST", `/repos/${repo}/pulls`, {
         title: input.title,
         head: input.head,
         base: input.base,
@@ -46,7 +46,7 @@ function makeCreatePr(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
+function makeGetPr(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkReadEffect(),
     tool: {
@@ -70,7 +70,7 @@ function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
       if (!repo) return { content: "No repository configured.", is_error: true };
 
       const prNum = input.number as number;
-      const prRes = await githubFetch(token, "GET", `/repos/${repo}/pulls/${prNum}`);
+      const prRes = await fetch(token, "GET", `/repos/${repo}/pulls/${prNum}`);
 
       if (!prRes.ok) return apiError("get PR", prRes.status, prRes.data);
 
@@ -86,7 +86,7 @@ function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
         body: string | null;
       };
 
-      const checksData = await githubFetch(
+      const checksData = await fetch(
         token,
         "GET",
         `/repos/${repo}/commits/${pr.head.sha}/check-runs`,
@@ -122,7 +122,7 @@ function makeGetPr(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
+function makeListPrs(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkReadEffect(),
     tool: {
@@ -159,7 +159,7 @@ function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
       params.set("per_page", "30");
       if (input.head) params.set("head", input.head as string);
 
-      const res = await githubFetch(token, "GET", `/repos/${repo}/pulls?${params}`);
+      const res = await fetch(token, "GET", `/repos/${repo}/pulls?${params}`);
       if (!res.ok) return apiError("list PRs", res.status, res.data);
 
       const prs = res.data as Array<{
@@ -185,7 +185,7 @@ function makeListPrs(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
+function makeMergePr(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -225,7 +225,7 @@ function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
       if (input.commit_title) body.commit_title = input.commit_title;
       if (input.commit_message) body.commit_message = input.commit_message;
 
-      const res = await githubFetch(
+      const res = await fetch(
         token,
         "PUT",
         `/repos/${repo}/pulls/${input.number as number}/merge`,
@@ -241,7 +241,7 @@ function makeMergePr(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
+function makeClosePr(token: string, defaultRepo: string | null, fetch: GitHubFetch): ToolDef {
   return {
     effect: networkDestructiveEffect(),
     tool: {
@@ -266,7 +266,7 @@ function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
       if (!repo) return { content: "No repository configured.", is_error: true };
 
       const prNum = input.number as number;
-      const res = await githubFetch(token, "PATCH", `/repos/${repo}/pulls/${prNum}`, {
+      const res = await fetch(token, "PATCH", `/repos/${repo}/pulls/${prNum}`, {
         state: "closed",
       });
       if (!res.ok) return apiError("close PR", res.status, res.data);
@@ -277,12 +277,16 @@ function makeClosePr(token: string, defaultRepo: string | null): ToolDef {
   };
 }
 
-export function makePrTools(token: string, defaultRepo: string | null): ToolDef[] {
+export function makePrTools(
+  token: string,
+  defaultRepo: string | null,
+  fetch: GitHubFetch = githubFetch,
+): ToolDef[] {
   return [
-    makeCreatePr(token, defaultRepo),
-    makeGetPr(token, defaultRepo),
-    makeListPrs(token, defaultRepo),
-    makeMergePr(token, defaultRepo),
-    makeClosePr(token, defaultRepo),
+    makeCreatePr(token, defaultRepo, fetch),
+    makeGetPr(token, defaultRepo, fetch),
+    makeListPrs(token, defaultRepo, fetch),
+    makeMergePr(token, defaultRepo, fetch),
+    makeClosePr(token, defaultRepo, fetch),
   ];
 }

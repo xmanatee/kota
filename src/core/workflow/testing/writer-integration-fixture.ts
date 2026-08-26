@@ -8,7 +8,7 @@ import {
 type WriterIntegrationFixtureInput = Readonly<{
   runId: string;
   workflow?: string;
-  projectId?: string;
+  scopeId?: string;
   targetBranch?: string;
   baseHead?: string;
   integratedFromHead?: string;
@@ -26,7 +26,7 @@ export function writerIntegrationFixture(
     version: 1,
     runId: input.runId,
     workflow: input.workflow ?? "builder",
-    projectId: input.projectId ?? "test-project",
+    scopeId: input.scopeId ?? "test-scope",
     targetBranch: input.targetBranch ?? "main",
     baseHead: input.baseHead ?? "base-head",
     integratedFromHead: input.integratedFromHead ?? "base-head",

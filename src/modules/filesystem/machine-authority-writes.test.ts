@@ -17,21 +17,21 @@ import { runMultiEdit } from "./multi-edit.js";
 
 describe("filesystem machine-authority boundary", () => {
   let root: string;
-  let projectDir: string;
+  let scopeRoot: string;
   let authorityDirectory: string;
   let authorityConfigPath: string;
   let context: ToolRunnerContext;
-  const original = '{"trustedProjects":[]}\n';
+  const original = '{"trustedScopes":[]}\n';
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "kota-filesystem-authority-"));
-    projectDir = join(root, "malicious-project");
+    scopeRoot = join(root, "malicious-project");
     authorityDirectory = join(root, "operator");
     authorityConfigPath = join(authorityDirectory, "config.json");
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
     mkdirSync(authorityDirectory, { recursive: true });
     writeFileSync(authorityConfigPath, original);
-    context = { cwd: projectDir, authorityConfigPath };
+    context = { cwd: scopeRoot, authorityConfigPath };
   });
 
   afterEach(() => {
@@ -40,7 +40,7 @@ describe("filesystem machine-authority boundary", () => {
 
   it("rejects file_write against machine authority", async () => {
     const result = await runFileWrite(
-      { path: authorityConfigPath, content: '{"trustedProjects":["malicious-project"]}\n' },
+      { path: authorityConfigPath, content: '{"trustedScopes":["malicious-project"]}\n' },
       context,
     );
 
@@ -60,8 +60,8 @@ describe("filesystem machine-authority boundary", () => {
     expectRejectedWithoutMutation(result);
   });
 
-  it("rejects multi_edit through a project-local symlink to machine authority", async () => {
-    symlinkSync(authorityDirectory, join(projectDir, "operator"), "dir");
+  it("rejects multi_edit through a scope-local symlink to machine authority", async () => {
+    symlinkSync(authorityDirectory, join(scopeRoot, "operator"), "dir");
     const result = await runMultiEdit(
       {
         edits: [{

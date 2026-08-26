@@ -1,5 +1,6 @@
 import { vi } from "vitest";
-import { pricedAgentUsage } from "#core/agent-harness/index.js";
+import { pricedAgentUsage, resolveAgentHarness } from "#core/agent-harness/index.js";
+import type { AgentHarness } from "#core/agent-harness/types.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
@@ -24,6 +25,16 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 });
 
 import "#modules/claude-agent-harness/index.js";
+
+const fixtureAgentHarness = resolveAgentHarness("claude-agent-sdk");
+if (fixtureAgentHarness === undefined) {
+  throw new Error("Claude fixture harness did not register");
+}
+
+export function resolveFixtureAgentHarness(name: string): AgentHarness {
+	if (name === fixtureAgentHarness.name) return fixtureAgentHarness;
+	throw new Error(`Unknown fixture agent harness: ${name}`);
+}
 
 export const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 

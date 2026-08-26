@@ -1,6 +1,6 @@
 /** Telegram Bot adapter — HTTP polling plus one scoped session per chat. */
 
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import { TelegramMessageRuntime } from "./bot-message-runtime.js";
 import {
@@ -49,7 +49,12 @@ export class TelegramBot extends TelegramMessageRuntime {
       let me: TelegramUser | null = null;
       while (this.running && me === null) {
         try {
-          me = await callTelegramApi<TelegramUser>(this.token, "getMe");
+          me = await callTelegramApi<TelegramUser>(
+            this.token,
+            "getMe",
+            undefined,
+            { http: this.options.http },
+          );
         } catch (error) {
           if (!this.running) break;
           if (!isRetryableTelegramApiFailure(error)) throw error;
@@ -90,43 +95,46 @@ export class TelegramBot extends TelegramMessageRuntime {
     }
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     this.running = false;
     this.pollController?.abort();
     this.pollController = null;
-    for (const session of this.sessions.values()) session.agent.close();
+    const cleanups = [...this.sessions.values()].map((session) => session.agent.close());
     this.sessions.clear();
+    await Promise.all(cleanups);
   }
 
   get sessionCount(): number {
     return this.sessions.size;
   }
 
-  setDefaultProjectRuntime(runtime: ProjectRuntime): void {
-    this.options.defaultProjectRuntime = runtime;
+  setDefaultScopeRuntime(runtime: ScopeRuntime): void {
+    this.options.defaultScopeRuntime = runtime;
   }
 
   listScopeSessionIds(scopeId: string): string[] {
     return [...this.sessions.entries()]
-      .filter(([, session]) => session.identity.meta?.projectId === scopeId)
+      .filter(([, session]) => session.identity.meta?.scopeId === scopeId)
       .map(([sessionKey]) => `telegram:${sessionKey}`);
   }
 
-  closeScopeSessions(scopeId: string): void {
+  async closeScopeSessions(scopeId: string): Promise<void> {
+    const cleanups: Promise<void>[] = [];
     for (const [key, session] of this.sessions) {
-      if (session.identity.meta?.projectId !== scopeId) continue;
-      session.agent.close();
+      if (session.identity.meta?.scopeId !== scopeId) continue;
+      cleanups.push(Promise.resolve(session.agent.close()));
       this.sessions.delete(key);
       this.busyChats.delete(key);
     }
+    await Promise.all(cleanups);
   }
 
-  /** Send a message to active chat sessions, optionally scoped to one project. */
-  broadcastToChats(text: string, projectId?: string): void {
+  /** Send a message to active chat sessions, optionally scoped to one scope. */
+  broadcastToChats(text: string, scopeId?: string): void {
     for (const [key, session] of this.sessions) {
-      const value = session.identity.meta?.projectId;
-      const sessionProjectId = typeof value === "string" ? value : "";
-      if (projectId !== undefined && sessionProjectId !== projectId) continue;
+      const value = session.identity.meta?.scopeId;
+      const sessionScopeId = typeof value === "string" ? value : "";
+      if (scopeId !== undefined && sessionScopeId !== scopeId) continue;
       const chatId = Number.parseInt(key.split(":")[0]!, 10);
       if (Number.isFinite(chatId)) this.sendText(chatId, text);
     }
@@ -139,7 +147,7 @@ export class TelegramBot extends TelegramMessageRuntime {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
       allowed_updates: [...TELEGRAM_SIGNAL_ALLOWED_UPDATES],
-    }, { signal: controller.signal }).finally(() => {
+    }, { signal: controller.signal, http: this.options.http }).finally(() => {
       if (this.pollController === controller) this.pollController = null;
     });
 

@@ -1,7 +1,7 @@
 import Foundation
 
 extension DaemonClient {
-    func deleteSession(id: String, projectId: String? = nil) async throws {
-        try await delete(Self.withProject("/sessions/\(id)", projectId: projectId))
+    func deleteSession(id: String, scopeId: String? = nil) async throws {
+        try await delete(Self.withScope("/sessions/\(id)", scopeId: scopeId))
     }
 }

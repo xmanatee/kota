@@ -46,7 +46,7 @@ export function listCanonicalProgressState(args: {
   semanticInput: ProgressReviewSemanticInput;
   autonomyIssueProjection: AutonomyIssueProjection;
 }): ProgressReviewEvidenceRef[] {
-  const queue = getRepoTaskQueueSnapshot(args.source.projectDir);
+  const queue = getRepoTaskQueueSnapshot(args.source.scopeRoot);
   const issues = args.autonomyIssueProjection.issues;
   const issueCounts = new Map<string, number>();
   for (const issue of issues) {
@@ -54,7 +54,7 @@ export function listCanonicalProgressState(args: {
   }
   const operational = readRunOperationalProjection({
     stateDir: args.source.stateDir,
-    projectDir: args.source.scopeDir,
+    scopeRoot: args.source.scopeRoot,
   });
   const attentionRuns = operational.runs.filter(
     (run) => run.state === "needs_attention",

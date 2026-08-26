@@ -10,7 +10,7 @@ import {
   waitFor,
 } from '@testing-library/react-native';
 import App from '../../App';
-import type { UiSurfaceBundle } from '../daemon/conformance/ui-surface.generated';
+import type { UiSurfaceBundle } from '../daemon/ui-surface.generated';
 import { writeBuilderEvidence } from './builderEvidence';
 import {
   callsForPath,
@@ -244,7 +244,7 @@ describe('Android shared UI production journey', () => {
     const request = fetchCalls.find(
       (call) =>
         new URL(call.url).pathname === '/ui/surfaces' &&
-        !new URL(call.url).searchParams.has('projectId'),
+        !new URL(call.url).searchParams.has('scopeId'),
     );
     expect(request).toMatchObject({
       method: 'GET',
@@ -255,7 +255,7 @@ describe('Android shared UI production journey', () => {
       schemaVersion: 1,
       protocolVersion: activeBundle.protocolVersion,
       sourceBundle:
-        'clients/conformance/contract-fixture.json#uiSurfaces.statusInbox',
+        'scripts/ui-behavior-vectors.mjs#operatorBundle',
       target: { kind: 'daemon-route', path: '/ui/surfaces' },
       presentation: 'native DaemonRouteScreen',
       request: {

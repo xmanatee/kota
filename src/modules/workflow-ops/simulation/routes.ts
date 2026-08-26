@@ -12,7 +12,7 @@ import type { WorkflowSimulationRequest } from "./types.js";
 type SimulationBody = Awaited<ReturnType<typeof readBody>>;
 
 export type WorkflowSimulationDeps = {
-  projectDir: string;
+  scopeRoot: string;
   definitions: readonly WorkflowDefinition[];
   moduleManifests: ReturnType<ModuleContext["getModuleSummaries"]>[number]["manifest"][];
   availableToolNames?: ReadonlySet<string>;
@@ -37,7 +37,7 @@ export async function handleWorkflowSimulation(
 
   try {
     const result = await simulateAutomation({
-      projectDir: deps.projectDir,
+      scopeRoot: deps.scopeRoot,
       definitions: deps.definitions,
       moduleManifests: deps.moduleManifests.flatMap((manifest) => manifest ? [manifest] : []),
       ...(deps.availableToolNames ? { availableToolNames: deps.availableToolNames } : {}),
@@ -58,7 +58,7 @@ export function workflowSimulationControlRoutes(ctx: ModuleContext): ControlRout
       capabilityScope: "read",
       handler: (req, res) =>
         handleWorkflowSimulation(req, res, {
-          projectDir: ctx.cwd,
+          scopeRoot: ctx.cwd,
           definitions: getValidatedWorkflowDefinitions(ctx, ctx.cwd),
           moduleManifests: ctx.getModuleSummaries().map((summary) => summary.manifest),
           availableToolNames: new Set(ctx.listTools()),

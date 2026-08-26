@@ -302,9 +302,9 @@ function executionProfileComparableJson(
   };
 }
 
-function runGit(projectDir: string, args: readonly string[]): GitCapture {
+function runGit(workspaceRoot: string, args: readonly string[]): GitCapture {
   const result = spawnSync("git", [...args], {
-    cwd: projectDir,
+    cwd: workspaceRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -334,9 +334,9 @@ function sourceIdentityJson(
 }
 
 function readSourceIdentity(
-  projectDir: string,
+  workspaceRoot: string,
 ): EvalRunConfigurationSourceIdentity {
-  const inside = runGit(projectDir, ["rev-parse", "--is-inside-work-tree"]);
+  const inside = runGit(workspaceRoot, ["rev-parse", "--is-inside-work-tree"]);
   if (!inside.ok || inside.stdout !== "true") {
     return {
       status: "unavailable",
@@ -344,7 +344,7 @@ function readSourceIdentity(
       message: inside.ok ? "git did not report a worktree" : inside.message,
     };
   }
-  const head = runGit(projectDir, ["rev-parse", "HEAD"]);
+  const head = runGit(workspaceRoot, ["rev-parse", "HEAD"]);
   if (!head.ok || head.stdout.length === 0) {
     return {
       status: "unavailable",
@@ -352,7 +352,7 @@ function readSourceIdentity(
       message: head.ok ? "git returned an empty HEAD" : head.message,
     };
   }
-  const status = runGit(projectDir, [
+  const status = runGit(workspaceRoot, [
     "status",
     "--porcelain=v1",
     "--untracked-files=all",
@@ -364,8 +364,8 @@ function readSourceIdentity(
       message: status.message,
     };
   }
-  const worktreeDiff = runGit(projectDir, ["diff", "--binary", "--no-ext-diff"]);
-  const stagedDiff = runGit(projectDir, [
+  const worktreeDiff = runGit(workspaceRoot, ["diff", "--binary", "--no-ext-diff"]);
+  const stagedDiff = runGit(workspaceRoot, [
     "diff",
     "--cached",
     "--binary",
@@ -723,14 +723,14 @@ export function toRunConfigurationOperatorSummary(
 }
 
 export function buildEvalRunConfiguration(params: {
-  projectDir: string;
+  workspaceRoot: string;
   fixtures: readonly LoadedFixture[];
   resourceProfile: ResourceProfile;
   executionProfile: ExecutionProfilePreflightResult;
   resolvedHarnessModelEvidence: ResolvedHarnessModelEvidence;
   env?: NodeJS.ProcessEnv;
 }): EvalRunConfiguration {
-  const config = loadConfig(params.projectDir);
+  const config = loadConfig(params.workspaceRoot);
   const env = params.env ?? process.env;
   const presetResolution = resolvePreset({
     env: env[PRESET_ENV_VAR],
@@ -746,7 +746,7 @@ export function buildEvalRunConfiguration(params: {
     tiers,
   };
   const fixtureManifest = buildFixtureManifest(params.fixtures);
-  const sourceIdentity = readSourceIdentity(params.projectDir);
+  const sourceIdentity = readSourceIdentity(params.workspaceRoot);
   const fingerprintMaterial: JsonObject = {
     activePreset: activePresetJson(activePreset),
     fixtureManifest: { hash: fixtureManifest.hash },

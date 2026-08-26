@@ -25,14 +25,14 @@ function makeQueue(): ApprovalQueue {
 }
 
 function makeRuntimeQueue(): {
-	projectDir: string;
+	scopeRoot: string;
 	queue: ApprovalQueue;
 } {
-	const projectDir = mkdtempSync(`${tmpdir()}/kota-approval-workflow-route-`);
-	queueDirs.push(projectDir);
+	const scopeRoot = mkdtempSync(`${tmpdir()}/kota-approval-workflow-route-`);
+	queueDirs.push(scopeRoot);
 	return {
-		projectDir,
-		queue: new ApprovalQueue(join(projectDir, ".kota", "approvals")),
+		scopeRoot,
+		queue: new ApprovalQueue(join(scopeRoot, ".kota", "approvals")),
 	};
 }
 
@@ -163,11 +163,11 @@ describe("approval review receipt binding", () => {
 	});
 
 	it("resolves a workflow approval through the operator route without dispatching a pseudo-tool", async () => {
-		const { projectDir, queue } = makeRuntimeQueue();
+		const { scopeRoot, queue } = makeRuntimeQueue();
 		let downstreamEffects = 0;
 		const runtimeFixture = createTestWorkflowRuntime({
 			bus: new EventBus(),
-			projectDir,
+			scopeRoot,
 			approvalQueue: queue,
 			idleIntervalMs: 60_000,
 			workflows: [

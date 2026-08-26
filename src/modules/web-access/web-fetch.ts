@@ -8,7 +8,7 @@ import {
   outboundHttpPolicy,
 } from "#core/outbound-http/index.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import { resolveProjectPath } from "#core/tools/project-path-policy.js";
+import { resolveContainedPath } from "#core/tools/path-containment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
 import { safePositiveInt } from "./http-request-utils.js";
@@ -39,7 +39,7 @@ export const webFetchTool: KotaTool = {
       save_to: {
         type: "string",
         description:
-          "Save response to this project file path instead of returning content. " +
+          "Save response to this scope file path instead of returning content. " +
           "Works for both binary (PDF, images, ZIP) and text files. Returns file metadata.",
       },
     },
@@ -92,8 +92,8 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
   const url = input.url as string;
   const maxLength = safePositiveInt(input.max_length, 20_000);
   const saveTo = typeof input.save_to === "string" && input.save_to.length > 0 ? input.save_to : undefined;
-  const projectDirectory = context?.cwd ?? process.cwd();
-  const savePath = saveTo ? resolveProjectPath(saveTo, projectDirectory, projectDirectory) : undefined;
+  const allowedRoot = context?.cwd ?? process.cwd();
+  const savePath = saveTo ? resolveContainedPath(saveTo, allowedRoot, allowedRoot) : undefined;
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };
@@ -101,7 +101,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
 
   if (savePath && !savePath.ok) {
     return {
-      content: "Error: save_to must target a file inside the project directory",
+      content: "Error: save_to must target a file inside the scope directory",
       is_error: true,
     };
   }
@@ -112,7 +112,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
       operation: "web-access.web-fetch",
       url,
       headers: {
-        "User-Agent": "KOTA/0.1 (AI coding agent)",
+        "User-Agent": "KOTA/0.1 (agent automation runtime)",
         Accept: "text/html, text/plain, application/json, */*",
       },
       limits: {

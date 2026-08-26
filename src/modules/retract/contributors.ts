@@ -33,17 +33,17 @@ import type {
   KnowledgeRetractContributor,
   MemoryRetractContributor,
   RetractContributorResult,
-  RetractProjectContext,
+  RetractScopeContext,
   TasksRetractContributor,
 } from "./retract-types.js";
 
-function requireProject(
-  project: RetractProjectContext | undefined,
-): RetractProjectContext {
-  if (!project) {
-    throw new Error("Retract contributor requires a project context");
+function requireScope(
+  scope: RetractScopeContext | undefined,
+): RetractScopeContext {
+  if (!scope) {
+    throw new Error("Retract contributor requires a scope context");
   }
-  return project;
+  return scope;
 }
 
 function retractMemory(
@@ -126,11 +126,11 @@ export function createMemoryContributor(
   };
 }
 
-export function createProjectMemoryContributor(): MemoryRetractContributor {
+export function createScopeMemoryContributor(): MemoryRetractContributor {
   return {
     target: "memory",
-    async retract({ id, project }): Promise<RetractContributorResult> {
-      return retractMemory(requireProject(project).memory, id);
+    async retract({ id, scope }): Promise<RetractContributorResult> {
+      return retractMemory(requireScope(scope).memory, id);
     },
   };
 }
@@ -146,11 +146,11 @@ export function createKnowledgeContributor(
   };
 }
 
-export function createProjectKnowledgeContributor(): KnowledgeRetractContributor {
+export function createScopeKnowledgeContributor(): KnowledgeRetractContributor {
   return {
     target: "knowledge",
-    async retract({ slug, project }): Promise<RetractContributorResult> {
-      return retractKnowledge(requireProject(project).knowledge, slug);
+    async retract({ slug, scope }): Promise<RetractContributorResult> {
+      return retractKnowledge(requireScope(scope).knowledge, slug);
     },
   };
 }
@@ -166,13 +166,13 @@ export function createTasksContributor(
   };
 }
 
-export function createProjectTasksContributor(): TasksRetractContributor {
+export function createScopeTasksContributor(): TasksRetractContributor {
   return {
     target: "tasks",
-    async retract({ id, project }): Promise<RetractContributorResult> {
-		const { projectId } = requireProject(project);
+    async retract({ id, scope }): Promise<RetractContributorResult> {
+        const { scopeId } = requireScope(scope);
 		return retractTasks(
-			{ authority: "canonical", projectId },
+            { authority: "canonical", scopeId },
 			id,
 		);
     },
@@ -190,13 +190,13 @@ export function createInboxContributor(
   };
 }
 
-export function createProjectInboxContributor(): InboxRetractContributor {
+export function createScopeInboxContributor(): InboxRetractContributor {
   return {
     target: "inbox",
-    async retract({ path, project }): Promise<RetractContributorResult> {
-		const { projectId } = requireProject(project);
+    async retract({ path, scope }): Promise<RetractContributorResult> {
+        const { scopeId } = requireScope(scope);
 		return retractInbox(
-			{ authority: "canonical", projectId },
+            { authority: "canonical", scopeId },
 			path,
 		);
     },

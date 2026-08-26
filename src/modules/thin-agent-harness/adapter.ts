@@ -157,7 +157,7 @@ export const thinAgentHarness: AgentHarness = {
       provider: options.modelProvider?.provider,
       baseUrl: options.modelProvider?.baseUrl,
       apiKey: options.modelProvider?.apiKey,
-      projectDir: options.cwd,
+      scopeRoot: options.cwd,
     });
     const outputTokenLimit = resolveModelOutputTokenLimit(
       resolved.model,

@@ -12,7 +12,7 @@ anchor: true
 
 ## Problem
 
-The in-progress `task-enable-kota-to-operate-on-external-projects` work is making the daemon project-aware: `DaemonConfig.projectDir` is honored across the workflow runtime, run store, and agent step `cwd`, and the new `resolveProjectDir()` helper gives every operator surface one consistent answer for "which project is this daemon pointing at". But clients today are still implicitly single-project: the CLI daemon mode, the daemon-backed web chat, the macOS menu-bar app, and the mobile client all assume one repo per daemon. The moment a real operator runs KOTA against a second project — the stated goal of that doing task — there is no way for a client to list known projects, switch between them, or show sessions scoped to one. This will become a visible gap the first time the daemon is pointed at an external target.
+The in-progress `task-enable-kota-to-operate-on-external-projects` work is making the daemon project-aware: `DaemonConfig.projectDir` is honored across the workflow runtime, run store, and agent step `cwd`, and the new `resolveScopeRoot()` helper gives every operator surface one consistent answer for "which project is this daemon pointing at". But clients today are still implicitly single-project: the CLI daemon mode, the daemon-backed web chat, the macOS menu-bar app, and the mobile client all assume one repo per daemon. The moment a real operator runs KOTA against a second project — the stated goal of that doing task — there is no way for a client to list known projects, switch between them, or show sessions scoped to one. This will become a visible gap the first time the daemon is pointed at an external target.
 
 ## Desired Outcome
 

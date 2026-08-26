@@ -224,7 +224,6 @@ function adaptKotaModule(mod: KotaModuleShape, fileName: string): KotaModule {
       description: mod.description,
       tools,
       onLoad: mod.onLoad,
-      onUnload: mod.onUnload,
     };
   }
   return mod;

@@ -42,7 +42,7 @@ describe("AGY model evaluation runner", () => {
       const requests: WorkflowExecutionRequest[] = [];
       const executionOptions: AgyModelEvaluationOptions[] = [];
       const createExecution: AgyModelEvaluationDependencies["createExecution"] =
-        (_projectDir, options, env) => {
+        (_scopeRoot, options, env) => {
           executionOptions.push(options);
           expect(env[PRESET_ENV_VAR]).toBe("antigravity-cli");
           return {

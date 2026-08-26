@@ -4,6 +4,7 @@ import {
   errorReason,
   FakeBackend,
   makeContext,
+  makePushNotificationHttp,
   makeStorage,
   type PushNotificationTestState,
   postRpc,
@@ -28,7 +29,7 @@ describe("a2a push notification delivery", () => {
     const callbackFetch = vi.fn<typeof fetch>(async () => new Response("{}", { status: 202 }));
     const server = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: callbackFetch,
+      pushNotificationHttp: makePushNotificationHttp(callbackFetch),
     }));
     state.servers.push(server.server);
 
@@ -43,7 +44,7 @@ describe("a2a push notification delivery", () => {
     expect(backend.subscriptions[0]?.selector).toEqual({
       taskId: "task-1",
       contextId: "proj-1",
-      projectId: "proj-1",
+      scopeId: "proj-1",
     });
 
     const current = await emitCurrentStatusUpdate(backend);
@@ -72,8 +73,7 @@ describe("a2a push notification delivery", () => {
     }]);
     const server = await startRouteServer(a2aRoutes(ctx, {
       backendFactory: () => backend,
-      pushNotificationFetch: callbackFetch,
-      pushNotificationAddressResolver: callbackAddressResolver,
+      pushNotificationHttp: makePushNotificationHttp(callbackFetch, callbackAddressResolver),
     }));
     state.servers.push(server.server);
 
@@ -92,7 +92,7 @@ describe("a2a push notification delivery", () => {
 
     await vi.waitFor(() => {
       expect(ctx.log.warn).toHaveBeenCalledWith(
-        expect.stringContaining("callback host resolved to a non-public address"),
+        expect.stringContaining("loopback/private-network targets is blocked"),
       );
     });
     expect(callbackAddressResolver).toHaveBeenCalledWith("callback.example.test");
@@ -104,7 +104,7 @@ describe("a2a push notification delivery", () => {
     const initialBackend = new FakeBackend();
     const first = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => initialBackend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(first.server);
 
@@ -120,14 +120,14 @@ describe("a2a push notification delivery", () => {
     const callbackFetch = vi.fn<typeof fetch>(async () => new Response("{}", { status: 202 }));
     resumeStoredA2APushNotificationSubscriptions(makeContext(storage), {
       backendFactory: () => restartedBackend,
-      pushNotificationFetch: callbackFetch,
+      pushNotificationHttp: makePushNotificationHttp(callbackFetch),
     });
 
     await vi.waitFor(() => expect(restartedBackend.subscriptions).toHaveLength(1));
     expect(restartedBackend.subscriptions[0]?.selector).toEqual({
       taskId: "task-1",
       contextId: "proj-1",
-      projectId: "proj-1",
+      scopeId: "proj-1",
     });
 
     const current = await emitCurrentStatusUpdate(restartedBackend);
@@ -153,7 +153,7 @@ describe("a2a push notification delivery", () => {
     );
     const server = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: callbackFetch,
+      pushNotificationHttp: makePushNotificationHttp(callbackFetch),
     }));
     state.servers.push(server.server);
 
@@ -181,7 +181,7 @@ describe("a2a push notification delivery", () => {
           role: "ROLE_USER",
           taskId: "task-1",
           parts: [{ text: "continue task", mediaType: "text/plain" }],
-          metadata: { projectId: "proj-1" },
+          metadata: { scopeId: "proj-1" },
         },
       },
     });
@@ -192,9 +192,9 @@ describe("a2a push notification delivery", () => {
     if (!firstCall) throw new Error("expected a callback delivery");
     const [url, init] = firstCall;
     expect(url).toBe(callbackUrl);
-    expect(init?.headers).toEqual({
-      "Content-Type": "application/a2a+json",
-      Authorization: "Bearer callback-secret",
+    expect(Object.fromEntries(new Headers(init?.headers).entries())).toEqual({
+      authorization: "Bearer callback-secret",
+      "content-type": "application/a2a+json",
     });
     const deliveredBodies = callbackFetch.mock.calls.map(([, request]) => {
       const body = request?.body;
@@ -229,7 +229,7 @@ describe("a2a push notification delivery", () => {
           role: "ROLE_USER",
           taskId: "task-1",
           parts: [{ text: "continue again", mediaType: "text/plain" }],
-          metadata: { projectId: "proj-1" },
+          metadata: { scopeId: "proj-1" },
         },
       },
     });
@@ -241,7 +241,7 @@ describe("a2a push notification delivery", () => {
     const backend = new FakeBackend();
     const server = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(server.server);
 
@@ -276,7 +276,7 @@ async function emitCurrentStatusUpdate(backend: FakeBackend) {
   const current = await backend.getTask({
     taskId: "task-1",
     contextId: "proj-1",
-    projectId: "proj-1",
+    scopeId: "proj-1",
   });
   backend.emitSubscribed({
     statusUpdate: {

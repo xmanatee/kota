@@ -23,10 +23,7 @@ const toolCacheModule: KotaModule = {
 		const mw = createCacheMiddleware(cache);
 		ctx.registerMiddleware(MIDDLEWARE_NAME, mw, PRIORITY);
 		ctx.log.info("Tool result cache enabled");
-	},
-
-	onUnload: () => {
-		resetToolCache();
+		return { dispose: resetToolCache };
 	},
 
 	skills: [{ name: "tool-cache", promptPath: "src/modules/tool-cache/tool-cache.md", roles: ["builder", "improver"] }],

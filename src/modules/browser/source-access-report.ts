@@ -44,7 +44,7 @@ export type SourceAccessReadResult =
 export type BrowserSourceAccessReport = {
   version: 1;
   generatedAt: string;
-  projectDir: string;
+  scopeRoot: string;
   outDir: string;
   overall: "ready" | "not_ready";
   checks: {
@@ -77,7 +77,7 @@ export type BrowserSourceAccessReport = {
 };
 
 export type SourceAccessReportOptions = {
-  projectDir: string;
+  scopeRoot: string;
   config: RawBrowserModuleConfig;
   articleUrl: string | null;
   xPostUrl: string | null;
@@ -100,10 +100,10 @@ export type SourceAccessReportRunResult = {
 };
 
 export function defaultSourceAccessReportOptions(
-  projectDir: string,
+  scopeRoot: string,
 ): SourceAccessReportOptions {
   return {
-    projectDir,
+    scopeRoot,
     config: undefined,
     articleUrl: null,
     xPostUrl: null,
@@ -125,7 +125,7 @@ export async function runSourceAccessReport(
   const profile = resolveBrowserProfileConfig(options.config);
   const resolvedPath = resolveStorageStatePath(
     profile.storageStatePath,
-    options.projectDir,
+    options.scopeRoot,
   );
   const storageExists = resolvedPath === null ? null : existsSync(resolvedPath);
   const playwrightAvailable = deps.isPlaywrightAvailable();
@@ -134,8 +134,8 @@ export async function runSourceAccessReport(
     playwright: {
       available: playwrightAvailable,
       message: playwrightAvailable
-        ? "Playwright resolves in this project runtime."
-        : "Playwright is not installed or cannot be resolved in this project runtime.",
+        ? "Playwright resolves in this scope runtime."
+        : "Playwright is not installed or cannot be resolved in this scope runtime.",
     },
     storageState: {
       configured: profile.storageStatePath !== null,
@@ -188,7 +188,7 @@ export async function runSourceAccessReport(
   const report: BrowserSourceAccessReport = {
     version: REPORT_VERSION,
     generatedAt,
-    projectDir: options.projectDir,
+    scopeRoot: options.scopeRoot,
     outDir,
     overall,
     checks: preflight,
@@ -214,7 +214,7 @@ function resolveReportOutDir(
   const runId =
     options.runId ??
     `browser-source-access-${generatedAt.replaceAll(/[:.]/g, "-")}`;
-  return join(options.projectDir, ".kota", "runs", runId);
+  return join(options.scopeRoot, ".kota", "runs", runId);
 }
 
 function storageStateMessage(

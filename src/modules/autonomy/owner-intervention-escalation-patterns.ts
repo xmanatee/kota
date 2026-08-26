@@ -1,10 +1,9 @@
 import { createHash } from "node:crypto";
 import type { PatternObservation } from "./owner-intervention-escalation-observations.js";
-import {
-  OWNER_INTERVENTION_TASK_ID_PREFIX,
-  type OwnerInterventionEscalationConfig,
-  type OwnerInterventionEvidenceRef,
-  type OwnerInterventionPattern,
+import type {
+  OwnerInterventionEscalationConfig,
+  OwnerInterventionEvidenceRef,
+  OwnerInterventionPattern,
 } from "./owner-intervention-escalation-types.js";
 import type {
   OwnerInterventionRecord,
@@ -115,7 +114,6 @@ export function buildPattern(
     actionability: first.actionability,
     fingerprint,
     evidenceFingerprint,
-    taskId: `${OWNER_INTERVENTION_TASK_ID_PREFIX}${shortHash(fingerprint)}`,
     dimension: first.dimension,
     questionCount: records.length,
     distinctRunCount: runIds.length,

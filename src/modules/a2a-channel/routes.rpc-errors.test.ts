@@ -70,7 +70,7 @@ describe("a2a channel JSON-RPC route errors", () => {
     expect(backend.sentInputs).toHaveLength(0);
   });
 
-  it("rejects mismatched tenant and projectId routing before daemon work starts", async () => {
+  it("rejects mismatched tenant and scopeId routing before daemon work starts", async () => {
     const backend = new FakeBackend();
     const backendFactory = vi.fn(() => backend);
     const server = await startRouteServer(a2aRoutes(makeContext(), {
@@ -87,19 +87,19 @@ describe("a2a channel JSON-RPC route errors", () => {
         message: {
           role: "ROLE_USER",
           parts: [{ text: "ship the slice", mediaType: "text/plain" }],
-          metadata: { projectId: "proj-2" },
+          metadata: { scopeId: "proj-2" },
         },
       },
     });
     expect(send.error.code).toBe(-32602);
     expect(errorReason(send)).toBe("ROUTING_SCOPE_MISMATCH");
-    expect(errorMetadata(send)).toEqual({ tenant: "proj-1", projectId: "proj-2" });
+    expect(errorMetadata(send)).toEqual({ tenant: "proj-1", scopeId: "proj-2" });
 
     const list = await postRpc(server.baseUrl, {
       jsonrpc: "2.0",
       id: "tenant-mismatch-list",
       method: "ListTasks",
-      params: { tenant: "proj-1", projectId: "proj-2" },
+      params: { tenant: "proj-1", scopeId: "proj-2" },
     });
     expect(errorReason(list)).toBe("ROUTING_SCOPE_MISMATCH");
 
@@ -156,7 +156,7 @@ describe("a2a channel JSON-RPC route errors", () => {
     });
     const terminalFrames = parseSseJsonRpcResponses(await terminal.text());
     expect(errorReason(terminalFrames[0])).toBe("UNSUPPORTED_OPERATION");
-    expect(backend.subscribeSelectors[0]).toEqual({ taskId: "task-1", projectId: "proj-1", contextId: null });
+    expect(backend.subscribeSelectors[0]).toEqual({ taskId: "task-1", scopeId: "proj-1", contextId: null });
 
     backend.failUnauthorized = true;
     const denied = await postRpc(server.baseUrl, {

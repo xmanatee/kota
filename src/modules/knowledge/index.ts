@@ -1,10 +1,8 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import {
-	getKnowledgeProvider,
-	KNOWLEDGE_PROVIDER_TOKEN,
-} from "#core/modules/provider-registry.js";
+import { KNOWLEDGE_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { localWriteEffect } from "#core/tools/effect.js";
 import { createKnowledgeReadinessSource } from "./capability-readiness.js";
@@ -19,11 +17,11 @@ import type {
 	KnowledgeShowResult,
 } from "./client.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
-import {
-	createKnowledgeProjectStores,
-	type KnowledgeProjectStores,
-} from "./project-scope.js";
 import { knowledgeRoutes } from "./routes.js";
+import {
+	createKnowledgeScopeStores,
+	type KnowledgeScopeStores,
+} from "./scope.js";
 import { KnowledgeStore } from "./store.js";
 import { knowledgeUiSurfaceSource } from "./ui-surface.js";
 
@@ -54,12 +52,14 @@ const knowledgeModule: KotaModule = {
 	},
 
 	localClient: (ctx) => {
-		const projectStores = createKnowledgeProjectStores(ctx.cwd, () =>
-			getKnowledgeProvider(),
-		);
+		const scopeStores = createKnowledgeScopeStores(ctx.cwd, () => {
+			const provider = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
+			if (!provider) throw new Error("knowledge provider is not registered");
+			return provider;
+		}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE));
 		const handler: KnowledgeClient = {
 			async list(filter) {
-				const provider = resolveKnowledgeProvider(projectStores, filter?.projectId);
+				const provider = resolveKnowledgeProvider(scopeStores, filter?.scopeId);
 				const entries = provider.list({
 					tag: filter?.tag,
 					type: filter?.type,
@@ -68,14 +68,14 @@ const knowledgeModule: KotaModule = {
 				});
 				return { entries };
 			},
-			async show(id, project) {
-				const provider = resolveKnowledgeProvider(projectStores, project?.projectId);
+			async show(id, scopeSelector) {
+				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
 				const entry = provider.read(id);
 				if (!entry) return { found: false };
 				return { found: true, entry };
 			},
 			async search(query, filter) {
-				const provider = resolveKnowledgeProvider(projectStores, filter?.projectId);
+				const provider = resolveKnowledgeProvider(scopeStores, filter?.scopeId);
 				const limit = filter?.limit ?? 20;
 				const filters = {
 					tag: filter?.tag,
@@ -84,17 +84,18 @@ const knowledgeModule: KotaModule = {
 					scope: filter?.scope,
 				};
 				if (filter?.semantic) {
-					if (!provider.supportsSemanticSearch()) {
+					const semanticSearch = provider.semanticSearchCapability;
+					if (!semanticSearch) {
 						return { ok: false, reason: "semantic_unavailable" };
 					}
-					const entries = await provider.semanticSearch(query, limit, filters);
+					const entries = await semanticSearch.semanticSearch(query, limit, filters);
 					return { ok: true, entries };
 				}
 				const entries = provider.search(query, filters).slice(0, limit);
 				return { ok: true, entries };
 			},
 			async add(options) {
-				const provider = resolveKnowledgeProvider(projectStores, options.projectId);
+				const provider = resolveKnowledgeProvider(scopeStores, options.scopeId);
 				const id = provider.create({
 					title: options.title,
 					content: options.content,
@@ -112,14 +113,16 @@ const knowledgeModule: KotaModule = {
 				});
 				return { id };
 			},
-			async delete(id, project) {
-				const provider = resolveKnowledgeProvider(projectStores, project?.projectId);
+			async delete(id, scopeSelector) {
+				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
 				const ok = provider.delete(id);
 				return ok ? { ok: true } : { ok: false, reason: "not_found" };
 			},
-			async reindex(project) {
-				const provider = resolveKnowledgeProvider(projectStores, project?.projectId);
-				return provider.reindex();
+			async reindex(scopeSelector) {
+				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
+				const semanticSearch = provider.semanticSearchCapability;
+				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
+				return { ok: true, ...await semanticSearch.reindex() };
 			},
 		};
 		return { knowledge: handler };
@@ -134,9 +137,11 @@ const knowledgeModule: KotaModule = {
 	},
 
 	routes: (ctx) =>
-		knowledgeRoutes(
-			createKnowledgeProjectStores(ctx.cwd, () => getKnowledgeProvider()),
-		),
+		knowledgeRoutes(createKnowledgeScopeStores(ctx.cwd, () => {
+			const provider = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
+			if (!provider) throw new Error("knowledge provider is not registered");
+			return provider;
+		}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE))),
 };
 
 function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
@@ -147,15 +152,15 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 			if (filter?.type) params.set("type", filter.type);
 			if (filter?.status) params.set("status", filter.status);
 			if (filter?.scope) params.set("scope", filter.scope);
-			if (filter?.projectId) params.set("projectId", filter.projectId);
+			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
 			const query = params.toString() ? `?${params.toString()}` : "";
 			return link.requestStrict<KnowledgeListResult>(
 				"GET",
 				`/api/knowledge${query}`,
 			);
 		},
-		show: async (id, project): Promise<KnowledgeShowResult> => {
-			const query = projectQuery(project?.projectId);
+		show: async (id, scopeSelector): Promise<KnowledgeShowResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const entry = await requestNullableKnowledgeRoute<
 				KnowledgeListResult["entries"][number]
 			>(
@@ -174,15 +179,15 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 			if (filter?.scope) params.set("scope", filter.scope);
 			if (filter?.semantic) params.set("semantic", "true");
 			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.projectId) params.set("projectId", filter.projectId);
+			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
 			return link.requestStrict<KnowledgeSearchResult>(
 				"GET",
 				`/api/knowledge/search?${params.toString()}`,
 			);
 		},
 		add: async (options): Promise<KnowledgeAddResult> => {
-			const { projectId, ...body } = options;
-			const query = projectQuery(projectId);
+			const { scopeId, ...body } = options;
+			const query = scopeQuery(scopeId);
 			const result = await link.requestStrict<{ id: string }>(
 				"POST",
 				`/api/knowledge${query}`,
@@ -190,8 +195,8 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 			);
 			return { id: result.id };
 		},
-		delete: async (id, project): Promise<KnowledgeDeleteResult> => {
-			const query = projectQuery(project?.projectId);
+		delete: async (id, scopeSelector): Promise<KnowledgeDeleteResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			const result = await requestNullableKnowledgeRoute<{ deleted: string }>(
 				link,
 				"DELETE",
@@ -199,8 +204,8 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 			);
 			return result ? { ok: true } : { ok: false, reason: "not_found" };
 		},
-		reindex: async (project): Promise<KnowledgeReindexResult> => {
-			const query = projectQuery(project?.projectId);
+		reindex: async (scopeSelector): Promise<KnowledgeReindexResult> => {
+			const query = scopeQuery(scopeSelector?.scopeId);
 			return link.requestStrict<KnowledgeReindexResult>(
 				"POST",
 				`/api/knowledge/reindex${query}`,
@@ -212,7 +217,7 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 type KnowledgeRouteErrorBody = {
 	error?: string;
 	reason?: string;
-	projectId?: string;
+	scopeId?: string;
 };
 
 async function requestNullableKnowledgeRoute<T>(
@@ -223,8 +228,8 @@ async function requestNullableKnowledgeRoute<T>(
 	const res = await link.fetchRaw(path, { method });
 	if (res.status === 404) {
 		const body = await readKnowledgeRouteError(res);
-		if (body?.reason === "unknown_project" && body.projectId) {
-			throw new Error(`Unknown project: ${body.projectId}`);
+		if (body?.reason === "unknown_scope" && body.scopeId) {
+			throw new Error(`Unknown scope: ${body.scopeId}`);
 		}
 		return null;
 	}
@@ -248,20 +253,20 @@ async function readKnowledgeRouteError(
 }
 
 function resolveKnowledgeProvider(
-	projectStores: KnowledgeProjectStores,
-	projectId: string | undefined,
+	scopeStores: KnowledgeScopeStores,
+	scopeId: string | undefined,
 ) {
-	const resolved = projectStores.resolve(projectId);
+	const resolved = scopeStores.resolve(scopeId);
 	if (!resolved.ok) {
-		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+		throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
 	}
 	return resolved.store;
 }
 
-function projectQuery(projectId: string | undefined): string {
-	if (!projectId) return "";
+function scopeQuery(scopeId: string | undefined): string {
+	if (!scopeId) return "";
 	const params = new URLSearchParams();
-	params.set("projectId", projectId);
+	params.set("scopeId", scopeId);
 	return `?${params.toString()}`;
 }
 

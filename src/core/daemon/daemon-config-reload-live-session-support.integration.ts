@@ -15,8 +15,8 @@ import type { DaemonConfig } from "./daemon.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import { DaemonControlServer } from "./daemon-control.js";
 import { buildDaemonHandle } from "./daemon-handle.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 const TEST_TOKEN = "test-config-reload-live-session-token";
 
@@ -26,7 +26,7 @@ type SseEvent = {
 };
 
 export type StartedDaemon = {
-  projectDir: string;
+  scopeRoot: string;
   server: DaemonControlServer;
   port: number;
 };
@@ -174,8 +174,8 @@ export function mockModuleMetadata(): void {
 export async function startDaemonWithLiveSessionReload(
   initialConfig: KotaConfig,
 ): Promise<StartedDaemon> {
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-live-session-reload-"));
-  const stateDir = join(projectDir, ".kota");
+  const scopeRoot = mkdtempSync(join(tmpdir(), "kota-live-session-reload-"));
+  const stateDir = join(scopeRoot, ".kota");
   const workflowRuntime = {
     getState: vi.fn(() => ({
       activeRuns: [],
@@ -194,27 +194,27 @@ export async function startDaemonWithLiveSessionReload(
     getDefinitionCount: vi.fn(() => 0),
   };
   const runtime = {
-    project: {
-      projectId: "test-project",
-      projectDir,
-      displayName: "test-project",
+    scope: {
+      scopeId: "test-scope",
+      scopeRoot,
+      displayName: "test-scope",
     },
     workflowRuntime,
     runStore: {} as WorkflowRunStore,
-  } as unknown as ProjectRuntime;
-  const projectRuntimes = {
+  } as unknown as ScopeRuntime;
+  const scopeRuntimes = {
     list: vi.fn(() => [runtime]),
     getDefault: vi.fn(() => runtime),
     get: vi.fn(() => runtime),
-  } as unknown as ProjectRuntimeRegistry;
-  const projectRegistry = {
-    get: vi.fn((projectId: string) =>
-      projectId === "test-project" ? runtime.project : undefined,
+  } as unknown as ScopeRuntimeRegistry;
+  const scopeRegistry = {
+    get: vi.fn((scopeId: string) =>
+      scopeId === "test-scope" ? runtime.scope : undefined,
     ),
-    getDefaultProjectId: vi.fn(() => "test-project"),
+    getDefaultScopeId: vi.fn(() => "test-scope"),
     toProjection: vi.fn(() => ({
-      defaultProjectId: "test-project",
-      projects: [runtime.project],
+      defaultScopeId: "test-scope",
+      scopes: [runtime.scope],
     })),
   } as unknown as ScopeRegistry;
   const daemonConfig: DaemonConfig = {
@@ -236,9 +236,9 @@ export async function startDaemonWithLiveSessionReload(
     bus,
     sessions: new Map(),
     runStore: {} as WorkflowRunStore,
-    projectDir,
-    projectRegistry,
-    projectRuntimes,
+    scopeRoot,
+    scopeRegistry,
+    scopeRuntimes,
     getScopeHostingState: () => "hosted",
     config: daemonConfig,
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
@@ -259,7 +259,7 @@ export async function startDaemonWithLiveSessionReload(
         autonomyMode,
         transport,
         config: daemonConfig.config,
-        projectDir,
+        scopeRoot,
         noHistory: true,
       }),
     defaultAutonomyMode: "autonomous",
@@ -275,5 +275,5 @@ export async function startDaemonWithLiveSessionReload(
   });
 
   const port = await server.start();
-  return { projectDir, server, port };
+  return { scopeRoot, server, port };
 }

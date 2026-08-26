@@ -116,18 +116,18 @@ type RoutingScopeInput = {
 export type SendMessageInput = {
   taskId: string | null;
   contextId: string | null;
-  projectId: string | null;
+  scopeId: string | null;
   text: string;
 };
 
 export type TaskSelector = {
   taskId: string;
-  projectId: string | null;
+  scopeId: string | null;
   contextId: string | null;
 };
 
 export type TaskListFilter = {
-  projectId: string | null;
+  scopeId: string | null;
   contextId: string | null;
 };
 
@@ -143,7 +143,19 @@ export class A2AProtocolError extends Error {
   }
 }
 
-export function isJsonObject(value: JsonValue | undefined): value is JsonObject {
+export function isJsonValue(value: unknown): value is JsonValue {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) return true;
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  return typeof value === "object" && value !== null &&
+    Object.values(value).every((entry) => isJsonValue(entry) || entry === undefined);
+}
+
+export function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -218,11 +230,11 @@ export function decodeSendMessageParams(params: JsonObject): SendMessageInput {
   const contextId =
     stringField(params, "contextId") ??
     stringField(message, "contextId");
-  const projectId = decodeRoutingProjectId({ params, message });
+  const scopeId = decodeRoutingScopeId({ params, message });
   return {
     taskId,
     contextId,
-    projectId,
+    scopeId,
     text,
   };
 }
@@ -232,14 +244,14 @@ export function decodeTaskSelector(params: JsonObject): TaskSelector {
   if (!taskId) throw invalidParams("id must be a non-empty string");
   return {
     taskId,
-    projectId: decodeRoutingProjectId({ params }),
+    scopeId: decodeRoutingScopeId({ params }),
     contextId: stringField(params, "contextId"),
   };
 }
 
 export function decodeTaskListFilter(params: JsonObject): TaskListFilter {
   return {
-    projectId: decodeRoutingProjectId({ params }),
+    scopeId: decodeRoutingScopeId({ params }),
     contextId: stringField(params, "contextId"),
   };
 }
@@ -322,9 +334,9 @@ export function versionNotSupported(requestedVersion: string): A2AProtocolError 
   ]);
 }
 
-export function routingScopeMismatch(tenant: string, projectId: string): A2AProtocolError {
-  return new A2AProtocolError(-32602, "A2A tenant and KOTA projectId must match", [
-    errorInfo("ROUTING_SCOPE_MISMATCH", { tenant, projectId }),
+export function routingScopeMismatch(tenant: string, scopeId: string): A2AProtocolError {
+  return new A2AProtocolError(-32602, "A2A tenant and KOTA scopeId must match", [
+    errorInfo("ROUTING_SCOPE_MISMATCH", { tenant, scopeId }),
   ]);
 }
 
@@ -396,7 +408,7 @@ function hasField(obj: JsonObject, key: string): boolean {
   return obj[key] !== undefined;
 }
 
-function decodeRoutingProjectId(input: RoutingScopeInput): string | null {
+function decodeRoutingScopeId(input: RoutingScopeInput): string | null {
   const scopes = [
     input.params,
     objectField(input.params, "metadata"),
@@ -404,14 +416,14 @@ function decodeRoutingProjectId(input: RoutingScopeInput): string | null {
     input.message ? objectField(input.message, "metadata") : null,
   ].filter((obj): obj is JsonObject => obj !== null);
   const tenant = firstMatchingScopeValue(scopes, "tenant");
-  const projectId = firstMatchingScopeValue(scopes, "projectId");
-  if (tenant !== null && projectId !== null && tenant !== projectId) {
-    throw routingScopeMismatch(tenant, projectId);
+  const scopeId = firstMatchingScopeValue(scopes, "scopeId");
+  if (tenant !== null && scopeId !== null && tenant !== scopeId) {
+    throw routingScopeMismatch(tenant, scopeId);
   }
-  return tenant ?? projectId;
+  return tenant ?? scopeId;
 }
 
-function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "projectId"): string | null {
+function firstMatchingScopeValue(scopes: JsonObject[], key: "tenant" | "scopeId"): string | null {
   let selected: string | null = null;
   for (const scope of scopes) {
     const value = stringField(scope, key);

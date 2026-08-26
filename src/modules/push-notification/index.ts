@@ -28,8 +28,6 @@ import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { pushNotificationControlRoutes } from "./routes.js";
 import { sendDigestPushNotifications, sendPushNotifications } from "./send.js";
 
-let unsubs: (() => void)[] = [];
-
 const pushNotificationModule: KotaModule = {
   name: "push-notification",
   version: "1.0.0",
@@ -50,7 +48,7 @@ const pushNotificationModule: KotaModule = {
       {
         id: "push-notification.tokens",
         description: "Register mobile-client Expo push tokens through the daemon-control route.",
-        scope: "project",
+        scope: "scope",
         scopePolicyHooks: ["channels", "retention"],
       },
       {
@@ -63,9 +61,9 @@ const pushNotificationModule: KotaModule = {
     dataClasses: [
       {
         id: "push-notification.tokens",
-        description: "Expo push tokens and device ids persisted under the project runtime directory.",
+        description: "Expo push tokens and device ids persisted under the scope runtime directory.",
         sensitivity: "personal",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "metadata-only",
       },
       {
@@ -87,7 +85,7 @@ const pushNotificationModule: KotaModule = {
   controlRoutes: (ctx) => pushNotificationControlRoutes(ctx.cwd),
 
   onLoad: (ctx) => {
-    unsubs = [
+    const unsubs = [
       ctx.events.subscribe("approval.requested", (payload) => {
         void sendPushNotifications(
           ctx.cwd,
@@ -123,11 +121,7 @@ const pushNotificationModule: KotaModule = {
         );
       }),
     ];
-  },
-
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
+    return { dispose: () => unsubs.forEach((unsubscribe) => unsubscribe()) };
   },
 };
 

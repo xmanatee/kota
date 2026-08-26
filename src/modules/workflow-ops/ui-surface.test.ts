@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { executeUiAction, renderUiSurface } from "#modules/daemon-ops/operator-ui.js";
 import { MAX_TERMINAL_TEXT_RENDER_CODE_UNITS } from "#modules/rendering/safe-terminal-text.js";
 import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
@@ -194,7 +194,7 @@ describe("operator UI runtime actions", () => {
     const retry = surface.actions.find((candidate) => candidate.actionId === "run.retry");
     if (!retry) throw new Error("run.retry action missing");
     const triggerByName = vi.fn(async () => ({ ok: true as const, path: "daemon" as const, queued: "builder" }));
-    const client = {
+    const client = createKotaClientTestDouble({
       workflow: {
         getRun: vi.fn(async () => ({
           found: true as const,
@@ -210,7 +210,7 @@ describe("operator UI runtime actions", () => {
         })),
         triggerByName,
       },
-    } as unknown as KotaClient;
+    });
     const result = await executeUiAction({
       action: retry,
       client,

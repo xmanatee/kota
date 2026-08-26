@@ -55,15 +55,15 @@ function classifyDaemonControlFileForAudit(
 
 function readDurableWorkflowSnapshot(
   stateDir: string,
-  scopeDir: string,
+  scopeRoot: string,
 ): DurableWorkflowSnapshot {
-  const projection = readStatusRunProjection(stateDir, scopeDir);
+  const projection = readStatusRunProjection(stateDir, scopeRoot);
   return {
     activeRuns: projection.runs.filter(
       (run) => run.state === "running" || run.state === "integrating",
     ).length,
     queuedRuns: projection.runs.filter((run) => run.state === "queued").length,
-    workflowPaused: readStoredWorkflowRuntimeState(scopeDir, stateDir).operatorPaused,
+    workflowPaused: readStoredWorkflowRuntimeState(scopeRoot, stateDir).operatorPaused,
   };
 }
 
@@ -79,11 +79,11 @@ function hasDurableWorkflowWarning(
 
 function buildOperatorRuntimeStatusForAudit(
   stateDir: string,
-  scopeDir: string,
+  scopeRoot: string,
 ): StatusSnapshot {
   const controlFile = classifyDaemonControlFileForAudit(stateDir);
-  const durableWorkflow = readDurableWorkflowSnapshot(stateDir, scopeDir);
-  const runProjection = readStatusRunProjection(stateDir, scopeDir);
+  const durableWorkflow = readDurableWorkflowSnapshot(stateDir, scopeRoot);
+  const runProjection = readStatusRunProjection(stateDir, scopeRoot);
   const daemonRunning = controlFile.kind === "fresh";
   return {
     daemonRunning,
@@ -93,8 +93,8 @@ function buildOperatorRuntimeStatusForAudit(
     workflowPaused: durableWorkflow.workflowPaused,
     sessions: 0,
     pendingApprovals: 0,
-    projectDir: scopeDir,
-    projectName: basename(scopeDir) || scopeDir,
+    scopeRoot: scopeRoot,
+    scopeName: basename(scopeRoot) || scopeRoot,
     controlFile,
     runProjection,
   };
@@ -127,7 +127,7 @@ function runtimeInboxSeverity(item: OperatorInboxItem): AutonomyHealthSeverity {
 export function scanOperatorRuntimeWarnings(
   ctx: RuntimeHealthAuditContext,
 ): void {
-  const status = buildOperatorRuntimeStatusForAudit(ctx.stateDir, ctx.scopeDir);
+  const status = buildOperatorRuntimeStatusForAudit(ctx.stateDir, ctx.scopeRoot);
   const hasControlFileEvidence = status.controlFile.kind !== "missing";
   const hasWorkflowEvidence = hasDurableWorkflowWarning(status);
   const items = buildOperatorRuntimeInboxItems(status).filter(

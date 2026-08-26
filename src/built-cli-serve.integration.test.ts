@@ -45,13 +45,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");
-type LoopbackAwareGlobal = typeof globalThis & {
-  __kotaRealLoopbackAvailable?: boolean;
-};
-
-function realLoopbackAvailable(): boolean {
-  return (globalThis as LoopbackAwareGlobal).__kotaRealLoopbackAvailable !== false;
-}
 
 beforeAll(() => {
   if (!existsSync(CLI_PATH)) {
@@ -140,8 +133,8 @@ async function waitForExit(
   });
 }
 
-describe.skipIf(!realLoopbackAvailable())("built CLI serve smoke (provider-backed routes)", () => {
-  let projectDir: string;
+describe("built CLI serve smoke (provider-backed routes)", () => {
+  let scopeRoot: string;
   let stateDir: string;
   let homeDir: string;
   let child: ChildProcess | null;
@@ -149,12 +142,12 @@ describe.skipIf(!realLoopbackAvailable())("built CLI serve smoke (provider-backe
   let stdoutChunks: Buffer[];
 
   beforeEach(() => {
-    projectDir = join(
+    scopeRoot = join(
       tmpdir(),
       `kota-built-cli-serve-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    stateDir = join(projectDir, ".kota");
-    homeDir = join(projectDir, "home");
+    stateDir = join(scopeRoot, ".kota");
+    homeDir = join(scopeRoot, "home");
     mkdirSync(stateDir, { recursive: true });
     mkdirSync(homeDir, { recursive: true });
     writeFileSync(
@@ -175,7 +168,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI serve smoke (provider-backe
         await waitForExit(child, 2_000);
       }
     }
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("`node dist/cli.js serve` serves /api/knowledge with 200 (provider onLoad ran)", async () => {
@@ -196,13 +189,13 @@ describe.skipIf(!realLoopbackAvailable())("built CLI serve smoke (provider-backe
           String(port),
         ],
         {
-          // `kota serve` reads its project root from process.cwd(); pinning the
+          // `kota serve` reads its scope root from process.cwd(); pinning the
           // child's cwd to a temp dir is therefore the project pin.
-          cwd: projectDir,
+          cwd: scopeRoot,
           env: {
             ...process.env,
             HOME: homeDir,
-            KOTA_PROJECT_DIR: projectDir,
+            KOTA_SCOPE_ROOT: scopeRoot,
             NODE_OPTIONS: "",
           },
         },

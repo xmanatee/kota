@@ -8,7 +8,7 @@ import {
 } from "./health-review.js";
 
 export type PlanHealthReviewActionsInput = {
-  projectDir: string;
+  workspaceRoot: string;
   currentProjection: AutonomyIssueProjection;
   review: Parameters<typeof planAutonomyHealthReviewActions>[0]["review"];
 };

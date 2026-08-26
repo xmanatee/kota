@@ -2,7 +2,7 @@ import Foundation
 
 extension DaemonClient {
     func fetchUiSurfaceBundle(scopeId: String? = nil) async throws -> UiSurfaceBundle {
-        try await get(Self.withQueryParameter("/ui/surfaces", name: "scopeId", value: scopeId))
+        try await get(Self.withScope("/ui/surfaces", scopeId: scopeId))
     }
 
     func executeUiAction(
@@ -90,7 +90,7 @@ extension DaemonClient {
         let timestamp = object?["timestamp"] as? String ?? ISO8601DateFormatter().string(from: Date())
         let level = UiLogLevel(rawValue: object?["level"] as? String ?? "") ?? .info
         let message = (object?["message"] as? String) ?? eventSummary(object)
-        let scopeId = (object?["scopeId"] as? String) ?? (object?["projectId"] as? String)
+        let scopeId = object?["scopeId"] as? String
         return UiSurfaceLiveEvent(
             id: id,
             type: type,

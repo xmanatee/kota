@@ -1,4 +1,3 @@
-import { findModuleManifestToolEffect } from "#core/modules/module-manifest.js";
 import {
   localDestructiveEffect,
   localWriteEffect,
@@ -8,6 +7,7 @@ import {
   type ToolEffect,
 } from "./effect.js";
 import {
+  getModuleToolManifestEffect,
   getRegisteredToolEffectMetadata,
   type ToolEffectResolver,
 } from "./tool-effect-registry.js";
@@ -84,7 +84,7 @@ function declaredCapabilityEffect(name: string): ToolEffect | undefined {
   // unbounded envelope at the strongest representable posture.
   if (registered?.resolveEffect) return networkDestructiveEffect();
 
-  return findModuleManifestToolEffect(name)?.effect
+  return getModuleToolManifestEffect(name)?.effect
     ?? registered?.effect
     ?? aliasEffect(name);
 }

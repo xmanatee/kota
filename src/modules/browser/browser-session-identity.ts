@@ -4,7 +4,7 @@ import type { ToolRunnerContext } from "#core/tools/index.js";
 export type BrowserSessionIdentity = {
   scopeId: string;
   sessionId: string;
-  projectDir: string;
+  scopeRoot: string;
 };
 
 export function resolveBrowserSessionIdentity(
@@ -17,25 +17,25 @@ export function resolveBrowserSessionIdentity(
 
   const scopeValues = [
     context.scopeId,
-    context.projectId,
+    context.scopeId,
     context.workflow?.scopeId,
-    context.workflow?.projectId,
+    context.workflow?.scopeId,
   ].filter((value): value is string => value !== undefined);
   if (scopeValues.some((value) => value.length === 0)) {
     throw new Error("Browser tools require a non-empty scope identity");
   }
   if (scopeValues.length === 0) {
-    throw new Error("Browser tools require an active project scope");
+    throw new Error("Browser tools require an active scope");
   }
   if (new Set(scopeValues).size !== 1) {
     throw new Error("Browser tool scope identity values conflict");
   }
-  if (!context.projectDir) {
-    throw new Error("Browser tools require the invoking scope project directory");
+  if (!context.scopeRoot) {
+    throw new Error("Browser tools require the invoking scope root");
   }
   return {
     sessionId,
     scopeId: scopeValues[0]!,
-    projectDir: resolve(context.projectDir),
+    scopeRoot: resolve(context.scopeRoot),
   };
 }

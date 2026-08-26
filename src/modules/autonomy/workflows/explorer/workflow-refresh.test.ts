@@ -1,71 +1,16 @@
-import { mkdirSync, mkdtempSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { beforeEach, describe, expect, it } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import {
+  WorkflowScenarioDriver,
+  type WorkflowScenarioOptions,
+} from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
 import explorerWorkflow, { EXPLORATION_REFRESH_MS } from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(() => ({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  })),
-}));
-
-vi.mock("#modules/repo-tasks/repo-tasks-domain.js", () => ({
-  countRepoPromotableBacklogTasks: vi.fn(() => 0),
-  getRepoTaskQueueSnapshot: vi.fn(),
-  isRepoTaskQueueSnapshot: vi.fn(() => true),
-  isThinDispatchableQueue: vi.fn((snapshot, promotableBacklogCount) => {
-    const backlogCount =
-      promotableBacklogCount ?? snapshot.promotableBacklogCount ?? 0;
-    const waitingCount =
-      snapshot.counts.ready + snapshot.counts.doing + backlogCount;
-    return (
-      snapshot.inboxCount === 0 &&
-      waitingCount <= 2 &&
-      waitingCount > 0
-    );
-  }),
-  REPO_TASK_STATES: ["backlog", "ready", "doing", "blocked", "done", "dropped"],
-  listFullRepoTasks: vi.fn(() => []),
-  getRepoTaskStateDir: vi.fn((projectDir: string, state: string) =>
-    `${projectDir}/data/tasks/${state}`,
-  ),
-}));
-
-function makeSnapshot({
-  ready = 0,
-  backlog = 0,
-  doing = 0,
-}: {
-  ready?: number;
-  backlog?: number;
-  doing?: number;
-} = {}) {
-  const counts = { backlog, ready, doing, blocked: 0, done: 0, dropped: 0 };
-  const actionableCount = ready + doing;
-  const dispatchableCount = actionableCount + backlog;
-  return {
-    counts,
-    inboxCount: 0,
-    openCount: dispatchableCount,
-    pullableCount: backlog + ready + doing,
-    actionableCount,
-    promotableBacklogCount: backlog,
-    dispatchableCount,
-    hasDispatchableWork: dispatchableCount > 0,
-    dependencyBlockedTasks: [],
-    headSha: "abc1234",
-  };
-}
 
 function stateWithLastExplorationAt(lastExplorationAt: string) {
   const state = createTestTransactionalRunState();
@@ -77,27 +22,53 @@ describe("explorer workflow refresh", () => {
   let tempDir: string;
 
   beforeEach(() => {
-    vi.clearAllMocks();
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
-    mkdirSync(join(tempDir, ".kota"), { recursive: true });
+    for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+      const dir = join(tempDir, "data", "tasks", state);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);
+    }
+    writeFileSync(join(tempDir, ".gitignore"), ".kota/\n");
+    execFileSync("git", ["init", "--quiet"], { cwd: tempDir });
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: tempDir });
+    execFileSync("git", ["config", "user.name", "KOTA test"], { cwd: tempDir });
+    commitScenarioInput();
   });
 
-  it("runs explore when the queue is empty and refresh is due", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
+  function commitScenarioInput(): void {
+    execFileSync("git", ["add", "-A"], { cwd: tempDir });
+    if (execFileSync("git", ["diff", "--cached", "--name-only"], {
+      cwd: tempDir,
+      encoding: "utf8",
+    }).trim()) {
+      execFileSync("git", ["commit", "--quiet", "-m", "scenario input"], {
+        cwd: tempDir,
+      });
+    }
+  }
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+  function runExplorerScenario(
+    options: Omit<WorkflowScenarioOptions, "workspaceRoot">,
+  ) {
+    commitScenarioInput();
+    return new WorkflowScenarioDriver(explorerWorkflow, {
+      ...options,
+      workspaceRoot: tempDir,
+      ports: {
+        runCommand: successfulWorkflowCommandRun,
+        ...options.ports,
+      },
+    }).run();
+  }
+
+  it("runs explore when the queue is empty and refresh is due", async () => {
+    const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.empty", payload: {} },
-      stepMocks: {
+      stepOutputs: {
         explore: { turns: [], totalCostUsd: 0.02 },
       },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
     });
-
-    const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
@@ -108,46 +79,25 @@ describe("explorer workflow refresh", () => {
   });
 
   it("does not write lastExplorationAt when explore step is skipped", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
-
     const state = stateWithLastExplorationAt(new Date().toISOString());
     const before = state.read<ExplorerState>(EXPLORER_STATE_KEY);
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+    await runExplorerScenario({
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
-      contextOverrides: { state },
+      ports: { state },
     });
-    await harness.run();
 
     expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toEqual(before);
   });
 
   it("skips explore when worktree is dirty", async () => {
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValueOnce({
-      available: true,
-      dirty: true,
-      trackedDirty: true,
-      entries: ["M src/foo.ts"],
-      fingerprint: "M src/foo.ts",
-      summary: "src/foo.ts",
-      headSha: "abc1234",
-    });
-
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
-
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+    writeFileSync(join(tempDir, "dirty.txt"), "uncommitted\n");
+    const harness = new WorkflowScenarioDriver(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
-      projectDir: tempDir,
+      workspaceRoot: tempDir,
+      workspaceDir: tempDir,
     });
 
     const result = await harness.run();
@@ -167,17 +117,12 @@ describe("explorer workflow refresh", () => {
   });
 
   it("does not starve exploration when skipped runs repeatedly complete", async () => {
-    const { getRepoTaskQueueSnapshot } = await import(
-      "#modules/repo-tasks/repo-tasks-domain.js"
-    );
-    vi.mocked(getRepoTaskQueueSnapshot).mockReturnValue(makeSnapshot());
-
     const thirtyFiveMinutesAgo = new Date(
       Date.now() - 35 * 60 * 1000,
     ).toISOString();
     const state = stateWithLastExplorationAt(thirtyFiveMinutesAgo);
 
-    const harness = new WorkflowTestHarness(explorerWorkflow, {
+    const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: {
         workflows: {
@@ -195,12 +140,9 @@ describe("explorer workflow refresh", () => {
           },
         },
       },
-      stepMocks: { explore: { turns: [], totalCostUsd: 0.02 } },
-      projectDir: tempDir,
-      contextOverrides: { state },
+      stepOutputs: { explore: { turns: [], totalCostUsd: 0.02 } },
+      ports: { state },
     });
-
-    const result = await harness.run();
 
     expect(result.steps["inspect-queue"].output).toMatchObject({
       explorationRefreshDue: true,

@@ -2,11 +2,12 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetEventBus } from "#core/events/event-bus.js";
+import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import {
-  HISTORY_PROJECT_PROVIDER_TOKEN,
   HISTORY_PROVIDER_TOKEN,
+  HISTORY_SCOPE_PROVIDER_TOKEN,
   type HistoryProvider,
   initProviderRegistry,
   resetProviderRegistry,
@@ -31,10 +32,10 @@ import { resetScheduler } from "./scheduler.js";
 import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 const CONV_ID = "c-fixture-0000";
-const DEFAULT_PROJECT_ID = "test-project-id";
-const OTHER_PROJECT_ID = "other-project-id";
-const DEFAULT_PROJECT_DIR = "/tmp/test-project";
-const OTHER_PROJECT_DIR = "/tmp/other-project";
+const DEFAULT_SCOPE_ID = "test-scope-id";
+const OTHER_SCOPE_ID = "other-scope-id";
+const DEFAULT_SCOPE_ROOT = "/tmp/test-scope";
+const OTHER_SCOPE_ROOT = "/tmp/other-scope";
 
 function makeBindingStore(): DaemonChatBindingStore {
   const dir = mkdtempSync(join(tmpdir(), "kota-chat-bindings-"));
@@ -118,16 +119,16 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: DEFAULT_PROJECT_ID, projects: [{ projectId: DEFAULT_PROJECT_ID, projectDir: DEFAULT_PROJECT_DIR, displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === DEFAULT_PROJECT_ID),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === DEFAULT_PROJECT_ID ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getScopeRegistryProjection: vi.fn(() => ({ rootScopeId: "global", defaultScopeId: DEFAULT_SCOPE_ID, scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: DEFAULT_SCOPE_ID, parentScopeId: "global", directoryRoot: DEFAULT_SCOPE_ROOT, displayName: "test-scope" }] })),
+    hasScope: vi.fn((id: string) => id === DEFAULT_SCOPE_ID),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === DEFAULT_SCOPE_ID ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: DEFAULT_PROJECT_DIR,
-      projects: { defaultProjectId: DEFAULT_PROJECT_ID, projects: [{ projectId: DEFAULT_PROJECT_ID, projectDir: DEFAULT_PROJECT_DIR, displayName: "test-project" }] },
+      scopeName: "test-scope",
+      scopeRoot: DEFAULT_SCOPE_ROOT,
+      scopeRegistry: { rootScopeId: "global", defaultScopeId: DEFAULT_SCOPE_ID, scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: DEFAULT_SCOPE_ID, parentScopeId: "global", directoryRoot: DEFAULT_SCOPE_ROOT, displayName: "test-scope" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -210,8 +211,8 @@ function modelResponse(model: string, text: string) {
   };
 }
 
-function makeFileHistoryProvider(projectDir: string): HistoryProvider {
-  const dir = join(projectDir, ".kota", "history");
+function makeFileHistoryProvider(scopeRoot: string): HistoryProvider {
+  const dir = join(scopeRoot, ".kota", "history");
   let counter = 0;
   const loadIndex = () => {
     const path = join(dir, "index.json");
@@ -289,15 +290,6 @@ function makeFileHistoryProvider(projectDir: string): HistoryProvider {
     },
     cleanup() {
       return 0;
-    },
-    supportsSemanticSearch() {
-      return false;
-    },
-    async semanticSearch() {
-      return [];
-    },
-    async reindex() {
-      return { indexed: 0, failed: 0, skipped: true };
     },
   };
 }
@@ -384,7 +376,7 @@ describe("DaemonControlServer chat endpoints", () => {
   });
 
   it("GET /sessions/bindings exposes persisted daemon chat bindings", async () => {
-    bindings.put("stored-session", "stored-conversation", DEFAULT_PROJECT_ID);
+    bindings.put("stored-session", "stored-conversation", DEFAULT_SCOPE_ID);
 
     const res = await fetchWithToken(port, "/sessions/bindings");
 
@@ -392,7 +384,7 @@ describe("DaemonControlServer chat endpoints", () => {
     const body = await res.json() as {
       bindings: Array<{
         sessionId: string;
-        projectId: string;
+        scopeId: string;
         conversationId: string;
         createdAt: string;
         lastActiveAt: string;
@@ -401,7 +393,7 @@ describe("DaemonControlServer chat endpoints", () => {
     expect(body.bindings).toEqual([
       expect.objectContaining({
         sessionId: "stored-session",
-        projectId: DEFAULT_PROJECT_ID,
+        scopeId: DEFAULT_SCOPE_ID,
         conversationId: "stored-conversation",
       }),
     ]);
@@ -409,54 +401,58 @@ describe("DaemonControlServer chat endpoints", () => {
     expect(Date.parse(body.bindings[0]!.lastActiveAt)).not.toBeNaN();
   });
 
-  it("POST /sessions creates the daemon agent for the requested project id", async () => {
-    const seenProjectIds: string[] = [];
+  it("POST /sessions creates the daemon agent for the requested scope id", async () => {
+    const seenScopeIds: string[] = [];
     const projectHandle = makeHandle({
-      getProjectRegistryProjection: vi.fn(() => ({
-        defaultProjectId: DEFAULT_PROJECT_ID,
-        projects: [
+      getScopeRegistryProjection: vi.fn(() => ({
+        rootScopeId: "global",
+        defaultScopeId: DEFAULT_SCOPE_ID,
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
           {
-            projectId: DEFAULT_PROJECT_ID,
-            projectDir: DEFAULT_PROJECT_DIR,
-            displayName: "test-project",
+            scopeId: DEFAULT_SCOPE_ID,
+            parentScopeId: "global",
+            directoryRoot: DEFAULT_SCOPE_ROOT,
+            displayName: "test-scope",
           },
           {
-            projectId: OTHER_PROJECT_ID,
-            projectDir: OTHER_PROJECT_DIR,
-            displayName: "other-project",
+            scopeId: OTHER_SCOPE_ID,
+            parentScopeId: "global",
+            directoryRoot: OTHER_SCOPE_ROOT,
+            displayName: "other-scope",
           },
         ],
       })),
-      hasProject: vi.fn((id: string) => id === DEFAULT_PROJECT_ID || id === OTHER_PROJECT_ID),
+      hasScope: vi.fn((id: string) => id === DEFAULT_SCOPE_ID || id === OTHER_SCOPE_ID),
     });
     const projectBindingsDir = mkdtempSync(join(tmpdir(), "kota-chat-project-"));
     const projectServer = new DaemonControlServer(projectHandle, TEST_TOKEN, {
-      makeAgent: (_transport, mode, _resume, projectId) => {
-        seenProjectIds.push(projectId);
+      makeAgent: (_transport, mode, _resume, scopeId) => {
+        seenScopeIds.push(scopeId);
         return mockAgentSession({ result: "ok" }, mode) as never;
       },
       defaultAutonomyMode: "supervised",
       chatBindings: new DaemonChatBindingStore(projectBindingsDir),
       conversationResolver: makeResolver(new Set()),
     });
-    const projectPort = await projectServer.start();
+    const scopePort = await projectServer.start();
     try {
-      const createRes = await fetchWithToken(projectPort, `/sessions?projectId=${OTHER_PROJECT_ID}`, {
+      const createRes = await fetchWithToken(scopePort, `/sessions?scopeId=${OTHER_SCOPE_ID}`, {
         method: "POST",
       });
       expect(createRes.status).toBe(201);
-      const created = await createRes.json() as { session_id: string; project_id: string };
-      expect(created.project_id).toBe(OTHER_PROJECT_ID);
-      expect(seenProjectIds).toEqual([OTHER_PROJECT_ID]);
+      const created = await createRes.json() as { session_id: string; scope_id: string };
+      expect(created.scope_id).toBe(OTHER_SCOPE_ID);
+      expect(seenScopeIds).toEqual([OTHER_SCOPE_ID]);
 
-      const defaultListRes = await fetchWithToken(projectPort, `/sessions?projectId=${DEFAULT_PROJECT_ID}`);
+      const defaultListRes = await fetchWithToken(scopePort, `/sessions?scopeId=${DEFAULT_SCOPE_ID}`);
       const defaultList = await defaultListRes.json() as { sessions: Array<{ id: string }> };
       expect(defaultList.sessions.map((s) => s.id)).not.toContain(created.session_id);
 
-      const selectedListRes = await fetchWithToken(projectPort, `/sessions?projectId=${OTHER_PROJECT_ID}`);
-      const selectedList = await selectedListRes.json() as { sessions: Array<{ id: string; projectId: string }> };
+      const selectedListRes = await fetchWithToken(scopePort, `/sessions?scopeId=${OTHER_SCOPE_ID}`);
+      const selectedList = await selectedListRes.json() as { sessions: Array<{ id: string; scopeId: string }> };
       expect(selectedList.sessions).toEqual([
-        expect.objectContaining({ id: created.session_id, projectId: OTHER_PROJECT_ID }),
+        expect.objectContaining({ id: created.session_id, scopeId: OTHER_SCOPE_ID }),
       ]);
     } finally {
       await projectServer.stop();
@@ -706,11 +702,11 @@ describe("DaemonControlServer chat endpoints", () => {
   });
 });
 
-describe("Daemon chat project-scoped history", () => {
+describe("Daemon chat scope-scoped history", () => {
   let rootDir: string;
   let stateDir: string;
-  let defaultProjectDir: string;
-  let selectedProjectDir: string;
+  let defaultScopeRoot: string;
+  let selectedScopeRoot: string;
 
   beforeEach(() => {
     resetEventBus();
@@ -718,11 +714,11 @@ describe("Daemon chat project-scoped history", () => {
     resetProviderRegistry();
     rootDir = mkdtempSync(join(tmpdir(), "kota-chat-project-history-"));
     stateDir = join(rootDir, "daemon-state");
-    defaultProjectDir = join(rootDir, "project-default");
-    selectedProjectDir = join(rootDir, "project-selected");
+    defaultScopeRoot = join(rootDir, "project-default");
+    selectedScopeRoot = join(rootDir, "project-selected");
     mkdirSync(stateDir, { recursive: true });
-    mkdirSync(defaultProjectDir, { recursive: true });
-    mkdirSync(selectedProjectDir, { recursive: true });
+    mkdirSync(defaultScopeRoot, { recursive: true });
+    mkdirSync(selectedScopeRoot, { recursive: true });
   });
 
   afterEach(() => {
@@ -732,29 +728,33 @@ describe("Daemon chat project-scoped history", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("creates POST /sessions conversations in the selected project's history store", async () => {
+  it("creates POST /sessions conversations in the selected scope's history store", async () => {
     installMockModelClient();
     const registry = initProviderRegistry();
     const historyProviders = new Map<string, HistoryProvider>();
-    const historyForProject = (projectDir: string): HistoryProvider => {
-      const existing = historyProviders.get(projectDir);
+    const historyForScope = (scopeRoot: string): HistoryProvider => {
+      const existing = historyProviders.get(scopeRoot);
       if (existing) return existing;
-      const provider = makeFileHistoryProvider(projectDir);
-      historyProviders.set(projectDir, provider);
+      const provider = makeFileHistoryProvider(scopeRoot);
+      historyProviders.set(scopeRoot, provider);
       return provider;
     };
     registry.register(
       HISTORY_PROVIDER_TOKEN,
       "test-history",
-      historyForProject(defaultProjectDir),
+      historyForScope(defaultScopeRoot),
     );
-    registry.register(HISTORY_PROJECT_PROVIDER_TOKEN, "test-history", {
-      forProject: (project) => historyForProject(project.projectDir),
+    registry.register(HISTORY_SCOPE_PROVIDER_TOKEN, "test-history", {
+      forScope: (scope) => historyForScope(scope.scopeRoot),
     });
+    const eventBus = new EventBus();
+    const moduleLoader = new ModuleLoader({}, false, { providerRegistry: registry });
+    moduleLoader.setBus(eventBus);
 
     const config = { defaultAgentHarness: "claude-agent-sdk", reflection: false };
     const daemon = new Daemon({
-      projects: [{ projectDir: defaultProjectDir }, { projectDir: selectedProjectDir }],
+      runtimeModuleHost: { eventBus, moduleLoader },
+      scopes: [{ scopeRoot: defaultScopeRoot }, { scopeRoot: selectedScopeRoot }],
       stateDir,
       idleIntervalMs: 60_000,
       pollIntervalMs: 60_000,
@@ -768,12 +768,12 @@ describe("Daemon chat project-scoped history", () => {
         expect(existsSync(join(stateDir, "daemon-control.json"))).toBe(true);
       });
       const address = readDaemonControlAddress(stateDir);
-      const selectedProjectId = deriveDirectoryScopeId(selectedProjectDir);
+      const selectedScopeId = deriveDirectoryScopeId(selectedScopeRoot);
 
       const createRes = await fetchWithDaemonToken(
         address.port,
         address.token,
-        `/sessions?projectId=${selectedProjectId}`,
+        `/sessions?scopeId=${selectedScopeId}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -784,9 +784,9 @@ describe("Daemon chat project-scoped history", () => {
       const created = await createRes.json() as {
         session_id: string;
         conversation_id: string;
-        project_id: string;
+        scope_id: string;
       };
-      expect(created.project_id).toBe(selectedProjectId);
+      expect(created.scope_id).toBe(selectedScopeId);
 
       const chatRes = await fetchWithDaemonToken(
         address.port,
@@ -804,13 +804,13 @@ describe("Daemon chat project-scoped history", () => {
       expect(chatText).not.toContain(`Conversation ${created.conversation_id} not found`);
 
       const selectedHistoryPath = join(
-        selectedProjectDir,
+        selectedScopeRoot,
         ".kota",
         "history",
         `${created.conversation_id}.json`,
       );
       const defaultHistoryPath = join(
-        defaultProjectDir,
+        defaultScopeRoot,
         ".kota",
         "history",
         `${created.conversation_id}.json`,

@@ -2,6 +2,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OutboundHttpRequestPort } from "#core/outbound-http/index.js";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { parseSource } from "./registry.js";
 import {
   getNpmVersion,
@@ -18,6 +20,7 @@ function makeTmpDir(): string {
 
 describe("installUrl module directory", () => {
   let kotaDir: string;
+  let http: OutboundHttpRequestPort;
 
   beforeEach(() => {
     kotaDir = join(makeTmpDir(), ".kota");
@@ -30,7 +33,7 @@ describe("installUrl module directory", () => {
   });
 
   function mockFetch(content: string) {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    http = outboundHttpRequestPort(() =>
       new Response(content, {
         status: 200,
         headers: { "Content-Type": "application/javascript" },
@@ -41,21 +44,21 @@ describe("installUrl module directory", () => {
   it("installs module to modules/<name>/index.mjs", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/path/to/weather.js");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     expect(result.files).toEqual(["modules/weather"]);
   });
 
   it("installs URL module using derived name", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/weather.mjs");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     expect(result.files).toEqual(["modules/weather"]);
   });
 
   it("uses derived name for non-JS modules", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.ts");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     // URL "tool.ts" → name "tool" → modules/tool/index.mjs
     expect(result.files).toEqual(["modules/tool"]);
   });
@@ -63,28 +66,28 @@ describe("installUrl module directory", () => {
   it("uses derived name for URLs without module", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/api/module");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     expect(result.files).toEqual(["modules/module"]);
   });
 
   it("strips query string — uses name from parsed source", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.js?v=2&token=abc");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     expect(result.files).toEqual(["modules/tool"]);
   });
 
   it("strips fragment — uses name from parsed source", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/tool.mjs#section");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     expect(result.files).toEqual(["modules/tool"]);
   });
 
   it("handles URL with only root path", async () => {
     mockFetch("export default {};");
     const parsed = parseSource("https://example.com/");
-    const result = await installUrl(parsed, kotaDir);
+    const result = await installUrl(parsed, kotaDir, http);
     // Root path → empty basename → falls back to name-derived filename
     expect(result.files).toEqual(["modules/tool"]);
   });

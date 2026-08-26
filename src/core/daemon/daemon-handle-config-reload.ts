@@ -49,8 +49,8 @@ export function buildDaemonConfigReloadHandle(
   const {
     bus,
     config,
-    projectDir,
-    projectRuntimes,
+    scopeRoot,
+    scopeRuntimes,
     refreshLiveSessionGuardrails,
     sessions,
     log,
@@ -59,7 +59,7 @@ export function buildDaemonConfigReloadHandle(
     reloadConfig: async () => {
       const currentWorkflowCount = (): number => {
         let count = 0;
-        for (const runtime of projectRuntimes.list()) {
+        for (const runtime of scopeRuntimes.list()) {
           count = runtime.workflowRuntime.getDefinitionCount();
         }
         return count;
@@ -67,10 +67,10 @@ export function buildDaemonConfigReloadHandle(
 
       try {
         const oldConfig = config.config ?? {};
-        const newConfig = loadConfig(projectDir);
+        const newConfig = loadConfig(scopeRoot);
         const loader = await loadModuleMetadata(
           newConfig,
-          projectDir,
+          scopeRoot,
           config.verbose ?? false,
         );
         config.getModuleSummaries = () => loader.getModuleSummaries();
@@ -91,7 +91,7 @@ export function buildDaemonConfigReloadHandle(
         );
         const inputs = loader.getContributedWorkflows();
         let aggregateCount = 0;
-        for (const runtime of projectRuntimes.list()) {
+        for (const runtime of scopeRuntimes.list()) {
           runtime.workflowRuntime.setWorkflowInputs(inputs);
           aggregateCount = runtime.workflowRuntime.reloadWorkflowDefinitions().count;
         }
@@ -106,7 +106,7 @@ export function buildDaemonConfigReloadHandle(
           const reason = "Agent runtime selection changed during config reload";
           log(`${reason}; supervised restart required`);
           bus.emit("runtime.restart_requested", {
-            projectId: projectRuntimes.getDefault().project.projectId,
+            scopeId: scopeRuntimes.getDefault().scope.scopeId,
             reason,
           });
         }

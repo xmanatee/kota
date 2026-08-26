@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   type InboundSignalReceivedPayload,
@@ -39,7 +39,7 @@ function slackEnvelope(event = slackMessage()): SlackEventsApiPayload {
 }
 
 const slackSignalContext = {
-  projectId: "project-slack",
+  scopeId: "scope-slack",
   receivedAt: RECEIVED_AT,
   config: {
     prefixes: ["!task"],
@@ -58,7 +58,7 @@ describe("Slack channel inbound signal adapter", () => {
     expect(result).toMatchObject({
       kind: "signal",
       payload: {
-        projectId: "project-slack",
+        scopeId: "scope-slack",
         provider: "slack",
         channel: "slack.message",
         accountId: "slack:T123",
@@ -116,14 +116,14 @@ describe("Slack channel inbound signal adapter", () => {
 
 type ProbeDecision = {
   decision: "accept" | "noop";
-  projectId: string;
+  scopeId: string;
   provider: string;
   channel: string;
   actorTrust: string;
 };
 
 type RoutedProbePayload = {
-  projectId: string;
+  scopeId: string;
   provider: string;
   channel: string;
   actorTrust: string;
@@ -142,7 +142,7 @@ const slackSignalProbeWorkflow: WorkflowDefinitionInput = {
       validate: (raw) =>
         expectStructuredOutput<ProbeDecision>(raw, [
           "decision",
-          "projectId",
+          "scopeId",
           "provider",
           "channel",
           "actorTrust",
@@ -151,7 +151,7 @@ const slackSignalProbeWorkflow: WorkflowDefinitionInput = {
         const payload = trigger.payload as RoutedProbePayload;
         return {
           decision: payload.actorTrust === "trusted" ? "accept" : "noop",
-          projectId: payload.projectId,
+          scopeId: payload.scopeId,
           provider: payload.provider,
           channel: payload.channel,
           actorTrust: payload.actorTrust,
@@ -220,7 +220,7 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
     expect(queued[0]).toMatchObject({
       event: inboundSignalWorkflowTargeted,
       payload: {
-        projectId: "project-slack",
+        scopeId: "scope-slack",
         routeId: "slack-d123-capture",
         provider: "slack",
         channel: "slack.message",
@@ -229,16 +229,15 @@ describe("Slack-origin inbound signal workflow dispatch", () => {
       },
     });
 
-    const harness = new WorkflowTestHarness(slackSignalProbeWorkflow, {
+    const harness = new WorkflowScenarioDriver(slackSignalProbeWorkflow, {
       trigger: queued[0],
-      projectDir: "/tmp/kota-slack-signal-probe",
     });
     const result = await harness.run();
 
     expect(result.status).toBe("success");
     expect(result.steps.decide.output).toEqual({
       decision: "accept",
-      projectId: "project-slack",
+      scopeId: "scope-slack",
       provider: "slack",
       channel: "slack.message",
       actorTrust: "trusted",

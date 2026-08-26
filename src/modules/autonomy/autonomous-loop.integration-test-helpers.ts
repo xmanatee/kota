@@ -66,7 +66,7 @@ export async function loadAutonomyWorkflowDefinitions(): Promise<
  * Seed enough normalized queue state to exercise real autonomy handoffs while
  * keeping explorer on cooldown and all package validation scripts local.
  */
-export function seedAutonomousLoopFixture(projectDir: string): void {
+export function seedAutonomousLoopFixture(workspaceRoot: string): void {
   for (const dir of [
     "src/modules/autonomy/workflows/inbox-sorter",
     "src/modules/autonomy/workflows/explorer",
@@ -81,27 +81,27 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
     "data/tasks/dropped",
     ".kota",
   ]) {
-    mkdirSync(join(projectDir, dir), { recursive: true });
+    mkdirSync(join(workspaceRoot, dir), { recursive: true });
   }
 
   writeFileSync(
-    join(projectDir, "src/modules/autonomy/workflows/inbox-sorter/prompt.md"),
+    join(workspaceRoot, "src/modules/autonomy/workflows/inbox-sorter/prompt.md"),
     "Sort inbox.\n",
   );
   writeFileSync(
-    join(projectDir, "src/modules/autonomy/workflows/explorer/prompt.md"),
+    join(workspaceRoot, "src/modules/autonomy/workflows/explorer/prompt.md"),
     "Explore.\n",
   );
   writeFileSync(
-    join(projectDir, "src/modules/autonomy/workflows/builder/prompt.md"),
+    join(workspaceRoot, "src/modules/autonomy/workflows/builder/prompt.md"),
     "Build.\n",
   );
   writeFileSync(
-    join(projectDir, "src/modules/autonomy/workflows/improver/prompt.md"),
+    join(workspaceRoot, "src/modules/autonomy/workflows/improver/prompt.md"),
     "Improve.\n",
   );
   writeFileSync(
-    join(projectDir, "data/inbox/task-capture.md"),
+    join(workspaceRoot, "data/inbox/task-capture.md"),
     "# Capture\n\nInteresting idea.\n",
   );
 
@@ -114,29 +114,29 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
     ["task-delta", "Task Delta"],
   ]) {
     writeFileSync(
-      join(projectDir, `data/tasks/ready/${id}.md`),
+      join(workspaceRoot, `data/tasks/ready/${id}.md`),
       makeTask(id, title, "ready"),
     );
   }
   for (let i = 1; i <= 8; i++) {
     writeFileSync(
-      join(projectDir, `data/tasks/backlog/task-${i}.md`),
+      join(workspaceRoot, `data/tasks/backlog/task-${i}.md`),
       makeTask(`task-${i}`, `Backlog ${i}`, "backlog"),
     );
   }
 
   const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
-  const projectId = deriveDirectoryScopeId(projectDir);
-  runState.registerProject({
-    id: projectId,
-    rootPath: projectDir,
+  const runState = new RunStateDatabase(join(workspaceRoot, ".kota", "state"));
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
+  runState.registerScope({
+    id: scopeId,
+    rootPath: workspaceRoot,
     createdAt: tenMinutesAgo,
   });
   const { epoch } = runState.beginDaemonSession(tenMinutesAgo);
   runState.admitRun({
     id: "run-explorer-seed",
-    projectId,
+    scopeId,
     workflow: "explorer",
     trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
     repository: "none",
@@ -147,7 +147,7 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
   runState.finishRun("run-explorer-seed", epoch, "succeeded", tenMinutesAgo);
   runState.close();
   writeFileSync(
-    join(projectDir, "package.json"),
+    join(workspaceRoot, "package.json"),
     JSON.stringify({
       name: "test-fixture",
       scripts: Object.fromEntries(
@@ -158,7 +158,7 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
     }),
   );
   writeFileSync(
-    join(projectDir, "pnpm-lock.yaml"),
+    join(workspaceRoot, "pnpm-lock.yaml"),
     [
       "lockfileVersion: '9.0'",
       "",
@@ -173,16 +173,16 @@ export function seedAutonomousLoopFixture(projectDir: string): void {
     ].join("\n"),
   );
   writeFileSync(
-    join(projectDir, ".gitignore"),
+    join(workspaceRoot, ".gitignore"),
     ".kota/\n.worktrees/\nnode_modules/\n",
   );
-  execSync("git init -b main && git add .", { cwd: projectDir });
+  execSync("git init -b main && git add .", { cwd: workspaceRoot });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
 }
 
-export function seedIssueDrivenLoopFixture(projectDir: string): void {
+export function seedIssueDrivenLoopFixture(workspaceRoot: string): void {
   for (const dir of [
     "data/tasks/ready",
     "data/tasks/backlog",
@@ -192,10 +192,10 @@ export function seedIssueDrivenLoopFixture(projectDir: string): void {
     "data/tasks/dropped",
     ".kota",
   ]) {
-    mkdirSync(join(projectDir, dir), { recursive: true });
+    mkdirSync(join(workspaceRoot, dir), { recursive: true });
   }
   writeFileSync(
-    join(projectDir, "package.json"),
+    join(workspaceRoot, "package.json"),
     JSON.stringify({
       name: "issue-driven-loop-fixture",
       scripts: {
@@ -204,7 +204,7 @@ export function seedIssueDrivenLoopFixture(projectDir: string): void {
     }),
   );
   writeFileSync(
-    join(projectDir, "pnpm-lock.yaml"),
+    join(workspaceRoot, "pnpm-lock.yaml"),
     [
       "lockfileVersion: '9.0'",
       "",
@@ -218,9 +218,9 @@ export function seedIssueDrivenLoopFixture(projectDir: string): void {
       "",
     ].join("\n"),
   );
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\nnode_modules/\n");
-  execSync("git init -b main && git add .", { cwd: projectDir });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\nnode_modules/\n");
+  execSync("git init -b main && git add .", { cwd: workspaceRoot });
   execSync('git -c user.email="test@test" -c user.name="Test" commit -m "init"', {
-    cwd: projectDir,
+    cwd: workspaceRoot,
   });
 }

@@ -97,26 +97,26 @@ describe("daily-digest workflow definition", () => {
 });
 
 describe("daily-digest build-digest step", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runDir: string;
   let runDirPath: string;
   let emitted: Array<{ event: string; payload: Record<string, unknown> }>;
 
   beforeEach(async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "daily-digest-"));
-    mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+    workspaceRoot = mkdtempSync(join(tmpdir(), "daily-digest-"));
+    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
     runDirPath = mkdtempSync(join(tmpdir(), "daily-digest-run-"));
     runDir = ".kota/runs/test-run";
     emitted = [];
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
     ownerMod.resetOwnerQuestionQueue();
-    // Bind the mocked queue to a project-local directory.
-    ownerMod.getOwnerQuestionQueue(join(projectDir, ".kota", "owner-questions"));
+    // Bind the mocked queue to a scope-local directory.
+    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     rmSync(runDirPath, { recursive: true, force: true });
   });
 
@@ -126,9 +126,10 @@ describe("daily-digest build-digest step", () => {
 
     const state = createTestTransactionalRunState();
     await buildStep.run({
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeId: "test-scope",
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       state,
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
@@ -189,9 +190,10 @@ describe("daily-digest build-digest step", () => {
 
     const state = createTestTransactionalRunState();
     const ctxBase = {
-      projectDir,
-      scopeDir: projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeId: "test-scope",
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       state,
       agentRuntime: resolveAgentRuntime(undefined),
       trigger: { event: "schedule", schemaRef: null, payload: {} },
@@ -229,10 +231,10 @@ describe("daily-digest build-digest step", () => {
     });
 
     // Add a ready task between snapshots so the second run sees a +1 delta.
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
     const fs = await import("node:fs");
     fs.writeFileSync(
-      join(projectDir, "data", "tasks", "ready", "task-newcomer.md"),
+      join(workspaceRoot, "data", "tasks", "ready", "task-newcomer.md"),
       "---\nid: task-newcomer\n---\n",
     );
 

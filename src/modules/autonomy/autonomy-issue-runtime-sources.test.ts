@@ -1,13 +1,13 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import {
   EventedDeadLetterQueueStore,
-  projectScopedDeadLetterChangedPublisher,
+  scopedDeadLetterChangedPublisher,
 } from "#core/daemon/dead-letter-queue-events.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import {
   applyHealthReviewSignals,
@@ -19,24 +19,24 @@ import type { AutonomyHealthSignal } from "./health-signal.js";
 const NOW = "2026-08-13T10:00:00.000Z";
 
 describe("runtime-owned autonomy issue observations", () => {
-  let projectDir: string;
-  let pbus: ProjectScopedEventBus;
+  let scopeRoot: string;
+  let pbus: ScopedEventBus;
   let signals: AutonomyHealthSignal[];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-issue-runtime-sources-"));
-    ({ pbus, signals } = wireAutonomyIssueSourceFixture(projectDir));
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-issue-runtime-sources-"));
+    ({ pbus, signals } = wireAutonomyIssueSourceFixture(scopeRoot));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("links the retained progress-reviewer incident runs until every canonical item is terminal", () => {
     const store = new EventedDeadLetterQueueStore(
-      join(projectDir, ".kota", "dead-letter-queue"),
+      join(scopeRoot, ".kota", "dead-letter-queue"),
       () => new Date(NOW),
-      projectScopedDeadLetterChangedPublisher(pbus),
+      scopedDeadLetterChangedPublisher(pbus),
     );
     const productionRunIds = [
       "2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul",
@@ -51,7 +51,7 @@ describe("runtime-owned autonomy issue observations", () => {
     const projectNewSignals = (reason: string) => {
       for (const signal of signals.slice(processedSignalCount)) {
         const result = applyHealthReviewSignals({
-          projectDir,
+          workspaceRoot: scopeRoot,
           signals: [signal],
           generatedAt: signal.createdAt,
           reason,
@@ -105,7 +105,7 @@ describe("runtime-owned autonomy issue observations", () => {
     expect(applied.filter((action) => action.kind === "decision-requested")).toEqual([
       expect.objectContaining({ kind: "decision-requested", transition: "opened" }),
     ]);
-    expect(readAutonomyIssueProjection(projectDir).issues[0]).toMatchObject({
+    expect(readAutonomyIssueProjection(scopeRoot).issues[0]).toMatchObject({
       semanticRevision: 1,
       occurrenceCount: 4,
     });
@@ -122,110 +122,54 @@ describe("runtime-owned autonomy issue observations", () => {
     );
     expect(signals.at(-1)?.summary).toContain("commit 532ab1ae");
     expect(applied.at(-1)).toMatchObject({ kind: "resolved", transition: "cleared" });
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
+    const issue = readAutonomyIssueProjection(scopeRoot).issues[0]!;
     expect(issue.status).toBe("resolved");
     expect(issue.occurrenceCount).toBe(4);
     expect(issue.links.deadLetterIds).toEqual(items.map((item) => item.id).sort());
   });
 
-  it("publishes trajectory diagnostics when their owning step completes", () => {
-    const artifactPath = join(
-      projectDir,
-      ".kota",
-      "runs",
-      "builder-run",
-      "steps",
-      "build.trajectory-diagnostics.json",
-    );
-    mkdirSync(join(artifactPath, ".."), { recursive: true });
-    writeFileSync(
-      artifactPath,
-      JSON.stringify({
-        version: 1,
-        status: "supported",
-        emitsAgentMessageStream: true,
-        counts: {
-          warningCount: 1,
-          unsupportedTrajectoryCount: 0,
-          missingStreamingFramesCount: 0,
-          missingFinalVerificationAfterEditCount: 1,
-          repeatedIdenticalFailingCommandCount: 0,
-          editAfterSuccessfulVerificationCount: 0,
-          longPreambleWithoutTaskTouchCount: 0,
-        },
-        diagnostics: [{
-          code: "missing_final_verification_after_edit",
-          severity: "warning",
-          summary: "A file edit was not followed by verification.",
-          frameIndexes: [8],
-          details: ["lastEditFrame=8"],
-        }],
-      }),
-      "utf-8",
-    );
-
-    pbus.emit("workflow.step.completed", {
-      workflow: "builder",
-      runId: "builder-run",
-      stepId: "build",
-      stepType: "agent",
-      status: "success",
-      durationMs: 1000,
-      runDir: ".kota/runs/builder-run",
-      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
-      trajectoryDiagnostics: {
-        artifactPath,
-        warningCount: 1,
-        unsupportedTrajectoryCount: 0,
-        missingStreamingFramesCount: 0,
-        missingFinalVerificationAfterEditCount: 1,
-        repeatedIdenticalFailingCommandCount: 0,
-        editAfterSuccessfulVerificationCount: 0,
-        longPreambleWithoutTaskTouchCount: 0,
-      },
-    });
+  it("publishes real eval regressions as grouped outcome observations", () => {
+    const regression = {
+      baseline: { fixtureCount: 8, repeatCount: 3, passAtK: 0.9, passHatK: 0.8 },
+      candidate: { fixtureCount: 8, repeatCount: 3, passAtK: 0.7, passHatK: 0.6 },
+      hostClass: "local-darwin-arm64",
+      noiseBandPercentagePoints: 2,
+      dropPercentagePoints: 20,
+      runArtifactBaseDir: ".kota/evals/regression-1",
+      reason: "Candidate outcome quality dropped by 20 percentage points.",
+    } as const;
+    pbus.emit("eval-harness.regression.detected", regression);
 
     expect(signals).toEqual([
       expect.objectContaining({
-        dedupeKey:
-          "workflow:builder:trajectory:build:missing_final_verification_after_edit",
-        summary: "A file edit was not followed by verification.",
+        dedupeKey: "eval-harness:regression:local-darwin-arm64",
+        source: expect.objectContaining({
+          kind: "workflow",
+          id: "eval-harness-cadence",
+        }),
+        summary: "Candidate outcome quality dropped by 20 percentage points.",
       }),
     ]);
-  });
 
-  it("publishes thin scrutiny from the review step that owns the record", () => {
-    const runDir = join(projectDir, ".kota", "runs", "review-run");
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "review-scrutiny.json"),
-      JSON.stringify({
-        runId: "review-run",
-        workflow: "builder",
-        surface: "critic",
-        taskId: "task-reviewed",
-        thinAcceptance: true,
-        generatedAt: NOW,
-      }),
-      "utf-8",
-    );
-
-    pbus.emit("workflow.step.completed", {
-      workflow: "builder",
-      runId: "review-run",
-      stepId: "critic",
-      stepType: "code",
-      status: "success",
-      durationMs: 100,
-      runDir,
-      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    pbus.emit("eval-harness.regression.detected", {
+      ...regression,
+      runArtifactBaseDir: ".kota/evals/regression-2",
     });
-
-    expect(signals).toEqual([
+    const review = applyHealthReviewSignals({
+      workspaceRoot: scopeRoot,
+      signals,
+      generatedAt: NOW,
+      reason: "repeated-eval-regression",
+    });
+    expect(review.applied).toEqual([
       expect.objectContaining({
-        dedupeKey: "review-scrutiny:critic:builder:task-reviewed",
-        source: expect.objectContaining({ kind: "review", id: "critic" }),
+        kind: "decision-requested",
+        transition: "opened",
       }),
     ]);
+    expect(readAutonomyIssueProjection(scopeRoot).issues[0]).toMatchObject({
+      occurrenceCount: 2,
+      status: "needs-decision",
+    });
   });
 });

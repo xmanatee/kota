@@ -4,7 +4,7 @@ import { Readable } from "node:stream";
 import { expect } from "vitest";
 import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
@@ -66,11 +66,11 @@ export function mockRequest(body: Record<string, unknown> = {}): IncomingMessage
   return req;
 }
 
-export function makePromptQueues(projectDir: string, pbus: ProjectScopedEventBus) {
+export function makePromptQueues(scopeRoot: string, pbus: ScopedEventBus) {
   return {
-    approvalQueue: new ApprovalQueue(join(projectDir, ".kota", "approvals"), pbus),
+    approvalQueue: new ApprovalQueue(join(scopeRoot, ".kota", "approvals"), pbus),
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(scopeRoot, ".kota", "owner-questions"),
       pbus,
     ),
   };
@@ -180,8 +180,8 @@ export function allWorkflows(delivered: DeliveredWorkflow[], text: string) {
 }
 
 export async function dispatchInboundDelivery(args: {
-  projectDir: string;
-  pbus: ProjectScopedEventBus;
+  scopeRoot: string;
+  pbus: ScopedEventBus;
   scopeId: string;
   text: string;
   routedPayloads: unknown[];
@@ -205,7 +205,6 @@ export async function dispatchInboundDelivery(args: {
     },
     signal: {
       scopeId: args.scopeId,
-      projectId: args.scopeId,
       provider: "slack",
       channel: "slack.message",
       accountId: "workspace-1",

@@ -132,7 +132,7 @@ export function OwnerQuestionListScreen() {
     }
   }
 
-  const pending = state.ownerQuestions.filter((q) => q.status === 'pending');
+  const pending = state.activity.ownerQuestions.filter((q) => q.status === 'pending');
 
   return (
     <FlatList

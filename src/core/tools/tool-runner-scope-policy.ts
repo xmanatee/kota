@@ -1,10 +1,10 @@
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { decideScopePolicyToolCall } from "#core/daemon/scope-policy-tool-query.js";
-import { findModuleManifestToolEffect } from "#core/modules/module-manifest.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { getToolEffect } from "./index.js";
 import type { ClientApprovalResult } from "./tool-approval.js";
 import { extractApprovalContext } from "./tool-approval.js";
+import { getModuleToolEffectMetadata } from "./tool-effect-registry.js";
 import { isAgentOutputOnlyWrite } from "./tool-runner-agent-write-scope.js";
 import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import type {
@@ -26,15 +26,15 @@ export async function enforceToolScopePolicy(args: {
 }): Promise<ToolResultEntry | null> {
   const { block, options, policy } = args;
 
-  const manifestEffect = findModuleManifestToolEffect(block.name);
-  if (manifestEffect) {
+  const moduleName = getModuleToolEffectMetadata(block.name)?.moduleName;
+  if (moduleName) {
     const availability = policy.modules.overrides.find(
-      (entry) => entry.moduleName === manifestEffect.moduleName,
+      (entry) => entry.moduleName === moduleName,
     )?.availability ?? policy.modules.defaultAvailability;
     if (availability !== "enabled") {
       return errorEntry(
         block,
-        `Blocked by scope policy: module ${manifestEffect.moduleName} is ${availability} ` +
+        `Blocked by scope policy: module ${moduleName} is ${availability} ` +
           `(source ${policy.modules.source.scopeId}).`,
       );
     }

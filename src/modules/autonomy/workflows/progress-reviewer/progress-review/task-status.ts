@@ -7,13 +7,13 @@ import {
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
-function taskPathForId(projectDir: string, state: RepoTaskState, id: string): string {
-  return join(getRepoTaskStateDir(projectDir, state), `${id}.md`);
+function taskPathForId(workspaceRoot: string, state: RepoTaskState, id: string): string {
+  return join(getRepoTaskStateDir(workspaceRoot, state), `${id}.md`);
 }
 
-export function readTaskStatus(projectDir: string, id: string): string | null {
+export function readTaskStatus(workspaceRoot: string, id: string): string | null {
   for (const state of REPO_TASK_STATES) {
-    const file = taskPathForId(projectDir, state, id);
+    const file = taskPathForId(workspaceRoot, state, id);
     if (!existsSync(file)) continue;
     const { attrs } = parseFlatFrontMatter(readFileSync(file, "utf-8"));
     const status = attrs.status;

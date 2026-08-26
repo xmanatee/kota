@@ -63,7 +63,7 @@ describe("runtime module event lifecycle", () => {
     });
     expect(context).toBeDefined();
     const failure = {
-      projectId: "scope-a",
+      scopeId: "scope-a",
       workflow: "builder",
       runId: "missing-bus",
       status: "failed" as const,
@@ -159,7 +159,7 @@ describe("runtime module event lifecycle", () => {
   it("rolls back earlier modules when aggregate runtime initialization fails", async () => {
     const bus = new EventBus();
     const loader = runtimeLoader(bus);
-    const onUnload = vi.fn();
+    const dispose = vi.fn();
     await loader.load({
       name: "existing-subscriber",
       onLoad: (ctx) => {
@@ -172,8 +172,8 @@ describe("runtime module event lifecycle", () => {
         name: "aggregate-subscriber",
         onLoad: (ctx) => {
           ctx.events.subscribeExternal("owned.aggregate", () => {});
+          return { dispose };
         },
-        onUnload,
       },
       {
         name: "aggregate-failure",
@@ -190,6 +190,6 @@ describe("runtime module event lifecycle", () => {
       "existing-subscriber",
       "aggregate-subscriber",
     ]);
-    expect(onUnload).not.toHaveBeenCalled();
+    expect(dispose).not.toHaveBeenCalled();
   });
 });

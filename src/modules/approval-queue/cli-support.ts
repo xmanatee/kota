@@ -70,7 +70,7 @@ export function exitApprovalMutationFailure(
 	if (reason === "invalid_id") exitInvalidApprovalId(id);
 	if (reason === "scope_mismatch") {
 		printApprovalError(
-			`Error: approval "${id}" belongs to a different project scope and cannot be resolved here.`,
+			`Error: approval "${id}" belongs to a different scope and cannot be resolved here.`,
 		);
 		process.exit(1);
 	}

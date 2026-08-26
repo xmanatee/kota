@@ -52,7 +52,6 @@ export default defineConfig({
     hookTimeout: 60000,
     setupFiles: [
       "./test/scope-authority-token.ts",
-      "./test/loopback-fetch.ts",
     ],
     // Source-CLI tests each launch several TSX subprocesses. Run them after
     // the process-heavy main suite so worker saturation cannot consume their

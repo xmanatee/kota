@@ -36,23 +36,23 @@ export const RESTRICTED_AGENT: AgentDef = {
   writeScope: [".kota/runs/"],
 };
 
-export function makeProjectDir(): string {
-  const projectDir = join(
+export function makeScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-agent-capability-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n.worktrees/\n");
-  writeFileSync(join(projectDir, "prompt.md"), "Run.\n");
-  return projectDir;
+  mkdirSync(workspaceRoot, { recursive: true });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n.worktrees/\n");
+  writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n");
+  return workspaceRoot;
 }
 
-export function removeProjectDir(projectDir: string): void {
-  rmSync(projectDir, { recursive: true, force: true });
+export function removeScopeRoot(workspaceRoot: string): void {
+  rmSync(workspaceRoot, { recursive: true, force: true });
 }
 
 export function makeAgentStep(
-  projectDir: string,
+  workspaceRoot: string,
   harness: string,
   overrides: Partial<WorkflowAgentStep> = {},
 ): WorkflowAgentStep {
@@ -61,7 +61,7 @@ export function makeAgentStep(
     type: "agent",
     harness,
     promptPath: "prompt.md",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     model: "test-model",
     effort: "low",
     autonomyMode: "autonomous",
@@ -70,7 +70,7 @@ export function makeAgentStep(
 }
 
 export function makeDefinition(
-  projectDir: string,
+  workspaceRoot: string,
   step: WorkflowAgentStep,
 ): WorkflowDefinition {
   return {
@@ -78,7 +78,7 @@ export function makeDefinition(
     enabled: true,
     repository: "read",
     definitionPath: "src/modules/test/workflows/capability/workflow.ts",
-    moduleRoot: projectDir,
+    moduleRoot: workspaceRoot,
     triggers: [],
     steps: [step],
     tags: [],
@@ -130,13 +130,13 @@ export function makeHarness(
 }
 
 export function readCapabilityArtifact(
-  projectDir: string,
+  workspaceRoot: string,
   runDir: string,
   stepId: string,
 ): Record<string, unknown> {
   return JSON.parse(
     readFileSync(
-      join(projectDir, runDir, "steps", `${stepId}.harness-capability.json`),
+      join(workspaceRoot, runDir, "steps", `${stepId}.harness-capability.json`),
       "utf-8",
     ),
   ) as Record<string, unknown>;

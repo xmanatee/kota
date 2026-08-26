@@ -5,13 +5,13 @@
  * - `kota secrets set/get/list/remove` CLI commands
  * - `get_secret` agent tool (injects into env, returns placeholder to LLM)
  *
- * Every operation resolves one project-owned store from its validated scope.
+ * Every operation resolves one scope-owned store from its validated scope.
  */
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import { Command } from "commander";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import { getProjectSecretStore } from "#core/config/secrets.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { credentialInjectionEffect } from "#core/tools/effect.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
@@ -24,18 +24,18 @@ import {
   secretMutationFailure,
 } from "./client.js";
 import { buildSecretsDaemonHandler } from "./daemon-client.js";
-import {
-  createSecretProjectStores,
-  requireSecretStore,
-  type SecretProjectStores,
-} from "./project-scope.js";
 import { secretsRoutes } from "./routes.js";
+import {
+  createSecretScopeStores,
+  requireSecretStore,
+  type SecretScopeStores,
+} from "./scope.js";
 
 const getSecretTool: KotaTool = {
   name: "get_secret",
   description:
     "Retrieve a secret (API key, token, credential) and inject it into this session's execution environment. " +
-    "The actual value is available only to shell/code_exec tools in the same project and session. " +
+    "The actual value is available only to shell/code_exec tools in the same scopeSelector and session. " +
     "You receive a masked placeholder — never the real value. " +
     "Use this before running commands that need credentials.",
   input_schema: {
@@ -52,7 +52,7 @@ const getSecretTool: KotaTool = {
 
 function makeGetSecretRunner(
   ctx: ModuleContext,
-  projectStores: SecretProjectStores,
+  scopeStores: SecretScopeStores,
 ) {
   return async (
     input: Record<string, unknown>,
@@ -63,12 +63,9 @@ function makeGetSecretRunner(
       return { content: "Error: secret name is required", is_error: true };
     }
 
-    const store = requireSecretStore(projectStores, {
+    const store = requireSecretStore(scopeStores, {
       ...(runnerContext?.scopeId !== undefined
         ? { scopeId: runnerContext.scopeId }
-        : {}),
-      ...(runnerContext?.projectId !== undefined
-        ? { projectId: runnerContext.projectId }
         : {}),
     });
     const value = store.get(name);
@@ -226,9 +223,9 @@ export function promptSecretValue(
   return promptSecretValueFromLine(name, input, output);
 }
 
-function parseScope(opts: { global?: boolean; project?: boolean }): SecretScope {
+function parseScope(opts: { global?: boolean; scope?: boolean }): SecretScope {
   if (opts.global) return "global";
-  return "project";
+  return "scope";
 }
 
 function printSecretError(message: string): void {
@@ -242,18 +239,18 @@ const secretsModule: KotaModule = {
   dependencies: ["rendering"],
 
   tools: (ctx) => {
-    const projectStores = createSecretProjectStores(ctx.cwd);
+    const scopeStores = createSecretScopeStores(ctx.cwd);
     return [
       {
         tool: getSecretTool,
-        runner: makeGetSecretRunner(ctx, projectStores),
+        runner: makeGetSecretRunner(ctx, scopeStores),
         effect: credentialInjectionEffect(),
         group: "management",
       },
     ];
   },
 
-  routes: (ctx) => secretsRoutes(createSecretProjectStores(ctx.cwd)),
+  routes: (ctx) => secretsRoutes(createSecretScopeStores(ctx.cwd)),
 
   commands: (ctx) => {
     const cmd = new Command("secrets").description("Manage secrets and credentials");
@@ -261,8 +258,8 @@ const secretsModule: KotaModule = {
     cmd
       .command("set <name>")
       .description("Store a secret (prompts for value — never pass secrets as arguments)")
-      .option("-g, --global", "Store in global ~/.kota/ scope (default: project)")
-      .option("-p, --project", "Store in project .kota/ scope")
+      .option("-g, --global", "Store in global ~/.kota/ scope (default: current scope)")
+      .option("-s, --scope", "Store in the current scope's .kota/ directory")
       .action(async (name: string, opts) => {
         const scope = parseScope(opts);
         let value: string;
@@ -328,7 +325,7 @@ const secretsModule: KotaModule = {
       .command("remove <name>")
       .description("Remove a secret")
       .option("-g, --global", "Remove from global scope")
-      .option("-p, --project", "Remove from project scope")
+      .option("-s, --scope", "Remove from the current scope")
       .action(async (name: string, opts) => {
         const scope = parseScope(opts);
         const result = await ctx.client.secrets.remove(name, scope);
@@ -350,18 +347,18 @@ const secretsModule: KotaModule = {
   skills: [{ name: "secrets", promptPath: "src/modules/secrets/secrets.md" }],
 
   localClient: (ctx) => {
-    const projectStores = createSecretProjectStores(ctx.cwd);
+    const scopeStores = createSecretScopeStores(ctx.cwd);
     const handler: SecretsClient = {
-      async list(project) {
-        return { secrets: requireSecretStore(projectStores, project).list() };
+      async list(scopeSelector) {
+        return { secrets: requireSecretStore(scopeStores, scopeSelector).list() };
       },
-      async get(name, project) {
-        const value = requireSecretStore(projectStores, project).get(name);
+      async get(name, scopeSelector) {
+        const value = requireSecretStore(scopeStores, scopeSelector).get(name);
         return value === null ? { found: false } : { found: true, value };
       },
-      async set(name, value, scope, project) {
+      async set(name, value, scope, scopeSelector) {
         try {
-          requireSecretStore(projectStores, project).set(name, value, scope);
+          requireSecretStore(scopeStores, scopeSelector).set(name, value, scope);
           return { ok: true };
         } catch (error) {
           return secretMutationFailure(
@@ -369,9 +366,9 @@ const secretsModule: KotaModule = {
           );
         }
       },
-      async remove(name, scope, project) {
+      async remove(name, scope, scopeSelector) {
         try {
-          if (!requireSecretStore(projectStores, project).remove(name, scope)) {
+          if (!requireSecretStore(scopeStores, scopeSelector).remove(name, scope)) {
             return { ok: false, reason: "not_found" };
           }
           return { ok: true };
@@ -388,7 +385,7 @@ const secretsModule: KotaModule = {
   daemonClient: (link) => ({ secrets: buildSecretsDaemonHandler(link) }),
 
   onLoad: (ctx) => {
-    getProjectSecretStore(ctx.cwd);
+    getScopeSecretStore(ctx.cwd);
   },
 };
 

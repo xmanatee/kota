@@ -16,8 +16,8 @@ import PackageDescription
 //                     `iOSPlatform` / iOS notification surface.
 //
 // Tests split the same way: `KotaSharedTests` exercises the shared
-// view-model + decoder logic against the canonical contract fixture
-// and a recording notification stub; `KotaMenuBarTests` keeps the
+// view-model and shared renderer behavior with focused fixtures and a
+// recording notification stub; `KotaMenuBarTests` keeps the
 // macOS-specific rendered-IA snapshot.
 let package = Package(
     name: "KotaApple",
@@ -48,7 +48,7 @@ let package = Package(
             dependencies: ["KotaShared"],
             path: "Tests/KotaSharedTests",
             resources: [
-                .copy("contract-fixture.json"),
+                .copy("ui-behavior-vectors.generated.json"),
             ]
         ),
         .testTarget(

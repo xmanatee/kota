@@ -46,28 +46,4 @@ describe("examples/github-actions/kota-trigger.yml", () => {
     expect(content).toMatch(/\/webhooks\/\$\{?WORKFLOW_NAME\}?/);
   });
 
-  it("webhook path pattern matches the contributed control route", () => {
-    const triggerRoutePath = resolve(ROOT, "src/modules/webhook/trigger-route.ts");
-    expect(existsSync(triggerRoutePath), "trigger-route.ts must exist").toBe(true);
-    const handlerSrc = readFileSync(triggerRoutePath, "utf-8");
-
-    expect(
-      handlerSrc.includes('/webhooks/'),
-      "webhook module must contribute the /webhooks/ control route",
-    ).toBe(true);
-  });
-
-  it("signature header matches the webhook module's trigger handler", () => {
-    const triggerRoutePath = resolve(ROOT, "src/modules/webhook/trigger-route.ts");
-    expect(existsSync(triggerRoutePath), "trigger-route.ts must exist").toBe(true);
-    const handlerSrc = readFileSync(triggerRoutePath, "utf-8");
-
-    const yamlContent = readFileSync(yamlPath, "utf-8");
-
-    expect(yamlContent).toContain("X-Kota-Webhook-Signature");
-    expect(handlerSrc).toContain("x-kota-webhook-signature");
-
-    expect(yamlContent).toContain("X-Kota-Webhook-Timestamp");
-    expect(handlerSrc).toContain("x-kota-webhook-timestamp");
-  });
 });

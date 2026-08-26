@@ -1,4 +1,9 @@
 import type { AgentEvent, Transport } from "#core/loop/transport.js";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 
 export const TELEGRAM_API = "https://api.telegram.org";
 export const MAX_MESSAGE_LENGTH = 4096;
@@ -199,17 +204,20 @@ export async function callTelegramApi<T>(
   token: string,
   method: string,
   body?: TelegramApiBody,
-  options?: { signal?: AbortSignal },
+  options?: { signal?: AbortSignal; http?: OutboundHttpRequestPort },
 ): Promise<T> {
   const url = `${TELEGRAM_API}/bot${token}/${method}`;
   let res: Response;
   try {
-    res = await fetch(url, {
+    ({ response: res } = await (options?.http ?? outboundHttp).request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([TELEGRAM_API]),
+      operation: `telegram.${method}`,
+      url,
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
       signal: options?.signal,
-    });
+    }));
   } catch (err) {
     throw new TelegramApiTransportError(
       method,
@@ -248,17 +256,22 @@ export async function callTelegramApi<T>(
 export async function downloadTelegramFile(
   token: string,
   fileId: string,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<{ bytes: Uint8Array; mimeType?: string; filePath: string }> {
   const file = await callTelegramApi<TelegramFile>(token, "getFile", {
     file_id: fileId,
-  });
+  }, { http });
   if (!file.file_path) {
     throw new Error(`Telegram getFile returned no file_path for ${fileId}`);
   }
   const url = `${TELEGRAM_API}/file/bot${token}/${file.file_path}`;
   let res: Response;
   try {
-    res = await fetch(url);
+    ({ response: res } = await http.request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([TELEGRAM_API]),
+      operation: "telegram.download-file",
+      url,
+    }));
   } catch (err) {
     throw new Error(`Telegram file download network error: ${(err as Error).message}`);
   }
@@ -307,6 +320,7 @@ export class TelegramTransport implements Transport {
   constructor(
     private chatId: number,
     private token: string,
+    private http: OutboundHttpRequestPort = outboundHttp,
   ) {}
 
   emit(event: AgentEvent): void {
@@ -339,7 +353,7 @@ export class TelegramTransport implements Transport {
         await callTelegramApi(this.token, "sendMessage", {
           chat_id: this.chatId,
           text: chunk,
-        });
+        }, { http: this.http });
       } catch (err) {
         lastError = err as Error;
       }
@@ -355,6 +369,6 @@ export class TelegramTransport implements Transport {
     callTelegramApi(this.token, "sendChatAction", {
       chat_id: this.chatId,
       action: "typing",
-    }).catch(() => {});
+    }, { http: this.http }).catch(() => {});
   }
 }

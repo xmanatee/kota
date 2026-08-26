@@ -18,7 +18,7 @@ export const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export type WorkflowRunPruneOptions = {
-  projectDir: string;
+  scopeRoot: string;
   runsDir: string;
   retentionDays?: number;
   minKeepPerWorkflow?: number;
@@ -78,7 +78,7 @@ export function pruneWorkflowRuns(opts: WorkflowRunPruneOptions): string[] {
   if (!existsSync(opts.runsDir)) return [];
 
   const protectedIds = new Set<string>(opts.protectedRunIds);
-  for (const runId of listTrackedRunIds(opts.projectDir, opts.runsDir)) {
+  for (const runId of listTrackedRunIds(opts.scopeRoot, opts.runsDir)) {
     protectedIds.add(runId);
   }
 
@@ -107,13 +107,13 @@ function toGitPath(path: string): string {
   return path.split("\\").join("/");
 }
 
-function listTrackedRunIds(projectDir: string, runsDir: string): Set<string> {
-  const runsPath = toGitPath(relative(projectDir, runsDir));
+function listTrackedRunIds(scopeRoot: string, runsDir: string): Set<string> {
+  const runsPath = toGitPath(relative(scopeRoot, runsDir));
   if (!runsPath || runsPath.startsWith("..")) return new Set();
 
   try {
     const output = execFileSync("git", ["ls-files", "--", runsPath], {
-      cwd: projectDir,
+      cwd: scopeRoot,
       env: withProtectedGitBareRepositoryEnv(),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { RunCoordinator } from "../run-coordinator.js";
 import { RunStateDatabase } from "../run-state-database.js";
 import { WorkflowRuntime, type WorkflowRuntimeConfig } from "../runtime.js";
@@ -14,19 +14,19 @@ export type TestWorkflowRuntime = Readonly<{
 export function createTestWorkflowRuntime(
   config: Omit<
     WorkflowRuntimeConfig,
-    "projectId" | "runState" | "runCoordinator" | "daemonEpoch"
-  > & { projectDir: string; projectId?: string },
+    "scopeId" | "runState" | "runCoordinator" | "daemonEpoch"
+  > & { scopeRoot: string; scopeId?: string },
   concurrency = 4,
 ): TestWorkflowRuntime {
-  const runState = new RunStateDatabase(join(config.projectDir, ".kota", "state"));
-  const projectId =
-    config.projectId ??
-    config.pbus?.getProjectId() ??
-    deriveDirectoryScopeId(config.projectDir);
+  const runState = new RunStateDatabase(join(config.scopeRoot, ".kota", "state"));
+  const scopeId =
+    config.scopeId ??
+    config.pbus?.getScopeId() ??
+    deriveDirectoryScopeId(config.scopeRoot);
   const startedAt = new Date().toISOString();
-  runState.registerProject({
-    id: projectId,
-    rootPath: config.projectDir,
+  runState.registerScope({
+    id: scopeId,
+    rootPath: config.scopeRoot,
     createdAt: startedAt,
   });
   const daemonEpoch = runState.beginDaemonSession(startedAt).epoch;
@@ -40,8 +40,8 @@ export function createTestWorkflowRuntime(
   });
   runtime = new WorkflowRuntime({
     ...config,
-    pbus: config.pbus ?? new ProjectScopedEventBus(config.bus, projectId),
-    projectId,
+    pbus: config.pbus ?? new ScopedEventBus(config.bus, scopeId),
+    scopeId,
     runState,
     runCoordinator,
     daemonEpoch,

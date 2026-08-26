@@ -1,4 +1,4 @@
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 
 export type ScopeImprovementRequest = {
   automatic?: boolean;
@@ -12,7 +12,7 @@ export type ScopeImprovementRequest = {
 };
 
 export const scopeImprovementRequested =
-  defineProjectScopedModuleEvent<ScopeImprovementRequest>(
+  defineScopedModuleEvent<ScopeImprovementRequest>(
     "autonomy.scope-improvement.requested",
     [
       "automatic",
@@ -56,7 +56,7 @@ export const scopeImprovementRequested =
 
 /** Material post-onboarding changes coalesce independently of explicit runs. */
 export const scopeImprovementChanged =
-  defineProjectScopedModuleEvent<ScopeImprovementRequest>(
+  defineScopedModuleEvent<ScopeImprovementRequest>(
     "autonomy.scope-improvement.changed",
     [
       "automatic",

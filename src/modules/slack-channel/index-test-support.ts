@@ -6,13 +6,13 @@ import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import type { SlackChannelConfig } from "./config.js";
 
 export const STUB_CHANNEL_START_CTX = {
-  getDefaultProjectRuntime: () =>
+  getDefaultScopeRuntime: () =>
     ({
-      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+      scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
     }) as never,
-  getProjectRuntime: () =>
+  getScopeRuntime: () =>
     ({
-      project: { projectId: "test-project", projectDir: "/tmp", displayName: "test" },
+      scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
     }) as never,
   log: () => {},
   reportFailure: () => {},
@@ -28,8 +28,30 @@ export function makeSlackChannelModuleTestContext(
   moduleConfig?: Partial<SlackChannelConfig>,
   kotaConfig?: ModuleRuntimeContext["config"],
 ): ModuleRuntimeContext {
-  const eventBus = bus ?? new EventBus();
-  return {
+	const eventBus = bus ?? new EventBus();
+	const approvals = {
+		list: vi.fn(async () => ({
+			approvals: [{
+				id: "abc123",
+				scopeId: "test-scope",
+				tool: "shell",
+				input: { redacted: true, reason: "tool-io" },
+				review: {
+					status: "available",
+					input: { command: "deploy --target /srv/app" },
+					context: "user: deploy the client release",
+					digest: "a".repeat(64),
+				},
+				risk: "dangerous",
+				reason: "Runs commands",
+				createdAt: "2026-07-28T22:00:00.000Z",
+				status: "pending",
+			}],
+		})),
+		approve: vi.fn(),
+		reject: vi.fn(),
+	};
+	return {
     cwd: "/tmp",
     verbose: false,
     config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"]),
@@ -64,7 +86,7 @@ export function makeSlackChannelModuleTestContext(
     resolveSkillsPrompt: () => "",
     probeHealthChecks: async () => ({}),
     getRegisteredConfigKeys: () => new Set<string>(),
-    client: {
+		client: {
       recall: {},
       answer: {},
       capture: {},
@@ -72,28 +94,8 @@ export function makeSlackChannelModuleTestContext(
       knowledge: {},
       history: {},
       tasks: {},
-      approvals: {
-        list: vi.fn(async () => ({
-          approvals: [{
-            id: "abc123",
-            scopeId: "test-project",
-            tool: "shell",
-            input: { redacted: true, reason: "tool-io" },
-            review: {
-              status: "available",
-              input: { command: "deploy --target /srv/app" },
-              context: "user: deploy the client release",
-              digest: "a".repeat(64),
-            },
-            risk: "dangerous",
-            reason: "Runs commands",
-            createdAt: "2026-07-28T22:00:00.000Z",
-            status: "pending",
-          }],
-        })),
-        approve: vi.fn(),
-        reject: vi.fn(),
-      },
-    } as never,
+			approvals,
+			forScope: () => ({ approvals }),
+		} as never,
   };
 }

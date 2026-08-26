@@ -166,7 +166,7 @@ function buildApprovalsUiSurface(
 
 export const approvalUiSurfaceSource: UiSurfaceSource = {
   sourceId: "approvals",
-  project: async (context) => {
+  scope: async (context) => {
     const approvals = await context.read("approvals", () =>
       context.client.approvals.list({ status: "pending" }),
     );

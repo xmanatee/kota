@@ -57,14 +57,13 @@ export async function executeDelegateToolBlocks(args: {
   const context = args.runnerContext;
   const approvalQueue = context?.approvalQueue ?? inherited?.approvalQueue;
   const sessionId = context?.sessionId ?? inherited?.sessionId;
-  const projectDir = context?.projectDir ?? inherited?.projectDir;
+  const scopeRoot = context?.scopeRoot ?? inherited?.scopeRoot;
   const cwd = context?.cwd ?? inherited?.cwd;
   const env = context?.env ?? inherited?.env;
   const authorityConfigPath =
     context?.authorityConfigPath ?? inherited?.authorityConfigPath;
   const workflowContext = context?.workflow ?? inherited?.workflowContext;
   const scopeId = context?.scopeId ?? inherited?.scopeId;
-  const projectId = context?.projectId ?? inherited?.projectId;
   const tokenBudget = context?.tokenBudget ?? inherited?.tokenBudget;
   const signal = context?.signal ?? inherited?.signal;
   const allowedTools = [
@@ -97,13 +96,12 @@ export async function executeDelegateToolBlocks(args: {
       : {}),
     ...(approvalQueue !== undefined ? { approvalQueue } : {}),
     ...(sessionId !== undefined ? { sessionId } : {}),
-    ...(projectDir !== undefined ? { projectDir } : {}),
+    ...(scopeRoot !== undefined ? { scopeRoot } : {}),
     ...(cwd !== undefined ? { cwd } : {}),
     ...(env !== undefined ? { env } : {}),
     ...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
     ...(workflowContext !== undefined ? { workflowContext } : {}),
     ...(scopeId !== undefined ? { scopeId } : {}),
-    ...(projectId !== undefined ? { projectId } : {}),
     ...(inherited?.idempotencyStore !== undefined
       ? { idempotencyStore: inherited.idempotencyStore }
       : {}),

@@ -52,8 +52,8 @@ type StateVerification =
 	| { ok: true; inputRequestIds: string[] }
 	| { ok: false; message: string };
 
-type ProjectDirResolution =
-	| { kind: "ready"; projectDir: string }
+type ScopeRootResolution =
+	| { kind: "ready"; scopeRoot: string }
 	| { kind: "input_required"; result: McpInputRequiredResult }
 	| { kind: "error"; message: string };
 
@@ -368,28 +368,28 @@ export function readRootsInputResponse(
 	return response.roots;
 }
 
-export function rootsToProjectDir(roots: McpRoot[], fallbackProjectDir: string): string {
+export function rootsToScopeRoot(roots: McpRoot[], fallbackScopeRoot: string): string {
 	const firstUri = roots[0]?.uri;
 	if (firstUri?.startsWith("file://")) {
 		try {
 			return new URL(firstUri).pathname;
 		} catch {
-			return fallbackProjectDir;
+			return fallbackScopeRoot;
 		}
 	}
-	return fallbackProjectDir;
+	return fallbackScopeRoot;
 }
 
 export function rootsListInputRequest(): McpInputRequest {
 	return { method: "roots/list" };
 }
 
-export function resolveProjectDirFromRootsInput(args: {
+export function resolveScopeRootFromRootsInput(args: {
 	ctx: HandlerContext;
 	mrtr: McpMrtrStateCodec;
 	msg: JsonRpcRequest;
-	fallbackProjectDir: string;
-}): ProjectDirResolution {
+	fallbackScopeRoot: string;
+}): ScopeRootResolution {
 	const retry = decodeMrtrRetryParams(args.msg.params ?? {});
 	if (retry.kind === "invalid") return { kind: "error", message: retry.message };
 
@@ -415,7 +415,7 @@ export function resolveProjectDirFromRootsInput(args: {
 		if (typeof roots === "string") return { kind: "error", message: roots };
 		return {
 			kind: "ready",
-			projectDir: rootsToProjectDir(roots, args.fallbackProjectDir),
+			scopeRoot: rootsToScopeRoot(roots, args.fallbackScopeRoot),
 		};
 	}
 
@@ -428,7 +428,7 @@ export function resolveProjectDirFromRootsInput(args: {
 		};
 	}
 
-	return { kind: "ready", projectDir: args.fallbackProjectDir };
+	return { kind: "ready", scopeRoot: args.fallbackScopeRoot };
 }
 
 export class McpMrtrStateCodec {

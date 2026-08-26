@@ -39,33 +39,33 @@ export async function updateScopeDisplayName(
       ok: true,
       status: "unchanged",
       scope: registeredDirectoryScope(
-        current.projectId,
-        current.projectDir,
+        current.scopeId,
+        current.scopeRoot,
         current.displayName,
       ),
     };
   }
   const next = { ...current, displayName };
   try {
-    options.runtimes.updateProject(next);
+    options.runtimes.updateScope(next);
   } catch (error) {
     return scopeMutationFailure(scopeId, "runtime_update_failed", error as Error);
   }
   try {
     const updated = options.registry.updateDisplayName(scopeId, displayName);
-    emit("display-name-updated", updated.projectId);
+    emit("display-name-updated", updated.scopeId);
     return {
       ok: true,
       status: "updated",
       scope: registeredDirectoryScope(
-        updated.projectId,
-        updated.projectDir,
+        updated.scopeId,
+        updated.scopeRoot,
         updated.displayName,
       ),
     };
   } catch (error) {
     try {
-      options.runtimes.updateProject(current);
+      options.runtimes.updateScope(current);
     } catch (rollbackError) {
       return scopeRollbackFailure(scopeId, error as Error, rollbackError as Error);
     }
@@ -86,8 +86,8 @@ export async function setDefaultScope(
       ok: true,
       status: "unchanged",
       scope: registeredDirectoryScope(
-        next.projectId,
-        next.projectDir,
+        next.scopeId,
+        next.scopeRoot,
         next.displayName,
       ),
     };
@@ -104,7 +104,7 @@ export async function setDefaultScope(
   try {
     options.registry.setDefault(scopeId);
     registryChanged = true;
-    options.runtimes.setDefaultProjectId(scopeId);
+    options.runtimes.setDefaultScopeId(scopeId);
   } catch (error) {
     const rollbackErrors: Error[] = [];
     if (registryChanged) {
@@ -114,9 +114,9 @@ export async function setDefaultScope(
         rollbackErrors.push(rollbackError as Error);
       }
     }
-    if (options.runtimes.getDefaultProjectId() !== previousId) {
+    if (options.runtimes.getDefaultScopeId() !== previousId) {
       try {
-        options.runtimes.setDefaultProjectId(previousId);
+        options.runtimes.setDefaultScopeId(previousId);
       } catch (rollbackError) {
         rollbackErrors.push(rollbackError as Error);
       }
@@ -135,8 +135,8 @@ export async function setDefaultScope(
     ok: true,
     status: "default_changed",
     scope: registeredDirectoryScope(
-      next.projectId,
-      next.projectDir,
+      next.scopeId,
+      next.scopeRoot,
       next.displayName,
     ),
   };

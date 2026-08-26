@@ -11,4 +11,8 @@ This workflow is the single AI decision path for durable autonomy issues.
   `repository: none` follow-up.
 - Repeated evidence enriches projection provenance without another review or
   attention item.
+- Inspect the linked evidence, current owner, implementation, and related queue
+  work before acting. Prefer one existing owner over parallel repair tasks.
+- Do not treat a static metric, trajectory heuristic, or review-shape score as
+  sufficient evidence of a repair need.
 - Do not replay AI review without a new decision-request transition.

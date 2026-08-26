@@ -8,11 +8,11 @@ describe("file path risk classification", () => {
     });
 
     expect(result.risk).toBe("dangerous");
-    expect(result.reason).toContain("outside project directory");
+    expect(result.reason).toContain("outside scope directory");
     expect(result.reason).not.toContain("/etc/passwd");
   });
 
-  it("classifies an outside-project find_replace glob as dangerous", () => {
+  it("classifies an outside-scope find_replace glob as dangerous", () => {
     const result = classifyRisk("find_replace", {
       pattern: "old",
       replacement: "new",
@@ -20,7 +20,7 @@ describe("file path risk classification", () => {
     });
 
     expect(result.risk).toBe("dangerous");
-    expect(result.reason).toContain("outside project directory");
+    expect(result.reason).toContain("outside scope directory");
     expect(result.reason).not.toContain("/etc");
   });
 });

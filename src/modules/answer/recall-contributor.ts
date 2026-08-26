@@ -5,7 +5,7 @@
  * store layout: the answer module is the only place that imports
  * `AnswerHistoryStore` and the only writer of `RecallAnswerHit` payloads.
  * The contributor is registered against the live `RecallProvider` from the
- * answer module's `onLoad` and is unregistered cleanly from `onUnload`.
+ * answer module's `onLoad` and is unregistered by its activation disposer.
  *
  * The contributor mirrors the recall module's keyword-fallback adapters:
  * native scores come from `searchAnswers`'s `[0, 1]` overlap signal so the
@@ -20,21 +20,21 @@ import {
   type AnswerHistoryStore,
   answerSearchPreview,
 } from "./answer-history-store.js";
-import type { ResolveAnswerProjectContext } from "./project-context.js";
+import type { ResolveAnswerScopeContext } from "./scope-context.js";
 
 export function createAnswerRecallContributor(
   store: AnswerHistoryStore,
-  resolveProjectContext?: ResolveAnswerProjectContext,
+  resolveScopeContext?: ResolveAnswerScopeContext,
 ): RecallContributor {
   return {
     source: "answer",
-    async recall(query, { topK, project }) {
+    async recall(query, { topK, scope }) {
       const scoped =
-        project && resolveProjectContext
-          ? resolveProjectContext(project.projectId)
+        scope && resolveScopeContext
+          ? resolveScopeContext(scope.scopeId)
           : null;
       if (scoped && "error" in scoped) {
-        throw new Error(`Unknown project: ${scoped.projectId}`);
+        throw new Error(`Unknown scope: ${scoped.scopeId}`);
       }
       const history = scoped?.history ?? store;
       const hits = await history.searchAnswers(query, { topK });

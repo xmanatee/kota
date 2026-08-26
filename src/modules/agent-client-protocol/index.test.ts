@@ -8,8 +8,8 @@ import type {
 import {
   type AcpDaemonClient,
   type AcpDaemonSession,
-  type AcpProject,
-  type AcpProjectList,
+  type AcpScope,
+  type AcpScopeList,
   HttpAcpDaemonClient,
   type PromptSessionArgs,
   type PromptSessionResult,
@@ -18,8 +18,8 @@ import { agentMessageUpdate } from "./protocol.js";
 import { AgentClientProtocolServer } from "./server.js";
 import { runAgentClientProtocolStdio } from "./stdio.js";
 
-const PROJECT_DIR = "/Users/example/project";
-const SECOND_PROJECT_DIR = "/Users/example/other-project";
+const SCOPE_ROOT = "/Users/example/scope";
+const SECOND_SCOPE_ROOT = "/Users/example/other-scope";
 const ACP_STDIO_MCP_SERVER = {
   name: "fs",
   command: "/usr/bin/env",
@@ -49,21 +49,21 @@ class CaptureStream {
 }
 
 class FakeDaemon implements AcpDaemonClient {
-  projectList: AcpProjectList = {
-    projects: [
+  scopeList: AcpScopeList = {
+    scopes: [
       {
-        projectId: "proj-1",
-        projectDir: PROJECT_DIR,
-        displayName: "project",
+        scopeId: "proj-1",
+        scopeRoot: SCOPE_ROOT,
+        displayName: "scope",
       },
     ],
-    defaultProjectId: "proj-1",
-    activeProjectId: null,
+    defaultScopeId: "proj-1",
+    activeScopeId: null,
   };
-  listProjectsCalls = 0;
-  createSessionCalls: AcpProject[] = [];
-  listSessionsCalls: AcpProject[] = [];
-  resumeSessionCalls: Array<{ project: AcpProject; sessionId: string }> = [];
+  listScopesCalls = 0;
+  createSessionCalls: AcpScope[] = [];
+  listSessionsCalls: AcpScope[] = [];
+  resumeSessionCalls: Array<{ scope: AcpScope; sessionId: string }> = [];
   promptCalls: PromptSessionArgs[] = [];
   permissionDecisions: string[] = [];
   cancelCalls: string[] = [];
@@ -79,23 +79,23 @@ class FakeDaemon implements AcpDaemonClient {
     this.resetPromptStarted();
   }
 
-  async listProjects() {
-    this.listProjectsCalls++;
-    return this.projectList;
+  async listScopes() {
+    this.listScopesCalls++;
+    return this.scopeList;
   }
 
-  async createSession(project: AcpProject) {
-    this.createSessionCalls.push(project);
+  async createSession(scope: AcpScope) {
+    this.createSessionCalls.push(scope);
     return { sessionId: this.nextSessionId };
   }
 
-  async listSessions(project: AcpProject) {
-    this.listSessionsCalls.push(project);
-    return this.knownSessions.filter((session) => session.metadata.projectId === project.projectId);
+  async listSessions(scope: AcpScope) {
+    this.listSessionsCalls.push(scope);
+    return this.knownSessions.filter((session) => session.metadata.scopeId === scope.scopeId);
   }
 
-  async resumeSession(project: AcpProject, sessionId: string) {
-    this.resumeSessionCalls.push({ project, sessionId });
+  async resumeSession(scope: AcpScope, sessionId: string) {
+    this.resumeSessionCalls.push({ scope, sessionId });
     const session = this.knownSessions.find((entry) => entry.sessionId === sessionId);
     if (!session) throw new Error(`unknown session ${sessionId}`);
     session.live = true;
@@ -188,7 +188,7 @@ class FakeTransport implements DaemonTransport {
 
   async fetchRaw(path: string, init?: RequestInit): Promise<Response> {
     this.calls.push({ path, init });
-    if (path === "/sessions?projectId=proj-1" && init?.method === "GET") {
+    if (path === "/sessions?scopeId=proj-1" && init?.method === "GET") {
       return new Response(JSON.stringify({
         sessions: [
           {
@@ -197,7 +197,7 @@ class FakeTransport implements DaemonTransport {
             lastActive: Date.parse("2026-05-27T05:05:00.000Z"),
             source: "daemon",
             busy: false,
-            projectId: "proj-1",
+            scopeId: "proj-1",
             conversationId: "conv-live",
           },
           {
@@ -212,19 +212,19 @@ class FakeTransport implements DaemonTransport {
         headers: { "Content-Type": "application/json" },
       });
     }
-    if (path === "/sessions/bindings?projectId=proj-1") {
+    if (path === "/sessions/bindings?scopeId=proj-1") {
       return new Response(JSON.stringify({
         bindings: [
           {
             sessionId: "s1",
-            projectId: "proj-1",
+            scopeId: "proj-1",
             conversationId: "conv-live",
             createdAt: "2026-05-27T05:00:00.000Z",
             lastActiveAt: "2026-05-27T05:05:00.000Z",
           },
           {
             sessionId: "stored-session",
-            projectId: "proj-1",
+            scopeId: "proj-1",
             conversationId: "conv-stored",
             createdAt: "2026-05-27T04:00:00.000Z",
             lastActiveAt: "2026-05-27T04:05:00.000Z",
@@ -235,7 +235,7 @@ class FakeTransport implements DaemonTransport {
         headers: { "Content-Type": "application/json" },
       });
     }
-    if (path === "/sessions?projectId=proj-1" && init?.method === "POST") {
+    if (path === "/sessions?scopeId=proj-1" && init?.method === "POST") {
       const body = typeof init.body === "string"
         ? JSON.parse(init.body) as { session_id?: string }
         : {};
@@ -399,7 +399,7 @@ describe("agent-client-protocol module", () => {
 
     await server.handleLine(request(0, "initialize", { protocolVersion: 2 }));
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -409,22 +409,22 @@ describe("agent-client-protocol module", () => {
     expect(fake.createSessionCalls).toEqual([]);
   });
 
-  it("creates a daemon-backed ACP session for the selected project root", async () => {
+  it("creates a daemon-backed ACP session for the selected scope root", async () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
     const messages = output.messages();
     expect(messages[1].result).toEqual({ sessionId: "kota-session-1" });
-    expect(fake.listProjectsCalls).toBe(1);
+    expect(fake.listScopesCalls).toBe(1);
     expect(fake.createSessionCalls).toEqual([
       {
-        projectId: "proj-1",
-        projectDir: PROJECT_DIR,
-        displayName: "project",
+        scopeId: "proj-1",
+        scopeRoot: SCOPE_ROOT,
+        displayName: "scope",
       },
     ]);
   });
@@ -433,7 +433,7 @@ describe("agent-client-protocol module", () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [ACP_STDIO_MCP_SERVER],
     }));
 
@@ -442,32 +442,32 @@ describe("agent-client-protocol module", () => {
       code: "unsupported_feature",
       feature: "mcpServers.stdio",
     });
-    expect(fake.listProjectsCalls).toBe(0);
+    expect(fake.listScopesCalls).toBe(0);
     expect(fake.createSessionCalls).toEqual([]);
   });
 
-  it("creates an ACP session for a configured non-active project root", async () => {
+  it("creates an ACP session for a configured non-active scope root", async () => {
     const fake = new FakeDaemon();
-    fake.projectList = {
-      projects: [
+    fake.scopeList = {
+      scopes: [
         {
-          projectId: "proj-1",
-          projectDir: PROJECT_DIR,
-          displayName: "project",
+          scopeId: "proj-1",
+          scopeRoot: SCOPE_ROOT,
+          displayName: "scope",
         },
         {
-          projectId: "proj-2",
-          projectDir: SECOND_PROJECT_DIR,
-          displayName: "other project",
+          scopeId: "proj-2",
+          scopeRoot: SECOND_SCOPE_ROOT,
+          displayName: "other scope",
         },
       ],
-      defaultProjectId: "proj-1",
-      activeProjectId: "proj-1",
+      defaultScopeId: "proj-1",
+      activeScopeId: "proj-1",
     };
     const { server, output } = await initializedServer(fake);
 
     await server.handleLine(request(1, "session/new", {
-      cwd: SECOND_PROJECT_DIR,
+      cwd: SECOND_SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -475,54 +475,54 @@ describe("agent-client-protocol module", () => {
     expect(messages[1].result).toEqual({ sessionId: "kota-session-1" });
     expect(fake.createSessionCalls).toEqual([
       {
-        projectId: "proj-2",
-        projectDir: SECOND_PROJECT_DIR,
-        displayName: "other project",
+        scopeId: "proj-2",
+        scopeRoot: SECOND_SCOPE_ROOT,
+        displayName: "other scope",
       },
     ]);
   });
 
-  it("lists daemon-owned ACP sessions for the requested project root", async () => {
+  it("lists daemon-owned ACP sessions for the requested scope root", async () => {
     const fake = new FakeDaemon();
-    fake.projectList = {
-      projects: [
+    fake.scopeList = {
+      scopes: [
         {
-          projectId: "proj-1",
-          projectDir: PROJECT_DIR,
-          displayName: "project",
+          scopeId: "proj-1",
+          scopeRoot: SCOPE_ROOT,
+          displayName: "scope",
         },
         {
-          projectId: "proj-2",
-          projectDir: SECOND_PROJECT_DIR,
-          displayName: "other project",
+          scopeId: "proj-2",
+          scopeRoot: SECOND_SCOPE_ROOT,
+          displayName: "other scope",
         },
       ],
-      defaultProjectId: "proj-1",
-      activeProjectId: null,
+      defaultScopeId: "proj-1",
+      activeScopeId: null,
     };
     fake.knownSessions = [
       {
         sessionId: "session-proj-1",
-        cwd: PROJECT_DIR,
+        cwd: SCOPE_ROOT,
         title: "KOTA session session-proj-1",
         updatedAt: "2026-05-27T05:02:00.000Z",
         live: true,
         metadata: {
           source: "daemon",
-          projectId: "proj-1",
+          scopeId: "proj-1",
           conversationId: "conv-1",
           busy: false,
         },
       },
       {
         sessionId: "session-proj-2",
-        cwd: SECOND_PROJECT_DIR,
+        cwd: SECOND_SCOPE_ROOT,
         title: "KOTA session session-proj-2",
         updatedAt: "2026-05-27T05:01:00.000Z",
         live: true,
         metadata: {
           source: "daemon",
-          projectId: "proj-2",
+          scopeId: "proj-2",
           conversationId: "conv-2",
           busy: false,
         },
@@ -531,19 +531,19 @@ describe("agent-client-protocol module", () => {
     const { server, output } = await initializedServer(fake);
 
     await server.handleLine(request(1, "session/list", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
     }));
 
     const messages = output.messages();
     expect(messages[1].result.sessions).toEqual([
       {
         sessionId: "session-proj-1",
-        cwd: PROJECT_DIR,
+        cwd: SCOPE_ROOT,
         title: "KOTA session session-proj-1",
         updatedAt: "2026-05-27T05:02:00.000Z",
         _meta: {
           source: "daemon",
-          projectId: "proj-1",
+          scopeId: "proj-1",
           conversationId: "conv-1",
           busy: false,
         },
@@ -551,9 +551,9 @@ describe("agent-client-protocol module", () => {
     ]);
     expect(fake.listSessionsCalls).toEqual([
       {
-        projectId: "proj-1",
-        projectDir: PROJECT_DIR,
-        displayName: "project",
+        scopeId: "proj-1",
+        scopeRoot: SCOPE_ROOT,
+        displayName: "scope",
       },
     ]);
   });
@@ -563,13 +563,13 @@ describe("agent-client-protocol module", () => {
     fake.knownSessions = [
       {
         sessionId: "stored-session",
-        cwd: PROJECT_DIR,
+        cwd: SCOPE_ROOT,
         title: "KOTA session stored-session",
         updatedAt: "2026-05-27T05:02:00.000Z",
         live: false,
         metadata: {
           source: "daemon-binding",
-          projectId: "proj-1",
+          scopeId: "proj-1",
           conversationId: "conv-stored",
           resumable: true,
         },
@@ -578,7 +578,7 @@ describe("agent-client-protocol module", () => {
     const { server, output } = await initializedServer(fake);
 
     await server.handleLine(request(1, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "stored-session",
       mcpServers: [],
     }));
@@ -591,10 +591,10 @@ describe("agent-client-protocol module", () => {
     expect(messages[1].result).toEqual({});
     expect(fake.resumeSessionCalls).toEqual([
       {
-        project: {
-          projectId: "proj-1",
-          projectDir: PROJECT_DIR,
-          displayName: "project",
+        scope: {
+          scopeId: "proj-1",
+          scopeRoot: SCOPE_ROOT,
+          displayName: "scope",
         },
         sessionId: "stored-session",
       },
@@ -610,7 +610,7 @@ describe("agent-client-protocol module", () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "stored-session",
       mcpServers: [ACP_STDIO_MCP_SERVER],
     }));
@@ -621,7 +621,7 @@ describe("agent-client-protocol module", () => {
       feature: "mcpServers.stdio",
     });
     expect(output.text()).not.toContain("secret-token");
-    expect(fake.listProjectsCalls).toBe(0);
+    expect(fake.listScopesCalls).toBe(0);
     expect(fake.resumeSessionCalls).toEqual([]);
   });
 
@@ -630,13 +630,13 @@ describe("agent-client-protocol module", () => {
     fake.knownSessions = [
       {
         sessionId: "live-session",
-        cwd: PROJECT_DIR,
+        cwd: SCOPE_ROOT,
         title: "KOTA session live-session",
         updatedAt: "2026-05-27T05:02:00.000Z",
         live: true,
         metadata: {
           source: "daemon",
-          projectId: "proj-1",
+          scopeId: "proj-1",
           conversationId: "conv-live",
           busy: false,
         },
@@ -644,14 +644,14 @@ describe("agent-client-protocol module", () => {
     ];
     const first = await initializedServer(fake);
     await first.server.handleLine(request(1, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "live-session",
       mcpServers: [],
     }));
 
     const second = await initializedServer(fake);
     await second.server.handleLine(request(1, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "live-session",
       mcpServers: [],
     }));
@@ -670,13 +670,13 @@ describe("agent-client-protocol module", () => {
     fake.knownSessions = [
       {
         sessionId: "live-session",
-        cwd: PROJECT_DIR,
+        cwd: SCOPE_ROOT,
         title: "KOTA session live-session",
         updatedAt: "2026-05-27T05:02:00.000Z",
         live: true,
         metadata: {
           source: "daemon",
-          projectId: "proj-1",
+          scopeId: "proj-1",
           conversationId: "conv-live",
           busy: false,
         },
@@ -685,12 +685,12 @@ describe("agent-client-protocol module", () => {
     const { server, output } = await initializedServer(fake);
 
     await server.handleLine(request(1, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "live-session",
       mcpServers: [],
     }));
     await server.handleLine(request(2, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "live-session",
       mcpServers: [],
     }));
@@ -706,7 +706,7 @@ describe("agent-client-protocol module", () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/resume", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "missing-session",
       mcpServers: [],
     }));
@@ -722,7 +722,7 @@ describe("agent-client-protocol module", () => {
   it("streams ACP session/update notifications before the prompt response", async () => {
     const { server, output } = await initializedServer();
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -754,7 +754,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output, error } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -789,7 +789,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -831,7 +831,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -868,7 +868,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -908,7 +908,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -948,7 +948,7 @@ describe("agent-client-protocol module", () => {
     fake.permissionTimeoutMs = 200;
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -992,7 +992,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "hang";
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -1019,7 +1019,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output, error } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -1052,7 +1052,7 @@ describe("agent-client-protocol module", () => {
     fake.promptMode = "permission";
     const { server, output } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -1077,7 +1077,7 @@ describe("agent-client-protocol module", () => {
     fake.permissionTimeoutMs = 1;
     const { server, output, error } = await initializedServer(fake);
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     }));
 
@@ -1137,7 +1137,7 @@ describe("agent-client-protocol module", () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/load", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       sessionId: "old",
       mcpServers: [],
     }));
@@ -1145,7 +1145,7 @@ describe("agent-client-protocol module", () => {
     const messages = output.messages();
     expect(messages[1].error.code).toBe(-32601);
     expect(messages[1].error.data.code).toBe("unsupported_method");
-    expect(fake.listProjectsCalls).toBe(0);
+    expect(fake.listScopesCalls).toBe(0);
     expect(fake.createSessionCalls).toEqual([]);
     expect(fake.promptCalls).toEqual([]);
   });
@@ -1154,7 +1154,7 @@ describe("agent-client-protocol module", () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [{
         name: "fs",
         command: "mcp",
@@ -1169,7 +1169,7 @@ describe("agent-client-protocol module", () => {
     });
     expect(messages[1].error.message).toContain("absolute path");
     expect(output.text()).not.toContain("secret-token");
-    expect(fake.listProjectsCalls).toBe(0);
+    expect(fake.listScopesCalls).toBe(0);
     expect(fake.createSessionCalls).toEqual([]);
   });
 
@@ -1177,14 +1177,14 @@ describe("agent-client-protocol module", () => {
     const { server, fake, output } = await initializedServer();
 
     await server.handleLine(request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [
         { name: "fs", command: "/usr/bin/env", args: [], env: [] },
         { name: "fs", command: "/usr/bin/env", args: [], env: [] },
       ],
     }));
     await server.handleLine(request(2, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [{
         type: "http",
         name: "api",
@@ -1193,7 +1193,7 @@ describe("agent-client-protocol module", () => {
       }],
     }));
     await server.handleLine(request(3, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [{
         type: "sse",
         name: "events",
@@ -1202,7 +1202,7 @@ describe("agent-client-protocol module", () => {
       }],
     }));
     await server.handleLine(request(4, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [{
         type: "http",
         name: "api2",
@@ -1228,7 +1228,7 @@ describe("agent-client-protocol module", () => {
       code: "invalid_params",
     });
     expect(output.text()).not.toContain("secret-token");
-    expect(fake.listProjectsCalls).toBe(0);
+    expect(fake.listScopesCalls).toBe(0);
     expect(fake.createSessionCalls).toEqual([]);
   });
 
@@ -1294,18 +1294,18 @@ describe("agent-client-protocol module", () => {
     expect(JSON.parse(String(approvalCall?.init?.body))).toEqual({ outcome: "allow" });
   });
 
-  it("creates HTTP daemon sessions with the selected project id", async () => {
+  it("creates HTTP daemon sessions with the selected scope id", async () => {
     const transport = new FakeTransport();
     const client = new HttpAcpDaemonClient(transport);
 
     const session = await client.createSession({
-      projectId: "proj-1",
-      projectDir: PROJECT_DIR,
-      displayName: "project",
+      scopeId: "proj-1",
+      scopeRoot: SCOPE_ROOT,
+      displayName: "scope",
     });
 
     expect(session).toEqual({ sessionId: "created-session" });
-    expect(transport.calls[0]?.path).toBe("/sessions?projectId=proj-1");
+    expect(transport.calls[0]?.path).toBe("/sessions?scopeId=proj-1");
     expect(transport.calls[0]?.init?.method).toBe("POST");
     expect(JSON.parse(String(transport.calls[0]?.init?.body))).toEqual({
       autonomy_mode: "supervised",
@@ -1317,9 +1317,9 @@ describe("agent-client-protocol module", () => {
     const client = new HttpAcpDaemonClient(transport);
 
     const sessions = await client.listSessions({
-      projectId: "proj-1",
-      projectDir: PROJECT_DIR,
-      displayName: "project",
+      scopeId: "proj-1",
+      scopeRoot: SCOPE_ROOT,
+      displayName: "scope",
     });
 
     expect(sessions.map((session) => [session.sessionId, session.live])).toEqual([
@@ -1327,17 +1327,17 @@ describe("agent-client-protocol module", () => {
       ["stored-session", false],
     ]);
     expect(sessions[0]).toMatchObject({
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       updatedAt: "2026-05-27T05:05:00.000Z",
       metadata: {
         source: "daemon",
-        projectId: "proj-1",
+        scopeId: "proj-1",
         conversationId: "conv-live",
       },
     });
     expect(transport.calls.map((call) => call.path)).toEqual([
-      "/sessions?projectId=proj-1",
-      "/sessions/bindings?projectId=proj-1",
+      "/sessions?scopeId=proj-1",
+      "/sessions/bindings?scopeId=proj-1",
     ]);
   });
 
@@ -1346,13 +1346,13 @@ describe("agent-client-protocol module", () => {
     const client = new HttpAcpDaemonClient(transport);
 
     const session = await client.resumeSession({
-      projectId: "proj-1",
-      projectDir: PROJECT_DIR,
-      displayName: "project",
+      scopeId: "proj-1",
+      scopeRoot: SCOPE_ROOT,
+      displayName: "scope",
     }, "stored-session");
 
     expect(session).toEqual({ sessionId: "stored-session" });
-    expect(transport.calls[0]?.path).toBe("/sessions?projectId=proj-1");
+    expect(transport.calls[0]?.path).toBe("/sessions?scopeId=proj-1");
     expect(transport.calls[0]?.init?.method).toBe("POST");
     expect(JSON.parse(String(transport.calls[0]?.init?.body))).toEqual({
       autonomy_mode: "supervised",
@@ -1413,7 +1413,7 @@ describe("agent-client-protocol module", () => {
     input.write(`${request(0, "initialize", { protocolVersion: 1 })}\n`);
     await waitForMessage(output, (message) => message.id === 0 && message.result);
     input.write(`${request(1, "session/new", {
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       mcpServers: [],
     })}\n`);
     await waitForMessage(output, (message) => message.id === 1 && message.result?.sessionId === "kota-session-1");

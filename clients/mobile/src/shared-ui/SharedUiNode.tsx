@@ -8,7 +8,7 @@ import type {
   UiLinkTarget,
   UiLogEntry,
   UiNode,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import type { LiveUiLogEntries } from '../context/DaemonContext';
 import { SharedUiAction } from './SharedUiAction';
 import { Section, SharedUiDataNode } from './SharedUiDataNode';

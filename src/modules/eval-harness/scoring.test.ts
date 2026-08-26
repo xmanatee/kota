@@ -32,6 +32,7 @@ const BASE_RUN: FixtureRun = {
   fixtureId: "fixture-a",
   runIndex: 0,
   repeatCount: 1,
+  executionMode: "live",
   outcome: "pass",
   resourceProfile: RESOURCE_PROFILE,
   executionProfile: EXECUTION_PROFILE,

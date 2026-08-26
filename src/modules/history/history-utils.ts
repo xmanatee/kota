@@ -21,8 +21,8 @@ export function getHistoryDir(): string {
   return `${home}/.kota/history`;
 }
 
-export function getProjectHistoryDir(projectDir: string): string {
-  return join(projectDir, ".kota", "history");
+export function getScopeHistoryDir(scopeRoot: string): string {
+  return join(scopeRoot, ".kota", "history");
 }
 
 export function generateId(): string {

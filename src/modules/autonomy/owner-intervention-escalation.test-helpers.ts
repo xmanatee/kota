@@ -42,7 +42,7 @@ export type QuestionFixture = {
   omitAnswerBehavior?: boolean;
 };
 
-export function makeProjectDir(): string {
+export function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "owner-intervention-escalation-"));
   for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
@@ -57,8 +57,8 @@ export function makeProjectDir(): string {
   return dir;
 }
 
-export function writeQuestion(projectDir: string, fixture: QuestionFixture): void {
-  const dir = join(projectDir, ".kota", "owner-questions");
+export function writeQuestion(workspaceRoot: string, fixture: QuestionFixture): void {
+  const dir = join(workspaceRoot, ".kota", "owner-questions");
   mkdirSync(dir, { recursive: true });
   const origin: OwnerQuestionOrigin = fixture.origin ?? {
     kind: "workflow",
@@ -98,17 +98,17 @@ export function writeQuestion(projectDir: string, fixture: QuestionFixture): voi
   writeFileSync(join(dir, `${fixture.id}.json`), JSON.stringify(record, null, 2));
 }
 
-export function ownerInterventionReport(projectDir: string) {
+export function ownerInterventionReport(workspaceRoot: string) {
   return buildOwnerInterventionReport({
-    projectDir,
+    workspaceRoot,
     windowStartMs: NOW - 7 * MS_PER_DAY,
     windowEndMs: NOW,
   });
 }
 
-export function ownerInterventionDetection(projectDir: string) {
+export function ownerInterventionDetection(workspaceRoot: string) {
   return detectRecurringOwnerInterventionPatternsFromReport({
-    report: ownerInterventionReport(projectDir),
+    report: ownerInterventionReport(workspaceRoot),
     config: CONFIG,
   });
 }

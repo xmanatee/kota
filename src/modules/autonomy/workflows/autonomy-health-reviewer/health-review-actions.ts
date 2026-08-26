@@ -57,12 +57,15 @@ function appliedActions(
 }
 
 export function planAutonomyHealthReviewActions(args: {
-  projectDir: string;
+  workspaceRoot: string;
   currentProjection: AutonomyIssueProjection;
-  scopeDir?: string;
+  scopeRoot?: string;
   review: AutonomyHealthReview;
 }): AutonomyHealthReviewActionResult {
-  const observations = autonomyIssueObservationsFromReview(args.review);
+  const observations = autonomyIssueObservationsFromReview(
+    args.review,
+    args.currentProjection,
+  );
   const projected = reduceAutonomyIssueProjection(
     args.currentProjection,
     observations,
@@ -72,7 +75,7 @@ export function planAutonomyHealthReviewActions(args: {
     const proposalKey = normalizeGeneratedWorkProposalKey(
       `autonomy-issue:${observation.issueKey}`,
     );
-    const existingTask = findGeneratedWorkTask(args.projectDir, proposalKey);
+    const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
     if (
       !existingTask ||
       existingTask.task.state === "done" ||
@@ -92,7 +95,7 @@ export function planAutonomyHealthReviewActions(args: {
 
 export function applyAutonomyHealthReviewActions(args: {
   currentProjection: AutonomyIssueProjection;
-  scopeDir?: string;
+  scopeRoot?: string;
   ownerQuestionQueue: OwnerQuestionQueue;
   review: AutonomyHealthReview;
   plannedActions: AutonomyHealthReviewActionResult;
@@ -105,7 +108,10 @@ export function applyAutonomyHealthReviewActions(args: {
       issue,
     ]),
   );
-  const observations = autonomyIssueObservationsFromReview(args.review);
+  const observations = autonomyIssueObservationsFromReview(
+    args.review,
+    args.currentProjection,
+  );
   const projected = applyAutonomyIssueObservations({
     current: args.currentProjection,
     observations,
@@ -147,12 +153,16 @@ export function applyAutonomyHealthReviewActions(args: {
 
 export function autonomyIssueObservationsFromReview(
   review: AutonomyHealthReview,
+  currentProjection: AutonomyIssueProjection,
 ): AutonomyIssueObservation[] {
-  return review.groups.map((group) => {
+  const currentIssueKeys = new Set(
+    currentProjection.issues.map((issue) => issue.issueKey),
+  );
+  return review.groups.flatMap((group) => {
     const evidenceRefs = projectAutonomyHealthEvidenceRefsForReview(
       group.evidenceRefs,
     );
-    return buildAutonomyIssueObservation({
+    const observation = buildAutonomyIssueObservation({
       kind: group.observation,
       rootCauseKey: group.dedupeKey,
       observedAt: review.generatedAt,
@@ -168,5 +178,19 @@ export function autonomyIssueObservationsFromReview(
       evidenceRefs,
       observationCount: group.observationCount,
     });
+    const alreadyDurable = currentIssueKeys.has(observation.issueKey);
+    const concreteFailure = group.severity === "error" ||
+      group.severity === "critical";
+    const repeatedObservation = group.observationCount > 1;
+    if (
+      (group.observation === "cleared" && !alreadyDurable) ||
+      (group.observation !== "cleared" &&
+        !alreadyDurable &&
+        !concreteFailure &&
+        !repeatedObservation)
+    ) {
+      return [];
+    }
+    return [observation];
   });
 }

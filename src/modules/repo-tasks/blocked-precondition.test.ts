@@ -191,40 +191,40 @@ describe("parseBlockedPrecondition", () => {
   });
 });
 
-function makeBlockedTaskTree(): { projectDir: string } {
-  const projectDir = mkdtempSync(join(tmpdir(), "blocked-precondition-"));
+function makeBlockedTaskTree(): { workspaceRoot: string } {
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "blocked-precondition-"));
   for (const state of ["done", "blocked", "ready", "backlog"]) {
-    mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
-  return { projectDir };
+  return { workspaceRoot };
 }
 
 describe("evaluateBlockedPrecondition", () => {
   it("task-done is satisfied when the referent file exists in done/", () => {
-    const { projectDir } = makeBlockedTaskTree();
+    const { workspaceRoot } = makeBlockedTaskTree();
     writeFileSync(
-      join(projectDir, "data", "tasks", "done", "task-enabler.md"),
+      join(workspaceRoot, "data", "tasks", "done", "task-enabler.md"),
       "---\nid: task-enabler\n---\n",
     );
     const result = evaluateBlockedPrecondition(
       { kind: "task-done", ref: "task-enabler" },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(result.satisfied).toBe(true);
   });
 
   it("task-done is not satisfied when the referent file is missing", () => {
-    const { projectDir } = makeBlockedTaskTree();
+    const { workspaceRoot } = makeBlockedTaskTree();
     const result = evaluateBlockedPrecondition(
       { kind: "task-done", ref: "task-enabler" },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(result.satisfied).toBe(false);
   });
 
   it("operator-capture matches a glob path", () => {
-    const { projectDir } = makeBlockedTaskTree();
-    const proofDir = join(projectDir, ".kota", "runs", "harness-parity-2026-04-25");
+    const { workspaceRoot } = makeBlockedTaskTree();
+    const proofDir = join(workspaceRoot, ".kota", "runs", "harness-parity-2026-04-25");
     mkdirSync(proofDir, {
       recursive: true,
     });
@@ -235,7 +235,7 @@ describe("evaluateBlockedPrecondition", () => {
         path: ".kota/runs/harness-parity-*",
         description: "x",
       },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(matched.satisfied).toBe(true);
 
@@ -245,14 +245,14 @@ describe("evaluateBlockedPrecondition", () => {
         path: ".kota/runs/peer-cli-*",
         description: "x",
       },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(missing.satisfied).toBe(false);
   });
 
   it("operator-capture treats smoke-only directories as partial proof", () => {
-    const { projectDir } = makeBlockedTaskTree();
-    const captureDir = join(projectDir, ".kota", "runs", "telegram-deploy-staging");
+    const { workspaceRoot } = makeBlockedTaskTree();
+    const captureDir = join(workspaceRoot, ".kota", "runs", "telegram-deploy-staging");
     mkdirSync(captureDir, { recursive: true });
     writeFileSync(join(captureDir, "smoke.txt"), "daemon health passed\n");
 
@@ -262,7 +262,7 @@ describe("evaluateBlockedPrecondition", () => {
         path: ".kota/runs/telegram-deploy-staging",
         description: "staging bot status exchange",
       },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(partial.satisfied).toBe(false);
     if (!partial.satisfied) {
@@ -280,13 +280,13 @@ describe("evaluateBlockedPrecondition", () => {
         path: ".kota/runs/telegram-deploy-staging",
         description: "staging bot status exchange",
       },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(complete.satisfied).toBe(true);
   });
 
   it("owner-decision is satisfied only when a matching resolved marker exists", () => {
-    const { projectDir } = makeBlockedTaskTree();
+    const { workspaceRoot } = makeBlockedTaskTree();
     const without = evaluateBlockedPrecondition(
       {
         kind: "owner-decision",
@@ -295,7 +295,7 @@ describe("evaluateBlockedPrecondition", () => {
         context: null,
         proposedAnswers: [],
       },
-      { projectDir, taskBody: "no marker" },
+      { workspaceRoot, taskBody: "no marker" },
     );
     expect(without.satisfied).toBe(false);
 
@@ -311,25 +311,25 @@ describe("evaluateBlockedPrecondition", () => {
         context: null,
         proposedAnswers: [],
       },
-      { projectDir, taskBody: marker },
+      { workspaceRoot, taskBody: marker },
     );
     expect(withMarker.satisfied).toBe(true);
   });
 
   it("capability-installed for storageState reads the file path", () => {
-    const { projectDir } = makeBlockedTaskTree();
-    const present = join(projectDir, "auth.json");
+    const { workspaceRoot } = makeBlockedTaskTree();
+    const present = join(workspaceRoot, "auth.json");
     writeFileSync(present, "{}");
 
     const matched = evaluateBlockedPrecondition(
       { kind: "capability-installed", probe: "storageState:auth.json" },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(matched.satisfied).toBe(true);
 
     const missing = evaluateBlockedPrecondition(
       { kind: "capability-installed", probe: "storageState:nope.json" },
-      { projectDir, taskBody: "" },
+      { workspaceRoot, taskBody: "" },
     );
     expect(missing.satisfied).toBe(false);
   });

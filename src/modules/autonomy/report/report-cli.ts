@@ -9,7 +9,7 @@
 
 import { join } from "node:path";
 import { Command } from "commander";
-import { resolveProjectDir } from "#core/config/project-dir.js";
+import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
 import {
   aggregateAutonomyReport,
@@ -49,7 +49,7 @@ type CommanderOptions<TOptions> = TOptions & {
 export function buildReportCommand(): Command {
   const command = new Command("report")
     .description(
-      "Print the operator autonomy balance/quality report for the current project " +
+      "Print the operator autonomy balance/quality report for the current scope " +
         `(default window ${DEFAULT_REPORT_WINDOW_DAYS} days)`,
     )
     .option(
@@ -63,12 +63,12 @@ export function buildReportCommand(): Command {
     )
     .action((opts: ReportCommandOptions) => {
       const days = parseDaysOption(opts.days);
-      const projectDir = resolveProjectDir();
-      const runsDir = join(projectDir, ".kota", "runs");
+      const workspaceRoot = resolveScopeRoot();
+      const runsDir = join(workspaceRoot, ".kota", "runs");
       const windowEndMs = Date.now();
       const windowStartMs = windowEndMs - days * MS_PER_DAY;
       const baseData = aggregateAutonomyReport({
-        projectDir,
+        workspaceRoot,
         runsDir,
         windowEndMs,
         windowDays: days,
@@ -104,9 +104,9 @@ function buildSourceCoverageCommand(): Command {
       command: CommanderOptions<SourceCoverageCommandOptions>,
     ) => {
       const opts = resolveCommanderOptions(rawOpts);
-      const projectDir = resolveProjectDir();
+      const workspaceRoot = resolveScopeRoot();
       const report = buildSourceDecisionCoverageReport({
-        projectDir,
+        workspaceRoot,
         maxEntries: opts.all === true ? 0 : parsePositiveInteger(opts.limit, "--limit"),
         sourceUrls: opts.source,
         staleAfterDays: parsePositiveInteger(opts.staleDays, "--stale-days"),

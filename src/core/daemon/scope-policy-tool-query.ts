@@ -9,7 +9,7 @@ import type {
   ScopePolicyToolEffectQuery,
 } from "./scope-policy-types.js";
 
-const PATH_FIELDS = ["path", "filePath", "targetPath", "directory", "projectDir"] as const;
+const PATH_FIELDS = ["path", "filePath", "targetPath", "directory", "scopeRoot"] as const;
 
 const OPAQUE_LOCAL_EXECUTION_TOOLS = new Set([
   "Bash",

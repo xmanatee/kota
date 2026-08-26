@@ -1,5 +1,5 @@
 import { isAbsolute } from "node:path";
-import { resolveProjectPath } from "#core/tools/project-path-policy.js";
+import { resolveContainedPath } from "#core/tools/path-containment.js";
 
 export type GitArgumentResult<T> =
 	| { ok: true; value: T }
@@ -64,31 +64,31 @@ function optionName(argument: string): string {
 	return separator < 0 ? argument : argument.slice(0, separator);
 }
 
-export function validateProjectPath(
+export function validateRepoPath(
 	argument: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string> {
 	if (argument.includes("\0")) {
 		return invalid("Git paths may not contain NUL bytes");
 	}
 	if (/^[A-Za-z]:[\\/]/.test(argument) || argument.startsWith("\\\\")) {
-		return invalid(`Git path "${argument}" is outside the project`);
+		return invalid(`Git path "${argument}" is outside the repository`);
 	}
-	const resolved = resolveProjectPath(argument, projectDir, projectDir);
+	const resolved = resolveContainedPath(argument, repoRoot, repoRoot);
 	if (!resolved.ok) {
-		return invalid(`Git path "${argument}" is outside the project`);
+		return invalid(`Git path "${argument}" is outside the repository`);
 	}
 	return valid(argument);
 }
 
 function validateReadPositional(
 	argument: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string> {
 	if (isAbsolute(argument)) {
-		return invalid(`Git path "${argument}" is outside the project`);
+		return invalid(`Git path "${argument}" is outside the repository`);
 	}
-	return validateProjectPath(argument, projectDir);
+	return validateRepoPath(argument, repoRoot);
 }
 
 export function parseStatusArguments(args: string): GitArgumentResult<[]> {
@@ -100,7 +100,7 @@ export function parseStatusArguments(args: string): GitArgumentResult<[]> {
 
 export function parseDiffArguments(
 	args: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string[]> {
 	const parsed: string[] = [];
 	let optionsEnded = false;
@@ -117,7 +117,7 @@ export function parseDiffArguments(
 			parsed.push(argument);
 			continue;
 		}
-		const path = validateReadPositional(argument, projectDir);
+		const path = validateReadPositional(argument, repoRoot);
 		if (!path.ok) return path;
 		parsed.push(path.value);
 	}
@@ -126,7 +126,7 @@ export function parseDiffArguments(
 
 export function parseLogArguments(
 	args: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string[]> {
 	const parsed = splitArguments(args || "--oneline -20");
 	let optionsEnded = false;
@@ -178,7 +178,7 @@ export function parseLogArguments(
 		if (!optionsEnded && argument.startsWith("-")) {
 			return invalid(`Git log option "${optionName(argument)}" is not allowed`);
 		}
-		const positional = validateReadPositional(argument, projectDir);
+		const positional = validateReadPositional(argument, repoRoot);
 		if (!positional.ok) return positional;
 	}
 	return valid(parsed);
@@ -186,7 +186,7 @@ export function parseLogArguments(
 
 export function parseShowArguments(
 	args: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string> {
 	const parsed = splitArguments(args);
 	if (parsed.length > 1) {
@@ -196,13 +196,13 @@ export function parseShowArguments(
 	if (ref.startsWith("-")) {
 		return invalid(`Git show option "${optionName(ref)}" is not allowed`);
 	}
-	const positional = validateReadPositional(ref, projectDir);
+	const positional = validateReadPositional(ref, repoRoot);
 	return positional.ok ? valid(ref) : positional;
 }
 
 export function parseAddArguments(
 	args: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string[]> {
 	const parsed = splitArguments(args);
 	if (parsed.length === 0) {
@@ -212,7 +212,7 @@ export function parseAddArguments(
 		if (argument.startsWith("-")) {
 			return invalid(`Git add option "${optionName(argument)}" is not allowed`);
 		}
-		const path = validateProjectPath(argument, projectDir);
+		const path = validateRepoPath(argument, repoRoot);
 		if (!path.ok) return path;
 	}
 	return valid(parsed);

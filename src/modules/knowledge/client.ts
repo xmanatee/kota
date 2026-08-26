@@ -13,7 +13,7 @@
 
 import type {
   KnowledgeEntry,
-  ReindexResult,
+  ReindexOperationResult,
 } from "#core/modules/provider-types.js";
 import type {
   WorkMemoryFreshness,
@@ -22,28 +22,28 @@ import type {
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
 /** Knowledge storage scope. Mirrors `SearchFilters.scope` in provider types. */
-export type KnowledgeScope = "project" | "global" | "all";
+export type KnowledgeScope = "scope" | "global" | "all";
 
 /** Storage scope for a writable knowledge entry. */
-export type KnowledgeWritableScope = "project" | "global";
+export type KnowledgeWritableScope = "scope" | "global";
 
 /**
- * Optional project boundary for callers that already hold an explicit
- * project id, such as `KotaClient.forProject(...)` wrappers. When
- * absent, the implementation resolves the active/default project once at the
+ * Optional scope boundary for callers that already hold an explicit
+ * scope id, such as `KotaClient.forScope(...)` wrappers. When
+ * absent, the implementation resolves the active/default scope once at the
  * client or route boundary.
  */
-export type KnowledgeProjectSelection = ScopeSelector;
+export type KnowledgeScopeSelection = ScopeSelector;
 
 /**
  * Filter for `KnowledgeClient.list`.
  *
- * `scope` defaults to undefined (loads both project + global directories,
+ * `scope` defaults to undefined (loads both scope + global directories,
  * mirroring `KnowledgeStore.list`). Callers that want to restrict to a single
  * scope or include only the global store pass it explicitly. Slicing by
  * `limit` is left to the caller — the contract returns the full filtered set.
  */
-export type KnowledgeListFilter = KnowledgeProjectSelection & {
+export type KnowledgeListFilter = KnowledgeScopeSelection & {
   tag?: string;
   type?: string;
   status?: string;
@@ -60,7 +60,7 @@ export type KnowledgeShowResult =
   | { found: false };
 
 /** Filter for `KnowledgeClient.search`. */
-export type KnowledgeSearchFilter = KnowledgeProjectSelection & {
+export type KnowledgeSearchFilter = KnowledgeScopeSelection & {
   tag?: string;
   type?: string;
   status?: string;
@@ -80,7 +80,7 @@ export type KnowledgeSearchResult =
   | { ok: false; reason: "semantic_unavailable" };
 
 /** Options for `knowledge.add`. */
-export type KnowledgeAddOptions = KnowledgeProjectSelection & {
+export type KnowledgeAddOptions = KnowledgeScopeSelection & {
   title: string;
   content: string;
   type?: string;
@@ -100,7 +100,7 @@ export type KnowledgeDeleteResult =
   | { ok: false; reason: "not_found" };
 
 /** Result of `knowledge.reindex`. Mirrors the provider's `ReindexResult`. */
-export type KnowledgeReindexResult = ReindexResult;
+export type KnowledgeReindexResult = ReindexOperationResult;
 
 /**
  * Knowledge-store operations (the structured markdown+frontmatter store).
@@ -109,15 +109,15 @@ export type KnowledgeReindexResult = ReindexResult;
  * show, and export callers share one shape. `search` runs keyword or semantic
  * matching and surfaces `semantic_unavailable` explicitly when an
  * embedding-backed provider is required but absent. `show` returns one full
- * entry. `add` creates an entry with the project/global scope default and
+ * entry. `add` creates an entry with the scope/global scope default and
  * returns its id. `delete` removes a single entry. `reindex` rebuilds the
  * semantic index when the provider supports it.
  */
 export interface KnowledgeClient {
   list(filter?: KnowledgeListFilter): Promise<KnowledgeListResult>;
-  show(id: string, project?: KnowledgeProjectSelection): Promise<KnowledgeShowResult>;
+  show(id: string, scope?: KnowledgeScopeSelection): Promise<KnowledgeShowResult>;
   search(query: string, filter?: KnowledgeSearchFilter): Promise<KnowledgeSearchResult>;
   add(options: KnowledgeAddOptions): Promise<KnowledgeAddResult>;
-  delete(id: string, project?: KnowledgeProjectSelection): Promise<KnowledgeDeleteResult>;
-  reindex(project?: KnowledgeProjectSelection): Promise<KnowledgeReindexResult>;
+  delete(id: string, scope?: KnowledgeScopeSelection): Promise<KnowledgeDeleteResult>;
+  reindex(scope?: KnowledgeScopeSelection): Promise<KnowledgeReindexResult>;
 }

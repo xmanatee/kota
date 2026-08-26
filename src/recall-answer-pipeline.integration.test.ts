@@ -24,11 +24,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DaemonControlClient } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
+import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import {
   type AnswerHistorySink,
-  answerHistoryRootForProject,
+  answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "#modules/answer/answer-history-store.js";
 import { AnswerProviderImpl } from "#modules/answer/answer-provider.js";
@@ -238,16 +238,16 @@ function createPipelineServer(specs: RouteSpec[]): Promise<{ server: Server; por
 }
 
 describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
-  let projectStateRoot: string;
+  let scopeStateRoot: string;
   let server: Server;
   let client: DaemonControlClient;
   let history: DiskAnswerHistoryStore;
   let synthesisCalls: SynthesisInput[];
 
   beforeAll(async () => {
-    projectStateRoot = mkdtempSync(join(tmpdir(), "kota-recall-answer-"));
+    scopeStateRoot = mkdtempSync(join(tmpdir(), "kota-recall-answer-"));
     history = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForProject(projectStateRoot),
+      rootDir: answerHistoryRootForScope(scopeStateRoot),
     });
 
     const recallProvider = new RecallProviderImpl({
@@ -294,23 +294,21 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
     });
     // Migrated namespaces normally land on the assembled client through their
     // owning module's `daemonClient(link)` factory. The pipeline test does not
-    // load modules, so build the answer namespace handler against the test
-    // transport explicitly and stub the rest.
-    const otherMigratedStubs = buildMigratedNamespaceTestStubs();
-    delete otherMigratedStubs.answer;
-    delete otherMigratedStubs.recall;
+    // load modules, so build the participating namespace handlers against the
+    // test transport explicitly; undeclared namespaces fail if invoked.
     const answerDaemonHandler = answerModule.daemonClient!(transport);
     const recallDaemonHandler = recallModule.daemonClient!(transport);
     client = DaemonControlClient.fromTransport(transport, {
-      ...otherMigratedStubs,
-      ...answerDaemonHandler,
-      ...recallDaemonHandler,
+      ...completeDaemonClientHandlers({
+        ...answerDaemonHandler,
+        ...recallDaemonHandler,
+      }),
     });
   });
 
   afterAll(async () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
-    rmSync(projectStateRoot, { recursive: true, force: true });
+    rmSync(scopeStateRoot, { recursive: true, force: true });
   });
 
   it("recalls ranked, source-tagged hits with normalized scores and deterministic tie-break", async () => {
@@ -457,14 +455,15 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
     );
 
     try {
-      const localClient = DaemonControlClient.fromAddress(
-        {
-          port: oneShot.port,
-          pid: 0,
-          startedAt: new Date().toISOString(),
-          token: "",
-        },
-        buildMigratedNamespaceTestStubs(),
+      const transport = daemonTransportFromAddress({
+        port: oneShot.port,
+        pid: 0,
+        startedAt: new Date().toISOString(),
+        token: "",
+      });
+      const localClient = DaemonControlClient.fromTransport(
+        transport,
+        completeDaemonClientHandlers(recallModule.daemonClient!(transport)),
       );
       const result: RecallResult = await localClient.recall.recall("anything");
       expect(result.ok).toBe(false);

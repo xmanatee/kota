@@ -18,9 +18,8 @@ export type ModelTiers = {
 };
 
 /**
- * Shipped-default tier mapping, surfaced from the shipped default preset for
- * legacy callers that resolve a tier without a preset in hand. Producers
- * that already hold a `Preset` should use `mergePresetTiers` /
+ * Shipped-default tier mapping for routing requests that do not carry a
+ * resolved preset. Producers that already hold a `Preset` should use `mergePresetTiers` /
  * `resolveTierModel` from `./preset.js` instead of importing this constant
  * directly.
  */

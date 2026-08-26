@@ -50,12 +50,12 @@ const inspectWorktree = typedCodeStep<ImproverWorktreeInspection>({
       "dirty",
       "summary",
     ]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(inspectImproverWorktreeOperation, { projectDir }),
+  run: ({ workspaceRoot, runBlocking }) =>
+    runBlocking(inspectImproverWorktreeOperation, { workspaceRoot }),
 });
 
 type ApplyDispositionInput = {
-  projectDir: string;
+  workspaceRoot: string;
   disposition: IssueDisposition;
   issue: AutonomyIssue;
   workflowRunId: string;
@@ -70,7 +70,7 @@ export function applyDispositionInWorker(
     input.workflowRunId,
   );
   const materialized = stageGeneratedWorkProposal({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     proposal,
   });
   return {
@@ -101,7 +101,7 @@ const applyDisposition = typedCodeStep<AppliedDisposition>({
     ]),
   run: (ctx) =>
     ctx.runBlocking(applyDispositionOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       issue: selectIssue.outputRequired(ctx).issue!,
       disposition: decodeIssueDisposition(ctx.stepOutputs["review-issue"]),
       workflowRunId: ctx.workflow.runId,
@@ -136,7 +136,7 @@ const validateChanges = typedCodeStep<{ ok: true }>({
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

@@ -129,7 +129,7 @@ export function ChatDetailScreen({
   }, []);
 
   function handleSend() {
-    if (!client || streaming || !input.trim() || !state.online) return;
+    if (!client || streaming || !input.trim() || !state.connection.online) return;
 
     const userMsg: ChatMessage = { id: nextId(), role: 'user', content: input.trim() };
     const assistantId = nextId();
@@ -183,7 +183,7 @@ export function ChatDetailScreen({
     setClosing(true);
     abortRef.current?.();
     try {
-      await client.deleteSession(sessionId, state.activeProjectId ?? undefined);
+      await client.deleteSession(sessionId, state.scope.activeScopeId ?? undefined);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to close session.');
     } finally {
@@ -192,7 +192,7 @@ export function ChatDetailScreen({
     }
   }
 
-  if (!state.online) {
+  if (!state.connection.online) {
     return (
       <View style={styles.center}>
         <Text style={styles.offlineText}>Daemon offline</Text>

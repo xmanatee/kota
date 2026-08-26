@@ -22,7 +22,6 @@ import { assembleCompiledAutomationGraph, explainAutomation } from "./explain.js
 
 type ChannelPayload = {
   scopeId: string;
-  projectId: string;
   channel: string;
   conversationId: string;
   sourceStatus?: string;
@@ -43,7 +42,6 @@ const channelEvent = defineDaemonWideModuleEvent<ChannelPayload>(
   "inbound.signal.received",
   [
     "scopeId",
-    "projectId",
     "channel",
     "conversationId",
     "sourceStatus",
@@ -59,7 +57,6 @@ const channelEvent = defineDaemonWideModuleEvent<ChannelPayload>(
       additionalProperties: true,
       properties: {
         scopeId: { type: "string" },
-        projectId: { type: "string" },
         channel: { type: "string" },
         conversationId: { type: "string" },
         sourceStatus: { type: "string", required: false },
@@ -167,7 +164,7 @@ function channelManifest(): ModuleCapabilityManifestProjection {
         {
           id: "channel-telegram.send",
           description: "Send Telegram messages.",
-          scope: "project",
+          scope: "scope",
           scopePolicyHooks: ["setup"],
           setupRequirementIds: ["telegram-token"],
         },
@@ -220,7 +217,7 @@ function ownerGateManifest(): ModuleCapabilityManifestProjection {
         {
           id: "code-hooks.apply",
           description: "Apply changes from code hooks.",
-          scope: "project",
+          scope: "scope",
           scopePolicyHooks: ["owner-confirmation"],
         },
       ],
@@ -298,7 +295,6 @@ describe("compiled automation explain graph", () => {
     const result = explainAutomation(definitions, {
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
       }),
@@ -345,7 +341,6 @@ describe("compiled automation explain graph", () => {
     ], {
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
         sourceStatus: "blocked",
@@ -383,7 +378,6 @@ describe("compiled automation explain graph", () => {
     const pending = explainAutomation(definitions, {
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
       }),
@@ -400,7 +394,6 @@ describe("compiled automation explain graph", () => {
     const flushed = explainAutomation(definitions, {
       sampleEvent: sample(WORKFLOW_BATCH_FLUSH_EVENT, {
         scopeId: "scope-a",
-        projectId: "scope-a",
         sourceEventName: "inbound.signal.received",
         groupingKey: "conversationId=thread-1",
         reason: "count",
@@ -441,7 +434,6 @@ describe("compiled automation explain graph", () => {
       moduleManifests: [channelManifest()],
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
       }),
@@ -468,7 +460,6 @@ describe("compiled automation explain graph", () => {
     ], {
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
         idempotencyStatus: "replayed",
@@ -532,7 +523,6 @@ describe("compiled automation explain graph", () => {
     ], {
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
       }),
@@ -613,7 +603,6 @@ describe("compiled automation explain graph", () => {
     ], {
       sampleEvent: sample("inbound.signal.received", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         channel: "telegram",
         conversationId: "thread-1",
         accessToken: "secret-token",

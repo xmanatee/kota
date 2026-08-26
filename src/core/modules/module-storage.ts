@@ -15,6 +15,14 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
+
+export class ModuleStorageJsonError extends Error {
+	constructor(readonly path: string, message: string) {
+		super(`Cannot decode module storage ${path}: ${message}`);
+		this.name = "ModuleStorageJsonError";
+	}
+}
 
 export class ModuleStorage {
 	private dir: string;
@@ -29,21 +37,23 @@ export class ModuleStorage {
 	}
 
 	/** Read a JSON value by key. Returns undefined if not found. */
-	getJSON<T = unknown>(key: string): T | undefined {
+	getJSON(key: string): unknown | undefined {
 		const path = this.resolvePath(key, ".json");
 		if (!existsSync(path)) return undefined;
 		try {
-			return JSON.parse(readFileSync(path, "utf-8")) as T;
-		} catch {
-			return undefined;
+			return JSON.parse(readFileSync(path, "utf-8")) as unknown;
+		} catch (error) {
+			throw new ModuleStorageJsonError(
+				path,
+				error instanceof Error ? error.message : String(error),
+			);
 		}
 	}
 
 	/** Write a JSON value by key. */
 	setJSON(key: string, value: unknown): void {
-		this.ensureDir();
 		const path = this.resolvePath(key, ".json");
-		writeFileSync(path, JSON.stringify(value, null, 2), "utf-8");
+		writeJsonFileAtomic(path, value);
 	}
 
 	/** Read raw text by key. Returns undefined if not found. */

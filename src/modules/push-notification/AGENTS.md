@@ -1,13 +1,13 @@
 # Push-Notification Module
 
 Owns the entire Expo-push delivery surface for KOTA: the
-`<projectDir>/.kota/push-tokens.json` store, the `POST /push-tokens`
+`<scopeRoot>/.kota/push-tokens.json` store, the `POST /push-tokens`
 daemon-control registration route, the Expo Push API HTTP call, and the
 bus subscriptions that drive delivery.
 
 The module contributes the route through `KotaModule.controlRoutes`
 (`control` capability scope) and subscribes to the bus in `onLoad`,
-unsubscribing in `onUnload`. The wire contract — JSON body
+returning an activation disposer that unsubscribes the exact listeners. The wire contract — JSON body
 `{ token, deviceId }`, `400 { error: "Invalid JSON body" }` on parse
 failure, `400 { error: "token and deviceId are required" }` on missing
 fields, `200 { ok: true }` on success — matches what the mobile client's
@@ -34,9 +34,13 @@ the push module only sees events that are meant to be delivered.
 
 ## Recoverability
 
-`<projectDir>/.kota/push-tokens.json` is rewritten on every registration.
+`<scopeRoot>/.kota/push-tokens.json` is rewritten on every registration.
 Tokens survive daemon crashes; the in-flight Expo Push API call does not
 (by design — see below).
+
+The token store owns a versioned decoder and migration from the legacy token
+map. Malformed or future-version files produce an explicit store error and are
+left unchanged; successful registrations replace the file atomically.
 
 ## Delivery Posture
 

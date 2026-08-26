@@ -16,14 +16,14 @@ export async function runWorkflowTrial(
   const repeat = normalizeTrialRepeat(args.options?.repeat);
   const variants = buildTrialVariants(args.workflowName, args.options);
   const runId = formatRunId(`${args.workflowName}-trial-report`);
-  const reportDirPath = join(args.sourceProjectDir, ".kota", "runs", runId, "workflow-trial");
+  const reportDirPath = join(args.sourceScopeRoot, ".kota", "runs", runId, "workflow-trial");
   ensureDir(reportDirPath);
 
   const attempts: WorkflowTrialAttemptReport[] = [];
   for (const variant of variants) {
     for (let repeatIndex = 0; repeatIndex < repeat; repeatIndex++) {
       attempts.push(await runTrialAttempt({
-        sourceProjectDir: args.sourceProjectDir,
+        sourceScopeRoot: args.sourceScopeRoot,
         reportDirPath,
         variant,
         repeatIndex,
@@ -38,9 +38,9 @@ export async function runWorkflowTrial(
   const summary: WorkflowTrialSummary = {
     runId,
     workflow: args.workflowName,
-    projectId: args.options?.projectId ?? deriveDirectoryScopeId(args.sourceProjectDir),
-    sourceProjectPath: args.sourceProjectDir,
-    reportDir: relative(args.sourceProjectDir, reportDirPath),
+    scopeId: args.options?.scopeId ?? deriveDirectoryScopeId(args.sourceScopeRoot),
+    sourceScopeRoot: args.sourceScopeRoot,
+    reportDir: relative(args.sourceScopeRoot, reportDirPath),
     payload: projectTrialPayload(args.options?.payload ?? {}),
     repeat,
     attempts,

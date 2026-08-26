@@ -14,8 +14,8 @@ const inspectBacklog = typedCodeStep<BacklogInspection>({
   type: "code",
   validate: (raw) =>
     expectStructuredOutput<BacklogInspection>(raw, ["dirty", "rationale"]),
-  run: ({ projectDir, runBlocking }) =>
-    runBlocking(inspectBacklogOperation, { projectDir }),
+  run: ({ workspaceRoot, runBlocking }) =>
+    runBlocking(inspectBacklogOperation, { workspaceRoot }),
 });
 
 type WriteRationaleResult = {
@@ -50,7 +50,7 @@ const applyPromotion = typedCodeStep<PromotionMoves>({
   run: (ctx) => {
     const rationale = inspectBacklog.outputRequired(ctx).rationale;
     return ctx.runBlocking(applyBacklogPromotionOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
       taskIds: rationale.selected.map((selection) => selection.id),
     });
   },
@@ -100,7 +100,7 @@ const validateChanges = typedCodeStep<{ ok: true }>({
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

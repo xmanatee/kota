@@ -27,16 +27,16 @@ vi.mock("#core/util/process-alive.js", () => ({
   isProcessAlive: vi.fn(() => true),
 }));
 
-function initializeLargeQueueRepo(projectDir: string): void {
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n", "utf8");
-  execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+function initializeLargeQueueRepo(scopeRoot: string): void {
+  writeFileSync(join(scopeRoot, ".gitignore"), ".kota/\n", "utf8");
+  execFileSync("git", ["init", "--quiet"], { cwd: scopeRoot });
   execFileSync("git", ["config", "user.name", "Kota Tests"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
   });
   execFileSync("git", ["config", "user.email", "kota@example.com"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
   });
-  const tasksDir = join(projectDir, "data", "tasks");
+  const tasksDir = join(scopeRoot, "data", "tasks");
   for (const state of [
     "backlog",
     "ready",
@@ -47,7 +47,7 @@ function initializeLargeQueueRepo(projectDir: string): void {
   ]) {
     mkdirSync(join(tasksDir, state), { recursive: true });
   }
-  mkdirSync(join(projectDir, "data", "inbox"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "inbox"), { recursive: true });
   for (let index = 0; index < LARGE_QUEUE_SIZE; index += 1) {
     const id = `task-dashboard-load-${String(index).padStart(4, "0")}`;
     writeFileSync(
@@ -56,9 +56,9 @@ function initializeLargeQueueRepo(projectDir: string): void {
       "utf8",
     );
   }
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir });
+  execFileSync("git", ["add", ".gitignore"], { cwd: scopeRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "fixture"], {
-    cwd: projectDir,
+    cwd: scopeRoot,
   });
 }
 
@@ -75,25 +75,25 @@ async function waitUntil(
 }
 
 describe("foreground dashboard responsiveness", () => {
-  let projectDir = "";
+  let scopeRoot = "";
 
   afterEach(() => {
     vi.restoreAllMocks();
     resetEventBus();
     resetScheduler();
-    if (projectDir) rmSync(projectDir, { recursive: true, force: true });
+    if (scopeRoot) rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("caches one large projection, coalesces log bursts, and leaves status/stop responsive", async () => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-dashboard-responsive-"));
-    initializeLargeQueueRepo(projectDir);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-dashboard-responsive-"));
+    initializeLargeQueueRepo(scopeRoot);
     resetEventBus();
     resetScheduler();
-    const stateDir = join(projectDir, ".kota");
+    const stateDir = join(scopeRoot, ".kota");
     mkdirSync(stateDir, { recursive: true });
 
     const daemon = new Daemon({
-      projectDir,
+      scopeRoot,
       stateDir,
       workflows: [],
       idleIntervalMs: 60_000,
@@ -123,7 +123,7 @@ describe("foreground dashboard responsiveness", () => {
       return true;
     });
 
-    const projection = new DaemonTaskQueueProjection(projectDir);
+    const projection = new DaemonTaskQueueProjection(scopeRoot);
     const refreshProjection = vi.fn((signal: AbortSignal) =>
       projection.refresh(signal),
     );
@@ -164,7 +164,7 @@ describe("foreground dashboard responsiveness", () => {
       expect(refreshProjection).toHaveBeenCalledTimes(1);
 
       const stopStartedAt = performance.now();
-      const stopResult = await localDaemonStop({ projectDir, timeoutSec: 2 });
+      const stopResult = await localDaemonStop({ scopeRoot, timeoutSec: 2 });
       const stopLatencyMs = performance.now() - stopStartedAt;
       expect(stopResult).toEqual({ ok: true });
       expect(killSpy).toHaveBeenCalledWith(address.pid, "SIGTERM");

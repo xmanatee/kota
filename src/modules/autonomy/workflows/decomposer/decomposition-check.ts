@@ -9,8 +9,8 @@ import { extractRepoTaskIds } from "#modules/repo-tasks/task-id.js";
 
 const DECOMPOSED_SECTION = "Decomposed";
 
-export function checkDecompositionApplied(projectDir: string, taskId: string): string {
-  const tasks = listFullRepoTasks(projectDir);
+export function checkDecompositionApplied(workspaceRoot: string, taskId: string): string {
+  const tasks = listFullRepoTasks(workspaceRoot);
   const original = tasks.find((task) => task.id === taskId);
   if (!original || original.state !== "dropped") {
     throw new Error(`Decomposer must move ${taskId} to dropped`);
@@ -44,7 +44,7 @@ export function checkDecompositionApplied(projectDir: string, taskId: string): s
     );
   }
 
-  const mutatedPaths = new Set(listWorkflowMutatedPaths(projectDir));
+  const mutatedPaths = new Set(listWorkflowMutatedPaths(workspaceRoot));
   const requiredPaths = [
     join(REPO_TASKS_DIR, "dropped", `${taskId}.md`),
     ...subtaskIds.map((id) => join(REPO_TASKS_DIR, "ready", `${id}.md`)),

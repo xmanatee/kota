@@ -26,7 +26,7 @@ describe("workflow token budget config", () => {
 
   function loadTrustedConfig(overrides: Partial<KotaConfig> = {}): KotaConfig {
     const globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [tmpDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
     return loadConfig(tmpDir, overrides, { globalConfigPath });
   }
 

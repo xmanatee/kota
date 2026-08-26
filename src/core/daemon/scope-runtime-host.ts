@@ -1,7 +1,7 @@
 import type { EventBus } from "#core/events/event-bus.js";
 import type { WorkflowRuntimeInitialDispatch } from "#core/workflow/runtime-lifecycle.js";
-import type { ProjectRuntime, ProjectRuntimeRegistry } from "./project-runtime.js";
 import type { ScheduledItem } from "./scheduler.js";
+import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 type HostedRuntimeResources = {
   stopSchedulerBus: () => void;
@@ -11,7 +11,7 @@ type HostedRuntimeResources = {
 export type ScopeRuntimeHostOptions = {
   bus: EventBus;
   pollIntervalMs: number;
-  onDueItems: (runtime: ProjectRuntime, items: ScheduledItem[]) => void;
+  onDueItems: (runtime: ScopeRuntime, items: ScheduledItem[]) => void;
 };
 
 /** Owns every live subscription and timer attached to a scope runtime. */
@@ -22,12 +22,12 @@ export class ScopeRuntimeHost {
   constructor(private readonly options: ScopeRuntimeHostOptions) {}
 
   async startInitial(
-    registry: ProjectRuntimeRegistry,
+    registry: ScopeRuntimeRegistry,
     initialDispatch: WorkflowRuntimeInitialDispatch = "active",
   ): Promise<void> {
     if (this.active) return;
     this.active = true;
-    const started: ProjectRuntime[] = [];
+    const started: ScopeRuntime[] = [];
     try {
       for (const runtime of registry.list()) {
         await this.start(runtime, initialDispatch);
@@ -43,10 +43,10 @@ export class ScopeRuntimeHost {
   }
 
   async start(
-    runtime: ProjectRuntime,
+    runtime: ScopeRuntime,
     initialDispatch: WorkflowRuntimeInitialDispatch = "active",
   ): Promise<void> {
-    const scopeId = runtime.project.projectId;
+    const scopeId = runtime.scope.scopeId;
     if (!this.active) throw new Error("ScopeRuntimeHost is not active");
     if (this.hosted.has(scopeId)) {
       throw new Error(`ScopeRuntimeHost: scope ${scopeId} is already hosted`);
@@ -78,11 +78,11 @@ export class ScopeRuntimeHost {
   }
 
   async stop(
-    runtime: ProjectRuntime,
+    runtime: ScopeRuntime,
     gracePeriodMs: number,
     abortWaitMs?: number,
   ): Promise<void> {
-    const resources = this.hosted.get(runtime.project.projectId);
+    const resources = this.hosted.get(runtime.scope.scopeId);
     if (!resources) return;
     await this.stopWorkflow(runtime, gracePeriodMs, abortWaitMs);
     this.releaseHostedResources(runtime, resources);
@@ -90,11 +90,11 @@ export class ScopeRuntimeHost {
 
   /** Force-detach an uncommitted runtime even when its workflow stop fails. */
   async abortUncommitted(
-    runtime: ProjectRuntime,
+    runtime: ScopeRuntime,
     gracePeriodMs: number,
     abortWaitMs?: number,
   ): Promise<void> {
-    const resources = this.hosted.get(runtime.project.projectId);
+    const resources = this.hosted.get(runtime.scope.scopeId);
     if (!resources) return;
     let stopError: Error | null = null;
     try {
@@ -108,7 +108,7 @@ export class ScopeRuntimeHost {
   }
 
   async stopAll(
-    registry: ProjectRuntimeRegistry,
+    registry: ScopeRuntimeRegistry,
     gracePeriodMs: number,
     abortWaitMs?: number,
   ): Promise<void> {
@@ -131,7 +131,7 @@ export class ScopeRuntimeHost {
   }
 
   private async stopWorkflow(
-    runtime: ProjectRuntime,
+    runtime: ScopeRuntime,
     gracePeriodMs: number,
     abortWaitMs: number | undefined,
   ): Promise<void> {
@@ -143,13 +143,13 @@ export class ScopeRuntimeHost {
   }
 
   private releaseHostedResources(
-    runtime: ProjectRuntime,
+    runtime: ScopeRuntime,
     resources: HostedRuntimeResources,
   ): void {
     resources.stopSchedulerTimer();
     resources.stopSchedulerBus();
     runtime.notificationGate?.dispose();
     runtime.notificationGate = null;
-    this.hosted.delete(runtime.project.projectId);
+    this.hosted.delete(runtime.scope.scopeId);
   }
 }

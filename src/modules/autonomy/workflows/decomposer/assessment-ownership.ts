@@ -24,7 +24,7 @@ export type OwnershipResolution =
  * resource replace the former task-claim side channel.
  */
 export function resolveDecompositionOwnership(
-  projectDir: string,
+  workspaceRoot: string,
   metadata: WorkflowRunMetadata,
 ): OwnershipResolution {
   if (
@@ -37,7 +37,7 @@ export function resolveDecompositionOwnership(
     );
   }
   const expected = readBuilderTaskPayload(metadata.trigger.payload);
-  const current = listBuilderTaskDispatches(projectDir).find(
+  const current = listBuilderTaskDispatches(workspaceRoot).find(
     (candidate) => candidate.taskId === expected.taskId,
   );
   if (current === undefined) {
@@ -59,11 +59,11 @@ export function resolveDecompositionOwnership(
   }
 
   const taskFile = readVerifiedRepoTaskFile(
-    projectDir,
+    workspaceRoot,
     current.taskState,
     current.taskId,
   );
-  const rechecked = listBuilderTaskDispatches(projectDir).find(
+  const rechecked = listBuilderTaskDispatches(workspaceRoot).find(
     (candidate) => candidate.taskId === expected.taskId,
   );
   if (

@@ -83,31 +83,31 @@ export function stubCtxWithLocalClient(
   });
 }
 
-export function makeProjectDir(): string {
+export function makeScopeRoot(): string {
   return mkdtempSync(join(tmpdir(), "kota-webhook-cli-"));
 }
 
-export function trustProjectConfig(projectDir: string): void {
+export function trustScopeConfig(scopeRoot: string): void {
   mkdirSync(join(FAKE_HOME, ".kota"), { recursive: true });
   writeFileSync(
     join(FAKE_HOME, ".kota", "config.json"),
-    JSON.stringify({ trustedProjects: [projectDir] }),
+    JSON.stringify({ trustedScopes: [scopeRoot] }),
   );
 }
 
-export function writeProjectConfig(projectDir: string, value: JsonFixture): void {
-  mkdirSync(join(projectDir, ".kota"), { recursive: true });
-  writeFileSync(join(projectDir, ".kota", "config.json"), JSON.stringify(value));
+export function writeScopeConfig(scopeRoot: string, value: JsonFixture): void {
+  mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+  writeFileSync(join(scopeRoot, ".kota", "config.json"), JSON.stringify(value));
 }
 
-export function readProjectConfig(projectDir: string): JsonFixture {
+export function readScopeConfig(scopeRoot: string): JsonFixture {
   return JSON.parse(
-    readFileSync(join(projectDir, ".kota", "config.json"), "utf-8"),
+    readFileSync(join(scopeRoot, ".kota", "config.json"), "utf-8"),
   );
 }
 
-export function projectConfigExists(projectDir: string): boolean {
-  return existsSync(join(projectDir, ".kota", "config.json"));
+export function scopeConfigExists(scopeRoot: string): boolean {
+  return existsSync(join(scopeRoot, ".kota", "config.json"));
 }
 
 export function makeProgram(ctx: ModuleContext): Command {

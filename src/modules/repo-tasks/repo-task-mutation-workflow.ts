@@ -35,10 +35,10 @@ const repoTaskMutationWorkflow: WorkflowDefinitionInput = {
   description: "Apply one repository task mutation through the shared writer runtime.",
   repository: "write",
   integration: { validationCommand: ["pnpm", "validate-tasks"] },
-  resources: ({ projectDir, trigger }) => [
+  resources: ({ scopeRoot, trigger }) => [
     ...new Set(
       repoTaskMutationResources(
-        projectDir,
+        scopeRoot,
         decodeRepoTaskMutationRequest(trigger.payload.request),
       ),
     ),
@@ -49,7 +49,6 @@ const repoTaskMutationWorkflow: WorkflowDefinitionInput = {
     properties: {
       request: { type: "object" },
       scopeId: { type: "string" },
-      projectId: { type: "string" },
       triggeredAt: { type: "string" },
       _runId: { type: "string" },
       triggeredByRunId: { type: "string" },

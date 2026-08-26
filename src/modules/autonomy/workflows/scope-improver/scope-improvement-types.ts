@@ -74,8 +74,7 @@ export type ScopeImprovementTaskSpec = {
   problem: string;
   desiredOutcome: string;
   constraints: string[];
-  doneWhen: string[];
-  acceptanceEvidence: string[];
+  howWeWillKnow: string[];
 };
 
 type ScopeImprovementCandidateBase = {

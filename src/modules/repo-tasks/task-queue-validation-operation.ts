@@ -5,13 +5,13 @@ import {
 } from "./task-queue-validation.js";
 
 export type TaskQueueValidationOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
 };
 
 export function inspectTaskQueueValidation(
   input: TaskQueueValidationOperationInput,
 ): TaskQueueValidationResult {
-  return assertTaskQueueValid(input.projectDir);
+  return assertTaskQueueValid(input.workspaceRoot);
 }
 
 export const taskQueueValidationOperation = defineWorkflowBlockingOperation<

@@ -17,30 +17,30 @@ import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
 
 export const RUNTIME_HEALTH_AUDIT_NOW = "2026-06-19T12:00:00.000Z";
 
-export function makeRuntimeHealthAuditProjectDir(): string {
-  const projectDir = join(
+export function makeRuntimeHealthAuditScopeRoot(): string {
+  const workspaceRoot = join(
     tmpdir(),
     `kota-runtime-health-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
-  mkdirSync(projectDir, { recursive: true });
-  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-  return projectDir;
+  mkdirSync(workspaceRoot, { recursive: true });
+  execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
+  return workspaceRoot;
 }
 
-export function collectRuntimeHealthAuditForProject(args: {
-  projectDir: string;
+export function collectRuntimeHealthAuditForScope(args: {
+  workspaceRoot: string;
   options?: Parameters<typeof collectRuntimeHealthAudit>[0]["options"];
 }) {
   return collectRuntimeHealthAudit({
-    projectDir: args.projectDir,
-    scopeDir: args.projectDir,
-    stateDir: join(args.projectDir, ".kota"),
+    workspaceRoot: args.workspaceRoot,
+    scopeRoot: args.workspaceRoot,
+    stateDir: join(args.workspaceRoot, ".kota"),
     ...(args.options !== undefined ? { options: args.options } : {}),
   });
 }
 
 export function reviewAndApplyRuntimeHealthAudit(
-  projectDir: string,
+  workspaceRoot: string,
   audit: ReturnType<typeof collectRuntimeHealthAudit>,
 ) {
   const review = buildAutonomyHealthReviewFromSignals({
@@ -49,32 +49,32 @@ export function reviewAndApplyRuntimeHealthAudit(
     sourceEventName: "autonomy.runtime-health.audit",
     reason: "test",
   });
-  const currentProjection = readAutonomyIssueProjection(projectDir);
+  const currentProjection = readAutonomyIssueProjection(workspaceRoot);
   const plannedActions = planAutonomyHealthReviewActions({
-    projectDir,
+    workspaceRoot,
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: workspaceRoot,
     review,
   });
   const finalized = applyAutonomyHealthReviewActions({
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: workspaceRoot,
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     ),
     review,
     plannedActions,
   });
-  materializeAutonomyIssueProjection(projectDir, finalized.projection);
+  materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
   return finalized;
 }
 
 export function writeRuntimeHealthModuleLog(
-  projectDir: string,
+  workspaceRoot: string,
   moduleName: string,
   lines: string[],
 ): void {
-  const dir = join(projectDir, ".kota", "modules", moduleName);
+  const dir = join(workspaceRoot, ".kota", "modules", moduleName);
   mkdirSync(dir, { recursive: true });
   const timestamped = lines.map((line) =>
     JSON.stringify({
@@ -85,8 +85,8 @@ export function writeRuntimeHealthModuleLog(
   writeFileSync(join(dir, "logs.jsonl"), `${timestamped.join("\n")}\n`, "utf-8");
 }
 
-export function runtimeHealthReadyTaskFiles(projectDir: string): string[] {
-  const dir = join(projectDir, "data", "tasks", "ready");
+export function runtimeHealthReadyTaskFiles(workspaceRoot: string): string[] {
+  const dir = join(workspaceRoot, "data", "tasks", "ready");
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((name) => name.endsWith(".md"));
 }
@@ -108,7 +108,6 @@ export function staleWorkflowDispatchDeadLetter(
     type: "workflow-dispatch",
     status: "open",
     scopeId: "scope-a",
-    projectId: "scope-a",
     owningModule: "workflow-runtime",
     sourceEventIds: ["evt-1"],
     affectedWorkflowNames: [workflow],
@@ -141,19 +140,19 @@ export function staleWorkflowDispatchDeadLetter(
 }
 
 export function writeRuntimeHealthDeadLetterQueue(
-  projectDir: string,
+  workspaceRoot: string,
   items: DeadLetterItem[],
 ): void {
-  mkdirSync(join(projectDir, ".kota", "dead-letter-queue"), { recursive: true });
+  mkdirSync(join(workspaceRoot, ".kota", "dead-letter-queue"), { recursive: true });
   writeFileSync(
-    join(projectDir, ".kota", "dead-letter-queue", "items.json"),
+    join(workspaceRoot, ".kota", "dead-letter-queue", "items.json"),
     JSON.stringify({ items }, null, 2),
     "utf-8",
   );
 }
 
 export function writeRuntimeHealthRun(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     id: string;
     workflow: string;
@@ -162,7 +161,7 @@ export function writeRuntimeHealthRun(
     error?: string;
   },
 ): void {
-  const runDir = join(projectDir, ".kota", "runs", args.id);
+  const runDir = join(workspaceRoot, ".kota", "runs", args.id);
   mkdirSync(runDir, { recursive: true });
   writeFileSync(
     join(runDir, "metadata.json"),

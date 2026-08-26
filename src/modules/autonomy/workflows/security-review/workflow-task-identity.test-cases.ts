@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import {
@@ -35,7 +35,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       });
       const finding = fixture.confirmedFindingForClaim(claim);
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -43,7 +43,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(result.createdTaskIds).toEqual([]);
       expect(result.updatedTaskIds).toEqual([baseId]);
       expect(result.unchangedFindingIds).toEqual([]);
-      const terminalPath = join(fixture.projectDir, "data/tasks/done", `${baseId}.md`);
+      const terminalPath = join(fixture.workspaceRoot, "data/tasks/done", `${baseId}.md`);
       const terminalTask = readFileSync(terminalPath, "utf-8");
       const terminalAttrs = parseFlatFrontMatter(terminalTask).attrs;
       expect(terminalAttrs.status).toBe("done");
@@ -53,11 +53,11 @@ export function describeSecurityReviewTaskIdentityTests(): void {
         "security-review-run-two",
       ]);
       expect(terminalTask).toContain("Terminal task retains repeated confirmed finding provenance.");
-      expect(existsSync(join(fixture.projectDir, "data/tasks/ready", `${baseId}-2.md`))).toBe(
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/ready", `${baseId}-2.md`))).toBe(
         false,
       );
 
-      const replay = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const replay = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -65,7 +65,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(replay.updatedTaskIds).toEqual([]);
       expect(replay.unchangedFindingIds).toEqual([finding.id]);
       expect(readFileSync(terminalPath, "utf-8")).toBe(terminalTask);
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("merges an explicitly superseded duplicate into the canonical stable-identity record", () => {
@@ -87,14 +87,14 @@ export function describeSecurityReviewTaskIdentityTests(): void {
         supersededBy: canonicalId,
       });
       const supersededPath = join(
-        fixture.projectDir,
+        fixture.workspaceRoot,
         "data/tasks/dropped",
         `${supersededId}.md`,
       );
       const supersededBefore = readFileSync(supersededPath, "utf-8");
       const finding = fixture.confirmedFindingForClaim(repeatedClaim);
 
-      const merged = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const merged = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -103,7 +103,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(merged.updatedTaskIds).toEqual([canonicalId]);
       expect(merged.unchangedFindingIds).toEqual([]);
       const canonicalPath = join(
-        fixture.projectDir,
+        fixture.workspaceRoot,
         "data/tasks/ready",
         `${canonicalId}.md`,
       );
@@ -117,7 +117,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(canonicalAfterMerge).toContain(repeatedClaim);
       expect(readFileSync(supersededPath, "utf-8")).toBe(supersededBefore);
 
-      const replay = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const replay = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run-two",
         findings: [finding],
       });
@@ -125,7 +125,7 @@ export function describeSecurityReviewTaskIdentityTests(): void {
       expect(replay.updatedTaskIds).toEqual([]);
       expect(replay.unchangedFindingIds).toEqual([finding.id]);
       expect(readFileSync(canonicalPath, "utf-8")).toBe(canonicalAfterMerge);
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
   });
 }
@@ -134,15 +134,21 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
   fixture: SecurityReviewProjectFixture;
   investigation: SecurityInvestigationOutput;
   revalidation: SecurityRevalidationVerdictOutput;
+  runId: string;
   taskId: string;
   workflow: WorkflowDefinitionInput;
+  workspaceRoot?: string;
 }): Promise<void> {
-  const taskPath = join(args.fixture.projectDir, "data/tasks/ready", `${args.taskId}.md`);
+  const workspaceRoot = args.workspaceRoot ?? args.fixture.workspaceRoot;
+  args.fixture.commitProjectState("published security review", workspaceRoot);
+  const taskPath = join(workspaceRoot, "data/tasks/ready", `${args.taskId}.md`);
   const taskBeforeReplay = readFileSync(taskPath, "utf-8");
-  const replay = await new WorkflowTestHarness(args.workflow, {
-    projectDir: args.fixture.projectDir,
+  const replay = await new WorkflowScenarioDriver(args.workflow, {
+    workspaceRoot,
+    workspaceDir: workspaceRoot,
+    runId: args.runId,
     trigger: { event: "autonomy.security-review.requested", payload: {} },
-    stepMocks: {
+    stepOutputs: {
       "investigate-candidates": args.investigation,
       "revalidate-findings": args.revalidation,
     },
@@ -154,10 +160,15 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
     unchangedFindingIds: ["confirmed-fetch"],
   });
   expect(replay.steps["write-commit-message"].status).toBe("skipped");
-  expect(readFileSync(taskPath, "utf-8")).toBe(taskBeforeReplay);
+  expect(
+    readFileSync(
+      join(replay.workspaceDir, "data/tasks/ready", `${args.taskId}.md`),
+      "utf-8",
+    ),
+  ).toBe(taskBeforeReplay);
   const replayOutcome = JSON.parse(
     readFileSync(
-      join(args.fixture.projectDir, ".kota/runs/harness/security-review-outcome.json"),
+      join(replay.runDirPath, "security-review-outcome.json"),
       "utf-8",
     ),
   ) as { outcome: string; reason: string };

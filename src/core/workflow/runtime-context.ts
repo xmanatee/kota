@@ -6,14 +6,13 @@ import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventJournal } from "#core/events/event-journal.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import {
   AgentBackoffManager,
   workflowAgentRuntimeId,
 } from "./agent-backoff.js";
 import { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
-import { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import type { RunStateDatabase } from "./run-state-database.js";
@@ -23,6 +22,7 @@ import {
   maybeStartNext,
 } from "./runtime-dispatch.js";
 import { ScheduleTriggerManager } from "./schedule-triggers.js";
+import { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WatchTriggerManager } from "./watch-triggers.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
@@ -36,11 +36,11 @@ import { WorkflowQueueManager } from "./workflow-queue.js";
  * without per-call casts.
  */
 export interface WorkflowRuntimeContext {
-  readonly projectDir: string;
-  readonly projectId: string;
+  readonly scopeRoot: string;
+  readonly scopeId: string;
   readonly config?: KotaConfig;
   readonly store: WorkflowRunStore;
-  readonly projectState: ProjectRuntimeStateStore;
+  readonly scopeState: ScopeRuntimeStateStore;
   readonly deadLetterQueue?: DeadLetterQueueStore;
   readonly eventJournal?: EventJournal;
   readonly approvalQueue: ApprovalQueue;
@@ -56,12 +56,12 @@ export interface WorkflowRuntimeContext {
   readonly runtimeConfig: WorkflowRuntimeConfig;
   definitionsLoadedAt?: string;
   /**
-   * Per-project view over the runtime's underlying bus. Every project-scoped
+   * Per-scope view over the runtime's underlying bus. Every scope-bound
    * lifecycle event (`workflow.started`, `workflow.completed`, queue-shape,
    * runtime control) flows through this wrapper so subscribers can attribute
    * the emit without inferring scope from paths.
    */
-  readonly pbus: ProjectScopedEventBus;
+  readonly pbus: ScopedEventBus;
   readonly model?: string;
   readonly idleIntervalMs: number;
   lastIdleEventSignature?: string;
@@ -86,16 +86,16 @@ export interface WorkflowRuntimeContext {
 export function createWorkflowRuntimeContext(
   runtimeConfig: WorkflowRuntimeConfig,
 ): WorkflowRuntimeContext {
-  const projectDir = runtimeConfig.projectDir ?? process.cwd();
-  const store = runtimeConfig.runStore ?? new WorkflowRunStore(projectDir);
+  const scopeRoot = runtimeConfig.scopeRoot ?? process.cwd();
+  const store = runtimeConfig.runStore ?? new WorkflowRunStore(scopeRoot);
   const scopeId = runtimeConfig.pbus?.getScopeId()
-    ?? deriveDirectoryScopeId(projectDir);
+    ?? deriveDirectoryScopeId(scopeRoot);
   const pbus =
     runtimeConfig.pbus ??
-    new ProjectScopedEventBus(runtimeConfig.bus, scopeId);
+    new ScopedEventBus(runtimeConfig.bus, scopeId);
   const approvalQueue = runtimeConfig.approvalQueue
     ?? new ApprovalQueue(
-      join(projectDir, ".kota", "approvals"),
+      join(scopeRoot, ".kota", "approvals"),
       pbus,
       {
         scopeId,
@@ -113,13 +113,13 @@ export function createWorkflowRuntimeContext(
   // Trigger and queue managers need the assembled context, so their closures
   // read it after construction instead of recomputing runtime state.
   let ctx!: WorkflowRuntimeContext;
-  const projectState = new ProjectRuntimeStateStore(
+  const scopeState = new ScopeRuntimeStateStore(
     runtimeConfig.runState,
-    runtimeConfig.projectId,
+    runtimeConfig.scopeId,
   );
 
   const backoff = new AgentBackoffManager(
-    projectState,
+    scopeState,
     log,
     workflowAgentRuntimeId(runtimeConfig.config),
   );
@@ -127,8 +127,8 @@ export function createWorkflowRuntimeContext(
     store,
     runState: runtimeConfig.runState,
     coordinator: runtimeConfig.runCoordinator,
-    projectId: runtimeConfig.projectId,
-    projectDir,
+    scopeId: runtimeConfig.scopeId,
+    scopeRoot,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     getScopeId: () => ctx.pbus.getScopeId(),
     getActiveBackoff: () => backoff.getActive(),
@@ -137,7 +137,7 @@ export function createWorkflowRuntimeContext(
     log,
   });
   const scheduleTriggers = new ScheduleTriggerManager(
-    () => runtimeConfig.runState.readWorkflowSummary(runtimeConfig.projectId),
+    () => runtimeConfig.runState.readWorkflowSummary(runtimeConfig.scopeId),
     () => ctx.stopping,
     (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
     () => maybeStartNext(ctx),
@@ -145,7 +145,7 @@ export function createWorkflowRuntimeContext(
     runtimeConfig.isDefaultScopeRuntime ?? (() => true),
   );
   const watchTriggers = new WatchTriggerManager(
-    projectDir,
+    scopeRoot,
     () => ctx.stopping,
     (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
     () => maybeStartNext(ctx),
@@ -153,7 +153,7 @@ export function createWorkflowRuntimeContext(
   );
 
   const eventBatches = new WorkflowEventBatchManager(
-    projectState,
+    scopeState,
     () => ctx.stopping,
     (def, trigger, run) => wfQueue.enqueue(def, trigger, run),
     () => maybeStartNext(ctx),
@@ -162,11 +162,11 @@ export function createWorkflowRuntimeContext(
   );
 
   ctx = {
-    projectDir,
-    projectId: runtimeConfig.projectId,
+    scopeRoot,
+    scopeId: runtimeConfig.scopeId,
     config: runtimeConfig.config,
     store,
-    projectState,
+    scopeState,
     deadLetterQueue: runtimeConfig.deadLetterQueue,
     eventJournal: runtimeConfig.eventJournal,
     approvalQueue,

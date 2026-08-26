@@ -212,7 +212,7 @@ describe("kota answer", () => {
     }
     expect(thrown?.message).toBe("process.exit:1");
     const stderr = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
-    expect(stderr).toContain("No matching sources");
+    expect(stderr).toContain("No matching knowledge, memory, or history sources");
     exitSpy.mockRestore();
     stderrSpy.mockRestore();
   });
@@ -426,7 +426,7 @@ describe("kota answer show", () => {
         await program.parseAsync(["node", "kota", "answer", "show", "rec-2"]);
       } finally {
         const stderr = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
-        expect(stderr).toContain("No matching sources");
+        expect(stderr).toContain("No matching knowledge, memory, or history sources");
         stderrSpy.mockRestore();
       }
     });

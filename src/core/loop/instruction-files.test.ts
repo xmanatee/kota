@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
@@ -315,7 +315,7 @@ describe("loadInstructionContext", () => {
 		writeFileSync(join(CHILD, "CLAUDE.md"), "claude rules", "utf-8");
 		try {
 			const result = loadInstructionContext(CHILD, TEST_ROOT);
-			expect(result).toContain("## Project Instructions");
+			expect(result).toContain("## Workspace Instructions");
 			expect(result).toContain("AGENTS:");
 			expect(result).toContain("CLAUDE:");
 			expect(result).toContain("agent rules");
@@ -356,7 +356,8 @@ describe("repo instruction files stay under the injection cap", () => {
 	)
 		.split("\n")
 		.filter(Boolean)
-		.map((rel) => join(repoRoot, rel));
+		.map((rel) => join(repoRoot, rel))
+		.filter(existsSync);
 
 	it("finds the expected instruction files", () => {
 		expect(tracked.length).toBeGreaterThan(0);

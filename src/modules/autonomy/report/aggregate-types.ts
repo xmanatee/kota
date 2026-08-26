@@ -1,6 +1,5 @@
 import type { AgentUsageCost } from "#core/agent-harness/usage.js";
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import type { ReviewScrutinyEscalationReport } from "#modules/autonomy/review-scrutiny-escalation.js";
 import type {
   TrajectoryDiagnosticPattern,
 } from "#modules/autonomy/trajectory-diagnostic-escalation.js";
@@ -11,12 +10,6 @@ import type {
   RepoTaskClass,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import type {
-  AutonomyChangeClass,
-  AutonomyDecision,
-  AutonomyDecisionMetric,
-  AutonomyRolloutMode,
-} from "../autonomy-change-decision.js";
 import type { ShadowSemanticReviewReport } from "../shadow-semantic-review-types.js";
 import type { DecisionAttributionReport } from "./decision-attribution-types.js";
 import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
@@ -155,34 +148,11 @@ export type TrajectoryDiagnosticPatternSummary = {
   stepId: string;
   code: TrajectoryDiagnosticPattern["code"];
   runCount: number;
-  repairTaskId: string;
   evidenceArtifactPaths: string[];
 };
 
 export type TrajectoryDiagnosticReport = {
   activePatterns: TrajectoryDiagnosticPatternSummary[];
-};
-
-export type AutonomyChangeDecisionSummary = {
-  runId: string;
-  createdAt: string;
-  taskIds: string[];
-  affectedSurfaces: string[];
-  changeClasses: AutonomyChangeClass[];
-  baselineRefs: string[];
-  candidateRefs: string[];
-  metricsCompared: AutonomyDecisionMetric[];
-  rolloutMode: AutonomyRolloutMode;
-  decision: AutonomyDecision;
-  rationale: string;
-  ownerSafetyExceptions: string[];
-  followUpTaskIds: string[];
-};
-
-export type AutonomyChangeDecisionReport = {
-  totalDecisions: number;
-  invalidArtifacts: { runId: string; path: string; reason: string }[];
-  decisions: AutonomyChangeDecisionSummary[];
 };
 
 export type HealthCountRow<TKey extends string> = {
@@ -226,11 +196,9 @@ export type AutonomyReportData = {
   decisionAttribution: DecisionAttributionReport;
   diffSummaryConsistency: DiffSummaryConsistencyReport;
   reviewScrutiny: ReviewScrutinyReport;
-  reviewScrutinyEscalation: ReviewScrutinyEscalationReport;
   shadowSemanticReviews: ShadowSemanticReviewReport;
   trajectoryDiagnostics: TrajectoryDiagnosticReport;
   processDiscipline: ProcessDisciplineReport;
-  autonomyChangeDecisions: AutonomyChangeDecisionReport;
   ownerInterventions: OwnerInterventionReport;
   postCompletionFollowUps: PostCompletionFollowUpReport;
   qualityStratification: QualityStratificationReport;
@@ -240,7 +208,7 @@ export type AutonomyReportData = {
 };
 
 export type AutonomyReportInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runsDir: string;
   windowEndMs: number;
   windowDays?: number;

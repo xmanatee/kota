@@ -4,7 +4,7 @@ import type { PendingApproval } from "#core/daemon/approval-queue.js";
 import {
   type DeadLetterItem,
   deadLetterRunArtifactIds,
-  deadLetterStoreForProject,
+  deadLetterStoreForScope,
 } from "#core/daemon/dead-letter-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
@@ -172,9 +172,9 @@ export function listDeadLetterCounts(
     if (!existsSync(deadLetterQueuePath(source.stateDir))) {
       return emptyDeadLetterCounts(source);
     }
-    const store = deadLetterStoreForProject(source.scopeDir);
+    const store = deadLetterStoreForScope(source.scopeRoot);
     const counts = store.counts(source.scopeId);
-    const runArtifacts = deadLetterRunArtifactIds(source.scopeDir);
+    const runArtifacts = deadLetterRunArtifactIds(source.scopeRoot);
     return {
       scopeId: source.scopeId,
       path: join(".kota", "dead-letter-queue", "items.json"),
@@ -224,7 +224,7 @@ function listDeadLetterEvidence(
   source: ProgressReviewDirectorySource,
 ): ScopedDeadLetterEvidence[] {
   if (!existsSync(deadLetterQueuePath(source.stateDir))) return [];
-  const store = deadLetterStoreForProject(source.scopeDir);
+  const store = deadLetterStoreForScope(source.scopeRoot);
   return store.list({ status: "open", scopeId: source.scopeId }).map((item) => ({
     updatedMs: deadLetterActivityMs(item),
     evidence: summarizeDeadLetter(source, item),

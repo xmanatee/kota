@@ -73,7 +73,7 @@ export function ApprovalListScreen({
     setRefreshing(false);
   }
 
-  const pending = state.approvals.filter((a) => a.status === 'pending');
+  const pending = state.activity.approvals.filter((a) => a.status === 'pending');
 
   return (
     <FlatList

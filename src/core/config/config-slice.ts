@@ -54,8 +54,8 @@ export type ModuleConfigSliceSchemaSource = {
  * optional fields: a slice that does not need merge semantics still
  * declares an explicit override-replaces-base merge.
  *
- * `projectConfigSafety` declares whether repo-owned project-local config may
- * apply before the operator trusts the project. Authority-changing is the
+ * `scopeConfigSafety` declares whether repo-owned scope-local config may
+ * apply before the operator trusts the scope. Authority-changing is the
  * safe default for module slices: the owning module can narrow that only when
  * the slice cannot affect credentials, providers, process launch, routing,
  * guardrails, or autonomous runtime posture.
@@ -74,7 +74,7 @@ export type ModuleConfigSlice<
     base: KotaModuleConfigRegistry[K] | undefined,
     override: KotaModuleConfigRegistry[K],
   ): KotaModuleConfigRegistry[K];
-  projectConfigSafety: "authority" | "safe";
+  scopeConfigSafety: "authority" | "safe";
   schemaSource: ModuleConfigSliceSchemaSource;
 };
 

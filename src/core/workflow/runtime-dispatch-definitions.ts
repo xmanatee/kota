@@ -7,10 +7,10 @@ import type { WorkflowDefinition } from "./types.js";
 import { validateWorkflowDefinitions, WorkflowDefinitionError } from "./validation.js";
 
 export function compileDefinitions(
-  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config" | "resolveAgentDef">,
+  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "scopeRoot" | "config" | "resolveAgentDef">,
 ): WorkflowDefinition[] {
   const runtime = resolveAgentRuntime(state.config);
-  return validateWorkflowDefinitions(state.workflowInputs ?? [], state.projectDir, {
+  return validateWorkflowDefinitions(state.workflowInputs ?? [], state.scopeRoot, {
     defaultAgentHarness: runtime.harness,
     preset: runtime.preset,
     modelTiers: runtime.tiers,
@@ -104,7 +104,7 @@ function assertLoadableAgentContractsInSteps(
 }
 
 export function resolveDefinitions(
-  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "projectDir" | "config">,
+  state: Pick<WorkflowRuntimeDispatchState, "workflowInputs" | "scopeRoot" | "config">,
 ): WorkflowDefinition[] {
   const runtime = resolveAgentRuntime(state.config);
   const definitions = compileDefinitions(state);

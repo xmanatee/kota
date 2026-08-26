@@ -1,4 +1,5 @@
 import { DaemonClient } from '../daemonClient';
+import { ContractDecodeError } from '../daemon/daemon-contract.generated';
 
 type FetchArgs = [input: RequestInfo | URL, init?: RequestInit];
 
@@ -112,12 +113,10 @@ describe('DaemonClient', () => {
 
   test('getAttention sends GET /api/attention with bearer token (populated payload)', async () => {
     const populated = {
-      data: {
-        items: [
-          { label: 'Owner question', detail: 'oq-1 pending 3d' },
-          { label: 'Builder warnings', detail: '3/10' },
-        ],
-      },
+      items: [
+        { label: 'Owner question', detail: 'oq-1 pending 3d' },
+        { label: 'Builder warnings', detail: '3/10' },
+      ],
       text: 'Attention required 2026-04-26\n- owner question pending\n- builder warnings repeating',
     };
     fetchSpy.mockResolvedValueOnce(jsonResponse(populated));
@@ -125,17 +124,17 @@ describe('DaemonClient', () => {
     expect(lastCall()[0]).toBe(`${baseUrl}/api/attention`);
     expect(lastHeaders().Authorization).toBe(`Bearer ${token}`);
     expect(res).toEqual(populated);
-    expect(res.data.items).toHaveLength(2);
+    expect(res.items).toHaveLength(2);
   });
 
   test('getAttention passes through the empty-state envelope unchanged', async () => {
     const empty = {
-      data: { items: [] },
+      items: [],
       text: 'No attention items right now.',
     };
     fetchSpy.mockResolvedValueOnce(jsonResponse(empty));
     const res = await client().getAttention();
-    expect(res.data.items).toHaveLength(0);
+    expect(res.items).toHaveLength(0);
     expect(res.text).toBe('No attention items right now.');
   });
 
@@ -150,8 +149,8 @@ describe('DaemonClient', () => {
     const success = {
       ok: true,
       entries: [
-        { id: 'k-1', type: 'note', status: 'active', title: 'Autonomy loop' },
-        { id: 'k-2', type: 'doc', status: 'archived', title: 'Old plan' },
+        { id: 'k-1', title: 'Autonomy loop', type: 'note', tags: [], status: 'active', created: '2026-04-26', updated: '2026-04-26', content: '', meta: {} },
+        { id: 'k-2', title: 'Old plan', type: 'doc', tags: [], status: 'archived', created: '2026-04-26', updated: '2026-04-26', content: '', meta: {} },
       ],
     };
     fetchSpy.mockResolvedValueOnce(jsonResponse(success));
@@ -182,7 +181,9 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().searchKnowledge('x')).rejects.toThrow(/mystery/);
+    await expect(client().searchKnowledge('x')).rejects.toThrow(
+      ContractDecodeError,
+    );
   });
 
   test('searchKnowledge rejects a malformed entry loudly', async () => {
@@ -190,7 +191,7 @@ describe('DaemonClient', () => {
       jsonResponse({ ok: true, entries: [{ id: 'k-1' }] }),
     );
     await expect(client().searchKnowledge('x')).rejects.toThrow(
-      /knowledge entry/i,
+      ContractDecodeError,
     );
   });
 
@@ -245,14 +246,18 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().searchMemory('x')).rejects.toThrow(/mystery/);
+    await expect(client().searchMemory('x')).rejects.toThrow(
+      ContractDecodeError,
+    );
   });
 
   test('searchMemory rejects a malformed entry loudly', async () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: true, entries: [{ id: 'm-1' }] }),
     );
-    await expect(client().searchMemory('x')).rejects.toThrow(/memory entry/i);
+    await expect(client().searchMemory('x')).rejects.toThrow(
+      ContractDecodeError,
+    );
   });
 
   test('searchMemory surfaces the daemon HTTP error one-to-one', async () => {

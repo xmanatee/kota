@@ -1,33 +1,49 @@
 import type { ApprovalClientProjection } from "#core/daemon/approval-queue.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
+import type { SlackApprovalBindingStore } from "./approval-bindings.js";
 import type { SlackBotOptions } from "./bot-options.js";
 import { callSlackApi, type SlackInteractivePayload } from "./client.js";
 
 export async function postSlackApproval(
 	options: SlackBotOptions,
 	approval: ApprovalClientProjection,
-): Promise<void> {
-	if (!options.notifyChannel) return;
-	await callSlackApi(options.botToken, "chat.postMessage", {
+): Promise<{ channelId: string; messageTs: string } | null> {
+	if (!options.notifyChannel) return null;
+	const posted = await callSlackApi<{ channel: string; ts: string }>(options.botToken, "chat.postMessage", {
 		channel: options.notifyChannel,
 		blocks: buildApprovalBlocks(approval),
 		text: `Approval required: ${approval.tool}`,
 	});
+	return { channelId: posted.channel, messageTs: posted.ts };
 }
 
 export async function handleSlackApprovalAction(
 	options: SlackBotOptions,
 	payload: SlackInteractivePayload,
+	bindings: SlackApprovalBindingStore,
 ): Promise<void> {
 	for (const action of payload.actions) {
-		const [verb, id, reviewDigest] = (action.value ?? action.action_id).split(":");
-		if (!id) continue;
+		const [verb, scopeId, id, reviewDigest] = (action.value ?? "").split(":");
+		if (verb !== "approve" && verb !== "reject") continue;
+		const binding = bindings.get(payload.channel.id, payload.message.ts);
+		if (
+			!scopeId || !id || !reviewDigest ||
+			action.action_id !== `${verb}:${id}` ||
+			binding === null ||
+			binding.scopeId !== scopeId ||
+			binding.approvalId !== id ||
+			binding.reviewDigest !== reviewDigest
+		) {
+			await updateApprovalMessage(options, payload, "Approval binding is stale or invalid.");
+			continue;
+		}
 
+		const approvals = options.getApprovals(scopeId);
 		let resultText: string;
+		let resolved = false;
 		if (verb === "approve") {
-			const result = reviewDigest
-				? await options.approvals.approve(id, reviewDigest)
-				: { ok: false as const, reason: "review_mismatch" as const };
+			const result = await approvals.approve(id, reviewDigest);
+			resolved = result.ok;
 			resultText = !result.ok
 				? `Approval \`${id}\` changed, is unavailable, or was already resolved.`
 				: result.resolution.kind === "workflow_gate_approved"
@@ -36,7 +52,14 @@ export async function handleSlackApprovalAction(
 					? `Approved, but execution failed: \`${result.approval.tool}\``
 					: `Approved and executed: \`${result.approval.tool}\``;
 		} else if (verb === "reject") {
-			const result = await options.approvals.reject(id);
+			const listed = await approvals.list({ status: "pending" });
+			const current = listed.approvals.find((approval) => approval.id === id);
+			if (current?.review.status !== "available" || current.review.digest !== reviewDigest) {
+				await updateApprovalMessage(options, payload, `Approval \`${id}\` changed, is unavailable, or was already resolved.`);
+				continue;
+			}
+			const result = await approvals.reject(id);
+			resolved = result.ok;
 			resultText = result.ok
 				? `Rejected: \`${result.approval.tool}\``
 				: `Approval \`${id}\` not found or already resolved.`;
@@ -44,7 +67,19 @@ export async function handleSlackApprovalAction(
 			continue;
 		}
 
-		await callSlackApi(options.botToken, "chat.update", {
+		if (resolved) {
+			bindings.delete(payload.channel.id, payload.message.ts);
+		}
+		await updateApprovalMessage(options, payload, resultText);
+	}
+}
+
+async function updateApprovalMessage(
+	options: SlackBotOptions,
+	payload: SlackInteractivePayload,
+	resultText: string,
+): Promise<void> {
+	await callSlackApi(options.botToken, "chat.update", {
 			channel: payload.channel.id,
 			ts: payload.message.ts,
 			text: resultText,
@@ -56,7 +91,6 @@ export async function handleSlackApprovalAction(
 				error instanceof Error ? error.message : String(error),
 			);
 		});
-	}
 }
 
 function buildApprovalBlocks(approval: ApprovalClientProjection) {
@@ -92,7 +126,7 @@ function buildApprovalBlocks(approval: ApprovalClientProjection) {
 							text: { type: "plain_text", text: "Approve" },
 							style: "primary",
 							action_id: `approve:${approval.id}`,
-							value: `approve:${approval.id}:${review.digest}`,
+							value: `approve:${approval.scopeId}:${approval.id}:${review.digest}`,
 						}]
 					: []),
 				{
@@ -100,7 +134,9 @@ function buildApprovalBlocks(approval: ApprovalClientProjection) {
 					text: { type: "plain_text", text: "Reject" },
 					style: "danger",
 					action_id: `reject:${approval.id}`,
-					value: `reject:${approval.id}`,
+					value: review.status === "available"
+						? `reject:${approval.scopeId}:${approval.id}:${review.digest}`
+						: `reject:${approval.scopeId}:${approval.id}:unavailable`,
 				},
 			],
 		},

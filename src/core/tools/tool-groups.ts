@@ -2,26 +2,6 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 
 export const TOOL_GROUPS: Record<string, string[]> = {};
 
-export const CORE_TOOL_NAMES = new Set([
-  "agent_status",
-  "git",
-  "shell",
-  "file_read",
-  "file_write",
-  "file_edit",
-  "grep",
-  "glob",
-  "ask_user",
-  "delegate",
-  "handoff_agent",
-  "enable_tools",
-  "env_info",
-  "custom_tool",
-  "checkpoint",
-  "module_factory",
-  "read_document",
-]);
-
 const enabledGroups = new Set<string>();
 
 export function enableGroup(name: string): { tools: string[]; error?: string } {
@@ -48,15 +28,15 @@ export function enableGroup(name: string): { tools: string[]; error?: string } {
 }
 
 export function getActiveToolNames(): Set<string> {
-  const names = new Set(CORE_TOOL_NAMES);
+  const names = new Set<string>();
   for (const group of enabledGroups) {
     for (const tool of TOOL_GROUPS[group] ?? []) names.add(tool);
   }
   return names;
 }
 
-/** All tool names that belong to a group or are core — used to identify custom tools. */
-const KNOWN_TOOL_NAMES = new Set<string>([...CORE_TOOL_NAMES]);
+/** Grouped names are hidden until enabled; ungrouped registrations stay available. */
+const KNOWN_TOOL_NAMES = new Set<string>();
 
 // --- Group registration ---
 
@@ -117,7 +97,6 @@ export function clearCustomGroups(): void {
 
 function rebuildKnownNames(): void {
   KNOWN_TOOL_NAMES.clear();
-  for (const n of CORE_TOOL_NAMES) KNOWN_TOOL_NAMES.add(n);
   for (const tools of Object.values(TOOL_GROUPS)) {
     for (const t of tools) KNOWN_TOOL_NAMES.add(t);
   }
@@ -125,7 +104,7 @@ function rebuildKnownNames(): void {
 
 export function filterTools(tools: readonly KotaTool[]): KotaTool[] {
   const active = getActiveToolNames();
-  // Include active project tools + any custom-registered tools (not in any group/core)
+  // Ungrouped registrations are always available; groups own progressive disclosure.
   const filtered = tools.filter((t) => active.has(t.name) || !KNOWN_TOOL_NAMES.has(t.name));
   // enable_tools is not in the tool list but must always be available — rebuild with current groups
   if (!filtered.some((t) => t.name === "enable_tools")) {
@@ -160,11 +139,6 @@ export function detectToolGroups(prompt: string): string[] {
   return groups;
 }
 
-const CORE_LIST = [...CORE_TOOL_NAMES]
-  .filter((n) => n !== "enable_tools")
-  .sort()
-  .join(", ");
-
 /** Build enable_tools with current group info (includes plugin groups). */
 function buildEnableToolsTool(): KotaTool {
   const desc = Object.entries(TOOL_GROUPS)
@@ -173,7 +147,7 @@ function buildEnableToolsTool(): KotaTool {
   return {
     name: "enable_tools",
     description:
-      `Enable additional tool groups. Call this before using specialized tools.\n\nGroups:\n${desc}\n- all: enable everything\n\nYou can also pass tool names (e.g. "web_search") — the parent group will be enabled.\n\nCore (always available): ${CORE_LIST}`,
+      `Enable additional tool groups. Call this before using specialized tools.\n\nGroups:\n${desc}\n- all: enable everything\n\nYou can also pass tool names (e.g. "web_search") — the parent group will be enabled. Ungrouped tools are always available.`,
     input_schema: {
       type: "object" as const,
       properties: {
@@ -187,9 +161,6 @@ function buildEnableToolsTool(): KotaTool {
     },
   };
 }
-
-/** Exported singleton tool schema rebuilt from the current group table. */
-export const enableToolsTool: KotaTool = buildEnableToolsTool();
 
 export async function runEnableTools(
   input: Record<string, unknown>,

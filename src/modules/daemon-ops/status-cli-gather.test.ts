@@ -26,7 +26,7 @@ describe("readStatusRunProjection", () => {
       runs: [
         {
           runId: "run-queued",
-          projectId: "project-repo",
+          scopeId: "scope-repo",
           workflow: "builder",
           state: "queued",
           resources: ["repository:write"],
@@ -37,7 +37,7 @@ describe("readStatusRunProjection", () => {
         },
         {
           runId: "run-running",
-          projectId: "project-repo",
+          scopeId: "scope-repo",
           workflow: "builder",
           state: "running",
           resources: ["repository:write", "port:41000-41019"],
@@ -57,7 +57,7 @@ describe("readStatusRunProjection", () => {
         },
         {
           runId: "run-waiting",
-          projectId: "project-repo",
+          scopeId: "scope-repo",
           workflow: "owner-gated",
           state: "waiting",
           resources: ["repository:read"],
@@ -76,7 +76,7 @@ describe("readStatusRunProjection", () => {
         },
         {
           runId: "run-attention",
-          projectId: "project-repo",
+          scopeId: "scope-repo",
           workflow: "publisher",
           state: "needs_attention",
           resources: [],
@@ -118,7 +118,7 @@ describe("readStatusRunProjection", () => {
 
     expect(mocks.readRunOperationalProjection).toHaveBeenCalledWith({
       stateDir: "/repo/.kota",
-      projectDir: "/repo",
+      scopeRoot: "/repo",
     });
     expect(mocks.getRepoWorktreeStatus).toHaveBeenNthCalledWith(
       1,

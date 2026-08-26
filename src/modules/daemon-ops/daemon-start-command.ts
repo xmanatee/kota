@@ -1,8 +1,8 @@
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
-import { resolveProjectDir } from "#core/config/project-dir.js";
+import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { Daemon } from "#core/daemon/daemon.js";
-import { initEventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type { LogFormat } from "#core/util/log-format.js";
 import {
@@ -31,8 +31,8 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   }
 
   const useDashboard = process.stdout.isTTY === true && !logFormat;
-  const projectDir = resolveProjectDir(opts.projectDir);
-  const config = loadConfig(projectDir);
+  const scopeRoot = resolveScopeRoot(opts.scopeRoot);
+  const config = loadConfig(scopeRoot);
   const presetResolution = installDaemonPresetEnv(opts.preset, config.defaultPreset);
   const preset = presetResolution.preset;
   const effectiveHarness = resolveDaemonHarness(
@@ -46,16 +46,16 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   };
   preflightDaemonPresetAuth(preset, effectiveHarness);
   const verbose = opts.verbose || effectiveConfig.verbose || false;
-  const eventBus = initEventBus();
+  const eventBus = new EventBus();
   const loader = await loadRuntimeModules({
     config: effectiveConfig,
-    cwd: projectDir,
+    cwd: scopeRoot,
     verbose,
     eventBus,
   });
   const daemon = new Daemon({
     runtimeModuleHost: { eventBus, moduleLoader: loader },
-    projectDir,
+    scopeRoot: scopeRoot,
     verbose,
     config: effectiveConfig,
     idleIntervalMs: 30_000,
@@ -79,7 +79,7 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   }
   const daemonRun = daemon.start();
   await daemon.whenReady();
-  const taskQueue = new DaemonTaskQueueProjection(projectDir);
+  const taskQueue = new DaemonTaskQueueProjection(scopeRoot);
   const dashboard = new DaemonDashboard(
     () => {
       const snapshot = taskQueue.getSnapshot();

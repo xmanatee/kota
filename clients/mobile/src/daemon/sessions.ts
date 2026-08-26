@@ -1,13 +1,12 @@
 // Interactive session shapes (creation, autonomy mode, chat stream).
 
-import { daemonRequest, withProject, type DaemonHttp } from './http';
+import { daemonRequest, daemonResponse, withScope, type DaemonHttp } from './http';
 
 export type AutonomyMode = 'passive' | 'supervised' | 'autonomous';
 
 export interface InteractiveSession {
   id: string;
   scopeId: string;
-  projectId: string;
   createdAt: string;
   lastActive: number;
   autonomyMode: AutonomyMode;
@@ -44,22 +43,22 @@ export interface ChatStreamEvent {
 
 export function getSessions(
   http: DaemonHttp,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<{ sessions: InteractiveSession[] }> {
   return daemonRequest<{ sessions: InteractiveSession[] }>(
     http,
-    withProject('/sessions', projectId),
+    withScope('/sessions', scopeId),
   );
 }
 
 export function createSession(
   http: DaemonHttp,
   autonomyMode?: AutonomyMode,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<{ session_id: string; autonomy_mode?: AutonomyMode }> {
   return daemonRequest<{ session_id: string; autonomy_mode?: AutonomyMode }>(
     http,
-    withProject('/sessions', projectId),
+    withScope('/sessions', scopeId),
     {
       method: 'POST',
       body: JSON.stringify(autonomyMode ? { autonomy_mode: autonomyMode } : {}),
@@ -71,11 +70,11 @@ export function setSessionAutonomyMode(
   http: DaemonHttp,
   id: string,
   mode: AutonomyMode,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<SetAutonomyModeResponse> {
   return daemonRequest<SetAutonomyModeResponse>(
     http,
-    withProject(`/sessions/${encodeURIComponent(id)}`, projectId),
+    withScope(`/sessions/${encodeURIComponent(id)}`, scopeId),
     {
       method: 'PATCH',
       body: JSON.stringify({ autonomy_mode: mode }),
@@ -88,13 +87,15 @@ export function setSessionAutonomyMode(
 export async function deleteSession(
   http: DaemonHttp,
   id: string,
-  projectId?: string,
+  scopeId?: string,
 ): Promise<void> {
-  const url = `${http.baseUrl}${withProject(`/sessions/${encodeURIComponent(id)}`, projectId)}`;
-  const res = await fetch(url, {
+  const res = await daemonResponse(
+    http,
+    withScope(`/sessions/${encodeURIComponent(id)}`, scopeId),
+    {
     method: 'DELETE',
-    headers: { Authorization: `Bearer ${http.token}` },
-  });
+    },
+  );
   if (!res.ok && res.status !== 404) {
     throw new Error(`${res.status} ${res.statusText}`);
   }

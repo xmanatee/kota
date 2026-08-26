@@ -112,8 +112,8 @@ describe("evidence policy", () => {
       secretReference: "$DEMO_REFRESH_TOKEN",
       secretRefs: [{
         name: "DEMO_REFRESH_TOKEN",
-        scope: "project",
-        source: "project-file",
+        scope: "scope",
+        source: "scope-file",
         present: true,
         token: "raw-token",
         value: "refresh-token-secret-789",
@@ -123,8 +123,8 @@ describe("evidence policy", () => {
     expect(projected.secretReference).toBe("$DEMO_REFRESH_TOKEN");
     expect(projected.secretRefs).toEqual([{
       name: "DEMO_REFRESH_TOKEN",
-      scope: "project",
-      source: "project-file",
+      scope: "scope",
+      source: "scope-file",
       present: true,
       token: EVIDENCE_REDACTED,
       value: EVIDENCE_REDACTED,

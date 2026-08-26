@@ -34,39 +34,45 @@ function normalizeScalar(field: string, value: string): string {
   return normalizeGeneratedTaskScalar(GENERATED_TASK_SOURCE, field, value);
 }
 
+function renderList(values: readonly string[]): string {
+  return values
+    .map((value) => {
+      const lines = renderGeneratedTaskProse(value)
+        .split("\n")
+        .map((line) => line.trimStart());
+      return [`- ${lines[0]}`, ...lines.slice(1).map((line) => `  ${line}`)].join(
+        "\n",
+      );
+    })
+    .join("\n");
+}
+
 function subtaskBody(args: {
   taskId: string;
   failedRunId: string;
   problem: string;
   desiredOutcome: string;
   constraints: readonly string[];
-  doneWhen: readonly string[];
-  sourceIntent: string;
-  initiative: string;
-  acceptanceEvidence: readonly string[];
+  howWeWillKnow: readonly string[];
 }): string {
   return renderRepoTaskIntent({
     problem: renderGeneratedTaskProse(args.problem),
     desiredOutcome: renderGeneratedTaskProse(args.desiredOutcome),
-    constraints: args.constraints.map(renderGeneratedTaskProse),
-    doneWhen: args.doneWhen.map(renderGeneratedTaskProse),
-    context: [
-      renderGeneratedTaskProse(args.sourceIntent),
-      renderGeneratedTaskProse(args.initiative),
+    constraints: renderList(args.constraints),
+    howWeWillKnow: renderList(args.howWeWillKnow),
+    context:
       `Decomposed from \`${args.taskId}\` after builder run ` +
       `\`${args.failedRunId}\` exhausted repair.`,
-    ],
-    acceptanceEvidence: args.acceptanceEvidence.map(renderGeneratedTaskProse),
   });
 }
 
 export function applyDecompositionPlan(args: {
-  projectDir: string;
+  workspaceRoot: string;
   taskId: string;
   failedRunId: string;
   plan: DecompositionPlan;
 }): AppliedDecomposition {
-  const original = showTask(args.projectDir, args.taskId);
+  const original = showTask(args.workspaceRoot, args.taskId);
   if (!original.found || original.state === "done" || original.state === "dropped") {
     throw new Error(`Active task ${args.taskId} is unavailable for decomposition`);
   }
@@ -79,7 +85,7 @@ export function applyDecompositionPlan(args: {
     throw new Error(`Task ${args.taskId} already records a decomposition`);
   }
   const droppedPath = join(
-    getRepoTaskStateDir(args.projectDir, "dropped"),
+    getRepoTaskStateDir(args.workspaceRoot, "dropped"),
     `${args.taskId}.md`,
   );
   if (existsSync(droppedPath)) {
@@ -103,12 +109,12 @@ export function applyDecompositionPlan(args: {
     throw new Error("Decomposer subtask titles produce duplicate task ids");
   }
   for (const id of subtaskIds) {
-    if (showTask(args.projectDir, id).found) {
+    if (showTask(args.workspaceRoot, id).found) {
       throw new Error(`Decomposer subtask already exists: ${id}`);
     }
   }
 
-  const readyDir = getRepoTaskStateDir(args.projectDir, "ready");
+  const readyDir = getRepoTaskStateDir(args.workspaceRoot, "ready");
   const now = new Date().toISOString();
   for (const [index, task] of subtasks.entries()) {
     const id = subtaskIds[index]!;
@@ -128,7 +134,7 @@ export function applyDecompositionPlan(args: {
       updated_at: now,
     };
     writeRepoTaskFile(
-      args.projectDir,
+      args.workspaceRoot,
       join(readyDir, `${id}.md`),
       serializeFlatFrontMatter(
         attrs,
@@ -138,24 +144,21 @@ export function applyDecompositionPlan(args: {
           problem: task.problem,
           desiredOutcome: task.desiredOutcome,
           constraints: task.constraints,
-          doneWhen: task.doneWhen,
-          sourceIntent: task.sourceIntent,
-          initiative: task.initiative,
-          acceptanceEvidence: task.acceptanceEvidence,
+          howWeWillKnow: task.howWeWillKnow,
         }),
       ),
     );
   }
 
   const update = updateTaskBody(
-    args.projectDir,
+    args.workspaceRoot,
     args.taskId,
     `${originalBody.trim()}\n\n## Decomposed\n\n${subtaskIds.map((id) => `- ${id}`).join("\n")}`,
   );
   if (!update.ok) {
     throw new Error(`Could not annotate ${args.taskId} before decomposition: ${update.reason}`);
   }
-  moveTaskById(args.projectDir, args.taskId, "dropped");
-  checkDecompositionApplied(args.projectDir, args.taskId);
+  moveTaskById(args.workspaceRoot, args.taskId, "dropped");
+  checkDecompositionApplied(args.workspaceRoot, args.taskId);
   return { taskId: args.taskId, subtaskIds };
 }

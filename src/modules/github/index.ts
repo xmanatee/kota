@@ -31,6 +31,11 @@
 import type { KotaModule, ModuleContext, ModuleRuntimeContext, ToolDef } from "#core/modules/module-types.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
+import {
+  type OutboundHttpMethod,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import type { GitHubConfig } from "./github-auth.js";
 import { githubFetch, resolveRepo, resolveToken } from "./github-auth.js";
 import { makeIssueTools } from "./github-issues.js";
@@ -43,9 +48,9 @@ const githubSetupRequirements: ModuleSetupRequirement[] = [
     kind: "config",
     title: "GitHub token config reference",
     description:
-      "Project config reference that points GitHub tools and task sync at a stored token.",
+      "Scope config reference that points GitHub tools and task sync at a stored token.",
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "github",
     sensitivity: "none",
     setup: {
@@ -79,7 +84,7 @@ const githubSetupRequirements: ModuleSetupRequirement[] = [
     description:
       "Token value stored through the shared secret provider. Required for GitHub tools and task-provider sync.",
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "github",
     sensitivity: "secret",
     setup: {
@@ -88,11 +93,14 @@ const githubSetupRequirements: ModuleSetupRequirement[] = [
       label: "Open GitHub token settings",
       pendingTtlMs: 30 * 60 * 1000,
     },
-    secretRefs: [{ name: "GITHUB_TOKEN", scope: "project" }],
+    secretRefs: [{ name: "GITHUB_TOKEN", scope: "scope" }],
   },
 ];
 
-const githubModule: KotaModule = {
+export function createGithubModule(
+  http: OutboundHttpRequestPort = outboundHttp,
+): KotaModule {
+  return {
   name: "github",
   version: "1.0.0",
   description: "GitHub REST API tools for PR and issue operations",
@@ -120,7 +128,7 @@ const githubModule: KotaModule = {
         id: "github.credentials",
         description: "GitHub personal access token references resolved through the shared secret provider.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -158,9 +166,15 @@ const githubModule: KotaModule = {
 
     const defaultRepo = resolveRepo(config.repo);
 
+    const fetch = (
+      requestToken: string,
+      method: OutboundHttpMethod,
+      path: string,
+      body?: unknown,
+    ) => githubFetch(requestToken, method, path, body, http);
     return [
-      ...makePrTools(token, defaultRepo),
-      ...makeIssueTools(token, defaultRepo),
+      ...makePrTools(token, defaultRepo, fetch),
+      ...makeIssueTools(token, defaultRepo, fetch),
     ];
   },
 
@@ -189,13 +203,16 @@ const githubModule: KotaModule = {
       return;
     }
 
-    const boundFetch = (method: string, path: string, body?: unknown) =>
-      githubFetch(token, method, path, body);
+    const boundFetch = (method: OutboundHttpMethod, path: string, body?: unknown) =>
+      githubFetch(token, method, path, body, http);
 
     const provider = new GitHubTaskProvider(repo, config.taskProvider, boundFetch);
     try {
       await provider.init();
-      ctx.registerProvider(TASK_PROVIDER_TOKEN, provider);
+      ctx.registerProvider(TASK_PROVIDER_TOKEN, {
+        provider,
+        mutations: provider,
+      });
       ctx.log.info("GitHub Issues task provider registered");
     } catch (err) {
       ctx.log.warn(
@@ -203,6 +220,7 @@ const githubModule: KotaModule = {
       );
     }
   },
-};
+  };
+}
 
-export default githubModule;
+export default createGithubModule();

@@ -1,7 +1,7 @@
 import { isAbsolute } from "node:path";
 import {
 	type GitArgumentResult,
-	validateProjectPath,
+	validateRepoPath,
 } from "./git-arguments.js";
 
 const OPTIONS_WITH_SEPARATE_VALUES = new Set([
@@ -195,27 +195,27 @@ function optionName(argument: string): string {
 
 function validatePushRepository(
 	repository: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string> {
 	if (repository.startsWith("file:") || repository.startsWith("~")) {
-		return invalid(`Git push target "${repository}" is outside the project`);
+		return invalid(`Git push target "${repository}" is outside the repository`);
 	}
 	if (
 		isAbsolute(repository) ||
 		/^[A-Za-z]:[\\/]/.test(repository) ||
 		repository.startsWith("\\\\")
 	) {
-		return validateProjectPath(repository, projectDir);
+		return validateRepoPath(repository, repoRoot);
 	}
 	if (repository.includes("://") || /^[^/\\]+:.+$/.test(repository)) {
 		return valid(repository);
 	}
-	return validateProjectPath(repository, projectDir);
+	return validateRepoPath(repository, repoRoot);
 }
 
 export function parsePushArguments(
 	args: string,
-	projectDir: string,
+	repoRoot: string,
 ): GitArgumentResult<string[]> {
 	const parsed = args.trim().split(/\s+/).filter(Boolean);
 	const positionals: string[] = [];
@@ -299,7 +299,7 @@ export function parsePushArguments(
 
 	const repository = repositoryOption ?? positionals[0];
 	if (repository !== undefined) {
-		const target = validatePushRepository(repository, projectDir);
+		const target = validatePushRepository(repository, repoRoot);
 		if (!target.ok) return target;
 	}
 	return valid(parsed);

@@ -74,20 +74,20 @@ function requireNoFollowPrimitives() {
   }
 }
 
-function inspectProjectRoot(request) {
-  const stats = lstatSync(request.projectRootPath);
+function inspectRepoRoot(request) {
+  const stats = lstatSync(request.repoRootPath);
   if (
     stats.isSymbolicLink() ||
     !stats.isDirectory() ||
-    !sameIdentity(stats, request.projectRootIdentity) ||
-    realpathSync.native(request.projectRootPath) !== request.projectRootPath
+    !sameIdentity(stats, request.repoRootIdentity) ||
+    realpathSync.native(request.repoRootPath) !== request.repoRootPath
   ) {
-    refuse("project root changed during the repo mutation");
+    refuse("repository root changed during the repo mutation");
   }
 }
 
 function inspectAnchoredParent(request, expectedIdentity) {
-  inspectProjectRoot(request);
+  inspectRepoRoot(request);
   const anchored = statSync(".");
   if (!anchored.isDirectory() || !sameIdentity(anchored, expectedIdentity)) {
     refuse("parent directory changed during the repo mutation");
@@ -104,26 +104,26 @@ function inspectAnchoredParent(request, expectedIdentity) {
 }
 
 function enterParent(request) {
-  inspectProjectRoot(request);
+  inspectRepoRoot(request);
   const projectFd = openSync(
-    request.projectRootPath,
+    request.repoRootPath,
     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
   );
   try {
-    const projectStats = fstatSync(projectFd);
+    const repoStats = fstatSync(projectFd);
     if (
-      !projectStats.isDirectory() ||
-      !sameIdentity(projectStats, request.projectRootIdentity)
+      !repoStats.isDirectory() ||
+      !sameIdentity(repoStats, request.repoRootIdentity)
     ) {
-      refuse("project root changed while it was opened");
+      refuse("repository root changed while it was opened");
     }
-    process.chdir(request.projectRootPath);
-    if (!sameIdentity(statSync("."), request.projectRootIdentity)) {
-      refuse("project root changed while it was anchored");
+    process.chdir(request.repoRootPath);
+    if (!sameIdentity(statSync("."), request.repoRootIdentity)) {
+      refuse("repository root changed while it was anchored");
     }
-    inspectProjectRoot(request);
+    inspectRepoRoot(request);
 
-    let currentIdentity = request.projectRootIdentity;
+    let currentIdentity = request.repoRootIdentity;
     for (const part of request.parentParts) {
       let pathStats = lstatOptional(part);
       if (pathStats === undefined) {
@@ -157,7 +157,7 @@ function enterParent(request) {
       } finally {
         closeSync(directoryFd);
       }
-      inspectProjectRoot(request);
+      inspectRepoRoot(request);
     }
     inspectAnchoredParent(request, currentIdentity);
     return currentIdentity;

@@ -29,21 +29,29 @@ import type {
  */
 export type CaptureTargetChoice = 'auto' | CaptureTarget;
 
-export interface DaemonState {
+export interface ConnectionDomainState {
   daemonUrl: string;
   token: string;
   settingsLoaded: boolean;
   online: boolean;
   sseConnected: boolean;
   identity: ClientIdentity | null;
+  pushNotificationsEnabled: boolean;
+  error: string | null;
+}
+
+export interface ScopeDomainState {
   /**
-   * The currently active projectId. `null` until identity has resolved
-   * the registry's default. Switches the project-scoped daemon routes
+   * The currently active scopeId. `null` until identity has resolved
+   * the registry's default. Switches the scope-bound daemon routes
    * (`/status`, `/workflow/runs`, `/sessions`, …) without changing the
-   * single-project KOTA-on-itself experience — the picker hides itself
+   * single-scope KOTA-on-itself experience — the picker hides itself
    * when the registry has exactly one entry.
    */
-  activeProjectId: string | null;
+  activeScopeId: string | null;
+}
+
+export interface ActivityDomainState {
   status: DaemonStatus | null;
   runs: RunSummary[];
   approvals: Approval[];
@@ -51,8 +59,9 @@ export interface DaemonState {
   tasks: TasksResponse | null;
   pendingApprovalCount: number;
   pendingOwnerQuestionCount: number;
-  pushNotificationsEnabled: boolean;
-  error: string | null;
+}
+
+export interface ContentDomainState {
   digest: DigestResponse | null;
   digestLoading: boolean;
   digestError: string | null;
@@ -105,16 +114,23 @@ export interface DaemonState {
   retractConfirmed: boolean;
 }
 
-export type DaemonAction =
+export interface DaemonState {
+  connection: ConnectionDomainState;
+  scope: ScopeDomainState;
+  activity: ActivityDomainState;
+  content: ContentDomainState;
+}
+
+type DaemonActionBody =
   | { type: 'SETTINGS_LOADED'; url: string; token: string; pushEnabled: boolean }
   | { type: 'SET_URL'; url: string }
   | { type: 'SET_TOKEN'; token: string }
   | { type: 'SET_PUSH_ENABLED'; enabled: boolean }
   | { type: 'ONLINE'; online: boolean }
   | { type: 'SSE_STATUS'; connected: boolean }
-  | { type: 'IDENTITY'; identity: ClientIdentity; activeProjectId: string }
+  | { type: 'IDENTITY'; identity: ClientIdentity; activeScopeId: string }
   | { type: 'IDENTITY_CLEARED' }
-  | { type: 'ACTIVE_PROJECT'; projectId: string }
+  | { type: 'ACTIVE_SCOPE'; scopeId: string }
   | { type: 'STATUS'; status: DaemonStatus }
   | { type: 'RUNS'; runs: RunSummary[] }
   | { type: 'APPROVALS'; approvals: Approval[] }
@@ -178,14 +194,31 @@ export type DaemonAction =
   | { type: 'RETRACT_RESULT'; result: RetractResult }
   | { type: 'RETRACT_ERROR'; error: string };
 
-export const initialState: DaemonState = {
+/**
+ * Async completions may carry the scope that initiated them. The root reducer
+ * drops a completion after the operator has switched scopes, so old responses
+ * cannot repopulate a freshly invalidated domain store.
+ */
+export type DaemonAction = DaemonActionBody & {
+  requestScopeId?: string | null;
+};
+
+export const initialConnectionState: ConnectionDomainState = {
   daemonUrl: '',
   token: '',
   settingsLoaded: false,
   online: false,
   sseConnected: false,
   identity: null,
-  activeProjectId: null,
+  pushNotificationsEnabled: true,
+  error: null,
+};
+
+export const initialScopeState: ScopeDomainState = {
+  activeScopeId: null,
+};
+
+export const initialActivityState: ActivityDomainState = {
   status: null,
   runs: [],
   approvals: [],
@@ -193,8 +226,9 @@ export const initialState: DaemonState = {
   tasks: null,
   pendingApprovalCount: 0,
   pendingOwnerQuestionCount: 0,
-  pushNotificationsEnabled: true,
-  error: null,
+};
+
+export const initialContentState: ContentDomainState = {
   digest: null,
   digestLoading: false,
   digestError: null,
@@ -247,7 +281,34 @@ export const initialState: DaemonState = {
   retractConfirmed: false,
 };
 
-export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
+export const initialState: DaemonState = {
+  connection: initialConnectionState,
+  scope: initialScopeState,
+  activity: initialActivityState,
+  content: initialContentState,
+};
+
+function clearLiveContent(state: ContentDomainState): ContentDomainState {
+  return {
+    ...initialContentState,
+    knowledgeQuery: state.knowledgeQuery,
+    memoryQuery: state.memoryQuery,
+    historyQuery: state.historyQuery,
+    tasksQuery: state.tasksQuery,
+    recallQuery: state.recallQuery,
+    answerQuery: state.answerQuery,
+    captureText: state.captureText,
+    captureTarget: state.captureTarget,
+    captureHint: state.captureHint,
+    retractTarget: state.retractTarget,
+    retractIdentifier: state.retractIdentifier,
+  };
+}
+
+function reduceConnection(
+  state: ConnectionDomainState,
+  action: DaemonAction,
+): ConnectionDomainState {
   switch (action.type) {
     case 'SETTINGS_LOADED':
       return {
@@ -268,77 +329,25 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         ...state,
         online: action.online,
         error: action.online ? null : state.error,
-        digest: action.online ? state.digest : null,
-        digestError: action.online ? state.digestError : null,
-        digestLoading: action.online ? state.digestLoading : false,
-        attention: action.online ? state.attention : null,
-        attentionError: action.online ? state.attentionError : null,
-        attentionLoading: action.online ? state.attentionLoading : false,
-        knowledgeResult: action.online ? state.knowledgeResult : null,
-        knowledgeError: action.online ? state.knowledgeError : null,
-        knowledgeLoading: action.online ? state.knowledgeLoading : false,
-        memoryResult: action.online ? state.memoryResult : null,
-        memoryError: action.online ? state.memoryError : null,
-        memoryLoading: action.online ? state.memoryLoading : false,
-        historyResult: action.online ? state.historyResult : null,
-        historyError: action.online ? state.historyError : null,
-        historyLoading: action.online ? state.historyLoading : false,
-        tasksResult: action.online ? state.tasksResult : null,
-        tasksError: action.online ? state.tasksError : null,
-        tasksLoading: action.online ? state.tasksLoading : false,
-        recallResult: action.online ? state.recallResult : null,
-        recallError: action.online ? state.recallError : null,
-        recallLoading: action.online ? state.recallLoading : false,
-        answerResult: action.online ? state.answerResult : null,
-        answerError: action.online ? state.answerError : null,
-        answerLoading: action.online ? state.answerLoading : false,
-        answerLogEntries: action.online ? state.answerLogEntries : [],
-        answerLogError: action.online ? state.answerLogError : null,
-        answerLogLoading: action.online ? state.answerLogLoading : false,
-        answerLogHasMore: action.online ? state.answerLogHasMore : false,
-        answerShowRecord: action.online ? state.answerShowRecord : null,
-        answerShowMissing: action.online ? state.answerShowMissing : false,
-        answerShowError: action.online ? state.answerShowError : null,
-        answerShowLoading: action.online ? state.answerShowLoading : false,
-        captureResult: action.online ? state.captureResult : null,
-        captureError: action.online ? state.captureError : null,
-        captureLoading: action.online ? state.captureLoading : false,
-        retractResult: action.online ? state.retractResult : null,
-        retractError: action.online ? state.retractError : null,
-        retractLoading: action.online ? state.retractLoading : false,
-        retractConfirmed: action.online ? state.retractConfirmed : false,
       };
     case 'SSE_STATUS':
       return { ...state, sseConnected: action.connected };
     case 'IDENTITY':
-      return {
-        ...state,
-        identity: action.identity,
-        activeProjectId: action.activeProjectId,
-      };
+      return { ...state, identity: action.identity };
     case 'IDENTITY_CLEARED':
-      return {
-        ...state,
-        identity: null,
-        activeProjectId: null,
-      };
-    case 'ACTIVE_PROJECT':
-      if (state.activeProjectId === action.projectId) return state;
-      // Clear project-scoped runtime state on project switch so the next
-      // `fetchAll` repaints the new project's view without bleeding the
-      // previous project's rows. Mirrors the apple `setActiveProjectId`
-      // and the web `ProjectProvider` semantics.
-      return {
-        ...state,
-        activeProjectId: action.projectId,
-        status: null,
-        runs: [],
-        approvals: [],
-        ownerQuestions: [],
-        tasks: null,
-        pendingApprovalCount: 0,
-        pendingOwnerQuestionCount: 0,
-      };
+      return { ...state, identity: null };
+    case 'ERROR':
+      return { ...state, error: action.error };
+    default:
+      return state;
+  }
+}
+
+function reduceActivity(
+  state: ActivityDomainState,
+  action: DaemonAction,
+): ActivityDomainState {
+  switch (action.type) {
     case 'STATUS':
       return { ...state, status: action.status };
     case 'RUNS':
@@ -359,8 +368,18 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
       return { ...state, tasks: action.tasks };
     case 'PENDING_COUNT':
       return { ...state, pendingApprovalCount: action.count };
-    case 'ERROR':
-      return { ...state, error: action.error };
+    default:
+      return state;
+  }
+}
+
+function reduceContent(
+  state: ContentDomainState,
+  action: DaemonAction,
+): ContentDomainState {
+  switch (action.type) {
+    case 'ONLINE':
+      return action.online ? state : clearLiveContent(state);
     case 'DIGEST_LOADING':
       return { ...state, digestLoading: true, digestError: null };
     case 'DIGEST_RESULT':
@@ -658,5 +677,54 @@ export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
         retractError: action.error,
         retractResult: null,
       };
+    default:
+      return state;
   }
+}
+
+export function reducer(state: DaemonState, action: DaemonAction): DaemonState {
+  if (
+    'requestScopeId' in action &&
+    action.requestScopeId !== state.scope.activeScopeId
+  ) {
+    return state;
+  }
+
+  if (action.type === 'ACTIVE_SCOPE') {
+    if (state.scope.activeScopeId === action.scopeId) return state;
+    return {
+      ...state,
+      scope: { activeScopeId: action.scopeId },
+      activity: { ...state.activity, status: null, runs: [] },
+      content: clearLiveContent(state.content),
+    };
+  }
+
+  if (action.type === 'IDENTITY') {
+    return {
+      ...state,
+      connection: reduceConnection(state.connection, action),
+      scope: { activeScopeId: action.activeScopeId },
+    };
+  }
+
+  if (action.type === 'IDENTITY_CLEARED') {
+    return {
+      ...state,
+      connection: reduceConnection(state.connection, action),
+      scope: initialScopeState,
+    };
+  }
+
+  const connection = reduceConnection(state.connection, action);
+  const activity = reduceActivity(state.activity, action);
+  const content = reduceContent(state.content, action);
+  if (
+    connection === state.connection &&
+    activity === state.activity &&
+    content === state.content
+  ) {
+    return state;
+  }
+  return { ...state, connection, activity, content };
 }

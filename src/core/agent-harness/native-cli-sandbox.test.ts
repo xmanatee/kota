@@ -53,17 +53,17 @@ describe("native CLI live sandbox", () => {
   it("projects linked-worktree Git directories into the write-protected boundary", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-git-boundary-"));
     roots.push(root);
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const worktreeDir = join(root, "linked");
-    mkdirSync(projectDir);
-    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: projectDir });
-    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: projectDir });
-    execFileSync("git", ["config", "user.name", "test"], { cwd: projectDir });
-    writeFileSync(join(projectDir, "tracked.txt"), "tracked\n");
-    execFileSync("git", ["add", "tracked.txt"], { cwd: projectDir });
-    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: projectDir });
+    mkdirSync(scopeRoot);
+    execFileSync("git", ["init", "-q", "-b", "main"], { cwd: scopeRoot });
+    execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: scopeRoot });
+    execFileSync("git", ["config", "user.name", "test"], { cwd: scopeRoot });
+    writeFileSync(join(scopeRoot, "tracked.txt"), "tracked\n");
+    execFileSync("git", ["add", "tracked.txt"], { cwd: scopeRoot });
+    execFileSync("git", ["commit", "-q", "-m", "seed"], { cwd: scopeRoot });
     execFileSync("git", ["worktree", "add", "-q", "-b", "linked", worktreeDir], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
     let protectedPaths: readonly string[] = [];
 
@@ -85,8 +85,8 @@ describe("native CLI live sandbox", () => {
 
     expect(protectedPaths).toEqual(expect.arrayContaining([
       join(worktreeDir, ".git"),
-      realpathSync.native(join(projectDir, ".git", "worktrees", "linked")),
-      realpathSync.native(join(projectDir, ".git")),
+      realpathSync.native(join(scopeRoot, ".git", "worktrees", "linked")),
+      realpathSync.native(join(scopeRoot, ".git")),
     ]));
   });
 
@@ -95,10 +95,10 @@ describe("native CLI live sandbox", () => {
     async () => {
       const root = mkdtempSync(join(tmpdir(), "kota-native-read-sandbox-"));
       roots.push(root);
-      const projectDir = join(root, "project");
+      const scopeRoot = join(root, "project");
       const outsidePath = join(root, "operator-credential.txt");
-      const insidePath = join(projectDir, "project.txt");
-      mkdirSync(projectDir);
+      const insidePath = join(scopeRoot, "project.txt");
+      mkdirSync(scopeRoot);
       writeFileSync(insidePath, "project-visible\n");
       writeFileSync(outsidePath, "host-secret\n");
 
@@ -113,14 +113,14 @@ describe("native CLI live sandbox", () => {
           ].join("; "),
         ],
         {
-          cwd: projectDir,
+          cwd: scopeRoot,
           machineAuthorityOwner: "kota",
           writableRoots: [],
           env: buildNativeCliEnvironment({
             overrides: { INSIDE_PATH: insidePath, OUTSIDE_PATH: outsidePath },
           }),
         },
-        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+        (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
       );
 
       expect(result.status).not.toBe(0);
@@ -145,23 +145,23 @@ describe("native CLI live sandbox", () => {
   it.runIf(process.platform === "darwin")(
     "denies project credential reads inside an otherwise readable workspace",
     async () => {
-      const projectDir = mkdtempSync(join(tmpdir(), "kota-native-secret-sandbox-"));
-      roots.push(projectDir);
-      const secretPath = join(projectDir, ".env");
+      const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-secret-sandbox-"));
+      roots.push(scopeRoot);
+      const secretPath = join(scopeRoot, ".env");
       writeFileSync(secretPath, "TOKEN=project-secret\n");
 
       const result = await withNativeCliSandbox(
         "/bin/sh",
         ["-c", 'cat "$TARGET"'],
         {
-          cwd: projectDir,
+          cwd: scopeRoot,
           machineAuthorityOwner: "kota",
-          writableRoots: [projectDir],
+          writableRoots: [scopeRoot],
           env: buildNativeCliEnvironment({
             overrides: { TARGET: secretPath },
           }),
         },
-        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+        (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
       );
 
       if (isNativeCliSandboxBootstrapError(result.stderr)) {
@@ -177,9 +177,9 @@ describe("native CLI live sandbox", () => {
   it.runIf(process.platform === "darwin")(
     "hides executable workspace configuration roots",
     async () => {
-      const projectDir = mkdtempSync(join(tmpdir(), "kota-native-config-sandbox-"));
-      roots.push(projectDir);
-      const configurationRoot = join(projectDir, ".gemini");
+      const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-config-sandbox-"));
+      roots.push(scopeRoot);
+      const configurationRoot = join(scopeRoot, ".gemini");
       const settingsPath = join(configurationRoot, "settings.json");
       mkdirSync(configurationRoot);
       writeFileSync(settingsPath, JSON.stringify({
@@ -190,15 +190,15 @@ describe("native CLI live sandbox", () => {
         "/bin/sh",
         ["-c", 'cat "$TARGET"'],
         {
-          cwd: projectDir,
+          cwd: scopeRoot,
           machineAuthorityOwner: "kota",
-          writableRoots: [projectDir],
+          writableRoots: [scopeRoot],
           readProtectedRoots: [configurationRoot],
           env: buildNativeCliEnvironment({
             overrides: { TARGET: settingsPath },
           }),
         },
-        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+        (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
       );
 
       if (isNativeCliSandboxBootstrapError(result.stderr)) {
@@ -224,8 +224,8 @@ describe("native CLI live sandbox", () => {
         if (address === null || typeof address === "string") {
           throw new Error("loopback regression listener did not bind to TCP");
         }
-        const projectDir = mkdtempSync(join(tmpdir(), "kota-native-egress-sandbox-"));
-        roots.push(projectDir);
+        const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-egress-sandbox-"));
+        roots.push(scopeRoot);
         const script = [
           'const { connect } = require("node:net")',
           'const proxy = new URL(process.env.HTTPS_PROXY)',
@@ -246,7 +246,7 @@ describe("native CLI live sandbox", () => {
           process.execPath,
           ["-e", script],
           {
-            cwd: projectDir,
+            cwd: scopeRoot,
             machineAuthorityOwner: "kota",
             writableRoots: [],
             env: buildNativeCliEnvironment({
@@ -254,7 +254,7 @@ describe("native CLI live sandbox", () => {
             }),
             allowedEgressHosts: ["chatgpt.com"],
           },
-          (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+          (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
         );
 
         if (isNativeCliSandboxBootstrapError(result.stderr)) {
@@ -275,16 +275,16 @@ describe("native CLI live sandbox", () => {
   );
 
   it("lets a native CLI own the sandbox without an outer wrapper", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-native-owned-sandbox-"));
-    roots.push(projectDir);
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-owned-sandbox-"));
+    roots.push(scopeRoot);
 
     const process = await withNativeCliSandbox(
       "/bin/sh",
       ["-c", "true"],
       {
-        cwd: projectDir,
+        cwd: scopeRoot,
         machineAuthorityOwner: "native-cli",
-        writableRoots: [projectDir],
+        writableRoots: [scopeRoot],
         env: buildNativeCliEnvironment(),
       },
       async (sandboxedProcess) => sandboxedProcess,

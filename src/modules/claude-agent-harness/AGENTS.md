@@ -36,7 +36,7 @@ directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
   adds a built-in tool; an unbound tool must remain fail-closed. Bash uses the
   same compound local/network invocation classifier as KOTA execution tools.
 - Named-agent write scope is a separate final `canUseTool` guard. It validates
-  Claude's effective built-in tool input against the declared project roots
+  Claude's effective built-in tool input against the declared scope roots
   plus the isolated per-run output directory, after caller and scope-policy
   callbacks have run, so neither can widen the destination.
 - Claude command execution also runs in the SDK's fail-closed OS sandbox. The

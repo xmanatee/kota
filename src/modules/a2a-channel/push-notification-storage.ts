@@ -15,6 +15,7 @@ import type {
 
 const STORE_KEY = "push-notification-configs";
 const REDACTED_SECRET = "<redacted>";
+const STORE_SCHEMA_VERSION = 1;
 
 export const DEFAULT_PUSH_NOTIFICATION_PAGE_SIZE = 50;
 export const MAX_PUSH_NOTIFICATION_PAGE_SIZE = 100;
@@ -23,7 +24,7 @@ export type StoredPushNotificationConfig = {
   id: string;
   taskId: string;
   contextId: string;
-  projectId: string | null;
+  scopeId: string | null;
   url: string;
   token: string | null;
   authentication: A2APushNotificationAuthentication | null;
@@ -33,10 +34,18 @@ export type StoredPushNotificationConfig = {
 export function readStoredPushNotificationConfigs(
   storage: ModuleStorage,
 ): StoredPushNotificationConfig[] {
-  const stored = storage.getJSON<JsonObject>(STORE_KEY);
-  const configs = stored?.configs;
-  if (!Array.isArray(configs)) return [];
-  return configs.filter(isStoredConfig);
+  const stored = storage.getJSON(STORE_KEY);
+  if (stored === undefined) return [];
+  if (!isJsonObject(stored)) throw new Error("A2A push notification storage must be an object");
+  if (stored.schemaVersion !== undefined && stored.schemaVersion !== STORE_SCHEMA_VERSION) {
+    throw new Error(`Unsupported A2A push notification storage version: ${String(stored.schemaVersion)}`);
+  }
+  const configs = stored.configs;
+  if (!Array.isArray(configs) || !configs.every(isStoredConfig)) {
+    throw new Error("A2A push notification storage contains invalid configs");
+  }
+  if (stored.schemaVersion === undefined) writeStoredPushNotificationConfigs(storage, configs);
+  return configs;
 }
 
 export function writeStoredPushNotificationConfigs(
@@ -47,7 +56,7 @@ export function writeStoredPushNotificationConfigs(
     storage.delete(STORE_KEY);
     return;
   }
-  storage.setJSON(STORE_KEY, { configs });
+  storage.setJSON(STORE_KEY, { schemaVersion: STORE_SCHEMA_VERSION, configs });
 }
 
 export function redactPushNotificationConfig(
@@ -67,7 +76,7 @@ export function pushConfigMatchesSelector(
   selector: PushNotificationConfigSelector,
 ): boolean {
   if (config.taskId !== selector.taskId || config.id !== selector.configId) return false;
-  if (selector.projectId !== null && config.projectId !== selector.projectId) return false;
+  if (selector.scopeId !== null && config.scopeId !== selector.scopeId) return false;
   if (selector.contextId !== null && config.contextId !== selector.contextId) return false;
   return true;
 }
@@ -77,7 +86,7 @@ export function pushConfigMatchesFilter(
   filter: PushNotificationConfigListFilter,
 ): boolean {
   if (config.taskId !== filter.taskId) return false;
-  if (filter.projectId !== null && config.projectId !== filter.projectId) return false;
+  if (filter.scopeId !== null && config.scopeId !== filter.scopeId) return false;
   if (filter.contextId !== null && config.contextId !== filter.contextId) return false;
   return true;
 }
@@ -91,9 +100,9 @@ export function pushNotificationPageStart(pageToken: string | null): number {
   return parsed;
 }
 
-export function projectIdFromTaskMetadata(metadata: JsonObject): string | null {
-  const projectId = metadata.projectId;
-  return typeof projectId === "string" && projectId.length > 0 ? projectId : null;
+export function scopeIdFromTaskMetadata(metadata: JsonObject): string | null {
+  const scopeId = metadata.scopeId;
+  return typeof scopeId === "string" && scopeId.length > 0 ? scopeId : null;
 }
 
 export function pushSubscriptionKey(taskId: string, contextId: string): string {
@@ -114,7 +123,7 @@ function isStoredConfig(value: JsonValue): value is StoredPushNotificationConfig
   return typeof value.id === "string" &&
     typeof value.taskId === "string" &&
     typeof value.contextId === "string" &&
-    (typeof value.projectId === "string" || value.projectId === null) &&
+    (typeof value.scopeId === "string" || value.scopeId === null) &&
     typeof value.url === "string" &&
     (typeof value.token === "string" || value.token === null) &&
     (value.authentication === null || isAuthentication(value.authentication)) &&

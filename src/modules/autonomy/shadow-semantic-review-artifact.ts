@@ -1,8 +1,7 @@
 import { createHash } from "node:crypto";
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import { readAutonomyChangeDecisionArtifact } from "./autonomy-change-decision.js";
 import {
   SHADOW_SEMANTIC_REVIEW_ARTIFACT_TYPE,
   SHADOW_SEMANTIC_REVIEW_DIR,
@@ -24,7 +23,6 @@ type ShadowSemanticReviewArtifactBody = Omit<
   | "mode"
   | "targetKind"
   | "promotionCandidateRef"
-  | "blockingDecisionArtifact"
 >;
 
 export function shadowSemanticReviewArtifactPath(
@@ -46,36 +44,10 @@ export function shadowSemanticReviewPromptHash(
 }
 
 export function validateShadowSemanticReviewerDeclaration(
-  projectDir: string,
   declaration: ShadowSemanticReviewerDeclaration,
 ): void {
   if (!/^[a-z0-9-]+$/.test(declaration.id)) {
     throw new Error(`shadow reviewer declaration id must be kebab-case: ${declaration.id}`);
-  }
-  if (declaration.mode !== "blocking") return;
-  if (!declaration.blockingDecisionArtifact) {
-    throw new Error(
-      `Blocking shadow reviewer "${declaration.id}" requires an autonomy-change-decision artifact`,
-    );
-  }
-  const decisionPath = isAbsolute(declaration.blockingDecisionArtifact)
-    ? declaration.blockingDecisionArtifact
-    : join(projectDir, declaration.blockingDecisionArtifact);
-  const decision = readAutonomyChangeDecisionArtifact(decisionPath);
-  if (decision.kind !== "valid") {
-    throw new Error(
-      `Blocking shadow reviewer "${declaration.id}" has no valid autonomy-change-decision artifact at ${declaration.blockingDecisionArtifact}`,
-    );
-  }
-  if (
-    decision.artifact.decision !== "promote" ||
-    (decision.artifact.rolloutMode !== "blocking" &&
-      decision.artifact.rolloutMode !== "promoted") ||
-    !decision.artifact.changeClasses.includes("reviewer")
-  ) {
-    throw new Error(
-      `Blocking shadow reviewer "${declaration.id}" requires a promoted reviewer autonomy-change decision`,
-    );
   }
 }
 
@@ -97,22 +69,8 @@ export function writeShadowSemanticReviewArtifact(
     mode: declaration.mode,
     targetKind: declaration.targetKind,
     promotionCandidateRef: declaration.promotionCandidateRef,
-    ...(declaration.blockingDecisionArtifact
-      ? { blockingDecisionArtifact: declaration.blockingDecisionArtifact }
-      : {}),
     ...body,
   } satisfies ShadowSemanticReviewArtifact;
   writeJsonFileAtomic(path, artifact);
   return { path, artifact };
-}
-
-export function shadowSemanticReviewShouldBlock(
-  artifact: Pick<ShadowSemanticReviewArtifact, "mode" | "status" | "decision" | "findings">,
-): boolean {
-  if (artifact.mode !== "blocking") return false;
-  if (artifact.status !== "reviewed") return artifact.status !== "skipped";
-  return (
-    artifact.decision === "fail" ||
-    artifact.findings.some((finding) => finding.severity === "critical" && !finding.falsePositive)
-  );
 }

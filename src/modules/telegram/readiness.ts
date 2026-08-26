@@ -9,7 +9,7 @@ import { autonomyHealthSignal, normalizeHealthSignal } from "#modules/autonomy/h
 import { apiKeyNameForProvider, resolveApiKey, resolveModelProviderName } from "#modules/model-clients/factory.js";
 import { isModelClientHarness, resolveTelegramInteractiveBackend } from "./backend.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
-import type { TelegramChatProjectBinding } from "./project-selection.js";
+import type { TelegramChatScopeBinding } from "./scope-selection.js";
 
 export type TelegramConfig = {
   /** Subset of opt-in notification events to forward. Default: none. */
@@ -18,8 +18,8 @@ export type TelegramConfig = {
   defaultAutonomyMode?: AutonomyMode;
   /** Whitelist of chat IDs allowed to open interactive sessions. Empty/undefined = allow all. */
   allowedChatIds?: number[];
-  /** Default Telegram chat -> project bindings used when the daemon hosts multiple projects. */
-  chatProjectBindings?: TelegramChatProjectBinding[];
+  /** Default Telegram chat -> scope bindings used when the daemon hosts multiple scopes. */
+  chatScopeBindings?: TelegramChatScopeBinding[];
   /** Prefix-configured text updates that emit inbound.signal.received. */
   inboundSignals?: TelegramInboundSignalConfig;
 };
@@ -35,7 +35,7 @@ export const telegramSetupRequirements: ModuleSetupRequirement[] = [
     description:
       "Bot token and default alert chat reference used by Telegram channels.",
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "telegram",
     sensitivity: "secret",
     setup: {
@@ -45,8 +45,8 @@ export const telegramSetupRequirements: ModuleSetupRequirement[] = [
       pendingTtlMs: 30 * 60 * 1000,
     },
     secretRefs: [
-      { name: "TELEGRAM_BOT_TOKEN", scope: "project" },
-      { name: "TELEGRAM_ALERT_CHAT_ID", scope: "project" },
+      { name: "TELEGRAM_BOT_TOKEN", scope: "scope" },
+      { name: "TELEGRAM_ALERT_CHAT_ID", scope: "scope" },
     ],
   },
   {
@@ -56,7 +56,7 @@ export const telegramSetupRequirements: ModuleSetupRequirement[] = [
     description:
       "Model or harness backend used by Telegram chat sessions after bot credentials are present.",
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "telegram",
     sensitivity: "none",
     setup: { mode: "none" },
@@ -86,7 +86,7 @@ export function telegramInteractiveProviderError(
     return `Telegram interactive sessions require a model provider for "${model}". Set config.modelProvider.type, use provider/model notation, or select a multi-turn harness preset that does not require ModelClient.`;
   }
   const apiKeyEnv = apiKeyNameForProvider(provider);
-  if (apiKeyEnv && !resolveApiKey(provider, explicitProvider?.apiKey, { projectDir: ctx.cwd })) {
+  if (apiKeyEnv && !resolveApiKey(provider, explicitProvider?.apiKey, { scopeRoot: ctx.cwd })) {
     return `Telegram interactive sessions require ${apiKeyEnv} or config.modelProvider.apiKey for provider "${provider}".`;
   }
   return null;
@@ -162,10 +162,10 @@ export function createTelegramReadinessSource(ctx: ModuleContext): CapabilityRea
 
 export function emitTelegramPollConflictHealthSignal(
   ctx: ModuleContext,
-  projectId: string,
+  scopeId: string,
 ): void {
   const dedupeKey = "module:telegram:getupdates-conflict";
-  const reportKey = `${projectId}:${dedupeKey}`;
+  const reportKey = `${scopeId}:${dedupeKey}`;
   if (reportedTelegramPollConflicts.has(reportKey)) return;
   reportedTelegramPollConflicts.add(reportKey);
 
@@ -192,8 +192,7 @@ export function emitTelegramPollConflictHealthSignal(
 
   try {
     ctx.events.emit(autonomyHealthSignal, {
-      scopeId: projectId,
-      projectId,
+      scopeId,
       ...signal,
     });
   } catch (err) {

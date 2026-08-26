@@ -157,7 +157,7 @@ describe("browser source-access report", () => {
     overrides: Partial<SourceAccessReportOptions>,
   ): SourceAccessReportOptions {
     return {
-      projectDir: tempDir,
+      scopeRoot: tempDir,
       config: undefined,
       articleUrl: null,
       xPostUrl: null,

@@ -12,7 +12,7 @@ import {
   type ScopePolicyAuthority,
 } from "#core/daemon/scope-policy.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { WorkflowRunStore } from "../run-store.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
@@ -62,11 +62,11 @@ describe("direct workflow native harness scope policy", () => {
       },
     },
   ])("rejects before native launch when $restriction", async ({ policyFragment }) => {
-    const projectDir = join(
+    const workspaceRoot = join(
       tmpdir(),
       `kota-direct-native-policy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
     try {
       const run = vi.fn(async () => ({
         text: "unexpected",
@@ -92,7 +92,7 @@ describe("direct workflow native harness scope policy", () => {
         run,
       };
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, "scope-a");
+      const pbus = new ScopedEventBus(bus, "scope-a");
       const policy = resolveScopePolicy({
         projection: {
           rootScopeId: "global",
@@ -103,7 +103,7 @@ describe("direct workflow native harness scope policy", () => {
               scopeId: "scope-a",
               displayName: "Fixture",
               parentScopeId: "global",
-              directoryRoot: projectDir,
+              directoryRoot: workspaceRoot,
             },
           ],
         },
@@ -123,11 +123,11 @@ describe("direct workflow native harness scope policy", () => {
         [],
         {
           readRuntimeState: readEmptyTestWorkflowRuntimeState,
-          projectDir,
-          scopeDir: projectDir,
+          workspaceRoot,
+          scopeRoot: workspaceRoot,
           bus,
           pbus,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           scopePolicyAuthority: authorityFor(policy),
           runAgentHarness: createWorkflowAgentHarnessRunner(undefined),
           currentStepId: "review",
@@ -139,7 +139,7 @@ describe("direct workflow native harness scope policy", () => {
       await expect(
         context.runAgentHarness(harness, {
           prompt: "Exercise direct native authorization.",
-          cwd: projectDir,
+          cwd: workspaceRoot,
           effort: "low",
           autonomyMode: "autonomous",
         }),
@@ -148,7 +148,7 @@ describe("direct workflow native harness scope policy", () => {
       );
       expect(run).not.toHaveBeenCalled();
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });

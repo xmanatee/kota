@@ -1,6 +1,7 @@
 import type { KotaConfig } from "#core/config/config.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import type { ProviderRegistry } from "#core/modules/provider-registry.js";
 import type { ToolEffect } from "#core/tools/effect.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -15,6 +16,7 @@ export type FileSnapshot = Map<string, string>;
 export type WorkflowTrialRuntime = {
   config: KotaConfig;
   eventBus?: EventBus;
+  providerRegistry?: ProviderRegistry;
   workflows: RegisteredWorkflowDefinitionInput[];
   resolveAgentDef?: ModuleContext["resolveAgentDef"];
   resolveSkillsPrompt?: ModuleContext["resolveSkillsPrompt"];
@@ -22,12 +24,12 @@ export type WorkflowTrialRuntime = {
 };
 
 export type WorkflowTrialRuntimeFactory = (
-  trialProjectDir: string,
-  sourceProjectDir?: string,
+  trialWorkspaceRoot: string,
+  sourceScopeRoot?: string,
 ) => Promise<WorkflowTrialRuntime>;
 
 export type RunWorkflowTrialArgs = {
-  sourceProjectDir: string;
+  sourceScopeRoot: string;
   workflowName: string;
   options?: WorkflowTrialOptions;
   runtimeFactory: WorkflowTrialRuntimeFactory;
@@ -41,9 +43,9 @@ export type TrialVariant = {
 
 export type QueuedWorkflowReport = WorkflowTrialAttemptReport["queuedWorkflows"][number];
 export type WorkflowRuntimePayload = WorkflowRunTrigger["payload"];
-export type TrialProjectResolution =
-  | { ok: true; sourceProjectDir: string; projectId: string }
-  | { ok: false; projectId: string; message: string };
+export type TrialScopeResolution =
+  | { ok: true; sourceScopeRoot: string; scopeId: string }
+  | { ok: false; scopeId: string; message: string };
 export type TrialResolvedToolEffect = {
   effect: ToolEffect;
   manifest?: {

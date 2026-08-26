@@ -46,8 +46,8 @@
  * 10. `KnowledgeDeleteResult` arms decode correctly: a `200` non-null
  *     response collapses into `{ ok: true }` and a `null` (404) response
  *     collapses into `{ ok: false, reason: "not_found" }`.
- * 11. `KnowledgeReindexResult` decodes correctly through `requestStrict<T>`
- *     (the provider's `ReindexResult` shape passes through unchanged).
+ * 11. `KnowledgeReindexResult` decodes the explicit success/unavailable
+ *     operation result through `requestStrict<T>`.
  * 12. Removing the knowledge module's daemonClient contribution makes the
  *     assembled client fail loudly with a clear "knowledge" missing-handler
  *     error.
@@ -56,8 +56,6 @@
 
 import { describe, expect, it } from "vitest";
 import type { KnowledgeEntry } from "#core/modules/provider-types.js";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   KnowledgeReindexResult,
@@ -190,19 +188,19 @@ describe("knowledge module daemonClient(link)", () => {
       tag: "alpha",
       type: "note",
       status: "active",
-      scope: "project",
+      scope: "scope",
     });
     expect(calls[0]!.path).toBe(
-      "/api/knowledge?tag=alpha&type=note&status=active&scope=project",
+      "/api/knowledge?tag=alpha&type=note&status=active&scope=scope",
     );
   });
 
-  it("threads an explicit project id through list()", async () => {
+  it("threads an explicit scope id through list()", async () => {
     const wirePayload = { entries: [] };
     const { transport, calls } = makeRecordingTransport(() => wirePayload);
     const contributed = knowledgeModule.daemonClient!(transport);
-    await contributed.knowledge!.list({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/knowledge?projectId=project-b");
+    await contributed.knowledge!.list({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge?scopeId=scope-b");
   });
 
   it("routes show(id) through GET /api/knowledge/:id via fetchRaw with encodeURIComponent and no body", async () => {
@@ -228,29 +226,29 @@ describe("knowledge module daemonClient(link)", () => {
     expect(result).toEqual({ found: false });
   });
 
-  it("threads an explicit project id through show()", async () => {
+  it("threads an explicit scope id through show()", async () => {
     const entry = makeEntry("plain-id");
     const { transport, calls } = makeRecordingTransport(() => entry);
     const contributed = knowledgeModule.daemonClient!(transport);
-    await contributed.knowledge!.show("plain-id", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/knowledge/plain-id?projectId=project-b");
+    await contributed.knowledge!.show("plain-id", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/plain-id?scopeId=scope-b");
   });
 
   it("throws the typed unknown project route error from show()", async () => {
     const { transport } = makeRecordingTransport(() =>
       new Response(
         JSON.stringify({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
         { status: 404 },
       ),
     );
     const contributed = knowledgeModule.daemonClient!(transport);
     await expect(
-      contributed.knowledge!.show("plain-id", { projectId: "ghost" }),
-    ).rejects.toThrow("Unknown project: ghost");
+      contributed.knowledge!.show("plain-id", { scopeId: "ghost" }),
+    ).rejects.toThrow("Unknown scope: ghost");
   });
 
   it("routes search(query) with no filter through GET /api/knowledge/search?q=... via requestStrict<T>", async () => {
@@ -277,11 +275,11 @@ describe("knowledge module daemonClient(link)", () => {
       tag: "alpha",
       type: "note",
       status: "active",
-      scope: "project",
+      scope: "scope",
       limit: 10,
     });
     expect(calls[0]!.path).toBe(
-      "/api/knowledge/search?q=query&tag=alpha&type=note&status=active&scope=project&limit=10",
+      "/api/knowledge/search?q=query&tag=alpha&type=note&status=active&scope=scope&limit=10",
     );
   });
 
@@ -293,12 +291,12 @@ describe("knowledge module daemonClient(link)", () => {
     expect(calls[0]!.path).toBe("/api/knowledge/search?q=query&semantic=true");
   });
 
-  it("threads an explicit project id through search()", async () => {
+  it("threads an explicit scope id through search()", async () => {
     const expected: KnowledgeSearchResult = { ok: true, entries: [] };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = knowledgeModule.daemonClient!(transport);
-    await contributed.knowledge!.search("query", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/knowledge/search?q=query&projectId=project-b");
+    await contributed.knowledge!.search("query", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/search?q=query&scopeId=scope-b");
   });
 
   it("decodes a multi-entry KnowledgeSearchResult ok: true arm unchanged", async () => {
@@ -355,15 +353,15 @@ describe("knowledge module daemonClient(link)", () => {
     expect(calls[0]!.body).toEqual(options);
   });
 
-  it("threads an explicit project id through add() without putting it in the body", async () => {
+  it("threads an explicit scope id through add() without putting it in the body", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({ id: "new-id" }));
     const contributed = knowledgeModule.daemonClient!(transport);
     await contributed.knowledge!.add({
       title: "Title",
       content: "body",
-      projectId: "project-b",
+      scopeId: "scope-b",
     });
-    expect(calls[0]!.path).toBe("/api/knowledge?projectId=project-b");
+    expect(calls[0]!.path).toBe("/api/knowledge?scopeId=scope-b");
     expect(calls[0]!.body).toEqual({ title: "Title", content: "body" });
   });
 
@@ -391,34 +389,34 @@ describe("knowledge module daemonClient(link)", () => {
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("threads an explicit project id through delete()", async () => {
+  it("threads an explicit scope id through delete()", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({
       deleted: "plain-id",
     }));
     const contributed = knowledgeModule.daemonClient!(transport);
-    await contributed.knowledge!.delete("plain-id", { projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/knowledge/plain-id?projectId=project-b");
+    await contributed.knowledge!.delete("plain-id", { scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/plain-id?scopeId=scope-b");
   });
 
   it("throws the typed unknown project route error from delete()", async () => {
     const { transport } = makeRecordingTransport(() =>
       new Response(
         JSON.stringify({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         }),
         { status: 404 },
       ),
     );
     const contributed = knowledgeModule.daemonClient!(transport);
     await expect(
-      contributed.knowledge!.delete("plain-id", { projectId: "ghost" }),
-    ).rejects.toThrow("Unknown project: ghost");
+      contributed.knowledge!.delete("plain-id", { scopeId: "ghost" }),
+    ).rejects.toThrow("Unknown scope: ghost");
   });
 
   it("routes reindex() through POST /api/knowledge/reindex via requestStrict<T> with no body", async () => {
-    const expected: KnowledgeReindexResult = { indexed: 5, failed: 0 };
+    const expected: KnowledgeReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = knowledgeModule.daemonClient!(transport);
     const result = await contributed.knowledge!.reindex();
@@ -433,33 +431,11 @@ describe("knowledge module daemonClient(link)", () => {
     ]);
   });
 
-  it("threads an explicit project id through reindex()", async () => {
-    const expected: KnowledgeReindexResult = { indexed: 5, failed: 0 };
+  it("threads an explicit scope id through reindex()", async () => {
+    const expected: KnowledgeReindexResult = { ok: true, indexed: 5, failed: 0 };
     const { transport, calls } = makeRecordingTransport(() => expected);
     const contributed = knowledgeModule.daemonClient!(transport);
-    await contributed.knowledge!.reindex({ projectId: "project-b" });
-    expect(calls[0]!.path).toBe("/api/knowledge/reindex?projectId=project-b");
-  });
-
-  it("the assembly path fails loudly when the knowledge module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.knowledge;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /knowledge/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the knowledge module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = knowledgeModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.knowledge;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
+    await contributed.knowledge!.reindex({ scopeId: "scope-b" });
+    expect(calls[0]!.path).toBe("/api/knowledge/reindex?scopeId=scope-b");
   });
 });

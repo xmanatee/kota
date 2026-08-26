@@ -244,14 +244,14 @@ describe("runRepoMap", () => {
 
   it("excludes project credential paths even when the requested pattern matches them", async () => {
     const originalCwd = process.cwd();
-    const projectDir = mkdtempSync(join(tmpdir(), "repomap-protected-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "repomap-protected-"));
     try {
-      mkdirSync(join(projectDir, ".KOTA"), { recursive: true });
+      mkdirSync(join(scopeRoot, ".KOTA"), { recursive: true });
       writeFileSync(
-        join(projectDir, ".KOTA", "secrets.json"),
+        join(scopeRoot, ".KOTA", "secrets.json"),
         'export const API_KEY = "secret-token";\n',
       );
-      process.chdir(projectDir);
+      process.chdir(scopeRoot);
 
       const result = await runRepoMap({ directory: ".KOTA", pattern: "**/*" });
 
@@ -260,7 +260,7 @@ describe("runRepoMap", () => {
       expect(result.content).not.toContain("secret-token");
     } finally {
       process.chdir(originalCwd);
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 

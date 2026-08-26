@@ -29,10 +29,10 @@ export class StdioTransport implements KempTransport {
   private waiters: Array<(msg: KempInbound | null) => void> = [];
   private label: string;
 
-  constructor(config: StdioForeignModuleConfig, projectCwd: string) {
+  constructor(config: StdioForeignModuleConfig, scopeRoot: string) {
     const cwd = config.cwd
-      ? config.cwd.startsWith("/") ? config.cwd : `${projectCwd}/${config.cwd}`
-      : projectCwd;
+      ? config.cwd.startsWith("/") ? config.cwd : `${scopeRoot}/${config.cwd}`
+      : scopeRoot;
 
     this.label = `[foreign:${config.command}]`;
     this.proc = spawn(config.command, config.args ?? [], {

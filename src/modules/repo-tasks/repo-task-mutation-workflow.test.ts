@@ -19,25 +19,25 @@ describe("repo-task mutation workflow", () => {
   it("integrates through the shared writer lifecycle and returns a stable repository path", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-repo-task-workflow-"));
     roots.push(root);
-    const projectDir = join(root, "project");
-    const taskPath = join(projectDir, "data", "tasks", "ready", "task-new-task.md");
-    mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-    writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: projectDir });
-    execFileSync("git", ["config", "user.name", "KOTA Test"], { cwd: projectDir });
-    execFileSync("git", ["config", "user.email", "kota@example.test"], { cwd: projectDir });
-    execFileSync("git", ["add", "--all"], { cwd: projectDir });
-    execFileSync("git", ["commit", "--quiet", "--message", "baseline"], { cwd: projectDir });
+    const workspaceRoot = join(root, "project");
+    const taskPath = join(workspaceRoot, "data", "tasks", "ready", "task-new-task.md");
+    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+    execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: workspaceRoot });
+    execFileSync("git", ["config", "user.name", "KOTA Test"], { cwd: workspaceRoot });
+    execFileSync("git", ["config", "user.email", "kota@example.test"], { cwd: workspaceRoot });
+    execFileSync("git", ["add", "--all"], { cwd: workspaceRoot });
+    execFileSync("git", ["commit", "--quiet", "--message", "baseline"], { cwd: workspaceRoot });
     initProviderRegistry();
 
     const host = new StandaloneRunHost({
       stateDir: join(root, "state"),
-      project: { projectId: "repo-task-project", projectDir, displayName: "Repo tasks" },
+      scope: { scopeId: "repo-task-scope", scopeRoot: workspaceRoot, displayName: "Repo tasks" },
       bus: new EventBus(),
       workflows: [{
         ...repoTaskMutationWorkflow,
         enabled: true,
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         definitionPath: "repo-task-mutation-workflow-test",
         integration: { validationCommand: ["true"] },
       }],

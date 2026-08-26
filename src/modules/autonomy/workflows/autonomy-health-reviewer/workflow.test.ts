@@ -5,11 +5,12 @@ import {
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { initGitTestRepository } from "#core/util/git-repository-test-support.js";
 import type { DurableEffectValue } from "#core/workflow/run-context.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
   emptyAutonomyIssueProjection,
@@ -23,7 +24,6 @@ import {
 import runtimeHealthAuditorWorkflow, {
   runtimeHealthAuditStepOutput,
 } from "../runtime-health-auditor/workflow.js";
-import { planAutonomyHealthReviewActionsInWorker } from "./action-operations.js";
 import autonomyHealthReviewerWorkflow from "./workflow.js";
 
 function emptyInspected(): RuntimeHealthAudit["inspected"] {
@@ -47,14 +47,15 @@ function emptyInspected(): RuntimeHealthAudit["inspected"] {
 }
 
 describe("autonomy-health-reviewer workflow", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-health-reviewer-workflow-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-health-reviewer-workflow-"));
+    initGitTestRepository(workspaceRoot);
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("keeps health inspection read-only and delegates task writes", () => {
@@ -92,13 +93,12 @@ describe("autonomy-health-reviewer workflow", () => {
   it("commits the issue transition and follow-up effects in the reviewer run", async () => {
     const projection = emptyAutonomyIssueProjection();
     let staged: DurableEffectValue | null = null;
-    const result = await new WorkflowTestHarness(autonomyHealthReviewerWorkflow, {
-      projectDir,
+    const result = await new WorkflowScenarioDriver(autonomyHealthReviewerWorkflow, {
+      workspaceRoot,
       trigger: {
         event: autonomyHealthSignal.name,
         payload: {
           scopeId: "scope-test",
-          projectId: "scope-test",
           observation: "present",
           source: { kind: "workflow", id: "builder", workflow: "builder" },
           severity: "critical",
@@ -116,7 +116,7 @@ describe("autonomy-health-reviewer workflow", () => {
           createdAt: "2026-08-26T12:00:00.000Z",
         },
       },
-      contextOverrides: {
+      ports: {
         state: {
           read: <T extends DurableEffectValue>() => ({
             revision: 0,
@@ -126,14 +126,12 @@ describe("autonomy-health-reviewer workflow", () => {
             staged = value;
           },
         },
-        runBlocking: async (_operation, input) =>
-          planAutonomyHealthReviewActionsInWorker(input as never) as never,
       },
     }).run();
 
     expect(autonomyHealthReviewerWorkflow.resources?.({
-      projectDir,
-      stateDir: join(projectDir, ".kota"),
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       workflowName: autonomyHealthReviewerWorkflow.name,
       trigger: {
         event: autonomyHealthSignal.name,
@@ -172,7 +170,7 @@ describe("autonomy-health-reviewer workflow", () => {
       signals: [],
     };
     const artifactPath = join(
-      projectDir,
+      workspaceRoot,
       ".kota",
       "runs",
       "harness",
@@ -195,8 +193,8 @@ describe("autonomy-health-reviewer workflow", () => {
   });
 
   it("writes the full runtime audit artifact before review uses compact output", async () => {
-    const harness = new WorkflowTestHarness(runtimeHealthAuditorWorkflow, {
-      projectDir,
+    const harness = new WorkflowScenarioDriver(runtimeHealthAuditorWorkflow, {
+      workspaceRoot,
       trigger: {
         event: "autonomy.runtime-health.audit.scheduled",
         payload: { scheduledAt: "2026-06-22T21:05:00.000Z" },
@@ -210,9 +208,10 @@ describe("autonomy-health-reviewer workflow", () => {
 
     expect(result.status).toBe("success");
     expect(output).not.toHaveProperty("audit");
-    expect(output.artifactPath).toBe(
-      join(projectDir, ".kota", "runs", "harness", RUNTIME_HEALTH_AUDIT_ARTIFACT),
-    );
+    expect(output.artifactPath.startsWith(
+      `${join(workspaceRoot, ".kota", "runs")}${sep}`,
+    )).toBe(true);
+    expect(basename(output.artifactPath)).toBe(RUNTIME_HEALTH_AUDIT_ARTIFACT);
     expect(existsSync(output.artifactPath)).toBe(true);
     const artifact = JSON.parse(
       readFileSync(output.artifactPath, "utf-8"),

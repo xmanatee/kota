@@ -29,7 +29,7 @@ export type SkillDef = {
   name: string;
   /** Short description of what this skill teaches. */
   description?: string;
-  /** Path to the markdown file containing this skill's guidance (relative to project root). */
+  /** Path to the markdown file containing this skill's guidance (relative to scope root). */
   promptPath: string;
   /** Agent names this skill is scoped to. Omit for universal availability. */
   roles?: string[];
@@ -41,7 +41,7 @@ export type AgentToolPolicy = {
   disallowed?: string[];
 };
 
-/** Project mutation boundary enforced during and after an agent run. */
+/** Workspace mutation boundary enforced during and after an agent run. */
 export type AgentWriteScope = readonly string[] | "deny-all";
 
 /**
@@ -57,7 +57,7 @@ export type AgentDef = {
   name: string;
   /** Short description of this agent's role and purpose. */
   role: string;
-  /** Path to this agent's main instruction file (relative to project root). */
+  /** Path to this agent's main instruction file (relative to scope root). */
   promptPath: string;
   /** Model to use when running this agent. */
   model: string;
@@ -68,7 +68,7 @@ export type AgentDef = {
   /** Tool access policy. */
   tools?: AgentToolPolicy;
   /**
-   * Project paths this agent may mutate, relative to its workflow workspace.
+   * Paths this agent may mutate, relative to its workflow workspace.
    * Each
    * entry is a path prefix (directory) or an exact file path. A trailing
    * slash is optional — `"data/tasks/"` and `"data/tasks"` both match any

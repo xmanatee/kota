@@ -4,10 +4,10 @@ import { SharedUiSurface } from "@/components/shared-ui/SharedUiSurface";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { useDaemonEvents } from "@/hooks/use-daemon-events";
 import {
-  ProjectProvider,
-  parseProjectHash,
-  useProjectContext,
-} from "@/lib/project-context";
+  ScopeProvider,
+  parseScopeHash,
+  useScopeContext,
+} from "@/lib/scope-context";
 import { cn } from "@/lib/utils";
 import {
   QueryClient,
@@ -33,7 +33,7 @@ function AppContent() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectedSurfaceId, setSelectedSurfaceId] = useState<string | null>(
     () => {
-      const { subRoute } = parseProjectHash(window.location.hash);
+      const { subRoute } = parseScopeHash(window.location.hash);
       return subRoute.startsWith("surface/")
         ? decodeURIComponent(subRoute.slice("surface/".length))
         : null;
@@ -46,8 +46,8 @@ function AppContent() {
       : window.matchMedia("(prefers-color-scheme: dark)").matches;
   });
 
-  const { projectId, buildHash } = useProjectContext();
-  const uiSurfaces = useQuery(uiSurfacesQuery(projectId));
+  const { scopeId, buildHash } = useScopeContext();
+  const uiSurfaces = useQuery(uiSurfacesQuery(scopeId));
   const daemonEvents = useDaemonEvents(uiSurfaces.data);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ function AppContent() {
 
   useEffect(() => {
     const applyHash = () => {
-      const { subRoute } = parseProjectHash(window.location.hash);
+      const { subRoute } = parseScopeHash(window.location.hash);
       if (subRoute.startsWith("surface/")) {
         setSelectedSurfaceId(
           decodeURIComponent(subRoute.slice("surface/".length)),
@@ -71,14 +71,14 @@ function AppContent() {
     return () => window.removeEventListener("hashchange", applyHash);
   }, []);
 
-  // When the active project changes, reset in-project view state — runs and
-  // history ids are project-scoped, so carrying them across a switch would
-  // render a "not found" view in the new project.
+  // When the active scope changes, reset scope-local view state — runs and
+  // history ids are scope-bound, so carrying them across a switch would
+  // render a "not found" view in the new scope.
   useEffect(() => {
-    if (projectId === "") return;
+    if (scopeId === "") return;
     setSessionId(null);
     setSelectedSurfaceId(null);
-  }, [projectId]);
+  }, [scopeId]);
 
   useEffect(() => {
     if (!selectedSurfaceId || !uiSurfaces.data) return;
@@ -177,9 +177,9 @@ function AppContent() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ProjectProvider>
+      <ScopeProvider>
         <AppContent />
-      </ProjectProvider>
+      </ScopeProvider>
     </QueryClientProvider>
   );
 }

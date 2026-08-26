@@ -4,9 +4,9 @@ import { glob as globFn } from "glob";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 import {
-  isProtectedProjectPath,
-  protectedProjectGlobIgnores,
-} from "#core/tools/protected-project-paths.js";
+  isProtectedScopePath,
+  protectedScopeGlobIgnores,
+} from "#core/tools/protected-scope-paths.js";
 import { resolveToolPath } from "./path-resolver.js";
 
 export const repoMapTool: KotaTool = {
@@ -89,10 +89,10 @@ export async function runRepoMap(
       "**/.git/**",
       "**/dist/**",
       "**/*.d.ts",
-      ...protectedProjectGlobIgnores(context),
+      ...protectedScopeGlobIgnores(context),
     ],
   });
-  const visibleFiles = files.filter((file) => !isProtectedProjectPath(
+  const visibleFiles = files.filter((file) => !isProtectedScopePath(
     join(directory, file),
     context,
   ));

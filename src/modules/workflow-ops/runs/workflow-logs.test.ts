@@ -191,7 +191,7 @@ describe("formatAgentMessage", () => {
 describe("followRunLogs", () => {
   let tmpDir: string;
   let runsDir: string;
-  let projectDir: string;
+  let scopeRoot: string;
 
   const RUN_ID = "2026-01-01T00-00-00-000Z-builder-abc123";
   const STEP_ID = "build";
@@ -231,9 +231,9 @@ describe("followRunLogs", () => {
   beforeEach(() => {
     tmpDir = join(tmpdir(), `kota-follow-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
     runsDir = join(tmpDir, "runs");
-    projectDir = join(tmpDir, "project");
+    scopeRoot = join(tmpDir, "project");
     mkdirSync(runsDir, { recursive: true });
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(scopeRoot, { recursive: true });
   });
 
   afterEach(() => {
@@ -248,7 +248,7 @@ describe("followRunLogs", () => {
     try {
       await followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         RUN_ID,
         undefined,
       );
@@ -268,7 +268,7 @@ describe("followRunLogs", () => {
     try {
       const followPromise = followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         RUN_ID,
         undefined,
         200,
@@ -288,7 +288,7 @@ describe("followRunLogs", () => {
     try {
       const followPromise = followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         undefined,
         undefined,
         200,
@@ -300,16 +300,16 @@ describe("followRunLogs", () => {
       writeMetadata(makeMetadata("running"));
       writeEvents([assistantEvent]);
       const runState = new RunStateDatabase(tmpDir);
-      runState.registerProject({
+      runState.registerScope({
         id: "project-follow",
-        rootPath: realpathSync(projectDir),
+        rootPath: realpathSync(scopeRoot),
         createdAt: new Date().toISOString(),
       });
       const { epoch } = runState.beginDaemonSession(new Date().toISOString());
       const startedAt = new Date().toISOString();
       runState.admitRun({
         id: RUN_ID,
-        projectId: "project-follow",
+        scopeId: "project-follow",
         workflow: "builder",
         repository: "read",
         trigger: { event: "manual", schemaRef: null, payload: {} },
@@ -340,7 +340,7 @@ describe("followRunLogs", () => {
     try {
       const followPromise = followRunLogs(
         runsDir,
-        { stateDir: tmpDir, projectDir },
+        { stateDir: tmpDir, scopeRoot },
         RUN_ID,
         undefined,
         200,

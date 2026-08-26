@@ -1,5 +1,5 @@
 import type { BusEnvelope } from "#core/events/event-bus.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import {
   clearWorkflowBatchTimer,
   clearWorkflowBatchTimers,
@@ -15,11 +15,11 @@ import {
   type WorkflowBatchTimerMap,
   workflowBatchBufferKey,
 } from "./event-batch-helpers.js";
-import type { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import {
   matchesFilter,
   workflowEventTriggeringAllowed,
 } from "./run-executor-utils.js";
+import type { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchBufferState,
@@ -59,11 +59,11 @@ export class WorkflowEventBatchManager {
   private readonly timers: WorkflowBatchTimerMap = new Map();
 
   constructor(
-    private readonly store: ProjectRuntimeStateStore,
+    private readonly store: ScopeRuntimeStateStore,
     private readonly isStopping: () => boolean,
     private readonly enqueueRun: EnqueueRun,
     private readonly maybeStartNext: () => void,
-    private readonly getProjectBus: () => ProjectScopedEventBus,
+    private readonly getScopeBus: () => ScopedEventBus,
     private readonly log: (message: string) => void,
   ) {}
 
@@ -194,7 +194,7 @@ export class WorkflowEventBatchManager {
   ): { ok: true; flushed: boolean } | { ok: false; reason: string } {
     const { definition, trigger, triggerIndex } = target;
     const batch = trigger.batch!;
-    const scopeId = explicitWorkflowBatchScope(envelope.payload) ?? this.getProjectBus().getScopeId();
+    const scopeId = explicitWorkflowBatchScope(envelope.payload) ?? this.getScopeBus().getScopeId();
     const group = resolveWorkflowBatchGroup(batch, envelope.payload);
     if (!group.ok) {
       return group;
@@ -276,7 +276,7 @@ export class WorkflowEventBatchManager {
       schemaRef: null,
       payload,
     });
-    this.getProjectBus().emitDynamic(WORKFLOW_BATCH_FLUSH_EVENT, payload);
+    this.getScopeBus().emitDynamic(WORKFLOW_BATCH_FLUSH_EVENT, payload);
     return true;
   }
 

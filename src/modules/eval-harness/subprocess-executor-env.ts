@@ -63,7 +63,7 @@ function prepareFixtureRuntimeEnv(workingDir: string): Record<string, string> {
   // Reset the isolated home on every invocation so fixture output cannot
   // persist machine state across workflow rounds. Eval execution must not
   // synthesize trust: fixture-local modules remain subject to the same
-  // operator-owned authority decision as every other project module.
+  // operator-owned authority decision as every other installed module.
   rmSync(machineHome, { recursive: true, force: true });
   mkdirSync(machineHome, { recursive: true, mode: 0o700 });
   return {
@@ -113,7 +113,7 @@ export function hostExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...hostParentExecutionEnv(options),
       ...(options.extraEnv ?? {}),
-      KOTA_PROJECT_DIR: request.workingDir,
+      KOTA_SCOPE_ROOT: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: pathWithShims,
       ...prepareFixtureRuntimeEnv(request.workingDir),
@@ -136,7 +136,7 @@ export function containerExecutionEnv(
   const env = distCliExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...(options.extraEnv ?? {}),
-      KOTA_PROJECT_DIR: request.workingDir,
+      KOTA_SCOPE_ROOT: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
       PATH: pathWithShims,
       ...prepareFixtureRuntimeEnv(request.workingDir),

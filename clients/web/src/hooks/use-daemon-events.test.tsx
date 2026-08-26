@@ -1,10 +1,10 @@
 import { queryKeys } from "@/api/queries";
-import { TestProjectProvider } from "@/lib/project-context";
+import { TestScopeProvider } from "@/lib/scope-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import fixture from "../../../conformance/contract-fixture.json";
+import fixture from "../../../conformance/ui-behavior-vectors.generated.json";
 import { parseUiSurfaceBundle } from "../../../conformance/ui-surface.generated";
 import { useDaemonEvents } from "./use-daemon-events";
 
@@ -53,13 +53,11 @@ describe("useDaemonEvents shared UI refresh", () => {
     const invalidate = vi.spyOn(queryClient, "invalidateQueries");
     const wrapper = ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={queryClient}>
-        <TestProjectProvider projectId="scope-a">
-          {children}
-        </TestProjectProvider>
+        <TestScopeProvider scopeId="scope-a">{children}</TestScopeProvider>
       </QueryClientProvider>
     );
 
-    const fixtureBundle = parseUiSurfaceBundle(fixture.uiSurfaces.statusInbox);
+    const fixtureBundle = parseUiSurfaceBundle(fixture.operatorBundle);
     const bundle = {
       ...fixtureBundle,
       surfaces: fixtureBundle.surfaces.map((surface, index) =>
@@ -72,7 +70,6 @@ describe("useDaemonEvents shared UI refresh", () => {
     act(() => {
       TestEventSource.latest?.emit("task.changed", {
         scopeId: "scope-a",
-        projectId: "scope-a",
       });
     });
 
@@ -85,19 +82,16 @@ describe("useDaemonEvents shared UI refresh", () => {
     act(() => {
       TestEventSource.latest?.emit("workflow.run.completed", {
         scopeId: "scope-a",
-        projectId: "scope-a",
         timestamp: "2026-08-02T18:30:00.000Z",
         message: "Builder run completed.",
       });
     });
 
-    expect(result.current.liveLogEntries["daemon-events"]).toEqual([
-      {
-        timestamp: "2026-08-02T18:30:00.000Z",
-        level: "info",
-        source: "workflow.run.completed",
-        message: "Builder run completed.",
-      },
-    ]);
+    expect(result.current.liveLogEntries["daemon-events"]).toContainEqual({
+      timestamp: "2026-08-02T18:30:00.000Z",
+      level: "info",
+      source: "workflow.run.completed",
+      message: "Builder run completed.",
+    });
   });
 });

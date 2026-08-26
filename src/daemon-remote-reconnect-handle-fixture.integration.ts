@@ -8,15 +8,15 @@ import type {
 import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import {
-  REMOTE_RECONNECT_PROJECT_ID,
   REMOTE_RECONNECT_RUN_ID,
+  REMOTE_RECONNECT_SCOPE_ID,
   REMOTE_RECONNECT_SESSION_ID,
   REMOTE_RECONNECT_STARTED_AT,
 } from "./daemon-remote-reconnect-client-fixture.integration.js";
 
 export function makeRemoteReconnectHandle(
   bus: EventBus,
-  projectDir: string,
+  scopeRoot: string,
 ): DaemonControlHandle {
   const run: WorkflowRunDetail = {
     id: REMOTE_RECONNECT_RUN_ID,
@@ -59,8 +59,7 @@ export function makeRemoteReconnectHandle(
   };
   const sessions = [{
     id: REMOTE_RECONNECT_SESSION_ID,
-    scopeId: REMOTE_RECONNECT_PROJECT_ID,
-    projectId: REMOTE_RECONNECT_PROJECT_ID,
+    scopeId: REMOTE_RECONNECT_SCOPE_ID,
     createdAt: REMOTE_RECONNECT_STARTED_AT,
     lastActive: new Date(REMOTE_RECONNECT_STARTED_AT).getTime(),
     autonomyMode: "supervised" as const,
@@ -125,15 +124,20 @@ export function makeRemoteReconnectHandle(
       summary: { ready: 0, unavailable: 0, init_failed: 0 },
     }),
     getClientIdentity: async () => ({
-      projectName: "remote-reconnect",
-      projectDir,
-      projects: {
-        defaultProjectId: REMOTE_RECONNECT_PROJECT_ID,
-        projects: [{
-          projectId: REMOTE_RECONNECT_PROJECT_ID,
-          projectDir,
-          displayName: "remote-reconnect",
-        }],
+      scopeName: "remote-reconnect",
+      scopeRoot,
+      scopeRegistry: {
+        rootScopeId: "global",
+        defaultScopeId: REMOTE_RECONNECT_SCOPE_ID,
+        scopes: [
+          { scopeId: "global", displayName: "Global" },
+          {
+            scopeId: REMOTE_RECONNECT_SCOPE_ID,
+            parentScopeId: "global",
+            directoryRoot: scopeRoot,
+            displayName: "remote-reconnect",
+          },
+        ],
       },
       daemonVersion: "0.1.0",
       pid: 1,
@@ -144,23 +148,28 @@ export function makeRemoteReconnectHandle(
         message: "No module contributed a dashboard capability.",
       },
     }),
-    getProjectRegistryProjection: () => ({
-      defaultProjectId: REMOTE_RECONNECT_PROJECT_ID,
-      projects: [{
-        projectId: REMOTE_RECONNECT_PROJECT_ID,
-        projectDir,
-        displayName: "remote-reconnect",
-      }],
+    getScopeRegistryProjection: () => ({
+      rootScopeId: "global",
+      defaultScopeId: REMOTE_RECONNECT_SCOPE_ID,
+      scopes: [
+        { scopeId: "global", displayName: "Global" },
+        {
+          scopeId: REMOTE_RECONNECT_SCOPE_ID,
+          parentScopeId: "global",
+          directoryRoot: scopeRoot,
+          displayName: "remote-reconnect",
+        },
+      ],
     }),
-    hasProject: (projectId: string) => projectId === REMOTE_RECONNECT_PROJECT_ID,
-    getActiveProjectId: () => null,
-    setActiveProjectId: (projectId) =>
-      projectId === null || projectId === REMOTE_RECONNECT_PROJECT_ID
-        ? { ok: true, activeProjectId: projectId }
-        : { ok: false, reason: "not_found", projectId },
-    registerSession: (_id, _createdAt, _autonomyMode, projectId) => ({
+    hasScope: (scopeId: string) => scopeId === REMOTE_RECONNECT_SCOPE_ID,
+    getActiveScopeId: () => null,
+    setActiveScopeId: (scopeId) =>
+      scopeId === null || scopeId === REMOTE_RECONNECT_SCOPE_ID
+        ? { ok: true, activeScopeId: scopeId }
+        : { ok: false, reason: "not_found", scopeId },
+    registerSession: (_id, _createdAt, _autonomyMode, scopeId) => ({
       ok: true,
-      scopeId: projectId ?? REMOTE_RECONNECT_PROJECT_ID,
+      scopeId: scopeId ?? REMOTE_RECONNECT_SCOPE_ID,
     }),
     unregisterSession: () => undefined,
     listSessions: () => sessions,

@@ -70,7 +70,7 @@ export const modelProviderConfigSlice: ModuleConfigSlice<"modelProvider"> = {
   description: "Model provider configuration (Anthropic, OpenAI-compatible, Ollama, etc.)",
   sanitize: sanitizeModelProvider,
   merge: (base, override) => ({ ...base, ...override }),
-  projectConfigSafety: "authority",
+  scopeConfigSafety: "authority",
   schemaSource: {
     relativePath: "src/modules/model-clients/config-slice.ts",
     typeName: "ModelProviderConfig",
@@ -82,7 +82,7 @@ export const failoverConfigSlice: ModuleConfigSlice<"failover"> = {
   description: "Model provider failover (secondary provider when primary is unhealthy)",
   sanitize: sanitizeFailover,
   merge: (base, override) => ({ ...base, ...override }),
-  projectConfigSafety: "authority",
+  scopeConfigSafety: "authority",
   schemaSource: {
     relativePath: "src/modules/model-clients/config-slice.ts",
     typeName: "FailoverConfig",

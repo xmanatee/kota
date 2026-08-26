@@ -1,4 +1,4 @@
-import { apiFetch, apiJson, withProject } from "./client-runtime";
+import { apiFetch, apiJson, withScope } from "./client-runtime";
 import type {
   AuditEntry,
   AutonomyMode,
@@ -12,30 +12,27 @@ import type {
 } from "./types";
 
 export const operatorApi = {
-  listApprovals: (projectId: string) =>
+  listApprovals: (scopeId: string) =>
     apiJson<{ approvals: PendingApproval[] }>(
-      withProject("/api/approvals", projectId),
+      withScope("/api/approvals", scopeId),
     ),
   approveApproval: (
-    projectId: string,
+    scopeId: string,
     id: string,
     reviewDigest: string,
     note?: string,
   ) =>
     apiJson<PendingApproval>(
-      withProject(
-        `/api/approvals/${encodeURIComponent(id)}/approve`,
-        projectId,
-      ),
+      withScope(`/api/approvals/${encodeURIComponent(id)}/approve`, scopeId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reviewDigest, note }),
       },
     ),
-  rejectApproval: (projectId: string, id: string, reason?: string) =>
+  rejectApproval: (scopeId: string, id: string, reason?: string) =>
     apiJson<PendingApproval>(
-      withProject(`/api/approvals/${encodeURIComponent(id)}/reject`, projectId),
+      withScope(`/api/approvals/${encodeURIComponent(id)}/reject`, scopeId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -43,21 +40,21 @@ export const operatorApi = {
       },
     ),
   approveAll: (
-    projectId: string,
+    scopeId: string,
     reviews: Array<{ id: string; digest: string }>,
     note?: string,
   ) =>
     apiJson<PendingApproval[]>(
-      withProject("/api/approvals/approve-all", projectId),
+      withScope("/api/approvals/approve-all", scopeId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reviews, note }),
       },
     ),
-  rejectAll: (projectId: string, reason?: string) =>
+  rejectAll: (scopeId: string, reason?: string) =>
     apiJson<PendingApproval[]>(
-      withProject("/api/approvals/reject-all", projectId),
+      withScope("/api/approvals/reject-all", scopeId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -103,13 +100,13 @@ export const operatorApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ body }),
     }),
-  listSessions: (projectId: string) =>
+  listSessions: (scopeId: string) =>
     apiJson<{ sessions: InteractiveSession[] }>(
-      withProject("/api/sessions", projectId),
+      withScope("/api/sessions", scopeId),
     ),
-  createSession: (projectId: string, autonomyMode?: AutonomyMode) =>
+  createSession: (scopeId: string, autonomyMode?: AutonomyMode) =>
     apiJson<{ session_id: string; autonomy_mode?: AutonomyMode }>(
-      withProject("/api/sessions", projectId),
+      withScope("/api/sessions", scopeId),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

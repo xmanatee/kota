@@ -39,8 +39,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type {
   EvalCalibrationResult,
   EvalFixtureSummary,
@@ -265,27 +263,5 @@ describe("eval-harness module daemonClient(link)", () => {
     const contributed = evalHarnessModule.daemonClient!(transport);
     const result = await contributed.evalHarness!.calibration({ windowDays: 7 });
     expect(result).toEqual(wireResult);
-  });
-
-  it("the assembly path fails loudly when the eval-harness module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.evalHarness;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /evalHarness/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the eval-harness module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = evalHarnessModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.evalHarness;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
   });
 });

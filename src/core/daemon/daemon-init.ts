@@ -1,8 +1,8 @@
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import {
-  getProviderRegistry,
-  HISTORY_PROJECT_PROVIDER_TOKEN,
+  HISTORY_PROVIDER_TOKEN,
+  HISTORY_SCOPE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
@@ -36,11 +36,11 @@ import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
   type WorkflowMetricsSource,
 } from "./metrics-source-provider.js";
-import { DAEMON_PROJECT_SCOPE_PROVIDER_TYPE } from "./project-scope-provider.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "./runtime-scope-provider.js";
 import { inspectChannelScopeDrainBlockers } from "./scope-channel-drain-inspection.js";
 import { inspectExternalScopeDrainBlockers } from "./scope-drain-inspection.js";
 import { ScopeLifecycleService } from "./scope-lifecycle.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "./scope-provider.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
 export type { BuildDaemonInitParams, DaemonRuntimeContext } from "./daemon-runtime-context.js";
@@ -55,7 +55,7 @@ export type { BuildDaemonInitParams, DaemonRuntimeContext } from "./daemon-runti
 export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeContext {
   const {
     config,
-    projectDir,
+    scopeRoot,
     stateDir,
     stateRoot,
     bus,
@@ -67,21 +67,22 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     runState,
     runCoordinator,
     uninstallEventJournal,
-    projectRegistry,
+    scopeRegistry,
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
-    projectRuntimes,
+    scopeRuntimes,
     startupDispatchPaused,
   } = params;
   const sessions = new Map<string, InteractiveSession>();
   const eventLoopLatency = new DaemonEventLoopLatencyMonitor();
+  const providerRegistry = config.runtimeModuleHost?.moduleLoader.getProviderRegistry();
 
   // Closures inside the handle and provider seams reference `ctx` — they
   // resolve lazily when invoked, so the variable is fully assigned before
   // any of them runs.
   let ctx!: DaemonRuntimeContext;
 
-  const defaultBundle = projectRuntimes.getDefault();
+  const defaultBundle = scopeRuntimes.getDefault();
   const workflows = defaultBundle.workflowRuntime, runStore = defaultBundle.runStore;
   const scopeRuntimeHost = new ScopeRuntimeHost({
     bus,
@@ -92,15 +93,15 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     },
   });
   const scopeLifecycle = new ScopeLifecycleService({
-    registry: projectRegistry,
+    registry: scopeRegistry,
     runState,
-    runtimes: projectRuntimes,
+    runtimes: scopeRuntimes,
     runtimeHost: scopeRuntimeHost,
     bus,
     listSessionIds: (scopeId) => {
       const ids = new Set(
         [...sessions.values()]
-          .filter((session) => session.projectId === scopeId)
+          .filter((session) => session.scopeId === scopeId)
           .map((session) => session.id),
       );
       for (const id of ctx.controlServer.listChatSessionIds(scopeId)) ids.add(id);
@@ -108,10 +109,10 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     },
     inspectExternalBlockers: (scope) => [
       ...inspectExternalScopeDrainBlockers(
-        getProviderRegistry(),
+        providerRegistry ?? null,
         {
-          projectId: scope.scopeId,
-          projectDir: scope.directoryRoot,
+          scopeId: scope.scopeId,
+          scopeRoot: scope.directoryRoot,
           displayName: scope.displayName,
         },
       ),
@@ -119,17 +120,18 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     ],
   });
   const daemonModel = config.model ?? config.config?.model;
-  const getDefaultWorkflows = () => projectRuntimes.getDefault().workflowRuntime;
+  const getDefaultWorkflows = () => scopeRuntimes.getDefault().workflowRuntime;
   const chatBindings = new DaemonChatBindingStore(stateDir);
-  const historyProjectProvider = getProviderRegistry()?.get(HISTORY_PROJECT_PROVIDER_TOKEN);
+  const historyScopeProvider = providerRegistry?.get(HISTORY_SCOPE_PROVIDER_TOKEN);
   const resolveChatHistoryProvider = createChatHistoryProviderResolver({
-    projectRuntimes,
-    historyProjectProvider,
+    scopeRuntimes,
+    historyScopeProvider,
+    defaultHistoryProvider: providerRegistry?.get(HISTORY_PROVIDER_TOKEN),
   });
   const conversationResolver = {
-    conversationExists: (conversationId: string, projectId: string): boolean => {
+    conversationExists: (conversationId: string, scopeId: string): boolean => {
       try {
-        return resolveChatHistoryProvider(projectId).load(conversationId) !== null;
+        return resolveChatHistoryProvider(scopeId).load(conversationId) !== null;
       } catch {
         // History module not loaded (no session active yet). Treat as
         // "not found" — the caller will decide whether to create a fresh
@@ -137,10 +139,10 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
         return false;
       }
     },
-    createConversation: (_mode: AutonomyMode, projectId: string): string =>
-      resolveChatHistoryProvider(projectId).create(
+    createConversation: (_mode: AutonomyMode, scopeId: string): string =>
+      resolveChatHistoryProvider(scopeId).create(
         daemonModel ?? resolveActivePresetFromConfig(config.config).defaultModel,
-        projectRuntimes.get(projectId).project.projectDir,
+        scopeRuntimes.get(scopeId).scope.scopeRoot,
         "user",
       ),
   };
@@ -152,11 +154,11 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     bus,
     sessions,
     runStore,
-    projectDir,
-    projectRegistry,
+    scopeRoot,
+    scopeRegistry,
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
-    projectRuntimes,
+    scopeRuntimes,
     getScopeHostingState: (scopeId) => scopeLifecycle.getHostingState(scopeId),
     config,
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
@@ -165,7 +167,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     getModuleSummaries: () => config.getModuleSummaries?.() ?? [],
     getModuleHealthChecks: () => ctx.moduleHealthChecks,
     getEventLoopLatency: () => ctx.eventLoopLatency.snapshot(),
-    probeCapabilityReadiness: () => probeCapabilityReadinessWithTrigger(getDefaultWorkflows()),
+    probeCapabilityReadiness: () =>
+      probeCapabilityReadinessWithTrigger(getDefaultWorkflows(), providerRegistry),
     getChannelStatuses: () => ctx.channelStatuses,
   });
 
@@ -184,7 +187,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       return result;
     },
     execute: (request) =>
-      projectRuntimes.get(request.projectId).workflowRuntime.execute(request),
+      scopeRuntimes.get(request.scopeId).workflowRuntime.execute(request),
   };
   const eventDispatcher: WorkflowEventDispatcher = {
     enqueueBatchedEvent: (input) => getDefaultWorkflows().enqueueBatchedEvent(input),
@@ -200,44 +203,44 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       return def?.webhookRateLimit;
     },
   };
-  const registry = getProviderRegistry();
+  const registry = providerRegistry;
   if (registry) {
     registry.register(
       RUN_STATE_READER_PROVIDER_TYPE,
       "daemon",
       createRunStateReader(runState),
     );
-    registry.register(DAEMON_PROJECT_SCOPE_PROVIDER_TYPE, "daemon", {
-      getProjectRegistryProjection: () => handle.getProjectRegistryProjection(),
-      getActiveProjectId: () => handle.getActiveProjectId(),
-      resolveProjectRuntime: (projectId) => {
-        const requested = projectId?.trim();
-        const resolvedProjectId =
+    registry.register(DAEMON_SCOPE_PROVIDER_TYPE, "daemon", {
+      getScopeRegistryProjection: () => handle.getScopeRegistryProjection(),
+      getActiveScopeId: () => handle.getActiveScopeId(),
+      resolveScopeRuntime: (scopeId) => {
+        const requested = scopeId?.trim();
+        const resolvedScopeId =
           requested && requested.length > 0
             ? requested
-            : handle.getActiveProjectId();
-        if (resolvedProjectId !== null && resolvedProjectId !== undefined) {
-          if (!handle.hasProject(resolvedProjectId)) {
+            : handle.getActiveScopeId();
+        if (resolvedScopeId !== null && resolvedScopeId !== undefined) {
+          if (!handle.hasScope(resolvedScopeId)) {
             return {
               ok: false,
               error: {
-                error: "Unknown project",
-                reason: "unknown_project",
-                projectId: resolvedProjectId,
+                error: "Unknown scope",
+                reason: "unknown_scope",
+                scopeId: resolvedScopeId,
               },
             };
           }
-          return { ok: true, runtime: projectRuntimes.get(resolvedProjectId) };
+          return { ok: true, runtime: scopeRuntimes.get(resolvedScopeId) };
         }
-        return { ok: true, runtime: projectRuntimes.getDefault() };
+        return { ok: true, runtime: scopeRuntimes.getDefault() };
       },
     });
     registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {
-      resolve: (projectId) => {
+      resolve: (scopeId) => {
         try {
-          return { ok: true, runtime: projectRuntimes.get(projectId) };
+          return { ok: true, runtime: scopeRuntimes.get(scopeId) };
         } catch {
-          return { ok: false, projectId };
+          return { ok: false, scopeId };
         }
       },
     });
@@ -248,13 +251,13 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   }
 
   const { makeAgentSession, createModuleSession } =
-    createDaemonAgentSessionFactories(config, projectRuntimes);
+    createDaemonAgentSessionFactories(config, scopeRuntimes, resolveChatHistoryProvider);
   config.runtimeModuleHost?.moduleLoader.setSessionFactory(createModuleSession);
 
   const controlServer = new DaemonControlServer(handle, token, {
     eventBufferSize: config.config?.daemon?.eventBufferSize,
-    makeAgent: (transport: Transport, autonomyMode, resumeConversation, projectId) =>
-      makeAgentSession(transport, autonomyMode, projectId, { resumeConversation }),
+    makeAgent: (transport: Transport, autonomyMode, resumeConversation, scopeId) =>
+      makeAgentSession(transport, autonomyMode, scopeId, { resumeConversation }),
     defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,
     chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
     chatBindings,
@@ -268,7 +271,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     config,
     logger,
     log,
-    projectDir,
+    scopeRoot,
     stateDir,
     stateRoot,
     bus,
@@ -283,9 +286,9 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     token,
     state,
     sessions,
-    projectRegistry,
+    scopeRegistry,
     scopeAuthority,
-    projectRuntimes,
+    scopeRuntimes,
     scopeLifecycle,
     scopeRuntimeHost,
     eventLoopLatency,

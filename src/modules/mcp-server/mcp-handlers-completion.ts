@@ -151,7 +151,7 @@ function hasPromptArgument(prompt: McpPrompt, argumentName: string): boolean {
 export class CompletionHandler {
 	constructor(
 		private readonly ctx: HandlerContext,
-		private readonly resolveProjectDir: () => string,
+		private readonly resolveScopeRoot: () => string,
 	) {}
 
 	async handleComplete(msg: JsonRpcRequest): Promise<void> {
@@ -179,8 +179,8 @@ export class CompletionHandler {
 		ref: PromptCompletionRef,
 		argument: CompletionArgument,
 	): Promise<void> {
-		const projectDir = this.resolveProjectDir();
-		const catalog = listPromptCatalog(projectDir);
+		const scopeRoot = this.resolveScopeRoot();
+		const catalog = listPromptCatalog(scopeRoot);
 		if (!catalog.ok) {
 			this.ctx.transport.sendError(msg, catalog.code, catalog.message);
 			return;
@@ -199,7 +199,7 @@ export class CompletionHandler {
 			return;
 		}
 
-		const values = await this.completePromptArgument(projectDir, ref.name, argument);
+		const values = await this.completePromptArgument(scopeRoot, ref.name, argument);
 		this.ctx.transport.sendResult(msg, completionResult(values));
 	}
 
@@ -218,21 +218,21 @@ export class CompletionHandler {
 	}
 
 	private async completePromptArgument(
-		projectDir: string,
+		scopeRoot: string,
 		promptName: string,
 		argument: CompletionArgument,
 	): Promise<string[]> {
 		if (promptName === "kota-trigger-workflow" && argument.name === "workflow") {
 			const loader = await loadModuleMetadata(
-				loadConfig(projectDir),
-				projectDir,
+				loadConfig(scopeRoot),
+				scopeRoot,
 				false,
 			);
 			const defs = loader.getContributedWorkflows();
 			return filterCompletionValues(defs.map((d) => d.name), argument.value);
 		}
 		if (promptName === "kota-summarize-run" && argument.name === "run_id") {
-			const store = new WorkflowRunStore(projectDir);
+			const store = new WorkflowRunStore(scopeRoot);
 			const runs = store.listRuns({ limit: 20 });
 			return filterCompletionValues(runs.map((r) => r.id), argument.value);
 		}

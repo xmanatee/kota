@@ -4,7 +4,7 @@
 
 - `src/core/` is the small runtime kernel: protocols, lifecycle, daemon,
   workflow execution, eventing, sessions, and shared contracts.
-- `src/modules/` contains project-owned modules that contribute tools,
+- `src/modules/` contains scope-owned modules that contribute tools,
   workflows, agents, skills, channels, routes, commands, and services.
 
 Root `src/*.ts` files should stay rare and act only as public entrypoints or
@@ -20,34 +20,30 @@ Guidelines:
 
 ## Root Layout
 
-The `src/` root holds only:
+Keep public entrypoints and genuinely cross-subsystem integration scenarios at
+the `src/` root. Unit tests and component fixtures belong beside their owning
+core area or module. Cross-cutting fixtures are exceptional: prefer an owned
+typed builder or semantic scenario over a root-level data catalog.
 
 - Entrypoint sources (`cli.ts`, `init.ts`, `module-api.ts`,
   `validate-queue.ts`) and their paired unit tests (`cli.test.ts`,
   `init.test.ts`).
 - Cross-subsystem integration, e2e, and repo-wide tests:
   `*.integration.test.ts`, `e2e*.test.ts`, `integration.test.ts`,
-  `module-e2e.test.ts`, `distributable-surfaces.test.ts`,
-  and `docs-surface.test.ts`.
+  `module-e2e.test.ts`, and `distributable-surfaces.test.ts`.
 - Shared fixtures co-located with cross-cutting integration tests when
   they span multiple subsystems and have no single owning module
-  (e.g. `conversational-cross-store-fixture.integration.ts`). The fixture name must
-  also be added to the `ROOT_CROSS_CUTTING_FIXTURES` set in
-  `src/core/root-layout.ts`, the single source of truth that the layout
-  guard and autonomy module-boundary check share.
-- `root-layout.test.ts`, the guard test that enforces the layout. Its
-  whitelist data lives at `src/core/root-layout.ts` so non-test code can
-  import it without depending on a test file or on a `#root/*` import.
+  (e.g. `conversational-cross-store-fixture.integration.ts`).
 
 Every other unit test lives next to the code it exercises under
-`src/core/<area>/` or `src/modules/<module>/`. `src/root-layout.test.ts`
-enforces this mechanically: adding a new non-whitelisted `src/*.test.ts`
-fails the guard. If a test legitimately spans multiple subsystems, rename
-it to `*.integration.test.ts`; otherwise move it to the owning subsystem.
+`src/core/<area>/` or `src/modules/<module>/`. If a test legitimately spans
+multiple subsystems, name it `*.integration.test.ts`; otherwise move it to
+the owning subsystem.
 
-Core tests may not use `#modules/*` imports (`src/core/agent-harness/no-module-imports-in-core.test.ts`
-enforces this). A test that genuinely needs to load or reference project
-modules therefore belongs at the root integration tier, not under `src/core/`.
+Core tests may not use `#modules/*` imports. A test that genuinely needs to
+load or reference product modules belongs at the root integration tier, not
+under `src/core/`; package boundaries are the authority, not a copied source
+catalog.
 
 ## Strict Types Policy
 

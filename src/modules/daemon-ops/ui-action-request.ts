@@ -34,14 +34,10 @@ export async function parseUiActionRequest(
   if (body.scopeId !== undefined && typeof body.scopeId !== "string") {
     return { ok: false, message: "scopeId must be a string." };
   }
-  if (body.projectId !== undefined && typeof body.projectId !== "string") {
-    return { ok: false, message: "projectId must be a string." };
-  }
 
   try {
     const selector = normalizeScopeSelector({
       scopeId: body.scopeId,
-      projectId: body.projectId,
     });
     return {
       ok: true,

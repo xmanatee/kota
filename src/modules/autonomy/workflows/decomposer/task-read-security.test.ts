@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -9,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import decomposerWorkflow from "./workflow.js";
 import {
   FAILED_RUN_ID,
@@ -27,9 +28,31 @@ const TASK_ID = "task-linked-decomposer-target";
 const roots: string[] = [];
 
 function project(prefix: string): string {
-  const projectDir = mkdtempSync(join(tmpdir(), prefix));
-  roots.push(projectDir);
-  return projectDir;
+  const workspaceRoot = mkdtempSync(join(tmpdir(), prefix));
+  roots.push(workspaceRoot);
+  return workspaceRoot;
+}
+
+function commitScenarioInput(workspaceRoot: string): void {
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["config", "user.name", "KOTA test"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "scenario input"], {
+    cwd: workspaceRoot,
+  });
+}
+
+async function runScenario(workspaceRoot: string) {
+  commitScenarioInput(workspaceRoot);
+  return new WorkflowScenarioDriver(decomposerWorkflow, {
+    workspaceRoot,
+    trigger: failedBuilderTrigger(),
+  }).run();
 }
 
 afterEach(() => {
@@ -56,7 +79,7 @@ describe("decomposer task read security", () => {
       },
     ],
   ])("rejects %s", async (_label, payload) => {
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
+    const result = await new WorkflowScenarioDriver(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload },
     }).run();
 
@@ -73,18 +96,15 @@ describe("decomposer task read security", () => {
     ["status", { status: "success" }],
     ["runDir", { runDir: ".kota/runs/run-forged-builder" }],
   ])("rejects source metadata with mismatched %s", async (_field, patch) => {
-    const projectDir = project("kota-decomposer-metadata-");
-    const task = writeActionableTask(projectDir, TASK_ID);
+    const workspaceRoot = project("kota-decomposer-metadata-");
+    const task = writeActionableTask(workspaceRoot, TASK_ID);
     const metadata = {
       ...failedBuilderMetadata(task, { errorKind: "step-timeout" }),
       ...patch,
     } as WorkflowRunMetadata;
-    writeRunMetadata(projectDir, FAILED_RUN_ID, metadata);
+    writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
-      projectDir,
-      trigger: failedBuilderTrigger(),
-    }).run();
+    const result = await runScenario(workspaceRoot);
 
     expect(result.steps["assess-failure"].status).toBe("failed");
     expect(result.steps["assess-failure"].error).toContain(
@@ -94,20 +114,17 @@ describe("decomposer task read security", () => {
   });
 
   it("rejects source metadata without the immutable builder task contract", async () => {
-    const projectDir = project("kota-decomposer-contract-");
-    const task = writeActionableTask(projectDir, TASK_ID);
+    const workspaceRoot = project("kota-decomposer-contract-");
+    const task = writeActionableTask(workspaceRoot, TASK_ID);
     const metadata = failedBuilderMetadata(task, { errorKind: "step-timeout" });
     metadata.trigger = {
       event: "autonomy.queue.available",
       schemaRef: null,
       payload: { taskId: TASK_ID },
     };
-    writeRunMetadata(projectDir, FAILED_RUN_ID, metadata);
+    writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
-      projectDir,
-      trigger: failedBuilderTrigger(),
-    }).run();
+    const result = await runScenario(workspaceRoot);
 
     expect(result.steps["assess-failure"].status).toBe("failed");
     expect(result.steps["assess-failure"].error).toContain(
@@ -118,10 +135,10 @@ describe("decomposer task read security", () => {
 
   it("does not expose a sibling-project task reached through a task symlink", async () => {
     const root = project("kota-decomposer-task-read-");
-    const projectDir = join(root, "project");
-    const siblingProjectDir = join(root, "sibling-project");
-    prepareTaskProject(projectDir);
-    const siblingReadyDir = join(siblingProjectDir, "data", "tasks", "ready");
+    const workspaceRoot = join(root, "project");
+    const siblingScopeRoot = join(root, "sibling-project");
+    prepareTaskProject(workspaceRoot);
+    const siblingReadyDir = join(siblingScopeRoot, "data", "tasks", "ready");
     mkdirSync(siblingReadyDir, { recursive: true });
 
     const externalTaskPath = join(siblingReadyDir, `${TASK_ID}.md`);
@@ -132,19 +149,16 @@ describe("decomposer task read security", () => {
     );
     symlinkSync(
       externalTaskPath,
-      join(projectDir, "data", "tasks", "doing", `${TASK_ID}.md`),
+      join(workspaceRoot, "data", "tasks", "doing", `${TASK_ID}.md`),
     );
 
     const metadata = failedBuilderMetadata(
       immutableTaskPayload(TASK_ID),
       { errorKind: "step-timeout" },
     );
-    writeRunMetadata(projectDir, FAILED_RUN_ID, metadata);
+    writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await new WorkflowTestHarness(decomposerWorkflow, {
-      projectDir,
-      trigger: failedBuilderTrigger(),
-    }).run();
+    const result = await runScenario(workspaceRoot);
 
     expect(result.steps["assess-failure"].status).toBe("failed");
     expect(result.steps["assess-failure"].error).toMatch(/symbolic[- ]link/i);

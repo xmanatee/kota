@@ -34,7 +34,9 @@ by Jira's REST API v3 that lets KOTA's builder pull tasks directly from a Jira p
 
 ## Boundaries
 
-- Does not own CLI commands or agent tools — this module only contributes a `TaskProvider`.
+- Contributes a read and async-mutation task provider, but no bulk-maintenance
+  capability. Cache state changes only after Jira acknowledges the transition
+  or issue creation; unsupported task fields fail explicitly.
 - Cloud only; no Jira Data Center support.
 - Transition names in config must match exactly the workflow transition names in your Jira project.
 - `claimOnStart: false` skips assigning the issue to the authenticated user on claim.

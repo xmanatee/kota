@@ -4,7 +4,7 @@ export const knowledgeTool: KotaTool = {
 	name: "knowledge",
 	description:
 		"Structured knowledge base — store, search, and manage entries as markdown files with metadata. " +
-		"Use for research findings, project decisions, reference material, plans, contacts, bookmarks — " +
+		"Use for research findings, scope decisions, reference material, plans, contacts, bookmarks — " +
 		"anything that should persist across sessions and be human-readable. " +
 		"Entries support type, tags, status, and custom metadata fields.",
 	input_schema: {
@@ -60,9 +60,9 @@ export const knowledgeTool: KotaTool = {
 			},
 			scope: {
 				type: "string",
-				enum: ["project", "global", "all"],
+				enum: ["scope", "global", "all"],
 				description:
-					"Storage scope — project (.kota/data/) or global (~/.kota/data/). Default: project.",
+					"Storage scope — scope (.kota/data/) or global (~/.kota/data/). Default: scope.",
 			},
 			meta: {
 				type: "object",

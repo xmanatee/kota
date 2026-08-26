@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import {
   materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
@@ -25,18 +25,18 @@ import {
 const NOW = "2026-08-13T10:00:00.000Z";
 
 describe("source-owned autonomy issue observations", () => {
-  let projectDir: string;
-  let pbus: ProjectScopedEventBus;
-  let runtime: ProjectRuntime;
+  let workspaceRoot: string;
+  let pbus: ScopedEventBus;
+  let runtime: ScopeRuntime;
   let signals: AutonomyHealthSignal[];
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-issue-sources-"));
-    ({ pbus, runtime, signals } = wireAutonomyIssueSourceFixture(projectDir));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-issue-sources-"));
+    ({ pbus, runtime, signals } = wireAutonomyIssueSourceFixture(workspaceRoot));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("derives a failed workflow issue only from its durable dead letter", () => {
@@ -105,14 +105,14 @@ describe("source-owned autonomy issue observations", () => {
       createdAt: NOW,
     });
     applyHealthReviewSignals({
-      projectDir,
+      workspaceRoot,
       signals: [openingSignal],
       generatedAt: NOW,
       reason: "fixture-open",
     });
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
+    const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
     const materialized = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: {
         kind: "owner-question",
         proposalKey: `autonomy-issue:${issue.issueKey}`,
@@ -136,8 +136,8 @@ describe("source-owned autonomy issue observations", () => {
         },
       },
     });
-    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(projectDir),
+    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot),
       updates: [{
         issueKey: issue.issueKey,
         kind: "owner-question",
@@ -148,7 +148,7 @@ describe("source-owned autonomy issue observations", () => {
     }));
 
     new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
       pbus,
     ).answer(materialized.ownerQuestionId!, "Preserve work", "fixture-owner");
     const answerSignal = signals.at(-1)!;
@@ -159,7 +159,7 @@ describe("source-owned autonomy issue observations", () => {
       source: issue.source,
     });
     const answered = applyHealthReviewSignals({
-      projectDir,
+      workspaceRoot,
       signals: [answerSignal],
       generatedAt: answerSignal.createdAt,
       reason: "fixture-answer",
@@ -171,7 +171,7 @@ describe("source-owned autonomy issue observations", () => {
         transition: "revised",
       }),
     ]);
-    expect(readAutonomyIssueProjection(projectDir).issues).toEqual([
+    expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([
       expect.objectContaining({
         issueKey: issue.issueKey,
         rootCauseKey: issue.rootCauseKey,

@@ -117,16 +117,15 @@ describe("browser module", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 
-  it("registers cleanup hook on load", () => {
-    const registerCleanupHook = vi.fn();
+  it("releases the activated browser resource through its disposer", async () => {
     const ctx = {
       cwd: process.cwd(),
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-      registerCleanupHook,
       getModuleConfig: vi.fn(() => ({})),
     } as never;
-    mod.onLoad?.(ctx);
-    expect(registerCleanupHook).toHaveBeenCalledWith(expect.any(Function));
+    const activation = await mod.onLoad?.(ctx);
+    await activation?.dispose();
+    expect(closeBrowser).toHaveBeenCalledOnce();
   });
 
   it("binds an absolute profile to the scope that loaded its configuration", () => {
@@ -146,13 +145,19 @@ describe("browser module", () => {
       expect.objectContaining({ storageStatePath: "/secure/profile.json" }),
       {
         scopeId: expect.any(String),
-        projectDir: cwd,
+        scopeRoot: cwd,
       },
     );
   });
 
   it("closes browser on unload", async () => {
-    await mod.onUnload?.();
+    const activation = await mod.onLoad?.({
+      cwd: process.cwd(),
+      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      registerCleanupHook: vi.fn(),
+      getModuleConfig: vi.fn(() => ({})),
+    } as never);
+    await activation?.dispose();
     expect(closeBrowser).toHaveBeenCalled();
   });
 });

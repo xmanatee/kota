@@ -19,7 +19,7 @@ function writeText(path: string, value: string): void {
 }
 
 function seedRun(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
   options: {
     workflow?: string;
@@ -33,7 +33,7 @@ function seedRun(
     steps?: readonly unknown[];
   },
 ): void {
-  const runDir = join(projectDir, ".kota/runs", runId);
+  const runDir = join(workspaceRoot, ".kota/runs", runId);
   const commands = options.commands ?? [];
   writeJson(join(runDir, "metadata.json"), {
     id: runId,
@@ -62,7 +62,7 @@ function seedRun(
       },
     ],
   });
-  writeWriterIntegrationFixture(join(projectDir, ".kota/runs"), {
+  writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
     runId,
     workflow: options.workflow ?? "builder",
     publishedHead: "abc123",
@@ -91,18 +91,18 @@ function readReport(path: string): FixtureCandidateReport {
 }
 
 describe("fixture candidate mining", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "fixture-candidates-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "fixture-candidates-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("classifies local verified terminal runs as viable and writes bounded report artifacts", () => {
-    seedRun(projectDir, "run-viable", {
+    seedRun(workspaceRoot, "run-viable", {
       commands: [
         "pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
         "pnpm typecheck",
@@ -116,7 +116,7 @@ describe("fixture candidate mining", () => {
       },
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-viable"],
       outputDir: ".kota/runs/miner-output",
     });
@@ -143,12 +143,12 @@ describe("fixture candidate mining", () => {
 
   it("rejects runs already covered by existing real-failure fixture provenance", () => {
     const sourceRunId = "2026-04-23T00-03-55-062Z-research-retry-u92f1u";
-    seedRun(projectDir, sourceRunId, {
+    seedRun(workspaceRoot, sourceRunId, {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: [sourceRunId],
       outputDir: "out",
     });
@@ -163,7 +163,7 @@ describe("fixture candidate mining", () => {
   });
 
   it("rejects network-bound and auth-walled command evidence", () => {
-    seedRun(projectDir, "run-network", {
+    seedRun(workspaceRoot, "run-network", {
       commands: [
         "curl https://example.com/private-report",
         "gh auth status",
@@ -171,7 +171,7 @@ describe("fixture candidate mining", () => {
       artifacts: { "verification.json": { ok: true } },
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-network"],
       outputDir: "out",
     });
@@ -184,11 +184,11 @@ describe("fixture candidate mining", () => {
   });
 
   it("emits explicit malformed rejected records instead of silently skipping bad artifacts", () => {
-    const runDir = join(projectDir, ".kota/runs/run-malformed");
+    const runDir = join(workspaceRoot, ".kota/runs/run-malformed");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "metadata.json"), "{ bad json");
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-malformed"],
       outputDir: "out",
     });
@@ -200,17 +200,17 @@ describe("fixture candidate mining", () => {
   });
 
   it("rejects otherwise viable runs with malformed top-level JSON artifacts", () => {
-    seedRun(projectDir, "run-malformed-verification", {
+    seedRun(workspaceRoot, "run-malformed-verification", {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
     writeText(
-      join(projectDir, ".kota/runs/run-malformed-verification/verification.json"),
+      join(workspaceRoot, ".kota/runs/run-malformed-verification/verification.json"),
       "{ bad json",
     );
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-malformed-verification"],
       outputDir: "out",
     });
@@ -226,17 +226,17 @@ describe("fixture candidate mining", () => {
   });
 
   it("rejects otherwise viable runs with malformed internal step artifacts", () => {
-    seedRun(projectDir, "run-malformed-step", {
+    seedRun(workspaceRoot, "run-malformed-step", {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
       artifacts: { "verification.json": { ok: true } },
     });
     writeText(
-      join(projectDir, ".kota/runs/run-malformed-step/steps/build.json"),
+      join(workspaceRoot, ".kota/runs/run-malformed-step/steps/build.json"),
       "{ bad json",
     );
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-malformed-step"],
       outputDir: "out",
     });
@@ -255,13 +255,13 @@ describe("fixture candidate mining", () => {
   });
 
   it("rejects sparse runs without verifier signal", () => {
-    seedRun(projectDir, "run-sparse", {
+    seedRun(workspaceRoot, "run-sparse", {
       commands: [],
       filesChanged: [],
       artifacts: {},
     });
 
-    const result = mineFixtureCandidates(projectDir, {
+    const result = mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-sparse"],
       outputDir: "out",
     });

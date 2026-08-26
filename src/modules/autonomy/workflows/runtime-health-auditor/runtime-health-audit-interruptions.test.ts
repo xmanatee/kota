@@ -1,8 +1,8 @@
 import { rmSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  collectRuntimeHealthAuditForProject,
-  makeRuntimeHealthAuditProjectDir,
+  collectRuntimeHealthAuditForScope,
+  makeRuntimeHealthAuditScopeRoot,
   RUNTIME_HEALTH_AUDIT_NOW,
   reviewAndApplyRuntimeHealthAudit,
   runtimeHealthReadyTaskFiles,
@@ -10,14 +10,14 @@ import {
 } from "./runtime-health-audit-test-context.js";
 
 describe("runtime health audit interrupted runs", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = makeRuntimeHealthAuditProjectDir();
+    workspaceRoot = makeRuntimeHealthAuditScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("requests one root-cause decision for repeated interrupted runs", () => {
@@ -25,7 +25,7 @@ describe("runtime health audit interrupted runs", () => {
       ["run-a", "2026-06-19T10:00:00.000Z"],
       ["run-b", "2026-06-19T11:00:00.000Z"],
     ] as const) {
-      writeRuntimeHealthRun(projectDir, {
+      writeRuntimeHealthRun(workspaceRoot, {
         id,
         workflow: "builder",
         status: "interrupted",
@@ -33,8 +33,8 @@ describe("runtime health audit interrupted runs", () => {
       });
     }
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -46,8 +46,8 @@ describe("runtime health audit interrupted runs", () => {
       }),
     ]);
 
-    const first = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
-    const second = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const first = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
+    const second = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
     expect(first.applied).toEqual([
       expect.objectContaining({
         kind: "decision-requested",
@@ -58,21 +58,21 @@ describe("runtime health audit interrupted runs", () => {
   });
 
   it("routes known runtime abort interruptions outside local repair tasks", () => {
-    writeRuntimeHealthRun(projectDir, {
+    writeRuntimeHealthRun(workspaceRoot, {
       id: "improver-abort-a",
       workflow: "improver",
       status: "interrupted",
       startedAt: "2026-06-17T16:38:32.184Z",
       error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
     });
-    writeRuntimeHealthRun(projectDir, {
+    writeRuntimeHealthRun(workspaceRoot, {
       id: "improver-abort-b",
       workflow: "improver",
       status: "interrupted",
       startedAt: "2026-06-17T16:52:59.769Z",
       error: 'Agent step "improve" failed (aborted): Codex CLI run aborted.',
     });
-    writeRuntimeHealthRun(projectDir, {
+    writeRuntimeHealthRun(workspaceRoot, {
       id: "improver-restart",
       workflow: "improver",
       status: "interrupted",
@@ -80,8 +80,8 @@ describe("runtime health audit interrupted runs", () => {
       error: "Interrupted: daemon restarted while run was in progress.",
     });
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, interruptedRunMinCount: 2 },
     });
 
@@ -113,14 +113,14 @@ describe("runtime health audit interrupted runs", () => {
       ]),
     );
 
-    const actions = reviewAndApplyRuntimeHealthAudit(projectDir, audit);
+    const actions = reviewAndApplyRuntimeHealthAudit(workspaceRoot, audit);
     expect(actions.applied).toEqual([
       expect.objectContaining({
         kind: "decision-requested",
         dedupeKey: "workflow:improver:interrupted-run:harness-abort",
       }),
     ]);
-    expect(runtimeHealthReadyTaskFiles(projectDir)).toEqual([]);
+    expect(runtimeHealthReadyTaskFiles(workspaceRoot)).toEqual([]);
   });
 
   it("suppresses interrupted runs recovered by a newer success", () => {
@@ -152,13 +152,13 @@ describe("runtime health audit interrupted runs", () => {
         startedAt: "2026-06-19T08:00:00.000Z",
       },
     ] as const) {
-      writeRuntimeHealthRun(projectDir, run);
+      writeRuntimeHealthRun(workspaceRoot, run);
     }
     for (const [id, startedAt] of [
       ["improver-interrupted-a", "2026-06-19T09:00:00.000Z"],
       ["improver-interrupted-b", "2026-06-19T10:00:00.000Z"],
     ] as const) {
-      writeRuntimeHealthRun(projectDir, {
+      writeRuntimeHealthRun(workspaceRoot, {
         id,
         workflow: "improver",
         status: "interrupted",
@@ -166,8 +166,8 @@ describe("runtime health audit interrupted runs", () => {
       });
     }
 
-    const audit = collectRuntimeHealthAuditForProject({
-      projectDir,
+    const audit = collectRuntimeHealthAuditForScope({
+      workspaceRoot,
       options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW, interruptedRunMinCount: 2 },
     });
 

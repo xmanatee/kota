@@ -16,7 +16,7 @@ type EligibleRepoAiCheckAssessment = Extract<
 >;
 
 type DiscoverRepoAiChecksInput = {
-  projectDir: string;
+  workspaceRoot: string;
   artifactDir: string;
   artifactDirPath: string;
   assessment: EligibleRepoAiCheckAssessment;
@@ -36,7 +36,7 @@ export function discoverRepoAiChecksInWorker(
 ): DiscoveredCheckRun {
   mkdirSync(input.artifactDirPath, { recursive: true });
 
-  if (!existsSync(input.projectDir)) {
+  if (!existsSync(input.workspaceRoot)) {
     const skipped: DiscoveredCheckRun = {
       ...input.assessment,
       skip: true,
@@ -51,7 +51,7 @@ export function discoverRepoAiChecksInWorker(
 
   let discovery: ReturnType<typeof discoverRepoAiChecks>;
   try {
-    discovery = discoverRepoAiChecks(input.projectDir);
+    discovery = discoverRepoAiChecks(input.workspaceRoot);
   } catch (error) {
     if (error instanceof RepoAiCheckDiscoveryError) throw error;
     const message = error instanceof Error ? error.message : String(error);

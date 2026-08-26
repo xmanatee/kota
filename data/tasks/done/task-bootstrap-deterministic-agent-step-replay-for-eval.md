@@ -47,7 +47,7 @@ replay. Concretely:
 - The replay path is visible at the `AgentHarness` registry boundary:
   there is one "replay" harness adapter, selected by the same env/config
   seam that the subprocess executor already uses to remap `HOME` and
-  `KOTA_PROJECT_DIR`. Production code paths are unchanged; only fixture
+  `KOTA_SCOPE_ROOT`. Production code paths are unchanged; only fixture
   runs opt in.
 - Recordings come from real past `.kota/runs/<id>/steps/<step>/` artifacts
   so they stay honest real-failure evidence rather than hand-authored
@@ -75,7 +75,7 @@ replay. Concretely:
   envelopes are evaluator-visible only; they do not re-enter any
   subsequent agent-step prompt on replay.
 - Fixture working dirs still materialize under the OS tmpdir with `HOME`
-  and `KOTA_PROJECT_DIR` remapped. Recordings travel with the fixture
+  and `KOTA_SCOPE_ROOT` remapped. Recordings travel with the fixture
   under `src/modules/eval-harness/fixtures/<name>/` — not in a sibling
   directory and not in `.kota/`.
 - Keep the replay adapter under the `eval-harness` module. Do not add a
@@ -90,7 +90,7 @@ replay. Concretely:
 
 - The `AgentHarness` registry includes a replay adapter owned by the
   `eval-harness` module, selected automatically inside fixture
-  subprocesses via the existing `HOME`/`KOTA_PROJECT_DIR` remap seam.
+  subprocesses via the existing `HOME`/`KOTA_SCOPE_ROOT` remap seam.
 - A recorder CLI (e.g. `pnpm kota eval-harness record-agent-step
   <run-id> --step <step-id>`) writes a recording into the fixture's
   directory.

@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runShortcutSelfTests } from "./check-research-synthesis-self-tests.mjs";
 
-const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const scopeRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const resultPath = "research-synthesis-result.json";
 const verificationPath = "research-synthesis-verification.json";
 const verificationCommand = "node scripts/check-research-synthesis.mjs";
@@ -42,7 +42,7 @@ function isRecord(value) {
 }
 
 function readJson(relativePath) {
-  const absolute = join(projectRoot, relativePath);
+  const absolute = join(scopeRoot, relativePath);
   if (!existsSync(absolute)) fail(`missing JSON file: ${relativePath}`);
   try {
     return JSON.parse(readFileSync(absolute, "utf8"));
@@ -52,18 +52,18 @@ function readJson(relativePath) {
 }
 
 function writeJson(relativePath, value) {
-  const absolute = join(projectRoot, relativePath);
+  const absolute = join(scopeRoot, relativePath);
   mkdirSync(dirname(absolute), { recursive: true });
   writeFileSync(absolute, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function readSourceCatalog() {
-  const root = join(projectRoot, sourceDir);
+  const root = join(scopeRoot, sourceDir);
   const catalog = new Map();
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
     const path = `${sourceDir}/${entry.name}`;
-    const text = readFileSync(join(projectRoot, path), "utf8");
+    const text = readFileSync(join(scopeRoot, path), "utf8");
     const id = /^source_id:\s*(.+)$/m.exec(text)?.[1]?.trim();
     const status = /^status:\s*(.+)$/m.exec(text)?.[1]?.trim();
     const signal = /^decision_signal:\s*(.+)$/m.exec(text)?.[1]?.trim();
@@ -184,9 +184,9 @@ function parseGitStatus(stdout) {
 }
 
 function validateCurrentChangedPaths() {
-  if (!existsSync(join(projectRoot, ".git"))) return [];
+  if (!existsSync(join(scopeRoot, ".git"))) return [];
   const result = spawnSync("git", ["status", "--porcelain=v1", "--untracked-files=all"], {
-    cwd: projectRoot,
+    cwd: scopeRoot,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -244,7 +244,7 @@ function validateArtifact(artifact, catalog, options = {}) {
 }
 
 function runMain({ metricOnly }) {
-  rmSync(join(projectRoot, verificationPath), { force: true });
+  rmSync(join(scopeRoot, verificationPath), { force: true });
   const catalog = readSourceCatalog();
   const changedPaths = validateCurrentChangedPaths();
   const verification = validateArtifact(readJson(resultPath), catalog, { changedPaths });

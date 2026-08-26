@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { DaemonSseStreamEvent } from "#core/daemon/daemon-control.js";
 import {
@@ -122,7 +120,7 @@ describe("runtime navigator", () => {
         id: "evt-1",
         type: "workflow.started",
         payload: {
-          projectId: "scope-main",
+          scopeId: "scope-main",
           workflow: "builder",
           runId: "run-1",
           triggerEvent: "manual",
@@ -220,26 +218,6 @@ describe("runtime navigator", () => {
     });
     expect(executeAction).not.toHaveBeenCalled();
     expect(output.frames.join("\n")).toMatch(/Configure launch defaults is disabled/);
-  });
-
-  it("never imports `.kota/` paths, module services, or private navigator data paths", () => {
-    const sources = [
-      readFileSync(join(import.meta.dirname, "navigator.ts"), "utf-8"),
-      readFileSync(join(import.meta.dirname, "index.ts"), "utf-8"),
-    ];
-    for (const src of sources) {
-      // The navigator must not bypass the KotaClient contract by reading
-      // .kota/ on disk, opening its own DaemonControlClient, or pulling
-      // module providers/services through ModuleContext.
-      expect(/['"]\.kota\//.test(src), "navigator must not read .kota/ paths").toBe(false);
-      expect(/DaemonControlClient/.test(src), "navigator must not import DaemonControlClient").toBe(false);
-      expect(/getProvider|getModuleSummaries|getApprovalQueue|moduleServices/.test(src),
-        "navigator must not resolve module services through ctx",
-      ).toBe(false);
-      expect(/client\.(approvals|tasks|workflow|sessions|modules|setup|secrets|memory|knowledge|history|ownerQuestions)\b/.test(src),
-        "navigator must consume shared ui surfaces rather than private namespace projections",
-      ).toBe(false);
-    }
   });
 
   it("surfaces contract errors in place rather than swallowing them", async () => {

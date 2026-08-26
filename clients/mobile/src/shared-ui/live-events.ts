@@ -2,7 +2,7 @@ import type {
   UiLogEntry,
   UiNode,
   UiSurfaceBundle,
-} from '../daemon/conformance/ui-surface.generated';
+} from '../daemon/ui-surface.generated';
 import type { SseEvent } from '../daemon/sse';
 
 export type UiEventMatch = {
@@ -36,8 +36,8 @@ function eventBelongsToScope(
   const selector =
     typeof payload.scopeId === 'string'
       ? payload.scopeId
-      : typeof payload.projectId === 'string'
-        ? payload.projectId
+      : typeof payload.scopeId === 'string'
+        ? payload.scopeId
         : undefined;
   return selector === undefined || selector === scopeId;
 }

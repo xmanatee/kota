@@ -131,17 +131,15 @@ function buildFindingTaskBody(args: {
     problem,
     desiredOutcome: quoteMarkdown(finding.recommendedOutcome),
     constraints: [
-      "Preserve the confirmed security claim and cited evidence until the fix lands.",
-      "Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.",
-    ],
-    doneWhen: [
-      "The cited vulnerability is fixed or proven impossible with code-level evidence.",
-      "The smallest proof that distinguishes vulnerable and fixed behavior exercises the owning public boundary.",
-      "The task records final verification; add a regression test only when no authoritative mechanism already prevents recurrence.",
-    ],
+    "- Preserve the confirmed security claim and cited evidence until the fix lands.",
+    "- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.",
+    ].join("\n"),
+    howWeWillKnow: [
+    "- The cited vulnerability is fixed or proven impossible with code-level evidence.",
+    "- The smallest proof that distinguishes the vulnerable and fixed behavior exercises the owning public boundary.",
+    "- The task records the final verification; add a regression test only when the defect could recur without another authoritative mechanism rejecting it.",
+    ].join("\n"),
     context,
-    acceptanceEvidence:
-      "Use proportionate boundary proof showing that the cited security claim no longer holds.",
   });
 }
 
@@ -164,7 +162,7 @@ function taskPriorityForUpdate(
 }
 
 export function createOrUpdateSecurityFindingTasks(
-  projectDir: string,
+  workspaceRoot: string,
   args: {
     runId: string;
     findings: readonly SecurityRevalidatedFinding[];
@@ -183,7 +181,7 @@ export function createOrUpdateSecurityFindingTasks(
     }
     const safeClaim = frontMatterScalar(finding.claim);
     const title = `Security review: ${safeClaim}`;
-    const resolution = resolveSecurityFindingTaskTarget(projectDir, {
+    const resolution = resolveSecurityFindingTaskTarget(workspaceRoot, {
       baseId: `task-${slugifyTaskTitle(title)}`,
       candidateId: finding.candidateId,
       findingId: finding.id,
@@ -222,7 +220,7 @@ export function createOrUpdateSecurityFindingTasks(
       ...securityFindingIdentityAttrs(key, mergedReviewRunIds),
     };
     writeRepoTaskFile(
-      projectDir,
+      workspaceRoot,
       target.path,
       serializeFlatFrontMatter(
         attrs,

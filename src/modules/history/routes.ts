@@ -24,21 +24,21 @@ import {
   parseHistoryDetailRequestFromUrl,
   readHistoryDetail,
 } from "./history-detail.js";
-import { listLocalProjectHistoryRecords } from "./local-history-scan.js";
+import { listLocalScopeHistoryRecords } from "./local-history-scan.js";
 import {
-  createHistoryProjectStores,
-  type HistoryProjectStores,
-} from "./project-scope.js";
+  createHistoryScopeStores,
+  type HistoryScopeStores,
+} from "./scope.js";
 
 function resolveScopedProvider(
   res: ServerResponse,
   url: URL,
-  projectStores: HistoryProjectStores | undefined,
+  scopeStores: HistoryScopeStores | undefined,
 ): HistoryProvider | null {
-  if (!projectStores) return getHistoryProvider();
+  if (!scopeStores) return getHistoryProvider();
   const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
   if (selectedId === null) return null;
-  const resolved = projectStores.resolve(selectedId);
+  const resolved = scopeStores.resolve(selectedId);
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;
@@ -49,9 +49,9 @@ function resolveScopedProvider(
 function listHistoryLocal(
   res: ServerResponse,
   url: URL,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): { conversations: ConversationRecord[] } | null {
-  const provider = resolveScopedProvider(res, url, projectStores);
+  const provider = resolveScopedProvider(res, url, scopeStores);
   if (!provider) return null;
   const search = url.searchParams.get("search") ?? undefined;
   const cwd = url.searchParams.get("cwd") ?? undefined;
@@ -70,9 +70,9 @@ function loadHistoryLocal(
   url: URL,
   id: string,
   request: HistoryDetailRequest,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): HistoryDetail | null {
-  const provider = resolveScopedProvider(res, url, projectStores);
+  const provider = resolveScopedProvider(res, url, scopeStores);
   if (!provider) return null;
   const result = readHistoryDetail(provider, id, request);
   return result.found ? result.detail : null;
@@ -82,9 +82,9 @@ function removeHistoryLocal(
   res: ServerResponse,
   url: URL,
   id: string,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): boolean | null {
-  const provider = resolveScopedProvider(res, url, projectStores);
+  const provider = resolveScopedProvider(res, url, scopeStores);
   if (!provider) return null;
   return provider.remove(id);
 }
@@ -93,7 +93,7 @@ export async function handleListHistory(
   res: ServerResponse,
   url: URL,
   link: DaemonTransport | null = null,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): Promise<void> {
   const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
   if (selectedId === null) return;
@@ -106,7 +106,7 @@ export async function handleListHistory(
     if (cwd != null) params.set("cwd", cwd);
     const sourceParam = url.searchParams.get("source") ?? undefined;
     if (sourceParam === "user" || sourceParam === "action") params.set("source", sourceParam);
-    if (selectedId !== undefined) params.set("projectId", selectedId);
+    if (selectedId !== undefined) params.set("scopeId", selectedId);
     const qs = params.toString();
     const result = await link.request<{ conversations: ConversationRecord[] }>(
       "GET",
@@ -118,7 +118,7 @@ export async function handleListHistory(
     }
   }
 
-  const result = listHistoryLocal(res, url, projectStores);
+  const result = listHistoryLocal(res, url, scopeStores);
   if (!result) return;
   jsonResponse(res, 200, result);
 }
@@ -128,17 +128,17 @@ export async function handleGetHistory(
   conversationId: string,
   url: URL,
   link: DaemonTransport | null = null,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): Promise<void> {
   const request = parseHistoryDetailRequestOrRespond(res, url);
   if (!request) return;
   const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
   if (selectedId === null) return;
-  const projectQuery = buildHistoryDetailQuery(request, selectedId);
+  const scopeQuery = buildHistoryDetailQuery(request, selectedId);
   if (link) {
     const detail = await link.request<HistoryDetail>(
       "GET",
-      `/history/${encodeURIComponent(conversationId)}${projectQuery}`,
+      `/history/${encodeURIComponent(conversationId)}${scopeQuery}`,
     );
     if (detail !== null) {
       jsonResponse(res, 200, detail);
@@ -146,7 +146,7 @@ export async function handleGetHistory(
     }
   }
 
-  const detail = loadHistoryLocal(res, url, conversationId, request, projectStores);
+  const detail = loadHistoryLocal(res, url, conversationId, request, scopeStores);
   if (detail) {
     jsonResponse(res, 200, detail);
   } else if (!res.headersSent) {
@@ -157,7 +157,7 @@ export async function handleGetHistory(
 export async function handleSearchHistory(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "", "http://localhost");
   const query = url.searchParams.get("q") ?? "";
@@ -171,14 +171,15 @@ export async function handleSearchHistory(
     ? Math.max(1, Number.parseInt(limitParam, 10) || 0)
     : 20;
   try {
-    const provider = resolveScopedProvider(res, url, projectStores);
+    const provider = resolveScopedProvider(res, url, scopeStores);
     if (!provider) return;
-    if (semantic && !provider.supportsSemanticSearch()) {
+    const semanticSearch = provider.semanticSearchCapability;
+    if (semantic && !semanticSearch) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
     }
     const conversations = semantic
-      ? await provider.semanticSearch(query, limit, { cwd, source })
+      ? await semanticSearch!.semanticSearch(query, limit, { cwd, source })
       : provider.list({ search: query, limit, cwd, source });
     jsonResponse(res, 200, { ok: true, conversations });
   } catch (err) {
@@ -192,16 +193,16 @@ export async function handleDeleteHistory(
   conversationId: string,
   url: URL,
   link: DaemonTransport | null = null,
-  projectStores?: HistoryProjectStores,
+  scopeStores?: HistoryScopeStores,
 ): Promise<void> {
   const selectedId = selectedScopeSelectorIdFromUrlOrErrorResponse(res, url);
   if (selectedId === null) return;
-  const projectQuery = buildProjectQuery(selectedId);
+  const scopeQuery = buildScopeQuery(selectedId);
   if (link) {
     let resp: Response | null = null;
     try {
       resp = await link.fetchRaw(
-        `/history/${encodeURIComponent(conversationId)}${projectQuery}`,
+        `/history/${encodeURIComponent(conversationId)}${scopeQuery}`,
         { method: "DELETE" },
       );
     } catch (err) {
@@ -218,7 +219,7 @@ export async function handleDeleteHistory(
     }
   }
 
-  const removed = removeHistoryLocal(res, url, conversationId, projectStores);
+  const removed = removeHistoryLocal(res, url, conversationId, scopeStores);
   if (removed) {
     res.writeHead(204);
     res.end();
@@ -229,7 +230,7 @@ export async function handleDeleteHistory(
 
 
 export function historyRoutes(
-  projectStores = createHistoryProjectStores(process.cwd(), () =>
+  scopeStores = createHistoryScopeStores(process.cwd(), () =>
     getHistoryProvider(),
   ),
 ): RouteRegistration[] {
@@ -239,13 +240,13 @@ export function historyRoutes(
       path: "/api/history",
       handler: (req, res) => {
         const url = new URL(req.url!, `http://localhost`);
-        return handleListHistory(res, url, getDaemonTransport(), projectStores);
+        return handleListHistory(res, url, getDaemonTransport(), scopeStores);
       },
     },
     {
       method: "GET",
       path: "/api/history/search",
-      handler: (req, res) => handleSearchHistory(req, res, projectStores),
+      handler: (req, res) => handleSearchHistory(req, res, scopeStores),
     },
     {
       method: "GET",
@@ -257,7 +258,7 @@ export function historyRoutes(
           params.id,
           url,
           getDaemonTransport(),
-          projectStores,
+          scopeStores,
         );
       },
     },
@@ -272,7 +273,7 @@ export function historyRoutes(
           params.id,
           url,
           getDaemonTransport(),
-          projectStores,
+          scopeStores,
         );
       },
     },
@@ -282,21 +283,21 @@ export function historyRoutes(
 function handleListHistoryControl(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores: HistoryProjectStores,
+  scopeStores: HistoryScopeStores,
 ): void {
   const url = new URL(req.url ?? "/history", "http://127.0.0.1");
-  const result = listHistoryLocal(res, url, projectStores);
+  const result = listHistoryLocal(res, url, scopeStores);
   if (!result) return;
   jsonResponse(res, 200, result);
 }
 
-function handleListDiscoveredProjectRecordsControl(
+function handleListDiscoveredScopeRecordsControl(
   req: IncomingMessage,
   res: ServerResponse,
   discoveryCwd: string,
 ): void {
   const url = new URL(
-    req.url ?? "/history/discovered-project-records",
+    req.url ?? "/history/discovered-scope-records",
     "http://127.0.0.1",
   );
   const rawLimit = url.searchParams.has("limit")
@@ -307,7 +308,7 @@ function handleListDiscoveredProjectRecordsControl(
       ? undefined
       : Math.min(rawLimit, 10_000);
   jsonResponse(res, 200, {
-    conversations: listLocalProjectHistoryRecords({
+    conversations: listLocalScopeHistoryRecords({
       cwd: discoveryCwd,
       limit,
     }),
@@ -317,14 +318,19 @@ function handleListDiscoveredProjectRecordsControl(
 async function handleReindexHistoryControl(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores: HistoryProjectStores,
+  scopeStores: HistoryScopeStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "/history/reindex", "http://127.0.0.1");
   try {
-    const provider = resolveScopedProvider(res, url, projectStores);
+    const provider = resolveScopedProvider(res, url, scopeStores);
     if (!provider) return;
-    const result = await provider.reindex();
-    jsonResponse(res, 200, result);
+    const semanticSearch = provider.semanticSearchCapability;
+    if (!semanticSearch) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const result = await semanticSearch.reindex();
+    jsonResponse(res, 200, { ok: true, ...result });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -334,12 +340,12 @@ function handleGetHistoryControl(
   req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
-  projectStores: HistoryProjectStores,
+  scopeStores: HistoryScopeStores,
 ): void {
   const url = new URL(req.url ?? "/history", "http://127.0.0.1");
   const request = parseHistoryDetailRequestOrRespond(res, url);
   if (!request) return;
-  const detail = loadHistoryLocal(res, url, params.id, request, projectStores);
+  const detail = loadHistoryLocal(res, url, params.id, request, scopeStores);
   if (!detail) {
     if (!res.headersSent) {
       jsonResponse(res, 404, { error: "Conversation not found" });
@@ -353,10 +359,10 @@ function handleDeleteHistoryControl(
   req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
-  projectStores: HistoryProjectStores,
+  scopeStores: HistoryScopeStores,
 ): void {
   const url = new URL(req.url ?? "/history", "http://127.0.0.1");
-  const removed = removeHistoryLocal(res, url, params.id, projectStores);
+  const removed = removeHistoryLocal(res, url, params.id, scopeStores);
   if (!removed) {
     if (res.headersSent) return;
     jsonResponse(res, 404, { error: "Conversation not found" });
@@ -365,10 +371,10 @@ function handleDeleteHistoryControl(
   jsonResponse(res, 200, { deleted: params.id });
 }
 
-function buildProjectQuery(projectId?: string): string {
-  if (projectId === undefined) return "";
+function buildScopeQuery(scopeId?: string): string {
+  if (scopeId === undefined) return "";
   const params = new URLSearchParams();
-  params.set("projectId", projectId);
+  params.set("scopeId", scopeId);
   return `?${params.toString()}`;
 }
 
@@ -388,7 +394,7 @@ function parseHistoryDetailRequestOrRespond(
 }
 
 export function historyControlRoutes(
-  projectStores = createHistoryProjectStores(process.cwd(), () =>
+  scopeStores = createHistoryScopeStores(process.cwd(), () =>
     getHistoryProvider(),
   ),
   discoveryCwd = process.cwd(),
@@ -398,35 +404,35 @@ export function historyControlRoutes(
       method: "GET",
       path: "/history",
       capabilityScope: "read",
-      handler: (req, res) => handleListHistoryControl(req, res, projectStores),
+      handler: (req, res) => handleListHistoryControl(req, res, scopeStores),
     },
     {
       method: "GET",
-      path: "/history/discovered-project-records",
+      path: "/history/discovered-scope-records",
       capabilityScope: "read",
       handler: (req, res) =>
-        handleListDiscoveredProjectRecordsControl(req, res, discoveryCwd),
+        handleListDiscoveredScopeRecordsControl(req, res, discoveryCwd),
     },
     {
       method: "POST",
       path: "/history/reindex",
       capabilityScope: "control",
       handler: (req, res) =>
-        handleReindexHistoryControl(req, res, projectStores),
+        handleReindexHistoryControl(req, res, scopeStores),
     },
     {
       method: "GET",
       path: "/history/:id",
       capabilityScope: "read",
       handler: (req, res, params) =>
-        handleGetHistoryControl(req, res, params, projectStores),
+        handleGetHistoryControl(req, res, params, scopeStores),
     },
     {
       method: "DELETE",
       path: "/history/:id",
       capabilityScope: "control",
       handler: (req, res, params) =>
-        handleDeleteHistoryControl(req, res, params, projectStores),
+        handleDeleteHistoryControl(req, res, params, scopeStores),
     },
   ];
 }

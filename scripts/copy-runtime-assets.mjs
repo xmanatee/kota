@@ -1,12 +1,12 @@
 import { cpSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
-const projectRoot = resolve(import.meta.dirname, "..");
-const sourceModules = join(projectRoot, "src", "modules");
-const assetRoot = join(projectRoot, "dist", "assets");
+const repositoryRoot = resolve(import.meta.dirname, "..");
+const sourceModules = join(repositoryRoot, "src", "modules");
+const assetRoot = join(repositoryRoot, "dist", "assets");
 
 function copySourcePath(sourcePath) {
-  const destination = join(assetRoot, relative(projectRoot, sourcePath));
+  const destination = join(assetRoot, relative(repositoryRoot, sourcePath));
   mkdirSync(dirname(destination), { recursive: true });
   cpSync(sourcePath, destination, { recursive: true });
 }

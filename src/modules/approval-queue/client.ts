@@ -34,7 +34,7 @@ export type ApprovalListFilter = ScopeSelector & {
   status?: ApprovalStatus | "all";
 };
 
-export type ApprovalProjectScope = ScopeSelector;
+export type ApprovalScopeSelection = ScopeSelector;
 
 export type ApprovalReviewReceipt = {
   id: string;
@@ -101,11 +101,11 @@ export interface ApprovalsClient {
     id: string,
     reviewDigest: string,
     note?: string,
-    project?: ApprovalProjectScope,
+    scopeSelector?: ApprovalScopeSelection,
   ): Promise<ApprovalApproveResult>;
   reject(
     id: string,
     reason?: string,
-    project?: ApprovalProjectScope,
+    scopeSelector?: ApprovalScopeSelection,
   ): Promise<ApprovalRejectResult>;
 }

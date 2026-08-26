@@ -67,7 +67,7 @@ export function makeToolTelemetryTracker(
 export function writeToolTelemetryArtifact(
   stepId: string,
   metadata: WorkflowRunMetadata,
-  projectDir: string,
+  workspaceRoot: string,
   telemetry: ToolTelemetry,
 ): void {
   const calls = telemetry.getCallRecords();
@@ -92,6 +92,6 @@ export function writeToolTelemetryArtifact(
     calls,
     ...(callsOmitted > 0 ? { callsOmitted } : {}),
   };
-  const filePath = join(resolve(projectDir, metadata.runDir), "steps", `${stepId}.tool-telemetry.json`);
+  const filePath = join(resolve(workspaceRoot, metadata.runDir), "steps", `${stepId}.tool-telemetry.json`);
   writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }

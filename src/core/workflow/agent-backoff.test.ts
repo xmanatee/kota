@@ -3,25 +3,25 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentBackoffManager } from "./agent-backoff.js";
-import { ProjectRuntimeStateStore } from "./project-runtime-state.js";
 import { RunCoordinator, type RunExecutor } from "./run-coordinator.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 import type { WorkflowDefinition } from "./types.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 describe("AgentBackoffManager", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let store: WorkflowRunStore;
   let runState: RunStateDatabase;
-  let projectState: ProjectRuntimeStateStore;
+  let scopeState: ScopeRuntimeStateStore;
   let coordinator: RunCoordinator;
   let execute: ReturnType<typeof vi.fn<RunExecutor>>;
   let logs: string[];
 
   function makeManager(): AgentBackoffManager {
     return new AgentBackoffManager(
-      projectState,
+      scopeState,
       (message) => logs.push(message),
       "codex:codex",
     );
@@ -35,8 +35,8 @@ describe("AgentBackoffManager", () => {
       store,
       runState,
       coordinator,
-      projectId: "test-project",
-      projectDir,
+      scopeId: "test-scope",
+      scopeRoot,
       getScopeId: () => "test-scope",
       getActiveBackoff: () => manager.getActive(),
       workflowUsesAgent: () => true,
@@ -46,15 +46,15 @@ describe("AgentBackoffManager", () => {
   }
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-agent-backoff-"));
-    store = new WorkflowRunStore(projectDir);
-    runState = new RunStateDatabase(join(projectDir, ".kota", "state"));
-    runState.registerProject({
-      id: "test-project",
-      rootPath: projectDir,
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-agent-backoff-"));
+    store = new WorkflowRunStore(scopeRoot);
+    runState = new RunStateDatabase(join(scopeRoot, ".kota", "state"));
+    runState.registerScope({
+      id: "test-scope",
+      rootPath: scopeRoot,
       createdAt: "2026-05-12T12:00:00.000Z",
     });
-    projectState = new ProjectRuntimeStateStore(runState, "test-project");
+    scopeState = new ScopeRuntimeStateStore(runState, "test-scope");
     const { epoch } = runState.beginDaemonSession("2026-05-12T12:00:00.000Z");
     execute = vi.fn<RunExecutor>(async () => ({
       kind: "terminal",
@@ -74,21 +74,21 @@ describe("AgentBackoffManager", () => {
   afterEach(() => {
     vi.useRealTimers();
     runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("escalates repeated same-kind failures even after the prior backoff expired", () => {
     const manager = makeManager();
 
     manager.apply({ kind: "auth", reason: "first auth failure" });
-    const first = projectState.getAgentBackoff();
+    const first = scopeState.getAgentBackoff();
     expect(first?.failureCount).toBe(1);
 
     vi.setSystemTime(new Date("2026-05-12T12:31:00.000Z"));
     expect(manager.getActive()).toBeNull();
 
     manager.apply({ kind: "auth", reason: "second auth failure" });
-    const second = projectState.getAgentBackoff();
+    const second = scopeState.getAgentBackoff();
     expect(second?.failureCount).toBe(2);
     expect(second?.until).toBe("2026-05-12T13:31:00.000Z");
   });
@@ -102,7 +102,7 @@ describe("AgentBackoffManager", () => {
 
     manager.clear();
 
-    expect(projectState.getAgentBackoff()).toBeNull();
+    expect(scopeState.getAgentBackoff()).toBeNull();
   });
 
   it("records an explicit operator retry reason when clearing backoff", () => {
@@ -111,14 +111,14 @@ describe("AgentBackoffManager", () => {
 
     manager.clear("after explicit operator retry");
 
-    expect(projectState.getAgentBackoff()).toBeNull();
+    expect(scopeState.getAgentBackoff()).toBeNull();
     expect(logs).toContain(
       "Cleared agent dispatch backoff after explicit operator retry (auth)",
     );
   });
 
   it("clears backoff owned by a different agent runtime", () => {
-    projectState.setAgentBackoff({
+    scopeState.setAgentBackoff({
       runtimeId: "codex:codex",
       kind: "rate_limit",
       failureCount: 1,
@@ -127,13 +127,13 @@ describe("AgentBackoffManager", () => {
       reason: "Codex usage limit",
     });
     const manager = new AgentBackoffManager(
-      projectState,
+      scopeState,
       (message) => logs.push(message),
       "gemini-cli:gemini-cli",
     );
 
     expect(manager.getActive()).toBeNull();
-    expect(projectState.getAgentBackoff()).toBeNull();
+    expect(scopeState.getAgentBackoff()).toBeNull();
     expect(logs).toContain(
       "Cleared agent dispatch backoff from runtime codex:codex; active runtime is gemini-cli:gemini-cli",
     );
@@ -148,7 +148,7 @@ describe("AgentBackoffManager", () => {
       retryAt: "2026-05-16T09:00:00.000Z",
     });
 
-    expect(projectState.getAgentBackoff()?.until).toBe("2026-05-16T09:00:00.000Z");
+    expect(scopeState.getAgentBackoff()?.until).toBe("2026-05-16T09:00:00.000Z");
   });
 
   it("ignores an expired provider retry timestamp", () => {
@@ -160,14 +160,14 @@ describe("AgentBackoffManager", () => {
       retryAt: "2026-05-12T11:00:00.000Z",
     });
 
-    expect(projectState.getAgentBackoff()?.until).toBe("2026-05-12T12:30:00.000Z");
+    expect(scopeState.getAgentBackoff()?.until).toBe("2026-05-12T12:30:00.000Z");
   });
 
   it("gates agent dispatch without deleting durable queued work", async () => {
     const definition: WorkflowDefinition = {
       name: "builder",
       enabled: true,
-      moduleRoot: projectDir,
+      moduleRoot: scopeRoot,
       repository: "none",
       tags: [],
       definitionPath: "builder.test.ts",
@@ -193,7 +193,7 @@ describe("AgentBackoffManager", () => {
     const queuedRunId = restored.getRuns()[0]?.runId;
     if (!queuedRunId) throw new Error("expected durable queued run id");
 
-    const backoffUntil = projectState.getAgentBackoff()?.until;
+    const backoffUntil = scopeState.getAgentBackoff()?.until;
     if (!backoffUntil) throw new Error("expected active backoff");
     manager.clear();
     vi.setSystemTime(new Date(backoffUntil));

@@ -6,10 +6,6 @@ import { join } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
-  enforceProductionReplacementCompletion,
-} from "./production-replacement-completion.js";
-import { parseProductionReplacementDeclaration } from "./production-replacement-proof.js";
-import {
   type FileSnapshot,
   listVerifiedRepoMarkdownFiles,
   moveRepoMarkdownFile,
@@ -84,63 +80,63 @@ export function isRepoTaskQueueSnapshot(
   );
 }
 
-export function getRepoTasksDir(projectDir: string): string {
-  return join(projectDir, REPO_TASKS_DIR);
+export function getRepoTasksDir(repoRoot: string): string {
+  return join(repoRoot, REPO_TASKS_DIR);
 }
 
-export function getRepoInboxDir(projectDir: string): string {
-  return join(projectDir, REPO_INBOX_DIR);
+export function getRepoInboxDir(repoRoot: string): string {
+  return join(repoRoot, REPO_INBOX_DIR);
 }
 
-export function getRepoTaskStateDir(projectDir: string, state: RepoTaskState): string {
-  return join(getRepoTasksDir(projectDir), state);
+export function getRepoTaskStateDir(repoRoot: string, state: RepoTaskState): string {
+  return join(getRepoTasksDir(repoRoot), state);
 }
 
 export function writeRepoTaskFile(
-  projectDir: string,
+  repoRoot: string,
   filePath: string,
   content: string,
 ): void {
   writeRepoMarkdownFile({
-    projectDir,
-    rootDir: getRepoTasksDir(projectDir),
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
     filePath,
     content,
   });
 }
 
 export function writeRepoInboxFile(
-  projectDir: string,
+  repoRoot: string,
   filePath: string,
   content: string,
 ): void {
   writeRepoMarkdownFile({
-    projectDir,
-    rootDir: getRepoInboxDir(projectDir),
+    repoRoot,
+    rootDir: getRepoInboxDir(repoRoot),
     filePath,
     content,
   });
 }
 
 export function readRepoInboxFile(
-  projectDir: string,
+  repoRoot: string,
   filePath: string,
 ): string | null {
   return readVerifiedRepoMarkdownFile({
-    projectDir,
-    rootDir: getRepoInboxDir(projectDir),
+    repoRoot,
+    rootDir: getRepoInboxDir(repoRoot),
     filePath,
   });
 }
 
 export function removeRepoInboxFile(
-  projectDir: string,
+  repoRoot: string,
   filePath: string,
 ): boolean {
-  const inboxDir = getRepoInboxDir(projectDir);
+  const inboxDir = getRepoInboxDir(repoRoot);
   if (
     readVerifiedRepoMarkdownFile({
-      projectDir,
+      repoRoot,
       rootDir: inboxDir,
       filePath,
     }) === null
@@ -148,24 +144,24 @@ export function removeRepoInboxFile(
     return false;
   }
   removeRepoMarkdownFile({
-    projectDir,
+    repoRoot,
     rootDir: inboxDir,
     filePath,
   });
   return true;
 }
 
-export function countRepoTaskState(projectDir: string, state: RepoTaskState): number {
-  const dir = getRepoTaskStateDir(projectDir, state);
+export function countRepoTaskState(repoRoot: string, state: RepoTaskState): number {
+  const dir = getRepoTaskStateDir(repoRoot, state);
   return listVerifiedRepoMarkdownFiles({
-    projectDir,
-    rootDir: getRepoTasksDir(projectDir),
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
     directoryPath: dir,
   }).filter((entry) => entry.name !== "AGENTS.md").length;
 }
 
-export function countRepoInboxEntries(projectDir: string): number {
-  const dir = getRepoInboxDir(projectDir);
+export function countRepoInboxEntries(repoRoot: string): number {
+  const dir = getRepoInboxDir(repoRoot);
   if (!existsSync(dir)) return 0;
   return readdirSync(dir).filter(
     (name) => name.endsWith(".md") && name !== "AGENTS.md",
@@ -173,13 +169,13 @@ export function countRepoInboxEntries(projectDir: string): number {
 }
 
 export function getRepoTaskQueueSnapshot(
-  projectDir: string,
+  repoRoot: string,
 ): RepoTaskQueueSnapshot {
   const counts = Object.fromEntries(
-    REPO_TASK_STATES.map((state) => [state, countRepoTaskState(projectDir, state)]),
+    REPO_TASK_STATES.map((state) => [state, countRepoTaskState(repoRoot, state)]),
   ) as Record<RepoTaskState, number>;
-  const inboxCount = countRepoInboxEntries(projectDir);
-  const dependencyBlockedTasks = listRepoTaskDependencyWaits(projectDir, [
+  const inboxCount = countRepoInboxEntries(repoRoot);
+  const dependencyBlockedTasks = listRepoTaskDependencyWaits(repoRoot, [
     "backlog",
     "ready",
     "doing",
@@ -204,7 +200,7 @@ export function getRepoTaskQueueSnapshot(
       .map((wait) => wait.id),
   );
   const promotableBacklogCount = countRepoPromotableBacklogTasksWithWaits(
-    projectDir,
+    repoRoot,
     waitingBacklogIds,
   );
   const dispatchableCount =
@@ -225,25 +221,23 @@ export function getRepoTaskQueueSnapshot(
     dispatchableCount,
     hasDispatchableWork: dispatchableCount > 0,
     dependencyBlockedTasks,
-    headSha: getRepoHeadSha(projectDir),
+    headSha: getRepoHeadSha(repoRoot),
   };
 }
 
-export function countRepoPromotableBacklogTasks(projectDir: string): number {
+export function countRepoPromotableBacklogTasks(repoRoot: string): number {
   const waitingIds = new Set(
-    listRepoTaskDependencyWaits(projectDir, ["backlog"]).map((wait) => wait.id),
+    listRepoTaskDependencyWaits(repoRoot, ["backlog"]).map((wait) => wait.id),
   );
-  return countRepoPromotableBacklogTasksWithWaits(projectDir, waitingIds);
+  return countRepoPromotableBacklogTasksWithWaits(repoRoot, waitingIds);
 }
 
 function countRepoPromotableBacklogTasksWithWaits(
-  projectDir: string,
+  repoRoot: string,
   waitingIds: ReadonlySet<string>,
 ): number {
-  return listFullRepoTasks(projectDir, ["backlog"]).filter((record) =>
-    !record.anchor &&
-    !waitingIds.has(record.id) &&
-    getRepoTaskStateTransitionBlocker(record, "ready") === null
+  return listFullRepoTasks(repoRoot, ["backlog"]).filter((record) =>
+    !record.anchor && !waitingIds.has(record.id)
   ).length;
 }
 
@@ -281,54 +275,6 @@ export type RepoTaskClass =
   | "Meta"
   | "Unclassified";
 
-export type RepoTaskTransitionCheckInput = {
-  id: string;
-  productionReplacement?: boolean;
-  body: string;
-};
-
-export function getRepoTaskStateTransitionBlocker(
-  task: RepoTaskTransitionCheckInput,
-  toState: RepoTaskState,
-  projectDir?: string,
-): string | null {
-  if (task.productionReplacement === true) {
-    const declaration = parseProductionReplacementDeclaration(task.body);
-    if (declaration.kind !== "valid") {
-      const reason = declaration.kind === "absent"
-        ? "missing section"
-        : declaration.error;
-      return "production_replacement=true work needs a valid " +
-        `## Production Replacement Proof contract: ${reason}`;
-    }
-    if (toState === "done") {
-      if (!projectDir) {
-        return "production replacement completion needs the project directory to verify its live evidence";
-      }
-      const completion = enforceProductionReplacementCompletion({
-        raw: task.body,
-        taskId: task.id,
-        projectDir,
-      });
-      if (!completion.ok) {
-        return `production replacement proof is incomplete: ${completion.error}`;
-      }
-    }
-  }
-
-  return null;
-}
-
-function assertTaskStateTransitionAllowed(
-  task: RepoTaskTransitionCheckInput,
-  toState: RepoTaskState,
-  projectDir: string,
-): void {
-  const blocker = getRepoTaskStateTransitionBlocker(task, toState, projectDir);
-  if (blocker === null) return;
-  throw new Error(`Task "${task.id}" cannot move to "${toState}": ${blocker}`);
-}
-
 /**
  * A full task record carrying every frontmatter field needed to render a
  * search hit, plus the raw body. Used by the `repo-tasks` provider seam to
@@ -365,7 +311,7 @@ export type VerifiedRepoTaskFullRecord = RepoTaskFullRecord & {
 };
 
 export function readVerifiedRepoTaskFile(
-  projectDir: string,
+  repoRoot: string,
   state: RepoTaskState,
   id: string,
 ): ({ content: string } & RepoTaskFileDescriptor) | null {
@@ -374,9 +320,9 @@ export function readVerifiedRepoTaskFile(
   }
   const path = join(REPO_TASKS_DIR, state, `${id}.md`);
   const verified = readVerifiedRepoMarkdownFileWithIdentity({
-    projectDir,
-    rootDir: getRepoTasksDir(projectDir),
-    filePath: join(projectDir, path),
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
+    filePath: join(repoRoot, path),
   });
   if (verified === null) return null;
   const { attrs } = parseFlatFrontMatter(verified.content);
@@ -401,15 +347,15 @@ export type RepoTaskDependencyWait = {
  * downstream callers can rely on strict shapes.
  */
 export function listVerifiedFullRepoTasks(
-  projectDir: string,
+  repoRoot: string,
   states: readonly RepoTaskState[] = REPO_TASK_STATES,
 ): VerifiedRepoTaskFullRecord[] {
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
   const result: VerifiedRepoTaskFullRecord[] = [];
   for (const state of states) {
     const dir = join(tasksDir, state);
     for (const entry of listVerifiedRepoMarkdownFiles({
-      projectDir,
+      repoRoot,
       rootDir: tasksDir,
       directoryPath: dir,
     })) {
@@ -458,17 +404,17 @@ export function listVerifiedFullRepoTasks(
 }
 
 export function listFullRepoTasks(
-  projectDir: string,
+  repoRoot: string,
   states: readonly RepoTaskState[] = REPO_TASK_STATES,
 ): RepoTaskFullRecord[] {
-  return listVerifiedFullRepoTasks(projectDir, states);
+  return listVerifiedFullRepoTasks(repoRoot, states);
 }
 
 export function listRepoTaskDependencyWaits(
-  projectDir: string,
+  repoRoot: string,
   states: readonly RepoTaskState[] = REPO_TASK_STATES,
 ): RepoTaskDependencyWait[] {
-  const allTasks = listFullRepoTasks(projectDir);
+  const allTasks = listFullRepoTasks(repoRoot);
   const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
   const wanted = new Set(states);
   return allTasks
@@ -484,11 +430,11 @@ export function listRepoTaskDependencyWaits(
 }
 
 export function getUnfinishedTaskDependencies(
-  projectDir: string,
+  repoRoot: string,
   dependencies: readonly string[],
 ): string[] {
   const stateByTaskId = new Map(
-    listFullRepoTasks(projectDir).map((task) => [task.id, task.state]),
+    listFullRepoTasks(repoRoot).map((task) => [task.id, task.state]),
   );
   return findUnfinishedTaskDependencies(dependencies, stateByTaskId);
 }
@@ -538,14 +484,14 @@ function extractBodyAfterFrontmatter(content: string): string {
  * the result as strict.
  */
 export function listRepoTasksInState(
-  projectDir: string,
+  repoRoot: string,
   state: RepoTaskState,
 ): RepoTaskRecord[] {
-  const dir = getRepoTaskStateDir(projectDir, state);
+  const dir = getRepoTaskStateDir(repoRoot, state);
   const records: RepoTaskRecord[] = [];
   for (const entry of listVerifiedRepoMarkdownFiles({
-    projectDir,
-    rootDir: getRepoTasksDir(projectDir),
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
     directoryPath: dir,
   })) {
     if (entry.name === "AGENTS.md") continue;
@@ -580,7 +526,7 @@ export type MoveTaskResult = {
  * found, is already in the target state, or when the file operation fails.
  */
 export function moveTaskById(
-  projectDir: string,
+  repoRoot: string,
   id: string,
   toState: RepoTaskState,
 ): MoveTaskResult {
@@ -588,14 +534,14 @@ export function moveTaskById(
     throw new Error("Invalid task id");
   }
 
-  const tasksDir = getRepoTasksDir(projectDir);
+  const tasksDir = getRepoTasksDir(repoRoot);
   let fromState: RepoTaskState | null = null;
   let fromPath: string | null = null;
   let content: string | null = null;
   for (const state of REPO_TASK_STATES) {
     const candidate = join(tasksDir, state, `${id}.md`);
     const candidateContent = readVerifiedRepoMarkdownFile({
-      projectDir,
+      repoRoot,
       rootDir: tasksDir,
       filePath: candidate,
     });
@@ -615,7 +561,7 @@ export function moveTaskById(
   const dstPath = join(tasksDir, toState, `${id}.md`);
   if (
     readVerifiedRepoMarkdownFile({
-      projectDir,
+      repoRoot,
       rootDir: tasksDir,
       filePath: dstPath,
     }) !== null
@@ -623,27 +569,12 @@ export function moveTaskById(
     throw new Error(`Task "${id}" already exists in "${toState}"`);
   }
   const { attrs, body } = parseFlatFrontMatter(content);
-  const productionReplacementRaw = attrs.production_replacement;
-  if (
-    productionReplacementRaw !== undefined &&
-    productionReplacementRaw !== "true"
-  ) {
-    throw new Error(
-      `Task "${id}" has invalid production_replacement=${JSON.stringify(productionReplacementRaw)}; omit it or use the literal true`,
-    );
-  }
-  const transitionTask: RepoTaskTransitionCheckInput = {
-    id,
-    productionReplacement: productionReplacementRaw === "true",
-    body,
-  };
-  assertTaskStateTransitionAllowed(transitionTask, toState, projectDir);
   attrs.status = toState;
   attrs.updated_at = new Date().toISOString();
   const updated = serializeFlatFrontMatter(attrs, body);
 
   moveRepoMarkdownFile({
-    projectDir,
+    repoRoot,
     sourceRootDir: tasksDir,
     sourcePath: fromPath,
     destinationRootDir: tasksDir,
@@ -656,8 +587,8 @@ export function moveTaskById(
     id,
     fromState,
     toState,
-    path: dstPath.slice(projectDir.length + 1),
-    previousPath: fromPath.slice(projectDir.length + 1),
+    path: dstPath.slice(repoRoot.length + 1),
+    previousPath: fromPath.slice(repoRoot.length + 1),
   };
 }
 

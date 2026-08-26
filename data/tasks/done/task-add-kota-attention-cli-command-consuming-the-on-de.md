@@ -52,7 +52,7 @@ state.
   (`src/modules/autonomy/index.ts`) registers it next to
   `buildDigestCommand`.
 - The command resolves `projectDir` through
-  `resolveProjectDir()` and resolves `runsDir` as
+  `resolveScopeRoot()` and resolves `runsDir` as
   `join(projectDir, ".kota", "runs")`, matching the cadence step's
   layout.
 - Human-facing output flows through `src/modules/rendering/` (`text` +

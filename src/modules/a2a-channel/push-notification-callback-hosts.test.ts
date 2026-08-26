@@ -3,6 +3,7 @@ import {
   cleanupPushNotificationTestState,
   FakeBackend,
   makeContext,
+  makePushNotificationHttp,
   makeStorage,
   type PushNotificationTestState,
   postRpc,
@@ -23,7 +24,7 @@ describe("a2a push notification callback hosts", () => {
     const backendFactory = vi.fn(() => backend);
     const server = await startRouteServer(a2aRoutes(makeContext(makeStorage(state.tempDirs)), {
       backendFactory,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(server.server);
 
@@ -52,7 +53,7 @@ describe("a2a push notification callback hosts", () => {
     const backend = new FakeBackend();
     const server = await startRouteServer(a2aRoutes(makeContext(storage), {
       backendFactory: () => backend,
-      pushNotificationFetch: vi.fn(),
+      pushNotificationHttp: makePushNotificationHttp(vi.fn()),
     }));
     state.servers.push(server.server);
 

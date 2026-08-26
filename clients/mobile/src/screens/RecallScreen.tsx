@@ -25,8 +25,8 @@ const EMPTY_QUERY_HINT =
 
 export function RecallScreen() {
   const { state, setRecallQuery, recall } = useDaemon();
-  const { online, recallQuery, recallResult, recallLoading, recallError } =
-    state;
+  const { online } = state.connection;
+  const { recallQuery, recallResult, recallLoading, recallError } = state.content;
 
   const trimmed = recallQuery.trim();
   const hasQuery = trimmed.length > 0;
@@ -36,7 +36,7 @@ export function RecallScreen() {
     void recall(trimmed);
   };
 
-  if (!state.settingsLoaded) {
+  if (!state.connection.settingsLoaded) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
@@ -44,7 +44,7 @@ export function RecallScreen() {
     );
   }
 
-  if (!state.daemonUrl || !state.token) {
+  if (!state.connection.daemonUrl || !state.connection.token) {
     return (
       <View style={styles.center}>
         <Text style={styles.emptyText}>No daemon configured.</Text>
@@ -149,7 +149,7 @@ export function RecallScreen() {
 function RecallBody({
   result,
 }: {
-  result: NonNullable<ReturnType<typeof useDaemon>['state']['recallResult']>;
+  result: NonNullable<ReturnType<typeof useDaemon>['state']['content']['recallResult']>;
 }) {
   if (result.ok === false) {
     return (
@@ -192,7 +192,7 @@ function RecallHitRow({ hit }: { hit: RecallHit }) {
 }
 
 function renderHeaderBadge(
-  result: ReturnType<typeof useDaemon>['state']['recallResult'],
+  result: ReturnType<typeof useDaemon>['state']['content']['recallResult'],
 ): { label: string; active: boolean } | null {
   if (result === null) return null;
   if (result.ok === false) {

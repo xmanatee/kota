@@ -13,21 +13,21 @@ import { type AgentEvent, ProxyTransport, type Transport } from "#core/loop/tran
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { GuardrailsConfig, GuardrailsSnapshot } from "#core/tools/guardrails.js";
 import type { ToolApprovalDecision, ToolApprovalRequest } from "#core/tools/tool-runner.js";
-import type { ProjectId } from "./scope-registry.js";
+import type { ScopeId } from "./scope-registry.js";
 
 /** Factory signature for building an AgentSession inside the daemon. */
 export type DaemonChatMakeAgent = (
   transport: Transport,
   mode: AutonomyMode,
   resumeConversation: string | undefined,
-  projectId: ProjectId,
+  scopeId: ScopeId,
 ) => AgentSession;
 
 /** An agent session owned by the daemon control server. */
 export type DaemonChatSession = {
   id: string;
   createdAt: string;
-  projectId: ProjectId;
+  scopeId: ScopeId;
   conversationId: string;
   agent: AgentSession;
   proxy: ProxyTransport;
@@ -69,8 +69,7 @@ export type DaemonChatStreamSink = {
 
 export type DaemonChatListEntry = {
   id: string;
-  scopeId: ProjectId;
-  projectId: ProjectId;
+  scopeId: ScopeId;
   createdAt: string;
   busy: boolean;
   lastActive: number;
@@ -94,7 +93,7 @@ export type DaemonChatPoolOptions = {
 };
 
 export type DaemonChatCreateOptions = {
-  projectId: ProjectId;
+  scopeId: ScopeId;
   sessionId?: string;
 };
 
@@ -114,9 +113,9 @@ export class DaemonChatPool {
    *
    * When `sessionId` is provided the caller is asking the pool to adopt that
    * id (wake after a binding lookup). The pool rejects the call if that id
-   * is already live. When absent, a fresh id is generated. `projectId` is
+   * is already live. When absent, a fresh id is generated. `scopeId` is
    * required so the daemon agent factory can bind the session to the selected
-   * project runtime instead of falling back to process cwd.
+   * scope runtime instead of falling back to process cwd.
    */
   create(
     makeAgent: DaemonChatMakeAgent,
@@ -124,7 +123,7 @@ export class DaemonChatPool {
     conversationId: string,
     options: DaemonChatCreateOptions,
   ): DaemonChatSession {
-    const { projectId, sessionId } = options;
+    const { scopeId, sessionId } = options;
     if (sessionId && this.sessions.has(sessionId)) {
       throw new Error(`Session ${sessionId} already live`);
     }
@@ -134,12 +133,12 @@ export class DaemonChatPool {
     }
     const id = sessionId ?? randomUUID().slice(0, 8);
     const proxy = new ProxyTransport();
-    const agent = makeAgent(proxy, mode, conversationId, projectId);
+    const agent = makeAgent(proxy, mode, conversationId, scopeId);
     const now = new Date().toISOString();
     const session: DaemonChatSession = {
       id,
       createdAt: now,
-      projectId,
+      scopeId,
       conversationId,
       agent,
       proxy,
@@ -177,13 +176,12 @@ export class DaemonChatPool {
     return true;
   }
 
-  list(projectId?: ProjectId): DaemonChatListEntry[] {
+  list(scopeId?: ScopeId): DaemonChatListEntry[] {
     return [...this.sessions.values()]
-      .filter((s) => projectId === undefined || s.projectId === projectId)
+      .filter((s) => scopeId === undefined || s.scopeId === scopeId)
       .map((s) => ({
         id: s.id,
-        scopeId: s.projectId,
-        projectId: s.projectId,
+        scopeId: s.scopeId,
         createdAt: s.createdAt,
         busy: s.busy,
         lastActive: s.lastActive,

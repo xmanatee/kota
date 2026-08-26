@@ -9,8 +9,8 @@ const MAX_ERROR_LENGTH = 300;
 
 type WorkflowCompletion = BusEvents["workflow.completed"];
 
-function readErrorFile(projectDir: string, runDir: string): string {
-  const path = resolve(projectDir, runDir, "error.txt");
+function readErrorFile(workspaceRoot: string, runDir: string): string {
+  const path = resolve(workspaceRoot, runDir, "error.txt");
   if (!existsSync(path)) return "";
   try {
     return readFileSync(path, "utf-8").trim();
@@ -71,9 +71,9 @@ export function createWorkflowFailureAlertDefinition(
       {
         id: "publish-failure-alert",
         type: "code",
-        run: ({ trigger, scopeDir, emit }) => {
+        run: ({ trigger, scopeRoot, emit }) => {
           const payload = trigger.payload as WorkflowCompletion;
-          const errorSummary = readErrorFile(scopeDir, payload.runDir);
+          const errorSummary = readErrorFile(scopeRoot, payload.runDir);
           emit("workflow.failure.alert", {
             workflow: payload.workflow,
             runId: payload.runId,

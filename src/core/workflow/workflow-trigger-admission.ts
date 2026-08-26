@@ -4,21 +4,21 @@ import type { WorkflowDefinition } from "./types.js";
 
 export function rejectUnadmittedWorkflowTrigger(args: {
   definition: WorkflowDefinition;
-  projectDir: string;
+  scopeRoot: string;
   stateDir: string;
-  projectId: string;
+  scopeId: string;
   runState: RunStateDatabase;
   trigger: WorkflowRunTrigger;
   log: (message: string) => void;
 }): boolean {
   const admission = args.definition.triggerAdmission?.({
-    projectDir: args.projectDir,
+    scopeRoot: args.scopeRoot,
     stateDir: args.stateDir,
-    scopeId: args.projectId,
+    scopeId: args.scopeId,
     workflowName: args.definition.name,
     trigger: args.trigger,
     state: {
-      read: (key) => args.runState.readProjectStateValue(args.projectId, key),
+      read: (key) => args.runState.readScopeStateValue(args.scopeId, key),
     },
   });
   if (admission?.admitted !== false) return false;

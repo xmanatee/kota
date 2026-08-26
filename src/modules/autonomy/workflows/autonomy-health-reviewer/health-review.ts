@@ -182,7 +182,6 @@ export function buildAutonomyHealthReview(args: {
         groupingKey: args.triggerPayload.groupingKey,
         reason: args.triggerPayload.reason,
         scopeId: args.triggerPayload.scopeId,
-        projectId: args.triggerPayload.projectId,
       }
     : {
         kind: "signal" as const,
@@ -192,10 +191,6 @@ export function buildAutonomyHealthReview(args: {
           typeof args.triggerPayload.scopeId === "string"
             ? args.triggerPayload.scopeId
             : undefined,
-        projectId:
-          typeof args.triggerPayload.projectId === "string"
-            ? args.triggerPayload.projectId
-            : undefined,
       };
 
   return {
@@ -203,7 +198,6 @@ export function buildAutonomyHealthReview(args: {
     trigger,
     scope: {
       ...(trigger.scopeId !== undefined ? { scopeId: trigger.scopeId } : {}),
-      ...(trigger.projectId !== undefined ? { projectId: trigger.projectId } : {}),
     },
     signals,
     groups: groupSignals(signals),
@@ -220,6 +214,7 @@ export function buildAutonomyHealthReviewFromSignals(args: {
   generatedAt: string;
   sourceEventName: string;
   reason: string;
+  scopeId?: string;
 }): AutonomyHealthReview {
   const labels = args.signals.flatMap((signal) => signal.labels);
   return {
@@ -229,8 +224,11 @@ export function buildAutonomyHealthReviewFromSignals(args: {
       sourceEventName: args.sourceEventName,
       count: args.signals.length,
       reason: args.reason,
+      ...(args.scopeId !== undefined ? { scopeId: args.scopeId } : {}),
     },
-    scope: {},
+    scope: {
+      ...(args.scopeId !== undefined ? { scopeId: args.scopeId } : {}),
+    },
     signals: [...args.signals],
     groups: groupSignals(args.signals),
     counts: {

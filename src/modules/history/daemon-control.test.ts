@@ -3,7 +3,7 @@
  * registration seam the real daemon uses: `historyControlRoutes()` is the
  * module's contribution, so the test mounts those handlers on a live
  * `DaemonControlServer` and hits `/history`, `/history/:id`, and the
- * discovered-project fallback route via HTTP.
+ * discovered-scope fallback route via HTTP.
  *
  * Covers the wire contract migrated out of core: bearer-token auth, the
  * `read` / `control` capability-scope split (the GETs are read-only,
@@ -22,15 +22,15 @@ import {
   type WorkflowMetricCounts,
 } from "#core/daemon/daemon-control.js";
 import { daemonSetupControlHandleStubs } from "#core/daemon/daemon-setup-control-test-stubs.js";
-import { buildConfiguredProject } from "#core/daemon/scope-registry.js";
+import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { getHistory, resetHistory } from "./history.js";
-import { HistoryProjectStores } from "./project-scope.js";
 import { historyControlRoutes } from "./routes.js";
+import { HistoryScopeStores } from "./scope.js";
 
 const TEST_TOKEN = "history-test-token";
 
@@ -70,16 +70,16 @@ function makeHandle(): DaemonControlHandle {
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getScopeRegistryProjection: vi.fn(() => ({ rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] })),
+    hasScope: vi.fn((id: string) => id === "test-scope-id"),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({ capabilities: [], summary: { ready: 0, unavailable: 0, init_failed: 0 } })),
     getClientIdentity: vi.fn(async () => ({
-      projectName: "test-project",
-      projectDir: "/tmp/test-project",
-      projects: { defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] },
+      scopeName: "test-scope",
+      scopeRoot: "/tmp/test-scope",
+      scopeRegistry: { rootScopeId: "global", defaultScopeId: "test-scope-id", scopes: [{ scopeId: "global", displayName: "Global" }, { scopeId: "test-scope-id", parentScopeId: "global", directoryRoot: "/tmp/test-scope", displayName: "test-scope" }] },
       daemonVersion: "0.1.0",
       pid: 9999,
       startedAt: "2026-01-01T00:00:00.000Z",
@@ -136,7 +136,7 @@ describe("history module daemon-control routes", () => {
       const routes = historyControlRoutes();
       expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
         "GET /history (read)",
-        "GET /history/discovered-project-records (read)",
+        "GET /history/discovered-scope-records (read)",
         "POST /history/reindex (control)",
         "GET /history/:id (read)",
         "DELETE /history/:id (control)",
@@ -146,7 +146,7 @@ describe("history module daemon-control routes", () => {
     it("requires the daemon bearer token on all history control routes", async () => {
       for (const init of [
         { path: "/history", method: "GET" },
-        { path: "/history/discovered-project-records", method: "GET" },
+        { path: "/history/discovered-scope-records", method: "GET" },
         { path: "/history/anything", method: "GET" },
         { path: "/history/anything", method: "DELETE" },
       ]) {
@@ -158,11 +158,11 @@ describe("history module daemon-control routes", () => {
     });
   });
 
-  describe("GET /history/discovered-project-records", () => {
-    it("returns locally discovered project history records through the daemon route", async () => {
+  describe("GET /history/discovered-scope-records", () => {
+    it("returns locally discovered scope history records through the daemon route", async () => {
       const root = mkdtempSync(join(tmpdir(), "kota-history-discovery-"));
-      const projectDir = join(root, "saved-kota-project");
-      const historyDir = join(projectDir, ".kota", "history");
+      const scopeRoot = join(root, "saved-kota-project");
+      const historyDir = join(scopeRoot, ".kota", "history");
       mkdirSync(historyDir, { recursive: true });
       const record = {
         id: "discovered-conv",
@@ -171,7 +171,7 @@ describe("history module daemon-control routes", () => {
         updatedAt: "2026-01-02T00:00:00.000Z",
         model: "claude-sonnet-4-6",
         messageCount: 1,
-        cwd: projectDir,
+        cwd: scopeRoot,
         source: "user" as const,
       };
       writeFileSync(
@@ -185,7 +185,7 @@ describe("history module daemon-control routes", () => {
       try {
         const res = await fetchWith(
           scopedPort,
-          "/history/discovered-project-records?limit=1",
+          "/history/discovered-scope-records?limit=1",
         );
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ conversations: [record] });
@@ -232,32 +232,32 @@ describe("history module daemon-control routes", () => {
       expect(limitedBody.conversations).toHaveLength(1);
     });
 
-    it("resolves projectId through the project store boundary", async () => {
-      const root = mkdtempSync(join(tmpdir(), "kota-history-control-projects-"));
+    it("resolves scopeId through the scope store boundary", async () => {
+      const root = mkdtempSync(join(tmpdir(), "kota-history-control-scopes-"));
       mkdirSync(join(root, "a"));
       mkdirSync(join(root, "b"));
-      const projectA = buildConfiguredProject({ projectDir: join(root, "a") });
-      const projectB = buildConfiguredProject({ projectDir: join(root, "b") });
-      const stores = new HistoryProjectStores({
-        defaultProjectDir: projectA.projectDir,
-        defaultProjectId: projectA.projectId,
-        projects: [projectA, projectB],
+      const scopeA = buildDirectoryScope({ scopeRoot: join(root, "a") });
+      const scopeB = buildDirectoryScope({ scopeRoot: join(root, "b") });
+      const stores = new HistoryScopeStores({
+        defaultScopeRoot: scopeA.scopeRoot,
+        defaultScopeId: scopeA.scopeId,
+        scopes: [scopeA, scopeB],
       });
       const scopedServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
         controlRoutes: historyControlRoutes(stores),
       });
       const scopedPort = await scopedServer.start();
       try {
-        const scopedA = stores.resolve(projectA.projectId);
+        const scopedA = stores.resolve(scopeA.scopeId);
         if (!scopedA.ok) throw new Error("project A did not resolve");
         const id = scopedA.store.create(
           "claude-sonnet-4-6",
-          projectA.projectDir,
+          scopeA.scopeRoot,
         );
 
         const a = await fetchWith(
           scopedPort,
-          `/history?projectId=${projectA.projectId}`,
+          `/history?scopeId=${scopeA.scopeId}`,
         );
         expect(a.status).toBe(200);
         const aBody = (await a.json()) as { conversations: Array<{ id: string }> };
@@ -265,18 +265,18 @@ describe("history module daemon-control routes", () => {
 
         const b = await fetchWith(
           scopedPort,
-          `/history?projectId=${projectB.projectId}`,
+          `/history?scopeId=${scopeB.scopeId}`,
         );
         expect(b.status).toBe(200);
         const bBody = (await b.json()) as { conversations: unknown[] };
         expect(bBody.conversations).toEqual([]);
 
-        const unknown = await fetchWith(scopedPort, "/history?projectId=ghost");
+        const unknown = await fetchWith(scopedPort, "/history?scopeId=ghost");
         expect(unknown.status).toBe(404);
         expect(await unknown.json()).toEqual({
-          error: "Unknown project",
-          reason: "unknown_project",
-          projectId: "ghost",
+          error: "Unknown scope",
+          reason: "unknown_scope",
+          scopeId: "ghost",
         });
       } finally {
         await scopedServer.stop();
@@ -342,11 +342,11 @@ describe("history module daemon-control routes", () => {
   });
 
   describe("POST /history/reindex", () => {
-    it("returns the provider's ReindexResult — base provider reports skipped", async () => {
+    it("reports semantic reindex as unavailable for the base provider", async () => {
       const res = await fetchWith(port, "/history/reindex", { method: "POST" });
       expect(res.status).toBe(200);
-      const body = (await res.json()) as { indexed: number; failed: number; skipped?: boolean };
-      expect(body).toEqual({ indexed: 0, failed: 0, skipped: true });
+      const body = await res.json();
+      expect(body).toEqual({ ok: false, reason: "semantic_unavailable" });
     });
 
     it("requires the daemon bearer token", async () => {

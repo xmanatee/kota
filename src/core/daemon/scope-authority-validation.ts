@@ -1,6 +1,6 @@
 import {
-  normalizeProjectTrustPath,
-  resolveProjectConfigTrust,
+  normalizeScopeTrustPath,
+  resolveScopeConfigTrust,
 } from "#core/config/config.js";
 import type {
   ScopeAuthorityAuditRecord,
@@ -19,7 +19,7 @@ import {
   ScopePolicyValidationError,
 } from "./scope-policy.js";
 import { scopePolicyWideningAreas } from "./scope-policy-widening.js";
-import type { ConfiguredProject, ScopeId, ScopeRegistry } from "./scope-registry.js";
+import type { DirectoryScope, ScopeId, ScopeRegistry } from "./scope-registry.js";
 
 type BoundaryValue = unknown;
 
@@ -27,7 +27,7 @@ export type ScopeAuthorityValidationContext = {
   preview: ScopeAuthorityPreview;
   current: ScopeAuthorityStoredState;
   next: ScopeAuthorityStoredState;
-  project: ConfiguredProject;
+  scope: DirectoryScope;
   before: ScopeAuthorityView;
 };
 
@@ -38,8 +38,8 @@ export function prepareScopeAuthorityChange(args: {
   mutation: ScopeAuthorityMutation;
 }): ScopeAuthorityValidationContext | ScopeAuthorityFailure {
   const { persistence, registry, scopeId, mutation } = args;
-  const project = registry.get(scopeId);
-  if (!project) return unknownScope(scopeId);
+  const scope = registry.get(scopeId);
+  if (!scope) return unknownScope(scopeId);
   let current: ScopeAuthorityStoredState;
   try {
     current = persistence.read();
@@ -56,23 +56,23 @@ export function prepareScopeAuthorityChange(args: {
     return invalidRequest(scopeId, `Policy scopeId must be ${scopeId}`);
   }
 
-  const currentView = scopeAuthorityViewFor(registry, project, current);
+  const currentView = scopeAuthorityViewFor(registry, scope, current);
   const trusted = mutation.trust ?? currentView.trust.trusted;
-  if (currentView.trust.source === "kota-self-project" && !trusted) {
+  if (currentView.trust.source === "kota-self-scope" && !trusted) {
     return invalidRequest(scopeId, "The KOTA source scope is intrinsically trusted");
   }
   const nextPolicies = mutation.policy === undefined
     ? current.scopePolicies
     : updateScopePolicies(current.scopePolicies, scopeId, mutation.policy);
   const next: ScopeAuthorityStoredState = {
-    trustedProjects: updateTrustedProjects(current.trustedProjects, project.projectDir, trusted),
+    trustedScopes: updateTrustedScopes(current.trustedScopes, scope.scopeRoot, trusted),
     scopePolicies: nextPolicies,
     metadata: current.metadata,
   };
   let nextView: ScopeAuthorityView;
   try {
     assertEveryPolicyResolves(registry, nextPolicies);
-    nextView = scopeAuthorityViewFor(registry, project, next);
+    nextView = scopeAuthorityViewFor(registry, scope, next);
   } catch (error) {
     if (error instanceof ScopePolicyValidationError && error.conflict) {
       return {
@@ -107,27 +107,27 @@ export function prepareScopeAuthorityChange(args: {
     confirmationRequired: (!currentView.trust.trusted && nextView.trust.trusted) ||
       dangerousWideningAreas.length > 0,
   };
-  return { preview, current, next, project, before: currentView };
+  return { preview, current, next, scope, before: currentView };
 }
 
 export function scopeAuthorityViewFor(
   registry: ScopeRegistry,
-  project: ConfiguredProject,
+  scope: DirectoryScope,
   state: ScopeAuthorityStoredState,
 ): ScopeAuthorityView {
-  const policyFragment = state.scopePolicies.find((entry) => entry.scopeId === project.projectId) ?? null;
+  const policyFragment = state.scopePolicies.find((entry) => entry.scopeId === scope.scopeId) ?? null;
   return {
-    scopeId: project.projectId,
-    directoryRoot: project.projectDir,
+    scopeId: scope.scopeId,
+    directoryRoot: scope.scopeRoot,
     revision: state.metadata.revision,
-    trust: trustDecision(project.projectDir, state.trustedProjects),
+    trust: trustDecision(scope.scopeRoot, state.trustedScopes),
     policyFragment,
     resolvedPolicy: resolveScopePolicy({
-      projection: registry.toScopeProjection(),
-      scopeId: project.projectId,
+      projection: registry.toProjection(),
+      scopeId: scope.scopeId,
       fragments: state.scopePolicies,
     }),
-    audit: state.metadata.audit.filter((entry) => entry.scopeId === project.projectId),
+    audit: state.metadata.audit.filter((entry) => entry.scopeId === scope.scopeId),
   };
 }
 
@@ -160,7 +160,7 @@ export function buildScopeAuthorityAuditRecord(
 
 export function confirmationMessage(preview: ScopeAuthorityPreview): string {
   const changes = [
-    ...(preview.trustChanged && preview.authority.trust.trusted ? ["project trust"] : []),
+    ...(preview.trustChanged && preview.authority.trust.trusted ? ["scope trust"] : []),
     ...preview.dangerousWideningAreas.map((area) => `${area} policy widening`),
   ];
   return `Explicit operator confirmation is required for ${changes.join(" and ")}`;
@@ -193,20 +193,20 @@ function invalidRequest(scopeId: ScopeId, message: string): ScopeAuthorityFailur
   return { ok: false, reason: "invalid_request", message, scopeId };
 }
 
-function trustDecision(projectDir: string, trustedProjects: readonly string[]): ScopeTrustDecision {
-  const decision = resolveProjectConfigTrust(projectDir, { trustedProjects: [...trustedProjects] });
-  if (decision.reason === "kota-self-project") return { trusted: true, source: "kota-self-project" };
+function trustDecision(scopeRoot: string, trustedScopes: readonly string[]): ScopeTrustDecision {
+  const decision = resolveScopeConfigTrust(scopeRoot, { trustedScopes: [...trustedScopes] });
+  if (decision.reason === "kota-self-scope") return { trusted: true, source: "kota-self-scope" };
   if (decision.trusted) return { trusted: true, source: "machine-config" };
   return { trusted: false, source: "default-untrusted" };
 }
 
-function updateTrustedProjects(
+function updateTrustedScopes(
   current: readonly string[],
-  projectDir: string,
+  scopeRoot: string,
   trusted: boolean,
 ): string[] {
-  const normalized = normalizeProjectTrustPath(projectDir);
-  const retained = current.filter((entry) => normalizeProjectTrustPath(entry) !== normalized);
+  const normalized = normalizeScopeTrustPath(scopeRoot);
+  const retained = current.filter((entry) => normalizeScopeTrustPath(entry) !== normalized);
   if (trusted) retained.push(normalized);
   return [...new Set(retained)].sort();
 }
@@ -225,7 +225,7 @@ function assertEveryPolicyResolves(
   registry: ScopeRegistry,
   policies: readonly ScopePolicyFragment[],
 ): void {
-  const projection = registry.toScopeProjection();
+  const projection = registry.toProjection();
   for (const scope of projection.scopes) {
     resolveScopePolicy({ projection, scopeId: scope.scopeId, fragments: policies });
   }

@@ -10,7 +10,7 @@ const AGENT_AUTHORED_RUN_DIR_ARTIFACTS = [
 
 export type RunDirWriteExtraction = {
   ops: AgentStepFileOperation[];
-  skippedOutsideProject: string[];
+  skippedOutsideWorkspace: string[];
 };
 
 type WriteToolUse = {
@@ -49,16 +49,16 @@ function writeToolUse(block: FixtureJsonValue): WriteToolUse | null {
  * Collect Write tool invocations targeting run-dir paths. Repo-tree paths
  * come from the commit diff, so this scan is limited to `{{runDir}}`-
  * templated run-dir artifacts. Write events pointing outside the project
- * root are reported via `skippedOutsideProject` so the author can audit.
+ * root are reported via `skippedOutsideWorkspace` so the author can audit.
  * Multiple writes to the same run-dir path collapse to the latest write.
  */
 export function extractRunDirWriteOperations(
-  projectDir: string,
+  workspaceRoot: string,
   sourceRunId: string,
   stepId: string,
 ): RunDirWriteExtraction {
   const eventsPath = join(
-    projectDir,
+    workspaceRoot,
     ".kota",
     "runs",
     sourceRunId,
@@ -67,7 +67,7 @@ export function extractRunDirWriteOperations(
   );
   const sourceRunDir = join(".kota", "runs", sourceRunId);
   const ops: AgentStepFileOperation[] = [];
-  const skippedOutsideProject: string[] = [];
+  const skippedOutsideWorkspace: string[] = [];
   const indexByPath = new Map<string, number>();
   if (existsSync(eventsPath)) {
     for (const line of readFileSync(eventsPath, "utf-8").split("\n")) {
@@ -76,9 +76,9 @@ export function extractRunDirWriteOperations(
       for (const block of assistantContentBlocks(trimmed)) {
         const write = writeToolUse(block);
         if (!write) continue;
-        const rel = relative(projectDir, resolve(write.filePath));
+        const rel = relative(workspaceRoot, resolve(write.filePath));
         if (rel.startsWith("..")) {
-          skippedOutsideProject.push(write.filePath);
+          skippedOutsideWorkspace.push(write.filePath);
           continue;
         }
         if (rel !== sourceRunDir && !rel.startsWith(`${sourceRunDir}/`)) continue;
@@ -93,7 +93,7 @@ export function extractRunDirWriteOperations(
   for (const artifact of AGENT_AUTHORED_RUN_DIR_ARTIFACTS) {
     const templated = join("{{runDir}}", artifact);
     if (indexByPath.has(templated)) continue;
-    const artifactPath = join(projectDir, sourceRunDir, artifact);
+    const artifactPath = join(workspaceRoot, sourceRunDir, artifact);
     if (!existsSync(artifactPath)) continue;
     indexByPath.set(templated, ops.length);
     ops.push({
@@ -102,5 +102,5 @@ export function extractRunDirWriteOperations(
       content: readFileSync(artifactPath, "utf-8"),
     });
   }
-  return { ops, skippedOutsideProject };
+  return { ops, skippedOutsideWorkspace };
 }

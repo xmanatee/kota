@@ -90,11 +90,11 @@ describe("buildSubAgentPrompt", () => {
     expect(result.match(/- Read/g)).toHaveLength(1);
   });
 
-  it("appends project and instruction context after working directory details", () => {
+	it("appends scope and instruction context after working directory details", () => {
     const result = buildSubAgentPrompt(base, {
       cwd: "/opt/app",
-      projectContext: "## Conventions\n\nUse ESM imports.",
-      instructionContext: "## Project Instructions\n\nRead AGENTS.md",
+      scopeContext: "## Conventions\n\nUse ESM imports.",
+		instructionContext: "## Workspace Instructions\n\nRead AGENTS.md",
     });
 
     const cwdIdx = result.indexOf("/opt/app");
@@ -106,7 +106,7 @@ describe("buildSubAgentPrompt", () => {
 
   it("does not include empty optional context", () => {
     expect(buildSubAgentPrompt(base, { cwd: "" })).toBe(base);
-    expect(buildSubAgentPrompt(base, { projectContext: "" })).toBe(base);
+    expect(buildSubAgentPrompt(base, { scopeContext: "" })).toBe(base);
     expect(buildSubAgentPrompt(base, { instructionContext: "" })).toBe(base);
   });
 });
@@ -159,7 +159,7 @@ describe("buildSubAgentPrompt environment context", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("includes project type and directory overview when cwd has files", async () => {
+	it("includes workspace type and directory overview when cwd has files", async () => {
     const { writeFileSync, mkdirSync } = await import("node:fs");
     const { join } = await import("node:path");
 
@@ -172,19 +172,19 @@ describe("buildSubAgentPrompt environment context", () => {
 
     const result = buildSubAgentPrompt(basePrompt(), { cwd: tmpDir });
 
-    expect(result).toContain("Project:");
-    expect(result).toContain("Node.js project");
+		expect(result).toContain("Workspace:");
+		expect(result).toContain("Node.js workspace");
     expect(result).toContain("react");
     expect(result).toContain("Directory:");
     expect(result).toContain("src/");
     expect(result).toContain("index.ts");
   });
 
-  it("omits project and directory for an empty directory", () => {
+	it("omits workspace and directory for an empty directory", () => {
     const result = buildSubAgentPrompt(basePrompt(), { cwd: tmpDir });
 
     expect(result).toContain("Working directory:");
-    expect(result).not.toContain("Project:");
+		expect(result).not.toContain("Workspace:");
     expect(result).not.toContain("Directory:");
   });
 });

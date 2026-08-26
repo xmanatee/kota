@@ -53,8 +53,11 @@ describe("generated ui.surface.v1 bindings", () => {
     expect(manifest.outputs.map((output) => output.path)).toEqual([
       "schema/ui-surface.schema.json",
       "clients/conformance/ui-surface.generated.ts",
-      "clients/mobile/src/daemon/conformance/ui-surface.generated.ts",
+      "clients/mobile/src/daemon/ui-surface.generated.ts",
       "clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift",
+      "clients/conformance/ui-behavior-vectors.generated.json",
+      "clients/mobile/src/__tests__/__fixtures__/ui-behavior-vectors.generated.json",
+      "clients/apple/Tests/KotaSharedTests/ui-behavior-vectors.generated.json",
     ]);
     for (const output of manifest.outputs) {
       expect(output.sha256).toBe(hash(readFileSync(resolve(ROOT, output.path), "utf8")));
@@ -66,6 +69,8 @@ describe("generated ui.surface.v1 bindings", () => {
     try {
       mkdirSync(resolve(fixtureRoot, "src/core/daemon"), { recursive: true });
       cpSync(resolve(ROOT, "src/core/daemon/ui-surface.ts"), resolve(fixtureRoot, "src/core/daemon/ui-surface.ts"));
+      mkdirSync(resolve(fixtureRoot, "scripts"), { recursive: true });
+      cpSync(resolve(ROOT, "scripts/ui-behavior-vectors.mjs"), resolve(fixtureRoot, "scripts/ui-behavior-vectors.mjs"));
       cpSync(resolve(ROOT, "tsconfig.json"), resolve(fixtureRoot, "tsconfig.json"));
       expect(runGenerator("--root", fixtureRoot).status).toBe(0);
       expect(runGenerator("--root", fixtureRoot, "--check").status).toBe(0);
@@ -80,18 +85,4 @@ describe("generated ui.surface.v1 bindings", () => {
     }
   });
 
-  it("the handwritten UI protocol mirrors are gone", () => {
-    for (const path of [
-      "clients/conformance/decoder-ui-types.ts",
-      "clients/conformance/decoder-ui-schema.ts",
-      "clients/conformance/decoder-ui-nodes.ts",
-      "clients/mobile/src/daemon/conformance/decoder-ui-types.ts",
-      "clients/mobile/src/daemon/conformance/decoder-ui-schema.ts",
-      "clients/mobile/src/daemon/conformance/decoder-ui-nodes.ts",
-    ]) {
-      expect(existsSync(resolve(ROOT, path))).toBe(false);
-    }
-    expect(readFileSync(resolve(ROOT, "clients/apple/Sources/KotaShared/ContractTypes.swift"), "utf8"))
-      .not.toContain("struct UiSurface");
-  });
 });

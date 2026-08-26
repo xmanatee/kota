@@ -56,7 +56,7 @@ export {
 } from "./control-monitor-coverage-types.js";
 
 export type BuildControlMonitorCoverageOptions = {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   eventJournal?: EventJournal;
@@ -73,7 +73,7 @@ export type WriteControlMonitorCoverageBestEffortOptions =
 export function buildControlMonitorCoverageArtifact(
   options: BuildControlMonitorCoverageOptions,
 ): ControlMonitorCoverageArtifact {
-  const { projectDir, runDirPath, metadata } = options;
+  const { scopeRoot, runDirPath, metadata } = options;
   const generatedAt = options.nowIso ?? new Date().toISOString();
   const workflowSnapshot = readJsonObject(join(runDirPath, "workflow.json"));
   const snapshotSteps = snapshotStepsFrom(workflowSnapshot);
@@ -115,11 +115,11 @@ export function buildControlMonitorCoverageArtifact(
   };
 
   const events = [
-    ...readJsonlEvents(join(runDirPath, "emitted-events.jsonl"), projectDir),
+    ...readJsonlEvents(join(runDirPath, "emitted-events.jsonl"), scopeRoot),
     ...journalEventsForRun({
       eventJournal: options.eventJournal,
       metadata,
-      projectDir,
+      scopeRoot,
       runDirPath,
     }),
   ];
@@ -148,7 +148,7 @@ export function buildControlMonitorCoverageArtifact(
     const snapshot = snapshotById.get(stepId);
     const stepResult = stepResultById.get(stepId);
     inspectAgentStream({
-      projectDir,
+      scopeRoot,
       runDirPath,
       stepId,
       runStatus: metadata.status,
@@ -158,9 +158,9 @@ export function buildControlMonitorCoverageArtifact(
       addGap,
       addUnknown,
     });
-    inspectAutonomyMode({ projectDir, runDirPath, stepId, mode: snapshot?.autonomyMode ?? null, family, addGap });
+    inspectAutonomyMode({ scopeRoot, runDirPath, stepId, mode: snapshot?.autonomyMode ?? null, family, addGap });
     inspectTrajectory({
-      projectDir,
+      scopeRoot,
       runDirPath,
       stepId,
       runStatus: metadata.status,
@@ -171,7 +171,7 @@ export function buildControlMonitorCoverageArtifact(
       addUnknown,
     });
     inspectTokenBudget({
-      projectDir,
+      scopeRoot,
       runDirPath,
       stepId,
       maxTotalTokens: snapshot?.tokenBudgetMaxTotalTokens ?? null,
@@ -188,11 +188,11 @@ export function buildControlMonitorCoverageArtifact(
         externalPayloadTools.push(call.tool);
       }
     }
-    if (calls.length > 0) family("tool-policy").evidenceRefs.push(artifactRef(projectDir, telemetryPath));
+    if (calls.length > 0) family("tool-policy").evidenceRefs.push(artifactRef(scopeRoot, telemetryPath));
   }
 
   inspectToolPolicy({
-    projectDir,
+    scopeRoot,
     runDirPath,
     toolCallTools,
     guardrailEvents,
@@ -200,7 +200,7 @@ export function buildControlMonitorCoverageArtifact(
     addGap,
   });
   inspectInjectionDefense({
-    projectDir,
+    scopeRoot,
     runDirPath,
     externalPayloadTools,
     injectionEvents,
@@ -208,7 +208,7 @@ export function buildControlMonitorCoverageArtifact(
     addGap,
   });
   const approvalRequestCount = inspectApprovalOwnerGates({
-    projectDir,
+    scopeRoot,
     runDirPath,
     steps: [...approvalSteps, ...ownerWaitSteps],
     approvalRequestedEvents,
@@ -218,8 +218,8 @@ export function buildControlMonitorCoverageArtifact(
     addGap,
     addUnknown,
   });
-  const runtimeProbeCount = inspectRuntimeProbe({ projectDir, runDirPath, family });
-  const links = inspectAsyncReviewers({ projectDir, runDirPath, metadata, family });
+  const runtimeProbeCount = inspectRuntimeProbe({ scopeRoot, runDirPath, family });
+  const links = inspectAsyncReviewers({ scopeRoot, runDirPath, metadata, family });
 
   const completedFamilies = finishControlCoverageFamilies(families);
   const denominator = completedFamilies.reduce((sum, item) => sum + item.denominator, 0);
@@ -235,7 +235,7 @@ export function buildControlMonitorCoverageArtifact(
   return {
     schemaVersion: CONTROL_MONITOR_COVERAGE_SCHEMA_VERSION,
     generatedAt,
-    artifactPath: runArtifactRef(projectDir, runDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+    artifactPath: runArtifactRef(scopeRoot, runDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT),
     run: {
       id: metadata.id,
       workflow: metadata.workflow,
@@ -289,9 +289,9 @@ export function writeControlMonitorCoverageArtifactBestEffort(
   options: WriteControlMonitorCoverageBestEffortOptions,
 ): ControlMonitorCoverageArtifact | null {
   try {
-    const eventJournal = persistedEventJournal(options.projectDir);
+    const eventJournal = persistedEventJournal(options.scopeRoot);
     return writeControlMonitorCoverageArtifact({
-      projectDir: options.projectDir,
+      scopeRoot: options.scopeRoot,
       runDirPath: options.runDirPath,
       metadata: options.metadata,
       ...(eventJournal !== undefined ? { eventJournal } : {}),
@@ -309,8 +309,8 @@ export function writeControlMonitorCoverageArtifactBestEffort(
   }
 }
 
-function persistedEventJournal(projectDir: string): EventJournal | undefined {
-  const journalDir = join(projectDir, ".kota", "events");
+function persistedEventJournal(scopeRoot: string): EventJournal | undefined {
+  const journalDir = join(scopeRoot, ".kota", "events");
   if (!existsSync(join(journalDir, "journal.jsonl"))) return undefined;
   return new EventJournal(journalDir);
 }

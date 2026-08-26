@@ -34,7 +34,6 @@ const validEventReference: EvidencePrunedReference = {
     journaledAt: "2026-06-04T11:55:01.000Z",
     scopeKind: "scope",
     scopeId: "scope-a",
-    projectId: "scope-a",
     lineage: ["global", "scope-a"],
   },
   provenance: {
@@ -87,7 +86,7 @@ describe("validateEvidencePrunedReference", () => {
     });
   });
 
-  it("rejects event-envelope retained state and scope mismatches", () => {
+  it("rejects mismatches for retained values declared by the caller", () => {
     expect(validateEvidencePrunedReference({
       ...validEventReference,
       retained: { ...validEventReference.retained, state: "terminal" },
@@ -100,16 +99,5 @@ describe("validateEvidencePrunedReference", () => {
       reason: expect.stringContaining("retained.state"),
     });
 
-    expect(validateEvidencePrunedReference({
-      ...validEventReference,
-      retained: { ...validEventReference.retained, projectId: "scope-b" },
-    }, {
-      artifactType: "event-envelope",
-      id: "evtj-1",
-      retainedKeys: ["id", "event", "state", "receivedAt", "journaledAt"],
-    })).toMatchObject({
-      ok: false,
-      reason: expect.stringContaining("retained.projectId"),
-    });
   });
 });

@@ -18,13 +18,13 @@ struct UiAction: Codable, Equatable {
     let surfaceId: String
 }
 
-enum UiActionEffect: String, Codable, Equatable {
+enum UiActionEffect: String, Codable, Equatable, CaseIterable {
     case read
     case write
     case external
 }
 
-enum UiActionMethod: String, Codable, Equatable {
+enum UiActionMethod: String, Codable, Equatable, CaseIterable {
     case get = "GET"
     case post = "POST"
     case patch = "PATCH"
@@ -35,11 +35,6 @@ indirect enum UiActionOperation: Codable, Equatable {
     case daemonRoute(method: UiActionMethod, path: String)
     case clientNamespace(method: String, namespace: String)
 
-    private enum Discriminator: String, Codable {
-        case daemonRoute = "daemon-route"
-        case clientNamespace = "client-namespace"
-    }
-
     private enum CodingKeys: String, CodingKey {
         case kind
         case method
@@ -49,29 +44,32 @@ indirect enum UiActionOperation: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .kind) {
-        case .daemonRoute:
+        if (try? container.decode(String.self, forKey: .kind)) == "daemon-route" {
             self = .daemonRoute(
                 method: try container.decode(UiActionMethod.self, forKey: .method),
                 path: try container.decode(String.self, forKey: .path)
             )
-        case .clientNamespace:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "client-namespace" {
             self = .clientNamespace(
                 method: try container.decode(String.self, forKey: .method),
                 namespace: try container.decode(String.self, forKey: .namespace)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .daemonRoute(let method, let path):
-            try container.encode(Discriminator.daemonRoute, forKey: .kind)
+            try container.encode("daemon-route", forKey: .kind)
             try container.encode(method, forKey: .method)
             try container.encode(path, forKey: .path)
         case .clientNamespace(let method, let namespace):
-            try container.encode(Discriminator.clientNamespace, forKey: .kind)
+            try container.encode("client-namespace", forKey: .kind)
             try container.encode(method, forKey: .method)
             try container.encode(namespace, forKey: .namespace)
         }
@@ -88,12 +86,6 @@ indirect enum UiActionReadiness: Codable, Equatable {
     case disabled(message: String, reason: String)
     case needsSetup(message: String, moduleName: String, requirementId: String)
 
-    private enum Discriminator: String, Codable {
-        case ready
-        case disabled
-        case needsSetup = "needs-setup"
-    }
-
     private enum CodingKeys: String, CodingKey {
         case message
         case moduleName
@@ -104,37 +96,42 @@ indirect enum UiActionReadiness: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .state) {
-        case .ready:
+        if (try? container.decode(String.self, forKey: .state)) == "ready" {
             self = .ready(
                 message: try container.decodeIfPresent(String.self, forKey: .message)
             )
-        case .disabled:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .state)) == "disabled" {
             self = .disabled(
                 message: try container.decode(String.self, forKey: .message),
                 reason: try container.decode(String.self, forKey: .reason)
             )
-        case .needsSetup:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .state)) == "needs-setup" {
             self = .needsSetup(
                 message: try container.decode(String.self, forKey: .message),
                 moduleName: try container.decode(String.self, forKey: .moduleName),
                 requirementId: try container.decode(String.self, forKey: .requirementId)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .ready(let message):
-            try container.encode(Discriminator.ready, forKey: .state)
+            try container.encode("ready", forKey: .state)
             try container.encodeIfPresent(message, forKey: .message)
         case .disabled(let message, let reason):
-            try container.encode(Discriminator.disabled, forKey: .state)
+            try container.encode("disabled", forKey: .state)
             try container.encode(message, forKey: .message)
             try container.encode(reason, forKey: .reason)
         case .needsSetup(let message, let moduleName, let requirementId):
-            try container.encode(Discriminator.needsSetup, forKey: .state)
+            try container.encode("needs-setup", forKey: .state)
             try container.encode(message, forKey: .message)
             try container.encode(moduleName, forKey: .moduleName)
             try container.encode(requirementId, forKey: .requirementId)
@@ -152,12 +149,6 @@ indirect enum UiAttachmentPoint: Codable, Equatable {
     case intent(intent: UiIntent)
     case surface(surfaceId: String)
 
-    private enum Discriminator: String, Codable {
-        case root
-        case intent
-        case surface
-    }
-
     private enum CodingKeys: String, CodingKey {
         case intent
         case kind
@@ -166,36 +157,41 @@ indirect enum UiAttachmentPoint: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .kind) {
-        case .root:
+        if (try? container.decode(String.self, forKey: .kind)) == "root" {
             self = .root
-        case .intent:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "intent" {
             self = .intent(
                 intent: try container.decode(UiIntent.self, forKey: .intent)
             )
-        case .surface:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "surface" {
             self = .surface(
                 surfaceId: try container.decode(String.self, forKey: .surfaceId)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .root:
-            try container.encode(Discriminator.root, forKey: .kind)
+            try container.encode("root", forKey: .kind)
         case .intent(let intent):
-            try container.encode(Discriminator.intent, forKey: .kind)
+            try container.encode("intent", forKey: .kind)
             try container.encode(intent, forKey: .intent)
         case .surface(let surfaceId):
-            try container.encode(Discriminator.surface, forKey: .kind)
+            try container.encode("surface", forKey: .kind)
             try container.encode(surfaceId, forKey: .surfaceId)
         }
     }
 }
 
-enum UiCapabilityScope: String, Codable, Equatable {
+enum UiCapabilityScope: String, Codable, Equatable, CaseIterable {
     case read
     case control
 }
@@ -204,12 +200,6 @@ indirect enum UiCondition: Codable, Equatable {
     case capability(capabilityId: String, status: UiConditionStatus)
     case setup(moduleName: String, requirementId: String, state: UiSetupState)
     case scope(scopeId: String)
-
-    private enum Discriminator: String, Codable {
-        case capability
-        case setup
-        case scope
-    }
 
     private enum CodingKeys: String, CodingKey {
         case capabilityId
@@ -223,45 +213,50 @@ indirect enum UiCondition: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .kind) {
-        case .capability:
+        if (try? container.decode(String.self, forKey: .kind)) == "capability" {
             self = .capability(
                 capabilityId: try container.decode(String.self, forKey: .capabilityId),
                 status: try container.decode(UiConditionStatus.self, forKey: .status)
             )
-        case .setup:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "setup" {
             self = .setup(
                 moduleName: try container.decode(String.self, forKey: .moduleName),
                 requirementId: try container.decode(String.self, forKey: .requirementId),
                 state: try container.decode(UiSetupState.self, forKey: .state)
             )
-        case .scope:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "scope" {
             self = .scope(
                 scopeId: try container.decode(String.self, forKey: .scopeId)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .capability(let capabilityId, let status):
-            try container.encode(Discriminator.capability, forKey: .kind)
+            try container.encode("capability", forKey: .kind)
             try container.encode(capabilityId, forKey: .capabilityId)
             try container.encode(status, forKey: .status)
         case .setup(let moduleName, let requirementId, let state):
-            try container.encode(Discriminator.setup, forKey: .kind)
+            try container.encode("setup", forKey: .kind)
             try container.encode(moduleName, forKey: .moduleName)
             try container.encode(requirementId, forKey: .requirementId)
             try container.encode(state, forKey: .state)
         case .scope(let scopeId):
-            try container.encode(Discriminator.scope, forKey: .kind)
+            try container.encode("scope", forKey: .kind)
             try container.encode(scopeId, forKey: .scopeId)
         }
     }
 }
 
-enum UiConditionStatus: String, Codable, Equatable {
+enum UiConditionStatus: String, Codable, Equatable, CaseIterable {
     case ready
     case unavailable
     case initFailed = "init_failed"
@@ -270,11 +265,6 @@ enum UiConditionStatus: String, Codable, Equatable {
 indirect enum UiConfirmation: Codable, Equatable {
     case none
     case required(confirmLabel: String, detail: String, risk: UiConfirmationRisk, title: String)
-
-    private enum Discriminator: String, Codable {
-        case none
-        case required
-    }
 
     private enum CodingKeys: String, CodingKey {
         case confirmLabel
@@ -286,26 +276,29 @@ indirect enum UiConfirmation: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .mode) {
-        case .none:
+        if (try? container.decode(String.self, forKey: .mode)) == "none" {
             self = .none
-        case .required:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .mode)) == "required" {
             self = .required(
                 confirmLabel: try container.decode(String.self, forKey: .confirmLabel),
                 detail: try container.decode(String.self, forKey: .detail),
                 risk: try container.decode(UiConfirmationRisk.self, forKey: .risk),
                 title: try container.decode(String.self, forKey: .title)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .none:
-            try container.encode(Discriminator.none, forKey: .mode)
+            try container.encode("none", forKey: .mode)
         case .required(let confirmLabel, let detail, let risk, let title):
-            try container.encode(Discriminator.required, forKey: .mode)
+            try container.encode("required", forKey: .mode)
             try container.encode(confirmLabel, forKey: .confirmLabel)
             try container.encode(detail, forKey: .detail)
             try container.encode(risk, forKey: .risk)
@@ -314,13 +307,13 @@ indirect enum UiConfirmation: Codable, Equatable {
     }
 }
 
-enum UiConfirmationRisk: String, Codable, Equatable {
+enum UiConfirmationRisk: String, Codable, Equatable, CaseIterable {
     case low
     case medium
     case high
 }
 
-enum UiFieldInput: String, Codable, Equatable {
+enum UiFieldInput: String, Codable, Equatable, CaseIterable {
     case text
     case multiline
     case secret
@@ -336,7 +329,7 @@ struct UiFieldOption: Codable, Equatable {
     let value: String
 }
 
-struct UiFormField: Codable, Equatable {
+struct UiFormField: Codable, Equatable, Identifiable {
     let id: String
     let input: UiFieldInput
     let label: String
@@ -345,7 +338,7 @@ struct UiFormField: Codable, Equatable {
     let schema: UiJsonSchema?
 }
 
-enum UiIntent: String, Codable, Equatable {
+enum UiIntent: String, Codable, Equatable, CaseIterable {
     case status = "Status"
     case inbox = "Inbox"
     case work = "Work"
@@ -360,15 +353,6 @@ indirect enum UiJsonSchema: Codable, Equatable {
     case boolean(default: Bool?, description: String?, title: String?)
     case array(description: String?, items: UiJsonSchema, title: String?)
     case object(additionalProperties: Bool?, description: String?, properties: [String: UiJsonSchema], required: [String]?, title: String?)
-
-    private enum Discriminator: String, Codable {
-        case string
-        case number
-        case integer
-        case boolean
-        case array
-        case object
-    }
 
     private enum CodingKeys: String, CodingKey {
         case additionalProperties
@@ -387,8 +371,7 @@ indirect enum UiJsonSchema: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .type) {
-        case .string:
+        if (try? container.decode(String.self, forKey: .type)) == "string" {
             self = .string(
                 default: try container.decodeIfPresent(String.self, forKey: .`default`),
                 description: try container.decodeIfPresent(String.self, forKey: .description),
@@ -396,7 +379,9 @@ indirect enum UiJsonSchema: Codable, Equatable {
                 format: try container.decodeIfPresent(UiJsonSchemaStringFormat.self, forKey: .format),
                 title: try container.decodeIfPresent(String.self, forKey: .title)
             )
-        case .number:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .type)) == "number" {
             self = .number(
                 default: try container.decodeIfPresent(Double.self, forKey: .`default`),
                 description: try container.decodeIfPresent(String.self, forKey: .description),
@@ -404,7 +389,9 @@ indirect enum UiJsonSchema: Codable, Equatable {
                 minimum: try container.decodeIfPresent(Double.self, forKey: .minimum),
                 title: try container.decodeIfPresent(String.self, forKey: .title)
             )
-        case .integer:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .type)) == "integer" {
             self = .integer(
                 default: try container.decodeIfPresent(Double.self, forKey: .`default`),
                 description: try container.decodeIfPresent(String.self, forKey: .description),
@@ -412,19 +399,25 @@ indirect enum UiJsonSchema: Codable, Equatable {
                 minimum: try container.decodeIfPresent(Double.self, forKey: .minimum),
                 title: try container.decodeIfPresent(String.self, forKey: .title)
             )
-        case .boolean:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .type)) == "boolean" {
             self = .boolean(
                 default: try container.decodeIfPresent(Bool.self, forKey: .`default`),
                 description: try container.decodeIfPresent(String.self, forKey: .description),
                 title: try container.decodeIfPresent(String.self, forKey: .title)
             )
-        case .array:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .type)) == "array" {
             self = .array(
                 description: try container.decodeIfPresent(String.self, forKey: .description),
                 items: try container.decode(UiJsonSchema.self, forKey: .items),
                 title: try container.decodeIfPresent(String.self, forKey: .title)
             )
-        case .object:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .type)) == "object" {
             self = .object(
                 additionalProperties: try container.decodeIfPresent(Bool.self, forKey: .additionalProperties),
                 description: try container.decodeIfPresent(String.self, forKey: .description),
@@ -432,45 +425,47 @@ indirect enum UiJsonSchema: Codable, Equatable {
                 required: try container.decodeIfPresent([String].self, forKey: .required),
                 title: try container.decodeIfPresent(String.self, forKey: .title)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .string(let `default`, let description, let `enum`, let format, let title):
-            try container.encode(Discriminator.string, forKey: .type)
+            try container.encode("string", forKey: .type)
             try container.encodeIfPresent(`default`, forKey: .`default`)
             try container.encodeIfPresent(description, forKey: .description)
             try container.encodeIfPresent(`enum`, forKey: .`enum`)
             try container.encodeIfPresent(format, forKey: .format)
             try container.encodeIfPresent(title, forKey: .title)
         case .number(let `default`, let description, let maximum, let minimum, let title):
-            try container.encode(Discriminator.number, forKey: .type)
+            try container.encode("number", forKey: .type)
             try container.encodeIfPresent(`default`, forKey: .`default`)
             try container.encodeIfPresent(description, forKey: .description)
             try container.encodeIfPresent(maximum, forKey: .maximum)
             try container.encodeIfPresent(minimum, forKey: .minimum)
             try container.encodeIfPresent(title, forKey: .title)
         case .integer(let `default`, let description, let maximum, let minimum, let title):
-            try container.encode(Discriminator.integer, forKey: .type)
+            try container.encode("integer", forKey: .type)
             try container.encodeIfPresent(`default`, forKey: .`default`)
             try container.encodeIfPresent(description, forKey: .description)
             try container.encodeIfPresent(maximum, forKey: .maximum)
             try container.encodeIfPresent(minimum, forKey: .minimum)
             try container.encodeIfPresent(title, forKey: .title)
         case .boolean(let `default`, let description, let title):
-            try container.encode(Discriminator.boolean, forKey: .type)
+            try container.encode("boolean", forKey: .type)
             try container.encodeIfPresent(`default`, forKey: .`default`)
             try container.encodeIfPresent(description, forKey: .description)
             try container.encodeIfPresent(title, forKey: .title)
         case .array(let description, let items, let title):
-            try container.encode(Discriminator.array, forKey: .type)
+            try container.encode("array", forKey: .type)
             try container.encodeIfPresent(description, forKey: .description)
             try container.encode(items, forKey: .items)
             try container.encodeIfPresent(title, forKey: .title)
         case .object(let additionalProperties, let description, let properties, let required, let title):
-            try container.encode(Discriminator.object, forKey: .type)
+            try container.encode("object", forKey: .type)
             try container.encodeIfPresent(additionalProperties, forKey: .additionalProperties)
             try container.encodeIfPresent(description, forKey: .description)
             try container.encode(properties, forKey: .properties)
@@ -486,13 +481,6 @@ indirect enum UiLinkTarget: Codable, Equatable {
     case daemonRoute(path: String)
     case externalUrl(url: String)
 
-    private enum Discriminator: String, Codable {
-        case surface
-        case session
-        case daemonRoute = "daemon-route"
-        case externalUrl = "external-url"
-    }
-
     private enum CodingKeys: String, CodingKey {
         case kind
         case path
@@ -503,46 +491,53 @@ indirect enum UiLinkTarget: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .kind) {
-        case .surface:
+        if (try? container.decode(String.self, forKey: .kind)) == "surface" {
             self = .surface(
                 surfaceId: try container.decode(String.self, forKey: .surfaceId)
             )
-        case .session:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "session" {
             self = .session(
                 sessionId: try container.decode(String.self, forKey: .sessionId)
             )
-        case .daemonRoute:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "daemon-route" {
             self = .daemonRoute(
                 path: try container.decode(String.self, forKey: .path)
             )
-        case .externalUrl:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "external-url" {
             self = .externalUrl(
                 url: try container.decode(String.self, forKey: .url)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .surface(let surfaceId):
-            try container.encode(Discriminator.surface, forKey: .kind)
+            try container.encode("surface", forKey: .kind)
             try container.encode(surfaceId, forKey: .surfaceId)
         case .session(let sessionId):
-            try container.encode(Discriminator.session, forKey: .kind)
+            try container.encode("session", forKey: .kind)
             try container.encode(sessionId, forKey: .sessionId)
         case .daemonRoute(let path):
-            try container.encode(Discriminator.daemonRoute, forKey: .kind)
+            try container.encode("daemon-route", forKey: .kind)
             try container.encode(path, forKey: .path)
         case .externalUrl(let url):
-            try container.encode(Discriminator.externalUrl, forKey: .kind)
+            try container.encode("external-url", forKey: .kind)
             try container.encode(url, forKey: .url)
         }
     }
 }
 
-struct UiListItem: Codable, Equatable {
+struct UiListItem: Codable, Equatable, Identifiable {
     let action: UiAction?
     let detail: String
     let id: String
@@ -557,7 +552,7 @@ struct UiLogEntry: Codable, Equatable {
     let timestamp: String
 }
 
-enum UiLogLevel: String, Codable, Equatable {
+enum UiLogLevel: String, Codable, Equatable, CaseIterable {
     case debug
     case info
     case warn
@@ -596,26 +591,6 @@ indirect enum UiNode: Codable, Equatable {
     case empty(action: UiAction, detail: String, title: String)
     case error(action: UiAction, detail: String, title: String)
 
-    private enum Discriminator: String, Codable {
-        case navigation
-        case statusSummary = "status-summary"
-        case metrics
-        case text
-        case link
-        case tabs
-        case list
-        case table
-        case detail
-        case progress
-        case log
-        case logStream = "log-stream"
-        case form
-        case actionList = "action-list"
-        case command
-        case empty
-        case error
-    }
-
     private enum CodingKeys: String, CodingKey {
         case action
         case actions
@@ -643,181 +618,214 @@ indirect enum UiNode: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .kind) {
-        case .navigation:
+        if (try? container.decode(String.self, forKey: .kind)) == "navigation" {
             self = .navigation(
                 items: try container.decode([UiNodeNavigationItem].self, forKey: .items),
                 label: try container.decode(String.self, forKey: .label)
             )
-        case .statusSummary:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "status-summary" {
             self = .statusSummary(
                 entries: try container.decode([UiStatusEntry].self, forKey: .entries)
             )
-        case .metrics:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "metrics" {
             self = .metrics(
                 metrics: try container.decode([UiMetric].self, forKey: .metrics),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .text:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "text" {
             self = .text(
                 body: try container.decode(String.self, forKey: .body),
                 role: try container.decodeIfPresent(UiRole.self, forKey: .role),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .link:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "link" {
             self = .link(
                 label: try container.decode(String.self, forKey: .label),
                 role: try container.decodeIfPresent(UiRole.self, forKey: .role),
                 target: try container.decode(UiLinkTarget.self, forKey: .target)
             )
-        case .tabs:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "tabs" {
             self = .tabs(
                 activeTabId: try container.decode(String.self, forKey: .activeTabId),
                 tabs: try container.decode([UiTab].self, forKey: .tabs),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .list:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "list" {
             self = .list(
                 items: try container.decode([UiListItem].self, forKey: .items),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .table:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "table" {
             self = .table(
                 columns: try container.decode([UiTableColumn].self, forKey: .columns),
                 rows: try container.decode([UiTableRow].self, forKey: .rows),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .detail:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "detail" {
             self = .detail(
                 body: try container.decode(String.self, forKey: .body),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .progress:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "progress" {
             self = .progress(
                 label: try container.decode(String.self, forKey: .label),
                 max: try container.decode(Double.self, forKey: .max),
                 role: try container.decode(UiRole.self, forKey: .role),
                 value: try container.decode(Double.self, forKey: .value)
             )
-        case .log:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "log" {
             self = .log(
                 entries: try container.decode([UiLogEntry].self, forKey: .entries),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .logStream:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "log-stream" {
             self = .logStream(
                 entries: try container.decode([UiLogEntry].self, forKey: .entries),
                 source: try container.decode(UiLogStreamSource.self, forKey: .source),
                 streamId: try container.decode(String.self, forKey: .streamId),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .form:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "form" {
             self = .form(
                 fields: try container.decode([UiFormField].self, forKey: .fields),
                 submit: try container.decode(UiAction.self, forKey: .submit),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .actionList:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "action-list" {
             self = .actionList(
                 actions: try container.decode([UiAction].self, forKey: .actions),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .command:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "command" {
             self = .command(
                 action: try container.decode(UiAction.self, forKey: .action)
             )
-        case .empty:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "empty" {
             self = .empty(
                 action: try container.decode(UiAction.self, forKey: .action),
                 detail: try container.decode(String.self, forKey: .detail),
                 title: try container.decode(String.self, forKey: .title)
             )
-        case .error:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "error" {
             self = .error(
                 action: try container.decode(UiAction.self, forKey: .action),
                 detail: try container.decode(String.self, forKey: .detail),
                 title: try container.decode(String.self, forKey: .title)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .navigation(let items, let label):
-            try container.encode(Discriminator.navigation, forKey: .kind)
+            try container.encode("navigation", forKey: .kind)
             try container.encode(items, forKey: .items)
             try container.encode(label, forKey: .label)
         case .statusSummary(let entries):
-            try container.encode(Discriminator.statusSummary, forKey: .kind)
+            try container.encode("status-summary", forKey: .kind)
             try container.encode(entries, forKey: .entries)
         case .metrics(let metrics, let title):
-            try container.encode(Discriminator.metrics, forKey: .kind)
+            try container.encode("metrics", forKey: .kind)
             try container.encode(metrics, forKey: .metrics)
             try container.encode(title, forKey: .title)
         case .text(let body, let role, let title):
-            try container.encode(Discriminator.text, forKey: .kind)
+            try container.encode("text", forKey: .kind)
             try container.encode(body, forKey: .body)
             try container.encodeIfPresent(role, forKey: .role)
             try container.encode(title, forKey: .title)
         case .link(let label, let role, let target):
-            try container.encode(Discriminator.link, forKey: .kind)
+            try container.encode("link", forKey: .kind)
             try container.encode(label, forKey: .label)
             try container.encodeIfPresent(role, forKey: .role)
             try container.encode(target, forKey: .target)
         case .tabs(let activeTabId, let tabs, let title):
-            try container.encode(Discriminator.tabs, forKey: .kind)
+            try container.encode("tabs", forKey: .kind)
             try container.encode(activeTabId, forKey: .activeTabId)
             try container.encode(tabs, forKey: .tabs)
             try container.encode(title, forKey: .title)
         case .list(let items, let title):
-            try container.encode(Discriminator.list, forKey: .kind)
+            try container.encode("list", forKey: .kind)
             try container.encode(items, forKey: .items)
             try container.encode(title, forKey: .title)
         case .table(let columns, let rows, let title):
-            try container.encode(Discriminator.table, forKey: .kind)
+            try container.encode("table", forKey: .kind)
             try container.encode(columns, forKey: .columns)
             try container.encode(rows, forKey: .rows)
             try container.encode(title, forKey: .title)
         case .detail(let body, let title):
-            try container.encode(Discriminator.detail, forKey: .kind)
+            try container.encode("detail", forKey: .kind)
             try container.encode(body, forKey: .body)
             try container.encode(title, forKey: .title)
         case .progress(let label, let max, let role, let value):
-            try container.encode(Discriminator.progress, forKey: .kind)
+            try container.encode("progress", forKey: .kind)
             try container.encode(label, forKey: .label)
             try container.encode(max, forKey: .max)
             try container.encode(role, forKey: .role)
             try container.encode(value, forKey: .value)
         case .log(let entries, let title):
-            try container.encode(Discriminator.log, forKey: .kind)
+            try container.encode("log", forKey: .kind)
             try container.encode(entries, forKey: .entries)
             try container.encode(title, forKey: .title)
         case .logStream(let entries, let source, let streamId, let title):
-            try container.encode(Discriminator.logStream, forKey: .kind)
+            try container.encode("log-stream", forKey: .kind)
             try container.encode(entries, forKey: .entries)
             try container.encode(source, forKey: .source)
             try container.encode(streamId, forKey: .streamId)
             try container.encode(title, forKey: .title)
         case .form(let fields, let submit, let title):
-            try container.encode(Discriminator.form, forKey: .kind)
+            try container.encode("form", forKey: .kind)
             try container.encode(fields, forKey: .fields)
             try container.encode(submit, forKey: .submit)
             try container.encode(title, forKey: .title)
         case .actionList(let actions, let title):
-            try container.encode(Discriminator.actionList, forKey: .kind)
+            try container.encode("action-list", forKey: .kind)
             try container.encode(actions, forKey: .actions)
             try container.encode(title, forKey: .title)
         case .command(let action):
-            try container.encode(Discriminator.command, forKey: .kind)
+            try container.encode("command", forKey: .kind)
             try container.encode(action, forKey: .action)
         case .empty(let action, let detail, let title):
-            try container.encode(Discriminator.empty, forKey: .kind)
+            try container.encode("empty", forKey: .kind)
             try container.encode(action, forKey: .action)
             try container.encode(detail, forKey: .detail)
             try container.encode(title, forKey: .title)
         case .error(let action, let detail, let title):
-            try container.encode(Discriminator.error, forKey: .kind)
+            try container.encode("error", forKey: .kind)
             try container.encode(action, forKey: .action)
             try container.encode(detail, forKey: .detail)
             try container.encode(title, forKey: .title)
@@ -838,11 +846,6 @@ indirect enum UiPermission: Codable, Equatable {
     case capabilityScope(scope: UiCapabilityScope)
     case effect(effect: UiActionEffect)
 
-    private enum Discriminator: String, Codable {
-        case capabilityScope = "capability-scope"
-        case effect
-    }
-
     private enum CodingKeys: String, CodingKey {
         case effect
         case kind
@@ -851,36 +854,39 @@ indirect enum UiPermission: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        switch try container.decode(Discriminator.self, forKey: .kind) {
-        case .capabilityScope:
+        if (try? container.decode(String.self, forKey: .kind)) == "capability-scope" {
             self = .capabilityScope(
                 scope: try container.decode(UiCapabilityScope.self, forKey: .scope)
             )
-        case .effect:
+            return
+        }
+        if (try? container.decode(String.self, forKey: .kind)) == "effect" {
             self = .effect(
                 effect: try container.decode(UiActionEffect.self, forKey: .effect)
             )
+            return
         }
+        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
         case .capabilityScope(let scope):
-            try container.encode(Discriminator.capabilityScope, forKey: .kind)
+            try container.encode("capability-scope", forKey: .kind)
             try container.encode(scope, forKey: .scope)
         case .effect(let effect):
-            try container.encode(Discriminator.effect, forKey: .kind)
+            try container.encode("effect", forKey: .kind)
             try container.encode(effect, forKey: .effect)
         }
     }
 }
 
-enum UiProtocolVersion: String, Codable, Equatable {
+enum UiProtocolVersion: String, Codable, Equatable, CaseIterable {
     case uiSurfaceV1 = "ui.surface.v1"
 }
 
-enum UiRole: String, Codable, Equatable {
+enum UiRole: String, Codable, Equatable, CaseIterable {
     case neutral
     case info
     case success
@@ -889,7 +895,7 @@ enum UiRole: String, Codable, Equatable {
     case muted
 }
 
-enum UiSetupState: String, Codable, Equatable {
+enum UiSetupState: String, Codable, Equatable, CaseIterable {
     case ready
     case missing
     case pending
@@ -926,19 +932,19 @@ struct UiSurfaceBundle: Codable, Equatable {
     let surfaces: [UiSurface]
 }
 
-struct UiTab: Codable, Equatable {
+struct UiTab: Codable, Equatable, Identifiable {
     let id: String
     let label: String
     let nodes: [UiNode]
 }
 
-struct UiTableColumn: Codable, Equatable {
+struct UiTableColumn: Codable, Equatable, Identifiable {
     let id: String
     let label: String
     let role: UiRole?
 }
 
-struct UiTableRow: Codable, Equatable {
+struct UiTableRow: Codable, Equatable, Identifiable {
     let action: UiAction?
     let cells: [UiTableRowCell]
     let id: String
@@ -955,13 +961,13 @@ struct UiActionResultSpecSuccess: Codable, Equatable {
     let schema: UiJsonSchema?
 }
 
-enum UiJsonSchemaStringFormat: String, Codable, Equatable {
+enum UiJsonSchemaStringFormat: String, Codable, Equatable, CaseIterable {
     case secretReference = "secret-reference"
     case path
     case url
 }
 
-enum UiLogStreamSourceKind: String, Codable, Equatable {
+enum UiLogStreamSourceKind: String, Codable, Equatable, CaseIterable {
     case sse
 }
 
@@ -970,7 +976,7 @@ struct UiNodeNavigationItem: Codable, Equatable {
     let surfaceId: String
 }
 
-enum UiObjectJsonSchemaType: String, Codable, Equatable {
+enum UiObjectJsonSchemaType: String, Codable, Equatable, CaseIterable {
     case object
 }
 

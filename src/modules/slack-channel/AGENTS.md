@@ -11,7 +11,7 @@ This directory owns the bidirectional Slack bot channel for KOTA.
   DMs resolve the live daemon default, and default changes close sessions from
   the previous scope.
 - Prefix-configured automation messages emit `inbound.signal.received` with
-  project scope, Slack source metadata, and sender trust. The shared
+  scope scope, Slack source metadata, and sender trust. The shared
   inbound-signals dispatcher decides source eligibility and workflow routing;
   Slack does not decide what the signal means.
 - First-class slash commands match the Telegram channel's surface
@@ -29,7 +29,7 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 - Approval requests are posted as plain-text Block Kit messages with the reviewed
   input, operator-safe conversation context, review digest, and Approve/Reject buttons.
 - Approve button values carry the displayed digest; clicks resolve through the
-  project-scoped approvals client and fail closed when the review changed.
+  scope-scoped approvals client and fail closed when the review changed.
 - Separate from `../slack/` (one-way incoming webhook notifications).
 
 ## Config

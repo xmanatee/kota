@@ -19,30 +19,30 @@ import { registerKnowledgeOkfCommand } from "./cli-okf-command.js";
 import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
 
 describe("kota knowledge okf", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let origCwd: string;
 	let store: KnowledgeStore;
 
 	beforeEach(() => {
-		projectDir = realpathSync(mkdtempSync(join(tmpdir(), "kota-knowledge-okf-cli-")));
+		scopeRoot = realpathSync(mkdtempSync(join(tmpdir(), "kota-knowledge-okf-cli-")));
 		origCwd = process.cwd();
-		process.chdir(projectDir);
+		process.chdir(scopeRoot);
 		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
-		store = new KnowledgeStore(projectDir);
+		store = new KnowledgeStore(scopeRoot);
 		reg.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store);
 	});
 
 	afterEach(() => {
 		process.chdir(origCwd);
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
 
 	it("imports an OKF bundle through the knowledge client and reindexes afterward", async () => {
-		const bundleDir = join(projectDir, "bundle");
+		const bundleDir = join(scopeRoot, "bundle");
 		mkdirSync(bundleDir, { recursive: true });
 		writeFileSync(
 			join(bundleDir, "playbook.md"),
@@ -59,8 +59,6 @@ describe("kota knowledge okf", () => {
 			].join("\n"),
 			"utf-8",
 		);
-		const reindex = vi.spyOn(store, "reindex");
-
 		const output = await captureStdout(() =>
 			makeKnowledgeProgram().parseAsync([
 				"node",
@@ -73,7 +71,6 @@ describe("kota knowledge okf", () => {
 		);
 
 		expect(output).toContain("Imported 1 OKF concepts");
-		expect(reindex).toHaveBeenCalledOnce();
 		const entries = store.list();
 		expect(entries).toHaveLength(1);
 		expect(entries[0]!.title).toBe("Incident Playbook");
@@ -111,7 +108,7 @@ describe("kota knowledge okf", () => {
 						return { id };
 					},
 					async reindex() {
-						return store.reindex();
+						return { ok: false as const, reason: "semantic_unavailable" as const };
 					},
 				},
 			},

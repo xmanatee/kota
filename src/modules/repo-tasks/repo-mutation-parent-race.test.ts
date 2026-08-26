@@ -72,9 +72,9 @@ afterEach(() => {
 describe("descriptor-anchored repo mutations", () => {
   it("keeps removal in the verified parent when its pathname is replaced at rename", () => {
     const root = makeRoot("kota-repo-remove-race-");
-    const projectDir = join(root, "project");
-    const inboxDir = join(projectDir, "data", "inbox");
-    const parkedInboxDir = join(projectDir, "data", "inbox-parked");
+    const repoRoot = join(root, "project");
+    const inboxDir = join(repoRoot, "data", "inbox");
+    const parkedInboxDir = join(repoRoot, "data", "inbox-parked");
     const outsideDir = join(root, "outside");
     const fileName = "note-race.md";
     mkdirSync(inboxDir, { recursive: true });
@@ -101,8 +101,8 @@ fs.renameSync = function renameSync(source, destination) {
 syncBuiltinESMExports();
 `,
     );
-    const projectRootPath = realpathSync.native(projectDir);
-    const projectStats = lstatSync(projectRootPath);
+    const repoRootPath = realpathSync.native(repoRoot);
+    const repoStats = lstatSync(repoRootPath);
 
     const response = runRacedHelper({
       preloadPath,
@@ -114,8 +114,8 @@ syncBuiltinESMExports();
       },
       request: {
         operation: "remove",
-        projectRootPath,
-        projectRootIdentity: { dev: projectStats.dev, ino: projectStats.ino },
+        repoRootPath,
+        repoRootIdentity: { dev: repoStats.dev, ino: repoStats.ino },
         parentParts: ["data", "inbox"],
         parentPath: inboxDir,
         fileName,
@@ -131,9 +131,9 @@ syncBuiltinESMExports();
 
   it("keeps destination installation in the verified parent when replaced at link", () => {
     const root = makeRoot("kota-repo-write-race-");
-    const projectDir = join(root, "project");
-    const readyDir = join(projectDir, "data", "tasks", "ready");
-    const parkedReadyDir = join(projectDir, "data", "tasks", "ready-parked");
+    const repoRoot = join(root, "project");
+    const readyDir = join(repoRoot, "data", "tasks", "ready");
+    const parkedReadyDir = join(repoRoot, "data", "tasks", "ready-parked");
     const outsideDir = join(root, "outside");
     const fileName = "task-race.md";
     mkdirSync(readyDir, { recursive: true });
@@ -159,8 +159,8 @@ fs.linkSync = function linkSync(source, destination) {
 syncBuiltinESMExports();
 `,
     );
-    const projectRootPath = realpathSync.native(projectDir);
-    const projectStats = lstatSync(projectRootPath);
+    const repoRootPath = realpathSync.native(repoRoot);
+    const repoStats = lstatSync(repoRootPath);
 
     const response = runRacedHelper({
       preloadPath,
@@ -172,8 +172,8 @@ syncBuiltinESMExports();
       },
       request: {
         operation: "write",
-        projectRootPath,
-        projectRootIdentity: { dev: projectStats.dev, ino: projectStats.ino },
+        repoRootPath,
+        repoRootIdentity: { dev: repoStats.dev, ino: repoStats.ino },
         parentParts: ["data", "tasks", "ready"],
         parentPath: readyDir,
         fileName,

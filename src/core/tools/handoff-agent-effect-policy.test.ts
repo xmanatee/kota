@@ -21,7 +21,7 @@ import {
   handoffApprovalQueue,
   handoffScopePolicy,
   handoffScopePolicyAuthority,
-  initHandoffPolicyGitProject,
+  initHandoffPolicyGitRepository,
   registerHandoffPolicyTool,
 } from "./handoff-agent-scope-policy-test-support.js";
 import {
@@ -34,29 +34,29 @@ import { executeToolCalls } from "./tool-runner.js";
 const NETWORK_TOOL = "handoff_policy_network";
 
 describe("handoff_agent aggregate effect policy", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let scopeId: string;
   let approvalQueue: ApprovalQueue;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-handoff-effect-policy-"));
-    mkdirSync(join(projectDir, "agents"), { recursive: true });
-    writeFileSync(join(projectDir, "agents", "child.md"), "Child prompt.\n");
-    initHandoffPolicyGitProject(projectDir);
-    scopeId = deriveDirectoryScopeId(projectDir);
-    approvalQueue = handoffApprovalQueue(projectDir, scopeId);
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-handoff-effect-policy-"));
+    mkdirSync(join(scopeRoot, "agents"), { recursive: true });
+    writeFileSync(join(scopeRoot, "agents", "child.md"), "Child prompt.\n");
+    initHandoffPolicyGitRepository(scopeRoot);
+    scopeId = deriveDirectoryScopeId(scopeRoot);
+    approvalQueue = handoffApprovalQueue(scopeRoot, scopeId);
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
     clearCustomTools();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("classifies declared network capability before the child starts", async () => {
     const runner = vi.fn<ToolRunner>(async () => ({ content: "must not execute" }));
     registerHandoffPolicyTool(NETWORK_TOOL, networkReadEffect(), runner);
-    const policy = handoffScopePolicy(projectDir, {
+    const policy = handoffScopePolicy(scopeRoot, {
       externalEffects: {
         networkRead: "deny",
         networkWrite: "deny",
@@ -97,7 +97,7 @@ describe("handoff_agent aggregate effect policy", () => {
       reason: "Prove outer effect classification.",
       autonomy_mode: "autonomous",
       budget: { max_turns: 2 },
-      scope: { scope_id: scopeId, project_id: scopeId },
+      scope: { scope_id: scopeId },
       allowed_tools: [NETWORK_TOOL],
     };
     expect(getToolEffect("handoff_agent", input)).toMatchObject({
@@ -107,13 +107,12 @@ describe("handoff_agent aggregate effect policy", () => {
     });
 
     const runtime: HandoffAgentRuntime = {
-      cwd: projectDir,
+      cwd: scopeRoot,
       harness: HARNESS,
       resolveAgentDef: (name) => (name === agent.name ? agent : undefined),
       delegateBudget: createDelegateBudget(),
       autonomyMode: "autonomous",
       scopeId,
-      projectId: scopeId,
       scopePolicy: policy,
       scopePolicyAuthority: authority,
       getScopePolicySnapshot: () => authority.getSnapshot(scopeId),
@@ -130,9 +129,8 @@ describe("handoff_agent aggregate effect policy", () => {
           scopePolicyAuthority: authority,
           getScopePolicySnapshot: () => authority.getSnapshot(scopeId),
           approvalQueue,
-          cwd: projectDir,
+          cwd: scopeRoot,
           scopeId,
-          projectId: scopeId,
         },
       )
     );

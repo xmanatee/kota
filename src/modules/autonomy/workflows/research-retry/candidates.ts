@@ -37,8 +37,8 @@ export function extractResourceUrls(taskBody: string): string[] {
  * eligible for retry. Sorted by `updatedAt` ascending so the oldest
  * blocker is retried first.
  */
-export function listResearchRetryCandidates(projectDir: string): ResearchRetryCandidate[] {
-  const blocked = listRepoTasksInState(projectDir, "blocked");
+export function listResearchRetryCandidates(workspaceRoot: string): ResearchRetryCandidate[] {
+  const blocked = listRepoTasksInState(workspaceRoot, "blocked");
   const candidates: ResearchRetryCandidate[] = [];
   for (const record of blocked) {
     if (!RESOURCES_HEADING_RE.test(record.body)) continue;

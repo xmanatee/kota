@@ -20,22 +20,19 @@ function issueTaskBody(
       `Resolve autonomy issue ${issue.issueKey} at semantic revision ` +
       `${issue.semanticRevision}.`,
     constraints: [
-      "Preserve the stable issue identity and cited provenance.",
-      "Implement through builder; this proposal is not evidence that the issue is fixed.",
-    ],
-    doneWhen: [
-      "The issue's root cause is fixed or disproven with inspectable evidence.",
-      "A typed clear observation or explicit disposition resolves the durable issue.",
-    ],
+      "- Preserve the stable issue identity and cited provenance.",
+      "- Implement through builder; this proposal is not evidence that the issue is fixed.",
+    ].join("\n"),
+    howWeWillKnow: renderGeneratedTaskProse(disposition.taskHowWeWillKnow),
     context: [
       `Issue reviewer disposition: ${renderGeneratedTaskProse(disposition.rationale)}`,
-      ...issue.summaries,
+      "",
+      ...issue.summaries.map((summary) => `- ${summary}`),
+      "",
       "Evidence:",
-      ...evidence.map((item) => item.replace(/^- /, "")),
-    ],
-    acceptanceEvidence: renderGeneratedTaskProse(
-      disposition.taskAcceptanceEvidence,
-    ),
+      "",
+      ...evidence,
+    ].join("\n"),
   });
 }
 

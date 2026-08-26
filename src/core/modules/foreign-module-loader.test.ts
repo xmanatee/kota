@@ -4,7 +4,7 @@
  * Spawns the Python demo module and verifies:
  * 1. The handshake completes and tools are registered.
  * 2. Tool invocation returns the expected result.
- * 3. Cleanup via onUnload shuts down the subprocess.
+ * 3. The activation disposer shuts down the subprocess.
  */
 
 import { execSync } from "node:child_process";
@@ -14,8 +14,14 @@ import { describe, expect, it } from "vitest";
 import { MCP_MANAGED_OPERATION_TOOL_PREFIXES } from "#core/tools/tool-name-policy.js";
 import type { ForeignModuleConfig } from "./foreign-module.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
+import type { KotaModule } from "./module-types.js";
 
 const DEMO_SCRIPT = resolve(process.cwd(), "examples/modules/kota-demo.py");
+
+async function dispose(module: KotaModule): Promise<void> {
+  const activation = await module.onLoad?.({} as never);
+  if (activation) await activation.dispose();
+}
 
 function hasPython3(): boolean {
   try {
@@ -52,7 +58,7 @@ describe.skipIf(!existsSync(DEMO_SCRIPT) || !hasPython3())("foreign module loade
     expect(result.content).toContain("Hello, KOTA!");
 
     // Cleanup
-    await ext.onUnload?.();
+    await dispose(ext);
   }, 15_000);
 
   it("skips modules whose command is not found", async () => {

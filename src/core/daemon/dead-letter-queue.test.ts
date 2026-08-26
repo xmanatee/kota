@@ -214,7 +214,6 @@ describe("DeadLetterQueueStore", () => {
   it("preserves batch source metadata and source event ids", () => {
     const payload: WorkflowBatchFlushPayload = {
       scopeId: "scope-a",
-      projectId: "scope-a",
       sourceEventName: "telegram.message",
       groupingKey: "chatId=chat-1",
       reason: "count",
@@ -314,7 +313,6 @@ describe("DeadLetterQueueStore", () => {
       scope: {
         kind: "scope",
         scopeId: "scope-a",
-        projectId: "scope-a",
         lineage: ["global", "scope-a"],
       },
       timestamps: {

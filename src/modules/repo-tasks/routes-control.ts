@@ -3,14 +3,14 @@ import type { ControlRouteRegistration } from "#core/modules/module-types.js";
 import { getRepoTasksProvider } from "#core/modules/provider-registry.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import type { RepoTaskState as ContractRepoTaskState } from "./client.js";
-import type { RepoTasksProjectStores } from "./project-scope.js";
 import { REPO_TASK_STATES } from "./repo-tasks-domain.js";
-import { resolveRouteProject } from "./route-project.js";
+import { resolveRouteScope } from "./route-scope.js";
+import type { RepoTasksScopeStores } from "./scope.js";
 
 async function handleTasksSearchControl(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: RepoTasksProjectStores,
+  scopeStores?: RepoTasksScopeStores,
 ): Promise<void> {
   const url = new URL(req.url ?? "/tasks/search", "http://127.0.0.1");
   const query = url.searchParams.get("q") ?? "";
@@ -24,16 +24,19 @@ async function handleTasksSearchControl(
     (REPO_TASK_STATES as readonly string[]).includes(s),
   );
   try {
-    const project = resolveRouteProject(projectStores, req, res);
-    if (!project.ok) return;
-    const provider = project.store ?? getRepoTasksProvider();
-    if (semantic && !provider.supportsSemanticSearch()) {
+    const scope = resolveRouteScope(scopeStores, req, res);
+    if (!scope.ok) return;
+    const provider = scope.store ?? getRepoTasksProvider();
+    const semanticSearch = provider.semanticSearchCapability;
+    if (semantic && !semanticSearch) {
       jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
       return;
     }
     const opts: { topK: number; states?: ContractRepoTaskState[] } = { topK: limit };
     if (states.length > 0) opts.states = states;
-    const tasks = await provider.searchTasks(query, opts);
+    const tasks = semantic
+      ? await semanticSearch!.searchTasks(query, opts)
+      : await provider.searchTasks(query, opts);
     jsonResponse(res, 200, { ok: true, tasks });
   } catch (err) {
     if (semantic) {
@@ -47,34 +50,39 @@ async function handleTasksSearchControl(
 async function handleTasksReindexControl(
   req: IncomingMessage,
   res: ServerResponse,
-  projectStores?: RepoTasksProjectStores,
+  scopeStores?: RepoTasksScopeStores,
 ): Promise<void> {
   try {
-    const project = resolveRouteProject(projectStores, req, res);
-    if (!project.ok) return;
-    const provider = project.store ?? getRepoTasksProvider();
-    const result = await provider.reindex();
-    jsonResponse(res, 200, result);
+    const scope = resolveRouteScope(scopeStores, req, res);
+    if (!scope.ok) return;
+    const provider = scope.store ?? getRepoTasksProvider();
+    const semanticSearch = provider.semanticSearchCapability;
+    if (!semanticSearch) {
+      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
+      return;
+    }
+    const result = await semanticSearch.reindex();
+    jsonResponse(res, 200, { ok: true, ...result });
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
 }
 
 export function taskControlRoutes(
-  projectStores?: RepoTasksProjectStores,
+  scopeStores?: RepoTasksScopeStores,
 ): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/tasks/search",
       capabilityScope: "read",
-      handler: (req, res) => handleTasksSearchControl(req, res, projectStores),
+      handler: (req, res) => handleTasksSearchControl(req, res, scopeStores),
     },
     {
       method: "POST",
       path: "/tasks/reindex",
       capabilityScope: "control",
-      handler: (req, res) => handleTasksReindexControl(req, res, projectStores),
+      handler: (req, res) => handleTasksReindexControl(req, res, scopeStores),
     },
   ];
 }

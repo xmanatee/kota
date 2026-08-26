@@ -77,7 +77,7 @@ export type SourceDecisionCoverageReport = {
 };
 
 export type SourceDecisionCoverageInput = {
-  projectDir: string;
+  workspaceRoot: string;
   nowMs?: number;
   maxEntries?: number;
   sourceUrls?: readonly string[];

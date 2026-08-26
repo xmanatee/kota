@@ -52,7 +52,6 @@ export function routedPayload(args: {
   const scopeId = args.route?.scopeId ?? args.signal.scopeId;
   return {
     scopeId,
-    projectId: scopeId,
     routeId: args.route?.id ?? DEFAULT_ROUTE_ID,
     decision: args.decision,
     sourceStatus: args.sourceStatus,
@@ -77,7 +76,6 @@ export function workflowTriggerPayload(args: {
   const scopeId = args.route.scopeId ?? args.signal.scopeId;
   return {
     scopeId,
-    projectId: scopeId,
     routeId: args.route.id,
     decision: "dispatched",
     sourceStatus: args.sourceStatus,
@@ -101,7 +99,6 @@ export function agentTriggerPayload(args: {
   const scopeId = args.route.scopeId ?? args.signal.scopeId;
   return {
     scopeId,
-    projectId: scopeId,
     routeId: args.route.id,
     decision: "dispatched",
     sourceStatus: args.sourceStatus,

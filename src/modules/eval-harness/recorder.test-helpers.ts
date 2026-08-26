@@ -31,14 +31,14 @@ export function writeFile(dir: string, path: string, content: string): void {
 }
 
 export function seedSourceRun(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
   workflowName: string,
   stepId: string,
   stepArtifact: AgentStepArtifact,
   events: readonly string[],
 ): string {
-  const runDir = join(projectDir, ".kota", "runs", runId);
+  const runDir = join(workspaceRoot, ".kota", "runs", runId);
   mkdirSync(join(runDir, "steps"), { recursive: true });
   writeFileSync(
     join(runDir, "metadata.json"),
@@ -56,24 +56,24 @@ export function seedSourceRun(
 }
 
 export function seedWriterIntegration(
-  projectDir: string,
+  workspaceRoot: string,
   runId: string,
   params: { publishedHead: string; message: string },
 ): void {
   const integratedFromHead = execFileSync(
     "git",
     ["rev-parse", `${params.publishedHead}^`],
-    { cwd: projectDir, encoding: "utf-8" },
+    { cwd: workspaceRoot, encoding: "utf-8" },
   ).trim();
   const changedPaths = execFileSync(
     "git",
     ["diff", "--name-only", integratedFromHead, params.publishedHead],
-    { cwd: projectDir, encoding: "utf-8" },
+    { cwd: workspaceRoot, encoding: "utf-8" },
   )
     .trim()
     .split("\n")
     .filter(Boolean);
-  writeWriterIntegrationFixture(join(projectDir, ".kota", "runs"), {
+  writeWriterIntegrationFixture(join(workspaceRoot, ".kota", "runs"), {
     runId,
     workflow: "fixture-workflow",
     baseHead: integratedFromHead,

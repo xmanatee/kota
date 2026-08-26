@@ -92,7 +92,7 @@ describe("createSubprocessExecutor container execution", () => {
         "#!/usr/bin/env node",
         "import { writeFileSync } from 'node:fs';",
         "import { join } from 'node:path';",
-        "writeFileSync(join(process.env.KOTA_PROJECT_DIR, 'shim-hit.txt'), JSON.stringify({ argv: process.argv.slice(2) }));",
+        "writeFileSync(join(process.env.KOTA_SCOPE_ROOT, 'shim-hit.txt'), JSON.stringify({ argv: process.argv.slice(2) }));",
       ].join("\n"),
     );
     writeFakeKotaScript(
@@ -111,7 +111,7 @@ describe("createSubprocessExecutor container execution", () => {
         "spawnSync('fake-gh', ['status'], { stdio: 'ignore' });",
         "writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({",
         "  home: process.env.HOME,",
-        "  projectDir: process.env.KOTA_PROJECT_DIR,",
+        "  workspaceRoot: process.env.KOTA_SCOPE_ROOT,",
         "  distDir: process.env.KOTA_DIST_DIR,",
         "  cacheDir: process.env.XDG_CACHE_HOME,",
         "  storeDir: process.env.npm_config_store_dir,",
@@ -166,7 +166,7 @@ describe("createSubprocessExecutor container execution", () => {
     expect(envCapture.home).toBe(
       join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "home"),
     );
-      expect(envCapture.projectDir).toBe(dirs.workingDir);
+      expect(envCapture.workspaceRoot).toBe(dirs.workingDir);
       expect(envCapture.distDir).toBe("/opt/kota/dist");
       expect(envCapture.cacheDir).toBe(
         join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "cache"),

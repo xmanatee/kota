@@ -45,7 +45,7 @@ async function moduleSummariesWithCurrentSetupAvailability(
     return summaries;
   }
   const statuses = await listModuleSetupStatusesFromSummaries({
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
     getModuleSummaries: () => summaries,
     probeCapabilities: probeSetupCapabilities,
   });
@@ -54,7 +54,7 @@ async function moduleSummariesWithCurrentSetupAvailability(
 
 function moduleSourcePath(summary: ModuleSummary): string | undefined {
   switch (summary.source) {
-    case "project":
+    case "bundled":
       return `src/modules/${summary.name}`;
     case "installed":
       return `.kota/modules/${summary.name}`;
@@ -213,7 +213,7 @@ export function listAgentsFromSummaries(
         sourcePaths,
         role: agent.role,
         model: overrides[agent.name] ?? agent.model,
-        ...(agent.effort !== undefined && { effort: agent.effort }),
+        effort: agent.effort,
         promptPath: agent.promptPath,
         writeScope: agent.writeScope,
         ...(agent.skills !== undefined && { skills: agent.skills }),

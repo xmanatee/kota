@@ -11,7 +11,7 @@ import { dirname } from "node:path";
 import type { ScheduledItem } from "./schedule-parser.js";
 
 type ScheduleFileData = {
-  project: string;
+  scope: string;
   items: ScheduledItem[];
   nextId: number;
 };
@@ -20,13 +20,13 @@ const MAX_FIRED = 20;
 
 export function loadFromFile(
   filePath: string,
-  project: string,
+  scope: string,
 ): { items: ScheduledItem[]; nextId: number } {
   if (!existsSync(filePath)) return { items: [], nextId: 1 };
   try {
     const raw = readFileSync(filePath, "utf-8");
     const data: ScheduleFileData = JSON.parse(raw);
-    if (data.project === project) {
+    if (data.scope === scope) {
       return { items: data.items || [], nextId: data.nextId || 1 };
     }
     return { items: [], nextId: 1 };
@@ -37,7 +37,7 @@ export function loadFromFile(
 
 export function persistToFile(
   filePath: string | null,
-  project: string,
+  scope: string,
   items: ScheduledItem[],
   nextId: number,
 ): ScheduledItem[] {
@@ -58,7 +58,7 @@ export function persistToFile(
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(
       filePath,
-      JSON.stringify({ project, items: clean, nextId }, null, 2),
+      JSON.stringify({ scope, items: clean, nextId }, null, 2),
       "utf-8",
     );
   }

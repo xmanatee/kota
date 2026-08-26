@@ -11,8 +11,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-	assertIsolatedTrialProjectRoot,
-	copyProjectForTrial,
+	assertIsolatedTrialWorkspace,
+	copyScopeToTrialWorkspace,
 	snapshotTrialFiles,
 } from "./trial-files.js";
 
@@ -24,18 +24,18 @@ afterEach(() => {
 	}
 });
 
-function initializeRepository(projectDir: string): void {
+function initializeRepository(scopeRoot: string): void {
 	execFileSync("git", ["init", "--quiet", "--initial-branch=main"], {
-		cwd: projectDir,
+		cwd: scopeRoot,
 	});
 	execFileSync("git", ["config", "user.email", "trial@test.local"], {
-		cwd: projectDir,
+		cwd: scopeRoot,
 	});
 	execFileSync("git", ["config", "user.name", "Trial Test"], {
-		cwd: projectDir,
+		cwd: scopeRoot,
 	});
 	execFileSync("git", ["commit", "--allow-empty", "--message", "initial", "--quiet"], {
-		cwd: projectDir,
+		cwd: scopeRoot,
 	});
 }
 
@@ -46,15 +46,15 @@ describe("trial project isolation proof", () => {
 		mkdirSync(join(sourceProjectDir, "data"), { recursive: true });
 		writeFileSync(join(sourceProjectDir, "data", "seed.txt"), "seed\n");
 
-		const trialProjectDir = copyProjectForTrial(sourceProjectDir, "attempt-1");
+		const trialProjectDir = copyScopeToTrialWorkspace(sourceProjectDir, "attempt-1");
 		roots.push(join(trialProjectDir, ".."));
 		initializeRepository(trialProjectDir);
 
 		expect(() =>
-			assertIsolatedTrialProjectRoot(sourceProjectDir, trialProjectDir)
+			assertIsolatedTrialWorkspace(sourceProjectDir, trialProjectDir)
 		).not.toThrow();
 		expect(() =>
-			assertIsolatedTrialProjectRoot(sourceProjectDir, sourceProjectDir)
+			assertIsolatedTrialWorkspace(sourceProjectDir, sourceProjectDir)
 		).toThrow(/isolated trial root proof/i);
 	});
 
@@ -70,7 +70,7 @@ describe("trial project isolation proof", () => {
 		mkdirSync(join(sourceProjectDir, ".kota", "runs", "run-1"), { recursive: true });
 		writeFileSync(join(sourceProjectDir, ".kota", "runs", "run-1", "run.json"), "{}\n");
 
-		const trialProjectDir = copyProjectForTrial(sourceProjectDir, "state-isolation");
+		const trialProjectDir = copyScopeToTrialWorkspace(sourceProjectDir, "state-isolation");
 		roots.push(join(trialProjectDir, ".."));
 		expect(existsSync(join(trialProjectDir, ".kota", "modules", "fixture", "index.mjs"))).toBe(true);
 		expect(existsSync(join(trialProjectDir, ".kota", "config.json"))).toBe(true);
@@ -86,7 +86,7 @@ describe("trial project isolation proof", () => {
 		writeFileSync(outsidePath, "outside\n");
 		symlinkSync(outsidePath, join(sourceProjectDir, "escape.txt"));
 
-		expect(() => copyProjectForTrial(sourceProjectDir, "symlink-escape"))
+		expect(() => copyScopeToTrialWorkspace(sourceProjectDir, "symlink-escape"))
 			.toThrow(/symbolic link/i);
 	});
 

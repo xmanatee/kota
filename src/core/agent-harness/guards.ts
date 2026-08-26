@@ -127,9 +127,9 @@ function hasKotaCommand(command: string, area: "daemon" | "workflow", action?: s
 
 function hasScopeAuthorityMutationCommand(command: string): boolean {
   const commandPatterns = [
-    /(?:^|[\s;&|()])(?:\.\/)?kota\s+project\s+authority\s+set(?=$|[\s;&|()])/,
-    /(?:^|[\s;&|()])pnpm\s+(?:exec\s+)?kota\s+project\s+authority\s+set(?=$|[\s;&|()])/,
-    /(?:^|[\s;&|()])node\s+\S*(?:bin\/kota\.mjs|dist\/cli\.js)\s+project\s+authority\s+set(?=$|[\s;&|()])/,
+    /(?:^|[\s;&|()])(?:\.\/)?kota\s+scope\s+authority\s+set(?=$|[\s;&|()])/,
+    /(?:^|[\s;&|()])pnpm\s+(?:exec\s+)?kota\s+scope\s+authority\s+set(?=$|[\s;&|()])/,
+    /(?:^|[\s;&|()])node\s+\S*(?:bin\/kota\.mjs|dist\/cli\.js)\s+scope\s+authority\s+set(?=$|[\s;&|()])/,
   ];
   if (commandPatterns.some((pattern) => pattern.test(command))) return true;
 
@@ -236,7 +236,7 @@ export function createScopeAuthorityMutationGuard(
       ? normalizeCommand(input.command)
       : serializedInput;
     const directAuthorityMutation =
-      serializedInput.includes("project authority set") ||
+      serializedInput.includes("scope authority set") ||
       serializedInput.includes("/authority") &&
         /(?:put|patch|post)/.test(serializedInput);
     if (!hasScopeAuthorityMutationCommand(command) && !directAuthorityMutation) {

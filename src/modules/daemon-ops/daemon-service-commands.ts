@@ -3,9 +3,9 @@ import type { Command } from "commander";
 import { line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import {
-  DAEMON_PROJECT_DIR_OPTION_DESCRIPTION,
+  DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION,
   printDaemonError,
-  resolveDaemonCommandProjectDir,
+  resolveDaemonCommandScopeRoot,
   writeRawBlock,
 } from "./daemon-cli-options.js";
 import {
@@ -54,14 +54,14 @@ export function addDaemonServiceCommands(command: Command): void {
   command
     .command("install")
     .description("Register the KOTA daemon as a user-level OS service (launchd on macOS, systemd on Linux)")
-    .option("--project-dir <path>", DAEMON_PROJECT_DIR_OPTION_DESCRIPTION)
+    .option("--scope-root <path>", DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION)
     .option("--dry-run", "Print the service unit without installing")
-    .action(async (opts: { dryRun?: boolean; projectDir?: string }, child: Command) => {
-      const projectDir = resolveDaemonCommandProjectDir(opts, child);
+    .action(async (opts: { dryRun?: boolean; scopeRoot?: string }, child: Command) => {
+      const scopeRoot = resolveDaemonCommandScopeRoot(opts, child);
       if (process.platform === "darwin") {
-        await installLaunchdService(projectDir, opts.dryRun === true);
+        await installLaunchdService(scopeRoot, opts.dryRun === true);
       } else if (process.platform === "linux") {
-        await installSystemdService(projectDir, opts.dryRun === true);
+        await installSystemdService(scopeRoot, opts.dryRun === true);
       } else {
         printDaemonError(`Unsupported platform: ${process.platform}. Only macOS and Linux are supported.`);
         process.exitCode = 1;
@@ -102,16 +102,16 @@ export function addDaemonServiceCommands(command: Command): void {
     });
 }
 
-async function installLaunchdService(projectDir: string, dryRun: boolean): Promise<void> {
+async function installLaunchdService(scopeRoot: string, dryRun: boolean): Promise<void> {
   const plistPath = getLaunchdPlistPath();
-  const content = buildLaunchdPlist(projectDir);
+  const content = buildLaunchdPlist(scopeRoot);
   if (dryRun) {
     print(line(plain("# Would write: "), span(plistPath, "accent")));
     writeRawBlock(content);
     return;
   }
-  if (await isDaemonControlPlaneReady(projectDir)) {
-    fail("A daemon is already running for this project. Stop it before installing the OS service.");
+  if (await isDaemonControlPlaneReady(scopeRoot)) {
+    fail("A daemon is already running for this scope. Stop it before installing the OS service.");
     return;
   }
   ensureLaunchdLogDirectory();
@@ -129,7 +129,7 @@ async function installLaunchdService(projectDir: string, dryRun: boolean): Promi
     );
     return;
   }
-  if (!await waitForDaemonControlPlane(projectDir)) {
+  if (!await waitForDaemonControlPlane(scopeRoot)) {
     const rollback = runServiceCommand(LAUNCHCTL_PATH, ["bootout", launchdServiceTarget()]);
     if (rollback.status !== 0) {
       fail(
@@ -154,16 +154,16 @@ async function installLaunchdService(projectDir: string, dryRun: boolean): Promi
   ));
 }
 
-async function installSystemdService(projectDir: string, dryRun: boolean): Promise<void> {
+async function installSystemdService(scopeRoot: string, dryRun: boolean): Promise<void> {
   const servicePath = getSystemdServicePath();
-  const content = buildSystemdUnit(projectDir);
+  const content = buildSystemdUnit(scopeRoot);
   if (dryRun) {
     print(line(plain("# Would write: "), span(servicePath, "accent")));
     writeRawBlock(content);
     return;
   }
-  if (await isDaemonControlPlaneReady(projectDir)) {
-    fail("A daemon is already running for this project. Stop it before installing the OS service.");
+  if (await isDaemonControlPlaneReady(scopeRoot)) {
+    fail("A daemon is already running for this scope. Stop it before installing the OS service.");
     return;
   }
   const writeError = writeServiceFile(servicePath, content);
@@ -192,7 +192,7 @@ async function installSystemdService(projectDir: string, dryRun: boolean): Promi
     );
     return;
   }
-  if (!await waitForDaemonControlPlane(projectDir)) {
+  if (!await waitForDaemonControlPlane(scopeRoot)) {
     const rollbackError = rollbackSystemdInstall(servicePath);
     fail(
       "Daemon control plane did not become ready." +

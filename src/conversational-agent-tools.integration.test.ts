@@ -102,7 +102,7 @@ describe("conversational agent tools — capture / recall / answer round trip", 
 
   afterAll(() => {
     clearCustomTools();
-    rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
   });
 
   it("registers all four agent-callable tools and exposes them on every turn", () => {
@@ -200,7 +200,7 @@ describe("conversational agent tools — prior answers surface as recall hits", 
 
   afterAll(() => {
     clearCustomTools();
-    rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
   });
 
   it("a fact-shaped follow-up turn that has a matching prior cited answer surfaces the prior answer as an `answer`-source recall hit", async () => {
@@ -277,7 +277,7 @@ describe("conversational agent tools — answer-then-answer chain (prior cited a
 
     afterAll(() => {
       clearCustomTools();
-      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+      rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
     });
 
     it("the follow-up `answer` tool result contains an inline [answer:<id>] marker referencing the seeded envelope", () => {
@@ -387,7 +387,7 @@ describe("conversational agent tools — answer-then-answer chain (prior cited a
 
     afterAll(() => {
       clearCustomTools();
-      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+      rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
     });
 
     it("rejects the follow-up synthesis as `synthesis_failed` and persists one extra failure record", async () => {
@@ -477,7 +477,7 @@ describe("conversational agent tools — retract round trip", () => {
 
   afterAll(() => {
     clearCustomTools();
-    rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+    rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
   });
 
   it("admits the dangerous `retract` tool under the same harness posture capture/recall/answer use", () => {
@@ -580,7 +580,7 @@ describe("conversational agent tools — post-retract answer settles", () => {
 
     afterAll(() => {
       clearCustomTools();
-      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+      rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
     });
 
     it("the pre-retract recall pile carried a memory-source hit for the captured id (sanity precondition)", () => {
@@ -687,7 +687,7 @@ describe("conversational agent tools — post-retract answer settles", () => {
 
     afterAll(() => {
       clearCustomTools();
-      rmSync(harness.fixture.projectRoot, { recursive: true, force: true });
+      rmSync(harness.fixture.scopeRoot, { recursive: true, force: true });
     });
 
     it("rejects the follow-up synthesis as `synthesis_failed` and persists one extra failure record", async () => {

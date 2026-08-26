@@ -1,14 +1,15 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
 	KotaTextBlock,
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import { outboundHttpStreamingPort } from "#core/outbound-http/testing/request-port.js";
 import {
 	anthropicThinkingTranslator,
 	openaiReasoningEffortTranslator,
 } from "../reasoning.js";
-import { OpenAIModelClient } from "./client.js";
+import { type OpenAIClientOptions, OpenAIModelClient } from "./client.js";
 import type { OAIResponse } from "./types.js";
 
 function mockFetchResponse(body: unknown, status = 200): Response {
@@ -24,21 +25,28 @@ function mockFetchResponse(body: unknown, status = 200): Response {
 }
 
 describe("OpenAIModelClient", () => {
-	let originalFetch: typeof globalThis.fetch;
+	let activeFetch = vi.fn();
+	const http = outboundHttpStreamingPort((request) =>
+		activeFetch(String(request.url), {
+			method: request.method,
+			headers: request.headers,
+			body: request.body,
+			signal: request.signal,
+		})
+	);
 
-	afterEach(() => {
-		if (originalFetch) globalThis.fetch = originalFetch;
-	});
+	function makeClient(options: OpenAIClientOptions): OpenAIModelClient {
+		return new OpenAIModelClient({ ...options, http });
+	}
 
 	function setupMockFetch(response: Response) {
-		originalFetch = globalThis.fetch;
 		const mock = vi.fn().mockResolvedValue(response);
-		globalThis.fetch = mock;
+		activeFetch = mock;
 		return mock;
 	}
 
 	it("satisfies ModelClient interface", () => {
-		const client: ModelClient = new OpenAIModelClient({
+		const client: ModelClient = makeClient({
 			baseUrl: "http://localhost/v1",
 			apiKey: "k",
 			presetName: "test",
@@ -53,7 +61,7 @@ describe("OpenAIModelClient", () => {
 			model: "test",
 		};
 		setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		await expect(
 			client.messages.create({
 				model: "test",
@@ -73,7 +81,7 @@ describe("OpenAIModelClient", () => {
 			model: "test",
 		};
 		setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		const msg = await client.messages.create({
 			model: "test",
 			max_tokens: 100,
@@ -93,7 +101,7 @@ describe("OpenAIModelClient", () => {
 			model: "",
 		};
 		setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		const msg = await client.messages.create({
 			model: "my-model",
 			max_tokens: 100,
@@ -112,7 +120,7 @@ describe("OpenAIModelClient", () => {
 			model: "test",
 		};
 		const mock = setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		await client.messages.create({
 			model: "test",
 			max_tokens: 100,
@@ -132,7 +140,7 @@ describe("OpenAIModelClient", () => {
 			model: "test",
 		};
 		const mock = setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		await client.messages.create({
 			model: "test",
 			max_tokens: 100,
@@ -153,7 +161,7 @@ describe("OpenAIModelClient", () => {
 			model: "test",
 		};
 		setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		const msg = await client.messages.create({
 			model: "test",
 			max_tokens: 100,
@@ -180,7 +188,7 @@ describe("OpenAIModelClient", () => {
 			usage: { prompt_tokens: 10, completion_tokens: 20 },
 		};
 		setupMockFetch(mockFetchResponse(resp));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		const msg = await client.messages.create({
 			model: "test",
 			max_tokens: 100,
@@ -194,7 +202,7 @@ describe("OpenAIModelClient", () => {
 
 	it("propagates HTTP error details", async () => {
 		setupMockFetch(mockFetchResponse({ error: { message: "rate limited" } }, 429));
-		const client = new OpenAIModelClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
+		const client = makeClient({ baseUrl: "http://localhost/v1", apiKey: "k", presetName: "test" });
 		await expect(
 			client.messages.create({
 				model: "test",
@@ -216,7 +224,7 @@ describe("OpenAIModelClient", () => {
 		}
 
 		it("throws loudly when effort is set against a preset without a reasoning mapping", () => {
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "k",
 				presetName: "ollama",
@@ -233,7 +241,7 @@ describe("OpenAIModelClient", () => {
 
 		it("emits reasoning_effort on the Chat Completions wire for OpenAI", async () => {
 			const fetchMock = setupMockFetch(emptyStreamResponse());
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "k",
 				presetName: "openai",
@@ -254,7 +262,7 @@ describe("OpenAIModelClient", () => {
 
 		it("emits a thinking config on the wire for the anthropic-oai preset", async () => {
 			const fetchMock = setupMockFetch(emptyStreamResponse());
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "https://api.anthropic.com/v1",
 				apiKey: "k",
 				presetName: "anthropic-oai",
@@ -276,7 +284,7 @@ describe("OpenAIModelClient", () => {
 
 		it("omits reasoning and thinking from the wire body when effort is undefined", async () => {
 			const fetchMock = setupMockFetch(emptyStreamResponse());
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "k",
 				presetName: "openai",

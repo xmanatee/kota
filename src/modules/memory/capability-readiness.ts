@@ -20,7 +20,7 @@ export function createMemoryReadinessSource(
           message: "Keyword search over persisted memory entries.",
         },
       ];
-      if (provider.supportsSemanticSearch()) {
+      if (provider.semanticSearchCapability) {
         reports.push({
           id: "memory.semantic_search",
           moduleName: MODULE_NAME,

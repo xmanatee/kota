@@ -45,7 +45,7 @@ const planActions = typedCodeStep<PlanHealthReviewActionsOutput>({
     const output = await ctx.runBlocking(
       planAutonomyHealthReviewActionsOperation,
       {
-        projectDir: ctx.projectDir,
+        workspaceRoot: ctx.workspaceRoot,
         currentProjection: projection,
         review,
       },
@@ -69,7 +69,7 @@ const publishReview = typedCodeStep<PublishedReview>({
     const finalized = applyAutonomyHealthReviewActions({
       currentProjection,
       ownerQuestionQueue: new OwnerQuestionQueue(
-        join(ctx.scopeDir, ".kota", "owner-questions"),
+        join(ctx.scopeRoot, ".kota", "owner-questions"),
       ),
       review,
       plannedActions: planActions.outputRequired(ctx).actions,
@@ -113,7 +113,7 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   repository: "read",
   resources: () => [AUTONOMY_ISSUE_PROJECTION_RESOURCE],
   description:
-    "Project typed autonomy health observations into durable issue transitions and request review only for undecided revisions.",
+    "Turn typed autonomy health observations into durable issue transitions and request review only for undecided revisions.",
   triggers: [
     {
       event: autonomyHealthSignal.name,

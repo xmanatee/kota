@@ -25,8 +25,8 @@ export function isKotaDaemonCommand(command: string): boolean {
   );
 }
 
-function readDaemonStatePid(projectDir: string): number | null {
-  const statePath = join(projectDir, ".kota", "daemon-state.json");
+function readDaemonStatePid(scopeRoot: string): number | null {
+  const statePath = join(scopeRoot, ".kota", "daemon-state.json");
   if (!existsSync(statePath)) return null;
   try {
     const parsed = JSON.parse(readFileSync(statePath, "utf-8")) as { pid?: number };
@@ -50,14 +50,14 @@ function readDefaultProcessCommand(pid: number): string | null {
 }
 
 export function detectStrandedDaemonProcess(
-  projectDir: string,
+  scopeRoot: string,
   options: DetectStrandedDaemonOptions = {},
 ): StrandedDaemonInspection {
-  if (existsSync(join(projectDir, ".kota", "daemon-control.json"))) {
+  if (existsSync(join(scopeRoot, ".kota", "daemon-control.json"))) {
     return { kind: "none" };
   }
 
-  const pid = readDaemonStatePid(projectDir);
+  const pid = readDaemonStatePid(scopeRoot);
   if (pid === null) return { kind: "none" };
   const processIsAlive = options.processIsAlive ?? isProcessAlive;
   if (!processIsAlive(pid)) return { kind: "none" };

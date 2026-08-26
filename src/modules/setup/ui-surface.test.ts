@@ -15,13 +15,13 @@ function setupStatus(): ModuleSetupStatusResponse {
         kind: "secret",
         title: "Telegram bot credentials",
         required: true,
-        scope: "project",
+        scope: "scope",
         sensitivity: "secret",
         setup: { mode: "url", url: "https://t.me/BotFather", label: "Open BotFather" },
         state: "missing",
         reason: "secret_missing",
         message: "Required credential is missing",
-        secretRefs: [{ name: "TELEGRAM_BOT_TOKEN", scope: "project", present: false }],
+        secretRefs: [{ name: "TELEGRAM_BOT_TOKEN", scope: "scope", present: false }],
       },
       {
         moduleName: "google-workspace",
@@ -29,7 +29,7 @@ function setupStatus(): ModuleSetupStatusResponse {
         kind: "config",
         title: "Google Workspace OAuth config references",
         required: true,
-        scope: "project",
+        scope: "scope",
         sensitivity: "none",
         setup: {
           mode: "form",
@@ -62,7 +62,7 @@ function setupStatus(): ModuleSetupStatusResponse {
         kind: "oauth",
         title: "Google Workspace OAuth credentials",
         required: true,
-        scope: "project",
+        scope: "scope",
         sensitivity: "oauth",
         setup: {
           mode: "url",
@@ -72,7 +72,7 @@ function setupStatus(): ModuleSetupStatusResponse {
         state: "pending",
         reason: "url_setup_pending",
         message: "Setup URL action is pending",
-        secretRefs: [{ name: "GOOGLE_REFRESH_TOKEN", scope: "project", present: false }],
+        secretRefs: [{ name: "GOOGLE_REFRESH_TOKEN", scope: "scope", present: false }],
         pendingAction: {
           actionId: "google-workspace.oauth-credentials.1770000000000",
           moduleName: "google-workspace",
@@ -89,7 +89,7 @@ function setupStatus(): ModuleSetupStatusResponse {
         kind: "browser-profile",
         title: "Authenticated browser profile",
         required: false,
-        scope: "project",
+        scope: "scope",
         sensitivity: "browser-profile",
         setup: {
           mode: "form",

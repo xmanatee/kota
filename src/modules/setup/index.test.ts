@@ -24,7 +24,7 @@ function statusFor(requirementId: string): ModuleSetupRequirementStatus {
     kind: "secret",
     title: "Demo token",
     required: true,
-    scope: "project",
+    scope: "scope",
     sensitivity: "secret",
     setup: {
       mode: "url",
@@ -37,7 +37,7 @@ function statusFor(requirementId: string): ModuleSetupRequirementStatus {
     secretRefs: [
       {
         name: "DEMO_TOKEN",
-        scope: "project",
+        scope: "scope",
         present: true,
       },
     ],
@@ -155,14 +155,14 @@ afterEach(() => {
 
 describe("setup module manifest projection", () => {
   it("resolves setup status inputs through manifest setup links", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-setup-manifest-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-setup-manifest-"));
     try {
       const client = localSetupClient({
-        cwd: projectDir,
+        cwd: scopeRoot,
         getModuleSummaries: () => [
           {
             name: "demo",
-            source: "project",
+            source: "bundled",
             dependencies: [],
             toolNames: [],
             workflowNames: [],
@@ -179,7 +179,7 @@ describe("setup module manifest projection", () => {
                 kind: "config",
                 title: "Endpoint",
                 required: true,
-                scope: "project",
+                scope: "scope",
                 sensitivity: "none",
                 setup: {
                   mode: "form",
@@ -260,7 +260,7 @@ describe("setup module manifest projection", () => {
         reason: "config_missing",
       });
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
@@ -270,7 +270,7 @@ describe("setup module manifest projection", () => {
       getModuleSummaries: () => [
         {
           name: "broken",
-          source: "project",
+          source: "bundled",
           dependencies: [],
           toolNames: [],
           workflowNames: [],
@@ -391,7 +391,7 @@ describe("kota setup list CLI", () => {
       state: "pending",
       reason: "url_setup_pending",
       message: "Setup URL action is pending",
-      secretRefs: [{ name: "DEMO_TOKEN", scope: "project", present: false }],
+      secretRefs: [{ name: "DEMO_TOKEN", scope: "scope", present: false }],
       pendingAction: {
         actionId: "demo.oauth.1770000000000",
         moduleName: "demo",

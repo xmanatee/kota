@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,8 +7,8 @@ import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowStepErrorKind } from "#core/workflow/run-types.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
-  type HarnessOptions,
-  WorkflowTestHarness,
+  WorkflowScenarioDriver,
+  type WorkflowScenarioOptions,
 } from "#core/workflow/testing/index.js";
 import type { DecompositionPlan } from "./decomposition-plan.js";
 import decomposerWorkflow, { agent } from "./workflow.js";
@@ -41,10 +42,7 @@ const DECOMPOSITION_PLAN: DecompositionPlan = {
       problem: "The original task could not produce stageable progress.",
       desiredOutcome: "The bounded portion is complete and independently verifiable.",
       constraints: ["Preserve the original task intent."],
-      doneWhen: ["Focused evidence proves the bounded outcome."],
-      sourceIntent: "Builder repair exhaustion requires a smaller execution unit.",
-      initiative: "Reliable autonomous task execution.",
-      acceptanceEvidence: ["A focused regression proves completion."],
+      howWeWillKnow: ["The bounded outcome is observable at its public boundary."],
       dependsOn: [],
     },
   ],
@@ -57,32 +55,47 @@ const DECOMPOSITION_REVIEW = {
 } as const;
 
 function project(): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-decomposer-workflow-"));
-  roots.push(projectDir);
-  return projectDir;
+  const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-decomposer-workflow-"));
+  execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: workspaceRoot,
+  });
+  execFileSync("git", ["config", "user.name", "KOTA test"], {
+    cwd: workspaceRoot,
+  });
+  writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  roots.push(workspaceRoot);
+  return workspaceRoot;
+}
+
+function commitScenarioInput(workspaceRoot: string): void {
+  execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
+  execFileSync("git", ["commit", "--quiet", "--allow-empty", "-m", "scenario input"], {
+    cwd: workspaceRoot,
+  });
 }
 
 function failureFixture(
   errorKind: WorkflowStepErrorKind | undefined,
   taskId = TASK_ID,
 ): {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   trigger: ReturnType<typeof failedBuilderTrigger>;
 } {
-  const projectDir = project();
-  const task = writeActionableTask(projectDir, taskId);
+  const workspaceRoot = project();
+  const task = writeActionableTask(workspaceRoot, taskId);
   const metadata = failedBuilderMetadata(task, { errorKind });
   return {
-    projectDir,
-    stateDir: writeRunMetadata(projectDir, FAILED_RUN_ID, metadata),
+    workspaceRoot,
+    stateDir: writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata),
     trigger: failedBuilderTrigger(),
   };
 }
 
 function decomposeStepMocks(
-  extra: NonNullable<HarnessOptions["stepMocks"]> = {},
-): NonNullable<HarnessOptions["stepMocks"]> {
+  extra: NonNullable<WorkflowScenarioOptions["stepOutputs"]> = {},
+): NonNullable<WorkflowScenarioOptions["stepOutputs"]> {
   return {
     decompose: DECOMPOSITION_PLAN,
     "review-decomposition": DECOMPOSITION_REVIEW,
@@ -92,13 +105,14 @@ function decomposeStepMocks(
 
 async function runFixture(
   fixture: ReturnType<typeof failureFixture>,
-  stepMocks = decomposeStepMocks(),
+  stepOutputs = decomposeStepMocks(),
 ) {
-  return new WorkflowTestHarness(decomposerWorkflow, {
-    projectDir: fixture.projectDir,
+  commitScenarioInput(fixture.workspaceRoot);
+  return new WorkflowScenarioDriver(decomposerWorkflow, {
+    workspaceRoot: fixture.workspaceRoot,
     trigger: fixture.trigger,
-    stepMocks,
-    contextOverrides: { runCommand: successfulWorkflowCommandRun },
+    stepOutputs,
+    ports: { runCommand: successfulWorkflowCommandRun },
   }).run();
 }
 
@@ -136,7 +150,7 @@ describe("decomposer workflow", () => {
   it("derives RunState ownership from the failed builder's immutable task contract", () => {
     const fixture = failureFixture("step-timeout");
     const resources = decomposerWorkflow.resources?.({
-      projectDir: fixture.projectDir,
+      scopeRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
       workflowName: "decomposer",
       trigger: fixture.trigger,
@@ -145,15 +159,15 @@ describe("decomposer workflow", () => {
 
     const state = new RunStateDatabase(fixture.stateDir);
     try {
-      state.registerProject({
-        id: "project-decomposer",
-        rootPath: fixture.projectDir,
+      state.registerScope({
+        id: "scope-decomposer",
+        rootPath: fixture.workspaceRoot,
         createdAt: "2026-08-25T01:00:00.000Z",
       });
       const { epoch } = state.beginDaemonSession("2026-08-25T01:00:00.500Z");
       state.admitRun({
         id: "run-decomposer",
-        projectId: "project-decomposer",
+        scopeId: "scope-decomposer",
         workflow: "decomposer",
         repository: "write",
         trigger: fixture.trigger,
@@ -167,7 +181,7 @@ describe("decomposer workflow", () => {
       ]);
       state.admitRun({
         id: "run-competing-builder",
-        projectId: "project-decomposer",
+        scopeId: "scope-decomposer",
         workflow: "builder",
         repository: "write",
         trigger: fixture.trigger,
@@ -186,7 +200,7 @@ describe("decomposer workflow", () => {
   it("rejects resource admission when source metadata lacks the task contract", () => {
     const fixture = failureFixture("step-timeout");
     const metadata = failedBuilderMetadata(
-      writeActionableTask(fixture.projectDir),
+      writeActionableTask(fixture.workspaceRoot),
       { errorKind: "step-timeout" },
     );
     metadata.trigger = {
@@ -194,11 +208,11 @@ describe("decomposer workflow", () => {
       schemaRef: null,
       payload: { taskId: TASK_ID },
     };
-    writeRunMetadata(fixture.projectDir, FAILED_RUN_ID, metadata);
+    writeRunMetadata(fixture.workspaceRoot, FAILED_RUN_ID, metadata);
 
     expect(() =>
       decomposerWorkflow.resources?.({
-        projectDir: fixture.projectDir,
+        scopeRoot: fixture.workspaceRoot,
         stateDir: fixture.stateDir,
         workflowName: "decomposer",
         trigger: fixture.trigger,
@@ -211,8 +225,8 @@ describe("decomposer workflow", () => {
     const invariant = decomposerWorkflow.integration?.postReconcile;
     if (!invariant) throw new Error("missing decomposer post-reconcile invariant");
     const input = {
-      projectDir: fixture.projectDir,
-      scopeDir: fixture.projectDir,
+      workspaceRoot: fixture.workspaceRoot,
+      repoRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
       workflowName: "decomposer",
       trigger: fixture.trigger,
@@ -223,7 +237,7 @@ describe("decomposer workflow", () => {
 
     expect(invariant(input)).toEqual({ satisfied: true });
     writeActionableTask(
-      fixture.projectDir,
+      fixture.workspaceRoot,
       TASK_ID,
       "doing",
       "The task changed after decomposer admission.",
@@ -237,7 +251,7 @@ describe("decomposer workflow", () => {
   it("rejects unsupported triggers and malformed completion payloads", () => {
     const fixture = failureFixture("step-timeout");
     const resourceInput = {
-      projectDir: fixture.projectDir,
+      scopeRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
       workflowName: "decomposer",
     };
@@ -298,7 +312,7 @@ describe("decomposer workflow", () => {
   it("skips a task whose immutable contract changed after builder admission", async () => {
     const fixture = failureFixture("step-timeout");
     writeActionableTask(
-      fixture.projectDir,
+      fixture.workspaceRoot,
       TASK_ID,
       "doing",
       "The task changed after the failed builder run.",
@@ -337,20 +351,24 @@ describe("decomposer workflow", () => {
   it("rechecks the immutable task contract immediately before mutation", async () => {
     const fixture = failureFixture("step-timeout");
     const { applyDecompositionPlan } = await import("./decomposition-actions.js");
-    const result = await runFixture(
-      fixture,
-      decomposeStepMocks({
-        "review-decomposition": () => {
+    commitScenarioInput(fixture.workspaceRoot);
+    const result = await new WorkflowScenarioDriver(decomposerWorkflow, {
+      workspaceRoot: fixture.workspaceRoot,
+      trigger: fixture.trigger,
+      ports: {
+        runCommand: successfulWorkflowCommandRun,
+        runAgent: ({ stepId, cwd }) => {
+          if (stepId === "decompose") return DECOMPOSITION_PLAN;
           writeActionableTask(
-            fixture.projectDir,
+            cwd,
             TASK_ID,
             "doing",
             "The task changed during semantic review.",
           );
           return DECOMPOSITION_REVIEW;
         },
-      }),
-    );
+      },
+    }).run();
 
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps["review-decomposition"].status).toBe("success");

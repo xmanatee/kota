@@ -1,4 +1,4 @@
-import type { ScopeId } from "#core/events/project-scope.js";
+import type { ScopeId } from "#core/events/scope.js";
 import type { ResolvedScopePolicy, ScopePolicyArea } from "./scope-policy-types.js";
 
 /** One policy value and the authority revision that produced it. */

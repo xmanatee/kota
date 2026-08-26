@@ -18,9 +18,9 @@ export type WebhookChannelSessionPayload = {
  * observe channel session activity without watching every HTTP route.
  *
  * Daemon-wide: webhook-channel sessions are session-bound, and core sessions
- * are still daemon-default until the session-projectId attribution slice
+ * are still daemon-default until the session-scopeId attribution slice
  * lands. This declaration tracks the same boundary as `BusEvents["session.*"]`;
- * it migrates to project scope once sessions carry projectId.
+ * it migrates to directory-scope attribution once sessions carry `scopeId`.
  */
 export const webhookChannelSession =
   defineDaemonWideModuleEvent<WebhookChannelSessionPayload>(

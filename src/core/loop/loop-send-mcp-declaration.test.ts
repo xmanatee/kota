@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { Context } from "./context.js";
 import { CostTracker } from "./cost.js";
 import type { AgentLoopState } from "./loop-init.js";
@@ -65,7 +66,7 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     sessionStartTime: 0,
     sessionId: "session-test",
     sessionLabel: undefined,
-    projectDir: process.cwd(),
+    scopeRoot: process.cwd(),
     scopeId: "scope-test",
     context: new Context("KOTA"),
     client: {} as never,
@@ -104,13 +105,15 @@ function testLoopState(mcpManager: AgentLoopState["mcpManager"]): AgentLoopState
     historySource: "user",
     conversationId: null,
     resumeConversationId: undefined,
-    projectContext: "",
+    scopeContext: "",
     instructionContext: "",
     modelTiers: undefined,
     modelOutputTokenLimits: undefined,
     channelIdentity: undefined,
     autonomyMode: "autonomous",
-    moduleLoader: {} as never,
+    moduleLoader: {
+      getProviderRegistry: () => new ProviderRegistry(),
+    } as never,
     ownsModuleRuntime: true,
     closed: false,
     activeAbortControllers: new Set(),
@@ -176,10 +179,9 @@ describe("runSend MCP declaration refresh", () => {
     expect(mockExecuteToolCalls).toHaveBeenCalledTimes(2);
     expect(mockExecuteToolCalls.mock.calls[0][1]).toMatchObject({
       sessionId: "session-test",
-      projectDir: process.cwd(),
+      scopeRoot: process.cwd(),
       cwd: process.cwd(),
       scopeId: "scope-test",
-      projectId: "scope-test",
     });
   });
 });

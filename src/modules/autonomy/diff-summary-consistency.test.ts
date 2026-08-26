@@ -19,7 +19,7 @@ function delivery(
     version: 1,
     runId: "2026-06-24T00-00-00-000Z-builder-test",
     workflow: "builder",
-    projectId: "project-test",
+    scopeId: "scope-test",
     targetBranch: "main",
     baseHead: "base123",
     integratedFromHead: "base123",

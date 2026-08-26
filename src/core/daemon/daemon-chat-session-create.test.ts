@@ -7,7 +7,7 @@ import {
   mockAgentSession,
   mockRequest,
   mockResponse,
-  PROJECT_ID,
+  SCOPE_ID,
 } from "./daemon-chat-test-support.integration.js";
 
 const admitHostedScope = () => ({ ok: true as const });
@@ -25,7 +25,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       resolver,
       admitHostedScope,
     );
@@ -59,7 +59,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       makeAgent,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -79,7 +79,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -96,7 +96,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -113,7 +113,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       undefined,
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -130,7 +130,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       undefined,
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -147,7 +147,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -167,7 +167,7 @@ describe("handleCreateDaemonSession", () => {
       first as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       resolver,
       admitHostedScope,
     );
@@ -181,7 +181,7 @@ describe("handleCreateDaemonSession", () => {
       second as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       resolver,
       admitHostedScope,
     );
@@ -202,7 +202,7 @@ describe("handleCreateDaemonSession", () => {
         return mockAgentSession() as never;
       },
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(new Set(["existing-conv"])),
       admitHostedScope,
     );
@@ -216,7 +216,7 @@ describe("handleCreateDaemonSession", () => {
 
   it("wakes a prior session from its persisted binding", async () => {
     const bindings = makeBindingStore();
-    bindings.put("s-prior", "conv-prior", PROJECT_ID);
+    bindings.put("s-prior", "conv-prior", SCOPE_ID);
     const res = mockResponse();
     await handleCreateDaemonSession(
       makePool(),
@@ -225,7 +225,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(new Set(["conv-prior"])),
       admitHostedScope,
     );
@@ -242,7 +242,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(),
       admitHostedScope,
     );
@@ -258,7 +258,7 @@ describe("handleCreateDaemonSession", () => {
       res as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       makeResolver(new Set()),
       admitHostedScope,
     );
@@ -268,7 +268,7 @@ describe("handleCreateDaemonSession", () => {
   it("returns 409 when a requested session is already live", async () => {
     const pool = makePool();
     const bindings = makeBindingStore();
-    bindings.put("s-live", "conv-live", PROJECT_ID);
+    bindings.put("s-live", "conv-live", SCOPE_ID);
     const resolver = makeResolver(new Set(["conv-live"]));
     const first = mockResponse();
     await handleCreateDaemonSession(
@@ -278,7 +278,7 @@ describe("handleCreateDaemonSession", () => {
       first as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       resolver,
       admitHostedScope,
     );
@@ -290,7 +290,7 @@ describe("handleCreateDaemonSession", () => {
       second as never,
       () => mockAgentSession() as never,
       "supervised",
-      PROJECT_ID,
+      SCOPE_ID,
       resolver,
       admitHostedScope,
     );

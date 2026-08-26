@@ -26,13 +26,11 @@ import { dispatchInboundSignalRoute } from "./routing.js";
 export * from "./events.js";
 export * from "./routing.js";
 
-let unsubscribeInboundSignals: (() => void) | null = null;
-
 const inboundSignalsModule: KotaModule = {
   name: "inbound-signals",
   version: "1.0.0",
   description:
-    "Typed project-scoped inbound external signal contract and routing dispatcher for workflow automation",
+    "Typed scope-bound inbound external signal contract and routing dispatcher for workflow automation",
   dependencies: ["rendering", "workflow-ops"],
   events: [inboundSignalReceived, inboundSignalRouted],
   commands: (ctx) => {
@@ -40,11 +38,11 @@ const inboundSignalsModule: KotaModule = {
     root.addCommand(buildInboundSignalsCommand(ctx));
     return [...root.commands];
   },
-  routes: (ctx) => inboundSignalRouteStatusRoutes((projectId) =>
-    buildRoutingStatus(ctx, projectId)
+  routes: (ctx) => inboundSignalRouteStatusRoutes((scopeId) =>
+    buildRoutingStatus(ctx, scopeId)
   ),
-  controlRoutes: (ctx) => inboundSignalRouteStatusControlRoutes((projectId) =>
-    buildRoutingStatus(ctx, projectId)
+  controlRoutes: (ctx) => inboundSignalRouteStatusControlRoutes((scopeId) =>
+    buildRoutingStatus(ctx, scopeId)
   ),
   localClient: (ctx) => ({
     inboundSignals: buildInboundSignalsLocalClient(ctx),
@@ -53,8 +51,7 @@ const inboundSignalsModule: KotaModule = {
     inboundSignals: buildInboundSignalsDaemonClient(link),
   }),
   onLoad: (ctx) => {
-    unsubscribeInboundSignals?.();
-    unsubscribeInboundSignals = ctx.events.subscribe(
+    const unsubscribe = ctx.events.subscribe(
       inboundSignalReceived,
       (signal) => {
         const context = routingValidationContext(ctx);
@@ -89,10 +86,7 @@ const inboundSignalsModule: KotaModule = {
         });
       },
     );
-  },
-  onUnload: () => {
-    unsubscribeInboundSignals?.();
-    unsubscribeInboundSignals = null;
+    return { dispose: unsubscribe };
   },
   configSchema: inboundSignalsConfigSchema,
 };

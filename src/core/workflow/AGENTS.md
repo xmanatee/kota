@@ -10,7 +10,7 @@ and publication.
   resolvers express domain exclusivity without workflow-specific locks.
 - `RunStateDatabase` is the only durable queue and the authority for admission,
   run attempts, logical resources, process identities, external effects, and
-  terminal publications. Project-scoped durable state uses its revisioned
+  terminal publications. Scope-owned durable state uses its revisioned
   SQLite API; runs stage compare-and-set mutations that commit atomically with
   success publications. `WorkflowRunStore` and run artifacts are evidence, not
   queue, summary, lease, or shared state. Persistent dispatch pause is project

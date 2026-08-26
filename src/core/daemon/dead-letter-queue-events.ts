@@ -1,5 +1,5 @@
-import type { ProjectScopedBusEventPayload } from "#core/events/event-bus-types.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedBusEventPayload } from "#core/events/event-bus-types.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { ModuleEventProxy } from "#core/modules/module-types.js";
 import {
   type DeadLetterItem,
@@ -12,7 +12,7 @@ import { deriveDirectoryScopeId } from "./scope-registry.js";
 
 export function deadLetterChangedEventPayload(
   item: DeadLetterItem,
-): ProjectScopedBusEventPayload<"workflow.dead-letter.changed"> {
+): ScopedBusEventPayload<"workflow.dead-letter.changed"> {
   const successfulRedrive = [...item.redriveAttempts]
     .reverse()
     .find((attempt) => attempt.result.status !== "failed");
@@ -36,23 +36,22 @@ export function deadLetterChangedEventPayload(
 }
 
 export type DeadLetterChangedPublisher = (
-  payload: ProjectScopedBusEventPayload<"workflow.dead-letter.changed">,
+  payload: ScopedBusEventPayload<"workflow.dead-letter.changed">,
 ) => void;
 
-export function projectScopedDeadLetterChangedPublisher(
-  pbus: ProjectScopedEventBus,
+export function scopedDeadLetterChangedPublisher(
+  pbus: ScopedEventBus,
 ): DeadLetterChangedPublisher {
   return (payload) => pbus.emit("workflow.dead-letter.changed", payload);
 }
 
 export function moduleDeadLetterChangedPublisher(
-  projectDir: string,
+  scopeRoot: string,
   events: ModuleEventProxy,
 ): DeadLetterChangedPublisher {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+  const scopeId = deriveDirectoryScopeId(scopeRoot);
   return (payload) => events.emit("workflow.dead-letter.changed", {
     scopeId,
-    projectId: scopeId,
     ...payload,
   });
 }

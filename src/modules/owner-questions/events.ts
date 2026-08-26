@@ -1,4 +1,4 @@
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 
 export type OwnerQuestionMutationRequest = {
   questionId: string;
@@ -13,7 +13,7 @@ export function ownerQuestionMutationKey(questionId: string): string {
 }
 
 export const ownerQuestionMutationRequested =
-  defineProjectScopedModuleEvent<OwnerQuestionMutationRequest>(
+  defineScopedModuleEvent<OwnerQuestionMutationRequest>(
     "owner.question.mutation.requested",
     [
       "questionId",

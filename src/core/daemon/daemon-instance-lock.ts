@@ -1,4 +1,9 @@
 import { join } from "node:path";
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import { JsonFileError } from "#core/util/json-file.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
 import {
@@ -93,12 +98,13 @@ function tryReserveInstanceLock(
  * condition.
  */
 export async function acquireInstanceLock(
-  projectDir: string,
+  scopeRoot: string,
   stateRoot: DaemonStateRoot,
   owner: DaemonInstanceIdentity,
   log: (message: string) => void,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<void> {
-  const stranded = detectStrandedDaemonProcess(projectDir);
+  const stranded = detectStrandedDaemonProcess(scopeRoot);
   if (stranded.kind === "stranded") {
     throw new Error(
       `A stranded daemon process is already running (pid ${stranded.pid}) but has no control API. ` +
@@ -155,12 +161,13 @@ export async function acquireInstanceLock(
     } else {
       let response: Response;
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 2_000);
-        response = await fetch(`http://127.0.0.1:${port}/identity`, {
+        ({ response } = await http.request({
+          profile: OUTBOUND_HTTP_PROFILES.daemonLoopback,
+          operation: "daemon.instance-lock.identity",
+          url: `http://127.0.0.1:${port}/identity`,
           headers: { Authorization: `Bearer ${existing.token}` },
-          signal: controller.signal,
-        }).finally(() => clearTimeout(timer));
+          limits: { timeoutMs: 2_000 },
+        }));
       } catch (cause) {
         throw new Error(
           `Daemon process ${pid} is alive but its control API on port ${port} is unreachable. ` +

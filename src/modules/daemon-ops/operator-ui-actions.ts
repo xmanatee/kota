@@ -1,5 +1,5 @@
-import type { KotaClient } from "#core/server/kota-client.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
 import type {
   UiAction,
@@ -156,29 +156,29 @@ export async function executeUiAction(args: {
     }
     return { ok: true, message: `Daemon ${status.state.replace(/_/g, " ")}.` };
   }
-  if (action.operation.namespace === "projects" && action.operation.method === "list") {
-    const result = await client.projects.list();
+  if (action.operation.namespace === "scopes" && action.operation.method === "list") {
+    const result = await client.scopes.list();
     if (!result.ok) return { ok: false, reason: result.reason, message: "Daemon project registry is unavailable." };
-    return { ok: true, message: `${result.projects.length} project(s) available.` };
+    return { ok: true, message: `${result.scopes.length} project(s) available.` };
   }
-  if (action.operation.namespace === "projects" && action.operation.method === "use") {
-    const projectId = stringParameter(parameters, "projectId");
+  if (action.operation.namespace === "scopes" && action.operation.method === "use") {
+    const scopeId = stringParameter(parameters, "scopeId");
     const clear = booleanParameter(parameters, "clear");
-    const result = await client.projects.use(clear ? null : projectId ?? null);
+    const result = await client.scopes.use(clear ? null : scopeId ?? null);
     if (!result.ok) {
       return {
         ok: false,
         reason: result.reason,
         message: result.reason === "not_found"
-          ? `Unknown project: ${result.projectId}.`
+          ? `Unknown scope: ${result.scopeId}.`
           : "Daemon project registry is unavailable.",
       };
     }
     return {
       ok: true,
-      message: result.activeProjectId === null
+      message: result.activeScopeId === null
         ? "Active scope cleared."
-        : `Active scope set to ${result.activeProjectId}.`,
+        : `Active scope set to ${result.activeScopeId}.`,
     };
   }
   if (action.operation.namespace === "workflow" && action.operation.method === "status") {

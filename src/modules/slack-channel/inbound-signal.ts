@@ -14,7 +14,7 @@ export type SlackChannelInboundSignalConfig = {
 };
 
 export type SlackTextInboundSignalContext = {
-  projectId: string;
+  scopeId: string;
   receivedAt: string;
   config: SlackChannelInboundSignalConfig;
 };
@@ -116,8 +116,7 @@ export function slackTextMessageToInboundSignal(
     `/channel/${encodeURIComponent(event.channel ?? "unknown-channel")}` +
     `/message/${encodeURIComponent(messageTs)}`;
   const signal = validateInboundSignalPayload({
-    scopeId: context.projectId,
-    projectId: context.projectId,
+    scopeId: context.scopeId,
     provider: "slack",
     channel: "slack.message",
     accountId: `slack:${teamId}`,

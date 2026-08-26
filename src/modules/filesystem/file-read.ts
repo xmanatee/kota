@@ -2,9 +2,9 @@ import { existsSync, statSync } from "node:fs";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import {
-  isProtectedProjectPath,
-  protectedProjectPathError,
-} from "#core/tools/protected-project-paths.js";
+  isProtectedScopePath,
+  protectedScopePathError,
+} from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatSize,
@@ -56,8 +56,8 @@ export async function runFileRead(
   }
 
   const filePath = resolveToolPath(rawFilePath, context);
-  if (isProtectedProjectPath(filePath, context)) {
-    return { content: protectedProjectPathError(rawFilePath), is_error: true };
+  if (isProtectedScopePath(filePath, context)) {
+    return { content: protectedScopePathError(rawFilePath), is_error: true };
   }
 
   if (!existsSync(filePath)) {

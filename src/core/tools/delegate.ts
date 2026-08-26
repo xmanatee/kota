@@ -181,8 +181,8 @@ async function runDelegateWithBudget(
     });
     return runDelegateHarness(task, mode, {
       cwd,
-      projectDir: context?.projectDir ?? toolExecutionOptions?.projectDir ?? cwd,
-      projectContext: delegateConfig.projectContext,
+      scopeRoot: context?.scopeRoot ?? toolExecutionOptions?.scopeRoot ?? cwd,
+      scopeContext: delegateConfig.scopeContext,
       instructionContext: delegateConfig.instructionContext,
       costTracker: delegateConfig.costTracker,
       transport: delegateConfig.transport,
@@ -224,7 +224,7 @@ async function runDelegateWithBudget(
   }
   const systemPrompt = buildSubAgentPrompt(basePrompt, {
     cwd,
-    projectContext: delegateConfig.projectContext,
+    scopeContext: delegateConfig.scopeContext,
     instructionContext: delegateConfig.instructionContext,
     tools,
   });
@@ -240,7 +240,7 @@ async function runDelegateWithBudget(
     provider: delegateConfig.modelProvider?.provider,
     baseUrl: delegateConfig.modelProvider?.baseUrl,
     apiKey: delegateConfig.modelProvider?.apiKey,
-    projectDir: cwd,
+    scopeRoot: cwd,
   }).client;
   const costTracker = delegateConfig.costTracker;
   const transport = delegateConfig.transport;

@@ -6,6 +6,12 @@
  * see a single success/fail from `transcribe`, never a partial state.
  */
 
+import {
+  OUTBOUND_HTTP_PROFILES,
+  OutboundHttpError,
+  type OutboundHttpTransport,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import type {
   TranscriptionInput,
   TranscriptionProvider,
@@ -25,10 +31,8 @@ export type WhisperProviderOptions = {
   maxRetries: number;
   /** Base delay between retries in milliseconds; doubles on each attempt. */
   retryBaseDelayMs?: number;
-  /**
-   * Fetch implementation; exposed for tests. Defaults to global `fetch`.
-   */
-  fetchImpl?: typeof fetch;
+  /** Policy-aware HTTP request port; exposed for tests. */
+  http?: Pick<OutboundHttpTransport, "request">;
   /** Sleep implementation; exposed for tests. Defaults to setTimeout. */
   sleep?: (ms: number) => Promise<void>;
 };
@@ -87,7 +91,7 @@ export class WhisperTranscriptionProvider implements TranscriptionProvider {
   readonly #timeoutMs: number;
   readonly #maxRetries: number;
   readonly #retryBaseDelayMs: number;
-  readonly #fetch: typeof fetch;
+  readonly #http: Pick<OutboundHttpTransport, "request">;
   readonly #sleep: (ms: number) => Promise<void>;
 
   constructor(options: WhisperProviderOptions) {
@@ -97,7 +101,7 @@ export class WhisperTranscriptionProvider implements TranscriptionProvider {
     this.#timeoutMs = options.timeoutMs;
     this.#maxRetries = options.maxRetries;
     this.#retryBaseDelayMs = options.retryBaseDelayMs ?? 500;
-    this.#fetch = options.fetchImpl ?? fetch;
+    this.#http = options.http ?? outboundHttp;
     this.#sleep = options.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
@@ -117,15 +121,15 @@ export class WhisperTranscriptionProvider implements TranscriptionProvider {
       form.append("response_format", "verbose_json");
       if (input.languageHint) form.append("language", input.languageHint);
 
-      const controller = new AbortController();
-      const timeoutHandle = setTimeout(() => controller.abort(), this.#timeoutMs);
-
       try {
-        const response = await this.#fetch(url, {
+        const { response } = await this.#http.request({
+          profile: OUTBOUND_HTTP_PROFILES.configuredProvider([this.#baseUrl]),
+          operation: "transcription.whisper.transcribe",
+          url,
           method: "POST",
           headers: { Authorization: `Bearer ${this.#apiKey}` },
           body: form,
-          signal: controller.signal,
+          limits: { timeoutMs: this.#timeoutMs },
         });
 
         if (response.ok) {
@@ -158,10 +162,8 @@ export class WhisperTranscriptionProvider implements TranscriptionProvider {
       } catch (err) {
         if (err instanceof WhisperTranscriptionError) throw err;
         const wrapped = wrapNetworkError(err);
-        if (attempt === this.#maxRetries) throw wrapped;
+        if (!isRetryableTransportError(err) || attempt === this.#maxRetries) throw wrapped;
         lastError = wrapped;
-      } finally {
-        clearTimeout(timeoutHandle);
       }
 
       await this.#sleep(this.#retryBaseDelayMs * 2 ** attempt);
@@ -186,9 +188,16 @@ function toAudioBlob(audio: Uint8Array, mimeType: string): Blob {
 }
 
 function wrapNetworkError(err: unknown): WhisperTranscriptionError {
-  if (err instanceof Error && err.name === "AbortError") {
+  if (
+    (err instanceof OutboundHttpError && err.failure.code === "timeout") ||
+    (err instanceof Error && err.name === "AbortError")
+  ) {
     return new WhisperTranscriptionError("Whisper request timed out");
   }
   const message = err instanceof Error ? err.message : String(err);
   return new WhisperTranscriptionError(`Whisper request failed: ${message}`);
+}
+
+function isRetryableTransportError(err: unknown): boolean {
+  return err instanceof OutboundHttpError ? err.failure.retry.eligible : true;
 }

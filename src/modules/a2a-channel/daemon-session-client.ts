@@ -45,7 +45,7 @@ type SessionWireEntry = {
   busy?: boolean;
   autonomyMode?: AutonomyMode;
   source?: "daemon" | "serve";
-  projectId?: string;
+  scopeId?: string;
   conversationId?: string;
 };
 
@@ -55,7 +55,7 @@ type SessionListWireBody = {
 
 type CreateSessionWireBody = {
   session_id?: string;
-  project_id?: string;
+  scope_id?: string;
 };
 
 type SseEvent = {
@@ -65,7 +65,7 @@ type SseEvent = {
 
 type CreatedSession = {
   sessionId: string;
-  projectId: string | null;
+  scopeId: string | null;
 };
 
 export class DaemonA2ABackend implements A2ABackend {
@@ -84,13 +84,13 @@ export class DaemonA2ABackend implements A2ABackend {
     let taskId: string;
     let contextId: string;
     if (input.taskId === null) {
-      const created = await this.createSession(input.projectId);
+      const created = await this.createSession(input.scopeId);
       taskId = created.sessionId;
-      contextId = input.contextId ?? input.projectId ?? created.projectId ?? taskId;
+      contextId = input.contextId ?? input.scopeId ?? created.scopeId ?? taskId;
     } else {
       const session = await this.findSession({
         taskId: input.taskId,
-        projectId: input.projectId,
+        scopeId: input.scopeId,
         contextId: input.contextId,
       });
       if (!session) throw taskNotFound(input.taskId);
@@ -135,10 +135,10 @@ export class DaemonA2ABackend implements A2ABackend {
   }
 
   async listTasks(filter: TaskListFilter): Promise<A2ATask[]> {
-    const sessions = await this.listSessions(filter.projectId);
+    const sessions = await this.listSessions(filter.scopeId);
     return sessions
       .filter((session) => session.source === "daemon")
-      .filter((session) => sessionMatchesScope(session, filter.projectId, filter.contextId))
+      .filter((session) => sessionMatchesScope(session, filter.scopeId, filter.contextId))
       .map((session) => sessionToTask(session, this.now));
   }
 
@@ -210,8 +210,8 @@ export class DaemonA2ABackend implements A2ABackend {
     return finalTask;
   }
 
-  private async createSession(projectId: string | null): Promise<CreatedSession> {
-    const query = projectId ? `?${new URLSearchParams({ projectId }).toString()}` : "";
+  private async createSession(scopeId: string | null): Promise<CreatedSession> {
+    const query = scopeId ? `?${new URLSearchParams({ scopeId }).toString()}` : "";
     const res = await this.transport.fetchRaw(`/sessions${query}`, {
       method: "POST",
       headers: this.transport.authHeaders(),
@@ -224,7 +224,7 @@ export class DaemonA2ABackend implements A2ABackend {
     }
     return {
       sessionId: body.session_id,
-      projectId: typeof body.project_id === "string" && body.project_id.length > 0 ? body.project_id : null,
+      scopeId: typeof body.scope_id === "string" && body.scope_id.length > 0 ? body.scope_id : null,
     };
   }
 
@@ -343,8 +343,8 @@ export class DaemonA2ABackend implements A2ABackend {
     return accumulated;
   }
 
-  private async listSessions(projectId: string | null): Promise<SessionWireEntry[]> {
-    const query = projectId ? `?${new URLSearchParams({ projectId }).toString()}` : "";
+  private async listSessions(scopeId: string | null): Promise<SessionWireEntry[]> {
+    const query = scopeId ? `?${new URLSearchParams({ scopeId }).toString()}` : "";
     const res = await this.transport.fetchRaw(`/sessions${query}`, {
       method: "GET",
       headers: this.transport.authHeaders(),
@@ -359,11 +359,11 @@ export class DaemonA2ABackend implements A2ABackend {
   }
 
   private async findSession(selector: TaskSelector): Promise<SessionWireEntry | null> {
-    const sessions = await this.listSessions(selector.projectId);
+    const sessions = await this.listSessions(selector.scopeId);
     return sessions.find((session) =>
       session.id === selector.taskId &&
       session.source === "daemon" &&
-      sessionMatchesScope(session, selector.projectId, selector.contextId)
+      sessionMatchesScope(session, selector.scopeId, selector.contextId)
     ) ?? null;
   }
 }
@@ -407,7 +407,7 @@ function sessionToTask(session: SessionWireEntry, now: () => string): A2ATask {
       createdAt: session.createdAt ?? "",
       lastActive: typeof session.lastActive === "number" ? session.lastActive : 0,
       autonomyMode: requiredSessionAutonomyMode(session.autonomyMode),
-      ...(session.projectId ? { projectId: session.projectId } : {}),
+      ...(session.scopeId ? { scopeId: session.scopeId } : {}),
       ...(session.conversationId ? { conversationId: session.conversationId } : {}),
     },
     now,
@@ -416,16 +416,16 @@ function sessionToTask(session: SessionWireEntry, now: () => string): A2ATask {
 
 function sessionMatchesScope(
   session: SessionWireEntry,
-  projectId: string | null,
+  scopeId: string | null,
   contextId: string | null,
 ): boolean {
-  if (projectId !== null && session.projectId !== projectId) return false;
+  if (scopeId !== null && session.scopeId !== scopeId) return false;
   if (contextId !== null && sessionContextId(session) !== contextId) return false;
   return true;
 }
 
 function sessionContextId(session: SessionWireEntry): string {
-  return session.projectId ?? requiredSessionString(session.id, "id");
+  return session.scopeId ?? requiredSessionString(session.id, "id");
 }
 
 function makeMessage(

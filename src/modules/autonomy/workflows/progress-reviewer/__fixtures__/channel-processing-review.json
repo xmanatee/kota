@@ -23,7 +23,7 @@
           "priority": "p2",
           "area": "channel",
           "evidenceIds": ["event:1"],
-          "acceptanceEvidence": "Progress-review workflow test or fixture artifact showing the inbound channel batch and resulting review action."
+          "howWeWillKnow": "The inbound channel batch produces the expected review action in the real progress-review workflow."
         }
       ]
     }

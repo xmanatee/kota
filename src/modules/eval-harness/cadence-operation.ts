@@ -58,7 +58,7 @@ export type EvalHarnessRegressionPayload = {
 };
 
 export type EvalHarnessCadenceOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runDirPath: string;
   isolationBackend: Extract<SubprocessIsolationBackend, { kind: "container" }>;
   priorBaseline: PersistedBaseline | null;
@@ -166,7 +166,7 @@ export async function runEvalHarnessCadenceInWorker(
 
   try {
     const report = await runEvalSet({
-      projectDir: input.projectDir,
+      workspaceRoot: input.workspaceRoot,
       fixtures,
       executor,
       requestedProfile,

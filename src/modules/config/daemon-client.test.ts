@@ -40,8 +40,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import configModule from "./index.js";
 
@@ -298,28 +296,6 @@ describe("config module daemonClient(link) — config namespace", () => {
     const failingContributed = configModule.daemonClient!(failingTransport);
     await expect(failingContributed.config!.schemaContent()).rejects.toThrow(
       /Daemon unreachable/,
-    );
-  });
-
-  it("supplying the config contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport({});
-    const contributed = configModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.config;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
-  });
-
-  it("the assembly path fails loudly when the config contribution is removed", () => {
-    const { transport } = makeRecordingTransport({});
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.config;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /config/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
     );
   });
 });

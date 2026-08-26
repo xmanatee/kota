@@ -8,7 +8,7 @@
  * through every API surface — keeps the integration with the existing
  * ModuleLoader/ModuleContext shape minimal.
  */
-import type { KotaClient } from "./kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
 let activeClient: KotaClient | null = null;
 

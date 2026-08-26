@@ -11,9 +11,9 @@ back to the underlying typed `RecallHit`s.
 - One daemon-control route (`POST /answer`) plus its user-facing twin
   (`POST /api/answer`) — both share `createAnswerRouteHandler` so the
   wire shape cannot drift.
-- The answer route resolves a concrete project id before synthesis. The
-  provider persists through the project-scoped answer-history store and
-  forwards the same project id through recall.
+- The answer route resolves a concrete scope id before synthesis. The
+  provider persists through the scope-scoped answer-history store and
+  forwards the same scope id through recall.
 - One `KotaClient.answer` namespace and one `kota answer <query>` CLI
   subcommand rendered through `src/modules/rendering`.
 - One agent-callable tool (`answer`) through `KotaModule.tools`; it uses
@@ -67,7 +67,7 @@ never silent fan-out beyond that.
 ## Persisted answer history
 
 Every `AnswerProvider.answer(query, filter?)` call appends one typed
-record to `<projectStateRoot>/answer-history/<id>.json` through the
+record to `<scopeStateRoot>/answer-history/<id>.json` through the
 module-owned `AnswerHistoryStore`. The store is the single record-
 keeping path for cited-answer envelopes, the corpus seam the
 eval-harness pulls real-failure provenance from, and the data source
@@ -88,6 +88,10 @@ Contracts:
   warn channel and the answer envelope is still returned as computed.
 - Retention is module-internal: the store best-effort prunes oldest
   entries past `ANSWER_HISTORY_DEFAULT_CAP` on append. No operator knob.
+- Each file has a module-owned version envelope. Reads use the generated
+  answer-history response decoder, migrate legacy unwrapped records, and fail
+  explicitly on malformed or future-version records. Append and migration use
+  atomic replacement; only an absent file means no answer.
 
 ## Recall contribution
 
@@ -97,7 +101,7 @@ The answer module owns its recall adapter end-to-end.
 from its own `onLoad` against the live `RecallProvider` (looked up
 through `ctx.getProvider(RECALL_PROVIDER_TOKEN)` — the same typed
 registry seam every other cross-module provider access uses) and
-`onUnload` calls `recallProvider.unregister("answer")`. The recall
+the returned activation disposer calls `recallProvider.unregister("answer")`. The recall
 module does not import answer code; registration flows one-way
 through the public `RecallProvider` API.
 
@@ -115,15 +119,15 @@ contract.
 - No public prompt-template knob. The synthesis prompt is internal and
   co-located in `synthesis-prompt.ts`. Tuning lands as a focused
   follow-up, not as a per-call parameter.
-- No cost surfacing into autonomy. The module uses the project's
+- No cost surfacing into autonomy. The module uses the scope's
   configured model client; cost dashboards stay where they already
   live. The history store records what the typed envelope already
   contains; it does not surface per-call token usage or cost.
 - No second persistence path. The store is the only on-disk record of
   cited-answer envelopes — no parallel logging, no second envelope
   shape elsewhere.
-- Project-scoped reads and writes use `AnswerProjectContext`; the default
-  history store is only the fallback for the default project.
+- Scope-scoped reads and writes use `AnswerScopeContext`; the default
+  history store is only the fallback for the default scope.
 - No fan-out from this module. Surface adoption ships as honest
   single-task follow-ups owned by the surface module, not a parallel
   multi-surface chain seeded here.

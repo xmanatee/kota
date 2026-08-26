@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import {
-  warnIgnoredUntrustedProjectConfig,
+  warnIgnoredUntrustedScopeConfig,
   warnInvalidConcurrencyConfig,
   warnUnknownConfigKeys,
 } from "#core/config/config-warnings.js";
@@ -59,9 +59,9 @@ export async function runDaemonStartup(
   validateDaemonWorkflowRuntimes(ctx);
 
   ctx.log("Daemon starting...");
-  warnIgnoredUntrustedProjectConfig(ctx.projectDir, ctx.log);
-  warnUnknownConfigKeys(ctx.projectDir, ctx.log, ctx.config.moduleConfigKeys);
-  warnInvalidConcurrencyConfig(ctx.projectDir, ctx.log);
+  warnIgnoredUntrustedScopeConfig(ctx.scopeRoot, ctx.log);
+  warnUnknownConfigKeys(ctx.scopeRoot, ctx.log, ctx.config.moduleConfigKeys);
+  warnInvalidConcurrencyConfig(ctx.scopeRoot, ctx.log);
 
   const controlPort = await ctx.controlServer.start();
   writeControlFile(ctx.stateRoot, {
@@ -78,8 +78,8 @@ export async function runDaemonStartup(
   ctx.sessionSweepTimer = setInterval(() => {
     const expiredSessions = sweepExpiredSessions(ctx.sessions, Date.now(), idleTtlMs);
     for (const session of expiredSessions) {
-      ctx.projectRuntimes
-        .get(session.projectId)
+      ctx.scopeRuntimes
+        .get(session.scopeId)
         .pbus.emit("session.unregistered", { id: session.id });
     }
   }, sweepMs);
@@ -102,7 +102,7 @@ export async function runDaemonStartup(
   const pollMs = ctx.config.pollIntervalMs ?? DEFAULT_POLL_INTERVAL;
   ctx.unsubscribe = subscribeDaemon({
     bus: ctx.bus,
-    approvalQueues: () => ctx.projectRuntimes
+    approvalQueues: () => ctx.scopeRuntimes
       .list()
       .map((runtime) => runtime.approvalQueue),
     pollIntervalMs: pollMs,
@@ -114,7 +114,7 @@ export async function runDaemonStartup(
   });
 
   const quietHours = ctx.config.config?.notifications?.quietHours;
-  if (quietHours && ctx.projectRuntimes.getDefault().notificationGate) {
+  if (quietHours && ctx.scopeRuntimes.getDefault().notificationGate) {
     ctx.log(`Notification gate active: quiet hours ${quietHours.start}–${quietHours.end}`);
   }
 
@@ -127,19 +127,19 @@ export async function runDaemonStartup(
   const operator = process.env.KOTA_OPERATOR;
   const channelCtx = {
     moduleLoader: ctx.config.runtimeModuleHost?.moduleLoader,
-    getDefaultProjectRuntime: () =>
-      ctx.scopeLifecycle.getChannelRuntime(ctx.projectRuntimes.getDefaultProjectId()),
-    getProjectRuntime: (projectId: string) =>
-      ctx.scopeLifecycle.getChannelRuntime(projectId),
+    getDefaultScopeRuntime: () =>
+      ctx.scopeLifecycle.getChannelRuntime(ctx.scopeRuntimes.getDefaultScopeId()),
+    getScopeRuntime: (scopeId: string) =>
+      ctx.scopeLifecycle.getChannelRuntime(scopeId),
     log: ctx.log,
     getWorkflowStatus: () => {
       const runtime = ctx.scopeLifecycle.getChannelRuntime(
-        ctx.projectRuntimes.getDefaultProjectId(),
+        ctx.scopeRuntimes.getDefaultScopeId(),
       );
       return {
         runtimeState: runtime.workflowRuntime.getState(),
         dispatchPaused: runtime.workflowRuntime.isDispatchPaused(),
-        runsDir: join(runtime.project.projectDir, ".kota", "runs"),
+        runsDir: join(runtime.scope.scopeRoot, ".kota", "runs"),
       };
     },
     operator,

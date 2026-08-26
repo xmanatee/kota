@@ -20,7 +20,7 @@ export function createHistoryReadinessSource(
           message: "Keyword/listing search over conversation history.",
         },
       ];
-      if (provider.supportsSemanticSearch()) {
+      if (provider.semanticSearchCapability) {
         reports.push({
           id: "history.semantic_search",
           moduleName: MODULE_NAME,

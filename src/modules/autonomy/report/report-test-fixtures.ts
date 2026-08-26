@@ -115,11 +115,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     records: [],
     unsupported: [],
   },
-  reviewScrutinyEscalation: {
-    activePatterns: [],
-    cooldownPatterns: [],
-    belowThresholdPatterns: [],
-  },
   shadowSemanticReviews: {
     totalArtifacts: 0,
     reviewed: 0,
@@ -144,11 +139,6 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     totalRecords: 0,
     records: [],
     groups: [],
-  },
-  autonomyChangeDecisions: {
-    totalDecisions: 0,
-    invalidArtifacts: [],
-    decisions: [],
   },
   ownerInterventions: {
     totalQuestions: 0,

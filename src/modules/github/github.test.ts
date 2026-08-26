@@ -6,12 +6,17 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import githubModule from "./index.js";
+import type { OutboundHttpRequest } from "#core/outbound-http/index.js";
+import {
+  type OutboundHttpRequestHandler,
+  outboundHttpRequestPort,
+} from "#core/outbound-http/testing/request-port.js";
+import { createGithubModule } from "./index.js";
 
 // ─── Mock fetch ───────────────────────────────────────────────────────────────
 
-const mockFetch = vi.fn<typeof fetch>();
-vi.stubGlobal("fetch", mockFetch);
+const mockFetch = vi.fn<OutboundHttpRequestHandler>();
+const githubModule = createGithubModule(outboundHttpRequestPort(mockFetch));
 
 // ─── Mock context ─────────────────────────────────────────────────────────────
 
@@ -41,11 +46,19 @@ function makeCtx(token = "ghp_test123", repo = "owner/testrepo"): ModuleContext 
 }
 
 function makeResponse(data: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
+  return new Response(JSON.stringify(data), {
     status,
-    json: async () => data,
-  } as Response;
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function expectRequest(
+  url: string,
+  expected: Partial<OutboundHttpRequest>,
+): void {
+  expect(mockFetch).toHaveBeenCalledWith(
+    expect.objectContaining({ url, ...expected }),
+  );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -110,7 +123,7 @@ describe("github module", () => {
         throw new Error("expected token setup requirement");
       }
       expect(tokenRequirement.secretRefs).toEqual([
-        { name: "GITHUB_TOKEN", scope: "project" },
+        { name: "GITHUB_TOKEN", scope: "scope" },
       ]);
     });
 
@@ -170,13 +183,10 @@ describe("github module", () => {
       expect(result.content).toContain("#42");
       expect(result.content).toContain("https://github.com/owner/testrepo/pull/42");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/pulls",
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({ Authorization: "Bearer ghp_test123" }),
-        }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/pulls", {
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer ghp_test123" }),
+      });
     });
 
     it("returns error on API failure", async () => {
@@ -257,10 +267,9 @@ describe("github module", () => {
       expect(result.content).toContain("999");
       expect(result.content).toContain("https://github.com/owner/testrepo");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/issues/5/comments",
-        expect.objectContaining({ method: "POST" }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/issues/5/comments", {
+        method: "POST",
+      });
     });
   });
 
@@ -293,7 +302,7 @@ describe("github module", () => {
       const tool = getTool(ctx, "github_list_issues");
       await tool.runner({ labels: "bug,p1" });
 
-      const url = mockFetch.mock.calls[0][0] as string;
+      const url = String(mockFetch.mock.calls[0][0].url);
       expect(url).toContain("labels=bug%2Cp1");
     });
   });
@@ -312,10 +321,9 @@ describe("github module", () => {
       expect(result.content).toContain("deadbeef");
       expect(result.content).toContain("#42");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/pulls/42/merge",
-        expect.objectContaining({ method: "PUT" }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/pulls/42/merge", {
+        method: "PUT",
+      });
     });
   });
 
@@ -365,7 +373,7 @@ describe("github module", () => {
       const tool = getTool(ctx, "github_list_prs");
       await tool.runner({ head: "feature/my-branch" });
 
-      const url = mockFetch.mock.calls[0][0] as string;
+      const url = String(mockFetch.mock.calls[0][0].url);
       expect(url).toContain("head=feature%2Fmy-branch");
     });
 
@@ -400,13 +408,10 @@ describe("github module", () => {
       expect(result.content).toContain("closed");
       expect(result.content).toContain("https://github.com/owner/testrepo/pull/15");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/pulls/15",
-        expect.objectContaining({
-          method: "PATCH",
-          body: JSON.stringify({ state: "closed" }),
-        }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/pulls/15", {
+        method: "PATCH",
+        body: JSON.stringify({ state: "closed" }),
+      });
     });
 
     it("returns error on not-found PR", async () => {
@@ -445,10 +450,9 @@ describe("github module", () => {
       expect(result.content).toContain("Bug: something broken");
       expect(result.content).toContain("https://github.com/owner/testrepo/issues/42");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/issues",
-        expect.objectContaining({ method: "POST" }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/issues", {
+        method: "POST",
+      });
     });
 
     it("returns error on API failure", async () => {
@@ -482,10 +486,9 @@ describe("github module", () => {
       expect(result.content).toContain("#7");
       expect(result.content).toContain("closed");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/issues/7",
-        expect.objectContaining({ method: "PATCH" }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/issues/7", {
+        method: "PATCH",
+      });
     });
 
     it("returns error on API failure", async () => {
@@ -515,10 +518,9 @@ describe("github module", () => {
       expect(result.content).toContain("bug");
       expect(result.content).toContain("p1");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/issues/5/labels",
-        expect.objectContaining({ method: "POST" }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/issues/5/labels", {
+        method: "POST",
+      });
     });
 
     it("returns error on API failure", async () => {
@@ -545,10 +547,9 @@ describe("github module", () => {
       expect(result.content).toContain("bug");
       expect(result.content).toContain("#5");
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/owner/testrepo/issues/5/labels/bug",
-        expect.objectContaining({ method: "DELETE" }),
-      );
+      expectRequest("https://api.github.com/repos/owner/testrepo/issues/5/labels/bug", {
+        method: "DELETE",
+      });
     });
 
     it("returns error on API failure", async () => {

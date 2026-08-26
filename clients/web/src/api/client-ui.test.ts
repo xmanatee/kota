@@ -14,28 +14,32 @@ describe("shared UI API client", () => {
   });
 
   it("strictly loads the selected scope's shared UI bundle", async () => {
-    const fixture = await import("../../../conformance/contract-fixture.json");
+    const fixture = await import(
+      "../../../conformance/ui-behavior-vectors.generated.json"
+    );
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(fixture.default.uiSurfaces.statusInbox),
+      json: () => Promise.resolve(fixture.default.operatorBundle),
     });
 
     const { api } = await import("./client");
-    const result = await api.getUiSurfaces("project one");
+    const result = await api.getUiSurfaces("scope one");
 
     expect(result.protocolVersion).toBe("ui.surface.v1");
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/ui/surfaces?projectId=project%20one",
+      "/ui/surfaces?scopeId=scope%20one",
       expect.any(Object),
     );
   });
 
   it("executes the graph-bound action with its canonical scope", async () => {
-    const fixture = await import("../../../conformance/contract-fixture.json");
+    const fixture = await import(
+      "../../../conformance/ui-behavior-vectors.generated.json"
+    );
     const { parseUiSurfaceBundle } = await import(
       "../../../conformance/ui-surface.generated"
     );
-    const bundle = parseUiSurfaceBundle(fixture.default.uiSurfaces.statusInbox);
+    const bundle = parseUiSurfaceBundle(fixture.default.operatorBundle);
     const action = bundle.surfaces
       .find((surface) => surface.surfaceId === "operator-control")
       ?.actions.find((candidate) => candidate.actionId === "workflow.launch");

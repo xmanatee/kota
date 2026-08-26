@@ -25,34 +25,34 @@ import { createTestTransactionalRunState } from "./testing/run-context-fixture.j
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = projectDir,
+  workspaceDir = workspaceRoot,
 ): RunContext {
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger,
     sandbox: {
       runId,
       repository: "none",
-      rootDir: projectDir,
+      rootDir: workspaceRoot,
       workspaceDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
     },
     resources: {
       runId,
       attempt: 1,
       daemonEpoch: 1,
       workspaceDir,
-      runDir: projectDir,
-      tempDir: projectDir,
-      artifactDir: projectDir,
-      agentDir: projectDir,
-      packageCacheDir: projectDir,
+      runDir: workspaceRoot,
+      tempDir: workspaceRoot,
+      artifactDir: workspaceRoot,
+      agentDir: workspaceRoot,
+      packageCacheDir: workspaceRoot,
       ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
       env: {},
     },
@@ -78,24 +78,24 @@ const AGENT_OK_RESULT: AgentHarnessResult = {
 };
 
 describe("control monitor coverage event journal", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-control-coverage-journal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
   });
 
   afterEach(() => {
     clearAgentHarnessRegistryForTest();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("uses the normal run event journal for guardrail and injection evidence", async () => {
     const bus = new EventBus();
-    const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
+    const eventJournal = new EventJournal(join(workspaceRoot, ".kota", "events"));
     const uninstallJournal = installEventJournal(bus, eventJournal);
     const sessionId = "session-coverage";
     const harness: AgentHarness = {
@@ -130,7 +130,7 @@ describe("control monitor coverage event journal", () => {
           session: sessionId,
         });
         bus.emit("approval.requested", {
-          projectId: "coverage-journal-project",
+          scopeId: "coverage-journal-scope",
           id: "approval-1",
           tool: "shell",
           risk: "write",
@@ -139,7 +139,7 @@ describe("control monitor coverage event journal", () => {
           sessionId,
         });
         bus.emit("approval.resolved", {
-          projectId: "coverage-journal-project",
+          scopeId: "coverage-journal-scope",
           id: "approval-1",
           tool: "shell",
           approved: true,
@@ -158,13 +158,13 @@ describe("control monitor coverage event journal", () => {
       },
     };
     registerAgentHarness(harness);
-    writeFileSync(join(projectDir, "prompt.md"), "Run.\n", "utf-8");
+    writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n", "utf-8");
     const definition: WorkflowDefinition = {
       name: "coverage-journal",
       enabled: true,
       repository: "none",
       definitionPath: "src/modules/test/workflows/coverage-journal/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: [],
       steps: [
@@ -173,7 +173,7 @@ describe("control monitor coverage event journal", () => {
           type: "agent",
           harness: harness.name,
           promptPath: "prompt.md",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           model: "test-model",
           effort: "low",
           autonomyMode: "autonomous",
@@ -192,17 +192,17 @@ describe("control monitor coverage event journal", () => {
         trigger,
         {
           readRuntimeState: readEmptyTestWorkflowRuntimeState,
-          runContext: makeRunContext(projectDir, trigger, "journal-run"),
+          runContext: makeRunContext(workspaceRoot, trigger, "journal-run"),
           bus,
           eventJournal,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           log: vi.fn(),
         },
       );
       const result = await promise;
       const artifact =
         readOptionalJsonFile<ControlMonitorCoverageArtifact>(
-          join(projectDir, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+          join(workspaceRoot, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
         );
 
       expect(artifact).toMatchObject({
@@ -233,7 +233,7 @@ describe("control monitor coverage event journal", () => {
 
   it("threads dynamic external MCP provenance through agent-step telemetry", async () => {
     const bus = new EventBus();
-    const eventJournal = new EventJournal(join(projectDir, ".kota", "events"));
+    const eventJournal = new EventJournal(join(workspaceRoot, ".kota", "events"));
     const uninstallJournal = installEventJournal(bus, eventJournal);
     const sessionId = "session-mcp-coverage";
     const provenance = {
@@ -277,13 +277,13 @@ describe("control monitor coverage event journal", () => {
       },
     };
     registerAgentHarness(harness);
-    writeFileSync(join(projectDir, "prompt.md"), "Run.\n", "utf-8");
+    writeFileSync(join(workspaceRoot, "prompt.md"), "Run.\n", "utf-8");
     const definition: WorkflowDefinition = {
       name: "coverage-mcp",
       enabled: true,
       repository: "none",
       definitionPath: "src/modules/test/workflows/coverage-mcp/workflow.ts",
-      moduleRoot: projectDir,
+      moduleRoot: workspaceRoot,
       triggers: [],
       tags: [],
       steps: [
@@ -292,7 +292,7 @@ describe("control monitor coverage event journal", () => {
           type: "agent",
           harness: harness.name,
           promptPath: "prompt.md",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           model: "test-model",
           effort: "low",
           autonomyMode: "autonomous",
@@ -311,10 +311,10 @@ describe("control monitor coverage event journal", () => {
         trigger,
         {
           readRuntimeState: readEmptyTestWorkflowRuntimeState,
-          runContext: makeRunContext(projectDir, trigger, "mcp-run"),
+          runContext: makeRunContext(workspaceRoot, trigger, "mcp-run"),
           bus,
           eventJournal,
-          store: new WorkflowRunStore(projectDir),
+          store: new WorkflowRunStore(workspaceRoot),
           log: vi.fn(),
         },
       );
@@ -325,11 +325,11 @@ describe("control monitor coverage event journal", () => {
           resultContentProvenance?: typeof provenance;
         }>;
       }>(
-        join(projectDir, result.metadata.runDir, "steps", "build.tool-telemetry.json"),
+        join(workspaceRoot, result.metadata.runDir, "steps", "build.tool-telemetry.json"),
       );
       const artifact =
         readOptionalJsonFile<ControlMonitorCoverageArtifact>(
-          join(projectDir, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+          join(workspaceRoot, result.metadata.runDir, CONTROL_MONITOR_COVERAGE_ARTIFACT),
         );
 
       expect(telemetry?.calls?.[0]).toMatchObject({

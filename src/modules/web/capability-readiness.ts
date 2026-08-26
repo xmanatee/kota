@@ -8,12 +8,12 @@ import type {
 const MODULE_NAME = "web";
 
 export function createWebReadinessSource(opts: {
-  projectDir: string;
+  scopeRoot: string;
 }): CapabilityReadinessSource {
   return {
     moduleName: MODULE_NAME,
     probe(): CapabilityReadiness[] {
-      const distDir = resolve(opts.projectDir, "clients/web/dist");
+      const distDir = resolve(opts.scopeRoot, "clients/web/dist");
       const indexExists = existsSync(join(distDir, "index.html"));
       if (!indexExists) {
         return [

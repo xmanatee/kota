@@ -63,10 +63,10 @@ describe("api client", () => {
     });
 
     const { api } = await import("./client");
-    await api.pauseWorkflow("project-a");
+    await api.pauseWorkflow("scope-a");
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "/api/workflow/pause?projectId=project-a",
+      "/api/workflow/pause?scopeId=scope-a",
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
@@ -137,7 +137,7 @@ describe("api client", () => {
     });
   });
 
-  it("binds every approval request to the selected project", async () => {
+  it("binds every approval request to the selected scope", async () => {
     Object.defineProperty(window, "location", {
       value: { search: "", pathname: "/", hash: "" },
       writable: true,
@@ -149,34 +149,26 @@ describe("api client", () => {
 
     const { api } = await import("./client");
     const digest = "a".repeat(64);
-    await api.listApprovals("project one");
-    await api.approveApproval("project one", "approval/one", digest);
-    await api.rejectApproval("project one", "approval/two", "unsafe");
-    await api.approveAll("project one", [{ id: "approval-three", digest }]);
-    await api.rejectAll("project one", "cancel batch");
+    await api.listApprovals("scope one");
+    await api.approveApproval("scope one", "approval/one", digest);
+    await api.rejectApproval("scope one", "approval/two", "unsafe");
+    await api.approveAll("scope one", [{ id: "approval-three", digest }]);
+    await api.rejectAll("scope one", "cancel batch");
 
     expect(
       (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.map(
         ([path]) => path,
       ),
     ).toEqual([
-      "/api/approvals?projectId=project%20one",
-      "/api/approvals/approval%2Fone/approve?projectId=project%20one",
-      "/api/approvals/approval%2Ftwo/reject?projectId=project%20one",
-      "/api/approvals/approve-all?projectId=project%20one",
-      "/api/approvals/reject-all?projectId=project%20one",
+      "/api/approvals?scopeId=scope%20one",
+      "/api/approvals/approval%2Fone/approve?scopeId=scope%20one",
+      "/api/approvals/approval%2Ftwo/reject?scopeId=scope%20one",
+      "/api/approvals/approve-all?scopeId=scope%20one",
+      "/api/approvals/reject-all?scopeId=scope%20one",
     ]);
   });
 
   describe("thin-client contract", () => {
-    /**
-     * Decode the shared `clients/conformance/contract-fixture.json` through
-     * the daemon-style API surface. The fixture is the same blob the
-     * macOS Swift suite consumes — if the contract drifts here, the
-     * Vitest, Swift suite, and the TypeScript core conformance test all
-     * fail together rather than silently allowing different decoders to
-     * disagree.
-     */
     beforeEach(() => {
       Object.defineProperty(window, "location", {
         value: { search: "", pathname: "/", hash: "" },
@@ -184,11 +176,19 @@ describe("api client", () => {
       });
     });
 
-    it("getCapabilities decodes the shared fixture through GET /capabilities", async () => {
-      const fixture = await import(
-        "../../../conformance/contract-fixture.json"
-      );
-      const capabilities = fixture.default.capabilities;
+    it("getCapabilities requests and decodes readiness", async () => {
+      const capabilities = {
+        capabilities: [
+          { id: "dashboard", moduleName: "web", status: "ready" },
+          {
+            id: "knowledge.semantic_search",
+            moduleName: "knowledge",
+            status: "unavailable",
+            reason: "embedding_unsupported",
+          },
+        ],
+        summary: { ready: 1, unavailable: 1, init_failed: 0 },
+      };
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(capabilities),
@@ -201,7 +201,7 @@ describe("api client", () => {
         "/capabilities",
         expect.any(Object),
       );
-      expect(result.summary.ready).toBe(3);
+      expect(result.summary.ready).toBe(1);
       expect(
         result.capabilities.find((c) => c.id === "dashboard")?.status,
       ).toBe("ready");
@@ -212,10 +212,27 @@ describe("api client", () => {
     });
 
     it("getIdentity decodes the dashboard-available identity arm", async () => {
-      const fixture = await import(
-        "../../../conformance/contract-fixture.json"
-      );
-      const identity = fixture.default.identity;
+      const identity = {
+        scopeName: "kota",
+        scopeRoot: "/workspace/kota",
+        scopeRegistry: {
+          rootScopeId: "global",
+          defaultScopeId: "scope-kota",
+          scopes: [
+            { scopeId: "global", displayName: "Global" },
+            {
+              scopeId: "scope-kota",
+              displayName: "kota",
+              parentScopeId: "global",
+              directoryRoot: "/workspace/kota",
+            },
+          ],
+        },
+        daemonVersion: "0.1.0",
+        pid: 12345,
+        startedAt: "2026-04-29T01:00:00.000Z",
+        dashboard: { available: true, path: "/" },
+      };
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(identity),
@@ -228,7 +245,7 @@ describe("api client", () => {
         "/identity",
         expect.any(Object),
       );
-      expect(result.projectName).toBe("kota");
+      expect(result.scopeName).toBe("kota");
       if (!result.dashboard.available) {
         throw new Error("expected dashboard.available=true");
       }
@@ -236,10 +253,31 @@ describe("api client", () => {
     });
 
     it("getIdentity decodes the dashboard-unavailable identity arm with reason", async () => {
-      const fixture = await import(
-        "../../../conformance/contract-fixture.json"
-      );
-      const identity = fixture.default.identityWithoutDashboard;
+      const identity = {
+        scopeName: "kota",
+        scopeRoot: "/workspace/kota",
+        scopeRegistry: {
+          rootScopeId: "global",
+          defaultScopeId: "scope-kota",
+          scopes: [
+            { scopeId: "global", displayName: "Global" },
+            {
+              scopeId: "scope-kota",
+              displayName: "kota",
+              parentScopeId: "global",
+              directoryRoot: "/workspace/kota",
+            },
+          ],
+        },
+        daemonVersion: "0.1.0",
+        pid: 12345,
+        startedAt: "2026-04-29T01:00:00.000Z",
+        dashboard: {
+          available: false,
+          reason: "web_ui_not_built",
+          message: "Build the web client.",
+        },
+      };
       (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(identity),

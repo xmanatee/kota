@@ -4,7 +4,7 @@ import type { DaemonRuntimeContext } from "./daemon-init.js";
 export function listDaemonWorkflowRuntimes(
   ctx: DaemonRuntimeContext,
 ): readonly WorkflowRuntime[] {
-  return ctx.projectRuntimes.list().map((runtime) => runtime.workflowRuntime);
+  return ctx.scopeRuntimes.list().map((runtime) => runtime.workflowRuntime);
 }
 
 export function validateDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): void {
@@ -15,7 +15,7 @@ export function validateDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): void 
 
 export function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): Promise<void> {
   return ctx.scopeRuntimeHost.startInitial(
-    ctx.projectRuntimes,
+    ctx.scopeRuntimes,
     ctx.startupDispatchPaused ? "paused" : "active",
   );
 }
@@ -25,9 +25,9 @@ export async function stopDaemonWorkflowRuntimes(
   ...stopArgs: [number] | [number, number]
 ): Promise<void> {
   if (stopArgs.length === 1) {
-    await ctx.scopeRuntimeHost.stopAll(ctx.projectRuntimes, stopArgs[0]);
+    await ctx.scopeRuntimeHost.stopAll(ctx.scopeRuntimes, stopArgs[0]);
   } else {
-    await ctx.scopeRuntimeHost.stopAll(ctx.projectRuntimes, stopArgs[0], stopArgs[1]);
+    await ctx.scopeRuntimeHost.stopAll(ctx.scopeRuntimes, stopArgs[0], stopArgs[1]);
   }
 }
 

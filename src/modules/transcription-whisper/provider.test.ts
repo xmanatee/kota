@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
   WhisperTranscriptionError,
   WhisperTranscriptionProvider,
@@ -19,7 +20,24 @@ function sampleAudio(): Uint8Array {
   return new Uint8Array([0x1, 0x2, 0x3, 0x4]);
 }
 
-function baseOptions(overrides: Partial<ConstructorParameters<typeof WhisperTranscriptionProvider>[0]> = {}) {
+type TestOptions = Partial<ConstructorParameters<typeof WhisperTranscriptionProvider>[0]> & {
+  fetchImpl?: typeof fetch;
+};
+
+function requestPort(fetchImpl: typeof fetch) {
+  return outboundHttpRequestPort((request) => fetchImpl(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  }));
+}
+
+function baseOptions(overrides: TestOptions = {}) {
+  const {
+    fetchImpl = vi.fn().mockResolvedValue(okJson({ text: "hi", language: "en" })),
+    ...options
+  } = overrides;
   return {
     apiKey: "sk-test",
     baseUrl: "https://api.example.com/v1",
@@ -28,8 +46,8 @@ function baseOptions(overrides: Partial<ConstructorParameters<typeof WhisperTran
     maxRetries: 0,
     retryBaseDelayMs: 1,
     sleep: () => Promise.resolve(),
-    fetchImpl: vi.fn().mockResolvedValue(okJson({ text: "hi", language: "en" })),
-    ...overrides,
+    http: requestPort(fetchImpl),
+    ...options,
   };
 }
 

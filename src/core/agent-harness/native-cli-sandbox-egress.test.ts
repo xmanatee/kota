@@ -59,8 +59,8 @@ describe("native CLI provider-egress sandbox seam", () => {
       if (address === null || typeof address === "string") {
         throw new Error("upstream test proxy did not bind to TCP");
       }
-      const projectDir = mkdtempSync(join(tmpdir(), "kota-native-upstream-"));
-      roots.push(projectDir);
+      const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-upstream-"));
+      roots.push(scopeRoot);
       const script = [
         'const { connect } = require("node:net")',
         `if (process.env.${NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV} !== undefined) process.exit(24)`,
@@ -77,7 +77,7 @@ describe("native CLI provider-egress sandbox seam", () => {
         process.execPath,
         ["-e", script],
         {
-          cwd: projectDir,
+          cwd: scopeRoot,
           machineAuthorityOwner: "native-cli",
           writableRoots: [],
           env: buildNativeCliEnvironment({
@@ -88,7 +88,7 @@ describe("native CLI provider-egress sandbox seam", () => {
           }),
           allowedEgressHosts: ["chatgpt.com"],
         },
-        (sandboxedProcess) => runNativeProcess(projectDir, sandboxedProcess),
+        (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
       );
 
       expect(status).toBe(0);

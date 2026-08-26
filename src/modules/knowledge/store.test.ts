@@ -99,16 +99,16 @@ describe("toSlug", () => {
 
 describe("KnowledgeStore", () => {
 	let tmpDir: string;
-	let projectDir: string;
+	let scopeRoot: string;
 	let globalDir: string;
 	let store: KnowledgeStore;
 
 	beforeEach(() => {
 		tmpDir = mkdtempSync(join(tmpdir(), "kb-test-"));
-		projectDir = join(tmpDir, "project");
+		scopeRoot = join(tmpDir, "project");
 		globalDir = join(tmpDir, "global");
-		mkdirSync(projectDir, { recursive: true });
-		store = new KnowledgeStore(projectDir, globalDir);
+		mkdirSync(scopeRoot, { recursive: true });
+		store = new KnowledgeStore(scopeRoot, globalDir);
 	});
 
 	afterEach(() => {
@@ -294,7 +294,7 @@ describe("KnowledgeStore", () => {
 		store.create({
 			title: "Project Entry",
 			content: "local",
-			scope: "project",
+			scope: "scope",
 		});
 		store.create({
 			title: "Global Entry",
@@ -306,7 +306,7 @@ describe("KnowledgeStore", () => {
 		expect(store.list().length).toBe(2);
 
 		// Scoped list
-		const projectOnly = store.list({ scope: "project" });
+		const projectOnly = store.list({ scope: "scope" });
 		expect(projectOnly.length).toBe(1);
 		expect(projectOnly[0].title).toBe("Project Entry");
 
@@ -316,7 +316,7 @@ describe("KnowledgeStore", () => {
 	});
 
 	it("reads files created externally (interop)", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 		const content = [
 			"---",
@@ -342,7 +342,7 @@ describe("KnowledgeStore", () => {
 	// --- ID collision / substring safety ---
 
 	it("does not confuse entries whose IDs are substrings of each other", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		const mkEntry = (id: string, title: string) =>
@@ -362,7 +362,7 @@ describe("KnowledgeStore", () => {
 	// --- since filter ---
 
 	it("lists entries filtered by since date", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		const mkEntry = (id: string, title: string, created: string) =>
@@ -377,7 +377,7 @@ describe("KnowledgeStore", () => {
 	});
 
 	it("search respects since filter", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		const mkEntry = (id: string, title: string, created: string) =>
@@ -423,7 +423,7 @@ describe("KnowledgeStore", () => {
 	// --- Scope "all" ---
 
 	it("lists entries with scope all", () => {
-		store.create({ title: "Project Item", content: "local", scope: "project" });
+		store.create({ title: "Project Item", content: "local", scope: "scope" });
 		store.create({ title: "Global Item", content: "global", scope: "global" });
 
 		const all = store.list({ scope: "all" });
@@ -435,7 +435,7 @@ describe("KnowledgeStore", () => {
 	// --- list() sort order ---
 
 	it("lists entries sorted newest first by updated date", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		const mkEntry = (id: string, title: string, updated: string) =>
@@ -490,7 +490,7 @@ describe("KnowledgeStore", () => {
 	// --- Corrupted / edge-case files ---
 
 	it("ignores files without valid frontmatter", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		writeFileSync(join(dir, "corrupted-zzz11111.md"), "No front matter at all", "utf-8");
@@ -502,7 +502,7 @@ describe("KnowledgeStore", () => {
 	});
 
 	it("ignores files without id attribute", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		writeFileSync(join(dir, "no-id-yyy11111.md"), "---\ntitle: No ID\ntype: note\n---\nbody", "utf-8");
@@ -514,7 +514,7 @@ describe("KnowledgeStore", () => {
 	});
 
 	it("ignores non-md files in data directory", () => {
-		const dir = join(projectDir, ".kota", "data");
+		const dir = join(scopeRoot, ".kota", "data");
 		mkdirSync(dir, { recursive: true });
 
 		writeFileSync(join(dir, "data.json"), '{"not":"markdown"}', "utf-8");
@@ -525,13 +525,13 @@ describe("KnowledgeStore", () => {
 		expect(entries.length).toBe(1);
 	});
 
-	// --- No project directory ---
+	// --- No scope directory ---
 
-	it("throws when accessing project scope without project dir", () => {
+	it("throws when accessing a directory scope without its root", () => {
 		const globalOnly = new KnowledgeStore(undefined, globalDir);
 		expect(() =>
-			globalOnly.create({ title: "Fail", content: "x", scope: "project" }),
-		).toThrow("No project directory configured");
+			globalOnly.create({ title: "Fail", content: "x", scope: "scope" }),
+		).toThrow("No scope directory configured");
 	});
 
 	// --- Updated timestamp changes on update ---

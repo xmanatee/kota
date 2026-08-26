@@ -16,14 +16,14 @@ import type {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function runEvalCalibration(
-  projectDir: string,
+  workspaceRoot: string,
   options: EvalCalibrationOptions = {},
 ): EvalCalibrationResult {
   const windowDays = options.windowDays ?? 7;
   const followUpDays = options.followUpDays ?? 3;
   const thresholdRate = options.thresholdRate ?? DEFAULT_CALIBRATION_THRESHOLD_RATE;
   const minSample = options.minSample ?? DEFAULT_CALIBRATION_MIN_SAMPLE;
-  const runsDir = options.runsDir ?? join(projectDir, ".kota", "runs");
+  const runsDir = options.runsDir ?? join(workspaceRoot, ".kota", "runs");
 
   const aggregate = aggregateCalibration(runsDir, {
     windowMs: windowDays * DAY_MS,

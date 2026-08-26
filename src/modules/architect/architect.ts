@@ -36,7 +36,7 @@ export async function runArchitectPass(opts: ArchitectOptions): Promise<string> 
   const { client, model, maxTokens, systemContext, messages, costTracker, verbose, thinking, transport } = opts;
   if (verbose && transport) transport.emit({ type: "status", message: "[kota] Architect pass — reasoning..." });
 
-  const systemText = `${ARCHITECT_SYSTEM}\n\nProject context:\n${systemContext}`;
+  const systemText = `${ARCHITECT_SYSTEM}\n\nScope context:\n${systemContext}`;
 
   for (let attempt = 0; attempt <= STREAM_MAX_RETRIES; attempt++) {
     try {

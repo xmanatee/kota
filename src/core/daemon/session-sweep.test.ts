@@ -5,8 +5,7 @@ import { sweepExpiredSessions } from "./session-sweep.js";
 function makeSession(id: string, lastActive: number): InteractiveSession {
   return {
     id,
-    scopeId: "default-project",
-    projectId: "default-project",
+    scopeId: "default-scope",
     createdAt: new Date(lastActive).toISOString(),
     lastActive,
     autonomyMode: "supervised",

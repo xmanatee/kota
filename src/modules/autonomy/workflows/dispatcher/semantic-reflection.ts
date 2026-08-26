@@ -76,13 +76,13 @@ function latestOwnerDecisionWatermark(stateDir: string): string | null {
 }
 
 export async function inspectProgressSemanticBoundary(args: {
-  projectDir: string;
-  scopeDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   progressBoundaryState: ProgressBoundaryState | null;
   runCommand: WorkflowCommandRunner;
 }): Promise<ProgressBoundaryInspection> {
-  const worktree = getRepoWorktreeStatus(args.scopeDir);
+  const worktree = getRepoWorktreeStatus(args.scopeRoot);
   if (!worktree.available || worktree.dirty) {
     return {
       shouldEmit: false,
@@ -91,9 +91,9 @@ export async function inspectProgressSemanticBoundary(args: {
       nextState: null,
     };
   }
-  const scopeId = deriveDirectoryScopeId(args.scopeDir);
-  const head = getRepoHeadSha(args.projectDir);
-  const queue = getRepoTaskQueueSnapshot(args.projectDir);
+  const scopeId = deriveDirectoryScopeId(args.scopeRoot);
+  const head = getRepoHeadSha(args.workspaceRoot);
+  const queue = getRepoTaskQueueSnapshot(args.workspaceRoot);
   const parked = queue.openCount > 0 && !queue.hasDispatchableWork;
   const ownerWatermark = latestOwnerDecisionWatermark(args.stateDir);
   const stored = args.progressBoundaryState;
@@ -117,7 +117,7 @@ export async function inspectProgressSemanticBoundary(args: {
 
   const changedPaths = await changedTaskPaths(
     args.runCommand,
-    args.projectDir,
+    args.workspaceRoot,
     previous.lastObservedHead,
     head,
   );
@@ -140,7 +140,7 @@ export async function inspectProgressSemanticBoundary(args: {
     (transition) => transition.fromState !== transition.toState,
   );
   const taskById = new Map(
-    listFullRepoTasks(args.projectDir).map((task) => [task.id, task]),
+    listFullRepoTasks(args.workspaceRoot).map((task) => [task.id, task]),
   );
   const dispositions = transitions.filter(
     (transition) =>

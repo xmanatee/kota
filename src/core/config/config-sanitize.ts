@@ -30,11 +30,11 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
   if (typeof raw.thinkingBudget === "number" && raw.thinkingBudget >= 1024) out.thinkingBudget = raw.thinkingBudget;
   if (typeof raw.verbose === "boolean") out.verbose = raw.verbose;
   if (typeof raw.skipConfirmations === "boolean") out.skipConfirmations = raw.skipConfirmations;
-  if (Array.isArray(raw.trustedProjects)) {
-    const trustedProjects = raw.trustedProjects.filter((p): p is string =>
+  if (Array.isArray(raw.trustedScopes)) {
+    const trustedScopes = raw.trustedScopes.filter((p): p is string =>
       typeof p === "string" && p.length > 0
     );
-    if (trustedProjects.length > 0) out.trustedProjects = trustedProjects;
+    if (trustedScopes.length > 0) out.trustedScopes = trustedScopes;
   }
   if (raw.scopePolicies !== undefined) {
     const decoded = decodeScopePolicyFragments(raw.scopePolicies);

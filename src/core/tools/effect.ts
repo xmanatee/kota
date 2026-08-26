@@ -24,7 +24,7 @@ export type ToolEffectKind = "read" | "write" | "destructive";
  * Surface the tool acts upon. Drives capability scope and exfiltration risk.
  *
  * - `session`          — in-memory session state (todo list, working memory).
- * - `local-fs`         — host filesystem under the project root.
+ * - `local-fs`         — host filesystem under the scope root.
  * - `daemon-state`     — persisted KOTA state (modules, queues, history,
  *                        approvals, scheduler).
  * - `process-env`      — environment inherited by later execution subprocesses.

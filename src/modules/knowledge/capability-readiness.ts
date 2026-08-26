@@ -20,7 +20,7 @@ export function createKnowledgeReadinessSource(
           message: "Keyword search over the knowledge store.",
         },
       ];
-      if (provider.supportsSemanticSearch()) {
+      if (provider.semanticSearchCapability) {
         reports.push({
           id: "knowledge.semantic_search",
           moduleName: MODULE_NAME,

@@ -64,7 +64,6 @@ export type SupervisionLoadWorkstreamGroup = {
   taskClass: RepoTaskClass;
   priority: ReportPriority;
   scopeId: string | null;
-  projectId: string | null;
   activeRuns: number;
 };
 
@@ -84,7 +83,6 @@ export type SupervisionLoadReference = {
   taskId: string | null;
   taskTitle: string | null;
   scopeId: string | null;
-  projectId: string | null;
 };
 
 export type SupervisionLoadReport = {
@@ -99,7 +97,7 @@ export type SupervisionLoadReport = {
 };
 
 export type BuildSupervisionLoadReportInput = {
-  projectDir: string;
+  workspaceRoot: string;
   runsDir: string;
   runs: readonly WorkflowRunMetadata[];
   tasks: readonly RepoTaskFullRecord[];
@@ -134,7 +132,6 @@ export type DeadLetterRecord = {
   type: string;
   workflows: string[];
   scopeId: string | null;
-  projectId: string | null;
   failedRunId: string | null;
 };
 

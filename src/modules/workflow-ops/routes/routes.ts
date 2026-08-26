@@ -67,7 +67,7 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
           ? new Set(ctx.listTools())
           : undefined;
         return handleWorkflowSimulation(req, res, {
-          projectDir: ctx?.cwd ?? process.cwd(),
+          scopeRoot: ctx?.cwd ?? process.cwd(),
           definitions,
           moduleManifests,
           ...(toolNames ? { availableToolNames: toolNames } : {}),

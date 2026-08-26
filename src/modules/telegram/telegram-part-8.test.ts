@@ -4,14 +4,19 @@ import {
   UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
-import type { ConfiguredProject } from "#core/daemon/scope-registry.js";
+import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import {
+  createKotaClientTestDouble,
+  type DeclaredKotaClientHandlers,
+} from "#core/server/daemon-client-test-support.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi, } from "./client.js";
 import telegramModule from "./index.js";
+import { unloadTelegramModule } from "./notification-subscriptions.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -67,22 +72,22 @@ async function flushAsyncNotifications(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-const TEST_PROJECT: ConfiguredProject = {
-  projectId: "test-project",
-  projectDir: "/tmp/test",
+const TEST_SCOPE: DirectoryScope = {
+  scopeId: "test-scope",
+  scopeRoot: "/tmp/test",
   displayName: "KOTA",
 };
 
 function makeStubClient(
-  overrides: Partial<KotaClient> = {},
+  overrides: DeclaredKotaClientHandlers = {},
 ): KotaClient {
-  const client = {
-    projects: {
+  return createKotaClientTestDouble({
+    scopes: {
       list: vi.fn(async () => ({
         ok: true as const,
-        defaultProjectId: TEST_PROJECT.projectId,
-        activeProjectId: null,
-        projects: [TEST_PROJECT],
+        defaultScopeId: TEST_SCOPE.scopeId,
+        activeScopeId: null,
+        scopes: [TEST_SCOPE],
       })),
       use: vi.fn(),
     },
@@ -91,10 +96,8 @@ function makeStubClient(
       answer: vi.fn(),
       dismiss: vi.fn(),
     },
-  } as Partial<KotaClient>;
-  client.forProject = vi.fn(() => client as KotaClient);
-  Object.assign(client, overrides);
-  return client as KotaClient;
+    ...overrides,
+  });
 }
 
 function makeStubCtx(
@@ -153,7 +156,7 @@ describe("telegramModule notifications via onLoad", () => {
   afterEach(async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
-    await telegramModule.onUnload?.();
+    unloadTelegramModule();
   });
 
   it("sends owner.question.asked with per-answer buttons when proposedAnswers is set", async () => {
@@ -190,11 +193,11 @@ describe("telegramModule notifications via onLoad", () => {
             answer: vi.fn(),
             dismiss: vi.fn(),
           },
-        } as Partial<KotaClient>),
+        }),
       ),
     );
     bus.emit("owner.question.asked", {
-      projectId: TEST_PROJECT.projectId,
+      scopeId: TEST_SCOPE.scopeId,
       id: "oq-abc",
       question: "Pick cluster region",
       reason: "multiregion rollout",

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   buildModuleCapabilityManifestProjection,
-  registerModuleCapabilityManifestProjection,
 } from "#core/modules/module-manifest.js";
 import {
   networkDestructiveEffect,
@@ -9,6 +8,7 @@ import {
 } from "./effect.js";
 import { classifyRisk } from "./guardrails.js";
 import { clearCustomTools, registerTool } from "./index.js";
+import { registerModuleToolManifestProjection } from "./tool-effect-registry.js";
 
 describe("resolved tool effect guardrails", () => {
   afterEach(() => clearCustomTools());
@@ -27,7 +27,7 @@ describe("resolved tool effect guardrails", () => {
         resolveEffect: () => readOnlyLocalEffect(),
       },
     );
-    registerModuleCapabilityManifestProjection(
+    registerModuleToolManifestProjection(
       buildModuleCapabilityManifestProjection(
         "test-module",
         {

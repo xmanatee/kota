@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { ProjectRuntimeStateStore } from "./project-runtime-state.js";
-import { projectStoredWorkflowOperationalState } from "./run-operational-projection.js";
+import { deriveStoredWorkflowOperationalState } from "./run-operational-projection.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRuntimeSnapshot } from "./runtime-state-types.js";
+import { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 
 export type StoredWorkflowRuntimeState = WorkflowRuntimeSnapshot & {
   operatorPaused: boolean;
@@ -18,19 +18,19 @@ const EMPTY_STORED_RUNTIME_STATE: StoredWorkflowRuntimeState = {
   operatorPaused: false,
 };
 
-function withStoredProject<T>(
-  projectDir: string,
+function withStoredScope<T>(
+  scopeRoot: string,
   stateDir: string,
   access: "read-only" | "write",
-  operation: (database: RunStateDatabase, projectId: string) => T,
+  operation: (database: RunStateDatabase, scopeId: string) => T,
 ): T | null {
   if (!existsSync(join(stateDir, "kota.sqlite"))) return null;
   const database = access === "read-only"
     ? RunStateDatabase.openReadOnly(stateDir)
     : RunStateDatabase.openExisting(stateDir);
   try {
-    const projectId = database.getProjectIdByRootPath(projectDir);
-    return projectId === null ? null : operation(database, projectId);
+    const scopeId = database.getScopeIdByRootPath(scopeRoot);
+    return scopeId === null ? null : operation(database, scopeId);
   } finally {
     database.close();
   }
@@ -38,16 +38,16 @@ function withStoredProject<T>(
 
 /** Read-only offline projection from an explicitly selected daemon state root. */
 export function readStoredWorkflowRuntimeState(
-  projectDir: string,
+  scopeRoot: string,
   stateDir: string,
 ): StoredWorkflowRuntimeState {
-  return withStoredProject(projectDir, stateDir, "read-only", (database, projectId) => {
-    const state = new ProjectRuntimeStateStore(database, projectId);
+  return withStoredScope(scopeRoot, stateDir, "read-only", (database, scopeId) => {
+    const state = new ScopeRuntimeStateStore(database, scopeId);
     const backoff = state.getAgentBackoff();
     return {
-      ...database.readWorkflowSummary(projectId),
-      ...projectStoredWorkflowOperationalState(
-        database.listRuns(projectId, ["queued", "running", "integrating"]),
+      ...database.readWorkflowSummary(scopeId),
+      ...deriveStoredWorkflowOperationalState(
+        database.listRuns(scopeId, ["queued", "running", "integrating"]),
       ),
       ...(backoff !== null ? { agentBackoff: backoff } : {}),
       batchBuffers: state.getBatchBuffers(),
@@ -57,28 +57,28 @@ export function readStoredWorkflowRuntimeState(
 }
 
 export function setStoredDispatchPaused(
-  projectDir: string,
+  scopeRoot: string,
   stateDir: string,
   paused: boolean,
 ): boolean {
-  const changed = withStoredProject(projectDir, stateDir, "write", (database, projectId) => {
-    const state = new ProjectRuntimeStateStore(database, projectId);
+  const changed = withStoredScope(scopeRoot, stateDir, "write", (database, scopeId) => {
+    const state = new ScopeRuntimeStateStore(database, scopeId);
     if (state.getDispatchPaused() === paused) return false;
     state.setDispatchPaused(paused);
     return true;
   });
   if (changed === null) {
-    throw new Error(`No canonical workflow state exists for ${projectDir}`);
+    throw new Error(`No canonical workflow state exists for ${scopeRoot}`);
   }
   return changed;
 }
 
 export function clearStoredAgentBackoff(
-  projectDir: string,
+  scopeRoot: string,
   stateDir: string,
 ): boolean {
-  return withStoredProject(projectDir, stateDir, "write", (database, projectId) => {
-    const state = new ProjectRuntimeStateStore(database, projectId);
+  return withStoredScope(scopeRoot, stateDir, "write", (database, scopeId) => {
+    const state = new ScopeRuntimeStateStore(database, scopeId);
     if (state.getAgentBackoff() === null) return false;
     state.setAgentBackoff(null);
     return true;

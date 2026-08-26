@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { handleTaskBodyUpdate, handleTaskGc } from "./routes.js";
 import {
-  makeProjectDir,
+  makeScopeRoot,
   mockRequest,
   mockResponse,
   mutationTarget,
@@ -12,19 +12,19 @@ import {
 } from "./routes-test-helpers.js";
 
 describe("task maintenance routes", () => {
-  let projectDir: string;
+  let repoRoot: string;
 
   beforeEach(() => {
-    projectDir = makeProjectDir();
+    repoRoot = makeScopeRoot();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(repoRoot, { recursive: true, force: true });
     resetRouteTestAuthority();
   });
 
   function writeTerminal(state: "done" | "dropped", id: string, updatedAt: string): void {
-    const dir = join(projectDir, "data", "tasks", state);
+    const dir = join(repoRoot, "data", "tasks", state);
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, `${id}.md`),
@@ -35,19 +35,19 @@ describe("task maintenance routes", () => {
   it("removes terminal tasks older than the threshold", async () => {
     writeTerminal("done", "task-old-gc", "2020-01-01");
     const { res, result } = mockResponse();
-    await handleTaskGc(mockRequest({ days: 30 }), res, mutationTarget(projectDir));
+    await handleTaskGc(mockRequest({ days: 30 }), res, mutationTarget(repoRoot));
     expect(result.status).toBe(200);
     expect((result.body as { removed: string[] }).removed).toContain("task-old-gc.md");
   });
 
   it("returns 400 when gc days is not positive", async () => {
     const { res, result } = mockResponse();
-    await handleTaskGc(mockRequest({ days: 0 }), res, mutationTarget(projectDir));
+    await handleTaskGc(mockRequest({ days: 0 }), res, mutationTarget(repoRoot));
     expect(result.status).toBe(400);
   });
 
   it("updates the body of an open task while preserving frontmatter", async () => {
-    writeTaskFile(projectDir, "ready", "task-edit", {
+    writeTaskFile(repoRoot, "ready", "task-edit", {
       id: "task-edit",
       title: "Edit Me",
       priority: "p2",
@@ -56,11 +56,11 @@ describe("task maintenance routes", () => {
     });
 
     const { res, result } = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ body: "## New body\n\nUpdated content." }), res, "task-edit", mutationTarget(projectDir));
+    await handleTaskBodyUpdate(mockRequest({ body: "## New body\n\nUpdated content." }), res, "task-edit", mutationTarget(repoRoot));
     expect(result.status).toBe(200);
     expect((result.body as Record<string, string>).body).toContain("Updated content.");
 
-    const content = readFileSync(join(projectDir, "data", "tasks", "ready", "task-task-edit.md"), "utf-8");
+    const content = readFileSync(join(repoRoot, "data", "tasks", "ready", "task-task-edit.md"), "utf-8");
     expect(content).toContain("id: task-edit");
     expect(content).toContain("title: Edit Me");
     expect(content).toContain("status: ready");
@@ -70,27 +70,27 @@ describe("task maintenance routes", () => {
 
   it("returns body update errors for missing, terminal, and malformed requests", async () => {
     const missing = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ body: "some content" }), missing.res, "task-nonexistent", mutationTarget(projectDir));
+    await handleTaskBodyUpdate(mockRequest({ body: "some content" }), missing.res, "task-nonexistent", mutationTarget(repoRoot));
     expect(missing.result.status).toBe(404);
 
-    writeTaskFile(projectDir, "done", "task-done", {
+    writeTaskFile(repoRoot, "done", "task-done", {
       id: "task-done",
       title: "Done",
       priority: "p3",
       status: "done",
     });
     const terminal = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ body: "## Should fail" }), terminal.res, "task-done", mutationTarget(projectDir));
+    await handleTaskBodyUpdate(mockRequest({ body: "## Should fail" }), terminal.res, "task-done", mutationTarget(repoRoot));
     expect(terminal.result.status).toBe(409);
 
-    writeTaskFile(projectDir, "ready", "task-nob", {
+    writeTaskFile(repoRoot, "ready", "task-nob", {
       id: "task-nob",
       title: "No Body",
       priority: "p3",
       status: "ready",
     });
     const noBody = mockResponse();
-    await handleTaskBodyUpdate(mockRequest({ notbody: "wrong field" }), noBody.res, "task-nob", mutationTarget(projectDir));
+    await handleTaskBodyUpdate(mockRequest({ notbody: "wrong field" }), noBody.res, "task-nob", mutationTarget(repoRoot));
     expect(noBody.result.status).toBe(400);
   });
 });

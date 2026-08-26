@@ -1,4 +1,5 @@
 import { DaemonClient } from '../daemonClient';
+import { ContractDecodeError } from '../daemon/daemon-contract.generated';
 
 type FetchArgs = [input: RequestInfo | URL, init?: RequestInit];
 
@@ -60,7 +61,7 @@ describe('DaemonClient', () => {
         result: {
           ok: true,
           answer:
-            'Cross-store recall indexes [knowledge:k-1] and [memory:m-1] across the second brain.',
+            'Cross-store recall indexes [knowledge:k-1] and [memory:m-1] across knowledge and memory.',
           citations: [
             { source: 'knowledge', id: 'k-1' },
             { source: 'memory', id: 'm-1' },
@@ -106,7 +107,9 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().answerShow('x')).rejects.toThrow(/mystery/);
+    await expect(client().answerShow('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answerShow rejects a malformed record (bad embedded result) loudly', async () => {
@@ -123,7 +126,9 @@ describe('DaemonClient', () => {
         },
       }),
     );
-    await expect(client().answerShow('x')).rejects.toThrow(/mystery/);
+    await expect(client().answerShow('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answerShow rejects a malformed embedded recallHit loudly', async () => {
@@ -140,12 +145,16 @@ describe('DaemonClient', () => {
         },
       }),
     );
-    await expect(client().answerShow('x')).rejects.toThrow(/knowledge fields/i);
+    await expect(client().answerShow('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answerShow rejects a missing ok flag loudly', async () => {
     fetchSpy.mockResolvedValueOnce(jsonResponse({ record: null }));
-    await expect(client().answerShow('x')).rejects.toThrow(/missing ok flag/i);
+    await expect(client().answerShow('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('answerShow surfaces the daemon HTTP error one-to-one', async () => {
@@ -254,7 +263,7 @@ describe('DaemonClient', () => {
         ok: false,
         reason: 'contributor_failed',
         target: 'inbox',
-        message: 'inbox writer cannot reach project root',
+        message: 'inbox writer cannot reach scope root',
       }),
     );
     const res = await client().capture('boom');
@@ -262,7 +271,7 @@ describe('DaemonClient', () => {
       ok: false,
       reason: 'contributor_failed',
       target: 'inbox',
-      message: 'inbox writer cannot reach project root',
+      message: 'inbox writer cannot reach scope root',
     });
   });
 
@@ -270,7 +279,9 @@ describe('DaemonClient', () => {
     fetchSpy.mockResolvedValueOnce(
       jsonResponse({ ok: false, reason: 'mystery' }),
     );
-    await expect(client().capture('x')).rejects.toThrow(/mystery/);
+    await expect(client().capture('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });
 
   test('capture rejects a malformed record loudly', async () => {
@@ -280,5 +291,7 @@ describe('DaemonClient', () => {
         record: { target: 'tasks', recordId: 'task-foo' },
       }),
     );
-    await expect(client().capture('x')).rejects.toThrow(/tasks path/i);
+    await expect(client().capture('x')).rejects.toBeInstanceOf(
+      ContractDecodeError,
+    );
   });});

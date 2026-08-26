@@ -9,6 +9,11 @@
  * contract.
  */
 
+import {
+  OUTBOUND_HTTP_PROFILES,
+  type OutboundHttpRequestPort,
+  outboundHttp,
+} from "#core/outbound-http/index.js";
 import { loadStore } from "./store.js";
 
 export type ApprovalPushPayload = {
@@ -41,11 +46,12 @@ type ExpoMessage = {
 };
 
 export async function sendPushNotifications(
-  projectDir: string,
+  scopeRoot: string,
   payload: ApprovalPushPayload,
   log: (msg: string) => void,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<void> {
-  const tokens = loadTokens(projectDir);
+  const tokens = loadTokens(scopeRoot);
   if (tokens.length === 0) return;
 
   const { approvalId, tool, risk, source } = payload;
@@ -63,15 +69,16 @@ export async function sendPushNotifications(
     },
   }));
 
-  await postMessages(messages, log);
+  await postMessages(messages, log, http);
 }
 
 export async function sendDigestPushNotifications(
-  projectDir: string,
+  scopeRoot: string,
   payload: DigestPushPayload,
   log: (msg: string) => void,
+  http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<void> {
-  const tokens = loadTokens(projectDir);
+  const tokens = loadTokens(scopeRoot);
   if (tokens.length === 0) return;
 
   const body = previewBody(payload.body);
@@ -84,11 +91,11 @@ export async function sendDigestPushNotifications(
     data: { surfaceId: payload.surfaceId },
   }));
 
-  await postMessages(messages, log);
+  await postMessages(messages, log, http);
 }
 
-function loadTokens(projectDir: string): string[] {
-  const store = loadStore(projectDir);
+function loadTokens(scopeRoot: string): string[] {
+  const store = loadStore(scopeRoot);
   return Object.values(store.tokens).map((entry) => entry.token);
 }
 
@@ -102,9 +109,13 @@ function previewBody(rawBody: string): string {
 async function postMessages(
   messages: ExpoMessage[],
   log: (msg: string) => void,
+  http: OutboundHttpRequestPort,
 ): Promise<void> {
   try {
-    const res = await fetch(EXPO_PUSH_API_URL, {
+    const { response: res } = await http.request({
+      profile: OUTBOUND_HTTP_PROFILES.configuredProvider([EXPO_PUSH_API_URL]),
+      operation: "push-notification.expo.send",
+      url: EXPO_PUSH_API_URL,
       method: "POST",
       headers: {
         "Content-Type": "application/json",

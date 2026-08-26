@@ -1,25 +1,25 @@
+import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import { projectEvidenceObject } from "#core/evidence/policy.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowTrialOptions, WorkflowTrialPayload } from "../client.js";
 import type { TrialVariant } from "./trial-internal-types.js";
 import { WorkflowTrialRequestError } from "./trial-internal-types.js";
 
-type JsonParseResult = ReturnType<typeof JSON.parse>;
 type WorkflowRuntimePayload = WorkflowRunTrigger["payload"];
 
 export function cloneTrialPayload(
   payload: WorkflowTrialPayload | WorkflowRuntimePayload,
 ): WorkflowTrialPayload {
-  return JSON.parse(JSON.stringify(payload)) as WorkflowTrialPayload;
+  return decodeTrialPayload(JSON.parse(JSON.stringify(payload)) as unknown);
 }
 
 export function projectTrialPayload(
   payload: WorkflowTrialPayload | WorkflowRuntimePayload,
 ): WorkflowTrialPayload {
-  return projectEvidenceObject(payload, "internal-storage") as WorkflowTrialPayload;
+  return decodeTrialPayload(projectEvidenceObject(payload, "internal-storage"));
 }
 
-function isJsonValue(value: JsonParseResult): boolean {
+function isJsonValue(value: unknown): value is KotaJsonValue {
   if (
     value === null
     || typeof value === "string"
@@ -33,7 +33,7 @@ function isJsonValue(value: JsonParseResult): boolean {
   return false;
 }
 
-export function isJsonObject(value: JsonParseResult): value is WorkflowTrialPayload {
+export function isJsonObject(value: unknown): value is WorkflowTrialPayload {
   return (
     typeof value === "object"
     && value !== null
@@ -43,9 +43,16 @@ export function isJsonObject(value: JsonParseResult): value is WorkflowTrialPayl
 }
 
 export function parseJsonObject(value: string, label: string): WorkflowTrialPayload {
-  const parsed = JSON.parse(value);
+  const parsed: unknown = JSON.parse(value);
   if (!isJsonObject(parsed)) throw new Error(`${label} must be a JSON object`);
   return parsed;
+}
+
+function decodeTrialPayload(value: unknown): WorkflowTrialPayload {
+  if (!isJsonObject(value)) {
+    throw new Error("Workflow trial payload projection must remain a JSON object");
+  }
+  return value;
 }
 
 export function normalizeTrialRepeat(value: number | undefined): number {

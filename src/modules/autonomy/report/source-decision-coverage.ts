@@ -37,9 +37,9 @@ export function buildSourceDecisionCoverageReport(
 ): SourceDecisionCoverageReport {
   const nowMs = input.nowMs ?? Date.now();
   const staleAfterDays = input.staleAfterDays ?? DEFAULT_STALE_AFTER_DAYS;
-  const watchlist = readWatchlist(input.projectDir);
+  const watchlist = readWatchlist(input.workspaceRoot);
   const selectedEntries = selectWatchlistEntries(watchlist.entries, input);
-  const tasks = listFullRepoTasks(input.projectDir);
+  const tasks = listFullRepoTasks(input.workspaceRoot);
   const taskById = new Map(tasks.map((task) => [task.id, task]));
   const localDecisionMarkers =
     input.localDecisionMarkers ?? defaultLocalDecisionMarkers();

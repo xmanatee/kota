@@ -128,12 +128,8 @@ function artifactRetainedMetadataError(
     }
     if (scopeKind === "scope") {
       const scopeId = retained.scopeId;
-      const projectId = retained.projectId;
       if (typeof scopeId !== "string" || scopeId.trim().length === 0) {
         return "retained.scopeId must be a non-empty string for scope events";
-      }
-      if (projectId !== scopeId) {
-        return `retained.projectId ${String(projectId)} does not match retained.scopeId ${scopeId}`;
       }
       const lineage = retained.lineage;
       if (!Array.isArray(lineage) || !lineage.every((entry) => typeof entry === "string")) {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
-import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   registerWorkflowDefinition,
@@ -32,7 +32,7 @@ const connector: SocialConnectorConfig = {
 };
 
 const context = {
-  projectId: "project-social",
+  scopeId: "scope-social",
   receivedAt: "2026-05-25T04:45:00.000Z",
   connector,
 };
@@ -64,7 +64,7 @@ function unwrap(
 }
 
 describe("Social inbound signal adapter", () => {
-  it("normalizes a configured X mention into a project-scoped inbound signal", () => {
+  it("normalizes a configured X mention into a scope-scoped inbound signal", () => {
     const parsed = socialDeliveryFromInboundRequest({
       delivery: {
         kind: "mention",
@@ -89,7 +89,7 @@ describe("Social inbound signal adapter", () => {
 
     expect(validateInboundSignalPayload(payload)).toMatchObject({ ok: true });
     expect(payload).toMatchObject({
-      projectId: "project-social",
+      scopeId: "scope-social",
       provider: "x",
       channel: "x.mention",
       accountId: "x:owner-account",
@@ -168,7 +168,7 @@ describe("Social inbound signal adapter", () => {
 
 type ProbeDecision = {
   decision: "accept" | "noop";
-  projectId: string;
+  scopeId: string;
   provider: string;
   channel: string;
   actorTrust: string;
@@ -191,7 +191,7 @@ const socialSignalProbeWorkflow: WorkflowDefinitionInput = {
       validate: (raw) =>
         expectStructuredOutput<ProbeDecision>(raw, [
           "decision",
-          "projectId",
+          "scopeId",
           "provider",
           "channel",
           "actorTrust",
@@ -200,7 +200,7 @@ const socialSignalProbeWorkflow: WorkflowDefinitionInput = {
         const payload = trigger.payload as InboundSignalReceivedPayload;
         return {
           decision: payload.actor.trust === "trusted" ? "accept" : "noop",
-          projectId: payload.projectId,
+          scopeId: payload.scopeId,
           provider: payload.provider,
           channel: payload.channel,
           actorTrust: payload.actor.trust,
@@ -285,38 +285,36 @@ describe("Social-origin inbound signal workflow dispatch", () => {
     expect(queued[0]).toMatchObject({
       event: inboundSignalReceived.name,
       payload: {
-        projectId: "project-social",
+        scopeId: "scope-social",
         provider: "x",
         channel: "x.mention",
         actor: { trust: "trusted" },
       },
     });
 
-    const trustedHarness = new WorkflowTestHarness(socialSignalProbeWorkflow, {
+    const trustedHarness = new WorkflowScenarioDriver(socialSignalProbeWorkflow, {
       trigger: queued[0],
-      projectDir: "/tmp/kota-social-probe",
     });
     const trustedResult = await trustedHarness.run();
 
     expect(trustedResult.status).toBe("success");
     expect(trustedResult.steps.decide.output).toEqual({
       decision: "accept",
-      projectId: "project-social",
+      scopeId: "scope-social",
       provider: "x",
       channel: "x.mention",
       actorTrust: "trusted",
     });
 
-    const untrustedHarness = new WorkflowTestHarness(socialSignalProbeWorkflow, {
+    const untrustedHarness = new WorkflowScenarioDriver(socialSignalProbeWorkflow, {
       trigger: queued[1],
-      projectDir: "/tmp/kota-social-probe",
     });
     const untrustedResult = await untrustedHarness.run();
 
     expect(untrustedResult.status).toBe("success");
     expect(untrustedResult.steps.decide.output).toEqual({
       decision: "noop",
-      projectId: "project-social",
+      scopeId: "scope-social",
       provider: "x",
       channel: "x.mention",
       actorTrust: "untrusted",

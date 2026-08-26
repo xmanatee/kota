@@ -1,11 +1,11 @@
 import type { EventBus } from "#core/events/event-bus.js";
 import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
-import type { ProjectRuntimeRegistry } from "./project-runtime.js";
 import type {
   ScopeDrainBlocker,
   ScopeExternalDrainBlocker,
 } from "./scope-drain-inspection.js";
 import type { ScopeId, ScopeRegistry } from "./scope-registry.js";
+import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
 export type ScopeHostingState = "inactive" | "hosted" | "draining" | "drained";
@@ -94,7 +94,7 @@ export type ScopeRemovalResult =
 export type ScopeLifecycleOptions = {
   registry: ScopeRegistry;
   runState: RunStateDatabase;
-  runtimes: ProjectRuntimeRegistry;
+  runtimes: ScopeRuntimeRegistry;
   runtimeHost: ScopeRuntimeHost;
   bus: EventBus;
   listSessionIds: (scopeId: ScopeId) => readonly string[];

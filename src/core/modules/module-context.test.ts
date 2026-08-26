@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getProjectSecretStore } from "#core/config/secrets.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { registerTool } from "#core/tools/index.js";
 import {
@@ -79,56 +79,56 @@ describe("ModuleContext.log", () => {
 
 describe("ModuleContext.getSecret", () => {
   it("reads from the module project's secret store", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "module-context-secret-"));
+    const scopeRoot = mkdtempSync(join(tmpdir(), "module-context-secret-"));
     try {
       const onLoad = vi.fn();
       const loader = createRuntimeModuleLoader({});
-      loader.setCwd(projectDir);
+      loader.setCwd(scopeRoot);
       await loader.load({ name: "secret-test", onLoad });
 
       const ctx: ModuleContext = onLoad.mock.calls[0][0];
       const secretName = "KOTA_MODULE_CONTEXT_PROJECT_SECRET";
       expect(ctx.getSecret(secretName)).toBeNull();
-      getProjectSecretStore(ctx.cwd).set(
+      getScopeSecretStore(ctx.cwd).set(
         secretName,
         "module-project-value",
-        "project",
+        "scope",
       );
       expect(ctx.getSecret(secretName)).toBe("module-project-value");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
     }
   });
 
   it("does not read a different project's store", async () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "module-context-isolation-"));
-    const otherProjectDir = mkdtempSync(
+    const scopeRoot = mkdtempSync(join(tmpdir(), "module-context-isolation-"));
+    const otherScopeRoot = mkdtempSync(
       join(tmpdir(), "module-context-isolation-other-"),
     );
     try {
       const secretName = "KOTA_MODULE_CONTEXT_ISOLATED_SECRET";
-      getProjectSecretStore(otherProjectDir).set(
+      getScopeSecretStore(otherScopeRoot).set(
         secretName,
-        "other-project-value",
-        "project",
+        "other-scope-value",
+        "scope",
       );
 
       const onLoad = vi.fn();
       const loader = createRuntimeModuleLoader({});
-      loader.setCwd(projectDir);
+      loader.setCwd(scopeRoot);
       await loader.load({ name: "secret-test2", onLoad });
 
       const ctx: ModuleContext = onLoad.mock.calls[0][0];
       expect(ctx.getSecret(secretName)).toBeNull();
-      getProjectSecretStore(projectDir).set(
+      getScopeSecretStore(scopeRoot).set(
         secretName,
         "module-project-value",
-        "project",
+        "scope",
       );
       expect(ctx.getSecret(secretName)).toBe("module-project-value");
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
-      rmSync(otherProjectDir, { recursive: true, force: true });
+      rmSync(scopeRoot, { recursive: true, force: true });
+      rmSync(otherScopeRoot, { recursive: true, force: true });
     }
   });
 });

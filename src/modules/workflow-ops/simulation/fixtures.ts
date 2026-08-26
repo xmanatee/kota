@@ -25,7 +25,6 @@ function inboundMessage(args: {
     eventId: args.externalId,
     payload: {
       scopeId: SCOPE_ID,
-      projectId: SCOPE_ID,
       provider: args.provider,
       channel: args.channel,
       accountId: `${args.provider}-fixture-account`,
@@ -56,7 +55,6 @@ function progressBatchInput(provider: string): WorkflowSimulationRequest {
     eventId: `fixture-${provider}-workflow-completed`,
     payload: {
       scopeId: SCOPE_ID,
-      projectId: SCOPE_ID,
       workflow: `${provider}-opportunity-intake`,
       status: "success",
       tags: ["monitored"],
@@ -79,7 +77,6 @@ const weeklyProgressReviewReplayEnvelope: EventEnvelope = {
   scope: {
     kind: "scope",
     scopeId: SCOPE_ID,
-    projectId: SCOPE_ID,
     lineage: [SCOPE_ID],
   },
   timestamps: {
@@ -107,7 +104,6 @@ const weeklyProgressReviewReplayEnvelope: EventEnvelope = {
     kind: "inline",
     payload: {
       scopeId: SCOPE_ID,
-      projectId: SCOPE_ID,
       batch: {
         workflow: "progress-reviewer",
         triggerIndex: 2,
@@ -132,7 +128,6 @@ const weeklyProgressReviewReplayEnvelope: EventEnvelope = {
           receivedAt: FIXTURE_TIME,
           payload: {
             scopeId: SCOPE_ID,
-            projectId: SCOPE_ID,
             workflow: "telegram-opportunity-intake",
             status: "success",
             tags: ["monitored"],
@@ -196,7 +191,6 @@ export const SIMULATION_FIXTURES: readonly WorkflowSimulationFixture[] = [
       eventId: "file-watch-1",
       payload: {
         scopeId: SCOPE_ID,
-        projectId: SCOPE_ID,
         paths: ["docs/automation.md"],
         changedAt: FIXTURE_TIME,
       },
@@ -210,7 +204,6 @@ export const SIMULATION_FIXTURES: readonly WorkflowSimulationFixture[] = [
       eventId: "task-progress-1",
       payload: {
         scopeId: SCOPE_ID,
-        projectId: SCOPE_ID,
         counts: {
           ready: 2,
           doing: 1,

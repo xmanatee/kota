@@ -25,9 +25,9 @@ export const scanCandidates = typedCodeStep<AgentCandidatePacket>({
       "artifactPath",
       "truncated",
     ]),
-  run: async ({ projectDir, trigger, workflow, runBlocking }) => {
+  run: async ({ workspaceRoot, trigger, workflow, runBlocking }) => {
     const packet = await runBlocking(securityReviewCandidateScanOperation, {
-      projectDir,
+      workspaceRoot,
       runDirPath: workflow.runDirPath,
       trigger: { event: trigger.event, payload: trigger.payload },
     });

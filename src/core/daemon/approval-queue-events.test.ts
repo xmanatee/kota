@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { ApprovalQueue } from "./approval-queue.js";
 
 function approvePending(queue: ApprovalQueue, id: string): void {
@@ -27,7 +27,7 @@ describe("approval events", () => {
 		bus.on("*", (envelope) => {
 			received.push({ event: envelope.type, payload: envelope.payload as Record<string, unknown> });
 		});
-		const pbus = new ProjectScopedEventBus(bus, "test-project");
+		const pbus = new ScopedEventBus(bus, "test-scope");
 		queue = new ApprovalQueue(dir, pbus);
 	});
 
@@ -41,8 +41,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			pendingCount: 1,
 		});
@@ -63,7 +62,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.requested").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toMatchObject({
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			source: "session-123",
 			sessionId: "session-123",
@@ -79,8 +78,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item2.id,
 			pendingCount: 1,
 		});
@@ -104,7 +102,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.resolved").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toMatchObject({
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			source: "session-123",
 			sessionId: "session-123",
@@ -134,13 +132,13 @@ describe("approval events", () => {
 		expect(queue.get(queuedLater.id)?.status).toBe("pending");
 		const resolved = received.filter(({ event }) => event === "approval.resolved").map(({ payload }) => payload);
 		expect(resolved).toMatchObject([
-			{ scopeId: "test-project", projectId: "test-project", id: first.id, approved: true, source: "session-a" },
-			{ scopeId: "test-project", projectId: "test-project", id: second.id, approved: true, source: "session-b" },
+			{ scopeId: "test-scope", id: first.id, approved: true, source: "session-a" },
+			{ scopeId: "test-scope", id: second.id, approved: true, source: "session-b" },
 		]);
 		const changed = received.filter(({ event }) => event === "approval.changed").map(({ payload }) => payload);
 		expect(changed).toEqual([
-			{ scopeId: "test-project", projectId: "test-project", id: first.id, pendingCount: 2 },
-			{ scopeId: "test-project", projectId: "test-project", id: second.id, pendingCount: 1 },
+			{ scopeId: "test-scope", id: first.id, pendingCount: 2 },
+			{ scopeId: "test-scope", id: second.id, pendingCount: 1 },
 		]);
 	});
 
@@ -152,8 +150,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			pendingCount: 0,
 		});
@@ -168,8 +165,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.changed").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			pendingCount: 0,
 		});
@@ -184,8 +180,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.expired").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			tool: item.tool,
 		});
@@ -200,8 +195,7 @@ describe("approval events", () => {
 		const calls = received.filter(({ event }) => event === "approval.expired").map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			tool: item.tool,
 		});
@@ -218,8 +212,7 @@ describe("approval events", () => {
 			.map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			tool: item.tool,
 			defaultResolution: "deny",
@@ -237,8 +230,7 @@ describe("approval events", () => {
 			.map((r) => [r.event, r.payload]);
 		expect(calls).toHaveLength(1);
 		expect(calls[0][1]).toEqual({
-			scopeId: "test-project",
-			projectId: "test-project",
+			scopeId: "test-scope",
 			id: item.id,
 			tool: item.tool,
 			defaultResolution: "approve",

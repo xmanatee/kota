@@ -27,7 +27,7 @@ const CHAT_ID = 987654321;
 
 function makeScope(capture: CaptureClient["capture"]): TelegramStatusScope {
   return {
-    projectDir: "/tmp/kota-telegram-capture-runtime",
+    scopeRoot: "/tmp/kota-telegram-capture-runtime",
     getStatusInfo: async () => ({
       runtimeState: {
         activeRuns: [],

@@ -109,21 +109,21 @@ describe("autonomy agent steps and judges on openai-tools", () => {
   });
 
   it("runs a representative workflow agent step without leaking unsupported adapter options", async () => {
-    const projectDir = join(
+    const scopeRoot = join(
       tmpdir(),
       `kota-openai-harness-step-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, "prompt.md"), "Stay focused on the build.");
+    mkdirSync(scopeRoot, { recursive: true });
+    writeFileSync(join(scopeRoot, "prompt.md"), "Stay focused on the build.");
     // Seed a project instruction file so the harness-neutral system-prompt
     // builder composes a non-empty portable text and we can prove it reached
     // the adapter as a string rather than a claude-preset envelope.
     writeFileSync(
-      join(projectDir, "AGENTS.md"),
+      join(scopeRoot, "AGENTS.md"),
       "# Project AGENTS\n\nPortable project rules live here.",
     );
-    mkdirSync(join(projectDir, ".kota/runs/run-openai-ok"), { recursive: true });
-    mkdirSync(join(projectDir, ".kota/runs/run-openai-ok/steps"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota/runs/run-openai-ok"), { recursive: true });
+    mkdirSync(join(scopeRoot, ".kota/runs/run-openai-ok/steps"), { recursive: true });
 
     streamMock.mockReturnValue({
       on(event: string, cb: (delta: string) => void) {
@@ -135,13 +135,13 @@ describe("autonomy agent steps and judges on openai-tools", () => {
 
     const result = await executeAgentStep(
       makeDefinition(),
-      makeAgentStep(projectDir),
+      makeAgentStep(scopeRoot),
       makeMetadata(),
       { event: "autonomy.queue.available", schemaRef: null, payload: {} },
       new AbortController(),
       () => {},
       () => {},
-      { projectDir, log: () => {} },
+      { scopeRoot, log: () => {} },
     );
 
     expect(result.harness).toBe(OPENAI_TOOLS_AGENT_HARNESS_NAME);
@@ -164,28 +164,28 @@ describe("autonomy agent steps and judges on openai-tools", () => {
   });
 
   it("runs the autonomy critic judge through the openai-tools harness", async () => {
-    const projectDir = join(
+    const scopeRoot = join(
       tmpdir(),
       `kota-openai-harness-critic-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
-    execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+    mkdirSync(scopeRoot, { recursive: true });
+    execFileSync("git", ["init", "--quiet"], { cwd: scopeRoot });
     execFileSync("git", ["config", "user.email", "test@example.com"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
     execFileSync("git", ["config", "user.name", "Test User"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
     execFileSync("git", ["commit", "--allow-empty", "-m", "initial", "--quiet"], {
-      cwd: projectDir,
+      cwd: scopeRoot,
     });
-    const doingDir = join(projectDir, "data/tasks/doing");
+    const doingDir = join(scopeRoot, "data/tasks/doing");
     mkdirSync(doingDir, { recursive: true });
     writeFileSync(
       join(doingDir, "task-openai-judge.md"),
       "---\ntitle: Openai judge\n---\nContent.",
     );
-    const runDir = join(projectDir, ".kota/runs/run-critic");
+    const runDir = join(scopeRoot, ".kota/runs/run-critic");
     mkdirSync(runDir, { recursive: true });
 
     streamMock.mockReturnValue({
@@ -212,14 +212,15 @@ describe("autonomy agent steps and judges on openai-tools", () => {
       model: "openai/gpt-5.6-luna",
     });
 
-    const parentStep = makeAgentStep(projectDir);
+    const parentStep = makeAgentStep(scopeRoot);
     const result = await (
       check as {
         run: (ctx: unknown, step: unknown) => Promise<string>;
       }
     ).run(
       {
-        projectDir,
+        scopeRoot,
+        workspaceRoot: scopeRoot,
         workflow: {
           name: "builder",
           runId: "run-critic",

@@ -19,7 +19,7 @@ import { setDelegateConfig } from "./delegate.js";
 import { executeToolCalls } from "./tool-runner.js";
 
 const SCOPE_ID = "native-delegate-fixture";
-const PROJECT_DIR = process.cwd();
+const SCOPE_ROOT = process.cwd();
 const HARNESS = "native-hosted-route";
 afterEach(() => {
   clearAgentHarnessRegistryForTest();
@@ -110,7 +110,7 @@ it("quarantines hosted native activity after a mid-run restriction", async () =>
       model: "gpt-5.6-sol",
       backend: "agent-sdk",
       harness: HARNESS,
-      cwd: PROJECT_DIR,
+      cwd: SCOPE_ROOT,
       transport,
     });
     const initial = authority.getSnapshot(SCOPE_ID);
@@ -132,8 +132,7 @@ it("quarantines hosted native activity after a mid-run restriction", async () =>
         scopePolicyAuthority: authority,
         getScopePolicySnapshot: () => authority.getSnapshot(SCOPE_ID),
         scopeId: SCOPE_ID,
-        projectId: SCOPE_ID,
-        cwd: PROJECT_DIR,
+        cwd: SCOPE_ROOT,
         signal: parent.signal,
       },
     );
@@ -246,7 +245,7 @@ function policy(writes: "none" | "unrestricted"): ResolvedScopePolicy {
           scopeId: SCOPE_ID,
           displayName: "Native delegate fixture",
           parentScopeId: "global",
-          directoryRoot: PROJECT_DIR,
+          directoryRoot: SCOPE_ROOT,
         },
       ],
     },

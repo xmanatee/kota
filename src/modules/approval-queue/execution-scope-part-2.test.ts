@@ -18,12 +18,12 @@ import { resetModuleFactory } from "#core/tools/module-factory/index.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
   makeApprovalScopeEntry as makeEntry,
-  type ApprovalScopeProjectRuntimeEntry as ProjectRuntimeEntry,
   REGISTERED_APPROVAL_SCOPE_TOOL_NAMES as REGISTERED_TOOL_NAMES,
   registerApprovalScopeTools,
-  registerApprovalScopeProjectProvider as registerProjectQueueProvider,
+  registerApprovalScopeProvider as registerScopeQueueProvider,
+  type ApprovalScopeRuntimeEntry as ScopeRuntimeEntry,
   APPROVAL_SCOPE_TOOL_NAMES as TOOL_NAMES,
-  writeApprovalScopeProjectFile as writeProjectFile,
+  writeApprovalScopeFile as writeScopeFile,
 } from "./execution-scope-tools.integration.js";
 import {
   handleApproveAllApprovals,
@@ -81,11 +81,11 @@ function approvalBatchDecisionBody(queue: ApprovalQueue): Record<string, unknown
   };
 }
 
-describe("approval execution project scope", () => {
+describe("approval execution scope scope", () => {
   let rootDir: string;
   let originalCwd: string;
-  let defaultEntry: ProjectRuntimeEntry;
-  let projectB: ProjectRuntimeEntry;
+  let defaultEntry: ScopeRuntimeEntry;
+  let scopeB: ScopeRuntimeEntry;
   let contexts: ToolRunnerContext[];
   let toolOutputs: Array<{ tool: string; content: string }>;
 
@@ -96,10 +96,10 @@ describe("approval execution project scope", () => {
     resetApprovalQueue();
     contexts = [];
     toolOutputs = [];
-    defaultEntry = makeEntry(join(rootDir, "project-a"), "Project A");
-    projectB = makeEntry(join(rootDir, "project-b"), "Project B");
-    process.chdir(defaultEntry.project.projectDir);
-    registerProjectQueueProvider([defaultEntry, projectB]);
+    defaultEntry = makeEntry(join(rootDir, "scope-a"), "Scope A");
+    scopeB = makeEntry(join(rootDir, "scope-b"), "Scope B");
+    process.chdir(defaultEntry.scope.scopeRoot);
+    registerScopeQueueProvider([defaultEntry, scopeB]);
     registerApprovalScopeTools(contexts, toolOutputs);
   });
 
@@ -115,10 +115,10 @@ describe("approval execution project scope", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("executes a selected project's single approval under that project cwd", async () => {
-    const item = projectB.approvalQueue.enqueue(
+  it("executes a selected scope's single approval under that scope cwd", async () => {
+    const item = scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileWrite,
-      { path: "marker.txt", content: "project-b" },
+      { path: "marker.txt", content: "scope-b" },
       "moderate",
       "write marker",
       undefined,
@@ -130,33 +130,32 @@ describe("approval execution project scope", () => {
 
     const { res, result } = mockResponse();
     await handleApproveApproval(
-      mockRequest(approvalDecisionBody(projectB.approvalQueue, item.id)),
+      mockRequest(approvalDecisionBody(scopeB.approvalQueue, item.id)),
       res,
       item.id,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(200);
-    expect(readFileSync(join(projectB.project.projectDir, "marker.txt"), "utf-8")).toBe("project-b");
-    expect(existsSync(join(defaultEntry.project.projectDir, "marker.txt"))).toBe(false);
+    expect(readFileSync(join(scopeB.scope.scopeRoot, "marker.txt"), "utf-8")).toBe("scope-b");
+    expect(existsSync(join(defaultEntry.scope.scopeRoot, "marker.txt"))).toBe(false);
     expect(contexts[0]).toMatchObject({
-      cwd: projectB.project.projectDir,
-      scopeId: projectB.project.projectId,
-      projectId: projectB.project.projectId,
+      cwd: scopeB.scope.scopeRoot,
+      scopeId: scopeB.scope.scopeId,
       sessionId: "session-b",
     });
   });
 
-  it("executes approve-all for the selected project without writing to the default project", async () => {
-    projectB.approvalQueue.enqueue(
+  it("executes approve-all for the selected scope without writing to the default scope", async () => {
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileWrite,
       { path: "one.txt", content: "one" },
       "moderate",
       "write one",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileWrite,
       { path: "nested/two.txt", content: "two" },
       "moderate",
@@ -171,78 +170,78 @@ describe("approval execution project scope", () => {
 
     const { res, result } = mockResponse();
     await handleApproveAllApprovals(
-      mockRequest(approvalBatchDecisionBody(projectB.approvalQueue)),
+      mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
       res,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(200);
-    expect(readFileSync(join(projectB.project.projectDir, "one.txt"), "utf-8")).toBe("one");
-    expect(readFileSync(join(projectB.project.projectDir, "nested", "two.txt"), "utf-8")).toBe("two");
-    expect(existsSync(join(defaultEntry.project.projectDir, "one.txt"))).toBe(false);
-    expect(existsSync(join(defaultEntry.project.projectDir, "nested", "two.txt"))).toBe(false);
-    expect(existsSync(join(defaultEntry.project.projectDir, "default.txt"))).toBe(false);
+    expect(readFileSync(join(scopeB.scope.scopeRoot, "one.txt"), "utf-8")).toBe("one");
+    expect(readFileSync(join(scopeB.scope.scopeRoot, "nested", "two.txt"), "utf-8")).toBe("two");
+    expect(existsSync(join(defaultEntry.scope.scopeRoot, "one.txt"))).toBe(false);
+    expect(existsSync(join(defaultEntry.scope.scopeRoot, "nested", "two.txt"))).toBe(false);
+    expect(existsSync(join(defaultEntry.scope.scopeRoot, "default.txt"))).toBe(false);
     expect(defaultEntry.approvalQueue.get(defaultItem.id)?.status).toBe("pending");
     expect(contexts).toHaveLength(2);
-    expect(contexts.every((context) => context.cwd === projectB.project.projectDir)).toBe(true);
+    expect(contexts.every((context) => context.cwd === scopeB.scope.scopeRoot)).toBe(true);
   });
 
-  it("executes selected project relative read and search approvals without reading the default project", async () => {
-    writeProjectFile(defaultEntry, "readme.md", "# Default Project\nDEFAULT_READ_MARKER\n");
-    writeProjectFile(projectB, "readme.md", "# Project B\nPROJECT_B_READ_MARKER\n");
+  it("executes selected scope relative read and search approvals without reading the default scope", async () => {
+    writeScopeFile(defaultEntry, "readme.md", "# Default Scope\nDEFAULT_READ_MARKER\n");
+    writeScopeFile(scopeB, "readme.md", "# Scope B\nSCOPE_B_READ_MARKER\n");
 
-    writeProjectFile(defaultEntry, "searchable.txt", "DEFAULT_SEARCH_MARKER\n");
-    writeProjectFile(projectB, "searchable.txt", "PROJECT_B_SEARCH_MARKER\n");
+    writeScopeFile(defaultEntry, "searchable.txt", "DEFAULT_SEARCH_MARKER\n");
+    writeScopeFile(scopeB, "searchable.txt", "SCOPE_B_SEARCH_MARKER\n");
 
-    writeProjectFile(defaultEntry, "default-only.scope", "default glob marker\n");
-    writeProjectFile(projectB, "project-b-only.scope", "project-b glob marker\n");
+    writeScopeFile(defaultEntry, "default-only.scope", "default glob marker\n");
+    writeScopeFile(scopeB, "scope-b-only.scope", "scope-b glob marker\n");
 
-    writeProjectFile(defaultEntry, "overview.md", "# Default Overview\n");
-    writeProjectFile(projectB, "overview.md", "# Project B Overview\n");
+    writeScopeFile(defaultEntry, "overview.md", "# Default Overview\n");
+    writeScopeFile(scopeB, "overview.md", "# Scope B Overview\n");
 
-    writeProjectFile(defaultEntry, "map.ts", "export const DEFAULT_SYMBOL = 'default';\n");
-    writeProjectFile(projectB, "map.ts", "export const PROJECT_B_SYMBOL = 'project-b';\n");
+    writeScopeFile(defaultEntry, "map.ts", "export const DEFAULT_SYMBOL = 'default';\n");
+    writeScopeFile(scopeB, "map.ts", "export const SCOPE_B_SYMBOL = 'scope-b';\n");
 
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.fileRead,
       { path: "readme.md" },
       "safe",
-      "read selected project file",
+      "read selected scope file",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.grep,
       { pattern: "SEARCH_MARKER", path: "." },
       "safe",
-      "search selected project files",
+      "search selected scope files",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.glob,
       { pattern: "*.scope", path: "." },
       "safe",
-      "glob selected project files",
+      "glob selected scope files",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.filesOverview,
       { path: "." },
       "safe",
-      "overview selected project files",
+      "overview selected scope files",
     );
-    projectB.approvalQueue.enqueue(
+    scopeB.approvalQueue.enqueue(
       TOOL_NAMES.repoMap,
       { directory: ".", pattern: "**/*.ts" },
       "safe",
-      "map selected project source",
+      "map selected scope source",
     );
 
     const { res, result } = mockResponse();
     await handleApproveAllApprovals(
-      mockRequest(approvalBatchDecisionBody(projectB.approvalQueue)),
+      mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
       res,
       null,
       undefined,
-      projectB.project.projectId,
+      scopeB.scope.scopeId,
     );
 
     expect(result.status).toBe(200);
@@ -256,16 +255,16 @@ describe("approval execution project scope", () => {
     )).toBe(true);
     const outputs = toolOutputs.map((entry) => entry.content);
 
-    expect(outputs[0]).toContain("PROJECT_B_READ_MARKER");
+    expect(outputs[0]).toContain("SCOPE_B_READ_MARKER");
     expect(outputs[0]).not.toContain("DEFAULT_READ_MARKER");
-    expect(outputs[1]).toContain("PROJECT_B_SEARCH_MARKER");
+    expect(outputs[1]).toContain("SCOPE_B_SEARCH_MARKER");
     expect(outputs[1]).not.toContain("DEFAULT_SEARCH_MARKER");
-    expect(outputs[2]).toContain("project-b-only.scope");
+    expect(outputs[2]).toContain("scope-b-only.scope");
     expect(outputs[2]).not.toContain("default-only.scope");
-    expect(outputs[3]).toContain("# Project B Overview");
+    expect(outputs[3]).toContain("# Scope B Overview");
     expect(outputs[3]).not.toContain("# Default Overview");
-    expect(outputs[4]).toContain("PROJECT_B_SYMBOL");
+    expect(outputs[4]).toContain("SCOPE_B_SYMBOL");
     expect(outputs[4]).not.toContain("DEFAULT_SYMBOL");
     expect(contexts).toHaveLength(5);
-    expect(contexts.every((context) => context.cwd === projectB.project.projectDir)).toBe(true);
+    expect(contexts.every((context) => context.cwd === scopeB.scope.scopeRoot)).toBe(true);
   });});

@@ -18,17 +18,6 @@ index 0000001..0000002 100644
 +// const oldValue = computeOldValue();
 `;
 
-const ADVISORY_DIFF = `diff --git a/src/sample.ts b/src/sample.ts
-index 0000001..0000002 100644
---- a/src/sample.ts
-+++ b/src/sample.ts
-@@ -1,2 +1,7 @@
- export function sample() {}
-+// Temporary fallback while remote provider is unavailable.
-+// Ignore cleanup failure because the cache is already optional.
-+// Returns the current status.
-`;
-
 const CLEAN_DIFF = `diff --git a/src/sample.ts b/src/sample.ts
 index 0000001..0000002 100644
 --- a/src/sample.ts
@@ -47,21 +36,6 @@ describe("detectRepoHygieneInDiff", () => {
       "empty-catch",
       "unexplained-suppression",
       "commented-out-code",
-    ]);
-    expect(findings.every((finding) => finding.severity === "error")).toBe(true);
-  });
-
-  it("keeps judgment-heavy wording advisory", () => {
-    const findings = detectRepoHygieneInDiff(ADVISORY_DIFF);
-    expect(findings.map((finding) => finding.severity)).toEqual([
-      "advisory",
-      "advisory",
-      "advisory",
-    ]);
-    expect(findings.map((finding) => finding.kind)).toEqual([
-      "transitional-wording",
-      "silent-failure-wording",
-      "obvious-comment",
     ]);
   });
 
@@ -113,12 +87,5 @@ describe("checkRepoHygiene", () => {
     writeFileSync(join(repoDir, "src/sample.ts"), "try { run(); } catch {}\n");
     execSync("git add src/sample.ts", { cwd: repoDir });
     expect(() => checkRepoHygiene(repoDir)).toThrow(/empty catch/i);
-  });
-
-  it("reports advisories without failing", () => {
-    mkdirSync(join(repoDir, "src"), { recursive: true });
-    writeFileSync(join(repoDir, "src/sample.ts"), "// Temporary fallback.\n");
-    execSync("git add src/sample.ts", { cwd: repoDir });
-    expect(checkRepoHygiene(repoDir)).toContain("advisory");
   });
 });

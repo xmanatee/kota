@@ -40,11 +40,11 @@ export function parseAddedLinesByFile(diff: string): FileDiff[] {
 }
 
 export function readWorkflowDiff(
-  projectDir: string,
+  workspaceRoot: string,
   pathspecs: readonly string[],
   unifiedLines = 0,
 ): string {
-  const diff = readWorkspaceUnifiedDiff(projectDir, {
+  const diff = readWorkspaceUnifiedDiff(workspaceRoot, {
     pathspecs,
     unifiedLines,
     limits: { diffBytes: GIT_DIFF_MAX_BUFFER },
@@ -55,8 +55,8 @@ export function readWorkflowDiff(
   return diff.text;
 }
 
-export function getWorkflowChangedFiles(projectDir: string): string {
-  return readWorkspaceChanges(projectDir).map((change) => change.path).join("\n");
+export function getWorkflowChangedFiles(workspaceRoot: string): string {
+  return readWorkspaceChanges(workspaceRoot).map((change) => change.path).join("\n");
 }
 
 function formattedBoundedOutput(
@@ -67,28 +67,28 @@ function formattedBoundedOutput(
   return `${output.text}\n\n[... ${label} truncated at ${output.limitBytes / 1000}k bytes ...]`;
 }
 
-export function getWorkflowDiffStat(projectDir: string): string {
+export function getWorkflowDiffStat(workspaceRoot: string): string {
   return formattedBoundedOutput(
-    readWorkspaceDiffStat(projectDir),
+    readWorkspaceDiffStat(workspaceRoot),
     "diff stat",
   );
 }
 
-export function getWorkflowDiffContent(projectDir: string): string {
+export function getWorkflowDiffContent(workspaceRoot: string): string {
   return formattedBoundedOutput(
-    readWorkspaceUnifiedDiff(projectDir, {
+    readWorkspaceUnifiedDiff(workspaceRoot, {
       limits: { diffBytes: REVIEW_DIFF_BYTE_LIMIT },
     }),
     "diff",
   );
 }
 
-export function getWorkflowChangeEvidence(projectDir: string): {
+export function getWorkflowChangeEvidence(workspaceRoot: string): {
   changedFiles: string;
   diffStat: string;
   diffContent: string;
 } {
-  const evidence = readWorkspaceChangeEvidence(projectDir, {
+  const evidence = readWorkspaceChangeEvidence(workspaceRoot, {
     limits: { diffBytes: REVIEW_DIFF_BYTE_LIMIT },
   });
   return {

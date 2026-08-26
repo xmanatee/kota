@@ -36,23 +36,23 @@ function writeImportedSkill(
 }
 
 describe("imported skill resolution", () => {
-	let projectDir: string;
+	let scopeRoot: string;
 	let loader: ModuleLoader;
 
 	beforeEach(() => {
-		projectDir = mkdtempSync(join(tmpdir(), "kota-imported-skills-"));
+		scopeRoot = mkdtempSync(join(tmpdir(), "kota-imported-skills-"));
 		loader = createRuntimeModuleLoader({});
-		loader.setCwd(projectDir);
+		loader.setCwd(scopeRoot);
 	});
 
 	afterEach(() => {
-		rmSync(projectDir, { recursive: true, force: true });
+		rmSync(scopeRoot, { recursive: true, force: true });
 	});
 
 	it("injects explicitly named imported skills but excludes them from skills all", async () => {
-		writeProjectFile(projectDir, "module.md", "Module guidance.");
+		writeProjectFile(scopeRoot, "module.md", "Module guidance.");
 		writeImportedSkill(
-			projectDir,
+			scopeRoot,
 			"review",
 			"name: review\nimported_from: https://example.com/review.md\n",
 			"Imported review guidance.",
@@ -77,7 +77,7 @@ describe("imported skill resolution", () => {
 
 	it("injects a pack-imported selected skill only when named explicitly", async () => {
 		writeImportedSkill(
-			projectDir,
+			scopeRoot,
 			"typescript",
 			"name: typescript\nimported_from: repo-pack: vercel/ai -> typescript/SKILL.md (skill: typescript)\n",
 			"Pack-imported TypeScript guidance.",
@@ -93,9 +93,9 @@ describe("imported skill resolution", () => {
 	});
 
 	it("keeps module-contributed skills ahead of imported name collisions", async () => {
-		writeProjectFile(projectDir, "shared.md", "Module shared guidance.");
+		writeProjectFile(scopeRoot, "shared.md", "Module shared guidance.");
 		writeImportedSkill(
-			projectDir,
+			scopeRoot,
 			"shared",
 			"name: shared\n",
 			"Imported shared guidance.",
@@ -112,7 +112,7 @@ describe("imported skill resolution", () => {
 
 	it("applies role filtering to explicitly selected imported skills", async () => {
 		writeImportedSkill(
-			projectDir,
+			scopeRoot,
 			"builder-only",
 			"name: builder-only\nroles: [builder]\n",
 			"Builder imported guidance.",
@@ -129,7 +129,7 @@ describe("imported skill resolution", () => {
 
 	it("rejects imported skill frontmatter tool-policy declarations before prompt resolution", async () => {
 		writeImportedSkill(
-			projectDir,
+			scopeRoot,
 			"restricted",
 			"name: restricted\ndisallowed-tools: [Bash]\n",
 			"Restricted imported guidance.",
@@ -142,8 +142,8 @@ describe("imported skill resolution", () => {
 	});
 
 	it("fails loudly on malformed or duplicate imported skill data", async () => {
-		writeImportedSkill(projectDir, "one", "name: duplicate\n", "One.");
-		writeImportedSkill(projectDir, "two", "name: duplicate\n", "Two.");
+		writeImportedSkill(scopeRoot, "one", "name: duplicate\n", "One.");
+		writeImportedSkill(scopeRoot, "two", "name: duplicate\n", "Two.");
 		await loader.load({ name: "empty-module" });
 
 		expect(() => loader.getSkillsPromptFor(["duplicate"], "builder")).toThrow(
@@ -153,7 +153,7 @@ describe("imported skill resolution", () => {
 
 	it("fails loudly on legacy flat imported skill files", async () => {
 		writeProjectFile(
-			projectDir,
+			scopeRoot,
 			join(".kota", "skills", "legacy.md"),
 			"---\nname: legacy\n---\nLegacy guidance.",
 		);
@@ -166,12 +166,12 @@ describe("imported skill resolution", () => {
 
 	it("rejects path-escaping imported resource metadata", async () => {
 		writeProjectFile(
-			projectDir,
+			scopeRoot,
 			join(".kota", "skills", "escape", "SKILL.md"),
 			"---\nname: escape\n---\nEscape guidance.",
 		);
 		writeProjectFile(
-			projectDir,
+			scopeRoot,
 			join(".kota", "skills", "escape", IMPORTED_SKILL_PROVENANCE_FILE),
 			`${JSON.stringify({
 				version: 1,

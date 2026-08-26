@@ -15,6 +15,7 @@
 
 import type { BusEvents } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
+import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
 import { postWithRetry } from "#modules/notification/index.js";
 
@@ -202,9 +203,10 @@ function buildBlocks(event: string, payload: Record<string, unknown>): Block[] {
   }
 }
 
-let unsubs: (() => void)[] = [];
-
-const slackModule: KotaModule = {
+export function createSlackModule(
+  http: OutboundHttpRequestPort = outboundHttp,
+): KotaModule {
+  return {
   name: "slack",
   version: "1.0.0",
   description: "Slack Incoming Webhook notification channel for KOTA workflow events",
@@ -234,7 +236,7 @@ const slackModule: KotaModule = {
         id: "slack.webhook-url",
         description: "Slack Incoming Webhook URL reference used for notification delivery.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {
@@ -264,7 +266,12 @@ const slackModule: KotaModule = {
 
     const { webhookUrl } = config;
     const enabledEvents = new Set(config.events ?? NOTIFICATION_EVENTS);
-    const retryOptions = { retries: config.retries, baseDelayMs: config.retryDelayMs };
+    const retryOptions = {
+      retries: config.retries,
+      baseDelayMs: config.retryDelayMs,
+      http,
+    };
+    const unsubs: (() => void)[] = [];
 
     const subscribe = (event: keyof BusEvents) => {
       const unsub = ctx.events.subscribe(event, (payload) => {
@@ -284,12 +291,9 @@ const slackModule: KotaModule = {
     subscribe("approval.requested");
     subscribe("owner.question.asked");
 
+    return { dispose: () => unsubs.forEach((unsubscribe) => unsubscribe()) };
   },
+  };
+}
 
-  onUnload: () => {
-    for (const unsub of unsubs) unsub();
-    unsubs = [];
-  },
-};
-
-export default slackModule;
+export default createSlackModule();

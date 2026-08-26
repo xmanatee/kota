@@ -1,5 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { apiError, getAccessToken, googleFetch, resolveSecretReference } from "./auth.js";
+
+let requestMock = vi.fn();
+const http = outboundHttpRequestPort((request) =>
+  requestMock(String(request.url), {
+    method: request.method,
+    headers: request.headers,
+    body: request.body,
+    signal: request.signal,
+  })
+);
 
 describe("resolveSecretReference", () => {
   afterEach(() => {
@@ -24,7 +35,6 @@ describe("resolveSecretReference", () => {
 });
 
 describe("getAccessToken", () => {
-  const originalFetch = globalThis.fetch;
   // Each test jumps far enough into the future to expire any prior cached token.
   // The cache stores expiresAt = Date.now() + expires_in*1000, so jumping > 1 hour
   // past the last test's time guarantees a miss.
@@ -38,24 +48,23 @@ describe("getAccessToken", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
   it("fetches a new token on first call", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    requestMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ access_token: "fresh-token", expires_in: 3600 }),
     });
 
-    const token = await getAccessToken("cid", "cs", "rt");
+    const token = await getAccessToken("cid", "cs", "rt", http);
     expect(token).toBe("fresh-token");
-    expect(globalThis.fetch).toHaveBeenCalledOnce();
+    expect(requestMock).toHaveBeenCalledOnce();
   });
 
   it("caches token on subsequent calls", async () => {
     let callCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation(() => {
+    requestMock = vi.fn().mockImplementation(() => {
       callCount++;
       return Promise.resolve({
         ok: true,
@@ -63,16 +72,16 @@ describe("getAccessToken", () => {
       });
     });
 
-    const t1 = await getAccessToken("a", "b", "c");
-    const t2 = await getAccessToken("a", "b", "c");
+    const t1 = await getAccessToken("a", "b", "c", http);
+    const t2 = await getAccessToken("a", "b", "c", http);
     expect(t1).toBe("token-1");
     expect(t2).toBe("token-1");
-    expect(globalThis.fetch).toHaveBeenCalledOnce();
+    expect(requestMock).toHaveBeenCalledOnce();
   });
 
   it("refreshes when cache is near expiry", async () => {
     let callCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation(() => {
+    requestMock = vi.fn().mockImplementation(() => {
       callCount++;
       return Promise.resolve({
         ok: true,
@@ -80,35 +89,35 @@ describe("getAccessToken", () => {
       });
     });
 
-    await getAccessToken("x", "y", "z");
+    await getAccessToken("x", "y", "z", http);
     // Advance time past the cache window (3600s - 60s buffer)
     vi.advanceTimersByTime(3600_000);
-    const t2 = await getAccessToken("x", "y", "z");
+    const t2 = await getAccessToken("x", "y", "z", http);
     expect(t2).toBe("tok-2");
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(requestMock).toHaveBeenCalledTimes(2);
   });
 
   it("throws on non-ok response", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    requestMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
       text: () => Promise.resolve("invalid_grant"),
     });
 
-    await expect(getAccessToken("a", "b", "c")).rejects.toThrow(
+    await expect(getAccessToken("a", "b", "c", http)).rejects.toThrow(
       "Google token refresh failed (401)",
     );
   });
 
   it("sends correct body parameters", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    requestMock = vi.fn().mockResolvedValue({
       ok: true,
       json: () => Promise.resolve({ access_token: "t", expires_in: 3600 }),
     });
 
-    await getAccessToken("my-cid", "my-cs", "my-rt");
+    await getAccessToken("my-cid", "my-cs", "my-rt", http);
 
-    const call = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = requestMock.mock.calls[0];
     expect(call[0]).toBe("https://oauth2.googleapis.com/token");
     expect(call[1].method).toBe("POST");
     const body = new URLSearchParams(call[1].body);
@@ -120,48 +129,57 @@ describe("getAccessToken", () => {
 });
 
 describe("googleFetch", () => {
-  const originalFetch = globalThis.fetch;
-
   afterEach(() => {
-    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
   it("sends Authorization header and returns parsed json", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    requestMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ data: "ok" }),
     });
 
-    const result = await googleFetch("my-token", "GET", "https://example.com/api");
+    const result = await googleFetch(
+      "my-token",
+      "GET",
+      "https://example.com/api",
+      undefined,
+      http,
+    );
     expect(result).toEqual({ ok: true, status: 200, data: { data: "ok" } });
 
-    const [, opts] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    const [, opts] = requestMock.mock.calls[0];
     expect(opts.headers.Authorization).toBe("Bearer my-token");
   });
 
   it("sends JSON body for POST", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    requestMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({}),
     });
 
-    await googleFetch("tok", "POST", "https://example.com/api", { key: "val" });
-    const [, opts] = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+    await googleFetch("tok", "POST", "https://example.com/api", { key: "val" }, http);
+    const [, opts] = requestMock.mock.calls[0];
     expect(opts.body).toBe(JSON.stringify({ key: "val" }));
     expect(opts.headers["Content-Type"]).toBe("application/json");
   });
 
   it("returns null data when json parsing fails", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({
+    requestMock = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
       json: () => Promise.reject(new Error("bad json")),
     });
 
-    const result = await googleFetch("tok", "GET", "https://example.com/api");
+    const result = await googleFetch(
+      "tok",
+      "GET",
+      "https://example.com/api",
+      undefined,
+      http,
+    );
     expect(result).toEqual({ ok: false, status: 500, data: null });
   });
 });

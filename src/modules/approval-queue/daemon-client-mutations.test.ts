@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import {
   ENCODING_SENSITIVE_ID,
   makeApproval,
@@ -40,8 +38,8 @@ describe("approval-queue daemon client mutations", () => {
     });
   });
 
-  it("threads projectId through list and mutations", async () => {
-    const approval = makeApproval("a-project", "approved");
+  it("threads scopeId through list and mutations", async () => {
+    const approval = makeApproval("a-scope", "approved");
     const { transport, calls } = makeRecordingTransport((_method, path, _body, shape) =>
       shape === "requestStrict"
         ? { approvals: [] }
@@ -60,19 +58,19 @@ describe("approval-queue daemon client mutations", () => {
     );
     const client = approvalQueueModule.daemonClient!(transport).approvals!;
 
-    await client.list({ status: "pending", projectId: "project-b" });
+    await client.list({ status: "pending", scopeId: "scope-b" });
     await client.approve(
-      "a-project",
+      "a-scope",
       "a".repeat(64),
       "ok",
-      { projectId: "project-b" },
+      { scopeId: "scope-b" },
     );
-    await client.reject("a-project", "no", { projectId: "project-b" });
+    await client.reject("a-scope", "no", { scopeId: "scope-b" });
 
     expect(calls.map((call) => call.path)).toEqual([
-      "/approvals?status=pending&projectId=project-b",
-      "/approvals/a-project/approve?projectId=project-b",
-      "/approvals/a-project/reject?projectId=project-b",
+      "/approvals?status=pending&scopeId=scope-b",
+      "/approvals/a-scope/approve?scopeId=scope-b",
+      "/approvals/a-scope/reject?scopeId=scope-b",
     ]);
   });
 
@@ -125,11 +123,11 @@ describe("approval-queue daemon client mutations", () => {
     }
   });
 
-  it("throws typed unknown-project errors", async () => {
+  it("throws typed unknown-scope errors", async () => {
     const response = new Response(JSON.stringify({
-      error: "Unknown project",
-      reason: "unknown_project",
-      projectId: "missing-project",
+      error: "Unknown scope",
+      reason: "unknown_scope",
+      scopeId: "missing-scope",
     }), { status: 404, headers: { "Content-Type": "application/json" } });
     const client = approvalQueueModule.daemonClient!(
       makeRecordingTransport(() => response).transport,
@@ -138,19 +136,9 @@ describe("approval-queue daemon client mutations", () => {
       "a-1",
       "a".repeat(64),
       undefined,
-      { projectId: "missing-project" },
+      { scopeId: "missing-scope" },
     ))
-      .rejects.toThrow(/Unknown project: missing-project/);
+      .rejects.toThrow(/Unknown scope: missing-scope/);
   });
 
-  it("requires and accepts the approvals namespace in assembled clients", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.approvals;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(/missing daemon handler/);
-
-    const contributed = approvalQueueModule.daemonClient!(transport);
-    expect(() => assembleDaemonClientHandlers(transport, { ...others, ...contributed }))
-      .not.toThrow();
-  });
 });

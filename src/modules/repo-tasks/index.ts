@@ -9,9 +9,9 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
-	getRepoTasksProvider,
 	REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
@@ -24,16 +24,16 @@ import type {
 	RepoTasksClient,
 } from "./client.js";
 import { buildRepoTasksDaemonHandler } from "./daemon-client.js";
-import {
-	createRepoTasksProjectStores,
-	type RepoTasksProjectStores,
-} from "./project-scope.js";
 import { mutateRepoTask } from "./repo-task-mutation-boundary.js";
 import repoTaskMutationWorkflow from "./repo-task-mutation-workflow.js";
 import { getRepoTasksDir } from "./repo-tasks-domain.js";
 import { showTask } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 import { taskControlRoutes, taskRoutes } from "./routes.js";
+import {
+	createRepoTasksScopeStores,
+	type RepoTasksScopeStores,
+} from "./scope.js";
 import { repoTasksUiSurfaceSource } from "./ui-surface.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
@@ -45,27 +45,24 @@ const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
 
 const DEFAULT_SEARCH_LIMIT = 20;
 
-function resolveRepoTasksProject(
-	projectStores: RepoTasksProjectStores,
-	projectId: string | undefined,
+function resolveRepoTasksScope(
+	scopeStores: RepoTasksScopeStores,
+	scopeId: string | undefined,
 ) {
-	const resolved = projectStores.resolve(projectId);
+	const resolved = scopeStores.resolve(scopeId);
 	if (!resolved.ok) {
-		throw new Error(`Unknown project: ${resolved.error.projectId}`);
+		throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
 	}
 	return resolved;
 }
 
 function createLocalDefaultProviderResolver(
-	defaultProjectDir: string,
+	defaultScopeRoot: string,
+	registered: () => RepoTasksProvider | null,
 ): () => RepoTasksProvider {
-	const fallback = new RepoTasksDefaultStore(defaultProjectDir);
+	const fallback = new RepoTasksDefaultStore(defaultScopeRoot);
 	return () => {
-		try {
-			return getRepoTasksProvider();
-		} catch {
-			return fallback;
-		}
+		return registered() ?? fallback;
 	};
 }
 
@@ -81,7 +78,11 @@ const repoTasksModule: KotaModule = {
 		ctx.registerProvider(REPO_TASKS_PROVIDER_TOKEN, new RepoTasksDefaultStore(ctx.cwd));
 		ctx.registerProvider(
 			CAPABILITY_READINESS_PROVIDER_TYPE,
-			createRepoTasksReadinessSource(() => getRepoTasksProvider()),
+			createRepoTasksReadinessSource(() => {
+				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+				if (!provider) throw new Error("repo-tasks provider is not registered");
+				return provider;
+			}),
 		);
 	},
 
@@ -93,54 +94,66 @@ const repoTasksModule: KotaModule = {
 
 	routes: (ctx) =>
 		taskRoutes(
-			createRepoTasksProjectStores(ctx.cwd, () => getRepoTasksProvider()),
+			createRepoTasksScopeStores(ctx.cwd, () => {
+				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+				if (!provider) throw new Error("repo-tasks provider is not registered");
+				return provider;
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 		),
 	controlRoutes: (ctx) =>
 		taskControlRoutes(
-			createRepoTasksProjectStores(ctx.cwd, () => getRepoTasksProvider()),
+			createRepoTasksScopeStores(ctx.cwd, () => {
+				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
+				if (!provider) throw new Error("repo-tasks provider is not registered");
+				return provider;
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 		),
 
 	localClient: (ctx) => {
-		const projectStores = createRepoTasksProjectStores(
+		const scopeStores = createRepoTasksScopeStores(
 			ctx.cwd,
-			createLocalDefaultProviderResolver(ctx.cwd),
+			createLocalDefaultProviderResolver(
+				ctx.cwd,
+				() => ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN),
+			),
+			() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
 		);
 		const handler: RepoTasksClient = {
-			async list(states, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				const tasksDir = getRepoTasksDir(resolved.projectDir);
+			async list(states, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
+				const tasksDir = getRepoTasksDir(resolved.scopeRoot);
 				const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
 				const tasks: RepoTaskListEntry[] = listTasksForStates(tasksDir, wanted);
 				return { tasks };
 			},
-			async show(id, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				return showTask(resolved.projectDir, id);
+			async show(id, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
+				return showTask(resolved.scopeRoot, id);
 			},
-			async move(id, toState, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async move(id, toState, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, {
 					kind: "move",
 					id,
 					state: toState,
 				});
 			},
-			async updateBody(id, body, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async updateBody(id, body, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, { kind: "update-body", id, body });
 			},
 			async create(options) {
-				const { projectId, ...taskOptions } = options;
-				const resolved = resolveRepoTasksProject(projectStores, projectId);
+				const { scopeId, ...taskOptions } = options;
+				const resolved = resolveRepoTasksScope(scopeStores, scopeId);
 				return await mutateRepoTask(resolved, { kind: "create", options: taskOptions });
 			},
-			async capture(title, project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
+			async capture(title, scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, { kind: "capture", title });
 			},
 			async gc(options) {
-				const { projectId, ...gcOptions } = options ?? {};
-				const resolved = resolveRepoTasksProject(projectStores, projectId);
+				const { scopeId, ...gcOptions } = options ?? {};
+				const resolved = resolveRepoTasksScope(scopeStores, scopeId);
 				return await mutateRepoTask(resolved, { kind: "gc", options: gcOptions });
 			},
 			async search(query, filter): Promise<RepoTaskSearchResult> {
@@ -152,25 +165,28 @@ const repoTasksModule: KotaModule = {
 				if (filter?.states && filter.states.length > 0) {
 					opts.states = filter.states;
 				}
-				const resolved = resolveRepoTasksProject(projectStores, filter?.projectId);
+				const resolved = resolveRepoTasksScope(scopeStores, filter?.scopeId);
 				if (!semantic) {
-					const fallback = new RepoTasksDefaultStore(resolved.projectDir);
+					const fallback = new RepoTasksDefaultStore(resolved.scopeRoot);
 					return { ok: true, tasks: await fallback.searchTasks(query, opts) };
 				}
 				const provider = resolved.store;
-				if (!provider.supportsSemanticSearch()) {
+				const semanticSearch = provider.semanticSearchCapability;
+				if (!semanticSearch) {
 					return { ok: false, reason: "semantic_unavailable" };
 				}
 				try {
-					const tasks = await provider.searchTasks(query, opts);
+					const tasks = await semanticSearch.searchTasks(query, opts);
 					return { ok: true, tasks };
 				} catch {
 					return { ok: false, reason: "semantic_unavailable" };
 				}
 			},
-			async reindex(project) {
-				const resolved = resolveRepoTasksProject(projectStores, project?.projectId);
-				return resolved.store.reindex();
+			async reindex(scopeSelector) {
+				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
+				const semanticSearch = resolved.store.semanticSearchCapability;
+				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
+				return { ok: true, ...await semanticSearch.reindex() };
 			},
 		};
 		return { tasks: handler };

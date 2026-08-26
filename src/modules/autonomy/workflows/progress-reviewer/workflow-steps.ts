@@ -84,8 +84,8 @@ export const inspectSemanticInput = typedCodeStep<ProgressReviewSemanticInput>({
       "reason",
       "deliveryAttempt",
     ]),
-  run: ({ scopeDir, state, trigger }) =>
-    inspectProgressReviewSemanticInput({ scopeDir, state, trigger }),
+  run: ({ scopeRoot, state, trigger }) =>
+    inspectProgressReviewSemanticInput({ scopeRoot, state, trigger }),
 });
 
 export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
@@ -95,19 +95,19 @@ export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
     inspectSemanticInput.output(ctx)?.shouldReview === true,
   validate: validateProgressReviewEvidenceHandle,
   run: async (ctx) => {
-    const { projectDir, scopeDir, stateDir, trigger, workflow } = ctx;
+    const { workspaceRoot, scopeRoot, stateDir, trigger, workflow } = ctx;
     const now = new Date();
     const gitEvidenceByScope = await collectProgressReviewGitEvidence({
-      projectDir,
-      scopeDir,
+      workspaceRoot,
+      scopeRoot,
       stateDir,
       trigger,
       now,
       runCommand: ctx.runCommand,
     });
     const packet = await ctx.runBlocking(collectProgressReviewEvidenceOperation, {
-      projectDir,
-      scopeDir,
+      workspaceRoot,
+      scopeRoot,
       stateDir,
       trigger,
       nowIso: now.toISOString(),
@@ -128,6 +128,7 @@ export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacke
   type: "code",
   when: stepSucceeded("collect-evidence"),
   exposeOutputToAgent: true,
+  exposedOutputTrust: "untrusted",
   validate: validateProgressReviewAgentEvidencePacket,
   run: (ctx) =>
     compactProgressReviewEvidenceForAgent(readProgressReviewEvidencePacket(ctx)),
@@ -147,8 +148,7 @@ export const applyActions = typedCodeStep<ProgressReviewActionResult>({
   run: async (ctx) => {
     const evidence = readProgressReviewEvidencePacket(ctx);
     return ctx.runBlocking(progressReviewActionOperation, {
-      projectDir: ctx.projectDir,
-      scopeDir: ctx.scopeDir,
+      workspaceRoot: ctx.workspaceRoot,
       runId: ctx.workflow.runId,
       evidence,
       review: decodeProgressReviewAgentOutputForEvidence(
@@ -226,12 +226,12 @@ export const validateChanges = typedCodeStep<{ ok: true }>({
   },
   run: async (ctx) => {
     await ctx.runBlocking(taskQueueValidationOperation, {
-      projectDir: ctx.projectDir,
+      workspaceRoot: ctx.workspaceRoot,
     });
     await ctx.runCommand({
       command: "pnpm",
       args: ["run", "validate-tasks"],
-      cwd: ctx.projectDir,
+      cwd: ctx.workspaceRoot,
     });
     return { ok: true } as const;
   },

@@ -65,7 +65,7 @@ function buildAuditUiSurface(
 
 export const auditUiSurfaceSource: UiSurfaceSource = {
   sourceId: "guardrail-audit",
-  project: async (context) => {
+  scope: async (context) => {
     const audit = await context.read("guardrail audit", () =>
       context.client.audit.list({ limit: 20 }),
     );

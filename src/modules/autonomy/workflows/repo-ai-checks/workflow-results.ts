@@ -35,7 +35,7 @@ export function githubCommentInput(comment: PreparedRepoAiCheckComment) {
 }
 
 export function assessCommentPolicy(
-  projectDir: string,
+  workspaceRoot: string,
   input: ReturnType<typeof githubCommentInput>,
 ): RepoAiCheckCommentPolicy {
   if (getToolEffect("github_comment") === undefined) {
@@ -49,7 +49,7 @@ export function assessCommentPolicy(
   const assessment = assess(
     "github_comment",
     input,
-    nonInteractiveConfig(loadConfig(projectDir).guardrails),
+    nonInteractiveConfig(loadConfig(workspaceRoot).guardrails),
   );
   if (assessment.policy === "deny") {
     return {

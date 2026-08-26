@@ -6,7 +6,7 @@ import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { resolveEventSchemaReference } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
@@ -38,7 +38,7 @@ export { loadDefinitions, resolveDefinitions } from "./runtime-dispatch-definiti
 export const IDLE_UNCHANGED_REEMIT_MS = 30 * 60 * 1000;
 
 export interface WorkflowRuntimeDispatchState {
-  projectDir: string;
+  scopeRoot: string;
   stopping: boolean;
   dispatchPaused: boolean;
   config?: KotaConfig;
@@ -51,7 +51,7 @@ export interface WorkflowRuntimeDispatchState {
   wfQueue: WorkflowQueueManager;
   definitions: WorkflowDefinition[];
   scheduleTriggers: ScheduleTriggerManager;
-  pbus: ProjectScopedEventBus;
+  pbus: ScopedEventBus;
   backoff: AgentBackoffManager;
   runCoordinator: RunCoordinator;
   runtimeConfig: WorkflowRuntimeConfig;
@@ -70,12 +70,12 @@ export async function emitIdleEvent(
   state: WorkflowRuntimeDispatchState,
 ): Promise<void> {
   checkAbortSignal(
-    state.projectDir,
-    () => state.runCoordinator.cancelProject(state.runtimeConfig.projectId),
+    state.scopeRoot,
+    () => state.runCoordinator.cancelScope(state.runtimeConfig.scopeId),
     (msg) => state.log(msg),
   );
   checkReloadSignal(
-    state.projectDir,
+    state.scopeRoot,
     () => loadDefinitions(state),
     (defs) => {
       state.scheduleTriggers.reconcile(defs);
@@ -89,7 +89,7 @@ export async function emitIdleEvent(
     .some((run) => run.trigger.event === "runtime.idle");
   if (
     state.stopping ||
-    state.runCoordinator.isProjectBusy(state.runtimeConfig.projectId) ||
+    state.runCoordinator.isScopeBusy(state.runtimeConfig.scopeId) ||
     idleTriggerAlreadyQueued
   ) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
@@ -103,7 +103,7 @@ export async function emitIdleEvent(
       idleIntervalMs: state.idleIntervalMs,
     });
   }
-  const idleSignatureCheck = getIdleEventSignature(state.projectDir);
+  const idleSignatureCheck = getIdleEventSignature(state.scopeRoot);
   state.idleSignatureCheck = idleSignatureCheck;
   let signature: string;
   try {
@@ -120,7 +120,7 @@ export async function emitIdleEvent(
     .some((run) => run.trigger.event === "runtime.idle");
   if (
     state.stopping ||
-    state.runCoordinator.isProjectBusy(state.runtimeConfig.projectId) ||
+    state.runCoordinator.isScopeBusy(state.runtimeConfig.scopeId) ||
     triggerQueuedDuringInspection
   ) {
     return;
@@ -173,7 +173,7 @@ export async function executeAdmittedWorkflowRun(
       pbus: state.pbus,
       store: state.store,
       readRuntimeState: () => state.runtimeConfig.runState.readWorkflowSummary(
-        state.runtimeConfig.projectId,
+        state.runtimeConfig.scopeId,
       ),
       ...(state.deadLetterQueue !== undefined
         ? { deadLetterQueue: state.deadLetterQueue }
@@ -299,7 +299,7 @@ export function createIntegratedWorkflowPublication(
   return {
     id: publicationId,
     runId: run.id,
-    projectId: run.projectId,
+    scopeId: run.scopeId,
     event: "workflow.completed",
     payload: buildWorkflowCompletedPayload(
       metadata,

@@ -18,8 +18,8 @@ adding a parallel surface.
   local runner. Harness-specific options stay adapter-private.
 - `scope` = a daemon-hosted runtime context. The root scope is global;
   directory-backed scopes are the first concrete child scopes and use stable
-  ids derived from their directory roots. Project is compatibility language for
-  directory-backed scopes, not the core abstraction.
+  ids derived from their directory roots. A scope is the only KOTA runtime
+  identity; external systems may retain their own domain terminology.
 - `daemon` = the long-lived runtime host. When running, it owns workflows,
   channels, sessions, stores, module runtime state, and the control API.
 - `session` = a stateful execution context for an agent. Interactive chats and
@@ -161,8 +161,7 @@ disposition authority.
   scope.
 - `scope` protocol: stable id, display name, optional parent scope, optional
   directory root, and a registry projection. The daemon exposes a canonical
-  scope projection; project-named control surfaces are compatibility adapters
-  for directory-backed scopes.
+  scope projection; every control surface selects the same canonical identity.
 - `daemon` protocol: lifecycle, ownership of runtime state, module loading,
   and control-plane hosting.
 - `client` protocol: daemon discovery, capability-scoped control calls, and
@@ -186,8 +185,8 @@ Local source links point to representative contracts, not exhaustive catalogs.
 
 | Concept | Canonical Mechanism | Boundary |
 | --- | --- | --- |
-| Scope and project | `ScopeRegistry`, `ScopeAuthorityService`, and `ProjectScopedEventBus` in `src/core/daemon/` and `src/core/events/project-scope.ts`. | `scopeId` is canonical. The registry owns identity/lifecycle; one machine-owned, revisioned authority transaction owns trust and policy. Repo config cannot write authority. `projectId`, `/projects`, and project route parameters are compatibility language for directory-backed scopes. |
-| Event | `EventBus`, `BusEvents`, module event declarations, and durable `EventEnvelope` records in `src/core/events/`. | Payload shape is owned by the event declaration. Scope-scoped events carry `scopeId` plus compatibility `projectId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience; durable replay lives in the event journal. |
+| Scope | `ScopeRegistry`, `ScopeAuthorityService`, and `ScopedEventBus` in `src/core/daemon/` and `src/core/events/scope.ts`. | `scopeId` names every runtime boundary. The registry owns directory-scope identity and lifecycle; one machine-owned, revisioned authority transaction owns trust and policy. Repo config cannot write authority. |
+| Event | `EventBus`, `BusEvents`, module event declarations, and durable `EventEnvelope` records in `src/core/events/`. | Payload shape is owned by the event declaration. Scoped events carry one `scopeId`; daemon-wide events omit scope. The bus is synchronous and in-process. The daemon SSE ring buffer in `src/core/daemon/event-ring-buffer.ts` is recent-event convenience; durable replay lives in the event journal. |
 | Durable event data | `EventJournal` in `src/core/events/event-journal.ts` wraps emitted events with identity, scope lineage, causality, trace, idempotency, retention, and redacted projection metadata. | The journal records event occurrence and replay metadata. It does not replace the live bus, duplicate workflow run logs, or own future dedupe and dead-letter queue semantics. |
 | Module | `KotaModule` in `src/core/modules/module-types.ts`. | Modules are the only integration unit. Provider-specific tools, workflows, channels, routes, setup requirements, effects, and stores stay module-owned. |
 | Tool and action | `ToolDef` plus `ToolEffect` guardrail metadata. | External writes must be represented as typed tools or action adapters with explicit effect metadata; prose approval is not an execution contract. |
@@ -197,7 +196,7 @@ Local source links point to representative contracts, not exhaustive catalogs.
 | Session | Core session runtime plus daemon session control routes. | Every interactive run and autonomous step runs in a session. Channels may own session pools; clients only observe or control sessions through the daemon API. |
 | Automation, hook, schedule, workflow | `defineAutomation`, `defineHook`, workflow triggers, and workflow steps in `src/core/workflow/`. | Hook is an authoring view. Workflow is the compiled/runtime mechanism for event, schedule, interval, watch, webhook, and batch triggers. Do not add parallel trigger engines. |
 | Channel | `ChannelDef` in `src/core/channels/channel.ts`. | Channels translate external I/O into sessions or typed inbound events. They are daemon-owned module contributions, not clients. |
-| Client | Thin apps under `clients/` consuming `KotaClient`, HTTP+JSON, SSE, and the shared UI surface graph. | Clients render daemon contracts and never parse `.kota/` files or start a second runtime. The shared UI contribution protocol is the renderer contract for operator-facing controls that should appear consistently across clients. |
+| Client | Thin apps under `clients/` consuming the generated `KotaClient` aggregate, HTTP+JSON, SSE, and the shared UI surface graph. | Domain owners author wire types once; the daemon contract graph generates strict TypeScript and Swift projections. Clients render those contracts and never parse `.kota/` files or start a second runtime. |
 | Setup, auth, and secrets | Module setup requirements in `src/core/modules/setup-requirements.ts` plus the secrets module. | Setup prompts collect prerequisites and secret references. Raw credentials stay in secret stores or provider auth flows, not decision records, prompts, screenshots, or client fixtures. |
 | Outbound HTTP | `OutboundHttpTransport` and the closed profiles in `src/core/outbound-http/`. | Core protocols and module adapters select explicit trust profiles; only the low-level dispatcher reaches host HTTP primitives. Vendor payloads, OAuth semantics, and agent-facing web/browser behavior stay in their owning modules. |
 | Owner question, approval, owner decision | `OwnerQuestionQueue`, `ApprovalQueue`, `OwnerDecisionStore`, `ownerDecisionSteps`, `confirmedOwnerActionStep`, and the owner-decisions module client/CLI/API. | Owner questions ask for judgment; approvals gate dangerous effects; owner decisions persist reusable choices and authorize at most the intended later action. |

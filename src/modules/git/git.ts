@@ -32,7 +32,7 @@ export const gitTool: KotaTool = {
 			args: {
 				type: "string",
 				description:
-					"Operation-specific arguments are strictly parsed; unsupported flags and project-external local paths are rejected. " +
+					"Operation-specific arguments are strictly parsed; unsupported flags and repository-external local paths are rejected. " +
 					"status: (none). " +
 					"diff: optional path or ref (e.g. 'HEAD~3', 'src/', 'main..feature'). " +
 					"log: optional format flags (default: --oneline -20). " +
@@ -145,7 +145,7 @@ function argumentError(message: string): ToolResult {
 	return { content: `Error: ${message}`, is_error: true };
 }
 
-function projectDir(context?: ToolRunnerContext): string {
+function repoRoot(context?: ToolRunnerContext): string {
 	return context?.cwd ?? process.cwd();
 }
 
@@ -160,7 +160,7 @@ async function opStatus(args: string, context?: ToolRunnerContext): Promise<Tool
 }
 
 async function opDiff(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parsed = parseDiffArguments(args, projectDir(context));
+	const parsed = parseDiffArguments(args, repoRoot(context));
 	if (!parsed.ok) return argumentError(parsed.message);
 	const safeOptions = ["--no-ext-diff", "--no-textconv"];
 	const result = await git(["diff", ...safeOptions, "--stat", ...parsed.value], context);
@@ -174,7 +174,7 @@ async function opDiff(args: string, context?: ToolRunnerContext): Promise<ToolRe
 }
 
 async function opLog(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parsed = parseLogArguments(args, projectDir(context));
+	const parsed = parseLogArguments(args, repoRoot(context));
 	if (!parsed.ok) return argumentError(parsed.message);
 	const result = await git(
 		["log", "--no-ext-diff", "--no-textconv", ...parsed.value],
@@ -187,7 +187,7 @@ async function opLog(args: string, context?: ToolRunnerContext): Promise<ToolRes
 }
 
 async function opShow(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parsed = parseShowArguments(args, projectDir(context));
+	const parsed = parseShowArguments(args, repoRoot(context));
 	if (!parsed.ok) return argumentError(parsed.message);
 	const safeOptions = ["--no-ext-diff", "--no-textconv"];
 	const result = await git(["show", ...safeOptions, "--stat", parsed.value, "--"], context);
@@ -199,7 +199,7 @@ async function opShow(args: string, context?: ToolRunnerContext): Promise<ToolRe
 }
 
 async function opAdd(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parsed = parseAddArguments(args, projectDir(context));
+	const parsed = parseAddArguments(args, repoRoot(context));
 	if (!parsed.ok) return argumentError(parsed.message);
 	const result = await git(["add", "--", ...parsed.value], context);
 	if (result.code !== 0) {
@@ -265,7 +265,7 @@ async function opBranch(args: string, context?: ToolRunnerContext): Promise<Tool
 }
 
 async function opPush(args: string, context?: ToolRunnerContext): Promise<ToolResult> {
-	const parsed = parsePushArguments(args, projectDir(context));
+	const parsed = parsePushArguments(args, repoRoot(context));
 	if (!parsed.ok) return argumentError(parsed.message);
 	const currentBranch = await getCurrentBranch(context);
 	let protectedTarget: string | null;

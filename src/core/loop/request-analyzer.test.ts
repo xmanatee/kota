@@ -72,7 +72,7 @@ describe("extractPaths", () => {
 
 describe("resolveExistingPaths", () => {
   it("finds files that exist in cwd", () => {
-    // package.json should exist in the project root
+    // package.json should exist in the scope root
     const cwd = process.cwd();
     const result = resolveExistingPaths(["package.json"], cwd);
     expect(result.length).toBe(1);

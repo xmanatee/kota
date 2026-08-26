@@ -59,8 +59,8 @@ const githubActorSchema = {
   },
 };
 
-// GitHub webhook routes do not carry project attribution today; this should
-// migrate to project scope when inbound webhook routes are project-addressed.
+// GitHub webhook routes do not carry scope attribution today; this should
+// migrate to directory-scope attribution when inbound webhook routes are scope-addressed.
 export const githubPullRequestEvent =
   defineDaemonWideModuleEvent<GitHubPullRequestEventPayload>(
     "github.pull_request",

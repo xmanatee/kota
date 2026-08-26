@@ -2,6 +2,7 @@ import type {
   CapabilityReadiness,
   CapabilityReadinessSource,
 } from "#core/daemon/capability-readiness.js";
+import type { OutboundHttpRequestPort } from "#core/outbound-http/index.js";
 import {
   type GoogleWorkspaceSecretResolver,
   refreshGoogleAccessToken,
@@ -20,6 +21,7 @@ export type GoogleWorkspaceOAuthConfig = {
 export function createGoogleWorkspaceReadinessSource(opts: {
   getConfig: () => GoogleWorkspaceOAuthConfig | undefined;
   getSecret: GoogleWorkspaceSecretResolver;
+  http?: OutboundHttpRequestPort;
 }): CapabilityReadinessSource {
   return {
     moduleName: MODULE_NAME,
@@ -51,7 +53,7 @@ export function createGoogleWorkspaceReadinessSource(opts: {
       }
 
       try {
-        await refreshGoogleAccessToken(clientId, clientSecret, refreshToken);
+        await refreshGoogleAccessToken(clientId, clientSecret, refreshToken, opts.http);
         return [{
           id: GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID,
           moduleName: MODULE_NAME,

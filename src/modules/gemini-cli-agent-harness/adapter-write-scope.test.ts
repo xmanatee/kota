@@ -18,7 +18,7 @@ describe("gemini CLI agent write scope", () => {
     });
   });
 
-  it("projects the agent-owned root into both native write boundaries", async () => {
+  it("scopes the agent-owned root into both native write boundaries", async () => {
     await geminiCliAgentHarness.run({
       prompt: "review evidence",
       model: "gemini-2.5-pro",

@@ -10,7 +10,7 @@
  * Selection seam: the adapter registers itself under the `claude-agent-sdk`
  * name when the eval-harness module `onLoad` sees
  * `KOTA_EVAL_HARNESS_REPLAY_ROOT` in the environment — the same env-remap
- * surface the subprocess executor uses for `HOME` and `KOTA_PROJECT_DIR`.
+ * surface the subprocess executor uses for `HOME` and `KOTA_SCOPE_ROOT`.
  * Production code paths do not set this env var, so production selection
  * behavior is unchanged. Fixture subprocesses opt in on every run.
  */

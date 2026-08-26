@@ -25,23 +25,23 @@ function mockResponse(): MockResponse {
   return { res, result };
 }
 
-function makeFakeCtx(projectDir: string): ModuleContext {
-  return { cwd: projectDir } as unknown as ModuleContext;
+function makeFakeCtx(workspaceRoot: string): ModuleContext {
+  return { cwd: workspaceRoot } as unknown as ModuleContext;
 }
 
 describe("evalHarnessControlRoutes GET /eval/list", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "eval-control-routes-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "eval-control-routes-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("returns fixture control decisions and aggregate coverage summary", () => {
-    const routes = evalHarnessControlRoutes(makeFakeCtx(projectDir));
+    const routes = evalHarnessControlRoutes(makeFakeCtx(workspaceRoot));
     const route = routes.find(
       (entry) => entry.method === "GET" && entry.path === "/eval/list",
     );

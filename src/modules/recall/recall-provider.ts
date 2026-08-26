@@ -18,8 +18,8 @@ import {
   RECALL_DEFAULT_TOP_K,
   RECALL_SOURCE_ORDER,
   type RecallContributor,
-  type RecallProjectContext,
   type RecallProvider,
+  type RecallScopeContext,
   type RecallSource,
 } from "./recall-types.js";
 
@@ -128,9 +128,9 @@ export type RecallProviderOptions = {
    * to `console.error`. Tests inject a quiet sink to keep output clean.
    */
   onContributorError?: (source: RecallSource, error: unknown) => void;
-  resolveProjectContext?: (
-    projectId: string | null | undefined,
-  ) => RecallProjectContext | { error: "unknown_project"; projectId: string };
+  resolveScopeContext?: (
+    scopeId: string | null | undefined,
+  ) => RecallScopeContext | { error: "unknown_scope"; scopeId: string };
 };
 
 export class RecallProviderImpl implements RecallProvider {
@@ -139,8 +139,8 @@ export class RecallProviderImpl implements RecallProvider {
   private readonly onContributorError: NonNullable<
     RecallProviderOptions["onContributorError"]
   >;
-  private readonly resolveProjectContext:
-    | NonNullable<RecallProviderOptions["resolveProjectContext"]>
+  private readonly resolveScopeContext:
+    | NonNullable<RecallProviderOptions["resolveScopeContext"]>
     | undefined;
 
   constructor(options: RecallProviderOptions = {}) {
@@ -150,7 +150,7 @@ export class RecallProviderImpl implements RecallProvider {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[recall] ${source} contributor failed: ${msg}`);
       });
-    this.resolveProjectContext = options.resolveProjectContext;
+    this.resolveScopeContext = options.resolveScopeContext;
   }
 
   register(contributor: RecallContributor): void {
@@ -173,14 +173,14 @@ export class RecallProviderImpl implements RecallProvider {
   async recall(
     query: string,
     filter?: RecallFilter,
-    project?: RecallProjectContext,
+    scope?: RecallScopeContext,
   ): Promise<RecallHit[]> {
     const trimmed = query.trim();
     if (trimmed === "") return [];
-    const resolvedProject =
-      project ?? this.resolveProjectContext?.(selectedScopeSelectorId(filter));
-    if (resolvedProject && "error" in resolvedProject) {
-      throw new Error(`Unknown project: ${resolvedProject.projectId}`);
+    const resolvedScope =
+      scope ?? this.resolveScopeContext?.(selectedScopeSelectorId(filter));
+    if (resolvedScope && "error" in resolvedScope) {
+      throw new Error(`Unknown scope: ${resolvedScope.scopeId}`);
     }
     const topK = filter?.topK ?? RECALL_DEFAULT_TOP_K;
     if (topK <= 0) return [];
@@ -199,7 +199,7 @@ export class RecallProviderImpl implements RecallProvider {
         try {
           return await contributor.recall(trimmed, {
             topK,
-            ...(resolvedProject && { project: resolvedProject }),
+            ...(resolvedScope && { scope: resolvedScope }),
           });
         } catch (err) {
           this.onContributorError(source, err);

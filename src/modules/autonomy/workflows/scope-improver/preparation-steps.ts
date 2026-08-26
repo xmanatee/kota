@@ -35,8 +35,8 @@ export const inspectWorktree = typedCodeStep<WorktreeInspection>({
       "entries",
       "summary",
     ]),
-  run: async ({ projectDir, runBlocking }) => {
-    const worktree = await runBlocking(repoWorktreeStatusOperation, { projectDir });
+  run: async ({ workspaceRoot, runBlocking }) => {
+    const worktree = await runBlocking(repoWorktreeStatusOperation, { workspaceRoot });
     return {
       available: worktree.available,
       dirty: !worktree.available || worktree.dirty,
@@ -64,8 +64,8 @@ export const collectInputs = typedCodeStep<ScopeImprovementInputs>({
       "alreadyConsumed",
     ]),
   run: ({
-    projectDir,
-    scopeDir,
+    workspaceRoot,
+    scopeRoot,
     stateDir,
     state,
     trigger,
@@ -81,12 +81,12 @@ export const collectInputs = typedCodeStep<ScopeImprovementInputs>({
       SCOPE_IMPROVEMENT_STATE_KEY,
     );
     return runBlocking(collectScopeImprovementInputsOperation, {
-      projectDir,
-      scopeDir,
+      workspaceRoot,
+      scopeRoot,
       stateDir,
       state: decodeScopeImprovementState(
         snapshot.value,
-        deriveDirectoryScopeId(scopeDir),
+        deriveDirectoryScopeId(scopeRoot),
       ),
       trigger,
       nowIso: new Date().toISOString(),

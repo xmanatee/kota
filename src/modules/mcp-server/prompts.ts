@@ -133,7 +133,7 @@ function projectTemplateToPrompt(template: PromptTemplateMeta): McpPrompt {
 	}));
 	return {
 		name: template.name,
-		description: template.description ?? `Project prompt template: ${template.name}`,
+		description: template.description ?? `Workspace prompt template: ${template.name}`,
 		arguments: args,
 	};
 }
@@ -146,8 +146,8 @@ function invalidPromptTemplateFile(err: PromptTemplateParseError): McpPromptCata
 	};
 }
 
-function discoverProjectPromptStore(projectDir: string): McpPromptCatalogResult<PromptStore> {
-	const store = new PromptStore(projectDir);
+function discoverScopePromptStore(scopeRoot: string): McpPromptCatalogResult<PromptStore> {
+	const store = new PromptStore(scopeRoot);
 	try {
 		store.discover();
 	} catch (err) {
@@ -157,8 +157,8 @@ function discoverProjectPromptStore(projectDir: string): McpPromptCatalogResult<
 	return { ok: true, result: store };
 }
 
-function listProjectTemplatePrompts(projectDir: string): McpPromptCatalogResult<McpPrompt[]> {
-	const store = discoverProjectPromptStore(projectDir);
+function listScopeTemplatePrompts(scopeRoot: string): McpPromptCatalogResult<McpPrompt[]> {
+	const store = discoverScopePromptStore(scopeRoot);
 	if (!store.ok) return store;
 	const prompts = store.result.list()
 		.filter((template) => !BUILT_IN_PROMPT_NAMES.has(template.name))
@@ -167,17 +167,17 @@ function listProjectTemplatePrompts(projectDir: string): McpPromptCatalogResult<
 	return { ok: true, result: prompts };
 }
 
-export function listPromptCatalog(projectDir: string): McpPromptCatalogResult<McpPrompt[]> {
-	const projectPrompts = listProjectTemplatePrompts(projectDir);
-	if (!projectPrompts.ok) return projectPrompts;
+export function listPromptCatalog(scopeRoot: string): McpPromptCatalogResult<McpPrompt[]> {
+	const scopePrompts = listScopeTemplatePrompts(scopeRoot);
+	if (!scopePrompts.ok) return scopePrompts;
 	return { ok: true, result: [
 		...KOTA_PROMPTS.map(clonePrompt),
-		...projectPrompts.result,
+		...scopePrompts.result,
 	] };
 }
 
-export function getPromptCatalogSignature(projectDir: string): string {
-	const catalog = listPromptCatalog(projectDir);
+export function getPromptCatalogSignature(scopeRoot: string): string {
+	const catalog = listPromptCatalog(scopeRoot);
 	if (!catalog.ok) {
 		return JSON.stringify({ error: catalog.message });
 	}
@@ -205,13 +205,13 @@ function decodeCursor(cursor: KotaJsonValue | undefined): McpPromptCatalogResult
 }
 
 export function listPromptCatalogPage(
-	projectDir: string,
+	scopeRoot: string,
 	cursor: KotaJsonValue | undefined,
 ): McpPromptCatalogResult<McpPromptListPage> {
 	const decoded = decodeCursor(cursor);
 	if (!decoded.ok) return decoded;
 	const offset = decoded.result;
-	const catalog = listPromptCatalog(projectDir);
+	const catalog = listPromptCatalog(scopeRoot);
 	if (!catalog.ok) return catalog;
 	const prompts = catalog.result;
 	if (offset > prompts.length) {
@@ -250,7 +250,7 @@ function renderBuiltInPrompt(
 
 /** Render a prompt into a messages array given its arguments. */
 export function renderPrompt(
-	projectDir: string,
+	scopeRoot: string,
 	name: string,
 	args: Record<string, string>,
 ): McpPromptCatalogResult<McpGetPromptResult> {
@@ -262,7 +262,7 @@ export function renderPrompt(
 		if (builtIn) return { ok: true, result: builtIn };
 	}
 
-	const store = discoverProjectPromptStore(projectDir);
+	const store = discoverScopePromptStore(scopeRoot);
 	if (!store.ok) return store;
 	const template = store.result.get(name);
 	if (!template) {
@@ -286,7 +286,7 @@ export function renderPrompt(
 	return {
 		ok: true,
 		result: {
-			description: template.description ?? `Project prompt template: ${template.name}`,
+			description: template.description ?? `Workspace prompt template: ${template.name}`,
 			messages: [
 				{
 					role: "user",

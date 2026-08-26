@@ -1,7 +1,6 @@
 import type { ModuleLogger } from "#core/modules/module-types.js";
+import type { OutboundHttpTransport } from "#core/outbound-http/index.js";
 import { postWithRetry } from "#modules/notification/index.js";
-import { createCallbackDeliveryFetch } from "./push-notification-callback-fetch.js";
-import type { CallbackAddressResolver } from "./push-notification-callback-hosts.js";
 import { redactedCallbackUrl } from "./push-notification-callback-url.js";
 import {
   buildPushDeliveryHeaders,
@@ -11,8 +10,7 @@ import type { StoredPushNotificationConfig } from "./push-notification-storage.j
 
 export type PushCallbackDeliveryOptions = {
   log: ModuleLogger;
-  fetchImpl: typeof fetch;
-  callbackAddressResolver?: CallbackAddressResolver;
+  http?: Pick<OutboundHttpTransport, "request">;
 };
 
 export async function deliverPushNotificationCallback(
@@ -21,18 +19,6 @@ export async function deliverPushNotificationCallback(
   options: PushCallbackDeliveryOptions,
 ): Promise<void> {
   const logUrl = redactedCallbackUrl(config.url);
-  let fetchImpl: typeof fetch;
-  try {
-    fetchImpl = await createCallbackDeliveryFetch(config.url, {
-      fetchImpl: options.fetchImpl === fetch ? undefined : options.fetchImpl,
-      resolver: options.callbackAddressResolver,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    options.log.warn(`POST to ${logUrl} blocked: ${message}`);
-    return;
-  }
-
   await postWithRetry(
     config.url,
     JSON.stringify(update),
@@ -42,7 +28,7 @@ export async function deliverPushNotificationCallback(
       baseDelayMs: 500,
       headers: buildPushDeliveryHeaders(config),
       logUrl,
-      fetchImpl,
+      http: options.http,
     },
   );
 }

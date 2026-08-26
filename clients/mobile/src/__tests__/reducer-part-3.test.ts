@@ -57,14 +57,14 @@ describe('reducer', () => {
       type: 'MEMORY_ERROR',
       error: 'boom',
     });
-    expect(withError.memoryError).toBe('boom');
+    expect(withError.content.memoryError).toBe('boom');
     const next = reducer(withError, {
       type: 'MEMORY_LOADING',
       query: 'autonomy',
     });
-    expect(next.memoryLoading).toBe(true);
-    expect(next.memoryError).toBeNull();
-    expect(next.memoryQuery).toBe('autonomy');
+    expect(next.content.memoryLoading).toBe(true);
+    expect(next.content.memoryError).toBeNull();
+    expect(next.content.memoryQuery).toBe('autonomy');
   });
 
   test('MEMORY_RESULT stores a populated payload and clears loading/error', () => {
@@ -83,9 +83,9 @@ describe('reducer', () => {
       query: 'autonomy',
     });
     const next = reducer(loading, { type: 'MEMORY_RESULT', result });
-    expect(next.memoryResult).toBe(result);
-    expect(next.memoryLoading).toBe(false);
-    expect(next.memoryError).toBeNull();
+    expect(next.content.memoryResult).toBe(result);
+    expect(next.content.memoryLoading).toBe(false);
+    expect(next.content.memoryError).toBeNull();
   });
 
   test('MEMORY_RESULT preserves the semantic-unavailable branch verbatim', () => {
@@ -94,12 +94,12 @@ describe('reducer', () => {
       reason: 'semantic_unavailable',
     };
     const next = reducer(initialState, { type: 'MEMORY_RESULT', result });
-    expect(next.memoryResult).toEqual({
+    expect(next.content.memoryResult).toEqual({
       ok: false,
       reason: 'semantic_unavailable',
     });
-    expect(next.memoryLoading).toBe(false);
-    expect(next.memoryError).toBeNull();
+    expect(next.content.memoryLoading).toBe(false);
+    expect(next.content.memoryError).toBeNull();
   });
 
   test('MEMORY_ERROR clears stale memory result', () => {
@@ -118,9 +118,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'MEMORY_ERROR', error: '503' });
-    expect(next.memoryResult).toBeNull();
-    expect(next.memoryError).toBe('503');
-    expect(next.memoryLoading).toBe(false);
+    expect(next.content.memoryResult).toBeNull();
+    expect(next.content.memoryError).toBe('503');
+    expect(next.content.memoryLoading).toBe(false);
   });
 
   test('ONLINE false drops cached memory result so it cannot persist across an offline transition', () => {
@@ -138,9 +138,9 @@ describe('reducer', () => {
       type: 'MEMORY_RESULT',
       result,
     });
-    expect(withResult.memoryResult).toBe(result);
+    expect(withResult.content.memoryResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.memoryResult).toBeNull();
+    expect(offline.content.memoryResult).toBeNull();
   });
 
   test('HISTORY_QUERY_SET stores the query without touching results or loading flags', () => {
@@ -148,10 +148,10 @@ describe('reducer', () => {
       type: 'HISTORY_QUERY_SET',
       query: 'autonomy',
     });
-    expect(next.historyQuery).toBe('autonomy');
-    expect(next.historyResult).toBeNull();
-    expect(next.historyLoading).toBe(false);
-    expect(next.historyError).toBeNull();
+    expect(next.content.historyQuery).toBe('autonomy');
+    expect(next.content.historyResult).toBeNull();
+    expect(next.content.historyLoading).toBe(false);
+    expect(next.content.historyError).toBeNull();
   });
 
   test('HISTORY_LOADING records the in-flight query and clears prior error', () => {
@@ -159,14 +159,14 @@ describe('reducer', () => {
       type: 'HISTORY_ERROR',
       error: 'boom',
     });
-    expect(withError.historyError).toBe('boom');
+    expect(withError.content.historyError).toBe('boom');
     const next = reducer(withError, {
       type: 'HISTORY_LOADING',
       query: 'autonomy',
     });
-    expect(next.historyLoading).toBe(true);
-    expect(next.historyError).toBeNull();
-    expect(next.historyQuery).toBe('autonomy');
+    expect(next.content.historyLoading).toBe(true);
+    expect(next.content.historyError).toBeNull();
+    expect(next.content.historyQuery).toBe('autonomy');
   });
 
   test('HISTORY_RESULT stores a populated payload and clears loading/error', () => {
@@ -189,9 +189,9 @@ describe('reducer', () => {
       query: 'autonomy',
     });
     const next = reducer(loading, { type: 'HISTORY_RESULT', result });
-    expect(next.historyResult).toBe(result);
-    expect(next.historyLoading).toBe(false);
-    expect(next.historyError).toBeNull();
+    expect(next.content.historyResult).toBe(result);
+    expect(next.content.historyLoading).toBe(false);
+    expect(next.content.historyError).toBeNull();
   });
 
   test('HISTORY_RESULT preserves the semantic-unavailable branch verbatim', () => {
@@ -200,12 +200,12 @@ describe('reducer', () => {
       reason: 'semantic_unavailable',
     };
     const next = reducer(initialState, { type: 'HISTORY_RESULT', result });
-    expect(next.historyResult).toEqual({
+    expect(next.content.historyResult).toEqual({
       ok: false,
       reason: 'semantic_unavailable',
     });
-    expect(next.historyLoading).toBe(false);
-    expect(next.historyError).toBeNull();
+    expect(next.content.historyLoading).toBe(false);
+    expect(next.content.historyError).toBeNull();
   });
 
   test('HISTORY_ERROR clears stale history result', () => {
@@ -228,9 +228,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'HISTORY_ERROR', error: '503' });
-    expect(next.historyResult).toBeNull();
-    expect(next.historyError).toBe('503');
-    expect(next.historyLoading).toBe(false);
+    expect(next.content.historyResult).toBeNull();
+    expect(next.content.historyError).toBe('503');
+    expect(next.content.historyLoading).toBe(false);
   });
 
   test('ONLINE false drops cached history result so it cannot persist across an offline transition', () => {
@@ -252,9 +252,9 @@ describe('reducer', () => {
       type: 'HISTORY_RESULT',
       result,
     });
-    expect(withResult.historyResult).toBe(result);
+    expect(withResult.content.historyResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.historyResult).toBeNull();
+    expect(offline.content.historyResult).toBeNull();
   });
 
   test('TASKS_QUERY_SET stores the query without touching results or loading flags', () => {
@@ -262,10 +262,10 @@ describe('reducer', () => {
       type: 'TASKS_QUERY_SET',
       query: 'autonomy',
     });
-    expect(next.tasksQuery).toBe('autonomy');
-    expect(next.tasksResult).toBeNull();
-    expect(next.tasksLoading).toBe(false);
-    expect(next.tasksError).toBeNull();
+    expect(next.content.tasksQuery).toBe('autonomy');
+    expect(next.content.tasksResult).toBeNull();
+    expect(next.content.tasksLoading).toBe(false);
+    expect(next.content.tasksError).toBeNull();
   });
 
   test('TASKS_LOADING records the in-flight query and clears prior error', () => {
@@ -273,12 +273,12 @@ describe('reducer', () => {
       type: 'TASKS_ERROR',
       error: 'boom',
     });
-    expect(withError.tasksError).toBe('boom');
+    expect(withError.content.tasksError).toBe('boom');
     const next = reducer(withError, {
       type: 'TASKS_LOADING',
       query: 'autonomy',
     });
-    expect(next.tasksLoading).toBe(true);
-    expect(next.tasksError).toBeNull();
-    expect(next.tasksQuery).toBe('autonomy');
+    expect(next.content.tasksLoading).toBe(true);
+    expect(next.content.tasksError).toBeNull();
+    expect(next.content.tasksQuery).toBe('autonomy');
   });});

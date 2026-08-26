@@ -26,7 +26,6 @@ function telegramSignal(args: {
 }): InboundSignalReceivedPayload {
   return {
     scopeId: SCOPE_ID,
-    projectId: SCOPE_ID,
     provider: "telegram",
     channel: "telegram.group",
     accountId: ACCOUNT_ID,
@@ -164,7 +163,6 @@ export const REFERENCE_TELEGRAM_SIGNALS: RoutedOpportunitySignal[] = [
 
 export const REFERENCE_TELEGRAM_BATCH: WorkflowBatchFlushPayload = {
   scopeId: SCOPE_ID,
-  projectId: SCOPE_ID,
   sourceEventName: "inbound.signal.received",
   groupingKey: "telegram.group:telegram:redacted-sports-community",
   reason: "count",
@@ -181,7 +179,6 @@ export const REFERENCE_TELEGRAM_BATCH: WorkflowBatchFlushPayload = {
     receivedAt: RECEIVED_AT,
     payload: {
       scopeId: SCOPE_ID,
-      projectId: SCOPE_ID,
       routeId: signal.routeId,
       decision: "dispatched",
       sourceStatus: signal.sourceStatus,

@@ -46,7 +46,7 @@ describe("knowledge events", () => {
 		expect(events[0].title).toBe("Test Entry");
 		expect(events[0].type).toBe("note");
 		expect(events[0].tags).toEqual(["test", "events"]);
-		expect(events[0].scope).toBe("project");
+		expect(events[0].scope).toBe("scope");
 		expect(events[0].id).toBeTruthy();
 	});
 

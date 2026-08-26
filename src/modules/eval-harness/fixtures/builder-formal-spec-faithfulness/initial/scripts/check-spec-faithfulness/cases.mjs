@@ -66,9 +66,9 @@ function normalizeCase(entry, sourceLabel) {
   };
 }
 
-export function loadVisibleCases(projectRoot) {
-  const official = readJson(`${projectRoot}/data/official-examples.json`);
-  const adversarial = readJson(`${projectRoot}/data/adversarial-cases.json`);
+export function loadVisibleCases(scopeRoot) {
+  const official = readJson(`${scopeRoot}/data/official-examples.json`);
+  const adversarial = readJson(`${scopeRoot}/data/adversarial-cases.json`);
   if (official.schemaVersion !== 1 || adversarial.schemaVersion !== 1) {
     throw new Error("case files must use schemaVersion 1");
   }

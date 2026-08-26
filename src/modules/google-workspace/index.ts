@@ -82,7 +82,7 @@ const googleWorkspaceSetupRequirements: ModuleSetupRequirement[] = [
     description:
       "Non-sensitive config paths that point runtime OAuth fields at secret names.",
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "google-workspace",
     sensitivity: "none",
     setup: {
@@ -128,7 +128,7 @@ const googleWorkspaceSetupRequirements: ModuleSetupRequirement[] = [
     description:
       "OAuth client and refresh token values stored through the shared secret provider.",
     required: true,
-    scope: "project",
+    scope: "scope",
     owner: "google-workspace",
     health: { capabilityIds: [GOOGLE_WORKSPACE_OAUTH_CAPABILITY_ID] },
     sensitivity: "oauth",
@@ -140,9 +140,9 @@ const googleWorkspaceSetupRequirements: ModuleSetupRequirement[] = [
       pendingTtlMs: 30 * 60 * 1000,
     },
     secretRefs: [
-      { name: "GOOGLE_CLIENT_ID", scope: "project" },
-      { name: "GOOGLE_CLIENT_SECRET", scope: "project" },
-      { name: "GOOGLE_REFRESH_TOKEN", scope: "project" },
+      { name: "GOOGLE_CLIENT_ID", scope: "scope" },
+      { name: "GOOGLE_CLIENT_SECRET", scope: "scope" },
+      { name: "GOOGLE_REFRESH_TOKEN", scope: "scope" },
     ],
   },
 ];
@@ -153,7 +153,7 @@ function inboundSignalContext(
 ): GoogleWorkspaceInboundSignalContext {
   const inbound = config.inbound ?? {};
   return {
-    projectId: deriveDirectoryScopeId(ctx.cwd),
+    scopeId: deriveDirectoryScopeId(ctx.cwd),
     accountId: inbound.accountId ?? config.userId ?? "me",
     receivedAt: new Date().toISOString(),
     trustedSenders: inbound.trustedSenders,
@@ -179,7 +179,7 @@ function emitResponse(
   jsonResponse(res, 200, {
     ok: true,
     event: inboundSignalReceived.name,
-    projectId: emitted.payload.projectId,
+    scopeId: emitted.payload.scopeId,
     channel: emitted.payload.channel,
     sourceId: emitted.payload.sourceId,
     actorTrust: emitted.payload.actor.trust,
@@ -307,7 +307,7 @@ const googleWorkspaceModule: KotaModule = {
         id: "google-workspace.oauth-credentials",
         description: "OAuth client and refresh token references required for Workspace APIs.",
         sensitivity: "credential",
-        retention: "project-durable",
+        retention: "scope-durable",
         redaction: "mask-secret",
       },
       {

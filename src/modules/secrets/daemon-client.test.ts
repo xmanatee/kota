@@ -1,8 +1,6 @@
 /** Secrets namespace daemon transport and selector propagation tests. */
 
 import { describe, expect, it } from "vitest";
-import { assembleDaemonClientHandlers } from "#core/server/daemon-client.js";
-import { buildMigratedNamespaceTestStubs } from "#core/server/daemon-client-test-stubs.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type {
   SecretListEntry,
@@ -86,8 +84,8 @@ describe("secrets module daemonClient(link)", () => {
 
   it("decodes a multi-entry SecretListResult payload mixing sources", async () => {
     const entries: SecretListEntry[] = [
-      { name: "OPENAI_API_KEY", source: "project" },
-      { name: "GITHUB_TOKEN", source: "global" },
+      { name: "OPENAI_API_KEY", source: "scope-file" },
+      { name: "GITHUB_TOKEN", source: "global-file" },
       { name: "CUSTOM_TOKEN", source: "env" },
     ];
     const expected: SecretListResult = { secrets: entries };
@@ -131,7 +129,7 @@ describe("secrets module daemonClient(link)", () => {
   });
 
   it("routes set(name, value, scope) through strict PUT for both scopes", async () => {
-    const scopes: SecretScope[] = ["project", "global"];
+    const scopes: SecretScope[] = ["scope", "global"];
     for (const scope of scopes) {
       const { transport, calls } = makeRecordingTransport(() => ({ ok: true }));
       const contributed = secretsModule.daemonClient!(transport);
@@ -160,7 +158,7 @@ describe("secrets module daemonClient(link)", () => {
       return null;
     });
     const contributed = secretsModule.daemonClient!(transport);
-    const result = await contributed.secrets!.set("name", "value", "project");
+    const result = await contributed.secrets!.set("name", "value", "scope");
     expect(result).toEqual({
       ok: false,
       reason: "store_error",
@@ -169,7 +167,7 @@ describe("secrets module daemonClient(link)", () => {
   });
 
   it("routes remove(name, scope) through strict DELETE for both scopes", async () => {
-    const scopes: SecretScope[] = ["project", "global"];
+    const scopes: SecretScope[] = ["scope", "global"];
     for (const scope of scopes) {
       const { transport, calls } = makeRecordingTransport(() => ({ ok: true }));
       const contributed = secretsModule.daemonClient!(transport);
@@ -195,7 +193,7 @@ describe("secrets module daemonClient(link)", () => {
       reason: "not_found",
     }));
     const contributed = secretsModule.daemonClient!(transport);
-    const result = await contributed.secrets!.remove("missing", "project");
+    const result = await contributed.secrets!.remove("missing", "scope");
     expect(result).toEqual({ ok: false, reason: "not_found" });
   });
 
@@ -204,7 +202,7 @@ describe("secrets module daemonClient(link)", () => {
       throw new Error("network exploded");
     });
     const contributed = secretsModule.daemonClient!(transport);
-    const result = await contributed.secrets!.remove("name", "project");
+    const result = await contributed.secrets!.remove("name", "scope");
     expect(result).toEqual({
       ok: false,
       reason: "store_error",
@@ -212,7 +210,7 @@ describe("secrets module daemonClient(link)", () => {
     });
   });
 
-  it("propagates project and scope selectors through every operation", async () => {
+  it("propagates scope selectors through every operation", async () => {
     const { transport, calls } = makeRecordingTransport(() => ({
       secrets: [],
       found: false,
@@ -220,19 +218,19 @@ describe("secrets module daemonClient(link)", () => {
     }));
     const contributed = secretsModule.daemonClient!(transport);
 
-    await contributed.secrets!.list({ projectId: "project b" });
+    await contributed.secrets!.list({ scopeId: "scope b" });
     await contributed.secrets!.get("TOKEN", { scopeId: "scope/b" });
-    await contributed.secrets!.set("TOKEN", "value", "project", {
-      projectId: "project b",
+    await contributed.secrets!.set("TOKEN", "value", "scope", {
+      scopeId: "scope b",
     });
-    await contributed.secrets!.remove("TOKEN", "project", {
+    await contributed.secrets!.remove("TOKEN", "scope", {
       scopeId: "scope/b",
     });
 
     expect(calls).toEqual([
       {
         method: "GET",
-        path: "/api/secrets?projectId=project%20b",
+        path: "/api/secrets?scopeId=scope%20b",
         body: undefined,
         shape: "requestStrict",
       },
@@ -244,56 +242,34 @@ describe("secrets module daemonClient(link)", () => {
       },
       {
         method: "PUT",
-        path: "/api/secrets/TOKEN?projectId=project%20b",
-        body: { value: "value", scope: "project" },
+        path: "/api/secrets/TOKEN?scopeId=scope%20b",
+        body: { value: "value", scope: "scope" },
         shape: "requestStrict",
       },
       {
         method: "DELETE",
-        path: "/api/secrets/TOKEN?scope=project&scopeId=scope%2Fb",
+        path: "/api/secrets/TOKEN?scope=scope&scopeId=scope%2Fb",
         body: undefined,
         shape: "requestStrict",
       },
     ]);
   });
 
-  it("does not collapse unknown project rejections into store errors", async () => {
+  it("does not collapse unknown scope rejections into store errors", async () => {
     const { transport } = makeRecordingTransport(() => {
-      throw new Error("Unknown project: missing");
+      throw new Error("Unknown scope: missing");
     });
     const contributed = secretsModule.daemonClient!(transport);
 
     await expect(
-      contributed.secrets!.set("TOKEN", "value", "project", {
-        projectId: "missing",
+      contributed.secrets!.set("TOKEN", "value", "scope", {
+        scopeId: "missing",
       }),
-    ).rejects.toThrow("Unknown project: missing");
+    ).rejects.toThrow("Unknown scope: missing");
     await expect(
-      contributed.secrets!.remove("TOKEN", "project", {
-        projectId: "missing",
+      contributed.secrets!.remove("TOKEN", "scope", {
+        scopeId: "missing",
       }),
-    ).rejects.toThrow("Unknown project: missing");
-  });
-
-  it("the assembly path fails loudly when the secrets module's daemonClient(link) is removed", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.secrets;
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /secrets/,
-    );
-    expect(() => assembleDaemonClientHandlers(transport, others)).toThrow(
-      /missing daemon handler/,
-    );
-  });
-
-  it("supplying the secrets module's contribution to the assembly path satisfies coverage", () => {
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = secretsModule.daemonClient!(transport);
-    const others = buildMigratedNamespaceTestStubs();
-    delete others.secrets;
-    expect(() =>
-      assembleDaemonClientHandlers(transport, { ...others, ...contributed }),
-    ).not.toThrow();
+    ).rejects.toThrow("Unknown scope: missing");
   });
 });

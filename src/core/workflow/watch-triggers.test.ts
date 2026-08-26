@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { WorkflowRunTrigger, WorkflowTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
-import { WatchTriggerManager } from "./watch-triggers.js";
+import {
+  type WatchTriggerFileWatcher,
+  WatchTriggerManager,
+} from "./watch-triggers.js";
 
 type FileChangedPayload = {
   watchId: string;
@@ -41,6 +44,17 @@ describe("WatchTriggerManager", () => {
   let startNextCount = 0;
   let lastHandler: ((payload: FileChangedPayload) => void) | null = null;
   let isStopping = false;
+  const watcherId = "watcher-fixture";
+  let activeWatchers = new Set<string>();
+
+  const watcher: WatchTriggerFileWatcher = {
+    start: async () => {
+      activeWatchers.add(watcherId);
+      return watcherId;
+    },
+    stop: (id) => activeWatchers.delete(id),
+    closeAll: () => activeWatchers.clear(),
+  };
 
   const subscribe = (handler: (payload: FileChangedPayload) => void) => {
     lastHandler = handler;
@@ -51,14 +65,9 @@ describe("WatchTriggerManager", () => {
     lastHandler?.({ watchId, path: tmpDir, changes });
   }
 
-  async function waitForWatcherId(): Promise<string> {
-    const entries = (mgr as unknown as { entries: Map<string, { watcherId: string | null }> }).entries;
-    for (let i = 0; i < 40; i++) {
-      const id = [...entries.values()][0]?.watcherId;
-      if (id) return id;
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    return "w1";
+  async function setup(definitions: WorkflowDefinition[]): Promise<void> {
+    mgr.setup(definitions, subscribe as Parameters<typeof mgr.setup>[1]);
+    await Promise.resolve();
   }
 
   beforeEach(async () => {
@@ -67,6 +76,7 @@ describe("WatchTriggerManager", () => {
     startNextCount = 0;
     lastHandler = null;
     isStopping = false;
+    activeWatchers = new Set();
     mgr = new WatchTriggerManager(
       tmpDir,
       () => isStopping,
@@ -74,6 +84,8 @@ describe("WatchTriggerManager", () => {
         enqueuedRuns.push(run);
       },
       () => { startNextCount++; },
+      () => {},
+      watcher,
     );
   });
 
@@ -84,9 +96,8 @@ describe("WatchTriggerManager", () => {
 
   it("fires trigger when a matching file changes", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+    await setup([def]);
 
-    const watcherId = await waitForWatcherId();
     emitFileChanged(watcherId, [{ path: "src/foo.ts", type: "change" }]);
 
     await new Promise((r) => setTimeout(r, 150));
@@ -99,9 +110,7 @@ describe("WatchTriggerManager", () => {
 
   it("does not fire when no file matches the pattern", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
-
-    const watcherId = await waitForWatcherId();
+    await setup([def]);
 
     emitFileChanged(watcherId, [{ path: "README.md", type: "change" }]);
 
@@ -112,9 +121,7 @@ describe("WatchTriggerManager", () => {
 
   it("batches multiple changes within the debounce window", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 100);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
-
-    const watcherId = await waitForWatcherId();
+    await setup([def]);
 
     emitFileChanged(watcherId, [{ path: "src/a.ts", type: "change" }]);
     await new Promise((r) => setTimeout(r, 30));
@@ -130,9 +137,8 @@ describe("WatchTriggerManager", () => {
 
   it("reports accepted changes until their debounce buffer is queued", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 150);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+    await setup([def]);
 
-    const watcherId = await waitForWatcherId();
     emitFileChanged(watcherId, [
       { path: "src/b.ts", type: "create" },
       { path: "src/a.ts", type: "change" },
@@ -152,9 +158,8 @@ describe("WatchTriggerManager", () => {
 
   it("does not fire when isStopping is true", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+    await setup([def]);
 
-    const watcherId = await waitForWatcherId();
     isStopping = true;
     emitFileChanged(watcherId, [{ path: "src/foo.ts", type: "change" }]);
 
@@ -165,9 +170,8 @@ describe("WatchTriggerManager", () => {
 
   it("supports an array of glob patterns", async () => {
     const def = makeDefinition("watcher", ["src/**/*.ts", "test/**/*.ts"], 50);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+    await setup([def]);
 
-    const watcherId = await waitForWatcherId();
     emitFileChanged(watcherId, [{ path: "test/foo.test.ts", type: "change" }]);
 
     await new Promise((r) => setTimeout(r, 150));
@@ -185,25 +189,23 @@ describe("WatchTriggerManager", () => {
       steps: [],
     } as unknown as WorkflowDefinition;
 
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+    await setup([def]);
 
     await new Promise((r) => setTimeout(r, 50));
 
     expect(lastHandler).toBeNull();
-    const entries = (mgr as unknown as { entries: Map<string, unknown> }).entries;
-    expect(entries.size).toBe(0);
+    expect(activeWatchers.size).toBe(0);
   });
 
   it("clearAll stops watchers and unsubscribes", async () => {
     const def = makeDefinition("watcher", "src/**/*.ts", 50);
-    mgr.setup([def], subscribe as Parameters<typeof mgr.setup>[1]);
+    await setup([def]);
 
     await new Promise((r) => setTimeout(r, 100));
     expect(lastHandler).not.toBeNull();
 
     mgr.clearAll();
     expect(lastHandler).toBeNull();
-    const entries = (mgr as unknown as { entries: Map<string, unknown> }).entries;
-    expect(entries.size).toBe(0);
+    expect(activeWatchers.size).toBe(0);
   });
 });

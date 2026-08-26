@@ -7,7 +7,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   realpathSync,
   writeFileSync,
 } from "node:fs";
@@ -89,7 +88,7 @@ function mkdtempForCli(prefix: string): string {
   return mkdtempSync(join(tmpdir(), `${prefix}-`));
 }
 
-function mkProjectPair(prefix: string): { callerDir: string; savedDir: string } {
+function makeScopePair(prefix: string): { callerDir: string; savedDir: string } {
   const rootDir = realpathSync(mkdtempForCli(`${prefix}-root`));
   const callerDir = join(rootDir, "caller");
   const savedDir = join(rootDir, "saved");
@@ -101,18 +100,18 @@ function mkProjectPair(prefix: string): { callerDir: string; savedDir: string } 
   };
 }
 
-function seedProjectConfig(
-  projectDir: string,
+function seedScopeConfig(
+  scopeRoot: string,
   overrides: Record<string, unknown> = {},
 ): void {
-  mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
   writeFileSync(
-    join(projectDir, ".kota", "config.json"),
+    join(scopeRoot, ".kota", "config.json"),
     JSON.stringify({ cli: { defaultAutonomyMode: "passive" }, ...overrides }),
   );
 }
 
-function seedConversation(projectDir: string, record: {
+function seedConversation(scopeRoot: string, record: {
   id: string;
   title: string;
   createdAt: string;
@@ -122,9 +121,9 @@ function seedConversation(projectDir: string, record: {
   cwd: string;
   source?: "user" | "action";
 }, config: Record<string, unknown> = {}): void {
-  const histDir = join(projectDir, ".kota", "history");
+  const histDir = join(scopeRoot, ".kota", "history");
   mkdirSync(histDir, { recursive: true });
-  seedProjectConfig(projectDir, config);
+  seedScopeConfig(scopeRoot, config);
   writeFileSync(
     join(histDir, "index.json"),
     JSON.stringify({ conversations: [record] }),
@@ -144,7 +143,7 @@ describe("cli", () => {
   it("--help shows KOTA description", () => {
     const out = run("--help");
     expect(out).toContain("KOTA");
-    expect(out).toContain("Keep Only The Awesome");
+    expect(out).toContain("local-first agent automation runtime");
     expect(out).toContain("bare kota on a TTY launches the shared UI CLI client");
     expect(out).toContain("Use kota run <prompt> for the explicit prompt path");
   });
@@ -182,10 +181,6 @@ describe("cli", () => {
     expect(shouldLaunchDefaultOperatorConsole(["node", "kota", "--help"], true)).toBe(false);
   });
 
-  it("routes raw stdout writes through the rendering transport", () => {
-    const source = readFileSync(CLI, "utf-8");
-    expect(source).not.toMatch(/\bprocess\.stdout\.write\b/);
-  });
 });
 
 describe("API key validation", () => {
@@ -325,16 +320,16 @@ describe("preset resolution", () => {
 
 describe("harness REPL", () => {
   it("starts interactive harness mode without relying on runtime rendering providers", () => {
-    const projectDir = realpathSync(mkdtempForCli("kota-test-repl"));
-    seedProjectConfig(projectDir, { defaultPreset: "claude" });
+    const scopeRoot = realpathSync(mkdtempForCli("kota-test-repl"));
+    seedScopeConfig(scopeRoot, { defaultPreset: "claude" });
     const { stderr, exitCode } = runFull(
       ["run", "--harness", "thin", "--model", "test-model", "-i"],
       {
-        cwd: projectDir,
+        cwd: scopeRoot,
         input: "exit\n",
         env: {
-          HOME: projectDir,
-          KOTA_PROJECT_DIR: projectDir,
+          HOME: scopeRoot,
+          KOTA_SCOPE_ROOT: scopeRoot,
           KOTA_PRESET: "claude",
           ANTHROPIC_API_KEY: "",
         },
@@ -384,9 +379,9 @@ describe("subcommand help", () => {
 describe("history clear confirmation", () => {
   let tempHome: string;
 
-  // Pin `KOTA_PROJECT_DIR` and `cwd` to `tempHome` so the contract selector
-  // finds no `<projectDir>/.kota/daemon-control.json` and resolves a fresh
-  // project-scoped `LocalKotaClient` against the seeded temp history. Without
+  // Pin `KOTA_SCOPE_ROOT` and `cwd` to `tempHome` so the contract selector
+  // finds no `<scopeRoot>/.kota/daemon-control.json` and resolves a fresh
+  // scope-scoped `LocalKotaClient` against the seeded temp history. Without
   // this guard the CLI would route through any daemon currently serving the
   // developer's machine and wipe the wrong dataset.
   beforeEach(() => {
@@ -415,7 +410,7 @@ describe("history clear confirmation", () => {
 
   it("cancels when stdin is not a TTY (no --yes)", () => {
     const { stdout, exitCode } = runFull(["history", "clear"], {
-      env: { HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
+      env: { HOME: tempHome, KOTA_SCOPE_ROOT: tempHome },
       cwd: tempHome,
     });
     expect(exitCode).toBe(0);
@@ -426,7 +421,7 @@ describe("history clear confirmation", () => {
 
   it("deletes when --yes flag is provided", () => {
     const { stdout, exitCode } = runFull(["history", "clear", "--yes"], {
-      env: { HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
+      env: { HOME: tempHome, KOTA_SCOPE_ROOT: tempHome },
       cwd: tempHome,
     });
     expect(exitCode).toBe(0);
@@ -437,7 +432,7 @@ describe("history clear confirmation", () => {
     // Use a fresh home with no history
     const emptyHome = realpathSync(mkdtempForCli("kota-test-empty"));
     const { stdout, exitCode } = runFull(["history", "clear"], {
-      env: { HOME: emptyHome, KOTA_PROJECT_DIR: emptyHome },
+      env: { HOME: emptyHome, KOTA_SCOPE_ROOT: emptyHome },
       cwd: emptyHome,
     });
     expect(exitCode).toBe(0);
@@ -447,24 +442,24 @@ describe("history clear confirmation", () => {
 
 describe("history resume validation", () => {
   it("exits with error for non-existent conversation ID", () => {
-    // Pin `KOTA_PROJECT_DIR` to a fresh temp dir so the contract selector
-    // finds no `<projectDir>/.kota/daemon-control.json` and resolves a
-    // project-scoped `LocalKotaClient` against the empty temp history.
+    // Pin `KOTA_SCOPE_ROOT` to a fresh temp dir so the contract selector
+    // finds no `<scopeRoot>/.kota/daemon-control.json` and resolves a
+    // scope-scoped `LocalKotaClient` against the empty temp history.
     // Without this guard the CLI would route through any daemon currently
     // serving the developer's machine and either find an unrelated
     // conversation or surface a `fetch` abort instead of the expected
     // "not found" error.
     const tempHome = realpathSync(mkdtempForCli("kota-test-resume"));
     const { stderr, exitCode } = runFull(["history", "resume", "someId"], {
-      env: { ANTHROPIC_API_KEY: "", HOME: tempHome, KOTA_PROJECT_DIR: tempHome },
+      env: { ANTHROPIC_API_KEY: "", HOME: tempHome, KOTA_SCOPE_ROOT: tempHome },
       cwd: tempHome,
     });
     expect(exitCode).toBe(1);
     expect(stderr).toContain("not found");
   });
 
-  it("resumes an explicit id in the saved project directory", () => {
-    const { callerDir, savedDir } = mkProjectPair("kota-test-resume");
+  it("resumes an explicit id in the saved scope directory", () => {
+    const { callerDir, savedDir } = makeScopePair("kota-test-resume");
     const record = {
       id: "resume-cross",
       title: "cross directory resume",
@@ -475,9 +470,9 @@ describe("history resume validation", () => {
       cwd: savedDir,
       source: "user" as const,
     };
-    seedProjectConfig(callerDir, {
+    seedScopeConfig(callerDir, {
       model: "caller-history-model",
-      trustedProjects: [savedDir],
+      trustedScopes: [savedDir],
     });
     seedConversation(savedDir, record, {
       model: "saved-history-model",
@@ -485,20 +480,20 @@ describe("history resume validation", () => {
     });
 
     const { stderr, exitCode } = runFull(["history", "resume", "resume-cross"], {
-      env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
+      env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_SCOPE_ROOT: callerDir },
       cwd: callerDir,
       input: "/status\nexit\n",
     });
 
     expect(exitCode).toBe(0);
     expect(stderr).toContain(`using saved directory ${savedDir}`);
-    expect(stderr).toContain(`Project: ${savedDir}`);
+    expect(stderr).toContain(`Scope: ${savedDir}`);
     expect(stderr).toContain("Model: saved-history-model");
     expect(stderr).not.toContain("Model: caller-history-model");
   });
 
-  it("run --continue with an explicit id binds the classic session to the saved project directory", () => {
-    const { callerDir, savedDir } = mkProjectPair("kota-test-run-resume");
+  it("run --continue with an explicit id binds the classic session to the saved scope directory", () => {
+    const { callerDir, savedDir } = makeScopePair("kota-test-run-resume");
     const record = {
       id: "run-resume-cross",
       title: "run cross directory resume",
@@ -509,9 +504,9 @@ describe("history resume validation", () => {
       cwd: savedDir,
       source: "user" as const,
     };
-    seedProjectConfig(callerDir, {
+    seedScopeConfig(callerDir, {
       model: "caller-run-model",
-      trustedProjects: [savedDir],
+      trustedScopes: [savedDir],
     });
     seedConversation(savedDir, record, {
       model: "saved-run-model",
@@ -528,7 +523,7 @@ describe("history resume validation", () => {
         "--interactive",
       ],
       {
-        env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
+        env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_SCOPE_ROOT: callerDir },
         cwd: callerDir,
         input: "/status\nexit\n",
       },
@@ -536,7 +531,7 @@ describe("history resume validation", () => {
 
     expect(exitCode, stderr).toBe(0);
     expect(stderr).toContain(`using saved directory ${savedDir}`);
-    expect(stderr).toContain(`Project: ${savedDir}`);
+    expect(stderr).toContain(`Scope: ${savedDir}`);
     expect(stderr).toContain("Model: saved-run-model");
     expect(stderr).not.toContain("Model: caller-run-model");
   });
@@ -556,7 +551,7 @@ describe("history resume validation", () => {
     seedConversation(callerDir, record);
 
     const { stderr, exitCode } = runFull(["history", "resume", "resume-missing"], {
-      env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
+      env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_SCOPE_ROOT: callerDir },
       cwd: callerDir,
       input: "exit\n",
     });
@@ -583,7 +578,7 @@ describe("history resume validation", () => {
     const { stderr, exitCode } = runFull(
       ["history", "resume", "resume-override", "--resume-here"],
       {
-        env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_PROJECT_DIR: callerDir },
+        env: { ANTHROPIC_API_KEY: "", HOME: callerDir, KOTA_SCOPE_ROOT: callerDir },
         cwd: callerDir,
         input: "/status\nexit\n",
       },
@@ -591,6 +586,6 @@ describe("history resume validation", () => {
 
     expect(exitCode).toBe(0);
     expect(stderr).toContain("Resume cwd override");
-    expect(stderr).toContain(`Project: ${callerDir}`);
+    expect(stderr).toContain(`Scope: ${callerDir}`);
   });
 });

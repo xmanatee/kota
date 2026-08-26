@@ -50,13 +50,13 @@ describe("runReadDocument", () => {
 	});
 
 	it("resolves relative paths against runner context cwd", async () => {
-		const projectDir = "/selected/project";
-		const filePath = join(projectDir, "docs", "scope.html");
+		const scopeRoot = "/selected/project";
+		const filePath = join(scopeRoot, "docs", "scope.html");
 		mockRead.mockReturnValue("<html><body>Selected project</body></html>");
 
 		const result = await runReadDocument(
 			{ path: "docs/scope.html" },
-			{ cwd: projectDir },
+			{ cwd: scopeRoot },
 		);
 
 		expect(result.is_error).toBeUndefined();

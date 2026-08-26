@@ -1,9 +1,4 @@
-import {
-	existsSync,
-	mkdirSync,
-	mkdtempSync,
-	writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -44,40 +39,12 @@ import { McpTaskStore } from "./mcp-task-store.js";
 import { MCP_SKILLS_EXTENSION_ID, SKILL_INDEX_RESOURCE_URI } from "./resources.js";
 import { kotaToolToMcp, McpServer, type McpServerOptions, toolResultToMcp } from "./server.js";
 
-vi.mock("#core/modules/provider-registry.js", () => {
-	const renderingToken = "rendering";
-	const providers = new Map<string, unknown>();
-	const active = new Map<string, string>();
-	const keyFor = (token: string, name: string) => `${token}:${name}`;
-	const registry = {
-		register: vi.fn((token: string, name: string, provider: unknown) => {
-			providers.set(keyFor(token, name), provider);
-			if (!active.has(token)) active.set(token, name);
-		}),
-		get: vi.fn((token: string) => {
-			const activeName = active.get(token);
-			return activeName ? (providers.get(keyFor(token, activeName)) ?? null) : null;
-		}),
-		setActiveById: vi.fn((id: string, name: string) => {
-			if (!providers.has(keyFor(id, name))) return false;
-			active.set(id, name);
-			return true;
-		}),
-		introspect: vi.fn((id: string) => ({
-			active: active.get(id) ?? null,
-			names: [...providers.keys()]
-				.filter((key) => key.startsWith(`${id}:`))
-				.map((key) => key.slice(id.length + 1)),
-		})),
-	};
+vi.mock("#core/modules/provider-registry.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("#core/modules/provider-registry.js")>();
 	return {
-		RENDERING_PROVIDER_TOKEN: renderingToken,
-		getProviderRegistry: vi.fn(() => registry),
-		initProviderRegistry: vi.fn(() => registry),
-		getRenderingProvider: vi.fn(() => registry.get(renderingToken)),
-		getMemoryProvider: vi.fn(() => ({ list: () => [] })),
-		getKnowledgeProvider: vi.fn(() => ({ list: () => [] })),
-		getModelPricingProvider: vi.fn(() => null),
+		...actual,
+		getMemoryProvider: vi.fn(actual.getMemoryProvider),
+		getKnowledgeProvider: vi.fn(actual.getKnowledgeProvider),
 	};
 });
 
@@ -103,9 +70,6 @@ function mockDefaultProviders(): void {
 		search: vi.fn(() => []),
 		update: vi.fn(),
 		delete: vi.fn(),
-		supportsSemanticSearch: vi.fn(() => false),
-		semanticSearch: vi.fn(async () => []),
-		reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 	});
 	vi.mocked(getKnowledgeProvider).mockReturnValue({
 		list: () => [],
@@ -115,9 +79,6 @@ function mockDefaultProviders(): void {
 		delete: vi.fn(),
 		search: vi.fn(() => []),
 		count: vi.fn(() => 0),
-		supportsSemanticSearch: vi.fn(() => false),
-		semanticSearch: vi.fn(async () => []),
-		reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 	});
 }
 
@@ -316,11 +277,11 @@ function inputRequiredResult(): McpInputRequiredResult {
 }
 
 function writeProjectPrompt(
-	projectDir: string,
+	scopeRoot: string,
 	fileName: string,
 	content: string,
 ): void {
-	const promptsDir = join(projectDir, ".kota", "prompts");
+	const promptsDir = join(scopeRoot, ".kota", "prompts");
 	mkdirSync(promptsDir, { recursive: true });
 	writeFileSync(join(promptsDir, fileName), content, "utf-8");
 }
@@ -3370,7 +3331,7 @@ describe("McpServer", () => {
 });
 
 describe("resources", () => {
-	function makeProjectDir(): string {
+	function makeScopeRoot(): string {
 		const dir = mkdtempSync(join(tmpdir(), "kota-mcp-test-"));
 		mkdirSync(join(dir, "data", "tasks", "ready"), { recursive: true });
 		mkdirSync(join(dir, ".kota", "runs"), { recursive: true });
@@ -3393,7 +3354,7 @@ describe("resources", () => {
 	function makeModuleSummary(name: string, skills: ModuleSummary["skills"]): ModuleSummary {
 		return {
 			name,
-			source: "project",
+			source: "bundled",
 			dependencies: [],
 			toolNames: [],
 			workflowNames: [],
@@ -3407,8 +3368,8 @@ describe("resources", () => {
 		};
 	}
 
-	function makeSkillProjectDir(): string {
-		const dir = makeProjectDir();
+	function makeSkillScopeRoot(): string {
+		const dir = makeScopeRoot();
 		writeFileSync(
 			join(dir, "module-skill.md"),
 			[
@@ -3517,13 +3478,13 @@ describe("resources", () => {
 	});
 
 	it("exposes module and imported skills through skill resources", async () => {
-		const projectDir = makeSkillProjectDir();
+		const scopeRoot = makeSkillScopeRoot();
 		const { input, output } = createTestStreams();
 		const server = new McpServer({
 			input,
 			output,
 			log: () => {},
-			projectDir,
+			scopeRoot,
 			moduleSummaries: skillModuleSummaries,
 		});
 		await server.start();
@@ -3638,8 +3599,8 @@ describe("resources", () => {
 	});
 
 	it("returns protocol errors for malformed imported skill records", async () => {
-		const projectDir = makeProjectDir();
-		const brokenDir = join(projectDir, ".kota", "skills", "broken-skill");
+		const scopeRoot = makeScopeRoot();
+		const brokenDir = join(scopeRoot, ".kota", "skills", "broken-skill");
 		mkdirSync(brokenDir, { recursive: true });
 		writeFileSync(
 			join(brokenDir, "SKILL.md"),
@@ -3656,7 +3617,7 @@ describe("resources", () => {
 			input,
 			output,
 			log: () => {},
-			projectDir,
+			scopeRoot,
 			moduleSummaries: () => [],
 		});
 		await initDraftServer(server, input, output);
@@ -3867,7 +3828,7 @@ describe("resources", () => {
 			$schema: "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
 			name: "io.github.xmanatee/kota",
 			title: "KOTA",
-			description: "Keep Only The Awesome. An AI coding agent MCP server exposing KOTA tools.",
+			description: "KOTA's Model Context Protocol surface for its local-first agent automation runtime.",
 			repository: {
 				source: "github",
 				url: "https://github.com/xmanatee/kota",
@@ -3909,9 +3870,9 @@ describe("resources", () => {
 	});
 
 	it("resources/read returns ready task content", async () => {
-		const projectDir = makeProjectDir();
+		const scopeRoot = makeScopeRoot();
 		const { input, output } = createTestStreams();
-		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 		await initServer(server, input, output);
 
 		sendRequest(input, 2, "resources/read", { uri: "kota://tasks/ready" });
@@ -3940,10 +3901,10 @@ describe("resources", () => {
 	});
 
 	it("resources/read requests draft roots through MRTR and retries with root-scoped content", async () => {
-		const fallbackProjectDir = makeProjectDir();
-		const rootProjectDir = makeProjectDir();
+		const fallbackScopeRoot = makeScopeRoot();
+		const rootScopeRoot = makeScopeRoot();
 		writeFileSync(
-			join(rootProjectDir, "data", "tasks", "ready", "task-root.md"),
+			join(rootScopeRoot, "data", "tasks", "ready", "task-root.md"),
 			[
 				"---",
 				"id: task-root",
@@ -3956,7 +3917,7 @@ describe("resources", () => {
 			].join("\n"),
 		);
 		const { input, output } = createTestStreams();
-		const server = new McpServer({ input, output, log: () => {}, projectDir: fallbackProjectDir });
+		const server = new McpServer({ input, output, log: () => {}, scopeRoot: fallbackScopeRoot });
 		await initDraftServer(server, input, output);
 
 		sendRequest(input, 20, "resources/read", draftRequestParams({
@@ -3976,7 +3937,7 @@ describe("resources", () => {
 		sendRequest(input, 21, "resources/read", draftRequestParams({
 			uri: "kota://tasks/ready",
 			inputResponses: {
-				roots: { roots: [{ uri: pathToFileURL(rootProjectDir).href }] },
+				roots: { roots: [{ uri: pathToFileURL(rootScopeRoot).href }] },
 			},
 			requestState: inputRequired.requestState,
 		}, { roots: {} }));
@@ -3993,9 +3954,9 @@ describe("resources", () => {
 	});
 
 	it("rejects draft roots requestState reused on a different originating method", async () => {
-		const projectDir = makeProjectDir();
+		const scopeRoot = makeScopeRoot();
 		const { input, output } = createTestStreams();
-		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 		await initDraftServer(server, input, output);
 
 		sendRequest(input, 30, "resources/read", draftRequestParams({
@@ -4008,7 +3969,7 @@ describe("resources", () => {
 			name: "kota-create-task",
 			arguments: { title: "Task", priority: "p1" },
 			inputResponses: {
-				roots: { roots: [{ uri: pathToFileURL(projectDir).href }] },
+				roots: { roots: [{ uri: pathToFileURL(scopeRoot).href }] },
 			},
 			requestState: inputRequired.requestState,
 		}, { roots: {} }));
@@ -4023,9 +3984,9 @@ describe("resources", () => {
 	});
 
 	it("rejects draft roots retries missing the requested input response", async () => {
-		const projectDir = makeProjectDir();
+		const scopeRoot = makeScopeRoot();
 		const { input, output } = createTestStreams();
-		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 		await initDraftServer(server, input, output);
 
 		sendRequest(input, 32, "resources/read", draftRequestParams({
@@ -4050,9 +4011,9 @@ describe("resources", () => {
 	});
 
 	it("resources/read returns workflow/status content", async () => {
-		const projectDir = makeProjectDir();
+		const scopeRoot = makeScopeRoot();
 		const { input, output } = createTestStreams();
-		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 		await initServer(server, input, output);
 
 		sendRequest(input, 2, "resources/read", {
@@ -4366,19 +4327,19 @@ describe("prompts", () => {
 		});
 
 		it("returns project prompt templates with discovered arguments", async () => {
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-project-prompts-"));
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-project-prompts-"));
 			writeProjectPrompt(
-				projectDir,
+				scopeRoot,
 				"review.md",
 				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic, focus]\n---\nReview {{topic}} with focus on {{focus}}.",
 			);
 			writeProjectPrompt(
-				projectDir,
+				scopeRoot,
 				"brief.md",
 				"---\nname: brief-topic\ndescription: Brief a topic\n---\nBrief {{topic}}.",
 			);
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 			await initServer(server, input, output);
 
 			sendRequest(input, 2, "prompts/list");
@@ -4402,14 +4363,14 @@ describe("prompts", () => {
 		});
 
 		it("rejects project prompt templates with malformed names", async () => {
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-malformed-project-prompt-list-"));
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-malformed-project-prompt-list-"));
 			writeProjectPrompt(
-				projectDir,
+				scopeRoot,
 				"bad.md",
 				"---\nname: [bad]\ndescription: Bad prompt\n---\nBody.",
 			);
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 			await initServer(server, input, output);
 
 			sendRequest(input, 2, "prompts/list");
@@ -4425,17 +4386,17 @@ describe("prompts", () => {
 		});
 
 		it("returns deterministic cursor pages for larger prompt catalogs", async () => {
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-paged-prompts-"));
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-paged-prompts-"));
 			for (let i = 0; i < 48; i++) {
 				const suffix = String(i).padStart(2, "0");
 				writeProjectPrompt(
-					projectDir,
+					scopeRoot,
 					`template-${suffix}.md`,
 					`---\nname: page-template-${suffix}\ndescription: Page ${suffix}\n---\nTemplate ${suffix}.`,
 				);
 			}
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 			await initServer(server, input, output);
 
 			sendRequest(input, 2, "prompts/list");
@@ -4587,14 +4548,14 @@ describe("prompts", () => {
 		});
 
 		it("renders project prompt templates when required variables are provided", async () => {
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-render-prompt-"));
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-render-prompt-"));
 			writeProjectPrompt(
-				projectDir,
+				scopeRoot,
 				"review.md",
 				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic, focus]\n---\nReview {{topic}} with focus on {{focus}}.",
 			);
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 			await initServer(server, input, output);
 
 			sendRequest(input, 2, "prompts/get", {
@@ -4622,15 +4583,15 @@ describe("prompts", () => {
 		});
 
 		it("prompts/get requests draft roots through MRTR and retries with root-scoped prompts", async () => {
-			const fallbackProjectDir = mkdtempSync(join(tmpdir(), "kota-mcp-fallback-prompt-"));
-			const rootProjectDir = mkdtempSync(join(tmpdir(), "kota-mcp-root-prompt-"));
+			const fallbackScopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-fallback-prompt-"));
+			const rootScopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-root-prompt-"));
 			writeProjectPrompt(
-				rootProjectDir,
+				rootScopeRoot,
 				"review.md",
 				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic]\n---\nReview {{topic}} from the root project.",
 			);
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir: fallbackProjectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot: fallbackScopeRoot });
 			await initDraftServer(server, input, output);
 
 			sendRequest(input, 40, "prompts/get", draftRequestParams({
@@ -4651,7 +4612,7 @@ describe("prompts", () => {
 				name: "review-topic",
 				arguments: { topic: "KOTA" },
 				inputResponses: {
-					roots: { roots: [{ uri: pathToFileURL(rootProjectDir).href }] },
+					roots: { roots: [{ uri: pathToFileURL(rootScopeRoot).href }] },
 				},
 				requestState: inputRequired.requestState,
 			}, { roots: {} }));
@@ -4667,14 +4628,14 @@ describe("prompts", () => {
 		});
 
 		it("rejects missing required project prompt template variables", async () => {
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-missing-project-prompt-args-"));
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-missing-project-prompt-args-"));
 			writeProjectPrompt(
-				projectDir,
+				scopeRoot,
 				"review.md",
 				"---\nname: review-topic\ndescription: Review a topic\nvariables: [topic, focus]\n---\nReview {{topic}} with focus on {{focus}}.",
 			);
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 			await initServer(server, input, output);
 
 			sendRequest(input, 2, "prompts/get", {
@@ -4693,14 +4654,14 @@ describe("prompts", () => {
 		});
 
 		it("rejects project prompt rendering when a template file has a malformed name", async () => {
-			const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-malformed-project-prompt-get-"));
+			const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-malformed-project-prompt-get-"));
 			writeProjectPrompt(
-				projectDir,
+				scopeRoot,
 				"bad.md",
 				"---\nname: [bad]\ndescription: Bad prompt\n---\nBody.",
 			);
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 			await initServer(server, input, output);
 
 			sendRequest(input, 2, "prompts/get", { name: "bad" });
@@ -4802,7 +4763,7 @@ describe("resource subscriptions", () => {
 
 	function emitWorkflowCompleted(bus: EventBus): void {
 		bus.emit("workflow.completed", {
-			projectId: "test-project",
+			scopeId: "test-scope",
 			workflow: "builder",
 			runId: "test-run-id",
 			status: "success",
@@ -4933,9 +4894,6 @@ describe("resource subscriptions", () => {
 			search: vi.fn(() => []),
 			update: vi.fn(() => false),
 			delete: vi.fn(() => false),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		};
 		vi.mocked(getMemoryProvider).mockReturnValue(defaultMemoryProvider);
 
@@ -4984,11 +4942,11 @@ describe("resource subscriptions", () => {
 	});
 
 	it("acknowledges promptsListChanged and emits prompt list notifications for visible template changes", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-prompt-subscribe-"));
-		mkdirSync(join(projectDir, ".kota", "prompts"), { recursive: true });
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-prompt-subscribe-"));
+		mkdirSync(join(scopeRoot, ".kota", "prompts"), { recursive: true });
 		const { input, output } = createTestStreams();
 		const reader = createQueuedReader(output);
-		const server = new McpServer({ input, output, log: () => {}, eventBus: null, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null, scopeRoot });
 		await initDraftServerWithQueuedReader(server, input, reader);
 
 		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
@@ -5002,7 +4960,7 @@ describe("resource subscriptions", () => {
 		});
 
 		writeProjectPrompt(
-			projectDir,
+			scopeRoot,
 			"new-prompt.md",
 			"---\nname: subscribed-prompt\ndescription: Subscribed\n---\nHello.",
 		);
@@ -5017,11 +4975,11 @@ describe("resource subscriptions", () => {
 	});
 
 	it("cancels promptsListChanged delivery through notifications/cancelled", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-mcp-prompt-cancel-"));
-		mkdirSync(join(projectDir, ".kota", "prompts"), { recursive: true });
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-mcp-prompt-cancel-"));
+		mkdirSync(join(scopeRoot, ".kota", "prompts"), { recursive: true });
 		const { input, output } = createTestStreams();
 		const reader = createQueuedReader(output);
-		const server = new McpServer({ input, output, log: () => {}, eventBus: null, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, eventBus: null, scopeRoot });
 		await initDraftServerWithQueuedReader(server, input, reader);
 
 		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
@@ -5031,7 +4989,7 @@ describe("resource subscriptions", () => {
 		sendNotification(input, "notifications/cancelled", { requestId: 2 });
 
 		writeProjectPrompt(
-			projectDir,
+			scopeRoot,
 			"new-prompt.md",
 			"---\nname: cancelled-prompt\ndescription: Cancelled\n---\nHello.",
 		);
@@ -5558,7 +5516,6 @@ describe("sampling", () => {
 	});
 
 	it("sampling/createMessage returns completion from model client", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-test-"));
 		const { client, calls } = makeMockModelClient("World!");
 		const { input, output } = createTestStreams();
 		const server = new McpServer({
@@ -5567,7 +5524,6 @@ describe("sampling", () => {
 			log: () => {},
 			samplingEnabled: true,
 			samplingModel: "claude-haiku-4-5-20251001",
-			projectDir,
 			modelClient: client,
 		});
 		await initServer(server, input, output);
@@ -5589,13 +5545,12 @@ describe("sampling", () => {
 
 		expect(calls).toHaveLength(1);
 		expect(calls[0].model).toBe("claude-haiku-4-5-20251001");
-		expect(existsSync(join(projectDir, ".kota", "runs"))).toBe(false);
 
 		server.stop();
 	});
 
 	it("keeps sampling/createMessage as legacy-only compatibility", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-draft-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-sampling-draft-"));
 		const { client } = makeMockModelClient("draft should not call");
 		const { input, output } = createTestStreams();
 		const server = new McpServer({
@@ -5603,7 +5558,7 @@ describe("sampling", () => {
 			output,
 			log: () => {},
 			samplingEnabled: true,
-			projectDir,
+			scopeRoot,
 			modelClient: client,
 		});
 		await initDraftServer(server, input, output);
@@ -5623,7 +5578,7 @@ describe("sampling", () => {
 	});
 
 	it("sampling/createMessage passes systemPrompt to model", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-sys-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-sampling-sys-"));
 		const { client, calls } = makeMockModelClient("I am helpful.");
 		const { input, output } = createTestStreams();
 		const server = new McpServer({
@@ -5632,7 +5587,7 @@ describe("sampling", () => {
 			log: () => {},
 			samplingEnabled: true,
 			samplingModel: "claude-haiku-4-5-20251001",
-			projectDir,
+			scopeRoot,
 			modelClient: client,
 		});
 		await initServer(server, input, output);
@@ -5669,7 +5624,7 @@ describe("sampling", () => {
 	});
 
 	it("sampling/createMessage returns error for empty messages", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-sampling-empty-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-sampling-empty-"));
 		const { client } = makeMockModelClient("ok");
 		const { input, output } = createTestStreams();
 		const server = new McpServer({
@@ -5677,7 +5632,7 @@ describe("sampling", () => {
 			output,
 			log: () => {},
 			samplingEnabled: true,
-			projectDir,
+			scopeRoot,
 			modelClient: client,
 		});
 		await initServer(server, input, output);
@@ -5744,10 +5699,10 @@ describe("completion/complete", () => {
 	});
 
 	it("returns recent run IDs for kota-summarize-run run_id argument", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-compl-runs-"));
-		mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-compl-runs-"));
+		mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
 		const { input, output } = createTestStreams();
-		const server = new McpServer({ input, output, log: () => {}, projectDir });
+		const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 		await initServer(server, input, output);
 
 		sendRequest(input, 22, "completion/complete", {
@@ -5999,8 +5954,8 @@ describe("completion/complete", () => {
 
 			// Respond with roots
 			const roots = [
-				{ uri: "file:///workspace/project-a", name: "Project A" },
-				{ uri: "file:///workspace/project-b" },
+				{ uri: "file:///workspace/scope-a", name: "Project A" },
+				{ uri: "file:///workspace/scope-b" },
 			];
 			input.write(
 				`${JSON.stringify({ jsonrpc: "2.0", id: rootsReq.id, result: { roots } })}\n`,
@@ -6011,9 +5966,9 @@ describe("completion/complete", () => {
 
 			const stored = server.getClientRoots();
 			expect(stored).toHaveLength(2);
-			expect(stored[0].uri).toBe("file:///workspace/project-a");
+			expect(stored[0].uri).toBe("file:///workspace/scope-a");
 			expect(stored[0].name).toBe("Project A");
-			expect(stored[1].uri).toBe("file:///workspace/project-b");
+			expect(stored[1].uri).toBe("file:///workspace/scope-b");
 
 			server.stop();
 		});
@@ -6062,9 +6017,9 @@ describe("completion/complete", () => {
 			server.stop();
 		});
 
-		it("getEffectiveProjectDir returns first root path when roots are set", async () => {
+		it("getEffectiveScopeRoot returns first root path when roots are set", async () => {
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir: "/default/dir" });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot: "/default/dir" });
 
 			const { queue } = await initServerWithRoots(server, input, output);
 
@@ -6074,18 +6029,18 @@ describe("completion/complete", () => {
 			);
 			await new Promise((r) => setTimeout(r, 50));
 
-			expect(server.getEffectiveProjectDir()).toBe("/workspace/project");
+			expect(server.getEffectiveScopeRoot()).toBe("/workspace/project");
 
 			server.stop();
 		});
 
-		it("getEffectiveProjectDir falls back to configured projectDir when no roots", async () => {
+		it("getEffectiveScopeRoot falls back to configured scopeRoot when no roots", async () => {
 			const { input, output } = createTestStreams();
-			const server = new McpServer({ input, output, log: () => {}, projectDir: "/default/dir" });
+			const server = new McpServer({ input, output, log: () => {}, scopeRoot: "/default/dir" });
 
 			await initServer(server, input, output);
 
-			expect(server.getEffectiveProjectDir()).toBe("/default/dir");
+			expect(server.getEffectiveScopeRoot()).toBe("/default/dir");
 
 			server.stop();
 		});
@@ -6123,9 +6078,6 @@ describe("memory and knowledge resources", () => {
 			search: vi.fn(() => searchEntries),
 			update: vi.fn(),
 			delete: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
 	}
 
@@ -6141,9 +6093,6 @@ describe("memory and knowledge resources", () => {
 			delete: vi.fn(),
 			search: vi.fn(() => searchEntries),
 			count: vi.fn(),
-			supportsSemanticSearch: vi.fn(() => false),
-			semanticSearch: vi.fn(async () => []),
-			reindex: vi.fn(async () => ({ indexed: 0, failed: 0, skipped: true })),
 		});
 	}
 

@@ -1,4 +1,4 @@
-import { defineProjectScopedModuleEvent } from "#core/events/project-scope.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 
 export type ProgressReviewRequest = {
   automatic?: boolean;
@@ -17,7 +17,7 @@ export type ProgressReviewRequest = {
 };
 
 export const progressReviewRequested =
-  defineProjectScopedModuleEvent<ProgressReviewRequest>(
+  defineScopedModuleEvent<ProgressReviewRequest>(
     "autonomy.progress-review.requested",
     [
       "automatic",
@@ -64,7 +64,7 @@ export const progressReviewRequested =
 
 /** Dispatcher-owned automatic inputs use a separate latest-only queue slot. */
 export const automaticProgressReviewRequested =
-  defineProjectScopedModuleEvent<ProgressReviewRequest>(
+  defineScopedModuleEvent<ProgressReviewRequest>(
     "autonomy.progress-review.automatic-requested",
     [
       "automatic",

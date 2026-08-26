@@ -4,7 +4,7 @@
  * Registers `POST /api/webhooks/github` and validates each delivery's HMAC-SHA256
  * signature before emitting normalized bus events. Generic GitHub deliveries use
  * `github.<event>` events; configured issue-comment mentions use the shared
- * project-scoped `inbound.signal.received` contract.
+ * scope-bound `inbound.signal.received` contract.
  *
  * Config (under modules.github-webhook):
  *   secret:  Webhook secret or "$ENV_VAR" reference. Required.
@@ -513,7 +513,7 @@ function makeWebhookHandler(
       const inboundSignal = githubIssueCommentMentionToInboundSignal(
         decision.payload,
         {
-          projectId: deriveDirectoryScopeId(ctx.cwd),
+          scopeId: deriveDirectoryScopeId(ctx.cwd),
           occurredAt,
           receivedAt,
         },

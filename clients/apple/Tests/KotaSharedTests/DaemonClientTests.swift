@@ -15,7 +15,7 @@ final class DaemonClientTests: XCTestCase {
         try payload.write(to: controlPath, atomically: true, encoding: .utf8)
 
         let client = DaemonClient()
-        XCTAssertTrue(client.refreshConnection(projectDir: tempDir))
+        XCTAssertTrue(client.refreshConnection(scopeRoot: tempDir))
         XCTAssertEqual(client.connection?.baseURL.absoluteString, "http://127.0.0.1:8765")
         XCTAssertEqual(client.connection?.token, "tok-xyz")
     }
@@ -24,7 +24,7 @@ final class DaemonClientTests: XCTestCase {
         let tempDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("kota-tests-\(UUID().uuidString)")
         let client = DaemonClient()
-        XCTAssertFalse(client.refreshConnection(projectDir: tempDir))
+        XCTAssertFalse(client.refreshConnection(scopeRoot: tempDir))
         XCTAssertNil(client.connection)
     }
 
@@ -39,7 +39,7 @@ final class DaemonClientTests: XCTestCase {
         try "not json".write(to: controlPath, atomically: true, encoding: .utf8)
 
         let client = DaemonClient()
-        XCTAssertFalse(client.refreshConnection(projectDir: tempDir))
+        XCTAssertFalse(client.refreshConnection(scopeRoot: tempDir))
         XCTAssertNil(client.connection)
     }
 
@@ -85,7 +85,7 @@ final class DaemonClientTests: XCTestCase {
         XCTAssertEqual(status.workflow?.activeRuns.count, 0)
     }
 
-    func testProjectScopedStatusPreservesQueryString() async throws {
+    func testScopeScopedStatusPreservesQueryString() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -93,7 +93,7 @@ final class DaemonClientTests: XCTestCase {
             let components = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)
             XCTAssertEqual(request.url?.path, "/status")
             XCTAssertEqual(components?.queryItems, [
-                URLQueryItem(name: "projectId", value: "p-kota"),
+                URLQueryItem(name: "scopeId", value: "p-kota"),
             ])
             let body = #"{"running": true, "workflow": {"activeRuns": [], "paused": false}}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -105,10 +105,10 @@ final class DaemonClientTests: XCTestCase {
         let client = DaemonClient()
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
-        _ = try await client.fetchStatus(projectId: "p-kota")
+        _ = try await client.fetchStatus(scopeId: "p-kota")
     }
 
-    func testProjectScopedRunHistoryPreservesExistingAndProjectQueryItems() async throws {
+    func testScopeScopedRunHistoryPreservesExistingAndScopeQueryItems() async throws {
         URLProtocol.registerClass(MockURLProtocol.self)
         defer { URLProtocol.unregisterClass(MockURLProtocol.self) }
 
@@ -117,7 +117,7 @@ final class DaemonClientTests: XCTestCase {
             XCTAssertEqual(request.url?.path, "/workflow/runs")
             XCTAssertEqual(components?.queryItems, [
                 URLQueryItem(name: "limit", value: "3"),
-                URLQueryItem(name: "projectId", value: "p-kota"),
+                URLQueryItem(name: "scopeId", value: "p-kota"),
             ])
             let body = #"{"runs":[]}"#.data(using: .utf8)!
             let response = HTTPURLResponse(
@@ -129,7 +129,7 @@ final class DaemonClientTests: XCTestCase {
         let client = DaemonClient()
         client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "test-token")
 
-        _ = try await client.fetchRecentRuns(limit: 3, projectId: "p-kota")
+        _ = try await client.fetchRecentRuns(limit: 3, scopeId: "p-kota")
     }
 
     func testFetchStatusThrowsOnHttpError() async throws {

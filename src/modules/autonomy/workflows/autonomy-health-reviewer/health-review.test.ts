@@ -53,41 +53,64 @@ function review(signals: ReturnType<typeof signal>[], generatedAt = NOW) {
   });
 }
 
-function applyReview(projectDir: string, built: AutonomyHealthReview) {
-  const currentProjection = readAutonomyIssueProjection(projectDir);
+function applyReview(workspaceRoot: string, built: AutonomyHealthReview) {
+  const currentProjection = readAutonomyIssueProjection(workspaceRoot);
   const plannedActions = planAutonomyHealthReviewActions({
-    projectDir,
+    workspaceRoot,
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: workspaceRoot,
     review: built,
   });
   const finalized = applyAutonomyHealthReviewActions({
     currentProjection,
-    scopeDir: projectDir,
+    scopeRoot: workspaceRoot,
     ownerQuestionQueue: new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     ),
     review: built,
     plannedActions,
   });
-  materializeAutonomyIssueProjection(projectDir, finalized.projection);
+  materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
   return finalized;
 }
 
 describe("autonomy health issue projection", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-health-review-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-health-review-"));
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  });
+
+  it("keeps one warning ephemeral and admits the repeated observation", () => {
+    const first = applyReview(
+      workspaceRoot,
+      review([signal({ severity: "warning", observationCount: 1 })]),
+    );
+
+    expect(first.issueTransitions).toEqual([]);
+    expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([]);
+
+    const repeated = applyReview(
+      workspaceRoot,
+      review(
+        [signal({ severity: "warning", observationCount: 2 })],
+        "2026-06-17T13:00:00.000Z",
+      ),
+    );
+
+    expect(repeated.issueTransitions).toEqual([
+      expect.objectContaining({ kind: "opened", requiresDecision: true }),
+    ]);
+    expect(readAutonomyIssueProjection(workspaceRoot).issues).toHaveLength(1);
   });
 
   it("requests one issue decision without writing tasks or owner questions", () => {
     const actions = applyReview(
-      projectDir,
+      workspaceRoot,
       review([
         signal(),
         signal({
@@ -108,9 +131,9 @@ describe("autonomy health issue projection", () => {
       }),
     ]);
     expect(actions.taskMutations).toEqual([]);
-    expect(existsSync(join(projectDir, "data", "tasks"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, "data", "tasks"))).toBe(false);
     expect(
-      readAutonomyIssueProjection(projectDir).issues[0]?.evidenceRefs.map(
+      readAutonomyIssueProjection(workspaceRoot).issues[0]?.evidenceRefs.map(
         (ref) => ref.ref,
       ),
     ).toEqual([
@@ -121,7 +144,7 @@ describe("autonomy health issue projection", () => {
 
   it("enriches repeated evidence without another decision or attention item", () => {
     const firstReview = review([signal()]);
-    applyReview(projectDir, firstReview);
+    applyReview(workspaceRoot, firstReview);
     const repeatedReview = review(
       [
         signal({
@@ -133,7 +156,7 @@ describe("autonomy health issue projection", () => {
       ],
       "2026-06-17T13:00:00.000Z",
     );
-    const repeated = applyReview(projectDir, repeatedReview);
+    const repeated = applyReview(workspaceRoot, repeatedReview);
 
     expect(repeated.issueTransitions).toEqual([
       expect.objectContaining({ kind: "repeated", requiresDecision: false }),
@@ -142,16 +165,16 @@ describe("autonomy health issue projection", () => {
     expect(
       buildAutonomyHealthAttentionDigest({ review: repeatedReview, actions: repeated }),
     ).toMatchObject({ items: [], text: "Autonomy health review (0 patterns):" });
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
+    const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
     expect(issue.semanticRevision).toBe(1);
     expect(issue.occurrenceCount).toBe(2);
   });
 
   it("plans linked question dismissal without mutating before commit", () => {
-    const opened = applyReview(projectDir, review([signal()]));
+    const opened = applyReview(workspaceRoot, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
     const queue = new OwnerQuestionQueue(
-      join(projectDir, ".kota", "owner-questions"),
+      join(workspaceRoot, ".kota", "owner-questions"),
     );
     const question = queue.enqueue({
       context: "Fixture context",
@@ -161,8 +184,8 @@ describe("autonomy health issue projection", () => {
       answerBehavior: "record-only",
       origin: { kind: "manual", source: "fixture" },
     });
-    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(projectDir),
+    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot),
       updates: [{
         issueKey,
         kind: "owner-question",
@@ -173,7 +196,7 @@ describe("autonomy health issue projection", () => {
     }));
 
     const cleared = applyReview(
-      projectDir,
+      workspaceRoot,
       review(
         [
           signal({
@@ -190,17 +213,17 @@ describe("autonomy health issue projection", () => {
       expect.objectContaining({ kind: "resolved", transition: "cleared" }),
     ]);
     expect(queue.get(question.id)?.status).toBe("pending");
-    expect(readAutonomyIssueProjection(projectDir).issues[0]?.status).toBe(
+    expect(readAutonomyIssueProjection(workspaceRoot).issues[0]?.status).toBe(
       "resolved",
     );
   });
 
   it("drops the stable generated task on an explicit source clear", () => {
-    execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
-    const opened = applyReview(projectDir, review([signal()]));
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    const opened = applyReview(workspaceRoot, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
     const task = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: {
         kind: "task",
         proposalKey: `autonomy-issue:${issueKey}`,
@@ -219,8 +242,8 @@ describe("autonomy health issue projection", () => {
         },
       },
     });
-    materializeAutonomyIssueProjection(projectDir, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(projectDir),
+    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot),
       updates: [{
         issueKey,
         kind: "task",
@@ -231,7 +254,7 @@ describe("autonomy health issue projection", () => {
     }));
 
     const cleared = applyReview(
-      projectDir,
+      workspaceRoot,
       review(
         [signal({
           observation: "cleared",
@@ -245,12 +268,12 @@ describe("autonomy health issue projection", () => {
       { id: task.taskId, state: "dropped" },
     ]);
     expect(existsSync(
-      join(projectDir, "data", "tasks", "dropped", `${task.taskId}.md`),
+      join(workspaceRoot, "data", "tasks", "dropped", `${task.taskId}.md`),
     )).toBe(false);
     expect(existsSync(
-      join(projectDir, "data", "tasks", "ready", `${task.taskId}.md`),
+      join(workspaceRoot, "data", "tasks", "ready", `${task.taskId}.md`),
     )).toBe(true);
-    expect(readAutonomyIssueProjection(projectDir).issues[0]?.status).toBe(
+    expect(readAutonomyIssueProjection(workspaceRoot).issues[0]?.status).toBe(
       "resolved",
     );
   });
@@ -268,13 +291,13 @@ describe("autonomy health issue projection", () => {
       }),
     ]);
     const actions = planAutonomyHealthReviewActions({
-      projectDir,
+      workspaceRoot,
       currentProjection: emptyAutonomyIssueProjection(),
-      scopeDir: projectDir,
+      scopeRoot: workspaceRoot,
       review: built,
     });
     const path = writeAutonomyHealthReviewArtifact(
-      join(projectDir, ".kota", "runs", "health-review"),
+      join(workspaceRoot, ".kota", "runs", "health-review"),
       { generatedAt: NOW, review: built, actions },
     );
     const persisted = readFileSync(path, "utf-8");

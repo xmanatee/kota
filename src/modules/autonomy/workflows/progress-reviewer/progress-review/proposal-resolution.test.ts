@@ -10,24 +10,24 @@ import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { applyProgressReviewActions } from "./actions.js";
 
 describe("progress-reviewer generated-work resolution", () => {
-  const projectDirs: string[] = [];
+  const scopeRoots: string[] = [];
 
   afterEach(() => {
-    for (const projectDir of projectDirs.splice(0)) {
-      rmSync(projectDir, { recursive: true, force: true });
+    for (const workspaceRoot of scopeRoots.splice(0)) {
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("drops stale steering work when canonical recovery evidence disproves it", () => {
-    const projectDir = mkdtempSync(join(tmpdir(), "kota-progress-resolution-"));
-    projectDirs.push(projectDir);
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-progress-resolution-"));
+    scopeRoots.push(workspaceRoot);
     for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-      mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
+      mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
     }
-    execFileSync("git", ["init", "--quiet"], { cwd: projectDir });
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
     const proposalKey = "progress-reviewer:recovery:stale-worktrees";
     const created = materializeGeneratedWorkProposal({
-      projectDir,
+      workspaceRoot,
       proposal: {
         kind: "task",
         proposalKey,
@@ -41,9 +41,9 @@ describe("progress-reviewer generated-work resolution", () => {
           "",
           "The progress review projected stale worktrees.",
           "",
-          "## Product / Safety Link",
+          "## Context",
           "",
-          "Recovery protects Product and Safety delivery.",
+          "Recovery protects reliable delivery.",
         ].join("\n"),
         provenance: {
           source: "progress-reviewer",
@@ -54,8 +54,7 @@ describe("progress-reviewer generated-work resolution", () => {
     });
 
     const result = applyProgressReviewActions({
-      projectDir,
-      scopeDir: projectDir,
+      workspaceRoot,
       runId: "progress-review-after",
       evidence: {
         evidence: [{
@@ -92,7 +91,7 @@ describe("progress-reviewer generated-work resolution", () => {
         },
       ]),
     });
-    expect(listFullRepoTasks(projectDir)).toEqual([
+    expect(listFullRepoTasks(workspaceRoot)).toEqual([
       expect.objectContaining({ id: created.taskId, state: "dropped" }),
     ]);
   });

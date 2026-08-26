@@ -63,14 +63,14 @@ async function waitForDelayedProcess(delayMs: number): Promise<void> {
 
 async function runWithSandbox(
   probe: TaskProbe,
-  projectDir: string,
+  workspaceRoot: string,
   sandbox: TaskProbeSandbox,
 ): ReturnType<typeof runTaskProbe> {
   resolveTaskProbeSandbox.mockReturnValue(sandbox);
   return runTaskProbe(
     probe,
-    projectDir,
-    createWorkflowCommandRunner({ cwd: projectDir }),
+    workspaceRoot,
+    createWorkflowCommandRunner({ cwd: workspaceRoot }),
   );
 }
 

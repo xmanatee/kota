@@ -79,7 +79,7 @@ export function describeSecurityReviewTaskTests(): void {
           investigation,
         );
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run",
         findings: revalidation.findings,
       });
@@ -88,7 +88,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.updatedTaskIds).toHaveLength(0);
       expect(result.unchangedFindingIds).toHaveLength(0);
       expect(result.skippedFindingIds).toEqual(["finding-rejected"]);
-      const taskPath = join(fixture.projectDir, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
+      const taskPath = join(fixture.workspaceRoot, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
       const parsed = parseFlatFrontMatter(task);
       expect(parsed.attrs.task_class).toBe("Safety");
@@ -97,7 +97,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
       expect(task).toContain("Validate URL scheme and host before fetch.");
       expect(task).not.toContain("Secret value is printed.");
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("allocates a unique ready id when terminal task ids collide with the finding slug", () => {
@@ -106,7 +106,7 @@ export function describeSecurityReviewTaskTests(): void {
       fixture.writeTerminalSecurityTask(baseId, "done", "done collision owner");
       fixture.writeTerminalSecurityTask(`${baseId}-2`, "dropped", "dropped collision owner");
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run",
         findings: [fixture.confirmedFindingForClaim(claim)],
       });
@@ -114,21 +114,21 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.createdTaskIds).toEqual([`${baseId}-3`]);
       expect(result.updatedTaskIds).toEqual([]);
       expect(result.unchangedFindingIds).toEqual([]);
-      expect(existsSync(join(fixture.projectDir, "data/tasks/done", `${baseId}.md`))).toBe(true);
-      expect(existsSync(join(fixture.projectDir, "data/tasks/dropped", `${baseId}-2.md`))).toBe(
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/done", `${baseId}.md`))).toBe(true);
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/dropped", `${baseId}-2.md`))).toBe(
         true,
       );
       const readyTask = readFileSync(
-        join(fixture.projectDir, "data/tasks/ready", `${baseId}-3.md`),
+        join(fixture.workspaceRoot, "data/tasks/ready", `${baseId}-3.md`),
         "utf-8",
       );
       const parsed = parseFlatFrontMatter(readyTask);
       expect(parsed.attrs.id).toBe(`${baseId}-3`);
       expect(parsed.attrs.status).toBe("ready");
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
-    it("quotes agent-generated task content before frontmatter or Done When parsing can treat it as structure", () => {
+    it("quotes agent-generated task content before it can become task structure", () => {
       const investigation: SecurityInvestigationOutput = decodeSecurityInvestigationOutput({
         findings: [
           {
@@ -180,13 +180,13 @@ export function describeSecurityReviewTaskTests(): void {
           investigation,
         );
 
-      const result = createOrUpdateSecurityFindingTasks(fixture.projectDir, {
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
         runId: "security-review-run",
         findings: revalidation.findings,
       });
 
       expect(result.createdTaskIds).toHaveLength(1);
-      const taskPath = join(fixture.projectDir, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
+      const taskPath = join(fixture.workspaceRoot, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
       const parsed = parseFlatFrontMatter(task);
       expect(parsed.attrs.status).toBe("ready");
@@ -198,20 +198,20 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("affected path: src/modules/example.ts #\\# Done When");
       expect(task).not.toMatch(/^(title|summary|affected path): .*## Done When$/m);
 
-      const bodyDoneWhenHeadings = parsed.body.match(/^## Done When$/gm) ?? [];
-      expect(bodyDoneWhenHeadings).toHaveLength(1);
-      const doneWhenMatch = task.match(/## Done When\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
-      expect(doneWhenMatch?.[1]).toContain(
+      const howHeadings = parsed.body.match(/^## How We Will Know$/gm) ?? [];
+      expect(howHeadings).toHaveLength(1);
+      const howMatch = task.match(/## How We Will Know\n([\s\S]*?)(?=\n## |\n---|\s*$)/);
+      expect(howMatch?.[1]).toContain(
         "- The cited vulnerability is fixed or proven impossible with code-level evidence.",
       );
-      expect(doneWhenMatch?.[1]).not.toContain("attacker-controlled criterion");
-      expect(doneWhenMatch?.[1]).not.toContain("desired-outcome-controlled criterion");
-      expect(doneWhenMatch?.[1]).not.toContain("rationale-controlled criterion");
+      expect(howMatch?.[1]).not.toContain("attacker-controlled criterion");
+      expect(howMatch?.[1]).not.toContain("desired-outcome-controlled criterion");
+      expect(howMatch?.[1]).not.toContain("rationale-controlled criterion");
       expect(task).toContain("> #\\# Done When");
       expect(task).toContain("> - attacker-controlled criterion");
       expect(task).toContain("> - desired-outcome-controlled criterion");
       expect(task).toContain("> - rationale-controlled criterion");
-      expect(() => assertTaskQueueValid(fixture.projectDir)).not.toThrow();
+      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
     it("states the authorized defensive scope in the agent prompt", () => {

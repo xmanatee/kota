@@ -8,7 +8,7 @@ import type {
 } from "./routing-types.js";
 import { validateInboundSignalRoutingConfig } from "./routing-validation.js";
 
-export function projectRouteStatus(
+export function scopeRouteStatus(
   route: InboundSignalRouteConfig,
 ): InboundSignalRouteProjection {
   return {
@@ -34,7 +34,7 @@ export function inboundSignalRoutingStatus(
   const validation = validateInboundSignalRoutingConfig(config, context);
   const routes = validation.ok ? validation.routes : config.routes ?? [];
   return {
-    routes: routes.map(projectRouteStatus),
+    routes: routes.map(scopeRouteStatus),
     validation,
   };
 }

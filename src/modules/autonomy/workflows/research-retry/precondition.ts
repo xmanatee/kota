@@ -43,10 +43,10 @@ export type ResearchRetryCapability = {
  * enough to know when to skip.
  */
 export function checkResearchRetryCapability(
-  projectDir: string,
+  workspaceRoot: string,
 ): ResearchRetryCapability {
   const playwrightAvailable = isPlaywrightAvailable();
-  const browserConfig = readBrowserConfig(projectDir);
+  const browserConfig = readBrowserConfig(workspaceRoot);
   const path =
     typeof browserConfig.storageStatePath === "string" &&
     browserConfig.storageStatePath.length > 0
@@ -59,7 +59,7 @@ export function checkResearchRetryCapability(
       authProfileExists: false,
     };
   }
-  const resolved = isAbsolute(path) ? path : resolve(projectDir, path);
+  const resolved = isAbsolute(path) ? path : resolve(workspaceRoot, path);
   return {
     playwrightAvailable,
     authProfileConfigured: true,
@@ -146,10 +146,10 @@ export type ResearchRetryAvailability = {
 };
 
 export function inspectResearchRetryAvailability(
-  projectDir: string,
+  workspaceRoot: string,
 ): ResearchRetryAvailability {
-  const capability = checkResearchRetryCapability(projectDir);
-  const candidates = listResearchRetryCandidates(projectDir);
+  const capability = checkResearchRetryCapability(workspaceRoot);
+  const candidates = listResearchRetryCandidates(workspaceRoot);
   let attemptableCount = 0;
   for (const candidate of candidates) {
     const evaluation = evaluateCandidate({
@@ -213,14 +213,14 @@ export type MarkAttemptResult =
  *   when the file disappeared, or when no resource URLs remain.
  */
 export function writeMarkerForCandidate(args: {
-  projectDir: string;
+  workspaceRoot: string;
   candidateId: string;
   attemptedAt?: string;
 }): MarkAttemptResult {
-  const { projectDir, candidateId } = args;
+  const { workspaceRoot, candidateId } = args;
   const attemptedAt = args.attemptedAt ?? new Date().toISOString();
 
-  const located = locateTaskFile(projectDir, candidateId);
+  const located = locateTaskFile(workspaceRoot, candidateId);
   if (!located) return { written: false, reason: "task file not found" };
   if (located.state !== "blocked") {
     return { written: false, reason: `task moved to ${located.state}` };
@@ -242,22 +242,22 @@ export function writeMarkerForCandidate(args: {
     return { written: false, reason: "marker already current" };
   }
   const rebuilt = `---\n${split.frontmatter}\n---\n${newBody}`;
-  writeRepoTaskFile(projectDir, located.path, rebuilt);
+  writeRepoTaskFile(workspaceRoot, located.path, rebuilt);
 
   return {
     written: true,
     fingerprint,
     attemptedAt,
-    path: relative(projectDir, located.path),
+    path: relative(workspaceRoot, located.path),
   };
 }
 
 function locateTaskFile(
-  projectDir: string,
+  workspaceRoot: string,
   candidateId: string,
 ): { state: RepoTaskState; path: string } | null {
   for (const state of REPO_TASK_STATES) {
-    const path = join(getRepoTaskStateDir(projectDir, state), `${candidateId}.md`);
+    const path = join(getRepoTaskStateDir(workspaceRoot, state), `${candidateId}.md`);
     if (existsSync(path)) return { state, path };
   }
   return null;

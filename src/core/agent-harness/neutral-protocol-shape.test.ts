@@ -2,11 +2,8 @@
  * Semantic guard: the harness-neutral protocol surfaces only KOTA-native
  * fields and an opaque adapter-private overrides slot.
  *
- * The companion test `no-sdk-shaped-neutral-fields.test.ts` is a textual scan
- * for known-banned identifier names. That guard is necessary but not
- * sufficient: a contributor could rename a Claude-shaped concept to a fresh
- * KOTA-native-looking identifier and slip a provider-specific field past
- * the regex. This test instead inspects the *types* — it asserts that:
+ * This test inspects the authored types rather than source spellings. It
+ * asserts that:
  *
  *   - the run-options surface accepts every KOTA-native field listed below,
  *   - that any extra ad-hoc field is a compile-time error (the adapter
@@ -40,14 +37,14 @@ describe("AgentHarnessRunOptions exposes only KOTA-native concepts", () => {
       systemPrompt: "p",
       model: "m",
       modelOutputTokenLimits: { m: 1234 },
-      projectDir: "/project",
+      scopeRoot: "/project",
       cwd: "/tmp",
       verbose: false,
       maxTurns: 3,
       allowedTools: ["t"],
       disallowedTools: ["d"],
       mcpServers: {},
-      mcpProjectConfigPolicy: "disabled",
+      mcpScopeConfigPolicy: "disabled",
       autonomyMode: "supervised",
       persistSession: false,
       resumeSessionId: "session-1",
@@ -57,7 +54,6 @@ describe("AgentHarnessRunOptions exposes only KOTA-native concepts", () => {
         stepId: "build",
         spanId: "run-1:build",
         scopeId: "scope-1",
-        projectId: "scope-1",
       },
       abortController: new AbortController(),
       enableFileCheckpointing: false,

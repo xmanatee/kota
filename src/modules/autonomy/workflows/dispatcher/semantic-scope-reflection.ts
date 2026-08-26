@@ -14,7 +14,8 @@ export type ScopeBoundaryInspection = {
 };
 
 export function inspectScopeSemanticBoundary(args: {
-  projectDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   scopeId: string;
   stateDir: string;
   scopePolicySnapshot: ScopePolicySnapshot;
@@ -25,7 +26,7 @@ export function inspectScopeSemanticBoundary(args: {
   }
   const scopeId = args.scopeId;
   const state = args.state;
-  const worktree = getRepoWorktreeStatus(args.projectDir);
+  const worktree = getRepoWorktreeStatus(args.scopeRoot);
   if (!worktree.available || worktree.dirty) {
     return {
       shouldEmit: false,
@@ -35,9 +36,10 @@ export function inspectScopeSemanticBoundary(args: {
     };
   }
   const current = computeScopeContentFingerprint(
-    args.projectDir,
+    args.workspaceRoot,
     args.scopePolicySnapshot.policy,
     args.stateDir,
+    args.scopeRoot,
   );
   if (!state.consumedFingerprint) {
     if (state.pendingFingerprint && state.pendingDelivery === "deferred") {

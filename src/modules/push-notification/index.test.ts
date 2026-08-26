@@ -11,7 +11,7 @@
  * The module is exercised through its real `onLoad` against a stub
  * `ModuleRuntimeContext` whose event proxy is backed by a real `EventBus`. Each
  * test emits the corresponding event and asserts the resulting `fetch`
- * payload. `onUnload` is also exercised: after unload, the bus has no
+ * payload. The activation disposer is also exercised: after disposal, the bus has no
  * listeners for the three events, proving every subscription is released.
  */
 
@@ -63,16 +63,17 @@ function makeStubCtx(cwd: string, bus: EventBus): ModuleRuntimeContext {
 }
 
 describe("pushNotificationModule bus subscriptions", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let originalFetch: typeof globalThis.fetch;
   let fetchMock: ReturnType<typeof vi.fn>;
   let bus: EventBus;
+  let dispose: () => Promise<void> | void;
 
-  beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-push-module-"));
-    mkdirSync(join(projectDir, ".kota"), { recursive: true });
+  beforeEach(async () => {
+    scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-module-"));
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
     writeFileSync(
-      join(projectDir, ".kota/push-tokens.json"),
+      join(scopeRoot, ".kota/push-tokens.json"),
       JSON.stringify({
         tokens: {
           "device-a": {
@@ -89,13 +90,14 @@ describe("pushNotificationModule bus subscriptions", () => {
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     bus = new EventBus();
-    pushNotificationModule.onLoad!(makeStubCtx(projectDir, bus));
+    const activation = await pushNotificationModule.onLoad!(makeStubCtx(scopeRoot, bus));
+    dispose = activation?.dispose ?? (() => undefined);
   });
 
-  afterEach(() => {
-    pushNotificationModule.onUnload!();
+  afterEach(async () => {
+    await dispose();
     globalThis.fetch = originalFetch;
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   async function flushFetch(): Promise<void> {
@@ -167,7 +169,7 @@ describe("pushNotificationModule bus subscriptions", () => {
   });
 
   it("releases every subscription on unload", () => {
-    pushNotificationModule.onUnload!();
+    dispose();
     expect(bus.listenerCount("approval.requested")).toBe(0);
     expect(bus.listenerCount("workflow.daily.digest")).toBe(0);
     expect(bus.listenerCount("workflow.attention.digest")).toBe(0);

@@ -127,16 +127,15 @@ export function resetLifecycleTestState(): void {
 }
 
 export function runnerContext(
-  projectDir: string,
+  scopeRoot: string,
   sessionId = "session-a",
   scopeId = "scope-a",
-  cwd = projectDir,
+  cwd = scopeRoot,
 ): ToolRunnerContext {
   return {
     sessionId,
     scopeId,
-    projectId: scopeId,
-    projectDir,
+    scopeRoot,
     cwd,
   };
 }
@@ -151,7 +150,7 @@ export async function activateRunnerContext(
 }
 
 export async function loadConfiguredLifecycle(
-  projectDir: string,
+  scopeRoot: string,
   options: Partial<BrowserProfileOptions> = {},
   owner: Partial<BrowserProfileOwner> = {},
 ) {
@@ -166,7 +165,7 @@ export async function loadConfiguredLifecycle(
     },
     {
       scopeId: owner.scopeId ?? "scope-a",
-      projectDir: owner.projectDir ?? projectDir,
+      scopeRoot: owner.scopeRoot ?? scopeRoot,
     },
   );
   return lifecycle;
@@ -177,7 +176,7 @@ export async function cleanUpLifecycleTest(workDir: string): Promise<void> {
   await lifecycle.closeBrowser();
   const sessionEnvironment = await import("#core/tools/session-environment.js");
   for (const context of activeRunnerContexts.splice(0)) {
-    sessionEnvironment.unregisterSessionEnvironment(context);
+    await sessionEnvironment.unregisterSessionEnvironment(context);
   }
   rmSync(workDir, { recursive: true, force: true });
 }

@@ -22,9 +22,9 @@ export type InjectionDefenseAssessedPayload = {
  * posture that triggered screening.
  *
  * Daemon-wide: tool-call screening fires from inside the agent tool loop,
- * which is session-bound and not yet projectId-attributed. This declaration
+ * which is session-bound and not yet scopeId-attributed. This declaration
  * tracks the same boundary as `BusEvents["guardrail.assessed"]`; both
- * migrate to project scope once session-projectId attribution lands.
+ * migrate to directory-scope attribution once sessions carry `scopeId`.
  */
 export const injectionDefenseAssessed =
   defineDaemonWideModuleEvent<InjectionDefenseAssessedPayload>(

@@ -1,10 +1,12 @@
-import { probeCapabilityReadiness } from "#core/daemon/capability-readiness.js";
+import {
+  CAPABILITY_READINESS_PROVIDER_TYPE,
+  probeCapabilityReadinessSources,
+} from "#core/daemon/capability-readiness.js";
 import {
   listModuleSetupStatusesFromSummaries,
   moduleSummariesWithSetupAvailability,
 } from "#core/modules/module-setup-status.js";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { ModuleSetupCapabilityStatus } from "#core/modules/setup-requirements.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
@@ -22,10 +24,15 @@ import { modulesAgentsUiSurfaceSource } from "./ui-source.js";
 
 export { buildModuleListNode } from "./cli-command.js";
 
-async function probeSetupCapabilities(): Promise<readonly ModuleSetupCapabilityStatus[]> {
-  const registry = getProviderRegistry();
-  if (!registry) return [];
-  const response = await probeCapabilityReadiness(registry);
+async function probeSetupCapabilities(
+  ctx: ModuleContext,
+): Promise<readonly ModuleSetupCapabilityStatus[]> {
+  const active = ctx.getProvider(CAPABILITY_READINESS_PROVIDER_TYPE);
+  const sources = ctx.listProviders?.(CAPABILITY_READINESS_PROVIDER_TYPE)
+    ?? (active ? [active] : []);
+  const response = await probeCapabilityReadinessSources(
+    sources,
+  );
   return response.capabilities;
 }
 
@@ -34,9 +41,9 @@ async function moduleSummariesWithCurrentSetupAvailability(
 ) {
   const summaries = ctx.getModuleSummaries();
   const statuses = await listModuleSetupStatusesFromSummaries({
-    projectDir: ctx.cwd,
+    scopeRoot: ctx.cwd,
     getModuleSummaries: () => summaries,
-    probeCapabilities: probeSetupCapabilities,
+    probeCapabilities: () => probeSetupCapabilities(ctx),
   });
   return moduleSummariesWithSetupAvailability(summaries, statuses.requirements);
 }

@@ -31,7 +31,7 @@ import { type EvalSetReport, runEvalSet } from "./eval-set.js";
 import { type LoadedFixture, loadFixture } from "./fixture.js";
 
 type AgyCandidateExecutionInput = {
-  projectDir: string;
+  workspaceRoot: string;
   model: string;
   fixtures: readonly LoadedFixture[];
   artifactDir: string;
@@ -44,11 +44,11 @@ export type AgyModelEvaluationDependencies = {
     execution: EvalRunExecution,
   ): AgyModelAvailabilityProbe;
   createExecution(
-    projectDir: string,
+    workspaceRoot: string,
     options: AgyModelEvaluationOptions,
     env: NodeJS.ProcessEnv,
   ): EvalRunExecution;
-  createArtifactDir(projectDir: string, startedAt: Date): string;
+  createArtifactDir(workspaceRoot: string, startedAt: Date): string;
   now(): Date;
 };
 
@@ -56,10 +56,10 @@ function uniqueCandidates(candidates: readonly string[]): string[] {
   return [...new Set(candidates.map((candidate) => candidate.trim()).filter(Boolean))];
 }
 
-function defaultArtifactDir(projectDir: string, startedAt: Date): string {
+function defaultArtifactDir(workspaceRoot: string, startedAt: Date): string {
   const stamp = startedAt.toISOString().replace(/[:.]/g, "-");
   const artifactDir = join(
-    evalRunsRootFor(projectDir),
+    evalRunsRootFor(workspaceRoot),
     `${stamp}-agy-model-evaluation`,
   );
   mkdirSync(artifactDir, { recursive: true });
@@ -86,7 +86,7 @@ async function executeCandidate(
     [PRESET_ENV_VAR]: "antigravity-cli",
   };
   return runEvalSet({
-    projectDir: input.projectDir,
+    workspaceRoot: input.workspaceRoot,
     fixtures: input.fixtures,
     executor: execution.executor,
     requestedProfile: execution.requestedProfile,
@@ -111,7 +111,7 @@ const DEFAULT_DEPENDENCIES: AgyModelEvaluationDependencies = {
 };
 
 export async function runAgyModelEvaluationSuite(
-  projectDir: string,
+  workspaceRoot: string,
   options: AgyModelEvaluationOptions,
   dependencyOverrides: Partial<AgyModelEvaluationDependencies> = {},
 ): Promise<AgyModelEvaluationResult> {
@@ -146,14 +146,14 @@ export async function runAgyModelEvaluationSuite(
   }
 
   const startedAt = deps.now();
-  const artifactDir = deps.createArtifactDir(projectDir, startedAt);
+  const artifactDir = deps.createArtifactDir(workspaceRoot, startedAt);
   const forcedEnv: NodeJS.ProcessEnv = {
     ...process.env,
     [PRESET_ENV_VAR]: "antigravity-cli",
   };
   let execution: EvalRunExecution;
   try {
-    execution = deps.createExecution(projectDir, options, forcedEnv);
+    execution = deps.createExecution(workspaceRoot, options, forcedEnv);
   } catch (error) {
     return {
       ok: false,
@@ -183,7 +183,7 @@ export async function runAgyModelEvaluationSuite(
     fixtures = AGY_MODEL_EVALUATION_SCENARIOS.map((scenario) =>
       loadFixture(root, scenario.fixtureId),
     );
-    validateAgyScenarioFixtures(projectDir, fixtures);
+    validateAgyScenarioFixtures(workspaceRoot, fixtures);
   } catch (error) {
     return {
       ok: false,
@@ -204,7 +204,7 @@ export async function runAgyModelEvaluationSuite(
       mkdirSync(candidateArtifactDir, { recursive: true });
       const candidateExecution = await executeCandidate(
         {
-          projectDir,
+          workspaceRoot,
           model: candidate,
           fixtures,
           artifactDir: candidateArtifactDir,

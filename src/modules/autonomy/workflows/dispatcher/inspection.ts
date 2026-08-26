@@ -37,7 +37,8 @@ export type DispatcherInspection = {
 };
 
 export type DispatcherInspectionInput = {
-  projectDir: string;
+  workspaceRoot: string;
+  scopeRoot: string;
   scopeId: string;
   stateDir: string;
   nowIso: string;
@@ -51,17 +52,18 @@ export function inspectDispatcherStateInWorker(
 ): DispatcherInspection {
   const now = new Date(input.nowIso);
   return {
-    queue: getRepoTaskQueueSnapshot(input.projectDir),
-    builderTasks: listBuilderTaskDispatches(input.projectDir),
-    promotionRationale: buildPromotionRationale(input.projectDir),
-    researchRetryAvailability: inspectResearchRetryAvailability(input.projectDir),
-    securityReviewDue: inspectSecurityReviewDue(input.projectDir, {
+    queue: getRepoTaskQueueSnapshot(input.workspaceRoot),
+    builderTasks: listBuilderTaskDispatches(input.workspaceRoot),
+    promotionRationale: buildPromotionRationale(input.workspaceRoot),
+    researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot),
+    securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,
       stateDir: input.stateDir,
     }, input.securityReviewGitEvidence),
     scopeBoundary: input.scopePolicySnapshot
       ? inspectScopeSemanticBoundary({
-          projectDir: input.projectDir,
+          workspaceRoot: input.workspaceRoot,
+          scopeRoot: input.scopeRoot,
           scopeId: input.scopeId,
           stateDir: input.stateDir,
           scopePolicySnapshot: input.scopePolicySnapshot,

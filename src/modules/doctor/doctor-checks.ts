@@ -58,9 +58,9 @@ function readDaemonPid(statePath: string): number | null {
   }
 }
 
-function checkDisk(projectDir: string): CheckResult[] {
+function checkDisk(scopeRoot: string): CheckResult[] {
   const results: CheckResult[] = [];
-  const kotaDir = join(projectDir, ".kota");
+  const kotaDir = join(scopeRoot, ".kota");
 
   if (!existsSync(kotaDir)) {
     results.push(fail("Disk: .kota/ directory", "Missing — run `kota` once to initialize"));
@@ -97,7 +97,7 @@ function checkDisk(projectDir: string): CheckResult[] {
   }
 
   for (const strayDir of ["runs", "kota"]) {
-    const strayPath = join(projectDir, strayDir);
+    const strayPath = join(scopeRoot, strayDir);
     if (existsSync(strayPath)) {
       results.push(
         warn(
@@ -108,7 +108,7 @@ function checkDisk(projectDir: string): CheckResult[] {
     }
   }
 
-  const staleRunInsightFiles = listStaleRunInsightFiles(projectDir);
+  const staleRunInsightFiles = listStaleRunInsightFiles(scopeRoot);
   if (staleRunInsightFiles.length > 0) {
     results.push(warn(
       "Disk: stale run-insight data",
@@ -135,13 +135,13 @@ function checkConfigFile(configPath: string, label: string): CheckResult {
   }
 }
 
-async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult> {
+async function checkWorkflowDefinitions(scopeRoot: string): Promise<CheckResult> {
   try {
-    const config = loadConfig(projectDir);
-    const loader = await loadModuleMetadata(config, projectDir, false);
+    const config = loadConfig(scopeRoot);
+    const loader = await loadModuleMetadata(config, scopeRoot, false);
     const defs = loader.getContributedWorkflows();
     const runtime = resolveAgentRuntime(config);
-    const validated = validateWorkflowDefinitions(defs, projectDir, {
+    const validated = validateWorkflowDefinitions(defs, scopeRoot, {
       defaultAgentHarness: runtime.harness,
       preset: runtime.preset,
       modelTiers: runtime.tiers,
@@ -157,10 +157,10 @@ async function checkWorkflowDefinitions(projectDir: string): Promise<CheckResult
   }
 }
 
-async function checkModules(projectDir: string): Promise<CheckResult[]> {
+async function checkModules(scopeRoot: string): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   try {
-    const loader = await loadModuleMetadata(loadConfig(projectDir), projectDir, false);
+    const loader = await loadModuleMetadata(loadConfig(scopeRoot), scopeRoot, false);
     const summaries = loader.getModuleSummaries();
     results.push(pass("Modules: loaded", `${summaries.length} module(s)`));
   } catch (err) {
@@ -170,16 +170,16 @@ async function checkModules(projectDir: string): Promise<CheckResult[]> {
 }
 
 export async function runDoctorChecks(
-  projectDir: string,
+  scopeRoot: string,
   opts?: { skipConnectivity?: boolean; preset?: string },
 ): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
 
-  const kotaDir = join(projectDir, ".kota");
+  const kotaDir = join(scopeRoot, ".kota");
   const link = getDaemonTransport(kotaDir);
   const status = link ? await link.request<DaemonLiveStatus>("GET", "/status") : null;
   const controlFilePid = readDaemonPid(join(kotaDir, "daemon-control.json"));
-  const strandedDaemon = detectStrandedDaemonProcess(projectDir);
+  const strandedDaemon = detectStrandedDaemonProcess(scopeRoot);
 
   if (!link) {
     if (strandedDaemon.kind === "stranded") {
@@ -201,9 +201,9 @@ export async function runDoctorChecks(
   }
 
   const globalConfigPath = join(homedir(), ".kota", "config.json");
-  const projectConfigPath = join(projectDir, ".kota", "config.json");
+  const scopeConfigPath = join(scopeRoot, ".kota", "config.json");
   results.push(checkConfigFile(globalConfigPath, "Config: global (~/.kota/config.json)"));
-  results.push(checkConfigFile(projectConfigPath, "Config: project (.kota/config.json)"));
+  results.push(checkConfigFile(scopeConfigPath, "Config: project (.kota/config.json)"));
 
   if (status) {
     results.push(pass("Modules", "Managed by daemon (use `kota module list` for details)"));
@@ -243,18 +243,18 @@ export async function runDoctorChecks(
       }
     }
   } else {
-    const extResults = await checkModules(projectDir);
+    const extResults = await checkModules(scopeRoot);
     results.push(...extResults);
   }
 
-  results.push(...checkPresetHarnessReadiness(projectDir, opts?.preset));
+  results.push(...checkPresetHarnessReadiness(scopeRoot, opts?.preset));
 
-  results.push(...checkProvidersConfig(projectDir));
+  results.push(...checkProvidersConfig(scopeRoot));
 
   if (opts?.skipConnectivity) {
     results.push(warn("Provider connectivity", "Skipped (--skip-connectivity)"));
   } else {
-    results.push(...(await checkProviderConnectivity(projectDir)));
+    results.push(...(await checkProviderConnectivity(scopeRoot)));
   }
 
   if (status && link) {
@@ -269,19 +269,19 @@ export async function runDoctorChecks(
       results.push(pass("Workflows", `${count} definition(s) loaded by daemon`));
     }
   } else {
-    results.push(await checkWorkflowDefinitions(projectDir));
+    results.push(await checkWorkflowDefinitions(scopeRoot));
   }
 
-  results.push(...checkDisk(projectDir));
+  results.push(...checkDisk(scopeRoot));
 
   return results;
 }
 
 export async function runDoctorReport(
-  projectDir: string,
+  scopeRoot: string,
   opts?: { skipConnectivity?: boolean; preset?: string },
 ): Promise<DoctorRunResult> {
-  const checks = await runDoctorChecks(projectDir, opts);
+  const checks = await runDoctorChecks(scopeRoot, opts);
   const presetReadiness = extractPresetReadiness(checks);
   return presetReadiness ? { checks, presetReadiness } : { checks };
 }

@@ -31,8 +31,8 @@ type BrowserModuleConfig = {
  * profile path. Returns an empty object when the layer is absent — the
  * caller decides what "no profile configured" means for skip evaluation.
  */
-export function readBrowserConfig(projectDir: string): BrowserModuleConfig {
-  const config = loadConfig(projectDir);
+export function readBrowserConfig(workspaceRoot: string): BrowserModuleConfig {
+  const config = loadConfig(workspaceRoot);
   const raw = config.modules?.browser;
   if (!raw || typeof raw !== "object") return {};
   return raw as BrowserModuleConfig;

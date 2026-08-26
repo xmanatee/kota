@@ -86,7 +86,7 @@ describe("WorkflowTracer", () => {
       startedAt: now.toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-2",
       stepId: "step-a",
@@ -104,7 +104,7 @@ describe("WorkflowTracer", () => {
       startedAt: now.toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-2",
       stepId: "step-b",
@@ -179,7 +179,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "test-wf",
       runId: "run-sf",
       stepId: "bad-step",
@@ -222,7 +222,7 @@ describe("WorkflowTracer", () => {
       autonomyMode: "autonomous",
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-am",
       stepId: "build",
@@ -270,7 +270,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-no-am",
       stepId: "s",
@@ -315,7 +315,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-m",
       stepId: "build",
@@ -369,7 +369,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-t",
       stepId: "build",
@@ -418,7 +418,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-unavailable",
       stepId: "build",
@@ -465,7 +465,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-unknown",
       stepId: "build",
@@ -511,7 +511,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-miss",
       stepId: "build",
@@ -561,7 +561,7 @@ describe("WorkflowTracer", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-broken",
       stepId: "build",
@@ -691,7 +691,7 @@ describe("no-op behavior", () => {
       startedAt: new Date().toISOString(),
     });
     tracer.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "test",
       runId: "noop-1",
       stepId: "s1",

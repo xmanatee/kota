@@ -24,7 +24,7 @@ function makeDefinition(
 }
 
 describe("ScheduleTriggerManager", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let manager: ScheduleTriggerManager;
   let enqueuedRuns: WorkflowRunTrigger[];
   let startNextCount: number;
@@ -47,7 +47,7 @@ describe("ScheduleTriggerManager", () => {
   }
 
   beforeEach(() => {
-    projectDir = mkdtempSync(join(tmpdir(), "kota-schedule-triggers-"));
+    workspaceRoot = mkdtempSync(join(tmpdir(), "kota-schedule-triggers-"));
     enqueuedRuns = [];
     startNextCount = 0;
     isStopping = false;
@@ -57,7 +57,7 @@ describe("ScheduleTriggerManager", () => {
 
   afterEach(() => {
     manager.clearAll();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("queues scheduled runs with the configured trigger event name", async () => {
@@ -91,8 +91,7 @@ describe("ScheduleTriggerManager", () => {
 
     manager.setup([makeDefinition("global-review", trigger)]);
 
-    const timers = (manager as unknown as { timers: Map<string, unknown> }).timers;
-    expect(timers.size).toBe(0);
+    expect(manager.nextScheduledAt().get("global-review")).toBeUndefined();
   });
 
   it("installs default-scope schedules in the default runtime", () => {
@@ -105,8 +104,7 @@ describe("ScheduleTriggerManager", () => {
 
     manager.setup([makeDefinition("global-review", trigger)]);
 
-    const timers = (manager as unknown as { timers: Map<string, unknown> }).timers;
-    expect(timers.size).toBe(1);
+    expect(manager.nextScheduledAt().get("global-review")).toEqual(expect.any(String));
   });
 
   it("projects only live schedule timers after a workflow is disabled", () => {

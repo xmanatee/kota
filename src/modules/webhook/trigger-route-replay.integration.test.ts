@@ -18,30 +18,30 @@ import {
   type WebhookRouteTestServer,
 } from "./trigger-route-test-support.js";
 
-function makeProjectDir(): string {
-  const projectDir = mkdtempSync(join(tmpdir(), "kota-webhook-replay-"));
-  writeFileSync(join(projectDir, ".gitignore"), ".kota/\n");
-  execFileSync("git", ["init"], { cwd: projectDir, stdio: "ignore" });
-  execFileSync("git", ["add", ".gitignore"], { cwd: projectDir, stdio: "ignore" });
+function makeScopeRoot(): string {
+  const scopeRoot = mkdtempSync(join(tmpdir(), "kota-webhook-replay-"));
+  writeFileSync(join(scopeRoot, ".gitignore"), ".kota/\n");
+  execFileSync("git", ["init"], { cwd: scopeRoot, stdio: "ignore" });
+  execFileSync("git", ["add", ".gitignore"], { cwd: scopeRoot, stdio: "ignore" });
   execFileSync(
     "git",
     ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "init"],
-    { cwd: projectDir, stdio: "ignore" },
+    { cwd: scopeRoot, stdio: "ignore" },
   );
-  return projectDir;
+  return scopeRoot;
 }
 
 describe("webhook route replay protection", () => {
-  let projectDir: string;
+  let scopeRoot: string;
   let runtime: WorkflowRuntime;
   let runtimeFixture: TestWorkflowRuntime;
   let server: WebhookRouteTestServer;
 
   beforeEach(async () => {
-    projectDir = makeProjectDir();
+    scopeRoot = makeScopeRoot();
     runtimeFixture = createTestWorkflowRuntime({
       bus: new EventBus(),
-      projectDir,
+      scopeRoot,
       idleIntervalMs: 60_000,
       workflows: [
         {
@@ -74,7 +74,7 @@ describe("webhook route replay protection", () => {
     await server.stop();
     await runtime.stop();
     runtimeFixture.runState.close();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(scopeRoot, { recursive: true, force: true });
   });
 
   it("deduplicates a signed delivery replayed with a different unsigned idempotency header", async () => {

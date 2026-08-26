@@ -60,17 +60,17 @@ describe('reducer', () => {
       { id: 'q4', context: 'c', question: 'q', reason: 'r', source: 'builder', createdAt: 't', status: 'dismissed' },
     ];
     const next = reducer(initialState, { type: 'OWNER_QUESTIONS', questions });
-    expect(next.ownerQuestions).toHaveLength(4);
-    expect(next.pendingOwnerQuestionCount).toBe(2);
+    expect(next.activity.ownerQuestions).toHaveLength(4);
+    expect(next.activity.pendingOwnerQuestionCount).toBe(2);
   });
 
   test('initial state seeds the capture surface with the auto picker and no result', () => {
-    expect(initialState.captureText).toBe('');
-    expect(initialState.captureTarget).toBe('auto');
-    expect(initialState.captureHint).toBe('');
-    expect(initialState.captureResult).toBeNull();
-    expect(initialState.captureLoading).toBe(false);
-    expect(initialState.captureError).toBeNull();
+    expect(initialState.content.captureText).toBe('');
+    expect(initialState.content.captureTarget).toBe('auto');
+    expect(initialState.content.captureHint).toBe('');
+    expect(initialState.content.captureResult).toBeNull();
+    expect(initialState.content.captureLoading).toBe(false);
+    expect(initialState.content.captureError).toBeNull();
   });
 
   test('CAPTURE_TEXT_SET stores the draft without touching result or loading flags', () => {
@@ -78,20 +78,20 @@ describe('reducer', () => {
       type: 'CAPTURE_TEXT_SET',
       text: 'remember the milk',
     });
-    expect(next.captureText).toBe('remember the milk');
-    expect(next.captureResult).toBeNull();
-    expect(next.captureLoading).toBe(false);
-    expect(next.captureError).toBeNull();
+    expect(next.content.captureText).toBe('remember the milk');
+    expect(next.content.captureResult).toBeNull();
+    expect(next.content.captureLoading).toBe(false);
+    expect(next.content.captureError).toBeNull();
   });
 
   test('CAPTURE_TARGET_SET pins each target value through the picker including auto', () => {
     let s: DaemonState = initialState;
     s = reducer(s, { type: 'CAPTURE_TARGET_SET', target: 'tasks' });
-    expect(s.captureTarget).toBe('tasks');
+    expect(s.content.captureTarget).toBe('tasks');
     s = reducer(s, { type: 'CAPTURE_TARGET_SET', target: 'inbox' });
-    expect(s.captureTarget).toBe('inbox');
+    expect(s.content.captureTarget).toBe('inbox');
     s = reducer(s, { type: 'CAPTURE_TARGET_SET', target: 'auto' });
-    expect(s.captureTarget).toBe('auto');
+    expect(s.content.captureTarget).toBe('auto');
   });
 
   test('CAPTURE_HINT_SET stores the hint without touching the picker or result', () => {
@@ -103,9 +103,9 @@ describe('reducer', () => {
       type: 'CAPTURE_HINT_SET',
       hint: 'shopping list',
     });
-    expect(withHint.captureHint).toBe('shopping list');
-    expect(withHint.captureTarget).toBe('memory');
-    expect(withHint.captureResult).toBeNull();
+    expect(withHint.content.captureHint).toBe('shopping list');
+    expect(withHint.content.captureTarget).toBe('memory');
+    expect(withHint.content.captureResult).toBeNull();
   });
 
   test('CAPTURE_LOADING flips loading flag and clears prior error', () => {
@@ -113,10 +113,10 @@ describe('reducer', () => {
       type: 'CAPTURE_ERROR',
       error: 'boom',
     });
-    expect(withError.captureError).toBe('boom');
+    expect(withError.content.captureError).toBe('boom');
     const next = reducer(withError, { type: 'CAPTURE_LOADING' });
-    expect(next.captureLoading).toBe(true);
-    expect(next.captureError).toBeNull();
+    expect(next.content.captureLoading).toBe(true);
+    expect(next.content.captureError).toBeNull();
   });
 
   test('CAPTURE_RESULT stores a tasks-arm success payload and clears loading/error', () => {
@@ -130,9 +130,9 @@ describe('reducer', () => {
     };
     const loading = reducer(initialState, { type: 'CAPTURE_LOADING' });
     const next = reducer(loading, { type: 'CAPTURE_RESULT', result });
-    expect(next.captureResult).toBe(result);
-    expect(next.captureLoading).toBe(false);
-    expect(next.captureError).toBeNull();
+    expect(next.content.captureResult).toBe(result);
+    expect(next.content.captureLoading).toBe(false);
+    expect(next.content.captureError).toBeNull();
   });
 
   test('CAPTURE_RESULT preserves each ok:false branch verbatim', () => {
@@ -143,14 +143,14 @@ describe('reducer', () => {
         ok: false,
         reason: 'contributor_failed',
         target: 'inbox',
-        message: 'inbox writer cannot reach project root',
+        message: 'inbox writer cannot reach scope root',
       },
     ];
     for (const result of arms) {
       const next = reducer(initialState, { type: 'CAPTURE_RESULT', result });
-      expect(next.captureResult).toEqual(result);
-      expect(next.captureLoading).toBe(false);
-      expect(next.captureError).toBeNull();
+      expect(next.content.captureResult).toEqual(result);
+      expect(next.content.captureLoading).toBe(false);
+      expect(next.content.captureError).toBeNull();
     }
   });
 
@@ -164,9 +164,9 @@ describe('reducer', () => {
       result,
     });
     const next = reducer(withResult, { type: 'CAPTURE_ERROR', error: '503' });
-    expect(next.captureResult).toBeNull();
-    expect(next.captureError).toBe('503');
-    expect(next.captureLoading).toBe(false);
+    expect(next.content.captureResult).toBeNull();
+    expect(next.content.captureError).toBe('503');
+    expect(next.content.captureLoading).toBe(false);
   });
 
   test('ONLINE false drops cached capture result so it cannot persist across an offline transition', () => {
@@ -182,10 +182,10 @@ describe('reducer', () => {
       type: 'CAPTURE_RESULT',
       result,
     });
-    expect(withResult.captureResult).toBe(result);
+    expect(withResult.content.captureResult).toBe(result);
     const offline = reducer(withResult, { type: 'ONLINE', online: false });
-    expect(offline.captureResult).toBeNull();
-    expect(offline.captureLoading).toBe(false);
+    expect(offline.content.captureResult).toBeNull();
+    expect(offline.content.captureLoading).toBe(false);
   });
 
   test('ONLINE false preserves the captureText draft and the picker selection', () => {
@@ -196,18 +196,18 @@ describe('reducer', () => {
     s = reducer(s, { type: 'CAPTURE_TARGET_SET', target: 'tasks' });
     s = reducer(s, { type: 'CAPTURE_HINT_SET', hint: 'urgent' });
     const offline = reducer(s, { type: 'ONLINE', online: false });
-    expect(offline.captureText).toBe('pending draft');
-    expect(offline.captureTarget).toBe('tasks');
-    expect(offline.captureHint).toBe('urgent');
+    expect(offline.content.captureText).toBe('pending draft');
+    expect(offline.content.captureTarget).toBe('tasks');
+    expect(offline.content.captureHint).toBe('urgent');
   });
 
   test('initial state seeds the retract surface with memory, empty identifier, no result, no confirmation', () => {
-    expect(initialState.retractTarget).toBe('memory');
-    expect(initialState.retractIdentifier).toBe('');
-    expect(initialState.retractResult).toBeNull();
-    expect(initialState.retractLoading).toBe(false);
-    expect(initialState.retractError).toBeNull();
-    expect(initialState.retractConfirmed).toBe(false);
+    expect(initialState.content.retractTarget).toBe('memory');
+    expect(initialState.content.retractIdentifier).toBe('');
+    expect(initialState.content.retractResult).toBeNull();
+    expect(initialState.content.retractLoading).toBe(false);
+    expect(initialState.content.retractError).toBeNull();
+    expect(initialState.content.retractConfirmed).toBe(false);
   });
 
   test('RETRACT_TARGET_SET clears identifier, result, error, and confirmation when the target actually changes', () => {
@@ -222,11 +222,11 @@ describe('reducer', () => {
     });
     s = reducer(s, { type: 'RETRACT_ERROR', error: '503' });
     const next = reducer(s, { type: 'RETRACT_TARGET_SET', target: 'inbox' });
-    expect(next.retractTarget).toBe('inbox');
-    expect(next.retractIdentifier).toBe('');
-    expect(next.retractResult).toBeNull();
-    expect(next.retractError).toBeNull();
-    expect(next.retractConfirmed).toBe(false);
+    expect(next.content.retractTarget).toBe('inbox');
+    expect(next.content.retractIdentifier).toBe('');
+    expect(next.content.retractResult).toBeNull();
+    expect(next.content.retractError).toBeNull();
+    expect(next.content.retractConfirmed).toBe(false);
   });
 
   test('RETRACT_TARGET_SET is a no-op when picking the same target (preserves identifier draft)', () => {
@@ -238,7 +238,7 @@ describe('reducer', () => {
       type: 'RETRACT_TARGET_SET',
       target: 'memory',
     });
-    expect(same.retractIdentifier).toBe('mem-7');
+    expect(same.content.retractIdentifier).toBe('mem-7');
     expect(same).toBe(seeded);
   });
 
@@ -252,22 +252,22 @@ describe('reducer', () => {
       identifier: 'task-foo',
     });
     s = reducer(s, { type: 'RETRACT_CONFIRMED_SET', confirmed: true });
-    expect(s.retractConfirmed).toBe(true);
+    expect(s.content.retractConfirmed).toBe(true);
     const next = reducer(s, {
       type: 'RETRACT_IDENTIFIER_SET',
       identifier: 'task-bar',
     });
-    expect(next.retractIdentifier).toBe('task-bar');
-    expect(next.retractTarget).toBe('tasks');
-    expect(next.retractConfirmed).toBe(false);
+    expect(next.content.retractIdentifier).toBe('task-bar');
+    expect(next.content.retractTarget).toBe('tasks');
+    expect(next.content.retractConfirmed).toBe(false);
   });
 
   test('RETRACT_LOADING flips loading flag, clears prior result/error, and resets confirmation', () => {
     let s = reducer(initialState, { type: 'RETRACT_ERROR', error: 'boom' });
     s = reducer(s, { type: 'RETRACT_CONFIRMED_SET', confirmed: true });
     const next = reducer(s, { type: 'RETRACT_LOADING' });
-    expect(next.retractLoading).toBe(true);
-    expect(next.retractError).toBeNull();
-    expect(next.retractResult).toBeNull();
-    expect(next.retractConfirmed).toBe(false);
+    expect(next.content.retractLoading).toBe(true);
+    expect(next.content.retractError).toBeNull();
+    expect(next.content.retractResult).toBeNull();
+    expect(next.content.retractConfirmed).toBe(false);
   });});

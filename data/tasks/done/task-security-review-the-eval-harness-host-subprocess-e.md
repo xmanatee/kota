@@ -22,7 +22,7 @@ claim:
 
 ## Desired Outcome
 
-> Build the host subprocess environment from an explicit allowlist, such as required runtime basics plus KOTA_DIST_DIR, KOTA_PROJECT_DIR, HOME, PATH, active preset auth env, and caller-supplied extraEnv. Add regression coverage proving arbitrary parent secrets are absent from host-backed fixture workflow runs while required harness auth still reaches the agent runtime.
+> Build the host subprocess environment from an explicit allowlist, such as required runtime basics plus KOTA_DIST_DIR, KOTA_SCOPE_ROOT, HOME, PATH, active preset auth env, and caller-supplied extraEnv. Add regression coverage proving arbitrary parent secrets are absent from host-backed fixture workflow runs while required harness auth still reaches the agent runtime.
 
 ## Constraints
 
@@ -39,7 +39,7 @@ claim:
 
 `src/modules/eval-harness/subprocess-executor.ts` now builds host subprocess
 environment from a small parent-env allowlist, active preset auth env, explicit
-`extraEnv`, fixture remaps (`HOME`, `KOTA_PROJECT_DIR`, `KOTA_DIST_DIR`, `PATH`),
+`extraEnv`, fixture remaps (`HOME`, `KOTA_SCOPE_ROOT`, `KOTA_DIST_DIR`, `PATH`),
 and replay env. The vulnerable `...process.env` spread was removed from the
 host-backed execution path.
 
@@ -56,7 +56,7 @@ candidate id: secret-handling:src/modules/eval-harness/subprocess-executor.ts:68
 verdict: confirmed
 rationale:
 
-> The default isolation backend is host-subprocess, and that branch passes env: hostExecutionEnv(...) into spawn. hostExecutionEnv builds the child environment by spreading ...process.env before applying extraEnv and fixture overrides, so unrelated parent variables such as API keys or tokens remain visible to workflow code running inside the fixture. Existing tests cover HOME/KOTA_PROJECT_DIR remapping and container-mode parent-secret exclusion, but not host-subprocess exclusion.
+> The default isolation backend is host-subprocess, and that branch passes env: hostExecutionEnv(...) into spawn. hostExecutionEnv builds the child environment by spreading ...process.env before applying extraEnv and fixture overrides, so unrelated parent variables such as API keys or tokens remain visible to workflow code running inside the fixture. Existing tests cover HOME/KOTA_SCOPE_ROOT remapping and container-mode parent-secret exclusion, but not host-subprocess exclusion.
 
 Evidence:
 

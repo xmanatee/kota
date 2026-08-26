@@ -11,6 +11,7 @@
 import type {
 	KnowledgeEntry,
 	KnowledgeProvider,
+	KnowledgeSemanticSearchCapability,
 	SearchFilters,
 } from "#core/modules/provider-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
@@ -45,15 +46,16 @@ function buildAdapter(base: KnowledgeStore): SemanticStoreAdapter<KnowledgeEntry
 		resolveStorageDir: (id) => base.entryDir(id),
 		listStorageDirs: () => {
 			const dirs: string[] = [];
-			const project = base.getProjectDir();
-			if (project) dirs.push(project);
+			const scope = base.getScopeDir();
+			if (scope) dirs.push(scope);
 			dirs.push(base.getGlobalDir());
 			return dirs;
 		},
 	};
 }
 
-export class SemanticKnowledgeStore implements KnowledgeProvider {
+export class SemanticKnowledgeStore implements KnowledgeProvider, KnowledgeSemanticSearchCapability {
+	readonly semanticSearchCapability: KnowledgeSemanticSearchCapability = this;
 	private base: KnowledgeStore;
 	private manager: SemanticIndexManager<KnowledgeEntry>;
 
@@ -115,10 +117,6 @@ export class SemanticKnowledgeStore implements KnowledgeProvider {
 	/** Wait for all pending background embeddings to settle. */
 	async flush(): Promise<void> {
 		await this.manager.flush();
-	}
-
-	supportsSemanticSearch(): boolean {
-		return true;
 	}
 
 	async semanticSearch(

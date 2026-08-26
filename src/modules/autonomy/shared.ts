@@ -18,7 +18,6 @@ export const BACKLOG_TASK_TARGET = 8;
 export const AUTONOMY_DISALLOWED_TOOLS = ["Agent", "Task", "EnterWorktree", "ExitWorktree"];
 export const AUTONOMY_AGENT_HANG_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 export const AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS = 60 * 60 * 1000;
-export const AUTONOMY_FULL_TEST_TIMEOUT_MS = 15 * 60 * 1000;
 const AUTONOMY_AGENT_DEFINITION_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 // Tier the autonomy fleet runs at. `tier: "capable"` is what every autonomy

@@ -2,11 +2,12 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -38,22 +39,22 @@ function waitForLifecycle(
 }
 
 describe("issue-driven owner-answer lifecycle integration", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let savedPreset: string | undefined;
 
   beforeEach(() => {
     savedPreset = process.env[PRESET_ENV_VAR];
     process.env[PRESET_ENV_VAR] = "claude";
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-owner-answer-lifecycle-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    seedIssueDrivenLoopFixture(projectDir);
+    seedIssueDrivenLoopFixture(workspaceRoot);
     mockedExecuteWithAgentSDK.mockReset();
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
     if (savedPreset === undefined) delete process.env[PRESET_ENV_VAR];
     else process.env[PRESET_ENV_VAR] = savedPreset;
   });
@@ -71,7 +72,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           taskPriority: "p1",
           taskArea: "",
           taskClass: "Product",
-          taskAcceptanceEvidence: "",
+          taskHowWeWillKnow: "",
           ownerQuestion: "Should builder preserve the failed run's worktree?",
           ownerReason: "Both recovery policies are technically valid.",
           proposedAnswers: ["Preserve the worktree", "Release the claim"],
@@ -84,7 +85,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           taskPriority: "p1",
           taskArea: "autonomy",
           taskClass: "Product",
-          taskAcceptanceEvidence:
+          taskHowWeWillKnow:
             "A lifecycle fixture preserves the worktree after the same failure.",
           ownerQuestion: "",
           ownerReason: "",
@@ -97,17 +98,18 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           streamedText: "",
           turns: 1,
           totalCostUsd: 0.01,
+          usage: pricedAgentUsage(undefined, undefined, 0.01),
           subtype: "success",
           isError: false,
         } as never);
       }
 
       const bus = new EventBus();
-      const pbus = new ProjectScopedEventBus(bus, deriveDirectoryScopeId(projectDir));
+      const pbus = new ScopedEventBus(bus, deriveDirectoryScopeId(workspaceRoot));
       const source = makeAutonomyIssueSourceContext(
-        projectDir,
+        workspaceRoot,
         bus,
-        deriveDirectoryScopeId(projectDir),
+        deriveDirectoryScopeId(workspaceRoot),
       );
       subscribeAutonomyIssueSources(source.ctx);
       const completed: string[] = [];
@@ -121,7 +123,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
           defaultPreset: "claude",
         },
         bus,
-        projectDir,
+        scopeRoot: workspaceRoot,
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflow.name === "autonomy-health-reviewer" ||
@@ -135,7 +137,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
       try {
         createWorkflowDispatchDeadLetter({
           store: source.runtime.deadLetterQueue,
-          scopeId: deriveDirectoryScopeId(projectDir),
+          scopeId: deriveDirectoryScopeId(workspaceRoot),
           workflowName: "builder",
           trigger: {
             event: "autonomy.queue.available",
@@ -162,16 +164,16 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         });
         await waitForLifecycle(
           () => {
-            const issue = readAutonomyIssueProjection(projectDir).issues[0];
+            const issue = readAutonomyIssueProjection(workspaceRoot).issues[0];
             return issue?.disposition.kind === "owner-question" &&
               issue.links.ownerQuestionIds.length === 1;
           },
           "the owner-question disposition",
         );
-        const firstIssue = readAutonomyIssueProjection(projectDir).issues[0]!;
+        const firstIssue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
         const questionId = firstIssue.links.ownerQuestionIds[0]!;
         const questions = new OwnerQuestionQueue(
-          join(projectDir, ".kota", "owner-questions"),
+          join(workspaceRoot, ".kota", "owner-questions"),
           pbus,
         );
 
@@ -179,13 +181,13 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         await waitForLifecycle(
           () =>
             completed.length === 2 &&
-            readAutonomyIssueProjection(projectDir).issues[0]
+            readAutonomyIssueProjection(workspaceRoot).issues[0]
               ?.disposition.kind === "task",
           "the answer-driven task disposition",
         );
 
-        const projection = readAutonomyIssueProjection(projectDir);
-        const tasks = listFullRepoTasks(projectDir);
+        const projection = readAutonomyIssueProjection(workspaceRoot);
+        const tasks = listFullRepoTasks(workspaceRoot);
         expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
         expect(projection.issues).toEqual([
           expect.objectContaining({

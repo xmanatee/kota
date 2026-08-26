@@ -23,7 +23,7 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export function createWorkflowRun(opts: {
-  projectDir: string;
+  scopeRoot: string;
   runsDir: string;
   workflow: WorkflowDefinition;
   trigger: WorkflowRunTrigger;
@@ -45,7 +45,7 @@ export function createWorkflowRun(opts: {
   ensureDir(join(runDirPath, "steps"));
 
   const metadata = buildRunMetadata({
-    projectDir: opts.projectDir,
+    scopeRoot: opts.scopeRoot,
     runDirPath,
     id,
     workflow: opts.workflow,
@@ -64,7 +64,7 @@ export function createWorkflowRun(opts: {
 
   return createActiveRunHandle({
     id,
-    projectDir: opts.projectDir,
+    scopeRoot: opts.scopeRoot,
     runDirPath,
     metadata,
     headSha: opts.headSha,
@@ -73,7 +73,7 @@ export function createWorkflowRun(opts: {
 }
 
 function buildRunMetadata(opts: {
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
   id: string;
   workflow: WorkflowDefinition;
@@ -115,7 +115,7 @@ function buildRunMetadata(opts: {
     ...(tags.length > 0 ? { tags } : {}),
     startedAt: new Date().toISOString(),
     status: "running",
-    runDir: relative(opts.projectDir, opts.runDirPath),
+    runDir: relative(opts.scopeRoot, opts.runDirPath),
     steps: [],
   };
 }

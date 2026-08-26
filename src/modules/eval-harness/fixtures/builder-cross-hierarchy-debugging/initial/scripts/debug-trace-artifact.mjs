@@ -119,7 +119,7 @@ export function validateArtifact(artifact, context) {
   }
 
   validateChangedPaths(issues, context.changedPaths);
-  const registrySource = readFileSync(join(context.projectRoot, "src/channel-registry.mjs"), "utf8");
+  const registrySource = readFileSync(join(context.scopeRoot, "src/channel-registry.mjs"), "utf8");
   issues.push(...validateChannelRegistrySource(registrySource));
   return issues;
 }

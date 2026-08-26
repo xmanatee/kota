@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { KotaMessage } from "#core/agent-harness/message-protocol.js";
 import { compactMessages } from "#core/loop/compaction.js";
 import type { MessageCreateParams, ModelClient } from "#core/model/model-client.js";
+import { outboundHttpStreamingPort } from "#core/outbound-http/testing/request-port.js";
 import { OpenAIModelClient } from "./client.js";
 import type { OAIResponse } from "./types.js";
 
@@ -39,13 +40,13 @@ describe("OpenAIModelClient create response parsing", () => {
 				},
 			},
 		};
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = vi.fn().mockResolvedValue(mockFetchResponse(resp));
-		try {
+		const http = outboundHttpStreamingPort(() => mockFetchResponse(resp));
+		{
 			const client = new OpenAIModelClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "k",
 				presetName: "test",
+				http,
 			});
 			const msg = await client.messages.create({
 				model: "test",
@@ -72,8 +73,6 @@ describe("OpenAIModelClient create response parsing", () => {
 			const prompt = params?.messages[0]?.content;
 			expect(typeof prompt).toBe("string");
 			expect(prompt).not.toContain(privateReasoning);
-		} finally {
-			globalThis.fetch = originalFetch;
 		}
 	});
 });

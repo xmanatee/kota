@@ -21,7 +21,7 @@ function writeRun(
       id,
       workflow,
       definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
-      trigger: { event: "schedule", payload: {} },
+		trigger: { event: "schedule", schemaRef: null, payload: {} },
       runDir: `.kota/runs/${id}`,
       startedAt,
       completedAt: startedAt,
@@ -143,15 +143,15 @@ function writePrunedRunReference(
 }
 
 describe("control coverage report aggregation", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
   let runsDir: string;
 
   beforeEach(() => {
-    projectDir = join(
+    workspaceRoot = join(
       tmpdir(),
       `kota-control-coverage-report-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    runsDir = join(projectDir, ".kota", "runs");
+    runsDir = join(workspaceRoot, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
   });
 
@@ -182,7 +182,7 @@ describe("control coverage report aggregation", () => {
   });
 
   afterEach(() => {
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("surfaces coverage artifact paths, gap counts, and response timing", () => {

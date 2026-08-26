@@ -110,16 +110,16 @@ function normalizePath(path: string): string {
   return path.split("\\").join("/");
 }
 
-export function artifactRef(projectDir: string, path: string): string {
-  return normalizePath(relative(projectDir, path));
+export function artifactRef(scopeRoot: string, path: string): string {
+  return normalizePath(relative(scopeRoot, path));
 }
 
 export function runArtifactRef(
-  projectDir: string,
+  scopeRoot: string,
   runDirPath: string,
   name: string,
 ): string {
-  return artifactRef(projectDir, join(runDirPath, name));
+  return artifactRef(scopeRoot, join(runDirPath, name));
 }
 
 export function fileNonEmpty(path: string): boolean {
@@ -132,7 +132,7 @@ export function fileNonEmpty(path: string): boolean {
 
 export function readJsonlEvents(
   path: string,
-  projectDir: string,
+  scopeRoot: string,
 ): CoverageEvent[] {
   if (!existsSync(path)) return [];
   const lines = readFileSync(path, "utf-8").split("\n");
@@ -147,7 +147,7 @@ export function readJsonlEvents(
       events.push({
         name,
         payload,
-        evidenceRef: `${artifactRef(projectDir, path)}#L${index + 1}`,
+        evidenceRef: `${artifactRef(scopeRoot, path)}#L${index + 1}`,
       });
     }
   }
@@ -161,10 +161,10 @@ function journalPayload(envelope: EventEnvelope): EventJsonObject {
 export function journalEventsForRun(args: {
   eventJournal?: EventJournal;
   metadata: WorkflowRunMetadata;
-  projectDir: string;
+  scopeRoot: string;
   runDirPath: string;
 }): CoverageEvent[] {
-  const { eventJournal, metadata, projectDir, runDirPath } = args;
+  const { eventJournal, metadata, scopeRoot, runDirPath } = args;
   if (!eventJournal) return [];
   const sinceMs = Math.max(0, Date.parse(metadata.startedAt) - 1);
   const sessionIds = sessionIdsForRun(metadata, runDirPath);
@@ -186,7 +186,7 @@ export function journalEventsForRun(args: {
     .map((envelope) => ({
       name: envelope.event.name,
       payload: journalPayload(envelope),
-      evidenceRef: `${artifactRef(projectDir, eventJournal.getPath())}#${envelope.id}`,
+      evidenceRef: `${artifactRef(scopeRoot, eventJournal.getPath())}#${envelope.id}`,
     }));
 }
 

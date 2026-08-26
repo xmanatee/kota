@@ -11,7 +11,7 @@ export const DAILY_DIGEST_DIGEST_JSON = "digest.json";
 export const DAILY_DIGEST_DIGEST_TXT = "digest.txt";
 
 export type DailyDigestBuildOperationInput = {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   runDirPath: string;
   windowEndMs?: number;

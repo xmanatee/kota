@@ -28,7 +28,7 @@ export type BuilderTaskReviewContract = TaskReviewContract;
 
 export type BuilderTaskDispatchPayload = Omit<
   AutonomyQueueAvailableEvent,
-  "projectId"
+  "scopeId"
 >;
 
 export type BuilderTaskTarget = Readonly<{
@@ -90,9 +90,9 @@ function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
 }
 
 export function listBuilderTaskDispatches(
-  projectDir: string,
+  workspaceRoot: string,
 ): BuilderTaskDispatchPayload[] {
-  const allTasks = listFullRepoTasks(projectDir);
+  const allTasks = listFullRepoTasks(workspaceRoot);
   const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
   return allTasks
     .filter(
@@ -146,11 +146,11 @@ export function readBuilderTaskReviewContract(
 }
 
 export function inspectBuilderTaskTarget(input: {
-  projectDir: string;
+  workspaceRoot: string;
   payload: Record<string, unknown>;
 }): BuilderTaskTarget {
   const expected = readBuilderTaskPayload(input.payload);
-  const current = listBuilderTaskDispatches(input.projectDir).find(
+  const current = listBuilderTaskDispatches(input.workspaceRoot).find(
     (candidate) => candidate.taskId === expected.taskId,
   );
   if (!current) {
@@ -197,7 +197,7 @@ export const verifyBuilderTaskContractAfterReconcile: WorkflowPostReconcileInvar
       };
     }
     const target = inspectBuilderTaskTarget({
-      projectDir: input.scopeDir,
+      workspaceRoot: input.repoRoot,
       payload: input.trigger.payload,
     });
     return target.ready

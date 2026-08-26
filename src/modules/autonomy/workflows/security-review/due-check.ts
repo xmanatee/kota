@@ -136,14 +136,14 @@ function outputLines(output: string): string[] {
 
 async function tryGitLines(
   runCommand: WorkflowCommandRunner,
-  projectDir: string,
+  workspaceRoot: string,
   args: readonly string[],
 ): Promise<string[] | null> {
   try {
     const result = await runCommand({
       command: "git",
       args,
-      cwd: projectDir,
+      cwd: workspaceRoot,
       captureLimitBytesPerStream: 1_000_000,
     });
     return outputLines(result.stdout.text);
@@ -273,7 +273,7 @@ function buildComparison(
 
 async function changedPathsForComparison(
   runCommand: WorkflowCommandRunner,
-  projectDir: string,
+  workspaceRoot: string,
   comparison: SecurityReviewComparison,
 ): Promise<string[]> {
   if (comparison.kind === "unavailable") return [];
@@ -297,17 +297,17 @@ async function changedPathsForComparison(
     }
     return ["ls-files"];
   })();
-  const paths = await tryGitLines(runCommand, projectDir, gitArgs);
+  const paths = await tryGitLines(runCommand, workspaceRoot, gitArgs);
 
   return Array.from(new Set(paths ?? [])).sort();
 }
 
 export async function collectSecurityReviewGitEvidence(args: {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   runCommand: WorkflowCommandRunner;
 }): Promise<SecurityReviewGitEvidence> {
-  const headLines = await tryGitLines(args.runCommand, args.projectDir, [
+  const headLines = await tryGitLines(args.runCommand, args.workspaceRoot, [
     "rev-parse",
     "HEAD",
   ]);
@@ -317,7 +317,7 @@ export async function collectSecurityReviewGitEvidence(args: {
   const recordedReview = findLastSecurityReviewEvidence(args.stateDir);
   const lastReview =
     recordedReview.kind === "found" && recordedReview.head.kind === "commit" &&
-      (await tryGitLines(args.runCommand, args.projectDir, [
+      (await tryGitLines(args.runCommand, args.workspaceRoot, [
         "cat-file",
         "-e",
         `${recordedReview.head.sha}^{commit}`,
@@ -333,19 +333,19 @@ export async function collectSecurityReviewGitEvidence(args: {
   const comparison = buildComparison(currentHead, lastReview);
   const changedPaths = await changedPathsForComparison(
     args.runCommand,
-    args.projectDir,
+    args.workspaceRoot,
     comparison,
   );
   return { currentHead, lastReview, comparison, changedPaths };
 }
 
 function classifyChangedPaths(
-  projectDir: string,
+  workspaceRoot: string,
   paths: readonly string[],
 ): SecurityReviewChangedPathClassification[] {
   return paths.map((path) => ({
     path,
-    surfaces: securityReviewSurfacesForChangedPath(projectDir, path),
+    surfaces: securityReviewSurfacesForChangedPath(workspaceRoot, path),
   }));
 }
 
@@ -384,10 +384,10 @@ function taskLooksLikeSecurityReviewFollowUp(id: string, body: string): boolean 
     body.includes("Created by security-review workflow run ");
 }
 
-function listOpenSecurityReviewTasks(projectDir: string): SecurityReviewOpenTask[] {
+function listOpenSecurityReviewTasks(workspaceRoot: string): SecurityReviewOpenTask[] {
   const tasks: SecurityReviewOpenTask[] = [];
   for (const state of OPEN_SECURITY_TASK_STATES) {
-    const dir = getRepoTaskStateDir(projectDir, state);
+    const dir = getRepoTaskStateDir(workspaceRoot, state);
     if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir).sort()) {
       if (!name.endsWith(".md") || name === "AGENTS.md") continue;
@@ -400,7 +400,7 @@ function listOpenSecurityReviewTasks(projectDir: string): SecurityReviewOpenTask
         id,
         title: String(parsed.attrs.title ?? id),
         state,
-        path: relative(projectDir, path),
+        path: relative(workspaceRoot, path),
       });
     }
   }
@@ -452,19 +452,19 @@ function decideDue(args: {
 }
 
 export function inspectSecurityReviewDue(
-  projectDir: string,
+  workspaceRoot: string,
   options: InspectSecurityReviewDueOptions,
   git: SecurityReviewGitEvidence,
 ): SecurityReviewDueDecision {
   const cooldownMs = options.cooldownMs ?? SECURITY_REVIEW_ROUTINE_COOLDOWN_MS;
   const nowMs = (options.now ?? new Date()).getTime();
   const { currentHead, lastReview, comparison, changedPaths } = git;
-  const changedPathClassifications = classifyChangedPaths(projectDir, changedPaths);
+  const changedPathClassifications = classifyChangedPaths(workspaceRoot, changedPaths);
   const changedSurfaces = changedSurfacesForPaths(changedPathClassifications);
   const highRiskChangedPaths = changedPathClassifications
     .filter(isHighRiskChangedPath)
     .map((classification) => classification.path);
-  const openSecurityTasks = listOpenSecurityReviewTasks(projectDir);
+  const openSecurityTasks = listOpenSecurityReviewTasks(workspaceRoot);
   const cooldown = computeCooldown(lastReview, nowMs, cooldownMs);
   const decision = decideDue({
     lastReview,

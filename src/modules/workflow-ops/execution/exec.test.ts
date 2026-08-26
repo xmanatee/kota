@@ -52,16 +52,16 @@ afterEach(() => {
 	}
 });
 
-function initRepository(projectDir: string, email: string): void {
+function initRepository(workspaceRoot: string, email: string): void {
 	execFileSync("git", ["init", "--quiet", "--initial-branch=main"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
-	execFileSync("git", ["config", "user.email", email], { cwd: projectDir });
+	execFileSync("git", ["config", "user.email", email], { cwd: workspaceRoot });
 	execFileSync("git", ["config", "user.name", "Workflow Exec Test"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 	execFileSync("git", ["commit", "--allow-empty", "--message", "initial", "--quiet"], {
-		cwd: projectDir,
+		cwd: workspaceRoot,
 	});
 }
 
@@ -99,25 +99,25 @@ describe("workflow exec agent execution override", () => {
 
 describe("workflow exec authority", () => {
 	it("does not classify an ordinary checkout as an isolated eval root", () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
-		roots.push(projectDir);
-		initRepository(projectDir, "developer@example.com");
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
+		roots.push(workspaceRoot);
+		initRepository(workspaceRoot, "developer@example.com");
 
 		expect(
-			isPositivelyIdentifiedIsolatedEvalRoot(projectDir, {
-				KOTA_PROJECT_DIR: projectDir,
-				HOME: join(projectDir, "node_modules", ".kota-eval-runtime", "home"),
+			isPositivelyIdentifiedIsolatedEvalRoot(workspaceRoot, {
+				KOTA_SCOPE_ROOT: workspaceRoot,
+				HOME: join(workspaceRoot, "node_modules", ".kota-eval-runtime", "home"),
 			}),
 		).toBe(false);
 	});
 
 	it("recognizes the eval harness isolated root from its existing runtime facts", () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-eval-workflow-exec-"));
-		roots.push(projectDir);
-		initRepository(projectDir, "eval-harness@kota.local");
-		const runtimeRoot = join(projectDir, "node_modules", ".kota-eval-runtime");
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-eval-workflow-exec-"));
+		roots.push(workspaceRoot);
+		initRepository(workspaceRoot, "eval-harness@kota.local");
+		const runtimeRoot = join(workspaceRoot, "node_modules", ".kota-eval-runtime");
 		const env = {
-			KOTA_PROJECT_DIR: projectDir,
+			KOTA_SCOPE_ROOT: workspaceRoot,
 			HOME: join(runtimeRoot, "home"),
 			COREPACK_HOME: join(runtimeRoot, "corepack"),
 			PNPM_HOME: join(runtimeRoot, "pnpm-home"),
@@ -130,14 +130,14 @@ describe("workflow exec authority", () => {
 		mkdirSync(env.HOME, { recursive: true });
 
 		expect(
-			isPositivelyIdentifiedIsolatedEvalRoot(realpathSync(projectDir), env),
+			isPositivelyIdentifiedIsolatedEvalRoot(realpathSync(workspaceRoot), env),
 		).toBe(true);
 	});
 
 	it("routes a canonical execution through the scoped daemon client and waits for terminal status", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
-		roots.push(projectDir);
-		initRepository(projectDir, "developer@example.com");
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
+		roots.push(workspaceRoot);
+		initRepository(workspaceRoot, "developer@example.com");
 		const calls: unknown[] = [];
 		const workflow = {
 			listDefinitions: async () => ({
@@ -181,13 +181,12 @@ describe("workflow exec authority", () => {
 				calls.push(["forScope", scopeId]);
 				return scopedClient;
 			},
-			forProject: () => scopedClient,
 			workflow,
 		};
 		const command = new Command("workflow");
 		command.exitOverride();
 		registerExecCommand(command, {
-			cwd: projectDir,
+			cwd: workspaceRoot,
 			client,
 		} as unknown as ModuleContext);
 
@@ -195,7 +194,7 @@ describe("workflow exec authority", () => {
 
 		expect(calls[0]).toEqual([
 			"forScope",
-			deriveDirectoryScopeId(projectDir),
+			deriveDirectoryScopeId(workspaceRoot),
 		]);
 		expect(calls[1]).toEqual(["trigger", "builder", expect.objectContaining({
 			event: "manual",
@@ -207,9 +206,9 @@ describe("workflow exec authority", () => {
 	});
 
 	it("fails closed when no daemon-owned canonical runtime is available", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
-		roots.push(projectDir);
-		initRepository(projectDir, "developer@example.com");
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
+		roots.push(workspaceRoot);
+		initRepository(workspaceRoot, "developer@example.com");
 		let triggered = false;
 		const workflow = {
 			listDefinitions: async () => ({ source: "static" as const, definitions: [] }),
@@ -221,13 +220,12 @@ describe("workflow exec authority", () => {
 		const scopedClient = { workflow };
 		const client = {
 			forScope: () => scopedClient,
-			forProject: () => scopedClient,
 			workflow,
 		};
 		const command = new Command("workflow");
 		command.exitOverride();
 		registerExecCommand(command, {
-			cwd: projectDir,
+			cwd: workspaceRoot,
 			client,
 		} as unknown as ModuleContext);
 
@@ -239,9 +237,9 @@ describe("workflow exec authority", () => {
 	});
 
 	it("reports the missing daemon override API instead of executing canonically", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
-		roots.push(projectDir);
-		initRepository(projectDir, "developer@example.com");
+		const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-workflow-exec-canonical-"));
+		roots.push(workspaceRoot);
+		initRepository(workspaceRoot, "developer@example.com");
 		let contactedDaemon = false;
 		const workflow = {
 			listDefinitions: async () => {
@@ -252,13 +250,12 @@ describe("workflow exec authority", () => {
 		const scopedClient = { workflow };
 		const client = {
 			forScope: () => scopedClient,
-			forProject: () => scopedClient,
 			workflow,
 		};
 		const command = new Command("workflow");
 		command.exitOverride();
 		registerExecCommand(command, {
-			cwd: projectDir,
+			cwd: workspaceRoot,
 			client,
 		} as unknown as ModuleContext);
 

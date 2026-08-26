@@ -7,13 +7,6 @@ import {
 } from "#core/util/frontmatter.js";
 import { parseBlockedPrecondition } from "./blocked-precondition.js";
 import {
-  verifyProductionReplacementCompletion,
-} from "./production-replacement-completion.js";
-import {
-  PRODUCTION_REPLACEMENT_SECTION,
-  parseProductionReplacementDeclaration,
-} from "./production-replacement-proof.js";
-import {
   getRepoTaskStateDir,
   REPO_TASK_STATES,
   type RepoTaskState,
@@ -63,18 +56,12 @@ const REQUIRED_ATTRS = [
   "created_at",
   "updated_at",
 ] as const;
-const TASK_CLASSES = ["Product", "Safety", "Platform", "Meta"] as const;
 
-function isOpenTaskState(state: RepoTaskState): boolean {
-  return state === "ready" || state === "backlog" || state === "doing" ||
-    state === "blocked";
-}
-
-function listTaskEntries(projectDir: string): TaskEntryScan {
+function listTaskEntries(repoRoot: string): TaskEntryScan {
   const entries: TaskFileEntry[] = [];
   const findings: TaskQueueValidationFinding[] = [];
   for (const state of REPO_TASK_STATES) {
-    const dir = getRepoTaskStateDir(projectDir, state);
+    const dir = getRepoTaskStateDir(repoRoot, state);
     if (!existsSync(dir)) continue;
     for (const dirent of readdirSync(dir, { withFileTypes: true })) {
       if (!dirent.name.endsWith(".md") || dirent.name === "AGENTS.md") continue;
@@ -100,8 +87,8 @@ function listTaskEntries(projectDir: string): TaskEntryScan {
   return { entries, findings };
 }
 
-function listNestedRuntimeStateDirsUnderData(projectDir: string): string[] {
-  const dataDir = join(projectDir, "data");
+function listNestedRuntimeStateDirsUnderData(repoRoot: string): string[] {
+  const dataDir = join(repoRoot, "data");
   if (!existsSync(dataDir)) return [];
   const paths: string[] = [];
   const walk = (dir: string): void => {
@@ -109,7 +96,7 @@ function listNestedRuntimeStateDirsUnderData(projectDir: string): string[] {
       if (!entry.isDirectory()) continue;
       const path = join(dir, entry.name);
       if (entry.name === ".kota" || entry.name === "runs") {
-        paths.push(`${relative(projectDir, path)}/`);
+        paths.push(`${relative(repoRoot, path)}/`);
       } else {
         walk(path);
       }
@@ -185,8 +172,8 @@ function formatFindingList(findings: TaskQueueValidationFinding[]): string {
     .join("\n");
 }
 
-export function validateTaskQueue(projectDir: string): TaskQueueValidationResult {
-  const scan = listTaskEntries(projectDir);
+export function validateTaskQueue(repoRoot: string): TaskQueueValidationResult {
+  const scan = listTaskEntries(repoRoot);
   const entries = scan.entries;
   const counts = Object.fromEntries(
     REPO_TASK_STATES.map((state) => [state, 0]),
@@ -221,7 +208,7 @@ export function validateTaskQueue(projectDir: string): TaskQueueValidationResult
       });
     }
 
-    const { attrs, body } = parseFlatFrontMatter(entry.raw);
+    const { attrs } = parseFlatFrontMatter(entry.raw);
     const actualId = String(attrs.id ?? "");
     if (actualId !== entry.taskId) {
       findings.push({
@@ -277,67 +264,6 @@ export function validateTaskQueue(projectDir: string): TaskQueueValidationResult
           message: `${entry.path} has an invalid ${attr} timestamp`,
           paths: [entry.path],
         });
-      }
-    }
-
-    const taskClass = attrs.task_class;
-    if (isOpenTaskState(entry.state) && typeof taskClass !== "string") {
-      findings.push({
-        code: "open-task-missing-class",
-        severity: "error",
-        message: `${entry.path} must classify open work as ${TASK_CLASSES.join(", ")}`,
-        paths: [entry.path],
-      });
-    } else if (
-      typeof taskClass === "string" &&
-      !(TASK_CLASSES as readonly string[]).includes(taskClass)
-    ) {
-      findings.push({
-        code: "task-invalid-class",
-        severity: "error",
-        message: `${entry.path} has invalid task_class "${taskClass}"`,
-        paths: [entry.path],
-      });
-    }
-
-    const productionReplacement = attrs.production_replacement;
-    if (
-      productionReplacement !== undefined &&
-      productionReplacement !== "true"
-    ) {
-      findings.push({
-        code: "task-production-replacement-invalid-flag",
-        severity: "error",
-        message: `${entry.path} must omit production_replacement or set it to true`,
-        paths: [entry.path],
-      });
-    }
-    if (productionReplacement === "true") {
-      const declaration = parseProductionReplacementDeclaration(body);
-      if (declaration.kind !== "valid") {
-        const reason = declaration.kind === "absent"
-          ? `missing ## ${PRODUCTION_REPLACEMENT_SECTION}`
-          : declaration.error;
-        findings.push({
-          code: "task-production-replacement-contract-invalid",
-          severity: "error",
-          message: `${entry.path} has an invalid production replacement contract: ${reason}`,
-          paths: [entry.path],
-        });
-      } else if (entry.state === "done") {
-        const completion = verifyProductionReplacementCompletion({
-          raw: body,
-          taskId: entry.taskId,
-          projectDir,
-        });
-        if (!completion.ok) {
-          findings.push({
-            code: "done-production-replacement-proof-incomplete",
-            severity: "error",
-            message: `${entry.path} has incomplete production replacement proof: ${completion.error}`,
-            paths: [entry.path],
-          });
-        }
       }
     }
 
@@ -441,7 +367,7 @@ export function validateTaskQueue(projectDir: string): TaskQueueValidationResult
     });
   }
 
-  const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(projectDir);
+  const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(repoRoot);
   if (nestedRuntimeStateDirs.length > 0) {
     findings.push({
       code: "data-nested-runtime-state",
@@ -459,8 +385,8 @@ export function validateTaskQueue(projectDir: string): TaskQueueValidationResult
   };
 }
 
-export function assertTaskQueueValid(projectDir: string): TaskQueueValidationResult {
-  const result = validateTaskQueue(projectDir);
+export function assertTaskQueueValid(repoRoot: string): TaskQueueValidationResult {
+  const result = validateTaskQueue(repoRoot);
   const errors = result.findings.filter((finding) => finding.severity === "error");
   if (errors.length > 0) throw new Error(formatFindingList(errors));
   return result;

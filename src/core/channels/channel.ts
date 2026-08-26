@@ -25,7 +25,7 @@
  * null if the channel cannot start (e.g., missing credentials).
  */
 
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
@@ -111,12 +111,12 @@ export type ChannelStartContext = {
   /** Host module runtime that channel-created AgentSessions must borrow. */
   moduleLoader?: ModuleLoader;
   /** Resolve the current default runtime; default changes are visible immediately. */
-  getDefaultProjectRuntime: () => ProjectRuntime;
+  getDefaultScopeRuntime: () => ScopeRuntime;
   /**
-   * Admit channel work to a currently hosted runtime by stable project id.
+   * Admit channel work to a currently hosted runtime by stable scope id.
    * Throws when drain has closed admission, even while the scope remains persisted.
    */
-  getProjectRuntime: (projectId: string) => ProjectRuntime;
+  getScopeRuntime: (scopeId: string) => ScopeRuntime;
   /** Logger for channel messages. */
   log: (message: string) => void;
   /** Report an asynchronous channel failure after startup. */

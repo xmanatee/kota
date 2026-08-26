@@ -34,12 +34,12 @@ function makeGitProject(): string {
 }
 
 function writeTask(
-  projectDir: string,
+  workspaceRoot: string,
   state: "backlog" | "blocked" | "done" | "doing" | "ready",
   id: string,
   title: string,
 ): void {
-  const taskDir = join(projectDir, "data/tasks", state);
+  const taskDir = join(workspaceRoot, "data/tasks", state);
   mkdirSync(taskDir, { recursive: true });
   writeFileSync(
     join(taskDir, `${id}.md`),
@@ -58,13 +58,13 @@ function writeTask(
   );
 }
 
-async function findReviewTarget(projectDir: string) {
-  const runCommand = createWorkflowCommandRunner({ cwd: projectDir });
+async function findReviewTarget(workspaceRoot: string) {
+  const runCommand = createWorkflowCommandRunner({ cwd: workspaceRoot });
   const mutationStatus = await readTaskReviewMutationStatus(
-    projectDir,
+    workspaceRoot,
     runCommand,
   );
-  return findTaskReviewTarget(projectDir, mutationStatus);
+  return findTaskReviewTarget(workspaceRoot, mutationStatus);
 }
 
 describe("findTaskReviewTarget", () => {
@@ -75,86 +75,86 @@ describe("findTaskReviewTarget", () => {
   });
 
   it("reviews a staged done task before collateral blocked task edits", async () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "blocked", "task-collateral-blocker", "Collateral blocker");
-    writeTask(projectDir, "done", "task-implemented-work", "Implemented work");
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "blocked", "task-collateral-blocker", "Collateral blocker");
+    writeTask(workspaceRoot, "done", "task-implemented-work", "Implemented work");
     execFileSync("git", ["add", "data/tasks/blocked", "data/tasks/done"], {
-      cwd: projectDir,
+      cwd: workspaceRoot,
       stdio: "ignore",
     });
 
-    expect(await findReviewTarget(projectDir)).toMatchObject({
+    expect(await findReviewTarget(workspaceRoot)).toMatchObject({
       path: "data/tasks/done/task-implemented-work.md",
       state: "done",
     });
   });
 
   it("reviews a staged ready-to-done move before collateral blocked edits", async () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "ready", "task-implemented-work", "Implemented work");
-    writeTask(projectDir, "blocked", "task-collateral-blocker", "Collateral blocker");
-    execFileSync("git", ["add", "data/tasks"], { cwd: projectDir, stdio: "ignore" });
-    execFileSync("git", ["commit", "-m", "initial"], { cwd: projectDir, stdio: "ignore" });
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "ready", "task-implemented-work", "Implemented work");
+    writeTask(workspaceRoot, "blocked", "task-collateral-blocker", "Collateral blocker");
+    execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "initial"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    mkdirSync(join(projectDir, "data/tasks/done"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data/tasks/done"), { recursive: true });
     renameSync(
-      join(projectDir, "data/tasks/ready/task-implemented-work.md"),
-      join(projectDir, "data/tasks/done/task-implemented-work.md"),
+      join(workspaceRoot, "data/tasks/ready/task-implemented-work.md"),
+      join(workspaceRoot, "data/tasks/done/task-implemented-work.md"),
     );
-    writeTask(projectDir, "done", "task-implemented-work", "Implemented work");
+    writeTask(workspaceRoot, "done", "task-implemented-work", "Implemented work");
     writeTask(
-      projectDir,
+      workspaceRoot,
       "blocked",
       "task-collateral-blocker",
       "Collateral blocker dependency note",
     );
-    execFileSync("git", ["add", "data/tasks"], { cwd: projectDir, stdio: "ignore" });
+    execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    expect(await findReviewTarget(projectDir)).toMatchObject({
+    expect(await findReviewTarget(workspaceRoot)).toMatchObject({
       path: "data/tasks/done/task-implemented-work.md",
       state: "done",
     });
   });
 
   it("reviews a staged blocked task when there is no staged done task", async () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "blocked", "task-real-blocker", "Real blocker");
-    execFileSync("git", ["add", "data/tasks/blocked"], { cwd: projectDir, stdio: "ignore" });
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "blocked", "task-real-blocker", "Real blocker");
+    execFileSync("git", ["add", "data/tasks/blocked"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    expect(await findReviewTarget(projectDir)).toMatchObject({
+    expect(await findReviewTarget(workspaceRoot)).toMatchObject({
       path: "data/tasks/blocked/task-real-blocker.md",
       state: "blocked",
     });
   });
 
   it("reviews an active doing task before staged terminal-state tasks", async () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "doing", "task-active", "Active work");
-    writeTask(projectDir, "done", "task-implemented-work", "Implemented work");
-    execFileSync("git", ["add", "data/tasks/done"], { cwd: projectDir, stdio: "ignore" });
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "doing", "task-active", "Active work");
+    writeTask(workspaceRoot, "done", "task-implemented-work", "Implemented work");
+    execFileSync("git", ["add", "data/tasks/done"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    expect(await findReviewTarget(projectDir)).toMatchObject({
+    expect(await findReviewTarget(workspaceRoot)).toMatchObject({
       path: "data/tasks/doing/task-active.md",
       state: "doing",
     });
   });
 
   it("finds the expected task after an unstaged doing-to-done move", () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "doing", "task-alpha", "Concurrent alpha work");
-    writeTask(projectDir, "doing", "task-target", "Target work");
-    execFileSync("git", ["add", "data/tasks/doing"], { cwd: projectDir, stdio: "ignore" });
-    execFileSync("git", ["commit", "-m", "initial"], { cwd: projectDir, stdio: "ignore" });
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "doing", "task-alpha", "Concurrent alpha work");
+    writeTask(workspaceRoot, "doing", "task-target", "Target work");
+    execFileSync("git", ["add", "data/tasks/doing"], { cwd: workspaceRoot, stdio: "ignore" });
+    execFileSync("git", ["commit", "-m", "initial"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    mkdirSync(join(projectDir, "data/tasks/done"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data/tasks/done"), { recursive: true });
     renameSync(
-      join(projectDir, "data/tasks/doing/task-target.md"),
-      join(projectDir, "data/tasks/done/task-target.md"),
+      join(workspaceRoot, "data/tasks/doing/task-target.md"),
+      join(workspaceRoot, "data/tasks/done/task-target.md"),
     );
-    writeTask(projectDir, "done", "task-target", "Target work");
+    writeTask(workspaceRoot, "done", "task-target", "Target work");
 
     expect(
-      findExpectedTaskReviewTarget(projectDir, {
+      findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
         taskPath: "data/tasks/doing/task-target.md",
       }),
@@ -165,12 +165,12 @@ describe("findTaskReviewTarget", () => {
   });
 
   it("rejects ambiguous copies of the expected task", () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "doing", "task-target", "Doing target");
-    writeTask(projectDir, "done", "task-target", "Done target");
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "doing", "task-target", "Doing target");
+    writeTask(workspaceRoot, "done", "task-target", "Done target");
 
     expect(() =>
-      findExpectedTaskReviewTarget(projectDir, {
+      findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
         taskPath: "data/tasks/doing/task-target.md",
       })
@@ -178,8 +178,8 @@ describe("findTaskReviewTarget", () => {
   });
 
   it("rejects an expected basename whose task identity changed", () => {
-    const projectDir = makeGitProject();
-    const taskDir = join(projectDir, "data/tasks/doing");
+    const workspaceRoot = makeGitProject();
+    const taskDir = join(workspaceRoot, "data/tasks/doing");
     mkdirSync(taskDir, { recursive: true });
     writeFileSync(
       join(taskDir, "task-target.md"),
@@ -187,7 +187,7 @@ describe("findTaskReviewTarget", () => {
     );
 
     expect(() =>
-      findExpectedTaskReviewTarget(projectDir, {
+      findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
         taskPath: "data/tasks/doing/task-target.md",
       })
@@ -195,11 +195,11 @@ describe("findTaskReviewTarget", () => {
   });
 
   it("fails closed when the expected task is missing", () => {
-    const projectDir = makeGitProject();
-    writeTask(projectDir, "doing", "task-alpha", "Concurrent alpha work");
+    const workspaceRoot = makeGitProject();
+    writeTask(workspaceRoot, "doing", "task-alpha", "Concurrent alpha work");
 
     expect(() =>
-      findExpectedTaskReviewTarget(projectDir, {
+      findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
         taskPath: "data/tasks/doing/task-target.md",
       })
@@ -207,7 +207,7 @@ describe("findTaskReviewTarget", () => {
   });
 
   it("collects task mutation evidence through the injected workflow runner", async () => {
-    const projectDir = makeGitProject();
+    const workspaceRoot = makeGitProject();
     const runCommand = vi.fn(successfulWorkflowCommandRun);
     runCommand.mockResolvedValueOnce({
       ...(await successfulWorkflowCommandRun({ command: "git" })),
@@ -219,7 +219,7 @@ describe("findTaskReviewTarget", () => {
     });
 
     await expect(
-      readTaskReviewMutationStatus(projectDir, runCommand),
+      readTaskReviewMutationStatus(workspaceRoot, runCommand),
     ).resolves.toBe("M\tdata/tasks/done/task-target.md\n");
     expect(runCommand).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -232,7 +232,7 @@ describe("findTaskReviewTarget", () => {
           "data/tasks/done/",
           "data/tasks/blocked/",
         ],
-        cwd: projectDir,
+        cwd: workspaceRoot,
       }),
     );
   });

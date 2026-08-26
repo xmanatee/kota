@@ -4,7 +4,7 @@ import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowStepSkipReason } from "#core/workflow/run-types.js";
 import type { DaemonConfigReloadEvent, ScopeLifecycleEvent } from "./event-bus-lifecycle-types.js";
 import type { EventPayloadRecord } from "./event-bus-types.js";
-import type { ProjectId } from "./project-scope.js";
+import type { ScopeId } from "./scope.js";
 
 type QueueCounts = {
   backlog: number;
@@ -24,7 +24,7 @@ type QueueDependencyBlockedTask = {
 };
 
 export type AutonomyQueueAvailableEvent = Readonly<{
-  projectId: ProjectId;
+  scopeId: ScopeId;
   taskId: string;
   taskPath: string;
   taskState: "ready" | "doing";
@@ -40,11 +40,9 @@ export type AutonomyQueueAvailableEvent = Readonly<{
 /**
  * Known event payloads. Extend this map to add new typed events.
  *
- * Directory-scope event payloads carry a required `projectId` compatibility
- * field in this static map. Emitters that route through `ProjectScopedEventBus`
- * also receive the canonical `scopeId` field at runtime, so workflow filters
- * and clients can use scope terminology without breaking existing projectId
- * callers.
+ * Directory-scope event payloads carry one required `scopeId`. Emitters that
+ * route through `ScopedEventBus` receive that identity at runtime so workflow
+ * filters and clients share the same scope contract.
  *
  * Daemon-wide events (module loader, model provider failover) intentionally
  * omit scope attribution. Tool-call-level guardrail events stay session-bound
@@ -52,12 +50,12 @@ export type AutonomyQueueAvailableEvent = Readonly<{
  */
 export type RuntimeBusEvents = {
   "runtime.idle": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     timestamp: string;
     idleIntervalMs: number;
   };
   "runtime.restart_requested": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     reason?: string;
     workflow?: string;
     runId?: string;
@@ -67,11 +65,11 @@ export type RuntimeBusEvents = {
   "scope.lifecycle.changed": ScopeLifecycleEvent;
   "autonomy.queue.available": AutonomyQueueAvailableEvent;
   "autonomy.inbox.available": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     inboxCount: number;
   };
   "autonomy.queue.needs-promotion": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     backlogCount: number;
     promotableBacklogCount: number;
     dispatchableCount?: number;
@@ -79,18 +77,18 @@ export type RuntimeBusEvents = {
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
   "autonomy.queue.empty": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
   "autonomy.blocked-research.attemptable": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     candidateCount: number;
     attemptableCount: number;
     counts: QueueCounts;
   };
   "autonomy.queue.thin": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     pullableCount: number;
     promotableBacklogCount: number;
     dispatchableCount?: number;
@@ -98,7 +96,7 @@ export type RuntimeBusEvents = {
     dependencyBlockedTasks: QueueDependencyBlockedTask[];
   };
   "workflow.started": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflow: string;
     runId: string;
     triggerEvent: string;
@@ -114,7 +112,7 @@ export type RuntimeBusEvents = {
     autonomyMode?: AutonomyMode;
   };
   "workflow.completed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflow: string;
     runId: string;
     status: "success" | "failed" | "interrupted" | "completed-with-warnings";
@@ -136,7 +134,7 @@ export type RuntimeBusEvents = {
     publicationId?: string;
   };
   "workflow.step.started": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflow: string;
     runId: string;
     stepId: string;
@@ -153,7 +151,7 @@ export type RuntimeBusEvents = {
     autonomyMode?: AutonomyMode;
   };
   "workflow.step.completed": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     workflow: string;
     runId: string;
     stepId: string;
@@ -203,7 +201,7 @@ export type RuntimeBusEvents = {
     to: AutonomyMode;
   };
   "schedule.fire": {
-    projectId: ProjectId;
+    scopeId: ScopeId;
     itemId: number;
     description: string;
   };

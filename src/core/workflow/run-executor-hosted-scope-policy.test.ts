@@ -34,12 +34,12 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeRunContext(
-  projectDir: string,
+  workspaceRoot: string,
   trigger: RunContext["trigger"],
   runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  workspaceDir = join(projectDir, ".kota", "runtime", runId, "workspace"),
+  workspaceDir = join(workspaceRoot, ".kota", "runtime", runId, "workspace"),
 ): RunContext {
-  const rootDir = join(projectDir, ".kota", "runtime", runId);
+  const rootDir = join(workspaceRoot, ".kota", "runtime", runId);
   const tempDir = join(rootDir, "tmp");
   const artifactDir = join(rootDir, "artifacts");
   const agentDir = join(rootDir, "agent");
@@ -49,7 +49,7 @@ function makeRunContext(
   }
   return {
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    project: { id: "test-project", root: projectDir },
+    scope: { id: "test-scope", root: workspaceRoot },
     workflow: "hosted-live-scope-policy-test",
     trigger,
     sandbox: {
@@ -110,11 +110,11 @@ afterEach(() => {
 
 describe("workflow hosted tool live scope policy", () => {
   it("keeps a generic agent-harness delegate active and denies its next identical call after revocation", async () => {
-    const projectDir = join(
+    const workspaceRoot = join(
       tmpdir(),
       `kota-hosted-live-policy-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(projectDir, { recursive: true });
+    mkdirSync(workspaceRoot, { recursive: true });
     try {
       const hostedRunner = vi.fn(async () => ({ content: "executed" }));
       registerTool(
@@ -145,8 +145,8 @@ describe("workflow hosted tool live scope policy", () => {
       let secondResult: ToolResultEntry | undefined;
       let childOptions: AgentHarnessRunOptions | undefined;
       let harnessRunCount = 0;
-      const scopeId = deriveDirectoryScopeId(projectDir);
-      const authority = mutableAuthority(scopeId, policyFor(projectDir, false));
+      const scopeId = deriveDirectoryScopeId(workspaceRoot);
+      const authority = mutableAuthority(scopeId, policyFor(workspaceRoot, false));
       registerAgentHarness({
         name: HARNESS_NAME,
         description: "runs hosted calls around an authority revision",
@@ -190,7 +190,7 @@ describe("workflow hosted tool live scope policy", () => {
             type: "tool_use" as const,
             id: "same-hosted-call",
             name: TOOL_NAME,
-            input: { path: join(projectDir, "output.txt") },
+            input: { path: join(workspaceRoot, "output.txt") },
           };
           [firstResult] = await executeToolCalls([call], executionOptions);
           finishFirstCall();
@@ -210,20 +210,20 @@ describe("workflow hosted tool live scope policy", () => {
         backend: "agent-sdk",
         harness: HARNESS_NAME,
       });
-      writeFileSync(join(projectDir, "prompt.md"), "Exercise hosted authorization.\n");
+      writeFileSync(join(workspaceRoot, "prompt.md"), "Exercise hosted authorization.\n");
       const definition: WorkflowDefinition = {
         name: "hosted-live-scope-policy-test",
         enabled: true,
         repository: "none",
         definitionPath: "src/modules/test/workflows/hosted-policy/workflow.ts",
-        moduleRoot: projectDir,
+        moduleRoot: workspaceRoot,
         triggers: [],
         steps: [{
           id: "agent",
           type: "agent",
           harness: HARNESS_NAME,
           promptPath: "prompt.md",
-          moduleRoot: projectDir,
+          moduleRoot: workspaceRoot,
           model: "test-model",
           effort: "low",
           autonomyMode: "autonomous",
@@ -234,9 +234,9 @@ describe("workflow hosted tool live scope policy", () => {
 
       const { promise } = executeWorkflowRun(definition, TRIGGER, {
         readRuntimeState: readEmptyTestWorkflowRuntimeState,
-        runContext: makeRunContext(projectDir, TRIGGER),
+        runContext: makeRunContext(workspaceRoot, TRIGGER),
         bus: new EventBus(),
-        store: new WorkflowRunStore(projectDir),
+        store: new WorkflowRunStore(workspaceRoot),
         log: vi.fn(),
         scopePolicyAuthority: authority,
       });
@@ -248,7 +248,7 @@ describe("workflow hosted tool live scope policy", () => {
       expect(firstResult).toMatchObject({ content: "executed" });
       expect(hostedRunner).toHaveBeenCalledTimes(1);
 
-      authority.restrict(policyFor(projectDir, true));
+      authority.restrict(policyFor(workspaceRoot, true));
       allowSecondCall();
       const result = await promise;
 
@@ -263,13 +263,13 @@ describe("workflow hosted tool live scope policy", () => {
       expect(authority.readCount()).toBeGreaterThanOrEqual(3);
       expect(authority.listenerCount()).toBe(0);
     } finally {
-      rmSync(projectDir, { recursive: true, force: true });
+      rmSync(workspaceRoot, { recursive: true, force: true });
     }
   });
 });
 
-function policyFor(projectDir: string, readOnly: boolean): ResolvedScopePolicy {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+function policyFor(workspaceRoot: string, readOnly: boolean): ResolvedScopePolicy {
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   return resolveScopePolicy({
     projection: {
       rootScopeId: "global",
@@ -280,7 +280,7 @@ function policyFor(projectDir: string, readOnly: boolean): ResolvedScopePolicy {
           scopeId,
           displayName: "Fixture",
           parentScopeId: "global",
-          directoryRoot: projectDir,
+          directoryRoot: workspaceRoot,
         },
       ],
     },

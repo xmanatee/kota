@@ -40,10 +40,10 @@ const workflow: WorkflowDefinitionInput = {
         );
         const currentState = decodeScopeImprovementState(
           snapshot.value,
-          deriveDirectoryScopeId(ctx.scopeDir),
+          deriveDirectoryScopeId(ctx.scopeRoot),
         );
         const result = publishScopeImprovement({
-          scopeDir: ctx.scopeDir,
+          scopeRoot: ctx.scopeRoot,
           sourceRunId: inspectRequest.outputRequired(ctx).sourceRunId,
           currentState,
         });

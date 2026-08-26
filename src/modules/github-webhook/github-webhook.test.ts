@@ -162,7 +162,6 @@ describe("githubWebhookModule metadata", () => {
     expect(githubWebhookModule.workflows).toBeUndefined();
     expect(githubWebhookModule.events).toEqual([githubPullRequestEvent]);
     expect(githubWebhookModule.dependencies).toEqual(["inbound-signals"]);
-    expect(githubWebhookModule.onUnload).toBeUndefined();
     expect(typeof githubWebhookModule.onLoad).toBe("function");
   });
 
@@ -598,7 +597,7 @@ describe("githubWebhookModule handler — event emission", () => {
     expect(legacyMentions).toHaveLength(0);
     expect(inboundSignals).toHaveLength(1);
     expect(inboundSignals[0]).toMatchObject({
-      projectId: deriveDirectoryScopeId("/tmp"),
+      scopeId: deriveDirectoryScopeId("/tmp"),
       provider: "github",
       channel: "github.issue_comment",
       accountId: "github:owner/repo",

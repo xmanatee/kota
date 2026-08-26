@@ -22,12 +22,18 @@ import { daemonSetupControlHandleStubs } from "./daemon-setup-control-test-stubs
 
 const TEST_TOKEN = "identity-test-token";
 
-const stubProjects = {
-  defaultProjectId: "test-project-id",
-  projects: [
+const stubScopes = {
+  rootScopeId: "global",
+  defaultScopeId: "test-scope-id",
+  scopes: [
     {
-      projectId: "test-project-id",
-      projectDir: "/Users/operator/projects/kota",
+      scopeId: "global",
+      displayName: "Global",
+    },
+    {
+      scopeId: "test-scope-id",
+      parentScopeId: "global",
+      directoryRoot: "/Users/operator/scopes/kota",
       displayName: "kota",
     },
   ],
@@ -46,7 +52,7 @@ function makeHandle(
     concurrency: 4,
   };
   const defaultIdentity = buildClientIdentity({
-    projectDir: "/Users/operator/projects/kota",
+    scopeRoot: "/Users/operator/scopes/kota",
     pid: 12345,
     startedAt: "2026-04-29T01:00:00.000Z",
     capabilities: {
@@ -59,7 +65,7 @@ function makeHandle(
       ],
       summary: { ready: 1, unavailable: 0, init_failed: 0 },
     },
-    projects: stubProjects,
+    scopeRegistry: stubScopes,
   });
   return {
     getDaemonLiveState: vi.fn(() => ({
@@ -98,10 +104,10 @@ function makeHandle(
     unregisterSession: vi.fn(),
     listSessions: vi.fn(() => []),
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
-    getProjectRegistryProjection: vi.fn(() => ({ defaultProjectId: "test-project-id", projects: [{ projectId: "test-project-id", projectDir: "/tmp/test-project", displayName: "test-project" }] })),
-    hasProject: vi.fn((id: string) => id === "test-project-id"),
-    getActiveProjectId: vi.fn(() => null),
-    setActiveProjectId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeProjectId: null } : id === "test-project-id" ? { ok: true as const, activeProjectId: id } : { ok: false as const, reason: "not_found" as const, projectId: id })),
+    getScopeRegistryProjection: vi.fn(() => stubScopes),
+    hasScope: vi.fn((id: string) => id === "test-scope-id"),
+    getActiveScopeId: vi.fn(() => null),
+    setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
     reloadConfig: vi.fn(async () => ({ workflows: 0, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
@@ -137,8 +143,8 @@ describe("GET /identity", () => {
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.projectName).toBe("kota");
-    expect(body.projectDir).toBe("/Users/operator/projects/kota");
+    expect(body.scopeName).toBe("kota");
+    expect(body.scopeRoot).toBe("/Users/operator/scopes/kota");
     expect(body.daemonVersion).toBe("0.1.0");
     expect(body.pid).toBe(12345);
     expect(body.startedAt).toBe("2026-04-29T01:00:00.000Z");
@@ -149,7 +155,7 @@ describe("GET /identity", () => {
     const handle = makeHandle({
       getClientIdentity: vi.fn(async () =>
         buildClientIdentity({
-          projectDir: "/Users/operator/projects/kota",
+          scopeRoot: "/Users/operator/scopes/kota",
           pid: 12345,
           startedAt: "2026-04-29T01:00:00.000Z",
           capabilities: {
@@ -164,7 +170,7 @@ describe("GET /identity", () => {
             ],
             summary: { ready: 0, unavailable: 1, init_failed: 0 },
           },
-          projects: stubProjects,
+          scopeRegistry: stubScopes,
         }),
       ),
     });

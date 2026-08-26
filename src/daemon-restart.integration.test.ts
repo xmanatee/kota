@@ -8,14 +8,14 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   makeDaemon,
   mockedExecuteWithAgentSDK,
-  projectDir,
+  scopeRoot,
   wait,
 } from "./daemon-test-support.integration.js";
 
 describe("Daemon restart recovery", () => {
   it("records failed workflow status without requesting restart", async () => {
     writeFileSync(
-      join(projectDir, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
+      join(scopeRoot, "src", "modules", "autonomy", "workflows", "builder", "prompt.md"),
       "Build.\n",
     );
     mockedExecuteWithAgentSDK.mockResolvedValue({
@@ -54,7 +54,7 @@ describe("Daemon restart recovery", () => {
 
       const snapshot = daemon.getDashboardSnapshot();
       expect(snapshot.completedRuns).toBeGreaterThanOrEqual(1);
-      expect(new WorkflowRunStore(projectDir).listRuns({ workflow: "builder" })[0])
+      expect(new WorkflowRunStore(scopeRoot).listRuns({ workflow: "builder" })[0])
         .toMatchObject({ status: "failed" });
       expect(process.exitCode).not.toBe(RESTART_EXIT_CODE);
       expect(daemon.isRunning()).toBe(true);

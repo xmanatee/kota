@@ -45,7 +45,7 @@ function dueTargetKey(target: SecurityReviewDueTarget): string {
 }
 
 export function securityReviewDueTargetsFromPayload(
-  projectDir: string,
+  workspaceRoot: string,
   payload: WorkflowRunTrigger["payload"],
 ): SecurityReviewDueTarget[] {
   const parsed = duePayloadSchema.safeParse(payload);
@@ -58,7 +58,7 @@ export function securityReviewDueTargetsFromPayload(
       if (!isSafeRepoRelativePath(path)) continue;
       const surfaces = isSecurityReviewSurface(changedSurface.surface)
         ? [changedSurface.surface]
-        : securityReviewSurfacesForChangedPath(projectDir, path);
+        : securityReviewSurfacesForChangedPath(workspaceRoot, path);
       for (const surface of surfaces) {
         targets.set(`${surface}\0${path}`, { surface, path });
       }
@@ -160,16 +160,16 @@ function candidatesForDueTarget(
 }
 
 function dueTargetMissReason(
-  projectDir: string,
+  workspaceRoot: string,
   target: SecurityReviewDueTarget,
   allCandidates: readonly SecurityReviewCandidate[],
 ): SecurityReviewDueTargetMissReason {
   const normalized = normalizeRepoPath(target.path);
-  if (!isSafeRepoRelativePath(normalized)) return "outside-project";
+  if (!isSafeRepoRelativePath(normalized)) return "outside-scope";
   if (pathHasSkippedSecurityReviewSegment(normalized)) return "skipped-directory";
   if (!shouldScanSecurityReviewFile(normalized)) return "unsupported-extension";
 
-  const fullPath = join(projectDir, normalized);
+  const fullPath = join(workspaceRoot, normalized);
   let fileSize = 0;
   try {
     const stats = statSync(fullPath);
@@ -194,7 +194,7 @@ function dueTargetMissReason(
 }
 
 function summarizeDueTargets(args: {
-  projectDir: string;
+  workspaceRoot: string;
   dueTargets: readonly SecurityReviewDueTarget[];
   allCandidates: readonly SecurityReviewCandidate[];
   selectedCandidates: readonly SecurityReviewCandidate[];
@@ -217,7 +217,7 @@ function summarizeDueTargets(args: {
       status: "missed",
       reason: available.length > 0
         ? "candidate-cap"
-        : dueTargetMissReason(args.projectDir, target, args.allCandidates),
+        : dueTargetMissReason(args.workspaceRoot, target, args.allCandidates),
       candidateIds: available.map((candidate) => candidate.id),
     };
   });
@@ -231,7 +231,7 @@ function summarizeDueTargets(args: {
 }
 
 export function scanSecurityReviewCandidates(
-  projectDir: string,
+  workspaceRoot: string,
   options: SecurityReviewScanOptions = {},
 ): SecurityReviewScanResult {
   const resolvedOptions = {
@@ -240,7 +240,7 @@ export function scanSecurityReviewCandidates(
       options.maxCandidatesPerSurface ?? SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
     dueTargets: options.dueTargets ?? [],
   };
-  const allCandidates = collectSecurityReviewCandidates(projectDir);
+  const allCandidates = collectSecurityReviewCandidates(workspaceRoot);
   const candidates = boundCandidates(allCandidates, resolvedOptions);
   return {
     candidates,
@@ -250,7 +250,7 @@ export function scanSecurityReviewCandidates(
     maxCandidates: resolvedOptions.maxCandidates,
     maxCandidatesPerSurface: resolvedOptions.maxCandidatesPerSurface,
     dueTargets: summarizeDueTargets({
-      projectDir,
+      workspaceRoot,
       dueTargets: resolvedOptions.dueTargets,
       allCandidates,
       selectedCandidates: candidates,
@@ -270,11 +270,11 @@ export function writeJsonArtifact<T>(
 }
 
 export function scanAndWriteSecurityReviewCandidates(
-  projectDir: string,
+  workspaceRoot: string,
   runDirPath: string,
   options: SecurityReviewScanOptions = {},
 ): SecurityReviewCandidatePacket {
-  const scan = scanSecurityReviewCandidates(projectDir, options);
+  const scan = scanSecurityReviewCandidates(workspaceRoot, options);
   const artifactPath = writeJsonArtifact(runDirPath, "security-review-candidates.json", scan);
   return { ...scan, artifactPath };
 }

@@ -7,7 +7,7 @@ function createRunPublicationsTable(database: Database.Database): void {
     CREATE TABLE IF NOT EXISTS run_publications (
       publication_id TEXT PRIMARY KEY,
       run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-      project_id TEXT NOT NULL REFERENCES projects(id),
+      scope_id TEXT NOT NULL REFERENCES scopes(id),
       event_name TEXT NOT NULL,
       payload_json TEXT NOT NULL,
       publication_sequence INTEGER NOT NULL,
@@ -23,6 +23,9 @@ function migrateRunPublications(database: Database.Database): void {
     name: string;
   }>;
   if (columns.some((column) => column.name === "publication_sequence")) return;
+  const scopeColumn = columns.some((column) => column.name === "scope_id")
+    ? "scope_id"
+    : "project_id";
 
   database.exec(`
     DROP INDEX IF EXISTS run_publications_pending_idx;
@@ -31,9 +34,9 @@ function migrateRunPublications(database: Database.Database): void {
   createRunPublicationsTable(database);
   database.exec(`
     INSERT INTO run_publications
-      (publication_id, run_id, project_id, event_name, payload_json,
+      (publication_id, run_id, scope_id, event_name, payload_json,
        publication_sequence, created_at, delivered_at)
-    SELECT publication_id, run_id, project_id, event_name, payload_json,
+    SELECT publication_id, run_id, ${scopeColumn}, event_name, payload_json,
            0, created_at, delivered_at
     FROM run_publications_legacy;
     DROP TABLE run_publications_legacy;
@@ -54,7 +57,7 @@ function createInitialSchema(database: Database.Database): void {
     );
     INSERT OR IGNORE INTO daemon_state (singleton, epoch) VALUES (1, 0);
 
-    CREATE TABLE IF NOT EXISTS projects (
+    CREATE TABLE IF NOT EXISTS scopes (
       id TEXT PRIMARY KEY,
       root_path TEXT NOT NULL UNIQUE,
       display_name TEXT,
@@ -63,7 +66,7 @@ function createInitialSchema(database: Database.Database): void {
 
     CREATE TABLE IF NOT EXISTS runs (
       id TEXT PRIMARY KEY,
-      project_id TEXT NOT NULL REFERENCES projects(id),
+      scope_id TEXT NOT NULL REFERENCES scopes(id),
       workflow TEXT NOT NULL,
       trigger_json TEXT NOT NULL,
       repository_access TEXT NOT NULL CHECK (repository_access IN ('none', 'read', 'write')),
@@ -140,7 +143,7 @@ function createInitialSchema(database: Database.Database): void {
       run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
       step_id TEXT NOT NULL,
       publication_id TEXT NOT NULL UNIQUE,
-      project_id TEXT NOT NULL REFERENCES projects(id),
+      scope_id TEXT NOT NULL REFERENCES scopes(id),
       event_name TEXT NOT NULL,
       payload_json TEXT NOT NULL,
       intent_sequence INTEGER NOT NULL,
@@ -149,24 +152,24 @@ function createInitialSchema(database: Database.Database): void {
       UNIQUE (run_id, intent_sequence)
     );
 
-    CREATE TABLE IF NOT EXISTS project_state_values (
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    CREATE TABLE IF NOT EXISTS scope_state_values (
+      scope_id TEXT NOT NULL REFERENCES scopes(id) ON DELETE CASCADE,
       state_key TEXT NOT NULL,
       revision INTEGER NOT NULL CHECK (revision > 0),
       value_json TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (project_id, state_key)
+      PRIMARY KEY (scope_id, state_key)
     );
 
     CREATE TABLE IF NOT EXISTS run_state_mutations (
       run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
-      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      scope_id TEXT NOT NULL REFERENCES scopes(id) ON DELETE CASCADE,
       state_key TEXT NOT NULL,
       expected_revision INTEGER NOT NULL CHECK (expected_revision >= 0),
       value_json TEXT NOT NULL,
       staged_at TEXT NOT NULL,
       PRIMARY KEY (run_id, state_key),
-      UNIQUE (project_id, state_key)
+      UNIQUE (scope_id, state_key)
     );
 
     CREATE INDEX IF NOT EXISTS runs_dispatch_idx

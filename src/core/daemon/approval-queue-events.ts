@@ -1,8 +1,8 @@
-import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
+import type { ScopedEventBus } from "#core/events/scope.js";
 import type { PendingApproval } from "./approval-queue.js";
 
 export function emitApprovalRequested(
-	pbus: ProjectScopedEventBus | null,
+	pbus: ScopedEventBus | null,
 	item: PendingApproval,
 	sessionId: string | undefined,
 	pendingCount: number,
@@ -20,7 +20,7 @@ export function emitApprovalRequested(
 }
 
 export function emitApprovalResolved(
-	pbus: ProjectScopedEventBus | null,
+	pbus: ScopedEventBus | null,
 	item: PendingApproval,
 	approved: boolean,
 	reason: string,
@@ -39,7 +39,7 @@ export function emitApprovalResolved(
 }
 
 export function emitApprovalExpired(
-	pbus: ProjectScopedEventBus | null,
+	pbus: ScopedEventBus | null,
 	item: PendingApproval,
 	defaultResolution: "deny" | "approve",
 	pendingCount: number,

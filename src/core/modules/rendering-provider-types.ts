@@ -6,7 +6,7 @@ export interface ReplChrome {
 	/** Print the `/help` table of slash commands and descriptions. */
 	showHelp(commands: Record<string, string>): void;
 	/** Print the `/status` snapshot (harness, model, project, turn count). */
-	showStatus(harness: string, model: string, turns: number, projectDir?: string): void;
+	showStatus(harness: string, model: string, turns: number, scopeRoot?: string): void;
 	/** Confirm a `/reset` or `/clear` of the transcript. */
 	showReset(): void;
 	/** Paint an error message raised during a turn. */

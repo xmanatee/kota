@@ -47,7 +47,7 @@ export const customToolTool: KotaTool = {
   name: "custom_tool",
   description:
     "Create, list, or remove custom tools that run Python or Node.js code. " +
-    "Custom tools appear in the tool list and can be called like any project tool. " +
+    "Custom tools appear in the tool list and can be called like any installed tool. " +
     "Use for reusable API wrappers, data processors, validators, or domain-specific utilities.",
   input_schema: {
     type: "object" as const,
@@ -59,7 +59,7 @@ export const customToolTool: KotaTool = {
       },
       name: {
         type: "string",
-        description: "Tool name (snake_case, 3-50 chars, no conflicts with project tools). Required for create/remove.",
+        description: "Tool name (snake_case, 3-50 chars, no conflicts with installed tools). Required for create/remove.",
       },
       description: {
         type: "string",

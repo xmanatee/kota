@@ -8,8 +8,8 @@ export type {
   BusEnvelope,
   BusEventHandler,
   EventSchemaReference,
-  ProjectScopedBusEventName,
-  ProjectScopedBusEventPayload,
+  ScopedBusEventName,
+  ScopedBusEventPayload,
 } from "./event-bus-envelope-types.js";
 export type {
   DaemonConfigReloadEvent,

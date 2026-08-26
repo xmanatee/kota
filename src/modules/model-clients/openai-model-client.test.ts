@@ -1,13 +1,15 @@
-import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
+import { describe, expect, it, type Mock, vi } from "vitest";
 import type {
 	KotaTextBlock,
 	KotaTool,
 	KotaToolUseBlock,
 } from "#core/agent-harness/message-protocol.js";
 import type { ModelClient } from "#core/model/model-client.js";
+import { outboundHttpStreamingPort } from "#core/outbound-http/testing/request-port.js";
 import {
 	buildKotaModelResponse,
 	mapFinishReason,
+	type OpenAIClientOptions,
 	OpenAIModelClient,
 	systemToText,
 	toOpenAIMessages,
@@ -343,21 +345,28 @@ function mockStreamResponse(events: string[]): Response {
 }
 
 describe("OpenAIModelClient", () => {
-	let originalFetch: typeof globalThis.fetch;
+	let activeFetch = vi.fn();
+	const http = outboundHttpStreamingPort((request) =>
+		activeFetch(String(request.url), {
+			method: request.method,
+			headers: request.headers,
+			body: request.body,
+			signal: request.signal,
+		})
+	);
 
-	afterEach(() => {
-		if (originalFetch) globalThis.fetch = originalFetch;
-	});
+	function makeClient(options: OpenAIClientOptions): OpenAIModelClient {
+		return new OpenAIModelClient({ ...options, http });
+	}
 
 	function setupMockFetch(response: Response): Mock {
-		originalFetch = globalThis.fetch;
 		const mock = vi.fn().mockResolvedValue(response);
-		globalThis.fetch = mock;
+		activeFetch = mock;
 		return mock;
 	}
 
 	it("satisfies ModelClient interface", () => {
-		const client: ModelClient = new OpenAIModelClient({
+		const client: ModelClient = makeClient({
 			baseUrl: "http://localhost:11434/v1",
 			apiKey: "test", presetName: "ollama",
 		});
@@ -380,7 +389,7 @@ describe("OpenAIModelClient", () => {
 			};
 			const mock = setupMockFetch(mockFetchResponse(oaiResponse));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost:11434/v1",
 				apiKey: "test-key", presetName: "ollama",
 			});
@@ -437,7 +446,7 @@ describe("OpenAIModelClient", () => {
 			};
 			setupMockFetch(mockFetchResponse(oaiResponse));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "https://api.openai.com/v1",
 				apiKey: "sk-test", presetName: "openai",
 			});
@@ -460,7 +469,7 @@ describe("OpenAIModelClient", () => {
 				mockFetchResponse({ error: "unauthorized" }, 401),
 			);
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "", presetName: "test",
 			});
@@ -485,7 +494,7 @@ describe("OpenAIModelClient", () => {
 			];
 			const mock = setupMockFetch(mockStreamResponse(streamEvents));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "k", presetName: "test",
 			});
@@ -530,7 +539,7 @@ describe("OpenAIModelClient", () => {
 			};
 			const mock = setupMockFetch(mockFetchResponse(oaiResponse));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost:11434/v1///",
 				apiKey: "", presetName: "test",
 			});
@@ -559,7 +568,7 @@ describe("OpenAIModelClient", () => {
 			};
 			const mock = setupMockFetch(mockFetchResponse(oaiResponse));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "", presetName: "test",
 			});
@@ -604,7 +613,7 @@ describe("OpenAIModelClient", () => {
 			];
 			setupMockFetch(mockStreamResponse(events));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "key", presetName: "test",
 			});
@@ -692,7 +701,7 @@ describe("OpenAIModelClient", () => {
 			];
 			setupMockFetch(mockStreamResponse(events));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "key", presetName: "test",
 			});
@@ -714,15 +723,14 @@ describe("OpenAIModelClient", () => {
 		});
 
 		it("handles stream error response", async () => {
-			originalFetch = globalThis.fetch;
-			globalThis.fetch = vi.fn().mockResolvedValue({
+			setupMockFetch({
 				ok: false,
 				status: 500,
 				text: () => Promise.resolve("Internal Server Error"),
 				body: null,
-			});
+			} as Response);
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "key", presetName: "test",
 			});
@@ -739,12 +747,9 @@ describe("OpenAIModelClient", () => {
 		});
 
 		it("on() returns this for chaining", () => {
-			originalFetch = globalThis.fetch;
-			globalThis.fetch = vi
-				.fn()
-				.mockResolvedValue(mockStreamResponse(["[DONE]"]));
+			setupMockFetch(mockStreamResponse(["[DONE]"]));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "", presetName: "test",
 			});
@@ -773,7 +778,7 @@ describe("OpenAIModelClient", () => {
 			];
 			setupMockFetch(mockStreamResponse(events));
 
-			const client = new OpenAIModelClient({
+			const client = makeClient({
 				baseUrl: "http://localhost/v1",
 				apiKey: "", presetName: "test",
 			});

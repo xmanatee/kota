@@ -2,7 +2,7 @@
  * Knowledge tool — agent-facing interface to the file-based data layer.
  *
  * Provides CRUD + search over markdown files with YAML front matter.
- * Entries live in .kota/data/ (project) or ~/.kota/data/ (global).
+ * Entries live in .kota/data/ (scope) or ~/.kota/data/ (global).
  */
 
 import { tryEmit } from "#core/events/event-bus.js";
@@ -86,7 +86,7 @@ export async function runKnowledge(
 			const content = (input.content as string) || "";
 			const entryType = (input.type as string) || "note";
 			const entryTags = (input.tags as string[]) || [];
-			const entryScope = (input.scope as "project" | "global") || "project";
+			const entryScope = (input.scope as "scope" | "global") || "scope";
 			const id = store.create({
 				title,
 				content,
@@ -185,12 +185,13 @@ export async function runKnowledge(
 				tag: input.tag as string | undefined,
 				status: input.status as string | undefined,
 				since: input.since as string | undefined,
-				scope: input.scope as "project" | "global" | "all" | undefined,
+				scope: input.scope as "scope" | "global" | "all" | undefined,
 			};
 			const topKInput =
 				typeof input.topK === "number" && input.topK > 0 ? input.topK : 20;
 			const semantic = input.semantic === true;
-			if (semantic && !store.supportsSemanticSearch()) {
+			const semanticSearch = store.semanticSearchCapability;
+			if (semantic && !semanticSearch) {
 				return {
 					content:
 						"Error: semantic knowledge search requires an embedding-backed knowledge provider.",
@@ -198,7 +199,7 @@ export async function runKnowledge(
 				};
 			}
 			const results = semantic
-				? await store.semanticSearch(query, topKInput, filters)
+				? await semanticSearch!.semanticSearch(query, topKInput, filters)
 				: store.search(query, filters);
 			if (results.length === 0) {
 				return { content: "No matching entries found." };
@@ -216,7 +217,7 @@ export async function runKnowledge(
 				tag: input.tag as string | undefined,
 				status: input.status as string | undefined,
 				since: input.since as string | undefined,
-				scope: input.scope as "project" | "global" | "all" | undefined,
+				scope: input.scope as "scope" | "global" | "all" | undefined,
 			});
 			if (entries.length === 0) {
 				return { content: "No entries found." };

@@ -25,14 +25,14 @@ import type {
   MemoryProvider,
   RepoTasksProvider,
 } from "#core/modules/provider-types.js";
-import type { HistoryProjectStores } from "#modules/history/project-scope.js";
-import type { KnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
-import type { MemoryProjectStores } from "#modules/memory/project-scope.js";
-import type { RepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
+import type { HistoryScopeStores } from "#modules/history/scope.js";
+import type { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
+import type { MemoryScopeStores } from "#modules/memory/scope.js";
+import type { RepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import type {
   RawRecallEntry,
   RecallContributor,
-  RecallProjectContext,
+  RecallScopeContext,
 } from "./recall-types.js";
 
 const PREVIEW_MAX = 240;
@@ -47,17 +47,17 @@ function rankScore(rank: number, topK: number): number {
   return Math.max(1, topK - rank);
 }
 
-function requireProject(
-  project: RecallProjectContext | undefined,
-): RecallProjectContext {
-  if (!project) {
-    throw new Error("Recall contributor requires a project context");
+function requireScope(
+  scope: RecallScopeContext | undefined,
+): RecallScopeContext {
+  if (!scope) {
+    throw new Error("Recall contributor requires a scope context");
   }
-  return project;
+  return scope;
 }
 
-function unknownProject(projectId: string): Error {
-  return new Error(`Unknown project: ${projectId}`);
+function unknownProject(scopeId: string): Error {
+  return new Error(`Unknown scope: ${scopeId}`);
 }
 
 async function recallKnowledge(
@@ -65,8 +65,8 @@ async function recallKnowledge(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const entries = provider.supportsSemanticSearch()
-    ? await provider.semanticSearch(query, topK)
+  const entries = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.semanticSearch(query, topK)
     : provider.search(query).slice(0, topK);
   return entries.map<RawRecallEntry>((entry, index) => ({
     source: "knowledge",
@@ -87,8 +87,8 @@ async function recallMemory(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const entries = provider.supportsSemanticSearch()
-    ? await provider.semanticSearch(query, topK)
+  const entries = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.semanticSearch(query, topK)
     : provider.search(query).slice(0, topK);
   return entries.map<RawRecallEntry>((entry, index) => ({
     source: "memory",
@@ -109,8 +109,8 @@ async function recallHistory(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const entries = provider.supportsSemanticSearch()
-    ? await provider.semanticSearch(query, topK)
+  const entries = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.semanticSearch(query, topK)
     : provider.list({ search: query, limit: topK });
   return entries.map<RawRecallEntry>((entry, index) => ({
     source: "history",
@@ -129,7 +129,9 @@ async function recallTasks(
   query: string,
   topK: number,
 ): Promise<RawRecallEntry[]> {
-  const hits = await provider.searchTasks(query, { topK });
+  const hits = provider.semanticSearchCapability
+    ? await provider.semanticSearchCapability.searchTasks(query, { topK })
+    : await provider.searchTasks(query, { topK });
   return hits.map<RawRecallEntry>((hit) => ({
     source: "tasks",
     id: hit.id,
@@ -154,14 +156,14 @@ export function createKnowledgeContributor(
   };
 }
 
-export function createProjectKnowledgeContributor(
-  stores: KnowledgeProjectStores,
+export function createScopeKnowledgeContributor(
+  stores: KnowledgeScopeStores,
 ): RecallContributor {
   return {
     source: "knowledge",
-    async recall(query, { topK, project }) {
-      const resolved = stores.resolve(requireProject(project).projectId);
-      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+    async recall(query, { topK, scope }) {
+      const resolved = stores.resolve(requireScope(scope).scopeId);
+      if (!resolved.ok) throw unknownProject(resolved.error.scopeId);
       return recallKnowledge(resolved.store, query, topK);
     },
   };
@@ -178,14 +180,14 @@ export function createMemoryContributor(
   };
 }
 
-export function createProjectMemoryContributor(
-  stores: MemoryProjectStores,
+export function createScopeMemoryContributor(
+  stores: MemoryScopeStores,
 ): RecallContributor {
   return {
     source: "memory",
-    async recall(query, { topK, project }) {
-      const resolved = stores.resolve(requireProject(project).projectId);
-      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+    async recall(query, { topK, scope }) {
+      const resolved = stores.resolve(requireScope(scope).scopeId);
+      if (!resolved.ok) throw unknownProject(resolved.error.scopeId);
       return recallMemory(resolved.store, query, topK);
     },
   };
@@ -202,14 +204,14 @@ export function createHistoryContributor(
   };
 }
 
-export function createProjectHistoryContributor(
-  stores: HistoryProjectStores,
+export function createScopeHistoryContributor(
+  stores: HistoryScopeStores,
 ): RecallContributor {
   return {
     source: "history",
-    async recall(query, { topK, project }) {
-      const resolved = stores.resolve(requireProject(project).projectId);
-      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+    async recall(query, { topK, scope }) {
+      const resolved = stores.resolve(requireScope(scope).scopeId);
+      if (!resolved.ok) throw unknownProject(resolved.error.scopeId);
       return recallHistory(resolved.store, query, topK);
     },
   };
@@ -226,14 +228,14 @@ export function createTasksContributor(
   };
 }
 
-export function createProjectTasksContributor(
-  stores: RepoTasksProjectStores,
+export function createScopeTasksContributor(
+  stores: RepoTasksScopeStores,
 ): RecallContributor {
   return {
     source: "tasks",
-    async recall(query, { topK, project }) {
-      const resolved = stores.resolve(requireProject(project).projectId);
-      if (!resolved.ok) throw unknownProject(resolved.error.projectId);
+    async recall(query, { topK, scope }) {
+      const resolved = stores.resolve(requireScope(scope).scopeId);
+      if (!resolved.ok) throw unknownProject(resolved.error.scopeId);
       return recallTasks(resolved.store, query, topK);
     },
   };

@@ -10,28 +10,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  buildConfiguredProject,
-  type ConfiguredProject,
+  buildDirectoryScope,
+  type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
-import { getProjectHistoryStore, resetHistory } from "#modules/history/history.js";
-import { HistoryProjectStores } from "#modules/history/project-scope.js";
-import { KnowledgeProjectStores } from "#modules/knowledge/project-scope.js";
+import { getScopeHistoryStore, resetHistory } from "#modules/history/history.js";
+import { HistoryScopeStores } from "#modules/history/scope.js";
+import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
-import { MemoryProjectStores } from "#modules/memory/project-scope.js";
+import { MemoryScopeStores } from "#modules/memory/scope.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import type { RecallHit } from "#modules/recall/client.js";
 import {
-  createProjectHistoryContributor,
-  createProjectKnowledgeContributor,
-  createProjectMemoryContributor,
-  createProjectTasksContributor,
+  createScopeHistoryContributor,
+  createScopeKnowledgeContributor,
+  createScopeMemoryContributor,
+  createScopeTasksContributor,
 } from "#modules/recall/contributors.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
-import type { RecallProjectContext } from "#modules/recall/recall-types.js";
+import type { RecallScopeContext } from "#modules/recall/recall-types.js";
 import { createRecallToolRunner } from "#modules/recall/tool.js";
-import { RepoTasksProjectStores } from "#modules/repo-tasks/project-scope.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
+import { RepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 
 const CURRENT_RENDER_DECISION = "INTERFERENCE_CURRENT_TIMELINE_RENDERER";
 const CURRENT_AUDIT_DECISION = "INTERFERENCE_CURRENT_AUDIT_LEDGER";
@@ -40,7 +40,7 @@ const ARTIFACT_RUN_ID = "interference-heavy-recall-smoke";
 
 const FIXTURE_NOTES = [
   "LongMINT (https://arxiv.org/abs/2605.18565) motivates this compact fixture shape: revised information, interference-heavy memories, and multi-target aggregation over more than one relevant fact.",
-  "Continuity Benchmarks (https://github.com/Alienfader/continuity-benchmarks) motivates execution-intent recall, but this fixture stays KOTA-owned and uses the repo's own project-scoped stores instead of vendoring external data.",
+  "Continuity Benchmarks (https://github.com/Alienfader/continuity-benchmarks) motivates execution-intent recall, but this fixture stays KOTA-owned and uses the repo's own scope-scoped stores instead of vendoring external data.",
   "Provenance kind is smoke-fixture because this is a deterministic plumbing guard for KOTA's recall path rather than a replay of one historical failure.",
 ] as const;
 
@@ -61,7 +61,7 @@ type PredicateResult = {
 type SeededRecords = {
   memory: MemoryStore;
   knowledge: KnowledgeStore;
-  history: ReturnType<typeof getProjectHistoryStore>;
+  history: ReturnType<typeof getScopeHistoryStore>;
   tasks: RepoTasksDefaultStore;
   currentRenderMemoryId: string;
   currentAuditKnowledgeId: string;
@@ -76,31 +76,31 @@ type EvidenceSelection = {
   ignoredStaleEvidenceIds: string[];
 };
 
-function runGit(projectDir: string, args: readonly string[]): string {
+function runGit(scopeRoot: string, args: readonly string[]): string {
   return execFileSync("git", [...args], {
-    cwd: projectDir,
+    cwd: scopeRoot,
     encoding: "utf-8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
 
-function createProject(parent: string): ConfiguredProject {
-  const projectDir = join(parent, "project");
-  mkdirSync(join(projectDir, "src"), { recursive: true });
-  mkdirSync(join(projectDir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(projectDir, "data", "tasks", "ready"), { recursive: true });
-  mkdirSync(join(projectDir, ".kota", "runs"), { recursive: true });
-  runGit(projectDir, ["init", "--quiet", "--initial-branch=main"]);
-  runGit(projectDir, ["config", "user.email", "eval-harness@kota.local"]);
-  runGit(projectDir, ["config", "user.name", "KOTA Eval Harness"]);
-  runGit(projectDir, ["config", "commit.gpgsign", "false"]);
-  return buildConfiguredProject({ projectDir });
+function createProject(parent: string): DirectoryScope {
+  const scopeRoot = join(parent, "scope");
+  mkdirSync(join(scopeRoot, "src"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks", "ready"), { recursive: true });
+  mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
+  runGit(scopeRoot, ["init", "--quiet", "--initial-branch=main"]);
+  runGit(scopeRoot, ["config", "user.email", "eval-harness@kota.local"]);
+  runGit(scopeRoot, ["config", "user.name", "KOTA Eval Harness"]);
+  runGit(scopeRoot, ["config", "commit.gpgsign", "false"]);
+  return buildDirectoryScope({ scopeRoot });
 }
 
-function seedTaskDistractor(projectDir: string): string {
+function seedTaskDistractor(scopeRoot: string): string {
   const id = "task-incident-handoff-card-cache-polish";
   writeFileSync(
-    join(projectDir, "data", "tasks", "backlog", `${id}.md`),
+    join(scopeRoot, "data", "tasks", "backlog", `${id}.md`),
     `---
 id: ${id}
 title: Incident handoff stale card cache polish ${STALE_DECISION}
@@ -122,14 +122,14 @@ handoff renderer work, but its cards-first cache-only guidance is superseded.
   return id;
 }
 
-function seedPriorState(project: ConfiguredProject): SeededRecords {
-  const memory = new MemoryStore(join(project.projectDir, ".kota"));
+function seedPriorState(scope: DirectoryScope): SeededRecords {
+  const memory = new MemoryStore(join(scope.scopeRoot, ".kota"));
   const knowledge = new KnowledgeStore(
-    project.projectDir,
-    join(project.projectDir, ".kota", "global-data"),
+    scope.scopeRoot,
+    join(scope.scopeRoot, ".kota", "global-data"),
   );
-  const history = getProjectHistoryStore(project.projectDir);
-  const tasks = new RepoTasksDefaultStore(project.projectDir);
+  const history = getScopeHistoryStore(scope.scopeRoot);
+  const tasks = new RepoTasksDefaultStore(scope.scopeRoot);
 
   const staleMemoryId = memory.save(
     [
@@ -165,7 +165,7 @@ function seedPriorState(project: ConfiguredProject): SeededRecords {
     tags: ["decision", "incident-handoff", "current"],
   });
 
-  const historyDistractorId = history.create("test-model", project.projectDir);
+  const historyDistractorId = history.create("test-model", scope.scopeRoot);
   history.save(
     historyDistractorId,
     [
@@ -184,7 +184,7 @@ function seedPriorState(project: ConfiguredProject): SeededRecords {
     0,
   );
 
-  const staleTaskId = seedTaskDistractor(project.projectDir);
+  const staleTaskId = seedTaskDistractor(scope.scopeRoot);
 
   return {
     memory,
@@ -201,66 +201,66 @@ function seedPriorState(project: ConfiguredProject): SeededRecords {
 }
 
 function buildRecallProvider(
-  project: ConfiguredProject,
+  scope: DirectoryScope,
   stores: SeededRecords,
 ): RecallProviderImpl {
-  const projectContext: RecallProjectContext = {
-    projectId: project.projectId,
-    projectDir: project.projectDir,
+  const scopeContext: RecallScopeContext = {
+    scopeId: scope.scopeId,
+    scopeRoot: scope.scopeRoot,
     knowledge: stores.knowledge,
     memory: stores.memory,
     history: stores.history,
     tasks: stores.tasks,
   };
-  const resolveProjectContext = (projectId: string | null | undefined) => {
-    const requested = projectId?.trim();
-    if (requested && requested !== project.projectId) {
-      return { error: "unknown_project" as const, projectId: requested };
+  const resolveScopeContext = (scopeId: string | null | undefined) => {
+    const requested = scopeId?.trim();
+    if (requested && requested !== scope.scopeId) {
+      return { error: "unknown_scope" as const, scopeId: requested };
     }
-    return projectContext;
+    return scopeContext;
   };
 
   const provider = new RecallProviderImpl({
-    resolveProjectContext,
+    resolveScopeContext,
     onContributorError: () => {},
   });
-  const projects = [project];
+  const scopes = [scope];
   provider.register(
-    createProjectKnowledgeContributor(
-      new KnowledgeProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeKnowledgeContributor(
+      new KnowledgeScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.knowledge,
       }),
     ),
   );
   provider.register(
-    createProjectMemoryContributor(
-      new MemoryProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeMemoryContributor(
+      new MemoryScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.memory,
       }),
     ),
   );
   provider.register(
-    createProjectHistoryContributor(
-      new HistoryProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeHistoryContributor(
+      new HistoryScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.history,
       }),
     ),
   );
   provider.register(
-    createProjectTasksContributor(
-      new RepoTasksProjectStores({
-        defaultProjectDir: project.projectDir,
-        defaultProjectId: project.projectId,
-        projects,
+    createScopeTasksContributor(
+      new RepoTasksScopeStores({
+        defaultScopeRoot: scope.scopeRoot,
+        defaultScopeId: scope.scopeId,
+        scopes,
         getDefaultProvider: () => stores.tasks,
       }),
     ),
@@ -268,9 +268,9 @@ function buildRecallProvider(
   return provider;
 }
 
-function writeInitialSourceFile(projectDir: string): void {
+function writeInitialSourceFile(scopeRoot: string): void {
   writeFileSync(
-    join(projectDir, "src", "incident-handoff.ts"),
+    join(scopeRoot, "src", "incident-handoff.ts"),
     `export const incidentHandoffView = {
   layout: "cards-first",
   evidenceStore: "local-cache",
@@ -282,14 +282,14 @@ function writeInitialSourceFile(projectDir: string): void {
   );
 }
 
-function writeInitialSource(projectDir: string): void {
-  writeInitialSourceFile(projectDir);
-  runGit(projectDir, ["add", "-A"]);
-  runGit(projectDir, ["commit", "--quiet", "-m", "initial interference recall fixture"]);
+function writeInitialSource(scopeRoot: string): void {
+  writeInitialSourceFile(scopeRoot);
+  runGit(scopeRoot, ["add", "-A"]);
+  runGit(scopeRoot, ["commit", "--quiet", "-m", "initial interference recall fixture"]);
 }
 
-function applyRecallBackedPatch(projectDir: string, toolOutput: string): string {
-  const sourcePath = join(projectDir, "src", "incident-handoff.ts");
+function applyRecallBackedPatch(scopeRoot: string, toolOutput: string): string {
+  const sourcePath = join(scopeRoot, "src", "incident-handoff.ts");
   const current = readFileSync(sourcePath, "utf-8");
   const hasCurrentRenderer = toolOutput.includes(CURRENT_RENDER_DECISION);
   const hasCurrentAudit = toolOutput.includes(CURRENT_AUDIT_DECISION);
@@ -311,7 +311,7 @@ function applyRecallBackedPatch(projectDir: string, toolOutput: string): string 
           .replace('revision: "unset"', `revision: "${STALE_DECISION}"`)
       : current.replace('revision: "unset"', 'revision: "prompt-only"');
   writeFileSync(sourcePath, next, "utf-8");
-  return runGit(projectDir, ["diff", "--", "src/incident-handoff.ts"]);
+  return runGit(scopeRoot, ["diff", "--", "src/incident-handoff.ts"]);
 }
 
 function hitText(hit: RecallHit): string {
@@ -384,10 +384,10 @@ function evaluateInterferencePredicate(params: {
 }
 
 function writeVerificationArtifact(params: {
-  projectDir: string;
+  scopeRoot: string;
   artifact: unknown;
 }): string {
-  const artifactDir = join(params.projectDir, ".kota", "runs", ARTIFACT_RUN_ID);
+  const artifactDir = join(params.scopeRoot, ".kota", "runs", ARTIFACT_RUN_ID);
   mkdirSync(artifactDir, { recursive: true });
   const artifactPath = join(artifactDir, "verification-artifact.json");
   writeFileSync(artifactPath, JSON.stringify(params.artifact, null, 2), "utf-8");
@@ -421,10 +421,10 @@ describe("interference-heavy recall fixture", () => {
   });
 
   it("applies revised multi-hit evidence while ignoring stale and noisy recall hits", async () => {
-    const project = createProject(root);
-    const stores = seedPriorState(project);
-    writeInitialSource(project.projectDir);
-    const provider = buildRecallProvider(project, stores);
+    const scope = createProject(root);
+    const stores = seedPriorState(scope);
+    writeInitialSource(scope.scopeRoot);
+    const provider = buildRecallProvider(scope, stores);
     const recallTool = createRecallToolRunner(() => provider);
 
     const laterPrompt =
@@ -458,7 +458,7 @@ describe("interference-heavy recall fixture", () => {
       ]),
     );
 
-    const promptOnlyDiff = applyRecallBackedPatch(project.projectDir, "");
+    const promptOnlyDiff = applyRecallBackedPatch(scope.scopeRoot, "");
     const promptOnlyPredicate = evaluateInterferencePredicate({
       expectedRenderId: stores.currentRenderMemoryId,
       expectedAuditId: stores.currentAuditKnowledgeId,
@@ -467,8 +467,8 @@ describe("interference-heavy recall fixture", () => {
     });
     expect(promptOnlyPredicate.passed).toBe(false);
 
-    writeInitialSourceFile(project.projectDir);
-    const staleOnlyDiff = applyRecallBackedPatch(project.projectDir, STALE_DECISION);
+    writeInitialSourceFile(scope.scopeRoot);
+    const staleOnlyDiff = applyRecallBackedPatch(scope.scopeRoot, STALE_DECISION);
     const staleOnlyPredicate = evaluateInterferencePredicate({
       expectedRenderId: stores.currentRenderMemoryId,
       expectedAuditId: stores.currentAuditKnowledgeId,
@@ -485,9 +485,9 @@ describe("interference-heavy recall fixture", () => {
     expect(staleOnlyPredicate.passed).toBe(false);
     expect(staleOnlyDiff).toContain(STALE_DECISION);
 
-    writeInitialSourceFile(project.projectDir);
+    writeInitialSourceFile(scope.scopeRoot);
     const finalDiff = applyRecallBackedPatch(
-      project.projectDir,
+      scope.scopeRoot,
       toolResult.content,
     );
     const predicateResult = evaluateInterferencePredicate({
@@ -546,7 +546,7 @@ describe("interference-heavy recall fixture", () => {
       predicateResult,
     };
     const artifactPath = writeVerificationArtifact({
-      projectDir: project.projectDir,
+      scopeRoot: scope.scopeRoot,
       artifact,
     });
 

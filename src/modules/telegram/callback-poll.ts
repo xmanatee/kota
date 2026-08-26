@@ -13,7 +13,7 @@
 
 import { getOwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import type { KotaClient } from "#core/server/kota-client.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
   handleApprovalCallback,
   type PendingApprovalMessage,
@@ -43,7 +43,7 @@ export function startCallbackPoll(
 ): () => void {
   const releasePollingOwner = acquireTelegramPollingOwner(token, {
     owner: "telegram-callback",
-    source: "legacy callback poll helper",
+    source: "callback poll",
   });
   let running = true;
   let offset = 0;
@@ -186,7 +186,7 @@ async function handleOwnerAnswerCallback(
   const answerText = answers[answerIdx];
   const mutate = client
     ? info
-      ? await client.forProject(info.projectId).ownerQuestions.answer(questionId, answerText)
+      ? await client.forScope(info.scopeId).ownerQuestions.answer(questionId, answerText)
       : { ok: false as const, reason: "not_found" as const }
     : (() => {
         const resolved = getOwnerQuestionQueue().answer(questionId, answerText, "telegram-inline");
@@ -229,7 +229,7 @@ async function handleOwnerDismissCallback(
   const info = pending.get(questionId);
   const mutate = client
     ? info
-      ? await client.forProject(info.projectId).ownerQuestions.dismiss(questionId)
+      ? await client.forScope(info.scopeId).ownerQuestions.dismiss(questionId)
       : { ok: false as const, reason: "not_found" as const }
     : (() => {
         const resolved = getOwnerQuestionQueue().dismiss(questionId, undefined, "telegram-inline");

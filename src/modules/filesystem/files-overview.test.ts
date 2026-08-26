@@ -98,12 +98,12 @@ describe("files_overview", () => {
 
   it("excludes cased .kota credential aliases", async () => {
     const originalCwd = process.cwd();
-    const projectDir = await mkdtemp(join(tmpdir(), "fov-protected-"));
+    const scopeRoot = await mkdtemp(join(tmpdir(), "fov-protected-"));
     try {
-      await mkdir(join(projectDir, ".KOTA"), { recursive: true });
-      await writeFile(join(projectDir, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
-      await writeFile(join(projectDir, ".env"), "API_KEY=secret-token\n");
-      process.chdir(projectDir);
+      await mkdir(join(scopeRoot, ".KOTA"), { recursive: true });
+      await writeFile(join(scopeRoot, ".KOTA", "daemon-control.json"), '{"token":"secret-token"}\n');
+      await writeFile(join(scopeRoot, ".env"), "API_KEY=secret-token\n");
+      process.chdir(scopeRoot);
 
       const r = await runFilesOverview({ path: "." });
 
@@ -113,7 +113,7 @@ describe("files_overview", () => {
       expect(r.content).not.toContain("secret-token");
     } finally {
       process.chdir(originalCwd);
-      await rm(projectDir, { recursive: true, force: true });
+      await rm(scopeRoot, { recursive: true, force: true });
     }
   });
 

@@ -24,14 +24,14 @@ vi.mock("node:child_process", async (importOriginal) => ({
 
 const roots: string[] = [];
 
-function makeProjectFixture(): { projectDir: string; outsideDir: string } {
+function makeProjectFixture(): { repoRoot: string; outsideDir: string } {
   const root = mkdtempSync(join(tmpdir(), "kota-task-path-safety-"));
   roots.push(root);
-  const projectDir = join(root, "project");
-  mkdirSync(projectDir);
+  const repoRoot = join(root, "project");
+  mkdirSync(repoRoot);
   const outsideDir = join(root, "outside");
   mkdirSync(outsideDir);
-  return { projectDir, outsideDir };
+  return { repoRoot, outsideDir };
 }
 
 beforeEach(() => {
@@ -46,7 +46,7 @@ afterEach(() => {
 
 describe("canonical task mutation path safety", () => {
   it("rejects a direct task symlink before updating its external target", () => {
-    const { projectDir, outsideDir } = makeProjectFixture();
+    const { repoRoot, outsideDir } = makeProjectFixture();
     const outsidePath = join(outsideDir, "outside-task.md");
     const outsideContent = `---
 id: task-linked
@@ -64,24 +64,24 @@ updated_at: 2026-08-06
 External target.
 `;
     writeFileSync(outsidePath, outsideContent, "utf-8");
-    const readyDir = join(projectDir, "data", "tasks", "ready");
+    const readyDir = join(repoRoot, "data", "tasks", "ready");
     mkdirSync(readyDir, { recursive: true });
     symlinkSync(outsidePath, join(readyDir, "task-linked.md"));
 
     expect(() =>
-      updateTaskBody(projectDir, "task-linked", "## Problem\n\nChanged."),
+      updateTaskBody(repoRoot, "task-linked", "## Problem\n\nChanged."),
     ).toThrow(/symbolic-link markdown entries are forbidden/);
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
   });
 
   it("rejects a symlinked task-state directory before creating outside the project", () => {
-    const { projectDir, outsideDir } = makeProjectFixture();
-    const tasksDir = join(projectDir, "data", "tasks");
+    const { repoRoot, outsideDir } = makeProjectFixture();
+    const tasksDir = join(repoRoot, "data", "tasks");
     mkdirSync(tasksDir, { recursive: true });
     symlinkSync(outsideDir, join(tasksDir, "backlog"), "dir");
 
     expect(() =>
-      createNormalizedTask(projectDir, {
+      createNormalizedTask(repoRoot, {
         title: "Escaping parent",
         priority: "p1",
         area: "security",
@@ -92,14 +92,14 @@ External target.
   });
 
   it("rejects a non-regular markdown entry", () => {
-    const { projectDir } = makeProjectFixture();
-    const backlogDir = join(projectDir, "data", "tasks", "backlog");
+    const { repoRoot } = makeProjectFixture();
+    const backlogDir = join(repoRoot, "data", "tasks", "backlog");
     mkdirSync(join(backlogDir, "task-directory-entry.md"), {
       recursive: true,
     });
 
     expect(() =>
-      createNormalizedTask(projectDir, {
+      createNormalizedTask(repoRoot, {
         title: "Directory entry",
         priority: "p1",
         area: "security",
@@ -109,7 +109,7 @@ External target.
   });
 
   it("rejects a symlinked terminal-state directory before deletion", () => {
-    const { projectDir, outsideDir } = makeProjectFixture();
+    const { repoRoot, outsideDir } = makeProjectFixture();
     const outsidePath = join(outsideDir, "task-old-linked.md");
     const outsideContent = `---
 id: task-old-linked
@@ -121,12 +121,12 @@ updated_at: 2020-01-01
 ## Done
 `;
     writeFileSync(outsidePath, outsideContent, "utf-8");
-    const tasksDir = join(projectDir, "data", "tasks");
+    const tasksDir = join(repoRoot, "data", "tasks");
     mkdirSync(tasksDir, { recursive: true });
     symlinkSync(outsideDir, join(tasksDir, "done"), "dir");
 
     expect(() =>
-      gcTerminalTasks(projectDir, { days: 30 }),
+      gcTerminalTasks(repoRoot, { days: 30 }),
     ).toThrow(/symbolic-link directory components are forbidden/);
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
   });

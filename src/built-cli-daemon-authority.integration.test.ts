@@ -8,7 +8,6 @@ import {
   fetchAuthorized,
   pollControlFile,
   pollControlFileReplacement,
-  realLoopbackAvailable,
   waitForExit,
 } from "#core/daemon/built-cli-daemon-test-support.integration.js";
 import {
@@ -23,7 +22,7 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");
-const PROJECT_ROUTE = "/api/project-authority-fixture";
+const SCOPE_ROUTE = "/api/scope-authority-fixture";
 
 beforeAll(() => {
   if (!existsSync(CLI_PATH)) {
@@ -31,9 +30,9 @@ beforeAll(() => {
   }
 });
 
-describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () => {
+describe("built CLI live trust revocation", () => {
   let child: ChildProcess | null = null;
-  let projectDir = "";
+  let scopeRoot = "";
 
   afterEach(async () => {
     if (child && !child.killed && child.exitCode === null) {
@@ -43,34 +42,34 @@ describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () 
         await waitForExit(child, 2_000);
       }
     }
-    if (projectDir) rmSync(projectDir, { recursive: true, force: true });
+    if (scopeRoot) rmSync(scopeRoot, { recursive: true, force: true });
   });
 
-  it("quarantines and restarts away project modules when live trust is revoked", async () => {
-    projectDir = join(
+  it("quarantines and restarts away installed modules when live trust is revoked", async () => {
+    scopeRoot = join(
       tmpdir(),
       `kota-built-cli-authority-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    const stateDir = join(projectDir, ".kota");
-    const homeDir = join(projectDir, "home");
+    const stateDir = join(scopeRoot, ".kota");
+    const homeDir = join(scopeRoot, "home");
     const globalConfigPath = join(homeDir, ".kota", "config.json");
     mkdirSync(stateDir, { recursive: true });
     mkdirSync(join(homeDir, ".kota"), { recursive: true });
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedProjects: [projectDir] }));
+    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [scopeRoot] }));
     writeFileSync(
       join(stateDir, "config.json"),
       JSON.stringify({ defaultAgentHarness: "codex" }),
     );
-    writeProjectAuthorityRouteModule(stateDir);
+    writeScopeAuthorityRouteModule(stateDir);
 
     child = spawn(
       process.execPath,
-      [CLI_PATH, "daemon", "--project-dir", projectDir, "--log-format", "json"],
+      [CLI_PATH, "daemon", "--scope-root", scopeRoot, "--log-format", "json"],
       {
         env: {
           ...process.env,
           HOME: homeDir,
-          KOTA_PROJECT_DIR: projectDir,
+          KOTA_SCOPE_ROOT: scopeRoot,
           KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH: "",
           NODE_OPTIONS: "",
         },
@@ -80,16 +79,16 @@ describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () 
       child!.once("exit", (code) => resolveExit(code ?? -1));
     });
     const firstAddress = await pollControlFile(stateDir, 25_000, exited);
-    expect((await fetchAuthorized(firstAddress.port, PROJECT_ROUTE, firstAddress.token)).status)
+    expect((await fetchAuthorized(firstAddress.port, SCOPE_ROUTE, firstAddress.token)).status)
       .toBe(200);
 
-    const scopeId = deriveDirectoryScopeId(projectDir);
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
     const operatorToken = JSON.parse(
       readFileSync(scopeAuthorityOperatorTokenPath(globalConfigPath), "utf8"),
     ).token as string;
     const revokeBody = JSON.stringify({
       expectedRevision: 0,
-      reason: "Revoke the live project's repo-controlled runtime authority.",
+      reason: "Revoke the live scope's repository-controlled runtime authority.",
       trust: false,
     });
     const operatorHeaders = await interactiveAuthorityHeaders(
@@ -129,7 +128,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () 
       25_000,
       exited,
     );
-    expect((await fetchAuthorized(secondAddress.port, PROJECT_ROUTE, secondAddress.token)).status)
+    expect((await fetchAuthorized(secondAddress.port, SCOPE_ROUTE, secondAddress.token)).status)
       .toBe(404);
     const authority = await fetchAuthorized(
       secondAddress.port,
@@ -149,7 +148,7 @@ describe.skipIf(!realLoopbackAvailable())("built CLI live trust revocation", () 
 
 async function fetchStatusOrClosed(port: number, token: string): Promise<number | "closed"> {
   try {
-    return (await fetchAuthorized(port, PROJECT_ROUTE, token)).status;
+    return (await fetchAuthorized(port, SCOPE_ROUTE, token)).status;
   } catch {
     return "closed";
   }
@@ -202,19 +201,19 @@ async function interactiveAuthorityHeaders(
   }
 }
 
-function writeProjectAuthorityRouteModule(stateDir: string): void {
-  const moduleDir = join(stateDir, "modules", "project-authority-fixture");
+function writeScopeAuthorityRouteModule(stateDir: string): void {
+  const moduleDir = join(stateDir, "modules", "scope-authority-fixture");
   mkdirSync(moduleDir, { recursive: true });
   writeFileSync(join(moduleDir, "index.mjs"), `export default {
-  name: "project-authority-fixture",
+  name: "scope-authority-fixture",
   version: "1.0.0",
-  description: "Live project trust revocation fixture",
+  description: "Live scope trust revocation fixture",
   routes: () => [{
     method: "GET",
-    path: "${PROJECT_ROUTE}",
+    path: "${SCOPE_ROUTE}",
     handler: (_req, res) => {
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ source: "trusted-project-module" }));
+      res.end(JSON.stringify({ source: "trusted-scope-module" }));
     }
   }]
 };\n`);

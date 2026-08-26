@@ -2,9 +2,9 @@ import { type FSWatcher, watch } from "node:fs";
 import { join } from "node:path";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type { DaemonClientHandlers } from "#root/client/kota-client.generated.js";
 import { DaemonControlClient } from "./daemon-client.js";
 import type { DaemonTransport } from "./daemon-transport.js";
-import type { DaemonClientHandlers } from "./kota-client.js";
 
 export type DaemonLinkOptions = {
   stateDir: string;

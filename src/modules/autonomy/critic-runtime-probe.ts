@@ -28,7 +28,7 @@ type ArtifactLocation = {
 export async function runProbeIfDeclared(
   taskContent: string,
   taskPath: string,
-  projectDir: string,
+  workspaceRoot: string,
   runDir: string,
   runCommand: WorkflowCommandRunner,
   artifactWorkspaceDir?: string,
@@ -37,7 +37,7 @@ export async function runProbeIfDeclared(
   if (!probe) return null;
 
   const provenance = await verifyTaskProbeProvenance({
-    projectDir,
+    workspaceRoot,
     taskPath,
     probe,
     runCommand,
@@ -45,7 +45,7 @@ export async function runProbeIfDeclared(
   if (provenance.status === "untrusted") {
     const result = rejectedTaskProbeResult(probe, provenance.reason);
     await writeRuntimeProbeArtifact(
-      artifactWorkspaceDir ?? projectDir,
+      artifactWorkspaceDir ?? workspaceRoot,
       runDir,
       result,
       runCommand,
@@ -54,11 +54,11 @@ export async function runProbeIfDeclared(
   }
 
   const result = {
-    ...(await runTaskProbe(probe, projectDir, runCommand)),
+    ...(await runTaskProbe(probe, workspaceRoot, runCommand)),
     provenance,
   };
   await writeRuntimeProbeArtifact(
-    artifactWorkspaceDir ?? projectDir,
+    artifactWorkspaceDir ?? workspaceRoot,
     runDir,
     result,
     runCommand,

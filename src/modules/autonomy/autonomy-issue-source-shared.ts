@@ -53,13 +53,12 @@ export function workflowFailureIssueKey(args: {
 
 export function emitHealth(
   ctx: Pick<ModuleRuntimeContext, "events">,
-  projectId: string,
+  scopeId: string,
   input: Parameters<typeof normalizeHealthSignal>[0],
 ): void {
   const signal = normalizeHealthSignal(input);
   ctx.events.emit(autonomyHealthSignal, {
-    scopeId: projectId,
-    projectId,
+    scopeId,
     ...signal,
   });
 }

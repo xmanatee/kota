@@ -23,8 +23,8 @@ import { agent } from "./workflow.js";
 import {
   commitProgressReviewFixture,
   compileProgressReviewerWorkflow,
-  makeProgressReviewProjectDir,
   makeProgressReviewRunContext,
+  makeProgressReviewScopeRoot,
   NOW,
   parseReviewInputFromAgentPrompt,
   registerProgressReviewHarness,
@@ -32,8 +32,8 @@ import {
   writeProgressReviewTask,
 } from "./workflow.test-helpers.js";
 
-function executeReview(projectDir: string, runId: string) {
-  const scopeId = deriveDirectoryScopeId(projectDir);
+function executeReview(workspaceRoot: string, runId: string) {
+  const scopeId = deriveDirectoryScopeId(workspaceRoot);
   const definition = compileProgressReviewerWorkflow();
   const reviewStep = definition.steps.find((step) => step.id === "review-evidence");
   if (reviewStep?.type !== "agent") {
@@ -45,13 +45,13 @@ function executeReview(projectDir: string, runId: string) {
     {
       event: progressReviewRequested.name,
       schemaRef: null,
-      payload: { scopeId, projectId: scopeId, windowMs: 3_600_000 },
+      payload: { scopeId, windowMs: 3_600_000 },
     },
     {
       readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeProgressReviewRunContext(projectDir, runId),
+      runContext: makeProgressReviewRunContext(workspaceRoot, runId),
       bus: new EventBus(),
-      store: new WorkflowRunStore(projectDir),
+      store: new WorkflowRunStore(workspaceRoot),
       log: vi.fn(),
       resolveAgentDef: (name) => name === agent.name ? agent : undefined,
     },
@@ -59,16 +59,16 @@ function executeReview(projectDir: string, runId: string) {
 }
 
 describe("progress-reviewer evidence integrity", () => {
-  let projectDir: string;
+  let workspaceRoot: string;
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
-    projectDir = makeProgressReviewProjectDir("progress-reviewer-forged-evidence");
-    writeProgressReviewTask(projectDir, "done", "task-citation-source");
+    workspaceRoot = makeProgressReviewScopeRoot("progress-reviewer-forged-evidence");
+    writeProgressReviewTask(workspaceRoot, "done", "task-citation-source");
     commitProgressReviewFixture(
-      projectDir,
+      workspaceRoot,
       "prepare evidence-integrity fixture",
       "2026-06-04T11:30:00.000Z",
     );
@@ -77,7 +77,7 @@ describe("progress-reviewer evidence integrity", () => {
   afterEach(() => {
     vi.useRealTimers();
     resetModuleEventRegistry();
-    rmSync(projectDir, { recursive: true, force: true });
+    rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
   it("binds runtime-authored evidence to its pre-agent digest", async () => {
@@ -96,7 +96,7 @@ describe("progress-reviewer evidence integrity", () => {
         forgedEvidenceId,
       );
       const evidencePath = join(
-        projectDir,
+        workspaceRoot,
         ".kota",
         "runs",
         runId,
@@ -124,7 +124,7 @@ describe("progress-reviewer evidence integrity", () => {
             priority: "p1",
             area: "security",
             evidenceIds: [forgedEvidenceId],
-            acceptanceEvidence: "The digest-bound review rejects this action.",
+            howWeWillKnow: "The digest-bound review rejects this action.",
           }],
         },
         ownerQuestions: [{
@@ -143,25 +143,25 @@ describe("progress-reviewer evidence integrity", () => {
       };
     });
 
-    const result = await executeReview(projectDir, runId);
+    const result = await executeReview(workspaceRoot, runId);
 
     expect(result.metadata.status).toBe("failed");
     expect(attempts).toBe(2);
     expect(receivedWriteScopes).toEqual(["deny-all", "deny-all"]);
     expect(receivedOutputDirs).toEqual([
-      join(projectDir, ".kota", "runtime", runId, "agent"),
-      join(projectDir, ".kota", "runtime", runId, "agent"),
+      join(workspaceRoot, ".kota", "runtime", runId, "agent"),
+      join(workspaceRoot, ".kota", "runtime", runId, "agent"),
     ]);
     expect(result.metadata.steps.find((step) => step.id === "apply-actions"))
       .toBeUndefined();
     expect(
-      readdirSync(join(projectDir, "data", "tasks", "ready")).filter(
+      readdirSync(join(workspaceRoot, "data", "tasks", "ready")).filter(
         (file) => file !== "AGENTS.md",
       ),
     ).toEqual([]);
-    expect(existsSync(join(projectDir, ".kota", "owner-questions"))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
     const diagnostic = readFileSync(
-      join(projectDir, ".kota", "runs", runId, "metadata.json"),
+      join(workspaceRoot, ".kota", "runs", runId, "metadata.json"),
       "utf-8",
     );
     expect(diagnostic).toContain("evidence artifact digest mismatch");

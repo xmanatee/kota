@@ -27,7 +27,7 @@ function parseWindowEndMs(raw: string): number | { error: string } {
   return value;
 }
 
-export function digestRoutes(opts: { projectDir: string }): RouteRegistration[] {
+export function digestRoutes(opts: { workspaceRoot: string }): RouteRegistration[] {
   return [
     {
       method: "GET",
@@ -46,8 +46,8 @@ export function digestRoutes(opts: { projectDir: string }): RouteRegistration[] 
         }
         try {
           const result = renderOnDemandDigest({
-            projectDir: opts.projectDir,
-            stateDir: join(opts.projectDir, ".kota"),
+            scopeRoot: opts.workspaceRoot,
+            stateDir: join(opts.workspaceRoot, ".kota"),
             windowEndMs,
           });
           jsonResponse(res, 200, { data: result.data, text: result.text });

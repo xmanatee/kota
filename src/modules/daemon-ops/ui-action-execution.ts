@@ -1,8 +1,8 @@
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type { KotaClient } from "#core/server/kota-client.js";
 import { buildOperatorTriggerRequestBody } from "#core/workflow/operator-trigger.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import type { UiActionExecuteInput } from "./client.js";
 import type {
   UiAction,
@@ -24,18 +24,18 @@ function routeForUiNamespaceOperation(
   operation: Parameters<UiClientNamespaceExecutor>[0],
   parameters: UiJsonValue | undefined,
 ): { method: string; path: string; body?: UiJsonValue; message: string } | null {
-  if (operation.namespace === "projects" && operation.method === "list") {
-    return { method: "GET", path: "/projects", message: "Scope registry loaded." };
+  if (operation.namespace === "scopes" && operation.method === "list") {
+    return { method: "GET", path: "/scopes", message: "Scope registry loaded." };
   }
-  if (operation.namespace === "projects" && operation.method === "use") {
-    const projectId = booleanUiParameter(parameters, "clear")
+  if (operation.namespace === "scopes" && operation.method === "use") {
+    const scopeId = booleanUiParameter(parameters, "clear")
       ? null
-      : stringUiParameter(parameters, "projectId") ?? null;
+      : stringUiParameter(parameters, "scopeId") ?? null;
     return {
       method: "PATCH",
-      path: "/projects/active",
-      body: { projectId },
-      message: projectId === null ? "Active scope cleared." : `Active scope set to ${projectId}.`,
+      path: "/scopes/active",
+      body: { scopeId },
+      message: scopeId === null ? "Active scope cleared." : `Active scope set to ${scopeId}.`,
     };
   }
   const staticRoutes: Record<string, { method: string; path: string; message: string }> = {

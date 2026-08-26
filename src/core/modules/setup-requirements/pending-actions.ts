@@ -5,7 +5,7 @@ import { projectModuleSetupPendingActionForClient } from "./status-utils.js";
 import type { ModuleSetupActionFile, ModuleSetupPendingAction } from "./types.js";
 
 export class ModuleSetupActionStore {
-  constructor(private readonly projectDir: string) {}
+  constructor(private readonly scopeRoot: string) {}
 
   read(): ModuleSetupActionFile {
     const path = this.path();
@@ -45,6 +45,6 @@ export class ModuleSetupActionStore {
   }
 
   private path(): string {
-    return join(this.projectDir, ".kota", "setup-actions.json");
+    return join(this.scopeRoot, ".kota", "setup-actions.json");
   }
 }

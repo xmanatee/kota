@@ -210,19 +210,6 @@ describeIfSqlite("SQLiteMemoryProvider", () => {
 		expect(all.find((m) => m.id === id)?.content).toBe("line1\nline2\nline3");
 	});
 
-	// --- MemoryProvider interface conformance ---
-
-	it("conforms to MemoryProvider interface", () => {
-		expect(typeof provider.save).toBe("function");
-		expect(typeof provider.search).toBe("function");
-		expect(typeof provider.list).toBe("function");
-		expect(typeof provider.update).toBe("function");
-		expect(typeof provider.delete).toBe("function");
-		expect(typeof provider.supportsSemanticSearch).toBe("function");
-		expect(typeof provider.semanticSearch).toBe("function");
-		expect(typeof provider.reindex).toBe("function");
-	});
-
 	// --- persistence ---
 
 	it("persists across provider instances", () => {

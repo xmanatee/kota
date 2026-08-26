@@ -8,8 +8,9 @@ Builder is a business workflow, not a private execution runtime.
   `task:<taskId>`. Shared runtime owns task-resource exclusivity, sandbox,
   process, ports, commit, integration, recovery, and cleanup.
 - Builder validates that the targeted contract still matches its isolated
-  workspace, checks harness readiness, then runs one build agent with the
-  normal critic and repair checks.
+  workspace, checks harness readiness, then runs one build agent. Universal
+  repair checks protect target-task authority and independent critic review;
+  the agent selects behavior-specific proof.
 - Its integration policy rechecks the admitted source task against the exact
   canonical snapshot used for the final rebase. Contract drift preserves the
   writer for attention instead of publishing stale work.

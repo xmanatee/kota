@@ -23,7 +23,7 @@ import {
 	createMockClient,
 	type MockApiCall,
 } from "#core/model/mock-client.js";
-import { getProviderRegistry, TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
+import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 
 vi.spyOn(console, "error").mockImplementation(() => {});
@@ -43,7 +43,7 @@ vi.mock("#core/agent-harness/machine-authority-sandbox.js", () => ({
 	}),
 }));
 
-// Tests write files to /tmp which is outside the project directory.
+// Tests write files to /tmp which is outside the scope directory.
 // Skip confirmations so the confirm gate doesn't auto-reject those writes.
 beforeEach(() => setSkipConfirmations(true));
 afterEach(() => setSkipConfirmations(false));
@@ -63,9 +63,19 @@ export function createTestSession(
 		reflectionEnabled: false,
 		verbose: opts?.verbose ?? false,
 	});
-	const registry = getProviderRegistry();
-	if (!registry) throw new Error("provider registry was not initialized");
-	registry.register(TASK_PROVIDER_TOKEN, "composition-test", new TaskStore(process.cwd(), null));
+	const registry = session.moduleLoader.getProviderRegistry();
+	const taskStore = new TaskStore(process.cwd(), null);
+	registry.register(TASK_PROVIDER_TOKEN, "composition-test", {
+		provider: taskStore,
+		mutations: {
+			add: async (task, options) => taskStore.add(task, options),
+			update: async (id, changes) => taskStore.update(id, changes),
+		},
+		maintenance: {
+			clear: async () => taskStore.clear(),
+			archiveCompleted: async () => taskStore.archiveCompleted(),
+		},
+	});
 	registry.setActive(TASK_PROVIDER_TOKEN, "composition-test");
 	return { session, transport, calls };
 }

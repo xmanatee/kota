@@ -30,6 +30,7 @@ export type HistorySemanticOptions = {
 };
 
 export interface HistoryProvider {
+	readonly semanticSearchCapability?: HistorySemanticSearchCapability;
 	create(model: string, cwd: string, source?: "user" | "action"): string;
 	save(
 		id: string,
@@ -48,7 +49,10 @@ export interface HistoryProvider {
 	findByPrefix(idOrPrefix: string): ConversationRecord | null;
 	remove(id: string): boolean;
 	cleanup(): number;
-	supportsSemanticSearch(): boolean;
+}
+
+/** Optional embedding-backed operations declared by capable history providers. */
+export interface HistorySemanticSearchCapability {
 	/**
 	 * Rank conversations by semantic similarity to a natural-language query.
 	 * Only embedding-backed providers should return results here.
@@ -59,8 +63,7 @@ export interface HistoryProvider {
 		options?: HistorySemanticOptions,
 	): Promise<ConversationRecord[]>;
 	/**
-	 * Rebuild the semantic index over all conversations. Providers without
-	 * embedding support return `{ indexed: 0, failed: 0, skipped: true }`.
+	 * Rebuild the semantic index over all conversations.
 	 */
 	reindex(): Promise<ReindexResult>;
 }

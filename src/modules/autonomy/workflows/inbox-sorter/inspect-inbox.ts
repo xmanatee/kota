@@ -11,13 +11,13 @@ export type InboxSorterAssessment = {
 };
 
 type InboxSorterInspectionInput = {
-  projectDir: string;
+  workspaceRoot: string;
 };
 
 export function inspectInboxSorterState(
   input: InboxSorterInspectionInput,
 ): InboxSorterAssessment {
-  const status = getRepoWorktreeStatus(input.projectDir);
+  const status = getRepoWorktreeStatus(input.workspaceRoot);
   const nonInboxChanges = status.entries.filter(
     (entry) => !entry.includes(REPO_INBOX_DIR),
   );
@@ -26,7 +26,7 @@ export function inspectInboxSorterState(
       `Repository has changes outside inbox: ${nonInboxChanges.join(", ")}`,
     );
   }
-  const queue = getRepoTaskQueueSnapshot(input.projectDir);
+  const queue = getRepoTaskQueueSnapshot(input.workspaceRoot);
   return {
     inboxCount: queue.inboxCount,
     needsAttention: queue.inboxCount > 0,

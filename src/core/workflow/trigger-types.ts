@@ -86,7 +86,6 @@ export type WorkflowBatchBufferState = {
   sourceEventName: string;
   runtimeTrigger?: WorkflowTrigger;
   scopeId: string;
-  projectId: string;
   groupingKey: string;
   groupValues: readonly WorkflowBatchGroupValue[];
   firstEventAt: string;
@@ -99,7 +98,6 @@ export type WorkflowBatchBuffers = Record<string, WorkflowBatchBufferState>;
 
 export type WorkflowBatchFlushPayload = {
   scopeId: string;
-  projectId: string;
   sourceEventName: string;
   groupingKey: string;
   reason: WorkflowBatchFlushReason;

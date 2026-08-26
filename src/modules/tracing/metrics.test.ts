@@ -133,7 +133,7 @@ describe("WorkflowMetricsEmitter", () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
 
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-3",
       stepId: "build",
@@ -179,7 +179,7 @@ describe("WorkflowMetricsEmitter", () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
 
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-unavailable",
       stepId: "build",
@@ -214,7 +214,7 @@ describe("WorkflowMetricsEmitter", () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
 
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-unknown",
       stepId: "build",
@@ -265,7 +265,7 @@ describe("WorkflowMetricsEmitter", () => {
 
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-4",
       stepId: "build",
@@ -301,7 +301,7 @@ describe("WorkflowMetricsEmitter", () => {
   it("ignores repair-loop enrichment when the step output file is missing", async () => {
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-5",
       stepId: "missing",
@@ -335,7 +335,7 @@ describe("WorkflowMetricsEmitter", () => {
 
     const emitter = new WorkflowMetricsEmitter(provider.getMeter(METER_NAME), projectDir);
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-scalar-repairs",
       stepId: "build",
@@ -366,7 +366,7 @@ describe("WorkflowMetricsEmitter", () => {
       },
     );
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-broken",
       stepId: "build",
@@ -396,7 +396,7 @@ describe("WorkflowMetricsEmitter", () => {
       autonomyMode: "autonomous",
     });
     emitter.onStepCompleted({
-      projectId: PROJECT_ID,
+      scopeId: PROJECT_ID,
       workflow: "builder",
       runId: "run-auto",
       stepId: "build",

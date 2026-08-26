@@ -97,14 +97,14 @@ function mcpServerScript(toolDescription: string, toolResult: string): string {
 }
 
 function writeMcpConfig(
-	projectDir: string,
+	scopeRoot: string,
 	toolDescription: string,
 	toolResult = "remote executed",
 	serverOverrides: Record<string, unknown> = {},
 ): void {
-	mkdirSync(join(projectDir, ".kota"), { recursive: true });
+	mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
 	writeFileSync(
-		join(projectDir, ".kota", "mcp.json"),
+		join(scopeRoot, ".kota", "mcp.json"),
 		JSON.stringify({
 			mcpServers: {
 				remote: {
@@ -124,10 +124,10 @@ type McpPromptSnapshot = {
 	serverTransportIdentityFingerprint: string;
 };
 
-async function currentMcpPromptSnapshot(projectDir: string): Promise<McpPromptSnapshot> {
-	const config = McpManager.loadConfig(projectDir);
+async function currentMcpPromptSnapshot(scopeRoot: string): Promise<McpPromptSnapshot> {
+	const config = McpManager.loadConfig(scopeRoot);
 	if (!config) throw new Error("expected MCP test config");
-	const manager = new McpManager({ projectDir });
+	const manager = new McpManager({ scopeRoot });
 	try {
 		await manager.initialize(config);
 		const declarationFingerprint = manager.getToolDeclarationFingerprint("mcp__remote__lookup");
@@ -184,12 +184,12 @@ describe("approval route MCP execution", () => {
 	);
 
 	it("rejects an MCP approval when redacted transport metadata cannot safely pin env values", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-ambiguous-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-approval-mcp-ambiguous-"));
 		try {
-			writeMcpConfig(projectDir, "Env lookup declaration", "remote executed", {
+			writeMcpConfig(scopeRoot, "Env lookup declaration", "remote executed", {
 				env: { KOTA_MCP_TOKEN: "one" },
 			});
-			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
+			const promptSnapshot = await currentMcpPromptSnapshot(scopeRoot);
 			const item = queue.enqueue(
 				"mcp__remote__lookup",
 				{ query: "deploy" },
@@ -210,7 +210,7 @@ describe("approval route MCP execution", () => {
 			);
 			const { res, result } = mockResponse();
 
-			await withCwd(projectDir, () =>
+			await withCwd(scopeRoot, () =>
 				handleApproveApproval(approvalRequest(queue, item.id), res, item.id, null, queue)
 			);
 
@@ -229,15 +229,15 @@ describe("approval route MCP execution", () => {
 			expect(queue.get(item.id)?.status).toBe("pending");
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 		}
 	});
 
 	it("executes a fresh MCP approval through the MCP manager", async () => {
-		const projectDir = mkdtempSync(join(tmpdir(), "kota-approval-mcp-fresh-"));
+		const scopeRoot = mkdtempSync(join(tmpdir(), "kota-approval-mcp-fresh-"));
 		try {
-			writeMcpConfig(projectDir, "Fresh lookup declaration", "remote executed");
-			const promptSnapshot = await currentMcpPromptSnapshot(projectDir);
+			writeMcpConfig(scopeRoot, "Fresh lookup declaration", "remote executed");
+			const promptSnapshot = await currentMcpPromptSnapshot(scopeRoot);
 			const item = queue.enqueue(
 				"mcp__remote__lookup",
 				{ query: "deploy" },
@@ -258,7 +258,7 @@ describe("approval route MCP execution", () => {
 			);
 			const { res, result } = mockResponse();
 
-			await withCwd(projectDir, () =>
+			await withCwd(scopeRoot, () =>
 				handleApproveApproval(approvalRequest(queue, item.id), res, item.id, null, queue)
 			);
 
@@ -273,6 +273,6 @@ describe("approval route MCP execution", () => {
 			expect(queue.get(item.id)?.status).toBe("approved");
 			expect(vi.mocked(executeTool)).not.toHaveBeenCalled();
 		} finally {
-			rmSync(projectDir, { recursive: true, force: true });
+			rmSync(scopeRoot, { recursive: true, force: true });
 		}
 	});});

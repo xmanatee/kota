@@ -8,8 +8,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
-import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
+import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
@@ -22,10 +22,7 @@ import {
   type ScopedHealthSignal,
   writeRun,
 } from "./autonomy-issue-multi-scope.test-helpers.js";
-import {
-  AUTONOMY_ISSUE_PROJECTION_FILE,
-  readAutonomyIssueProjection,
-} from "./autonomy-issue-projection.js";
+import { AUTONOMY_ISSUE_PROJECTION_FILE } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import {
   autonomyHealthSignal,
@@ -36,8 +33,8 @@ describe("multi-scope autonomy issue source routing", () => {
   let projectA: string;
   let projectB: string;
   let bus: EventBus;
-  let runtimeA: ProjectRuntime;
-  let runtimeB: ProjectRuntime;
+  let runtimeA: ScopeRuntime;
+  let runtimeB: ScopeRuntime;
   let signals: ScopedHealthSignal[];
 
   beforeEach(() => {
@@ -51,15 +48,15 @@ describe("multi-scope autonomy issue source routing", () => {
     runtimeB = makeRuntime(projectB, "scope-b", bus);
     const registry = new ProviderRegistry();
     const runtimes = new Map([
-      [runtimeA.project.projectId, runtimeA],
-      [runtimeB.project.projectId, runtimeB],
+      [runtimeA.scope.scopeId, runtimeA],
+      [runtimeB.scope.scopeId, runtimeB],
     ]);
     registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "test", {
       resolve: (scopeId) => {
         const runtime = runtimes.get(scopeId);
         return runtime
           ? { ok: true, runtime }
-          : { ok: false, projectId: scopeId };
+          : { ok: false, scopeId: scopeId };
       },
     });
     signals = [];
@@ -119,17 +116,17 @@ describe("multi-scope autonomy issue source routing", () => {
 
     expect(signals.filter((signal) => signal.scopeId === "scope-a")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "critic" }) }),
-        expect.objectContaining({ projectId: "scope-a", labels: expect.arrayContaining(["trajectory"]) }),
-        expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "progress-reviewer" }) }),
+        expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "critic" }) }),
+        expect.objectContaining({ scopeId: "scope-a", labels: expect.arrayContaining(["trajectory"]) }),
+        expect.objectContaining({ scopeId: "scope-a", source: expect.objectContaining({ id: "progress-reviewer" }) }),
       ]),
     );
     expect(signals.filter((signal) => signal.scopeId === "scope-b")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ projectId: "scope-b", source: expect.objectContaining({ id: "builder" }) }),
-        expect.objectContaining({ projectId: "scope-b", source: expect.objectContaining({ id: "critic" }) }),
-        expect.objectContaining({ projectId: "scope-b", source: expect.objectContaining({ kind: "owner-question" }) }),
-        expect.objectContaining({ projectId: "scope-b", labels: expect.arrayContaining(["interrupted-run"]) }),
+        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ id: "builder" }) }),
+        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ id: "critic" }) }),
+        expect.objectContaining({ scopeId: "scope-b", source: expect.objectContaining({ kind: "owner-question" }) }),
+        expect.objectContaining({ scopeId: "scope-b", labels: expect.arrayContaining(["interrupted-run"]) }),
       ]),
     );
 
@@ -143,19 +140,17 @@ describe("multi-scope autonomy issue source routing", () => {
     applyScopeSignals(projectA, scopeASignals);
     applyScopeSignals(projectB, scopeBSignals);
 
-    const projectionA = readAutonomyIssueProjection(projectA);
-    const projectionB = readAutonomyIssueProjection(projectB);
-    expect(projectionA.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-a"
+    expect(scopeASignals.some((signal) =>
+      signal.dedupeKey === "review-scrutiny:critic:builder:task-a"
     )).toBe(true);
-    expect(projectionA.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-b"
+    expect(scopeASignals.some((signal) =>
+      signal.dedupeKey === "review-scrutiny:critic:builder:task-b"
     )).toBe(false);
-    expect(projectionB.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-b"
+    expect(scopeBSignals.some((signal) =>
+      signal.dedupeKey === "review-scrutiny:critic:builder:task-b"
     )).toBe(true);
-    expect(projectionB.issues.some((issue) =>
-      issue.rootCauseKey === "review-scrutiny:critic:builder:task-a"
+    expect(scopeBSignals.some((signal) =>
+      signal.dedupeKey === "review-scrutiny:critic:builder:task-a"
     )).toBe(false);
     const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
     const projectBBeforeForeignEvent = readFileSync(projectionBPath, "utf-8");
@@ -165,11 +160,11 @@ describe("multi-scope autonomy issue source routing", () => {
     expect(readFileSync(projectionBPath, "utf-8")).toBe(projectBBeforeForeignEvent);
   });
 
-  it("rejects unknown and conflicting selectors without touching either project", () => {
+  it("rejects an unknown scope without touching either scope", () => {
     const projectionAPath = join(projectA, AUTONOMY_ISSUE_PROJECTION_FILE);
     const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
     expect(() => bus.emit("workflow.step.completed", {
-      projectId: "unknown-scope",
+      scopeId: "unknown-scope",
       workflow: "builder",
       runId: "unknown-run",
       stepId: "critic",
@@ -179,18 +174,6 @@ describe("multi-scope autonomy issue source routing", () => {
       runDir: ".kota/runs/unknown-run",
       definitionPath: "fixture",
     })).toThrow(/unknown scope unknown-scope/);
-    expect(() => bus.emit("workflow.step.completed", {
-      scopeId: "scope-a",
-      projectId: "scope-b",
-      workflow: "builder",
-      runId: "conflicting-run",
-      stepId: "critic",
-      stepType: "code",
-      status: "success",
-      durationMs: 1,
-      runDir: ".kota/runs/conflicting-run",
-      definitionPath: "fixture",
-    })).toThrow(/conflicting scope selectors/);
     expect(() => readFileSync(projectionAPath, "utf-8")).toThrow();
     expect(() => readFileSync(projectionBPath, "utf-8")).toThrow();
     expect(signals).toEqual([]);

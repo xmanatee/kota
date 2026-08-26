@@ -5,7 +5,7 @@ import { extname, join } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import { resolvePathFrom } from "#core/tools/project-path-policy.js";
+import { resolvePathFrom } from "#core/tools/path-containment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr } from "#modules/rendering/transport.js";

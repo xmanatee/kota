@@ -131,14 +131,14 @@ export const verifyDecomposerTaskContractAfterReconcile: WorkflowPostReconcileIn
         reason: `Decomposer source metadata for ${source.runId} is missing`,
       };
     }
-    const ownership = resolveDecompositionOwnership(input.scopeDir, metadata);
+    const ownership = resolveDecompositionOwnership(input.repoRoot, metadata);
     return ownership.kind === "owned-task"
       ? { satisfied: true }
       : { satisfied: false, reason: ownership.reason };
   };
 
 function buildAssessment(
-  projectDir: string,
+  workspaceRoot: string,
   stateDir: string,
   triggerEvent: string,
   triggerPayload: WorkflowRunTrigger["payload"],
@@ -166,7 +166,7 @@ function buildAssessment(
     };
   }
 
-  const ownership = resolveDecompositionOwnership(projectDir, metadata);
+  const ownership = resolveDecompositionOwnership(workspaceRoot, metadata);
   if (ownership.kind !== "owned-task") {
     return {
       shouldDecompose: false,
@@ -192,7 +192,7 @@ function buildAssessment(
 }
 
 export function assertDecompositionOwnership(
-  projectDir: string,
+  workspaceRoot: string,
   stateDir: string,
   assessment: DecomposerAssessment,
 ): void {
@@ -219,7 +219,7 @@ export function assertDecompositionOwnership(
     runId,
     runDir: canonicalRunDir,
   });
-  const ownership = resolveDecompositionOwnership(projectDir, metadata);
+  const ownership = resolveDecompositionOwnership(workspaceRoot, metadata);
   if (
     ownership.kind !== "owned-task" ||
     ownership.task.id !== assessment.taskId ||
@@ -233,7 +233,7 @@ export function assertDecompositionOwnership(
 }
 
 type DecomposerAssessmentInput = {
-  projectDir: string;
+  workspaceRoot: string;
   stateDir: string;
   triggerEvent: string;
   triggerPayload: WorkflowRunTrigger["payload"];
@@ -243,7 +243,7 @@ export function assessDecomposerFailureInWorker(
   input: DecomposerAssessmentInput,
 ): DecomposerAssessment {
   return buildAssessment(
-    input.projectDir,
+    input.workspaceRoot,
     input.stateDir,
     input.triggerEvent,
     input.triggerPayload,
@@ -268,9 +268,9 @@ export const assessFailure = typedCodeStep<DecomposerAssessment>({
       "failureKind",
       "shouldDecompose",
     ]),
-  run: ({ projectDir, stateDir, trigger, runBlocking }) =>
+  run: ({ workspaceRoot, stateDir, trigger, runBlocking }) =>
     runBlocking(assessDecomposerFailureOperation, {
-      projectDir,
+      workspaceRoot,
       stateDir,
       triggerEvent: trigger.event,
       triggerPayload: trigger.payload,

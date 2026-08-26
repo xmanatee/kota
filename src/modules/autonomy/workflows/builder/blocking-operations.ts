@@ -2,31 +2,12 @@ import {
   defineWorkflowBlockingOperation,
   type WorkflowBlockingOperationRunner,
 } from "#core/workflow/blocking-operation.js";
-import { checkDocBloat } from "#modules/autonomy/doc-bloat-check.js";
-import { checkRepoHygiene } from "#modules/autonomy/hygiene-check.js";
-import { checkModuleBoundary } from "./project-repair-checks.js";
-import {
-  checkTargetTaskResolved,
-} from "./task-state-repair-checks.js";
+import { checkTargetTaskResolved } from "./task-state-repair-checks.js";
 
-export type BuilderRepairCheckOperationInput =
-  | {
-      kind: "target-task-resolved";
-      projectDir: string;
-      taskId: string;
-    }
-  | {
-      kind: "doc-bloat";
-      projectDir: string;
-    }
-  | {
-      kind: "module-boundary";
-      projectDir: string;
-    }
-  | {
-      kind: "repo-hygiene";
-      projectDir: string;
-    };
+export type BuilderRepairCheckOperationInput = {
+  workspaceRoot: string;
+  taskId: string;
+};
 
 export type BuilderRepairCheckOperationResult =
   | { status: "passed"; output: string }
@@ -46,19 +27,9 @@ function captureRepairCheck(check: () => string): BuilderRepairCheckOperationRes
 export function runBuilderRepairCheckInWorker(
   input: BuilderRepairCheckOperationInput,
 ): BuilderRepairCheckOperationResult {
-  if (input.kind === "target-task-resolved") {
-    return captureRepairCheck(() => checkTargetTaskResolved(input.projectDir, input.taskId));
-  }
-  if (input.kind === "doc-bloat") {
-    return captureRepairCheck(() => checkDocBloat(input.projectDir));
-  }
-  if (input.kind === "module-boundary") {
-    return captureRepairCheck(() => checkModuleBoundary(input.projectDir));
-  }
-  if (input.kind === "repo-hygiene") {
-    return captureRepairCheck(() => checkRepoHygiene(input.projectDir));
-  }
-  throw new Error(`Unsupported builder repair check input: ${input satisfies never}`);
+  return captureRepairCheck(() =>
+    checkTargetTaskResolved(input.workspaceRoot, input.taskId)
+  );
 }
 
 export const builderRepairCheckOperation = defineWorkflowBlockingOperation<

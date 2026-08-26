@@ -23,9 +23,9 @@ export type SecretListResult = {
 };
 
 /** Storage scope for a writable secret. Mirrors `SecretScope` in core/config/secrets. */
-export type SecretScope = "project" | "global";
+export type SecretScope = "scope" | "global";
 
-export type SecretProjectSelection = ScopeSelector;
+export type SecretScopeSelection = ScopeSelector;
 
 /** Result of `secrets.get(name)`. The contract is explicit about absence. */
 export type SecretGetResult = { found: true; value: string } | { found: false };
@@ -36,7 +36,7 @@ export type SecretMutateResult =
   | { ok: false; reason: "not_found" | "store_error"; message?: string };
 
 export function secretMutationFailure(error: Error): SecretMutateResult {
-  if (/^Unknown (project|scope)(?::|$)/.test(error.message)) throw error;
+  if (/^Unknown (scope|scope)(?::|$)/.test(error.message)) throw error;
   return { ok: false, reason: "store_error", message: error.message };
 }
 
@@ -50,17 +50,17 @@ export function secretMutationFailure(error: Error): SecretMutateResult {
  * of scope.
  */
 export interface SecretsClient {
-  list(project?: SecretProjectSelection): Promise<SecretListResult>;
-  get(name: string, project?: SecretProjectSelection): Promise<SecretGetResult>;
+  list(scope?: SecretScopeSelection): Promise<SecretListResult>;
+  get(name: string, scope?: SecretScopeSelection): Promise<SecretGetResult>;
   set(
     name: string,
     value: string,
     scope: SecretScope,
-    project?: SecretProjectSelection,
+    selector?: SecretScopeSelection,
   ): Promise<SecretMutateResult>;
   remove(
     name: string,
     scope: SecretScope,
-    project?: SecretProjectSelection,
+    selector?: SecretScopeSelection,
   ): Promise<SecretMutateResult>;
 }

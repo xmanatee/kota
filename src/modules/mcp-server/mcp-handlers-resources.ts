@@ -12,7 +12,7 @@ import { getEventBus } from "#core/events/event-bus.js";
 import { getPromptTemplatesDir } from "#modules/prompt-templates/prompt-template.js";
 import {
 	type McpMrtrStateCodec,
-	resolveProjectDirFromRootsInput,
+	resolveScopeRootFromRootsInput,
 } from "./mcp-mrtr.js";
 import type {
 	HandlerContext,
@@ -77,8 +77,8 @@ function currentResourceCatalogSignature(skillCatalog: McpSkillCatalogContext | 
 	}
 }
 
-function currentPromptCatalogSignature(projectDir: string): string {
-	return getPromptCatalogSignature(projectDir);
+function currentPromptCatalogSignature(scopeRoot: string): string {
+	return getPromptCatalogSignature(scopeRoot);
 }
 
 function sameStringArray(left: string[], right: string[]): boolean {
@@ -94,21 +94,21 @@ export class ResourcesHandler {
 	private promptCatalogSignature: string | null = null;
 	private promptWatchers: FSWatcher[] = [];
 	private promptWatchedPaths: string[] = [];
-	private promptWatcherProjectDir: string | null = null;
+	private promptWatcherWorkspaceRoot: string | null = null;
 	private promptListChangedTimer: ReturnType<typeof setTimeout> | null = null;
 	private promptListChangedPollTimer: ReturnType<typeof setInterval> | null = null;
 
 	constructor(
 		private readonly ctx: HandlerContext,
 		private readonly eventBusOverride: EventBus | null | undefined,
-		private readonly resolveProjectDir: () => string,
+		private readonly resolveScopeRoot: () => string,
 		private readonly mrtr: McpMrtrStateCodec,
 		private readonly moduleSummaries: McpSkillModuleSummaryProvider | null,
 	) {}
 
-	private skillCatalog(projectDir: string = this.resolveProjectDir()): McpSkillCatalogContext | undefined {
+	private skillCatalog(scopeRoot: string = this.resolveScopeRoot()): McpSkillCatalogContext | undefined {
 		if (this.moduleSummaries === null) return undefined;
-		return { projectDir, moduleSummaries: this.moduleSummaries };
+		return { scopeRoot, moduleSummaries: this.moduleSummaries };
 	}
 
 	registerBusListeners(): void {
@@ -192,10 +192,10 @@ export class ResourcesHandler {
 			this.ctx.transport.sendError(msg, -32602, "Missing required parameter: uri");
 			return;
 		}
-		const projectDir = this.resolveProjectDirForRead(msg);
-		if (!projectDir) return;
-		const skillCatalog = this.skillCatalog(projectDir);
-		const result = readKotaResource(uri, projectDir, {
+		const scopeRoot = this.resolveScopeRootForRead(msg);
+		if (!scopeRoot) return;
+		const skillCatalog = this.skillCatalog(scopeRoot);
+		const result = readKotaResource(uri, scopeRoot, {
 			includeMcpApps: activeClientSupportsMcpUi(this.ctx),
 			...(skillCatalog !== undefined && { skillCatalog }),
 		});
@@ -340,7 +340,7 @@ export class ResourcesHandler {
 			});
 		}
 		if (promptsListChanged) {
-			this.promptCatalogSignature = currentPromptCatalogSignature(this.resolveProjectDir());
+			this.promptCatalogSignature = currentPromptCatalogSignature(this.resolveScopeRoot());
 			this.startPromptCatalogMonitoring();
 		}
 
@@ -380,14 +380,14 @@ export class ResourcesHandler {
 		}
 	}
 
-	private resolveProjectDirForRead(msg: JsonRpcRequest): string | null {
-		const resolved = resolveProjectDirFromRootsInput({
+	private resolveScopeRootForRead(msg: JsonRpcRequest): string | null {
+		const resolved = resolveScopeRootFromRootsInput({
 			ctx: this.ctx,
 			mrtr: this.mrtr,
 			msg,
-			fallbackProjectDir: this.resolveProjectDir(),
+			fallbackScopeRoot: this.resolveScopeRoot(),
 		});
-		if (resolved.kind === "ready") return resolved.projectDir;
+		if (resolved.kind === "ready") return resolved.scopeRoot;
 		if (resolved.kind === "input_required") {
 			this.ctx.transport.sendResult(msg, resolved.result);
 			return null;
@@ -415,26 +415,26 @@ export class ResourcesHandler {
 		return false;
 	}
 
-	private promptWatchPaths(projectDir: string): string[] {
-		const promptsDir = getPromptTemplatesDir(projectDir);
+	private promptWatchPaths(scopeRoot: string): string[] {
+		const promptsDir = getPromptTemplatesDir(scopeRoot);
 		const kotaDir = dirname(promptsDir);
 		if (existsSync(promptsDir)) return [promptsDir];
 		if (existsSync(kotaDir)) return [kotaDir];
-		return [projectDir].filter((path) => existsSync(path));
+		return [scopeRoot].filter((path) => existsSync(path));
 	}
 
 	private ensurePromptWatchers(): void {
 		if (!this.hasPromptListSubscriptions()) return;
-		const projectDir = this.resolveProjectDir();
-		const paths = this.promptWatchPaths(projectDir);
+		const scopeRoot = this.resolveScopeRoot();
+		const paths = this.promptWatchPaths(scopeRoot);
 		if (
-			this.promptWatcherProjectDir === projectDir &&
+			this.promptWatcherWorkspaceRoot === scopeRoot &&
 			sameStringArray(paths, this.promptWatchedPaths)
 		) {
 			return;
 		}
 		this.closePromptWatchers();
-		this.promptWatcherProjectDir = projectDir;
+		this.promptWatcherWorkspaceRoot = scopeRoot;
 		this.promptWatchedPaths = paths;
 		for (const path of paths) {
 			try {
@@ -460,7 +460,7 @@ export class ResourcesHandler {
 		for (const watcher of this.promptWatchers) watcher.close();
 		this.promptWatchers = [];
 		this.promptWatchedPaths = [];
-		this.promptWatcherProjectDir = null;
+		this.promptWatcherWorkspaceRoot = null;
 	}
 
 	private stopPromptWatchersIfUnused(): void {
@@ -493,7 +493,7 @@ export class ResourcesHandler {
 	private notifyPromptListChangedIfNeeded(): void {
 		if (!this.hasPromptListSubscriptions()) return;
 		this.ensurePromptWatchers();
-		const nextSignature = currentPromptCatalogSignature(this.resolveProjectDir());
+		const nextSignature = currentPromptCatalogSignature(this.resolveScopeRoot());
 		if (nextSignature === this.promptCatalogSignature) return;
 		this.promptCatalogSignature = nextSignature;
 		for (const [subscriptionId, subscription] of this.draftSubscriptions) {

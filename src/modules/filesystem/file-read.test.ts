@@ -55,43 +55,43 @@ describe("file_read: text files", () => {
   it("denies the daemon control credential file", async () => {
     const result = await runFileRead({ path: ".kota/daemon-control.json" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("protected project runtime credential");
+    expect(result.content).toContain("protected scope runtime credential");
   });
 
-  it("denies project file-backed secrets and env files", async () => {
+  it("denies scope file-backed secrets and env files", async () => {
     for (const path of [".kota/secrets.json", ".env", ".env.local"]) {
       const result = await runFileRead({ path });
       expect(result.is_error).toBe(true);
-      expect(result.content).toContain("protected project runtime credential");
+      expect(result.content).toContain("protected scope runtime credential");
     }
   });
 
   it("denies cased aliases of the daemon control credential file", async () => {
     const result = await runFileRead({ path: ".KOTA/daemon-control.json" });
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("protected project runtime credential");
+    expect(result.content).toContain("protected scope runtime credential");
   });
 
   it("denies an environment-selected operator token with an arbitrary filename and alias", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-file-read-authority-token-"));
     const operatorDir = join(root, "operator");
-    const projectDir = join(root, "project");
+    const scopeRoot = join(root, "project");
     const tokenPath = join(operatorDir, "machine-proof.dat");
-    const aliasPath = join(projectDir, "notes.json");
+    const aliasPath = join(scopeRoot, "notes.json");
     const priorTokenPath = process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH;
     try {
       mkdirSync(operatorDir, { recursive: true });
-      mkdirSync(projectDir, { recursive: true });
+      mkdirSync(scopeRoot, { recursive: true });
       writeFileSync(tokenPath, JSON.stringify({ schema: 1, token: "a".repeat(64) }));
       process.env.KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH = tokenPath;
       const context = {
-        cwd: projectDir,
+        cwd: scopeRoot,
         authorityConfigPath: join(operatorDir, "config.json"),
       };
 
       const directResult = await runFileRead({ path: tokenPath }, context);
       expect(directResult.is_error).toBe(true);
-      expect(directResult.content).toContain("protected project runtime credential");
+      expect(directResult.content).toContain("protected scope runtime credential");
       expect(directResult.content).not.toContain("a".repeat(64));
 
       try {
@@ -103,7 +103,7 @@ describe("file_read: text files", () => {
       }
       const aliasResult = await runFileRead({ path: aliasPath }, context);
       expect(aliasResult.is_error).toBe(true);
-      expect(aliasResult.content).toContain("protected project runtime credential");
+      expect(aliasResult.content).toContain("protected scope runtime credential");
       expect(aliasResult.content).not.toContain("a".repeat(64));
     } finally {
       if (priorTokenPath === undefined) {

@@ -67,14 +67,14 @@ describe("file_write: creating new files", () => {
   });
 
   it("resolves relative paths against context cwd", async () => {
-    const projectDir = join(TEST_DIR, "context-project");
+    const scopeRoot = join(TEST_DIR, "context-project");
     const result = await runFileWrite(
       { path: "scoped.txt", content: "scoped content" },
-      { cwd: projectDir },
+      { cwd: scopeRoot },
     );
 
     expect(result.is_error).toBeUndefined();
-    expect(readFileSync(join(projectDir, "scoped.txt"), "utf-8")).toBe("scoped content");
+    expect(readFileSync(join(scopeRoot, "scoped.txt"), "utf-8")).toBe("scoped content");
     expect(existsSync(join(process.cwd(), "scoped.txt"))).toBe(false);
   });
 

@@ -104,7 +104,7 @@ describe("runHarnessRepl context", () => {
       model: "test-model-x",
     });
     expect(captured[0]).toMatchObject({
-      projectDir: process.cwd(),
+      scopeRoot: process.cwd(),
       cwd: process.cwd(),
     });
   });
