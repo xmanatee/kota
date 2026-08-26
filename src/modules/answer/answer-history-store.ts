@@ -21,6 +21,7 @@ import { mkdirSync, readdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { RecallHit } from "#modules/recall/client.js";
+import { parseAnswerHistoryShowResult } from "#root/client/daemon-contract.generated.js";
 import type {
   AnswerFilter,
   AnswerHistoryEntry,
@@ -31,6 +32,7 @@ import type {
 
 export const ANSWER_HISTORY_DIR_NAME = "answer-history";
 export const ANSWER_HISTORY_DEFAULT_CAP = 1000;
+const ANSWER_HISTORY_SCHEMA_VERSION = 1;
 const ANSWER_HISTORY_DEFAULT_LIMIT = 20;
 const ANSWER_HISTORY_MAX_LIMIT = 200;
 
@@ -184,7 +186,7 @@ export class DiskAnswerHistoryStore implements AnswerHistoryStore {
 
   async appendAnswer(record: AnswerHistoryRecord): Promise<void> {
     mkdirSync(this.rootDir, { recursive: true });
-    writeJsonFileAtomic(this.recordPath(record.id), record);
+    this.writeRecord(record);
     this.pruneOldest();
   }
 
@@ -264,10 +266,30 @@ export class DiskAnswerHistoryStore implements AnswerHistoryStore {
     let raw: string;
     try {
       raw = readFileSync(path, "utf-8");
-    } catch {
-      return null;
+    } catch (error) {
+      if (isMissingFileError(error)) return null;
+      throw new AnswerHistoryDecodeError(path, errorMessage(error));
     }
-    return JSON.parse(raw) as AnswerHistoryRecord;
+    try {
+      const value: unknown = JSON.parse(raw);
+      const stored = isStoredRecord(value) ? value : null;
+      const decoded = parseAnswerHistoryShowResult({
+        ok: true,
+        record: stored?.record ?? value,
+      });
+      if (!decoded.ok) throw new Error("answer history record decoded as not found");
+      if (!stored) this.writeRecord(decoded.record);
+      return decoded.record;
+    } catch (error) {
+      throw new AnswerHistoryDecodeError(path, errorMessage(error));
+    }
+  }
+
+  private writeRecord(record: AnswerHistoryRecord): void {
+    writeJsonFileAtomic(this.recordPath(record.id), {
+      schemaVersion: ANSWER_HISTORY_SCHEMA_VERSION,
+      record,
+    });
   }
 
   private pruneOldest(): void {
@@ -286,6 +308,40 @@ export class DiskAnswerHistoryStore implements AnswerHistoryStore {
       /* best-effort prune */
     }
   }
+}
+
+export class AnswerHistoryDecodeError extends Error {
+  constructor(readonly path: string, message: string) {
+    super(`Cannot decode answer history record ${path}: ${message}`);
+    this.name = "AnswerHistoryDecodeError";
+  }
+}
+
+function isStoredRecord(value: unknown): value is {
+  schemaVersion: typeof ANSWER_HISTORY_SCHEMA_VERSION;
+  record: unknown;
+} {
+  if (!isRecord(value)) return false;
+  if (value.schemaVersion !== ANSWER_HISTORY_SCHEMA_VERSION) {
+    if (value.schemaVersion !== undefined) {
+      throw new Error(`unsupported answer history schema version: ${String(value.schemaVersion)}`);
+    }
+    return false;
+  }
+  if (!("record" in value)) throw new Error("answer history record wrapper is missing record");
+  return true;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMissingFileError(error: unknown): boolean {
+  return isRecord(error) && error.code === "ENOENT";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 const ID_REGEX = /^[A-Za-z0-9_-]+$/;

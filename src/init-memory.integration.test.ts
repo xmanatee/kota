@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { MemoryStore } from "#modules/memory/store.js";
+import { MemoryStore, MemoryStoreLoadError } from "#modules/memory/store.js";
 
 /**
  * Integration tests for init × memory cross-module interaction.
@@ -13,7 +13,7 @@ import { MemoryStore } from "#modules/memory/store.js";
 
 // recallMemories is private, so we test the contract it relies on:
 // MemoryStore.search(basename(cwd)) → format results with tags.
-// We also test buildSessionWarmup end-to-end by swapping the singleton.
+// The store is constructed directly so persistence ownership remains explicit.
 
 describe("init × memory: search-by-dirname interaction", () => {
   let memDir: string;
@@ -110,16 +110,14 @@ describe("init × memory: search-by-dirname interaction", () => {
     expect(results[0].content).toContain("analytics");
   });
 
-  it("handles corrupted memory file gracefully", () => {
+  it("surfaces a corrupted memory file without replacing it", () => {
     // Write invalid JSON to the memory file
     mkdirSync(memDir, { recursive: true });
     writeFileSync(join(memDir, "memory.json"), "{{not valid json!!!");
 
     const store = new MemoryStore(memDir);
-    // Should not throw — ensureLoaded catches parse error
-    const results = store.search("anything");
-    expect(results).toEqual([]);
-    expect(store.list()).toEqual([]);
+    expect(() => store.search("anything")).toThrow(MemoryStoreLoadError);
+    expect(() => store.list()).toThrow(MemoryStoreLoadError);
   });
 
   it("recall formats tags in bracket notation", () => {

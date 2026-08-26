@@ -15,6 +15,7 @@ import type {
 
 const STORE_KEY = "push-notification-configs";
 const REDACTED_SECRET = "<redacted>";
+const STORE_SCHEMA_VERSION = 1;
 
 export const DEFAULT_PUSH_NOTIFICATION_PAGE_SIZE = 50;
 export const MAX_PUSH_NOTIFICATION_PAGE_SIZE = 100;
@@ -33,10 +34,18 @@ export type StoredPushNotificationConfig = {
 export function readStoredPushNotificationConfigs(
   storage: ModuleStorage,
 ): StoredPushNotificationConfig[] {
-  const stored = storage.getJSON<JsonObject>(STORE_KEY);
-  const configs = stored?.configs;
-  if (!Array.isArray(configs)) return [];
-  return configs.filter(isStoredConfig);
+  const stored = storage.getJSON(STORE_KEY);
+  if (stored === undefined) return [];
+  if (!isJsonObject(stored)) throw new Error("A2A push notification storage must be an object");
+  if (stored.schemaVersion !== undefined && stored.schemaVersion !== STORE_SCHEMA_VERSION) {
+    throw new Error(`Unsupported A2A push notification storage version: ${String(stored.schemaVersion)}`);
+  }
+  const configs = stored.configs;
+  if (!Array.isArray(configs) || !configs.every(isStoredConfig)) {
+    throw new Error("A2A push notification storage contains invalid configs");
+  }
+  if (stored.schemaVersion === undefined) writeStoredPushNotificationConfigs(storage, configs);
+  return configs;
 }
 
 export function writeStoredPushNotificationConfigs(
@@ -47,7 +56,7 @@ export function writeStoredPushNotificationConfigs(
     storage.delete(STORE_KEY);
     return;
   }
-  storage.setJSON(STORE_KEY, { configs });
+  storage.setJSON(STORE_KEY, { schemaVersion: STORE_SCHEMA_VERSION, configs });
 }
 
 export function redactPushNotificationConfig(

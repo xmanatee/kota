@@ -168,6 +168,10 @@
       "sha256": "39df427044b560d2f690198e0e839c51150087fe102fa4372d91748af5e76ed6"
     },
     {
+      "path": "src/client/daemon-contract.generated.ts",
+      "sha256": "39df427044b560d2f690198e0e839c51150087fe102fa4372d91748af5e76ed6"
+    },
+    {
       "path": "clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift",
       "sha256": "4d6bc8ca0ad72385fb351c9b3e67c2a89e6f8666f50487f5520b7fca613cdbe8"
     },

@@ -40,6 +40,11 @@ The adapter additionally rejects a bare `claude_code` preset `systemPrompt`
 without an `append` body because that shape is Claude-specific. Portable
 `append` text is accepted for operator CLI paths.
 
+Persisted native-loop sessions are versioned module-owned records. Resume
+decodes metadata, tool declarations, and every neutral transcript message
+before model dispatch; malformed or unsupported records fail explicitly.
+Writes atomically replace the session file.
+
 ## Reasoning Effort
 
 `AgentHarnessRunOptions.effort` is forwarded to `ModelClient.messages.stream`.

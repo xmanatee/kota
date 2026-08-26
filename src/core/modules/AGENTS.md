@@ -47,6 +47,10 @@ do not add process singletons or let nested hosts clean up CLI state.
 - Keep protocol details strict and code-owned. Message names, config fields,
   transport variants, health states, and generated scaffold details belong in
   types, schemas, examples, and focused tests instead of docs catalogs.
+- `ModuleStorage` is an atomic byte/JSON container, not a schema authority.
+  `getJSON` returns `unknown`; each owning module decodes, versions, and
+  migrates its durable value. A malformed file is distinct from an absent key
+  and must not be silently replaced with defaults.
 - Module capability/effect inspection goes through the module manifest
   projection in `module-manifest.ts`; derive contribution lists from loader
   state and add module-owned capability/data/effect declarations there instead

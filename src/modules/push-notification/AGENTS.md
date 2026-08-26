@@ -38,6 +38,10 @@ the push module only sees events that are meant to be delivered.
 Tokens survive daemon crashes; the in-flight Expo Push API call does not
 (by design — see below).
 
+The token store owns a versioned decoder and migration from the legacy token
+map. Malformed or future-version files produce an explicit store error and are
+left unchanged; successful registrations replace the file atomically.
+
 ## Delivery Posture
 
 Expo deliveries are intentionally fire-and-forget. SSE is the

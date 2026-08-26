@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ModuleStorage } from "./module-storage.js";
+import { ModuleStorage, ModuleStorageJsonError } from "./module-storage.js";
 
 const tmpBase = join(process.env.TMPDIR || "/tmp", "kota-storage-test");
 
@@ -18,7 +18,7 @@ describe("ModuleStorage", () => {
   it("stores and retrieves JSON values", () => {
     const storage = new ModuleStorage(tmpBase, "test-mod");
     storage.setJSON("config", { theme: "dark", count: 42 });
-    const val = storage.getJSON<{ theme: string; count: number }>("config");
+    const val = storage.getJSON("config");
     expect(val).toEqual({ theme: "dark", count: 42 });
   });
 
@@ -157,11 +157,11 @@ describe("ModuleStorage", () => {
     expect(existsSync(dir)).toBe(true);
   });
 
-  it("handles corrupted JSON gracefully", () => {
+  it("reports corrupted JSON instead of treating durable data as absent", () => {
     const storage = new ModuleStorage(tmpBase, "test-mod");
     const dir = storage.getDir();
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "bad.json"), "not valid json{{{");
-    expect(storage.getJSON("bad")).toBeUndefined();
+    expect(() => storage.getJSON("bad")).toThrowError(ModuleStorageJsonError);
   });
 });

@@ -193,8 +193,8 @@ describe("getWorkingMemoryState", () => {
 function makeMockStorage() {
 	const data = new Map<string, unknown>();
 	return {
-		getJSON<T = unknown>(key: string): T | undefined {
-			return data.get(`${key}.json`) as T | undefined;
+		getJSON(key: string): unknown | undefined {
+			return data.get(`${key}.json`);
 		},
 		setJSON(key: string, value: unknown): void {
 			data.set(`${key}.json`, value);
@@ -316,9 +316,10 @@ describe("working-memory persistence via module tool", async () => {
 		expect(result.content).toContain("persistent");
 		expect(getEntry("goal")?.persistent).toBe(true);
 		expect(storage._data.has("entries.json")).toBe(true);
-		const saved = storage.getJSON<Array<{ key: string }>>( "entries");
-		expect(saved).toHaveLength(1);
-		expect(saved?.[0].key).toBe("goal");
+		expect(storage.getJSON("entries")).toMatchObject({
+			schemaVersion: 1,
+			entries: [{ key: "goal" }],
+		});
 	});
 
 	it("write without persist does not touch storage", async () => {
@@ -344,9 +345,9 @@ describe("working-memory persistence via module tool", async () => {
 		await runner({ action: "write", key: "a", value: "1", persist: true });
 		await runner({ action: "write", key: "b", value: "2", persist: true });
 		await runner({ action: "remove", key: "a" });
-		const saved = storage.getJSON<Array<{ key: string }>>("entries");
-		expect(saved).toHaveLength(1);
-		expect(saved?.[0].key).toBe("b");
+		expect(storage.getJSON("entries")).toMatchObject({
+			entries: [{ key: "b" }],
+		});
 	});
 
 	it("clear removes persistent entries from storage", async () => {
@@ -405,6 +406,7 @@ describe("working-memory onLoad", async () => {
 		expect(getEntry("restored")?.value).toBe("from disk");
 		expect(getEntry("restored")?.persistent).toBe(true);
 		expect(getEntry("also-restored")?.value).toBe("hello");
+		expect(storage.getJSON("entries")).toMatchObject({ schemaVersion: 1 });
 	});
 
 	it("does nothing when storage is empty", () => {
@@ -414,11 +416,12 @@ describe("working-memory onLoad", async () => {
 		expect(listEntries()).toHaveLength(0);
 	});
 
-	it("handles corrupted storage gracefully", () => {
+	it("reports corrupted storage instead of treating it as empty", () => {
 		const storage = makeMockStorage();
 		storage._data.set("entries.json", "not-an-array");
 		const ctx = makeCtx(storage);
-		workingMemoryModule.onLoad?.(ctx);
-		expect(listEntries()).toHaveLength(0);
+		expect(() => workingMemoryModule.onLoad?.(ctx)).toThrow(
+			"Working memory storage has an unsupported or malformed schema",
+		);
 	});
 });

@@ -1,14 +1,16 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   AgentHarnessRunOptions,
   KotaMessage,
   KotaTool,
 } from "#core/agent-harness/index.js";
+import { decodeKotaMessages } from "#core/agent-harness/message-codec.js";
 import type { KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type { ResolvedProvider } from "#core/model/model-client.js";
 import type { ResolvedModelOutputTokenLimit } from "#core/model/output-token-limits.js";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 
 const SESSION_SCHEMA_VERSION = 1;
 const SESSION_ID_PREFIX = "ots_";
@@ -137,13 +139,7 @@ export function loadOpenaiToolsSession(
   if (!existsSync(path)) {
     throw new Error(`OpenAI tools session "${id}" was not found in ${sessionRoot(scopeRoot)}.`);
   }
-  const record = JSON.parse(readFileSync(path, "utf8")) as OpenaiToolsSessionRecord;
-  if (record.schemaVersion !== SESSION_SCHEMA_VERSION || record.harness !== "openai-tools") {
-    throw new Error(`OpenAI tools session "${id}" has an unsupported record format.`);
-  }
-  if (record.id !== id) {
-    throw new Error(`OpenAI tools session "${id}" record id mismatch.`);
-  }
+  const record = decodeOpenaiToolsSessionRecord(JSON.parse(readFileSync(path, "utf8")) as unknown, id);
   return {
     ...record,
     messages: cloneMessages(record.messages),
@@ -187,13 +183,89 @@ export function persistOpenaiToolsSession(
       ? { lastProviderMessageId: input.lastProviderMessageId }
       : {}),
   };
-  mkdirSync(sessionRoot(input.scopeRoot), { recursive: true });
-  writeFileSync(sessionPath(input.scopeRoot, id), `${JSON.stringify(record, null, 2)}\n`);
+  writeJsonFileAtomic(sessionPath(input.scopeRoot, id), record);
   return {
     ...record,
     messages: cloneMessages(record.messages),
     toolDeclarations: [...record.toolDeclarations],
   };
+}
+
+function decodeOpenaiToolsSessionRecord(value: unknown, expectedId: string): OpenaiToolsSessionRecord {
+  const record = requireRecord(value);
+  if (record.schemaVersion !== SESSION_SCHEMA_VERSION || record.harness !== "openai-tools") {
+    throw new Error(`OpenAI tools session "${expectedId}" has an unsupported record format.`);
+  }
+  if (record.id !== expectedId) {
+    throw new Error(`OpenAI tools session "${expectedId}" record id mismatch.`);
+  }
+  requireString(record.createdAt, "createdAt");
+  requireString(record.updatedAt, "updatedAt");
+  const context = decodeSessionContext(record.context);
+  if (!Array.isArray(record.toolDeclarations)) throw new Error("OpenAI tools session tool declarations are invalid.");
+  const toolDeclarations = record.toolDeclarations.map<OpenaiToolsSessionToolDeclaration>((declaration) => {
+    const item = requireRecord(declaration);
+    requireString(item.name, "toolDeclarations.name");
+    if (item.source !== "local" && item.source !== "mcp") {
+      throw new Error("OpenAI tools session tool declaration source is invalid.");
+    }
+    const source = item.source === "local" ? "local" : "mcp";
+    requireString(item.fingerprint, "toolDeclarations.fingerprint");
+    return { name: item.name, source, fingerprint: item.fingerprint };
+  });
+  if (record.lastProviderMessageId !== undefined) {
+    requireString(record.lastProviderMessageId, "lastProviderMessageId");
+  }
+  return {
+    schemaVersion: SESSION_SCHEMA_VERSION,
+    id: expectedId,
+    harness: "openai-tools",
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+    context,
+    toolDeclarations,
+    messages: decodeKotaMessages(record.messages, "messages"),
+    ...(record.lastProviderMessageId !== undefined
+      ? { lastProviderMessageId: record.lastProviderMessageId }
+      : {}),
+  };
+}
+
+function decodeSessionContext(value: unknown): OpenaiToolsSessionContext {
+  const context = requireRecord(value);
+  requireString(context.model, "context.model");
+  requireString(context.providerName, "context.providerName");
+  requireString(context.cwd, "context.cwd");
+  if (typeof context.outputMaxTokens !== "number" || !Number.isFinite(context.outputMaxTokens)) {
+    throw new Error("OpenAI tools session context.outputMaxTokens is invalid.");
+  }
+  const selection = requireRecord(context.providerSelection);
+  if (selection.provider !== undefined) requireString(selection.provider, "context.providerSelection.provider");
+  if (selection.baseUrl !== undefined) requireString(selection.baseUrl, "context.providerSelection.baseUrl");
+  const scope = requireRecord(context.scope);
+  if (scope.scopeId !== undefined) requireString(scope.scopeId, "context.scope.scopeId");
+  return {
+    model: context.model,
+    providerName: context.providerName,
+    cwd: context.cwd,
+    outputMaxTokens: context.outputMaxTokens,
+    providerSelection: {
+      ...(selection.provider !== undefined ? { provider: selection.provider } : {}),
+      ...(selection.baseUrl !== undefined ? { baseUrl: selection.baseUrl } : {}),
+    },
+    scope: scope.scopeId !== undefined ? { scopeId: scope.scopeId } : {},
+  };
+}
+
+function requireRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("OpenAI tools session record is invalid.");
+  }
+  return value as Record<string, unknown>;
+}
+
+function requireString(value: unknown, field: string): asserts value is string {
+  if (typeof value !== "string") throw new Error(`OpenAI tools session ${field} is invalid.`);
 }
 
 export function snapshotOpenaiToolsSessionToolDeclarations(

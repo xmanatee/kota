@@ -5,6 +5,7 @@ import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-type
 import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
+import { parseMemorySearchResponse } from "#root/client/daemon-contract.generated.js";
 import { createMemoryReadinessSource } from "./capability-readiness.js";
 import { registerMemoryCommands } from "./cli.js";
 import type {
@@ -207,10 +208,11 @@ function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
       if (filter?.semantic) params.set("semantic", "true");
       if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
       if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-      return link.requestStrict<MemorySearchResult>(
+      const response = await link.requestStrict<unknown>(
         "GET",
         `/api/memory/search?${params.toString()}`,
       );
+      return parseMemorySearchResponse(response);
     },
     reindex: async (scopeSelector): Promise<MemoryReindexResult> => {
       const query = scopeQuery(scopeSelector?.scopeId);

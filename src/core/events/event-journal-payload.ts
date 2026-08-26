@@ -46,7 +46,7 @@ export function payloadForStorage(
   return projectEvidenceJsonObject(
     schemaRedacted,
     "internal-storage",
-  ) as EventJsonObject;
+  );
 }
 
 export function redactedPayloadForClient(
@@ -55,7 +55,7 @@ export function redactedPayloadForClient(
   const payload = payloadStorageToObject(envelope.payload);
   const registration = getModuleEventRegistry()?.get(envelope.event.name);
   if (!registration) {
-    return projectEvidenceJsonObject(payload, "daemon-api") as EventJsonObject;
+    return projectEvidenceJsonObject(payload, "daemon-api");
   }
   if (registration.sensitivity === "secret" || registration.sensitivity === "sensitive") {
     return { redacted: true, reason: "event-classification" };
@@ -63,7 +63,7 @@ export function redactedPayloadForClient(
   return projectEvidenceJsonObject(
     redactObjectBySchema(payload, registration.payloadSchema),
     "daemon-api",
-  ) as EventJsonObject;
+  );
 }
 
 export function readString(

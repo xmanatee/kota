@@ -8,6 +8,7 @@ export type TelegramChatScopeBinding = {
 };
 
 type StoredChatScopeSelections = {
+  schemaVersion: 1;
   selections: { chatId: string; scopeId: string }[];
 };
 
@@ -181,22 +182,35 @@ export class TelegramScopeSelection {
   }
 
   private readSelections(): Map<string, string> {
-    const stored = this.storage.getJSON<StoredChatScopeSelections>(STORAGE_KEY);
+    const stored = this.storage.getJSON(STORAGE_KEY);
     const selections = new Map<string, string>();
-    if (!stored || !Array.isArray(stored.selections)) return selections;
-    for (const entry of stored.selections) {
-      if (typeof entry.chatId === "string" && typeof entry.scopeId === "string") {
-        selections.set(entry.chatId, entry.scopeId);
-      }
+    if (stored === undefined) return selections;
+    if (!isRecord(stored) || !Array.isArray(stored.selections)) {
+      throw new Error("Telegram chat scope storage is malformed");
     }
+    if (stored.schemaVersion !== undefined && stored.schemaVersion !== 1) {
+      throw new Error(`Unsupported Telegram chat scope storage version: ${String(stored.schemaVersion)}`);
+    }
+    for (const [index, entry] of stored.selections.entries()) {
+      if (!isRecord(entry) || typeof entry.chatId !== "string" || typeof entry.scopeId !== "string") {
+        throw new Error(`Telegram chat scope selection ${index} is malformed`);
+      }
+      selections.set(entry.chatId, entry.scopeId);
+    }
+    if (stored.schemaVersion === undefined) this.writeSelections(selections);
     return selections;
   }
 
   private writeSelections(selections: Map<string, string>): void {
     this.storage.setJSON(STORAGE_KEY, {
+      schemaVersion: 1,
       selections: [...selections.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([chatId, scopeId]) => ({ chatId, scopeId })),
     } satisfies StoredChatScopeSelections);
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

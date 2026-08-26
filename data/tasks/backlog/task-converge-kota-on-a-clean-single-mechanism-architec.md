@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T15:27:00.000Z
+updated_at: 2026-08-26T15:52:00.000Z
 ---
 
 ## Problem
@@ -68,7 +68,7 @@ executor are dropped with dispositions.
 - [x] Stage 9 — make runtime lifecycle host-owned.
 - [x] Stage 10 — replace shadow runtimes with production drivers.
 - [x] Stage 11 — correct transport, capability, and mutation ports.
-- [ ] Stage 12 — normalize persistence and typed projections.
+- [x] Stage 12 — normalize persistence and typed projections.
 - [ ] Stage 13 — decompose remaining mixed owners by responsibility.
 - [ ] Stage 14 — consolidate tests and fixtures by behavior owner.
 - [ ] Stage 15 — reconnect self-improvement to real feedback.
@@ -363,6 +363,36 @@ history now receives the selected history capability explicitly instead of
 falling back to the default registry. Root, web, and mobile type checks and
 lint passed; the 65-file changed-owner run passed 1,031 behavior tests after the
 two host-ownership regressions it exposed were corrected.
+
+## Stage 12 Result
+
+Shared JSON storage is now an atomic container rather than a fake generic
+schema owner: reads return `unknown`, malformed JSON is distinct from absence,
+and the consuming module owns decoding, versioning, and migration. Memory,
+working-memory, Expo push tokens, A2A push configuration, Telegram scope
+selection, cited-answer history, and OpenAI-tools resumable sessions now decode
+their durable records, migrate supported legacy shapes, and reject malformed or
+future-version state without overwriting it. The semantic index retains its
+different, explicit cache policy: malformed or stale data is a rebuildable
+miss. Memory stores are constructed per host/scope rather than shared through a
+process singleton.
+
+The daemon contract generator now emits a TypeScript runtime decoder used by
+the server-side memory and answer-history seams as well as external clients.
+Neutral persisted messages have one core decoder before entering a harness.
+Generic evidence projection remains typed as arbitrary evidence; trial,
+event-journal, and dead-letter public payloads validate or preserve their
+declared shape instead of casting a shape-changing projection back to a
+stronger DTO.
+
+Both TypeScript projects, repository lint, generated-binding freshness, task
+validation, and diff validation passed. Nineteen persistence/projection files
+passed 276 focused tests; memory lifecycle and semantic behavior passed another
+59 tests, and resumable OpenAI sessions passed 5. The branch-wide changed
+dispatcher passed 3,195 tests and exposed 16 failures outside the focused
+surface: the intentional corrupt-memory behavior change was updated and now
+passes, while the remaining daemon/autonomy fixture failures reproduce the
+known host/shared-state baseline tracked for the final consolidation stages.
 
 ## Finding Ownership
 

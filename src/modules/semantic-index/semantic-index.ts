@@ -9,8 +9,9 @@
  * fingerprint, the cached embedding is recomputed.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 
 export const INDEX_FILENAME = ".embeddings.json";
 export const INDEX_VERSION = 2;
@@ -44,35 +45,38 @@ export class SemanticIndexFile {
 		if (!existsSync(this.path)) return emptyIndex(model);
 		try {
 			const raw = readFileSync(this.path, "utf-8");
-			const parsed = JSON.parse(raw) as Partial<SemanticIndex>;
-			if (parsed.version !== INDEX_VERSION) return emptyIndex(model);
-			if (typeof parsed.model !== "string") return emptyIndex(model);
-			if (parsed.model !== model) return emptyIndex(model);
-			const entries = parsed.entries ?? {};
-			const clean: Record<string, IndexedEmbedding> = {};
-			for (const [id, value] of Object.entries(entries)) {
-				if (
-					value &&
-					Array.isArray(value.embedding) &&
-					typeof value.fingerprint === "string"
-				) {
-					clean[id] = {
-						fingerprint: value.fingerprint,
-						embedding: value.embedding.slice(),
-					};
-				}
-			}
-			return { version: INDEX_VERSION, model: parsed.model, entries: clean };
+			return decodeSemanticIndex(JSON.parse(raw) as unknown, model)
+				?? emptyIndex(model);
 		} catch {
+			// The index is a rebuildable cache; malformed cache state is an
+			// explicit cache miss, never canonical-memory data loss.
 			return emptyIndex(model);
 		}
 	}
 
 	save(index: SemanticIndex): void {
-		const dir = dirname(this.path);
-		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-		writeFileSync(this.path, JSON.stringify(index), "utf-8");
+		writeJsonFileAtomic(this.path, index, (value) => JSON.stringify(value));
 	}
+}
+
+function decodeSemanticIndex(value: unknown, model: string): SemanticIndex | null {
+	if (!isRecord(value) || value.version !== INDEX_VERSION || value.model !== model) return null;
+	if (!isRecord(value.entries)) return null;
+	const entries: Record<string, IndexedEmbedding> = {};
+	for (const [id, entry] of Object.entries(value.entries)) {
+		if (
+			!isRecord(entry) ||
+			typeof entry.fingerprint !== "string" ||
+			!Array.isArray(entry.embedding) ||
+			!entry.embedding.every((item) => typeof item === "number" && Number.isFinite(item))
+		) continue;
+		entries[id] = { fingerprint: entry.fingerprint, embedding: [...entry.embedding] };
+	}
+	return { version: INDEX_VERSION, model, entries };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function indexPathFor(storageDir: string): string {

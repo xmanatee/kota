@@ -10,6 +10,12 @@ This directory owns persistent, searchable agent notes that survive across sessi
   resolve to the daemon's active/default scope at the route or client
   boundary; explicit unknown ids return the typed `unknown_scope` route
   error.
+- `persistence.ts` owns the versioned file contract and legacy migration.
+  Reads decode every record before it reaches `MemoryStore`; malformed or
+  future-version data is an explicit store error and is never treated as an
+  empty collection. Replacement writes are atomic. The daemon client parses
+  responses with the generated daemon-contract decoder rather than asserting
+  a handwritten transport type.
 - Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
 - Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/memory/search`) and one shared line shape (`renderMemorySearchPlain`): Telegram `/memory`, terminal `kota memory search`, the macOS menu bar `MemoryView`, and the mobile `MemoryScreen`.
 - The `stores` shared-UI surface is the memory module's live contribution;

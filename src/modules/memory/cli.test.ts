@@ -12,7 +12,7 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { MemoryProvider } from "#core/modules/provider-types.js";
 import { registerMemoryCommands } from "./cli.js";
-import { getMemoryStore, resetMemoryStore } from "./store.js";
+import { MemoryStore } from "./store.js";
 
 function stubCtx(): ModuleContext {
 	return {
@@ -127,14 +127,12 @@ describe("kota memory add", () => {
 
 	beforeEach(() => {
 		storeDir = makeScopeRoot();
-		resetMemoryStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
-		reg.register(MEMORY_PROVIDER_TOKEN, "memory", getMemoryStore(storeDir));
+		reg.register(MEMORY_PROVIDER_TOKEN, "memory", new MemoryStore(storeDir));
 	});
 
 	afterEach(() => {
-		resetMemoryStore();
 		resetProviderRegistry();
 		rmSync(storeDir, { recursive: true, force: true });
 	});
@@ -146,7 +144,7 @@ describe("kota memory add", () => {
 		stdout.restore();
 		expect(typeof id).toBe("string");
 		expect(id.length).toBeGreaterThan(0);
-		const entry = getMemoryStore(storeDir).list().find((m) => m.id === id);
+		const entry = new MemoryStore(storeDir).list().find((m) => m.id === id);
 		expect(entry).toBeDefined();
 		expect(entry!.content).toBe("hello world");
 	});
@@ -161,7 +159,7 @@ describe("kota memory add", () => {
 		]);
 		const id = stdout.text().trim();
 		stdout.restore();
-		const entry = getMemoryStore(storeDir).list().find((m) => m.id === id);
+		const entry = new MemoryStore(storeDir).list().find((m) => m.id === id);
 		expect(entry).toBeDefined();
 		expect(entry!.tags).toEqual(["alpha", "beta"]);
 	});
@@ -181,7 +179,7 @@ describe("kota memory add", () => {
 		const id = stdout.text().trim();
 		stdout.restore();
 		stdinSpy.mockRestore();
-		const entry = getMemoryStore(storeDir).list().find((m) => m.id === id);
+		const entry = new MemoryStore(storeDir).list().find((m) => m.id === id);
 		expect(entry).toBeDefined();
 		expect(entry!.content).toBe("piped note");
 	});
@@ -192,17 +190,14 @@ describe("kota memory search", () => {
 
 	beforeEach(() => {
 		storeDir = makeScopeRoot();
-		resetMemoryStore();
-		getMemoryStore(storeDir);
 	});
 
 	afterEach(() => {
-		resetMemoryStore();
 		rmSync(storeDir, { recursive: true, force: true });
 	});
 
 	it("routes --semantic searches through the active provider semanticSearch", async () => {
-		const store = getMemoryStore(storeDir);
+		const store = new MemoryStore(storeDir);
 		store.save("hello semantic memory");
 		const semanticSearch = vi.fn(async () => store.list());
 		const provider: MemoryProvider = {

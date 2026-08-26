@@ -12,12 +12,46 @@
  * so each shape is pinned exactly here.
  */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { sendDigestPushNotifications, sendPushNotifications } from "./send.js";
+import { loadStore, PushTokenStoreError, registerPushToken } from "./store.js";
+
+describe("push-token persistence", () => {
+  it("migrates the legacy document and writes the versioned shape atomically", () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-store-"));
+    try {
+      mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+      writeFileSync(join(scopeRoot, ".kota/push-tokens.json"), JSON.stringify({ tokens: {} }));
+
+      expect(loadStore(scopeRoot)).toEqual({ schemaVersion: 1, tokens: {} });
+      registerPushToken(scopeRoot, "device-a", "ExponentPushToken[aaa]");
+      expect(JSON.parse(
+        readFileSync(join(scopeRoot, ".kota/push-tokens.json"), "utf8"),
+      )).toMatchObject({ schemaVersion: 1 });
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("reports malformed durable data instead of silently dropping registrations", () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "kota-push-store-invalid-"));
+    try {
+      mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+      const path = join(scopeRoot, ".kota/push-tokens.json");
+      const malformed = JSON.stringify({ schemaVersion: 1, tokens: { device: { token: 7 } } });
+      writeFileSync(path, malformed);
+
+      expect(() => loadStore(scopeRoot)).toThrowError(PushTokenStoreError);
+      expect(readFileSync(path, "utf8")).toBe(malformed);
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
+  });
+});
 
 describe("push-notification send paths", () => {
   let scopeRoot: string;

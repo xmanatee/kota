@@ -1,9 +1,10 @@
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { RecallHit } from "#modules/recall/client.js";
 import {
+  AnswerHistoryDecodeError,
   buildAnswerHistoryRecord,
   DiskAnswerHistoryStore,
   mintAnswerHistoryId,
@@ -60,6 +61,9 @@ describe("DiskAnswerHistoryStore", () => {
     await store.appendAnswer(makeRecord(1));
     const files = readdirSync(rootDir).filter((f) => f.endsWith(".json"));
     expect(files).toHaveLength(2);
+    expect(JSON.parse(readFileSync(join(rootDir, files[0]!), "utf8"))).toMatchObject({
+      schemaVersion: 1,
+    });
   });
 
   it("listAnswers returns newest-first projections", async () => {
@@ -103,15 +107,34 @@ describe("DiskAnswerHistoryStore", () => {
     expect(await store.getAnswer("nested/id")).toBeNull();
   });
 
-  it("getAnswer returns null when the file on disk is malformed", async () => {
-    // The store tolerates one malformed file by leaving listAnswers returning
-    // it as an unreadable record; getAnswer surfaces null only when we
-    // intentionally write a non-record. This test pins the directory-scan
-    // contract: stray files do not crash the store.
+  it("ignores unrelated non-record files in the history directory", async () => {
     writeFileSync(join(rootDir, "stray.txt"), "not json", "utf-8");
     const store = new DiskAnswerHistoryStore({ rootDir });
     const entries = await store.listAnswers();
     expect(entries).toEqual([]);
+  });
+
+  it("reports a malformed record instead of silently dropping it", async () => {
+    const path = join(rootDir, "broken.json");
+    const malformed = JSON.stringify({ schemaVersion: 1, record: { id: 7 } });
+    writeFileSync(path, malformed, "utf8");
+    const store = new DiskAnswerHistoryStore({ rootDir });
+
+    await expect(store.getAnswer("broken")).rejects.toBeInstanceOf(AnswerHistoryDecodeError);
+    expect(readFileSync(path, "utf8")).toBe(malformed);
+  });
+
+  it("migrates a legacy unwrapped record through the generated decoder", async () => {
+    const record = makeRecord(0);
+    const path = join(rootDir, `${record.id}.json`);
+    writeFileSync(path, JSON.stringify(record), "utf8");
+    const store = new DiskAnswerHistoryStore({ rootDir });
+
+    expect(await store.getAnswer(record.id)).toEqual(record);
+    expect(JSON.parse(readFileSync(path, "utf8"))).toMatchObject({
+      schemaVersion: 1,
+      record: { id: record.id },
+    });
   });
 
   it("retention prunes oldest entries past the cap", async () => {

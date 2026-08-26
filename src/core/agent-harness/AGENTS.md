@@ -128,6 +128,8 @@ Every tool, message, block, thinking config, and model response on a core
 interface is a KOTA-owned neutral type from `message-protocol.ts`; adapter
 modules translate at their seam. `no-anthropic-imports-in-core.test.ts`
 enforces this mechanically.
+`message-codec.ts` is the runtime decoder for neutral messages that cross a
+durable or foreign boundary; trusted loop code consumes the decoded type.
 
 ## Per-step harness-specific options
 

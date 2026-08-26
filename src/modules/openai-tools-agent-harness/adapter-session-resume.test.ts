@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -99,6 +99,44 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
           resumeSessionId: "ots_00000000-0000-0000-0000-000000000000",
         }),
       ).rejects.toThrow(/was not found/);
+      expect(messagesStreamMock).not.toHaveBeenCalled();
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a malformed persisted transcript before dispatching a model call", async () => {
+    const scopeRoot = createScopeRoot("openai-tools-malformed-resume-");
+    try {
+      queueEnd("saved");
+      const persisted = await openaiToolsAgentHarness.run({
+        prompt: "save",
+        model: "openai/gpt-5.6-luna",
+        effort: "xhigh",
+        cwd: scopeRoot,
+        persistSession: true,
+      });
+      const path = join(
+        scopeRoot,
+        ".kota",
+        "openai-tools-agent-harness",
+        "sessions",
+        `${persisted.sessionId}.json`,
+      );
+      const record = JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
+      record.messages = [{ role: "system", content: "untrusted" }];
+      writeFileSync(path, JSON.stringify(record));
+      messagesStreamMock.mockClear();
+
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "resume",
+          model: "openai/gpt-5.6-luna",
+          effort: "xhigh",
+          cwd: scopeRoot,
+          resumeSessionId: persisted.sessionId,
+        }),
+      ).rejects.toThrow(/Invalid KOTA message/);
       expect(messagesStreamMock).not.toHaveBeenCalled();
     } finally {
       rmSync(scopeRoot, { recursive: true, force: true });

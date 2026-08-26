@@ -88,6 +88,10 @@ Contracts:
   warn channel and the answer envelope is still returned as computed.
 - Retention is module-internal: the store best-effort prunes oldest
   entries past `ANSWER_HISTORY_DEFAULT_CAP` on append. No operator knob.
+- Each file has a module-owned version envelope. Reads use the generated
+  answer-history response decoder, migrate legacy unwrapped records, and fail
+  explicitly on malformed or future-version records. Append and migration use
+  atomic replacement; only an absent file means no answer.
 
 ## Recall contribution
 

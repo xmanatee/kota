@@ -838,7 +838,7 @@ function resolveDeadLetterPolicyRetention(
 }
 
 function redactJsonObject(value: EventJsonObject): EventJsonObject {
-  return projectEvidenceJsonObject(value, "internal-storage") as EventJsonObject;
+  return projectEvidenceJsonObject(value, "internal-storage");
 }
 
 function sanitizeDeadLetterSource(source: DeadLetterSource): DeadLetterSource {
