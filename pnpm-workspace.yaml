@@ -10,6 +10,9 @@ dangerouslyAllowAllBuilds: false
 strictDepBuilds: false
 
 allowBuilds:
+  # better-sqlite3@13.0.3 is the durable workflow authority used by the daemon;
+  # its committed native binding must build in a clean installation.
+  "better-sqlite3": true
   # @google/genai@1.51.0 is in pnpm-lock.yaml and pnpm currently reports its
   # dependency lifecycle build as ignored; keep it explicitly denied.
   "@google/genai": false
