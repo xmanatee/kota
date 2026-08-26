@@ -10,7 +10,7 @@ import {
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   buildAutonomyHealthReviewFromSignals,
-  finalizeAutonomyHealthReviewActions,
+  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
 } from "../autonomy-health-reviewer/health-review.js";
 import { collectRuntimeHealthAudit } from "./runtime-health-audit.js";
@@ -56,7 +56,7 @@ export function reviewAndApplyRuntimeHealthAudit(
     scopeDir: projectDir,
     review,
   });
-  const finalized = finalizeAutonomyHealthReviewActions({
+  const finalized = applyAutonomyHealthReviewActions({
     currentProjection,
     scopeDir: projectDir,
     ownerQuestionQueue: new OwnerQuestionQueue(

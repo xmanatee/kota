@@ -159,7 +159,6 @@ describe("production dead-letter routing replay", () => {
           .filter(
             (workflow) =>
               workflow.name === "autonomy-health-reviewer" ||
-              workflow.name === "autonomy-health-review-publication" ||
               workflow.name === "autonomy-issue-projection-materialization" ||
               workflow.name === "improver" ||
               workflow.name === "improver-disposition-publication" ||

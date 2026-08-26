@@ -105,7 +105,6 @@ export async function startRuntimeRoutingScenario(args: {
   const issueProjectionWorkflowNames = new Set([
     "runtime-health-auditor",
     "autonomy-health-reviewer",
-    "autonomy-health-review-publication",
     "autonomy-issue-projection-materialization",
   ]);
   const issueProjectionWorkflows = loader

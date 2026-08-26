@@ -21,7 +21,7 @@ import {
 } from "./health-signal.js";
 import {
   buildAutonomyHealthReviewFromSignals,
-  finalizeAutonomyHealthReviewActions,
+  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 
@@ -87,7 +87,7 @@ export function applyHealthReviewSignals(args: {
     scopeDir: args.projectDir,
     review,
   });
-  const finalized = finalizeAutonomyHealthReviewActions({
+  const finalized = applyAutonomyHealthReviewActions({
     currentProjection,
     scopeDir: args.projectDir,
     ownerQuestionQueue: new OwnerQuestionQueue(

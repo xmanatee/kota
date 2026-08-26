@@ -74,18 +74,7 @@ describe("multi-scope autonomy issue source routing", () => {
     rmSync(rootDir, { recursive: true, force: true });
   });
 
-  it("keeps interleaved failure, review, owner, DLQ, and interruption evidence in its owning scope", () => {
-    for (const runtime of [runtimeA, runtimeB]) {
-      runtime.pbus.emit("workflow.failure.alert", {
-        workflow: "builder",
-        runId: `failure-${runtime.project.projectId}`,
-        status: "failed",
-        durationMs: 1000,
-        errorSummary: "Shared builder failure 17 at abcdef1234567",
-        text: "builder failed",
-      });
-    }
-
+  it("keeps interleaved review, owner, DLQ, and interruption evidence in its owning scope", () => {
     emitReview(runtimeA, "task-a");
     emitReview(runtimeB, "task-b");
     emitTrajectory(runtimeA);
@@ -130,7 +119,6 @@ describe("multi-scope autonomy issue source routing", () => {
 
     expect(signals.filter((signal) => signal.scopeId === "scope-a")).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "builder" }) }),
         expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "critic" }) }),
         expect.objectContaining({ projectId: "scope-a", labels: expect.arrayContaining(["trajectory"]) }),
         expect.objectContaining({ projectId: "scope-a", source: expect.objectContaining({ id: "progress-reviewer" }) }),
@@ -147,6 +135,11 @@ describe("multi-scope autonomy issue source routing", () => {
 
     const scopeASignals = signals.filter((signal) => signal.scopeId === "scope-a");
     const scopeBSignals = signals.filter((signal) => signal.scopeId === "scope-b");
+    expect(
+      scopeBSignals.filter((signal) =>
+        signal.labels.includes("interrupted-run"),
+      ),
+    ).toHaveLength(1);
     applyScopeSignals(projectA, scopeASignals);
     applyScopeSignals(projectB, scopeBSignals);
 
@@ -164,23 +157,10 @@ describe("multi-scope autonomy issue source routing", () => {
     expect(projectionB.issues.some((issue) =>
       issue.rootCauseKey === "review-scrutiny:critic:builder:task-a"
     )).toBe(false);
-    expect(
-      projectionA.issues.find((issue) => issue.source.id === "builder")?.rootCauseKey,
-    ).toBe(
-      projectionB.issues.find((issue) => issue.source.id === "builder")?.rootCauseKey,
-    );
-
     const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
     const projectBBeforeForeignEvent = readFileSync(projectionBPath, "utf-8");
     const signalCountBeforeForeignEvent = signals.length;
-    runtimeA.pbus.emit("workflow.failure.alert", {
-      workflow: "builder",
-      runId: "another-scope-a-failure",
-      status: "failed",
-      durationMs: 1000,
-      errorSummary: "A different scope A failure",
-      text: "builder failed",
-    });
+    emitReview(runtimeA, "task-a-followup");
     applyScopeSignals(projectA, signals.slice(signalCountBeforeForeignEvent));
     expect(readFileSync(projectionBPath, "utf-8")).toBe(projectBBeforeForeignEvent);
   });
@@ -188,24 +168,28 @@ describe("multi-scope autonomy issue source routing", () => {
   it("rejects unknown and conflicting selectors without touching either project", () => {
     const projectionAPath = join(projectA, AUTONOMY_ISSUE_PROJECTION_FILE);
     const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
-    expect(() => bus.emit("workflow.failure.alert", {
+    expect(() => bus.emit("workflow.step.completed", {
       projectId: "unknown-scope",
       workflow: "builder",
       runId: "unknown-run",
-      status: "failed",
+      stepId: "critic",
+      stepType: "code",
+      status: "success",
       durationMs: 1,
-      errorSummary: "unknown",
-      text: "unknown",
+      runDir: ".kota/runs/unknown-run",
+      definitionPath: "fixture",
     })).toThrow(/unknown scope unknown-scope/);
-    expect(() => bus.emit("workflow.failure.alert", {
+    expect(() => bus.emit("workflow.step.completed", {
       scopeId: "scope-a",
       projectId: "scope-b",
       workflow: "builder",
       runId: "conflicting-run",
-      status: "failed",
+      stepId: "critic",
+      stepType: "code",
+      status: "success",
       durationMs: 1,
-      errorSummary: "conflicting",
-      text: "conflicting",
+      runDir: ".kota/runs/conflicting-run",
+      definitionPath: "fixture",
     })).toThrow(/conflicting scope selectors/);
     expect(() => readFileSync(projectionAPath, "utf-8")).toThrow();
     expect(() => readFileSync(projectionBPath, "utf-8")).toThrow();

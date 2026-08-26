@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ProjectScopedEventBus } from "#core/events/project-scope.js";
@@ -124,7 +125,6 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflow.name === "autonomy-health-reviewer" ||
-          workflow.name === "autonomy-health-review-publication" ||
           workflow.name === "autonomy-issue-projection-materialization" ||
           workflow.name === "improver" ||
           workflow.name === "improver-disposition-publication"
@@ -133,13 +133,32 @@ describe("issue-driven owner-answer lifecycle integration", () => {
       const { runtime } = runtimeFixture;
       runtime.start();
       try {
-        pbus.emit("workflow.failure.alert", {
-          workflow: "builder",
-          runId: "owner-policy-failure",
-          status: "failed",
-          durationMs: 1_000,
-          errorSummary: "Builder recovery policy is undecided",
-          text: "builder failed",
+        createWorkflowDispatchDeadLetter({
+          store: source.runtime.deadLetterQueue,
+          scopeId: deriveDirectoryScopeId(projectDir),
+          workflowName: "builder",
+          trigger: {
+            event: "autonomy.queue.available",
+            schemaRef: null,
+            payload: {},
+          },
+          reason: "Builder recovery policy is undecided",
+          errorClass: "execution",
+          failedRun: {
+            id: "owner-policy-failure",
+            workflow: "builder",
+            definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+            trigger: {
+              event: "autonomy.queue.available",
+              schemaRef: null,
+              payload: {},
+            },
+            startedAt: "2026-08-14T02:00:00.000Z",
+            completedAt: "2026-08-14T02:01:00.000Z",
+            status: "failed",
+            runDir: ".kota/runs/owner-policy-failure",
+            steps: [],
+          },
         });
         await waitForLifecycle(
           () => {

@@ -10,9 +10,9 @@ deduped health patterns into bounded follow-up actions.
   improver owns the single AI disposition and the shared generated-work
   materializer owns any resulting task or owner question.
 - An explicit source clear resolves the stable generated-work proposal without
-  another AI decision. `autonomy-health-review-publication` owns canonical
-  issue and owner-question finalization and emits any linked task move to the
-  shared `repo-task-mutation` writer.
+  another AI decision. This workflow owns the resource-serialized issue state
+  transition and stages task, decision, attention, materialization, and
+  owner-question mutation events in the same run transaction.
 - Batch by typed health labels and scope; avoid hardcoded workflow-name
   allowlists.
 - Treat health signals as explicit `present` / `changed` / `cleared`

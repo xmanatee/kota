@@ -27,6 +27,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Daemon } from "#core/daemon/daemon.js";
+import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import type { DaemonControlAddress } from "#core/daemon/daemon-control.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { resetScheduler } from "#core/daemon/scheduler.js";
@@ -115,7 +116,7 @@ describe("daemon runtime module load", () => {
       cwd: projectDir,
       eventBus,
     });
-    const sourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
+    const sourceListenerCount = eventBus.listenerCount("workflow.dead-letter.changed");
     const scopeId = deriveDirectoryScopeId(projectDir);
     const initialHealthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
@@ -155,13 +156,28 @@ describe("daemon runtime module load", () => {
       expect(res.status).toBe(200);
       const body = (await res.json()) as { entries: unknown[] };
       expect(Array.isArray(body.entries)).toBe(true);
-      new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
-        workflow: "builder",
-        runId: "daemon-runtime-cold-start-event-run",
-        status: "failed",
-        durationMs: 1000,
-        errorSummary: "daemon cold-start integration failure",
-        text: "builder failed after cold start",
+      const initialScope = getProviderRegistry()?.get(
+        DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE,
+      )?.resolve(scopeId);
+      if (!initialScope?.ok) throw new Error("initial runtime scope was unavailable");
+      createWorkflowDispatchDeadLetter({
+        store: initialScope.runtime.deadLetterQueue,
+        scopeId,
+        workflowName: "builder",
+        trigger: { event: "test.failure", schemaRef: null, payload: {} },
+        reason: "daemon cold-start integration failure",
+        errorClass: "execution",
+        failedRun: {
+          id: "daemon-runtime-cold-start-event-run",
+          workflow: "builder",
+          definitionPath: "fixture",
+          trigger: { event: "test.failure", schemaRef: null, payload: {} },
+          startedAt: "2026-08-26T12:00:00.000Z",
+          completedAt: "2026-08-26T12:01:00.000Z",
+          status: "failed",
+          runDir: ".kota/runs/daemon-runtime-cold-start-event-run",
+          steps: [],
+        },
       });
       expect(initialHealthSignals).toEqual([
         expect.objectContaining({
@@ -175,17 +191,16 @@ describe("daemon runtime module load", () => {
       await daemon.stop();
       await startPromise;
     }
-    expect(eventBus.listenerCount("workflow.failure.alert")).toBe(0);
+    expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(0);
 
     const restartedLoader = await loadRuntimeModules({
       config,
       cwd: projectDir,
       eventBus,
     });
-    const restartedSourceListenerCount = eventBus.listenerCount("workflow.failure.alert");
+    const restartedSourceListenerCount = eventBus.listenerCount("workflow.dead-letter.changed");
     const issueProjectionWorkflowNames = new Set([
       "autonomy-health-reviewer",
-      "autonomy-health-review-publication",
       "autonomy-issue-projection-materialization",
     ]);
     const issueProjectionWorkflows = restartedLoader
@@ -239,7 +254,7 @@ describe("daemon runtime module load", () => {
         session_id: string;
       };
       await new Promise((resolve) => setTimeout(resolve, 20));
-      expect(eventBus.listenerCount("workflow.failure.alert")).toBe(
+      expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(
         restartedSourceListenerCount,
       );
       const runtimeScopeProvider = getProviderRegistry()?.get(
@@ -263,13 +278,24 @@ describe("daemon runtime module load", () => {
           resolve();
         });
       });
-      new ProjectScopedEventBus(eventBus, scopeId).emit("workflow.failure.alert", {
-        workflow: "builder",
-        runId: "daemon-runtime-event-run",
-        status: "failed",
-        durationMs: 1000,
-        errorSummary: "daemon runtime integration failure",
-        text: "builder failed",
+      createWorkflowDispatchDeadLetter({
+        store: resolvedRuntimeScope.runtime.deadLetterQueue,
+        scopeId,
+        workflowName: "builder",
+        trigger: { event: "test.failure", schemaRef: null, payload: {} },
+        reason: "daemon runtime integration failure",
+        errorClass: "execution",
+        failedRun: {
+          id: "daemon-runtime-event-run",
+          workflow: "builder",
+          definitionPath: "fixture",
+          trigger: { event: "test.failure", schemaRef: null, payload: {} },
+          startedAt: "2026-08-26T13:00:00.000Z",
+          completedAt: "2026-08-26T13:01:00.000Z",
+          status: "failed",
+          runDir: ".kota/runs/daemon-runtime-event-run",
+          steps: [],
+        },
       });
       expect(healthSignals).toEqual([
         expect.objectContaining({
@@ -303,7 +329,7 @@ describe("daemon runtime module load", () => {
         },
       );
       expect(deleteSessionResponse.status).toBe(204);
-      expect(eventBus.listenerCount("workflow.failure.alert")).toBe(
+      expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(
         restartedSourceListenerCount,
       );
       expect(getProviderRegistry()?.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)).toBe(
@@ -313,6 +339,6 @@ describe("daemon runtime module load", () => {
       await restartedDaemon.stop();
       await restartedStartPromise;
     }
-    expect(eventBus.listenerCount("workflow.failure.alert")).toBe(0);
+    expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(0);
   });
 });

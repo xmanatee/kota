@@ -9,6 +9,11 @@ primitives. This module is the operator surface: listing pending questions,
 answering, dismissing, and exposing the same actions over HTTP so clients
 beyond the local CLI can handle escalations.
 
+Workflow-authored dismissals publish `owner.question.mutation.requested` only
+after their owning run commits. The module's `owner-question-mutation` workflow
+is the single durable writer for those requests; producers never mutate the
+queue before commit.
+
 The module contributes two HTTP surfaces against the same in-process
 `OwnerQuestionQueue` singleton: the public `/api/owner-questions*` routes
 through `KotaModule.routes` for the user-facing `kota serve` server, and the

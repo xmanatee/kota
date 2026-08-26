@@ -14,7 +14,7 @@ import {
 } from "#modules/autonomy/health-signal.js";
 import {
   buildAutonomyHealthReviewFromSignals,
-  finalizeAutonomyHealthReviewActions,
+  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
 } from "./health-review.js";
 
@@ -77,7 +77,7 @@ describe("autonomy health repair task deduplication", () => {
       scopeDir: projectDir,
       review,
     });
-    const finalized = finalizeAutonomyHealthReviewActions({
+    const finalized = applyAutonomyHealthReviewActions({
       currentProjection,
       scopeDir: projectDir,
       ownerQuestionQueue: new OwnerQuestionQueue(

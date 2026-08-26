@@ -60,17 +60,6 @@ describe("runtime-owned autonomy issue observations", () => {
       }
       processedSignalCount = signals.length;
     };
-    for (const runId of productionRunIds) {
-      pbus.emit("workflow.failure.alert", {
-        workflow: "progress-reviewer",
-        runId,
-        status: "failed",
-        durationMs: 1_000,
-        errorSummary: failureReason,
-        text: "progress-reviewer failed",
-      });
-      projectNewSignals("immediate-critical-failure");
-    }
     const items = productionRunIds.map((runId) =>
       createWorkflowDispatchDeadLetter({
         store,
@@ -110,7 +99,7 @@ describe("runtime-owned autonomy issue observations", () => {
     }
     projectNewSignals("partial-dead-letter-dismissal");
     expect(signals.map((signal) => signal.observation)).toEqual(
-      [...productionRunIds, ...productionRunIds].map(() => "present"),
+      productionRunIds.map(() => "present"),
     );
     expect(new Set(signals.map((signal) => signal.dedupeKey)).size).toBe(1);
     expect(applied.filter((action) => action.kind === "decision-requested")).toEqual([
@@ -118,16 +107,16 @@ describe("runtime-owned autonomy issue observations", () => {
     ]);
     expect(readAutonomyIssueProjection(projectDir).issues[0]).toMatchObject({
       semanticRevision: 1,
-      occurrenceCount: 8,
+      occurrenceCount: 4,
     });
     store.dismiss(items.at(-1)!.id, "Fixed by commit 532ab1ae");
     projectNewSignals("final-dead-letter-dismissal");
 
     expect(signals.map((signal) => signal.observation)).toEqual([
-      ...[...productionRunIds, ...productionRunIds].map(() => "present"),
+      ...productionRunIds.map(() => "present"),
       "cleared",
     ]);
-    expect(signals[4]?.evidenceRefs[0]?.ref).toContain(items[0]!.id);
+    expect(signals[0]?.evidenceRefs[0]?.ref).toContain(items[0]!.id);
     expect(signals.at(-1)?.evidenceRefs.map((ref) => ref.ref).sort()).toEqual(
       items.map((item) => `.kota/dead-letter-queue/items.json#${item.id}`).sort(),
     );
@@ -135,7 +124,7 @@ describe("runtime-owned autonomy issue observations", () => {
     expect(applied.at(-1)).toMatchObject({ kind: "resolved", transition: "cleared" });
     const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
     expect(issue.status).toBe("resolved");
-    expect(issue.occurrenceCount).toBe(8);
+    expect(issue.occurrenceCount).toBe(4);
     expect(issue.links.deadLetterIds).toEqual(items.map((item) => item.id).sort());
   });
 

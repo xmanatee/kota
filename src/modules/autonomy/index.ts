@@ -90,6 +90,7 @@ const autonomyModule: KotaModule = {
   description: "Autonomous development workflows and their paired agents",
   dependencies: [
     "workflow-ops",
+    "owner-questions",
     "repo-tasks",
     "rendering",
     "daemon-ops",

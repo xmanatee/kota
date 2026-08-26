@@ -7,7 +7,7 @@ import type {
   WorkflowDefinitionInput,
   WorkflowResourceInput,
 } from "#core/workflow/types.js";
-import healthPublication from "./autonomy-health-review-publication/workflow.js";
+import healthReviewer from "./autonomy-health-reviewer/workflow.js";
 import improverPublication from "./improver-disposition-publication/workflow.js";
 import progressPublication from "./progress-review-publication/workflow.js";
 import scopePublication from "./scope-improvement-publication/workflow.js";
@@ -38,7 +38,7 @@ function admit(
     id: runId,
     projectId,
     workflow: definition.name,
-    repository: "none",
+    repository: definition.repository,
     trigger: { event: "publication.requested", schemaRef: null, payload: {} },
     resources: resources(definition, projectDir),
     admittedAt: "2026-08-25T10:00:00.000Z",
@@ -70,7 +70,7 @@ describe("autonomy publication resource isolation", () => {
     });
     const { epoch } = store.beginDaemonSession("2026-08-25T09:30:00.000Z");
 
-    admit(store, healthPublication, "project-a", projectA, "health-a");
+    admit(store, healthReviewer, "project-a", projectA, "health-a");
     expect(store.startRun("health-a", epoch, "2026-08-25T10:00:01.000Z")).toBe(1);
     admit(store, improverPublication, "project-a", projectA, "improver-a");
     expect(store.startRun("improver-a", epoch, "2026-08-25T10:00:01.000Z")).toBeNull();

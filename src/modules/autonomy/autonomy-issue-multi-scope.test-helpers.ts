@@ -12,7 +12,7 @@ import { createTestProjectRuntime } from "./autonomy-runtime.test-helpers.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
 import {
   buildAutonomyHealthReviewFromSignals,
-  finalizeAutonomyHealthReviewActions,
+  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
 } from "./workflows/autonomy-health-reviewer/health-review.js";
 
@@ -157,7 +157,7 @@ export function applyScopeSignals(
     scopeDir: projectDir,
     review,
   });
-  const finalized = finalizeAutonomyHealthReviewActions({
+  const finalized = applyAutonomyHealthReviewActions({
     currentProjection,
     scopeDir: projectDir,
     ownerQuestionQueue: new OwnerQuestionQueue(

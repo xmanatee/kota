@@ -141,34 +141,12 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
       const issueRuntime = createRuntime([
         "autonomy-health-reviewer",
-        "autonomy-health-review-publication",
         "autonomy-issue-projection-materialization",
         "improver",
         "improver-disposition-publication",
       ]);
       issueRuntime.runtime.start();
       try {
-        pbus.emit("workflow.failure.alert", {
-          workflow: "progress-reviewer",
-          runId: "2026-08-06T12-00-00-031Z-progress-reviewer-zrvmul",
-          status: "failed",
-          durationMs: 1_000,
-          errorSummary: failureReason,
-          text: "progress-reviewer failed",
-        });
-
-        await waitForLifecycle(
-          () => completed.some((run) => run.workflow === "improver"),
-          "the improver disposition",
-        );
-        const improverRun = completed.find((run) => run.workflow === "improver")!;
-        const improverMetadata = JSON.parse(
-          readFileSync(join(projectDir, improverRun.runDir, "metadata.json"), "utf-8"),
-        ) as { status: string };
-        if (improverMetadata.status !== "success") {
-          throw new Error(JSON.stringify(improverMetadata, null, 2));
-        }
-
         const deadLetters = new EventedDeadLetterQueueStore(
           join(projectDir, ".kota", "dead-letter-queue"),
           () => new Date("2026-08-14T02:00:00.000Z"),
@@ -203,6 +181,19 @@ describe("issue-driven autonomy lifecycle integration", () => {
             steps: [],
           },
         });
+
+        await waitForLifecycle(
+          () => completed.some((run) => run.workflow === "improver"),
+          "the improver disposition",
+        );
+        const improverRun = completed.find((run) => run.workflow === "improver")!;
+        const improverMetadata = JSON.parse(
+          readFileSync(join(projectDir, improverRun.runDir, "metadata.json"), "utf-8"),
+        ) as { status: string };
+        if (improverMetadata.status !== "success") {
+          throw new Error(JSON.stringify(improverMetadata, null, 2));
+        }
+
         await waitForLifecycle(
           () =>
             readAutonomyIssueProjection(projectDir).issues[0]
@@ -271,7 +262,6 @@ describe("issue-driven autonomy lifecycle integration", () => {
       );
       const clearRuntime = createRuntime([
         "autonomy-health-reviewer",
-        "autonomy-health-review-publication",
         "autonomy-issue-projection-materialization",
         "repo-task-mutation",
       ]);

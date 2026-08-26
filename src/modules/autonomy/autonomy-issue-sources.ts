@@ -14,9 +14,6 @@ import {
   emitHealth,
   stableIssueHash,
   stableToken,
-  WORKFLOW_FAILURE_HEALTH_LABELS,
-  workflowFailureHealthSource,
-  workflowFailureIssueKey,
 } from "./autonomy-issue-source-shared.js";
 import {
   type AutonomyHealthJsonObject,
@@ -52,33 +49,6 @@ function readJson(path: string): AutonomyHealthJsonValue {
   } catch {
     return null;
   }
-}
-
-function subscribeWorkflowFailures(ctx: AutonomyIssueSourceContext): void {
-  ctx.events.subscribe("workflow.failure.alert", (payload) => {
-    const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
-    emitHealth(ctx, runtime.scopeId, {
-      observation: "present",
-      source: workflowFailureHealthSource(payload.workflow),
-      severity: "critical",
-      labels: WORKFLOW_FAILURE_HEALTH_LABELS,
-      summary: `${payload.workflow} ${payload.status}; the exact run artifact owns failure detail.`,
-      evidenceRefs: [
-        {
-          kind: "run",
-          ref: `.kota/runs/${payload.runId}/metadata.json`,
-        },
-      ],
-      actionability: "local-code",
-      dedupeKey: workflowFailureIssueKey({
-        workflowName: payload.workflow,
-        errorSummary: payload.errorSummary,
-        fallback: payload.status,
-      }),
-      observationCount: 1,
-      createdAt: new Date().toISOString(),
-    });
-  });
 }
 
 function trajectoryArtifact(
@@ -269,7 +239,6 @@ function subscribeOwnerInterventions(ctx: AutonomyIssueSourceContext): void {
 }
 
 export function subscribeAutonomyIssueSources(ctx: AutonomyIssueSourceContext): void {
-  subscribeWorkflowFailures(ctx);
   subscribeStepObservations(ctx);
   subscribeOwnerInterventions(ctx);
   subscribeDeadLetterChanges(ctx);

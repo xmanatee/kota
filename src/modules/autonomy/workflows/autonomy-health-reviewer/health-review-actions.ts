@@ -6,7 +6,7 @@ import {
   buildAutonomyIssueObservation,
   reduceAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import { dismissGeneratedWorkQuestion } from "#modules/autonomy/generated-work-owner-question.js";
+import { findGeneratedWorkQuestion } from "#modules/autonomy/generated-work-owner-question.js";
 import { normalizeGeneratedWorkProposalKey } from "#modules/autonomy/generated-work-proposal.js";
 import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
 import {
@@ -56,25 +56,6 @@ function appliedActions(
   );
 }
 
-export function planAutonomyHealthReviewFinalization(args: {
-  currentProjection: AutonomyIssueProjection;
-  scopeDir?: string;
-  review: AutonomyHealthReview;
-  plannedActions: AutonomyHealthReviewActionResult;
-}): AutonomyHealthReviewActionResult {
-  const observations = autonomyIssueObservationsFromReview(args.review);
-  const projected = reduceAutonomyIssueProjection(
-    args.currentProjection,
-    observations,
-  );
-  return {
-    ...args.plannedActions,
-    dismissedOwnerQuestionIds: [],
-    issueTransitions: projected.transitions,
-    applied: appliedActions(projected.transitions, observations),
-  };
-}
-
 export function planAutonomyHealthReviewActions(args: {
   projectDir: string;
   currentProjection: AutonomyIssueProjection;
@@ -109,7 +90,7 @@ export function planAutonomyHealthReviewActions(args: {
   };
 }
 
-export function finalizeAutonomyHealthReviewActions(args: {
+export function applyAutonomyHealthReviewActions(args: {
   currentProjection: AutonomyIssueProjection;
   scopeDir?: string;
   ownerQuestionQueue: OwnerQuestionQueue;
@@ -132,22 +113,14 @@ export function finalizeAutonomyHealthReviewActions(args: {
   const issueByKey = new Map(
     projected.projection.issues.map((issue) => [issue.issueKey, issue]),
   );
-  const clearedGeneratedWorkQuestionIds = projected.transitions.flatMap(
-    (transition) => {
-      if (transition.kind !== "cleared") return [];
-      const actions = dismissGeneratedWorkQuestion(
-        args.ownerQuestionQueue,
-        normalizeGeneratedWorkProposalKey(
-          `autonomy-issue:${transition.issueKey}`,
-        ),
-        "Resolved by an explicit autonomy issue clear observation",
-        "autonomy-health-reviewer",
-      );
-      return actions.flatMap((action) =>
-        action.kind === "dismissed-owner-question" ? [action.questionId] : []
-      );
-    },
-  );
+  const clearedGeneratedWorkQuestionIds = projected.transitions.flatMap((transition) => {
+    if (transition.kind !== "cleared") return [];
+    const question = findGeneratedWorkQuestion(
+      args.ownerQuestionQueue,
+      normalizeGeneratedWorkProposalKey(`autonomy-issue:${transition.issueKey}`),
+    );
+    return question?.status === "pending" ? [question.id] : [];
+  });
   const linkedDismissedOwnerQuestionIds = projected.transitions.flatMap((transition) => {
     if (transition.kind !== "cleared") return [];
     const issue = priorIssueByKey.get(transition.issueKey) ??
@@ -156,11 +129,6 @@ export function finalizeAutonomyHealthReviewActions(args: {
     return issue.links.ownerQuestionIds.flatMap((questionId) => {
       const item = args.ownerQuestionQueue.get(questionId);
       if (item?.status !== "pending") return [];
-      args.ownerQuestionQueue.dismiss(
-        questionId,
-        "Resolved by an explicit autonomy issue clear observation",
-        "autonomy-health-reviewer",
-      );
       return [questionId];
     });
   });

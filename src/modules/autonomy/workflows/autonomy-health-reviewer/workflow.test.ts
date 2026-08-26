@@ -8,7 +8,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
+import type { DurableEffectValue } from "#core/workflow/run-context.js";
 import { WorkflowTestHarness } from "#core/workflow/testing/index.js";
+import {
+  AUTONOMY_ISSUE_PROJECTION_RESOURCE,
+  emptyAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
 import {
@@ -19,6 +24,7 @@ import runtimeHealthAuditorWorkflow, {
   runtimeHealthAuditStepOutput,
 } from "../runtime-health-auditor/workflow.js";
 import autonomyHealthReviewerWorkflow from "./workflow.js";
+import { planAutonomyHealthReviewActionsInWorker } from "./action-operations.js";
 
 function emptyInspected(): RuntimeHealthAudit["inspected"] {
   return {
@@ -80,6 +86,69 @@ describe("autonomy-health-reviewer workflow", () => {
       intervalMs: 6 * 60 * 60 * 1000,
       cooldownMs: 60 * 60 * 1000,
     });
+  });
+
+  it("commits the issue transition and follow-up effects in the reviewer run", async () => {
+    const projection = emptyAutonomyIssueProjection();
+    let staged: DurableEffectValue | null = null;
+    const result = await new WorkflowTestHarness(autonomyHealthReviewerWorkflow, {
+      projectDir,
+      trigger: {
+        event: autonomyHealthSignal.name,
+        payload: {
+          scopeId: "scope-test",
+          projectId: "scope-test",
+          observation: "present",
+          source: { kind: "workflow", id: "builder", workflow: "builder" },
+          severity: "critical",
+          labels: ["runtime", "workflow-failure"],
+          labelsKey: "runtime,workflow-failure",
+          summary: "Builder failed and the DLQ retained the run.",
+          evidenceRefs: [{
+            kind: "dead-letter",
+            ref: ".kota/dead-letter-queue/items.json#dlq-1",
+          }],
+          actionability: "local-code",
+          dedupeKey: "workflow:builder:failure:fixture",
+          observationCount: 1,
+          signalId: "health-fixture",
+          createdAt: "2026-08-26T12:00:00.000Z",
+        },
+      },
+      contextOverrides: {
+        state: {
+          read: <T extends DurableEffectValue>() => ({
+            revision: 0,
+            value: projection as unknown as T,
+          }),
+          compareAndSet: (_key, _revision, value) => {
+            staged = value;
+          },
+        },
+        runBlocking: async (_operation, input) =>
+          planAutonomyHealthReviewActionsInWorker(input as never) as never,
+      },
+    }).run();
+
+    expect(autonomyHealthReviewerWorkflow.resources?.({
+      projectDir,
+      stateDir: join(projectDir, ".kota"),
+      workflowName: autonomyHealthReviewerWorkflow.name,
+      trigger: {
+        event: autonomyHealthSignal.name,
+        schemaRef: null,
+        payload: {},
+      },
+    })).toEqual([AUTONOMY_ISSUE_PROJECTION_RESOURCE]);
+    expect(result.status).toBe("success");
+    expect(staged).toMatchObject({
+      issues: [expect.objectContaining({ status: "needs-decision" })],
+    });
+    expect(result.emitted.map((event) => event.event)).toEqual([
+      "autonomy.issue-projection.materialization.requested",
+      "autonomy.issue.decision-requested",
+      "workflow.attention.digest",
+    ]);
   });
 
   it("keeps runtime audit step output below the workflow output cap", () => {

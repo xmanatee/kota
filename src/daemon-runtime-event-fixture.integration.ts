@@ -16,7 +16,6 @@ import {
 const FIXTURE_TIME = "2026-08-14T09:00:00.000Z";
 
 export const AUTONOMY_SOURCE_EVENT_NAMES = [
-  "workflow.failure.alert",
   "workflow.step.completed",
   "owner.question.changed",
   "workflow.dead-letter.changed",
@@ -89,13 +88,21 @@ export function createRuntimeSourceFixture(args: {
     scopeId,
     projectDir,
     emitFailure(errorSummary = `${tag} daemon runtime integration failure`): void {
-      pbus.emit("workflow.failure.alert", {
-        workflow: "builder",
-        runId: `failure-${tag}`,
-        status: "failed",
-        durationMs: 1000,
-        errorSummary,
-        text: "builder failed",
+      createWorkflowDispatchDeadLetter({
+        store: scope.deadLetterQueue,
+        scopeId,
+        workflowName: "builder",
+        trigger: {
+          event: "autonomy.queue.available",
+          schemaRef: null,
+          payload: {},
+        },
+        reason: errorSummary,
+        errorClass: "execution",
+        failedRun: {
+          ...interruptedBuilderRun(`failure-${tag}`),
+          status: "failed",
+        },
       });
     },
     emitReview(): void {

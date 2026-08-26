@@ -223,24 +223,28 @@ describe("daemon runtime scoped autonomy events", () => {
 
       const scopeABeforeInvalid = fixtureA.snapshotSourceStores();
       const scopeBBeforeInvalid = fixtureB.snapshotSourceStores();
-      expect(() => eventBus.emit("workflow.failure.alert", {
+      expect(() => eventBus.emit("workflow.step.completed", {
         projectId: "unknown-scope",
         workflow: "builder",
         runId: "unknown-run",
-        status: "failed",
+        stepId: "critic",
+        stepType: "code",
+        status: "success",
         durationMs: 1,
-        errorSummary: "unknown",
-        text: "unknown",
+        runDir: ".kota/runs/unknown-run",
+        definitionPath: "fixture",
       })).toThrow(/unknown scope unknown-scope/);
-      expect(() => eventBus.emit("workflow.failure.alert", {
+      expect(() => eventBus.emit("workflow.step.completed", {
         scopeId: scopeAId,
         projectId: scopeBId,
         workflow: "builder",
         runId: "conflicting-run",
-        status: "failed",
+        stepId: "critic",
+        stepType: "code",
+        status: "success",
         durationMs: 1,
-        errorSummary: "conflicting",
-        text: "conflicting",
+        runDir: ".kota/runs/conflicting-run",
+        definitionPath: "fixture",
       })).toThrow(/scope conflict|conflicting scope selectors/);
       expect(fixtureA.snapshotSourceStores()).toEqual(scopeABeforeInvalid);
       expect(fixtureB.snapshotSourceStores()).toEqual(scopeBBeforeInvalid);

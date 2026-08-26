@@ -19,7 +19,7 @@ import type { AutonomyHealthReview } from "./health-review.js";
 import {
   buildAutonomyHealthAttentionDigest,
   buildAutonomyHealthReviewFromSignals,
-  finalizeAutonomyHealthReviewActions,
+  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
@@ -61,7 +61,7 @@ function applyReview(projectDir: string, built: AutonomyHealthReview) {
     scopeDir: projectDir,
     review: built,
   });
-  const finalized = finalizeAutonomyHealthReviewActions({
+  const finalized = applyAutonomyHealthReviewActions({
     currentProjection,
     scopeDir: projectDir,
     ownerQuestionQueue: new OwnerQuestionQueue(
@@ -147,7 +147,7 @@ describe("autonomy health issue projection", () => {
     expect(issue.occurrenceCount).toBe(2);
   });
 
-  it("resolves linked pending questions only from an explicit clear", () => {
+  it("plans linked question dismissal without mutating before commit", () => {
     const opened = applyReview(projectDir, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
     const queue = new OwnerQuestionQueue(
@@ -189,7 +189,7 @@ describe("autonomy health issue projection", () => {
     expect(cleared.applied).toEqual([
       expect.objectContaining({ kind: "resolved", transition: "cleared" }),
     ]);
-    expect(queue.get(question.id)?.status).toBe("dismissed");
+    expect(queue.get(question.id)?.status).toBe("pending");
     expect(readAutonomyIssueProjection(projectDir).issues[0]?.status).toBe(
       "resolved",
     );

@@ -2,7 +2,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import type { ProjectRuntime } from "#core/daemon/project-runtime.js";
 import type { ProjectScopedEventBus } from "#core/events/project-scope.js";
 import {
   materializeAutonomyIssueProjection,
@@ -11,72 +13,100 @@ import {
 } from "./autonomy-issue-projection.js";
 import {
   applyHealthReviewSignals,
+  ISSUE_SOURCE_SCOPE_ID,
   wireAutonomyIssueSourceFixture,
 } from "./autonomy-issue-sources.test-helpers.js";
 import { materializeGeneratedWorkProposal } from "./generated-work-proposal.js";
-import type { AutonomyHealthSignal } from "./health-signal.js";
+import {
+  type AutonomyHealthSignal,
+  normalizeHealthSignal,
+} from "./health-signal.js";
 
 const NOW = "2026-08-13T10:00:00.000Z";
 
 describe("source-owned autonomy issue observations", () => {
   let projectDir: string;
   let pbus: ProjectScopedEventBus;
+  let runtime: ProjectRuntime;
   let signals: AutonomyHealthSignal[];
 
   beforeEach(() => {
     projectDir = mkdtempSync(join(tmpdir(), "kota-issue-sources-"));
-    ({ pbus, signals } = wireAutonomyIssueSourceFixture(projectDir));
+    ({ pbus, runtime, signals } = wireAutonomyIssueSourceFixture(projectDir));
   });
 
   afterEach(() => {
     rmSync(projectDir, { recursive: true, force: true });
   });
 
-  it("turns repeated run failures into one durable issue revision", () => {
-    for (const runId of ["failure-run-1", "failure-run-2"]) {
-      pbus.emit("workflow.failure.alert", {
-        workflow: "builder",
-        runId,
-        status: "failed",
-        durationMs: 1000,
-        errorSummary: "Agent step build failed with code 17 at abcdef1234567",
-        text: "builder failed",
-      });
-    }
-
-    expect(signals).toHaveLength(2);
-    expect(signals.map((signal) => signal.dedupeKey)).toEqual([
-      signals[0]?.dedupeKey,
-      signals[0]?.dedupeKey,
-    ]);
-    const actions = applyHealthReviewSignals({
-      projectDir,
-      signals,
-      generatedAt: NOW,
-      reason: "fixture",
+  it("derives a failed workflow issue only from its durable dead letter", () => {
+    pbus.emit("workflow.failure.alert", {
+      workflow: "builder",
+      runId: "failure-run-1",
+      status: "failed",
+      durationMs: 1000,
+      errorSummary: "Agent step build failed with code 17",
+      text: "builder failed",
     });
 
-    expect(actions.applied).toEqual([
-      expect.objectContaining({ kind: "decision-requested", transition: "opened" }),
+    expect(signals).toEqual([]);
+
+    createWorkflowDispatchDeadLetter({
+      store: runtime.deadLetterQueue,
+      scopeId: ISSUE_SOURCE_SCOPE_ID,
+      workflowName: "builder",
+      trigger: {
+        event: "repo-task.changed",
+        schemaRef: null,
+        payload: {},
+      },
+      reason: "Agent step build failed with code 17",
+      errorClass: "execution",
+      failedRun: {
+        id: "failure-run-1",
+        workflow: "builder",
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        trigger: {
+          event: "repo-task.changed",
+          schemaRef: null,
+          payload: {},
+        },
+        startedAt: NOW,
+        completedAt: NOW,
+        status: "failed",
+        runDir: ".kota/runs/failure-run-1",
+        steps: [],
+      },
+    });
+
+    expect(signals).toEqual([
+      expect.objectContaining({
+        observation: "present",
+        source: expect.objectContaining({ id: "builder" }),
+        evidenceRefs: [expect.objectContaining({ kind: "dead-letter" })],
+      }),
     ]);
-    const issue = readAutonomyIssueProjection(projectDir).issues[0]!;
-    expect(issue.semanticRevision).toBe(1);
-    expect(issue.occurrenceCount).toBe(2);
-    expect(issue.evidenceRefs).toHaveLength(2);
   });
 
   it("projects a generated owner answer back onto the linked durable issue", () => {
-    pbus.emit("workflow.failure.alert", {
-      workflow: "builder",
-      runId: "owner-answer-failure",
-      status: "failed",
-      durationMs: 1000,
-      errorSummary: "Builder needs an owner-selected recovery policy",
-      text: "builder failed",
+    const openingSignal = normalizeHealthSignal({
+      observation: "present",
+      source: { kind: "workflow", id: "builder", workflow: "builder" },
+      severity: "critical",
+      labels: ["runtime", "workflow-failure"],
+      summary: "Builder needs an owner-selected recovery policy",
+      evidenceRefs: [{
+        kind: "dead-letter",
+        ref: ".kota/dead-letter-queue/items.json#owner-answer-failure",
+      }],
+      actionability: "local-code",
+      dedupeKey: "workflow:builder:failure:owner-policy",
+      observationCount: 1,
+      createdAt: NOW,
     });
     applyHealthReviewSignals({
       projectDir,
-      signals: [signals[0]!],
+      signals: [openingSignal],
       generatedAt: NOW,
       reason: "fixture-open",
     });

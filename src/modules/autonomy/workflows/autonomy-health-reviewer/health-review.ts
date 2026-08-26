@@ -19,9 +19,8 @@ import type {
 
 export {
   autonomyIssueObservationsFromReview,
-  finalizeAutonomyHealthReviewActions,
+  applyAutonomyHealthReviewActions,
   planAutonomyHealthReviewActions,
-  planAutonomyHealthReviewFinalization,
 } from "./health-review-actions.js";
 export {
   AUTONOMY_HEALTH_REVIEW_ARTIFACT,
