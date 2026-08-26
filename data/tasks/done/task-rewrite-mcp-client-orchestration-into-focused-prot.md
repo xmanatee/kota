@@ -1,13 +1,13 @@
 ---
 id: task-rewrite-mcp-client-orchestration-into-focused-prot
 title: Rewrite MCP client orchestration into focused protocol components
-status: backlog
+status: done
 priority: p2
 area: architecture
 task_class: Platform
 summary: Replace the monolithic MCP manager with focused orchestration, execution, cache, input, progress, and remote-task components.
 created_at: 2026-08-24T02:13:45.165Z
-updated_at: 2026-08-24T02:13:45.165Z
+updated_at: 2026-08-26T15:21:31.520Z
 ---
 
 ## Problem

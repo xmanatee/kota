@@ -50,9 +50,11 @@ Tracked implementation tasks:
 The setup-metadata and Codex capability-truth prerequisites are complete. The
 builder-recovery security proposal was dropped and is not an implementation
 dependency. Queue paths and task frontmatter remain authoritative: fourteen of
-the tracked tasks remain open; task-system separation, scope migration, and
-contract generation are done; and the two findings against the retired proof
-executor are dropped with dispositions.
+the tracked tasks were open at the start of implementation; eleven remain open
+after the MCP, manifest, and dead-letter ownership rewrites. Task-system
+separation, scope migration, contract generation, and the three Stage 13
+rewrites are done; the two findings against the retired proof executor are
+dropped with dispositions.
 
 ## Stage Progress
 
@@ -69,7 +71,7 @@ executor are dropped with dispositions.
 - [x] Stage 10 — replace shadow runtimes with production drivers.
 - [x] Stage 11 — correct transport, capability, and mutation ports.
 - [x] Stage 12 — normalize persistence and typed projections.
-- [ ] Stage 13 — decompose remaining mixed owners by responsibility.
+- [x] Stage 13 — decompose remaining mixed owners by responsibility.
 - [ ] Stage 14 — consolidate tests and fixtures by behavior owner.
 - [ ] Stage 15 — reconnect self-improvement to real feedback.
 - [ ] Stage 16 — remove migration residue and verify the program.
@@ -393,6 +395,31 @@ dispatcher passed 3,195 tests and exposed 16 failures outside the focused
 surface: the intentional corrupt-memory behavior change was updated and now
 passes, while the remaining daemon/autonomy fixture failures reproduce the
 known host/shared-state baseline tracked for the final consolidation stages.
+
+## Stage 13 Result
+
+`McpManager` is now a 507-line lifecycle/composition facade over owners for
+declaration and tool registration, operation caches, resource/prompt/remote
+skill execution, remote-task persistence and polling, execution types, and
+tool-result validation. Those owners hold their own mutable invariants; the
+former 2,033-line manager no longer contains parallel implementations of the
+delegated behavior.
+
+The canonical module-manifest surface now composes focused event-flow,
+effect/simulation, and setup-availability projectors while retaining one
+manifest representation and one loader-built projection. Dead-letter handling
+retains one discriminated contract and public queue facade, with capture,
+retention/redaction policy, and durable store/deduplication owned separately;
+existing workflow redrive and daemon route owners continue to consume that
+same queue. The mixed implementations were deleted rather than wrapped.
+
+One MCP test that mutated the manager's former private `toolMap` was deleted:
+it froze private choreography and failed immediately when ownership improved,
+while the public declaration-bound dispatch behavior remains covered. Both
+TypeScript projects, repository lint, and 169 focused MCP, manifest-loader, and
+dead-letter behavior checks passed. The three normalized Stage 13 tasks moved
+to done through the task domain and queue validation remains the stage-close
+gate.
 
 ## Finding Ownership
 

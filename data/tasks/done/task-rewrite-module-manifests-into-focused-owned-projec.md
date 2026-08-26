@@ -1,14 +1,14 @@
 ---
 id: task-rewrite-module-manifests-into-focused-owned-projec
 title: Rewrite module manifests into focused owned projections
-status: backlog
+status: done
 priority: p2
 area: architecture
 task_class: Platform
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Separate manifest contracts and validation from effect, event-flow, setup, and simulation projections without parallel paths.
 created_at: 2026-08-24T02:13:46.461Z
-updated_at: 2026-08-24T02:13:46.461Z
+updated_at: 2026-08-26T15:21:32.968Z
 ---
 
 ## Problem

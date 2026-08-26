@@ -1,14 +1,14 @@
 ---
 id: task-rewrite-dead-letter-handling-into-focused-lifecycl
 title: Rewrite dead-letter handling into focused lifecycle components
-status: backlog
+status: done
 priority: p2
 area: architecture
 task_class: Platform
 depends_on: [task-complete-the-terminal-project-to-scope-migration]
 summary: Separate dead-letter contracts, persistence, redrive, retention, and redaction behind one lifecycle service.
 created_at: 2026-08-24T02:13:49.133Z
-updated_at: 2026-08-24T02:13:49.133Z
+updated_at: 2026-08-26T15:21:34.392Z
 ---
 
 ## Problem
