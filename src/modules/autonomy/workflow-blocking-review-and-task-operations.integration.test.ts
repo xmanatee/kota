@@ -76,32 +76,6 @@ describe("autonomy workflow blocking review and task operations", () => {
       );
       clearTimeout(reviewTimer);
 
-      const agentRunDir = join(
-        projectDir,
-        ".kota",
-        "builder-evidence",
-        "boundary-test",
-      );
-      mkdirSync(agentRunDir, { recursive: true });
-      writeFileSync(join(agentRunDir, "success-criteria.txt"), "1. Declared\n");
-      writeFileSync(
-        join(agentRunDir, "success-criteria-verified.txt"),
-        "1. Verified\n",
-      );
-      writeFileSync(join(agentRunDir, "commit-message.txt"), "Boundary test\n");
-      writeFileSync(
-        join(agentRunDir, "evidence-manifest.json"),
-        `${JSON.stringify({ schemaVersion: 1, artifacts: [] })}\n`,
-      );
-      const criteriaInspection = await runWorkflowBlockingOperation(
-        builderRepairCheckOperation,
-        {
-          kind: "success-criteria-declared",
-          projectDir,
-          runDirPath: agentRunDir,
-        },
-      );
-
       for (const state of [
         "backlog",
         "ready",
@@ -112,6 +86,40 @@ describe("autonomy workflow blocking review and task operations", () => {
       ]) {
         mkdirSync(join(projectDir, "data", "tasks", state), { recursive: true });
       }
+      writeFileSync(
+        join(projectDir, "data", "tasks", "done", "task-review-boundary.md"),
+        [
+          "---",
+          "id: task-review-boundary",
+          "title: Review boundary",
+          "status: done",
+          "priority: p2",
+          "area: autonomy",
+          "task_class: Platform",
+          "summary: Keep review workers responsive.",
+          "created_at: 2026-08-14T12:00:00.000Z",
+          "updated_at: 2026-08-14T12:00:00.000Z",
+          "---",
+          "",
+          "Resolved.",
+          "",
+        ].join("\n"),
+      );
+      rmSync(
+        join(projectDir, "data", "tasks", "doing", "task-review-boundary.md"),
+      );
+      execFileSync(
+        "git",
+        ["add", "data/tasks/done/task-review-boundary.md"],
+        { cwd: projectDir, stdio: "ignore" },
+      );
+      const authorityInspection = await runWorkflowBlockingOperation(
+        builderRepairCheckOperation,
+        {
+          projectDir,
+          taskId: "task-review-boundary",
+        },
+      );
       const blockedPromotions = await runWorkflowBlockingOperation(
         promoteSatisfiedBlockedTasksOperation,
         { projectDir },
@@ -189,7 +197,10 @@ describe("autonomy workflow blocking review and task operations", () => {
           expect.objectContaining({ path: "git:workflow-mutation-files" }),
         ]),
       );
-      expect(criteriaInspection).toMatchObject({ status: "passed" });
+      if (authorityInspection.status === "failed") {
+        throw new Error(authorityInspection.output);
+      }
+      expect(authorityInspection.status).toBe("passed");
       expect(blockedPromotions).toEqual({ promotions: [] });
       expect(scopeImprovement.createdTaskIds).toEqual([
         "task-worker-boundary-scope-improvement",

@@ -16,7 +16,7 @@ import {
   parseVerdict,
 } from "./critic-verdict.js";
 import {
-  checkProductOperatorEvidence,
+  collectOperatorEvidenceRefs,
   resolveDurableOperatorEvidenceDir,
 } from "./product-evidence.js";
 import { criticReviewInspectionOperation } from "./review-input-operations.js";
@@ -41,79 +41,45 @@ export {
   getWorkflowDiffStat,
 } from "./workflow-diff.js";
 
-const CRITIC_SYSTEM_PROMPT = `You are a calibrated code review critic. Your job is to determine whether an agent's work genuinely and completely fulfills its assigned task.
+const CRITIC_SYSTEM_PROMPT = `You are an independent code review critic. Decide whether the changed repository genuinely fulfills the assigned task.
 
-## What you check
+## Review criteria
 
-- **Completeness**: Does the work address everything the task requires? Are all "Done When" criteria met?
-- **Honesty**: Does the task status match reality? If the task says "done", is the work actually done?
-- **Consistency**: Do the changes match what the task asked for? Are there half-finished transitions, stale references, or contradictions between the task description and the actual changes?
-- **Missed obligations**: If the task mentions updating docs, tests, or config — were those updates made?
+- **Fulfillment and observable behavior:** The requested outcome and constraints are complete on the real path, with no half-finished transition or contradictory task state.
+- **Ownership and maintainability:** The change leaves one clear owner for each behavior and does not introduce an unnecessary parallel mechanism, compatibility path, or fixture-owned runtime.
+- **Safety and honesty:** Authority, trust, secrets, destructive actions, external sources, and claimed limitations are handled truthfully.
+- **Proof sufficiency:** The builder's selected proof can distinguish the intended outcome from the relevant failure. Valid proof may be a type, schema, generated contract, production run, durable record, direct inspection, or behavior test. Do not require a test when another authoritative mechanism closes the failure more directly.
 
-## What you do NOT check
+Do not review formatting, naming preferences, mechanical check output, optional refactors, or alternative valid approaches. Judge the task and changed behavior, not task labels, evidence keywords, file size, test count, or artifact shape.
 
-- Code style, formatting, or naming preferences (lint handles this)
-- Whether tests pass (mechanical checks handle this)
-- Whether the code compiles or type-checks (mechanical checks handle this)
-- Minor refactoring opportunities or "nice to have" improvements
-- Alternative approaches that could also work
+## Calibration
 
-## Calibration rules
-
-- Only flag something as a critical issue if it represents a genuine gap: work that was required but not done, or a claim that is demonstrably false.
-- If the work is substantially complete but has a minor omission that doesn't affect correctness, use a warning, not a critical issue.
-- If required evidence is absent, fail rather than inferring completion from plausible-looking changes.
-- An empty diff with a moved task file is suspicious — the agent may not have done real work.
-- For accepted work, the \`summary\` must cite at least one concrete reviewed file/line such as \`src/path/file.ts:123\` or \`src/path/file.ts#L123\`, unless the run truly changed no reviewable repo file. This citation is an inspectable review-scrutiny signal, not a hidden reasoning trace.
-- For \`task_class: Product\`, inspect operator journey evidence: CLI transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent. Green tests alone are not enough; a Product task with passing implementation checks but no operator-visible evidence is a critical issue.
-- For research or URL-dependent tasks, verify that required sources were actually processed — not just referenced or dismissed. If the task depends on reading a URL and the source was inaccessible (auth-walled, 401/402/403, paywall, fetch failure), the task must not be marked done unless it records a blocker, creates a follow-up/enabler task, or documents why the source is no longer needed. Treat an unread required source marked as processed or dismissed without honest handling as a critical issue. Use the run trace when the diff alone is not enough.
-- For client/channel tasks (\`area: client\` or \`area: channel\`), if the task declares a screenshot, screencast, rendered artifact/fixture, transcript, runtime probe, or visual evidence in its Desired Outcome, Done When, or Acceptance Evidence, the run directory must contain that artifact. A prose description of what an operator would see does not satisfy a declared rendered-evidence requirement. If the artifact is missing without an explicit operator-capture precondition or blocked-task escalation, fail with a critical issue.
-
-## Critical-issue vs warning classification
-
-The autonomy contract requires the loop to turn quality drift into corrective action. Use these defaults to decide whether a concern is blocking, non-blocking, or notification-only. Borderline cases bias toward warning + recorded follow-up, not silent acceptance.
-
-Treat these as **critical issues** that block the run:
-
-- **Weak rendered evidence on a task that declared a visible artifact.** A text description, mocked screenshot, or unchecked-in fixture does not satisfy a Done-When that asks for a real screenshot, screencast, transcript, or runtime probe. An artifact that exists but does not actually demonstrate the declared behavior (e.g. a transcript whose only output is an auth/config preflight failure with no observable per-feature behavior) does not satisfy the requirement either.
-- **Product work with green tests but unchanged operator UX.** A \`task_class: Product\` completion that has implementation tests but no operator journey evidence must fail; the absence of a transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent means the actual human path was not proven.
-- **Placeholder or no-value tests.** Tests that assert on the input the agent just wrote, that always pass without exercising the code under change, or that are scoped so narrowly they cannot regress.
-- **Untracked compatibility shims.** A new \`legacyEffect()\`, \`*Old\`, \`*Legacy\`, or alias re-export added without a tracked removal task is debt the contract forbids.
-- **Baseline-only strictness ratchets.** Adding new entries to a strict-types or any-other baseline file in the same direction the baseline is supposed to shrink, without a tracked removal task or rationale. A baseline addition for a file outside the task's stated scope ("unrelated entry", "if this is inadvertent regeneration") is itself the regression — flag it as critical, do not hedge with "if".
-- **Required-source dishonesty.** A task depending on an external source where the source was 401/403/paywalled/fetch-failed and the run pretends it was processed.
-- **Done-When item not implemented and not traced.** A Done-When line that this change does not address and is not deferred to a named follow-up task or recorded as a known limitation in the task body. "Acceptable because…" without a tracked trace is acceptance, not deferral. If you find yourself writing "not implemented in this change", "remains" / "still", or "not traced to a follow-up" about a Done-When item, that is a critical issue, not a warning.
-- **Runtime defect masked by missing test coverage.** A code change that introduces or leaves a behavior bug visible on the real execution path (TTY rendering, network call, file write, event emit) which mechanical checks pass only because the existing tests do not exercise that path. Phrasings like "tests only check X, so this defect passes mechanically", "on a real TTY this will print literal …", "the runtime path is wrong but the test stubs around it" mean the change ships broken — fail the run and require either the bug be fixed or the missing test be added.
-- **Evaluator signal reachable only in synthetic fixtures.** A calibration, monitoring, or quality-gate repair whose detector requires evidence that no production writer can emit is silenced, not repaired. If tests manufacture an otherwise unreachable artifact or status combination, fail until a live producer path and a production-shaped test prove the signal can occur.
-
-Treat these as **warnings** that still allow pass — but only when accompanied by a durable trace:
-
-- A localized caveat that does not affect correctness (one stylistic improvement opportunity, one comment that could be tighter).
-- An accepted trade-off that is named in the run summary, recorded as a known limitation in the task body, or has a follow-up task created in this run or a prior one.
-
-When you keep a non-trivial warning in \`pass\` or \`pass_with_warnings\`, your \`summary\` must name the trace: which follow-up task, which task-body limitation paragraph, or which non-action reason the warning is being deferred against. A warning with no named trace and no harmless-caveat justification belongs in \`critical_issues\`, not \`warnings\`.
+- A critical issue is a concrete unfulfilled requirement, incorrect or unsafe observable behavior, dishonest claim, broken ownership boundary, or proof that cannot support the completion claim.
+- A real runtime defect is critical because the behavior is wrong, not because a test is absent. Describe the observable defect and let the builder choose the smallest corrective proof.
+- Product or operator evidence is relevant when the actual outcome changes an operator journey. Decide relevance from the task and behavior; do not infer it mechanically from task class, area, or keywords.
+- Research that depends on an inaccessible source cannot be claimed complete unless the dependency is honestly blocked, superseded, or no longer necessary.
+- A warning is a concrete non-blocking concern. It may be accepted as non-actionable when the summary explains why; a follow-up task is optional and should exist only when the work is valuable.
+- Passing work may have no warnings. Summarize the concrete behavior and proof you reviewed without obeying a fixed citation syntax.
 
 ## Output format
 
-Your entire response must be exactly one JSON object matching the schema below. Do not include narrative text, headings, checkmarks, bullet lists, commentary, or markdown before or after the JSON. Do not wrap the JSON in code fences. The first character of your response must be \`{\` and the last must be \`}\`.
-
-Schema:
+Return exactly one JSON object with no surrounding prose or markdown:
 {
   "verdict": "pass" | "fail" | "pass_with_warnings",
-  "critical_issues": ["string — each describes one required-but-missing piece of work"],
-  "warnings": ["string — non-blocking observations"],
-  "summary": "string — one sentence overall assessment"
+  "critical_issues": ["string — concrete blocking gaps"],
+  "warnings": ["string — concrete non-blocking concerns"],
+  "summary": "string — outcome, proof sufficiency, and any non-action reason"
 }
 
 Example:
-{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"All Done When criteria addressed with tests covering src/example.ts:42."}`;
+{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"The typed boundary rejects the invalid state and the production probe demonstrates the requested operator outcome."}`;
 
 /**
  * Stable identifier for the active critic system prompt. The live calibration
- * gate aggregates only artifacts whose hash matches the running critic — when
- * the prompt is tightened (a new class promoted to a critical issue, an old
- * class softened), the rolling window resets to fresh data instead of letting
- * historical verdicts drag the rate above threshold for the rest of the
- * window. 12 hex chars (48 bits) is plenty to distinguish prompt versions.
+ * gate aggregates only artifacts whose hash matches the running critic. When
+ * review criteria change, the rolling window resets instead of comparing
+ * verdicts produced under different guidance. 12 hex chars (48 bits) is
+ * sufficient to distinguish prompt versions.
  */
 export function getCriticPromptHash(): string {
   return createHash("sha256").update(CRITIC_SYSTEM_PROMPT).digest("hex").slice(0, 12);
@@ -197,7 +163,6 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         diffStat,
         diffContent,
         changedFiles,
-        fallbackFileLineCitations,
       } = inspection;
       const taskContent = target.content;
       const probeResult = await runProbeIfDeclared(
@@ -210,9 +175,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
           ? reviewDir
           : undefined,
       );
-      const productEvidence = checkProductOperatorEvidence({
-        taskContent,
-        taskState: target.state,
+      const operatorEvidenceRefs = collectOperatorEvidenceRefs({
         evidenceDirPath: durableEvidenceDir,
         changedFiles,
         hasRuntimeProbeResult: probeResult !== null,
@@ -223,23 +186,16 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         workflow: ctx.workflow.name,
         reviewerPromptHash: getCriticPromptHash(),
         taskId,
-        fallbackFileLineCitations,
       };
 
-      if (productEvidence.required && !productEvidence.satisfied) {
-        return handleVerdict(
-          {
-            verdict: "fail",
-            critical_issues: [productEvidence.reason ?? "Missing Product evidence."],
-            warnings: [],
-            summary:
-              "Product task review failed before agent judgment because operator journey evidence is absent.",
-          },
-          runDir,
-          "critic-review.json",
-          verdictContext,
-        );
-      }
+      const builderSummary = ctx.stepResults.build?.output;
+      const builderSummaryText =
+        typeof builderSummary === "object" && builderSummary !== null &&
+          "content" in builderSummary && typeof builderSummary.content === "string"
+          ? builderSummary.content
+          : typeof builderSummary === "string"
+          ? builderSummary
+          : "(no builder completion summary was recorded)";
 
       const userMessage = [
         "## Task (what was asked)",
@@ -251,15 +207,18 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         "## Changed files",
         changedFiles,
         "",
+        "## Builder completion summary",
+        builderSummaryText,
+        "",
         "## Review context",
         `Project root: ${reviewDir}`,
         `Run directory: ${runDir}`,
         "Start from the task, final task state, changed files, and diff below.",
         "If completeness is uncertain, inspect run artifacts yourself: metadata.json, steps/*.json (structured step outputs), steps/*.input.md, steps/*.tool-telemetry.json, and related repo files.",
         "Do not require a specific evidence artifact. Use judgment, but do not accept claims that are unsupported by the task, diff, repo state, or run trace.",
-        productEvidence.required
-          ? `Product operator evidence refs detected: ${productEvidence.refs.join(", ")}`
-          : "Product operator evidence requirement: not applicable.",
+        operatorEvidenceRefs.length > 0
+          ? `Available operator evidence refs: ${operatorEvidenceRefs.join(", ")}`
+          : "Available operator evidence refs: none found. Decide whether the actual outcome needs operator-visible proof; do not infer that from metadata or keywords.",
         "You have a 20-turn budget. Budget it for judgment, not exploration: the diff, task, and step JSON outputs are almost always enough. Do not open `steps/*.events.jsonl` — it is a raw per-tool event stream, routinely 1–3 MB, and burns the budget without adding signal. Reach for it only if nothing else explains a concrete gap you already suspect.",
         "",
         "## Useful run artifact globs",

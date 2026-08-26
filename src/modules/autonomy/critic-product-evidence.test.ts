@@ -1,11 +1,12 @@
 import "./critic-test-fixture.integration.js";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
   getMockRunAgentHarness,
+  getPromptArg,
   makeContext,
   makeRunDir,
   makeTmpDir,
@@ -17,10 +18,10 @@ import {
 
 const mockRunAgentHarness = getMockRunAgentHarness();
 
-describe("critic product evidence gate", () => {
+describe("critic operator evidence context", () => {
   beforeEach(resetCriticTestMocks);
 
-  it("rejects a Product task with passing checks but no operator journey evidence", async () => {
+  it("lets the critic judge whether a Product task needs operator evidence", async () => {
     const dir = makeTmpDir();
     writeDoingTask(
       dir,
@@ -46,21 +47,22 @@ describe("critic product evidence gate", () => {
       verdict: "pass",
       critical_issues: [],
       warnings: [],
-      summary: "Mock judge would pass, but should not be reached.",
+      summary:
+        "The task only changed internal behavior, so an operator artifact is not relevant.",
     });
 
     const check = createCriticCheck({ runDirPath: runDir });
     await expect(
       (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
-    ).rejects.toThrow(/operator journey evidence/);
+    ).resolves.toMatch(/pass/);
 
-    expect(mockRunAgentHarness).not.toHaveBeenCalled();
-    const artifact = JSON.parse(readFileSync(join(runDir, "critic-review.json"), "utf8"));
-    expect(artifact.verdict).toBe("fail");
-    expect(artifact.summary).toContain("operator journey evidence is absent");
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+    const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
+    expect(prompt).toContain("Available operator evidence refs: none found");
+    expect(prompt).toContain("do not infer that from metadata or keywords");
   });
 
-  it("ignores unregistered builder-source artifacts until screened projection", async () => {
+  it("shows only durable operator artifacts to the critic", async () => {
     const dir = makeTmpDir();
     writeDoingTask(
       dir,
@@ -105,8 +107,11 @@ describe("critic product evidence gate", () => {
     );
     await expect(
       (check as CodeCheck).run(context, TEST_PARENT_STEP),
-    ).rejects.toThrow(/operator journey evidence/);
-    expect(mockRunAgentHarness).not.toHaveBeenCalled();
+    ).resolves.toMatch(/pass/);
+    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+    expect(getPromptArg(mockRunAgentHarness.mock.calls[0])).toContain(
+      "Available operator evidence refs: none found",
+    );
 
     mkdirSync(join(durableEvidenceDir, "artifacts"), { recursive: true });
     writeFileSync(
@@ -117,6 +122,9 @@ describe("critic product evidence gate", () => {
     await expect(
       (check as CodeCheck).run(context, TEST_PARENT_STEP),
     ).resolves.toMatch(/pass/);
-    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(2);
+    expect(getPromptArg(mockRunAgentHarness.mock.calls[1])).toContain(
+      "run:artifacts/transcript.txt",
+    );
   });
 });

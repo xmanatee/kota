@@ -8,7 +8,7 @@ task_class: Platform
 anchor: true
 summary: Track the approved terminal migrations, trust-boundary repairs, operator fixes, contract generation, targeted rewrites, and enforcement needed to leave one clean mechanism per job.
 created_at: 2026-08-24T02:13:36.188Z
-updated_at: 2026-08-26T04:16:30.000Z
+updated_at: 2026-08-26T04:31:43.000Z
 ---
 
 ## Problem
@@ -56,7 +56,7 @@ nineteen open tracked tasks.
 
 - [x] Stage 0 — establish the baseline and owner/rule ledger.
 - [x] Stage 1 — remove misleading instructions and context bias.
-- [ ] Stage 2 — make builder validation and critic review proportional.
+- [x] Stage 2 — make builder validation and critic review proportional.
 - [ ] Stage 3 — make exploration and health improvement outcome-driven.
 - [ ] Stage 4 — reduce the task system to objective integrity.
 - [ ] Stage 5 — separate shipping, validation, and confidence cadences.
@@ -101,6 +101,34 @@ workflow tests, and 18 documentation/external-decision/report tests passed.
 The pre-change full-suite baseline remains independently red: 12,691 tests
 passed and 25 skipped, while seven replay/eval smoke files failed because their
 subprocess runs produced no terminal artifact.
+
+## Stage 2 Result
+
+Builder's universal repair catalog fell from twenty checks to two: the targeted
+task must reach an honest terminal state, then the independent critic reviews
+the result. Write scope, task digest, trust, secrets, process ownership, Git
+publication, reconciliation, and integration safety remain enforced by their
+runtime owners rather than repeated as builder checks. Post-reconcile validation
+now runs task integrity instead of unconditional `pnpm check`; the builder
+selects and runs behavior-specific proof from the final affected surface.
+
+The builder prompt now treats scoped commands as suggestions and asks the
+ordinary completion summary to name affected owners, selected validation or
+non-test proof, its sufficiency, and limitations. The critic receives that
+summary and available operator evidence as context. Its shortened criteria
+judge fulfillment, observable behavior, ownership, safety, honesty, and proof
+sufficiency without task-class, keyword, artifact-shape, test-presence, or
+file-line-citation pre-rejection. A clean pass stays a clean pass, and a warning
+may be accepted as non-actionable with a reason rather than forcing a task.
+
+Nine builder-only proxy/check files and their fixture tests were removed. The
+stage deleted a net 1,408 lines. Inspection of server, client/Product, and
+documentation/generated-contract proof paths showed the same two authority
+checks with no platform command matrix; critic scenarios accept a generated
+contract proof or no operator artifact when the actual outcome makes that
+sufficient. TypeScript, Biome on changed sources, task validation, diff
+whitespace validation, and 28 focused critic, builder, and real blocking-worker
+tests passed.
 
 ## Finding Ownership
 

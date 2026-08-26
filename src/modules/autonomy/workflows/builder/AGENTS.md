@@ -8,8 +8,9 @@ Builder is a business workflow, not a private execution runtime.
   `task:<taskId>`. Shared runtime owns task-resource exclusivity, sandbox,
   process, ports, commit, integration, recovery, and cleanup.
 - Builder validates that the targeted contract still matches its isolated
-  workspace, checks harness readiness, then runs one build agent with the
-  normal critic and repair checks.
+  workspace, checks harness readiness, then runs one build agent. Universal
+  repair checks protect target-task authority and independent critic review;
+  the agent selects behavior-specific proof.
 - Its integration policy rechecks the admitted source task against the exact
   canonical snapshot used for the final rebase. Contract drift preserves the
   writer for attention instead of publishing stale work.
@@ -21,9 +22,7 @@ Builder is a business workflow, not a private execution runtime.
 - Tests cover targeted dispatch, resource binding, and build gating. Runtime
   isolation, integration, and recovery are tested by the shared runtime that
   owns those behaviors.
-
-## Success Evidence
-
-Agents use `$KOTA_RUN_DIR` for success criteria and commit message, and
-`$KOTA_RUN_ARTIFACT_DIR` for declared artifacts. Keep criteria natural and
-non-duplicative. Runtime owns persistence and publication of run evidence.
+- Builder's normal completion summary names its affected owners, selected
+  validations or non-test proof, rationale, and limitations. Runtime persists
+  the trace and owns the commit and publication lifecycle; no additional
+  success-evidence schema is required.

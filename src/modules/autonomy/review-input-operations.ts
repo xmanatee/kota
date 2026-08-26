@@ -4,7 +4,6 @@ import {
   defineWorkflowBlockingOperation,
   type WorkflowBlockingOperationContext,
 } from "#core/workflow/blocking-operation.js";
-import { fileLineCitationsFromUnifiedDiff } from "./review-scrutiny-citations.js";
 import {
   findExpectedTaskReviewTarget,
   findTaskReviewTarget,
@@ -29,7 +28,6 @@ export type CriticReviewInspectionResult =
       diffStat: string;
       diffContent: string;
       changedFiles: string;
-      fallbackFileLineCitations: string[];
     };
 
 export function inspectCriticReviewInWorker(
@@ -52,7 +50,6 @@ export function inspectCriticReviewInWorker(
     diffStat,
     diffContent,
     changedFiles,
-    fallbackFileLineCitations: fileLineCitationsFromUnifiedDiff(diffContent),
   };
 }
 
@@ -75,7 +72,6 @@ export type ImproverSemanticInspectionResult =
       diffStat: string;
       diffContent: string;
       commitMessage: string;
-      fallbackFileLineCitations: string[];
     };
 
 export function inspectImproverSemanticReviewInWorker(
@@ -96,7 +92,6 @@ export function inspectImproverSemanticReviewInWorker(
     diffStat,
     diffContent,
     commitMessage,
-    fallbackFileLineCitations: fileLineCitationsFromUnifiedDiff(diffContent),
   };
 }
 
