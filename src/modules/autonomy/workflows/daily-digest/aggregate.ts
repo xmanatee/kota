@@ -59,8 +59,7 @@ export type DecomposerSplitItem = {
 export type BlockedPromoterMoveItem = {
   runId: string;
   promotedTaskIds: string[];
-  toReady: string[];
-  toBacklog: string[];
+  toOpen: string[];
 };
 
 export type ExplorerAdditionItem = {
@@ -90,9 +89,7 @@ export type AgingOperatorCaptureItem = {
 };
 
 export type QueueCounts = {
-  backlog: number;
-  ready: number;
-  doing: number;
+  open: number;
   blocked: number;
 };
 
@@ -243,7 +240,7 @@ function countCommittedTaskAdditions(
   runsDir: string,
 ): number {
   return readAutonomyRunDeliveryEvidence(runsDir, run)?.changedPaths.filter(
-    (path) => /^data\/tasks\/(?:backlog|ready)\/task-.*\.md$/.test(path),
+    (path) => /^data\/tasks\/task-.*\.md$/.test(path),
   ).length ?? 0;
 }
 
@@ -273,7 +270,7 @@ function countDecomposerChildren(
   runsDir: string,
 ): number {
   return readAutonomyRunDeliveryEvidence(runsDir, run)?.changedPaths.filter(
-    (path) => /^data\/tasks\/(?:backlog|ready)\/task-.*\.md$/.test(path),
+    (path) => /^data\/tasks\/task-.*\.md$/.test(path),
   ).length ?? 0;
 }
 
@@ -297,8 +294,7 @@ function collectBlockedPromoterMoves(
     items.push({
       runId: run.id,
       promotedTaskIds: all.map((m) => m.id),
-      toReady: all.filter((m) => m.toState === "ready").map((m) => m.id),
-      toBacklog: all.filter((m) => m.toState === "backlog").map((m) => m.id),
+      toOpen: all.filter((m) => m.toState === "open").map((m) => m.id),
     });
   }
   return items;
@@ -345,7 +341,7 @@ function collectAgingOperatorCaptures(
 ): AgingOperatorCaptureItem[] {
   const items: AgingOperatorCaptureItem[] = [];
   for (const record of blockedRecords) {
-    const updatedMs = Date.parse(record.frontmatter.updatedAt);
+    const updatedMs = Date.parse(record.observedModifiedAt);
     if (Number.isNaN(updatedMs)) continue;
     const ageDays = Math.floor((nowMs - updatedMs) / MS_PER_DAY);
     if (ageDays < OPERATOR_CAPTURE_AGED_DAYS) continue;
@@ -353,7 +349,7 @@ function collectAgingOperatorCaptures(
     if (!parsed.ok) continue;
     if (parsed.precondition.kind !== "operator-capture") continue;
     items.push({
-      taskId: record.frontmatter.id,
+      taskId: record.id,
       ageDays,
       path: parsed.precondition.path,
     });
@@ -368,9 +364,7 @@ function computeQueueDelta(
   previous: QueueCounts | null,
 ): QueueDelta {
   const delta: QueueDelta["delta"] = {
-    backlog: previous ? current.backlog - previous.backlog : null,
-    ready: previous ? current.ready - previous.ready : null,
-    doing: previous ? current.doing - previous.doing : null,
+    open: previous ? current.open - previous.open : null,
     blocked: previous ? current.blocked - previous.blocked : null,
   };
   return { current, previous, delta };
@@ -390,9 +384,7 @@ export function digestStateFromCounts(
   return {
     capturedAt: new Date(nowMs).toISOString(),
     counts: {
-      backlog: counts.backlog,
-      ready: counts.ready,
-      doing: counts.doing,
+      open: counts.open,
       blocked: counts.blocked,
     },
   };

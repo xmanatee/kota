@@ -113,7 +113,6 @@ const SEED_ENTRIES: RawRecallEntry[] = [
       title: "Build the recall seam",
       state: "done",
       priority: "p1",
-      updatedAt: "2026-04-22",
     },
   },
   {

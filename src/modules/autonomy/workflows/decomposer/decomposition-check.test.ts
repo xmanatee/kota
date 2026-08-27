@@ -14,25 +14,23 @@ const SUBTASK_ID = "task-subtask";
 
 function writeTask(
   workspaceRoot: string,
-  state: "ready" | "dropped",
+  state: "open" | "dropped",
   id: string,
   body: string,
 ): void {
-  const dir = join(workspaceRoot, "data", "tasks", state);
+  const dir = state === "dropped"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, `${id}.md`),
     [
       "---",
-      `id: ${id}`,
-      `title: ${id}`,
       `status: ${state}`,
-      "priority: p1",
-      "area: modules",
-      "task_class: Meta",
-      `summary: ${id}`,
-      "updated_at: 2026-08-03T00:00:00.000Z",
+      ...(state === "open" ? ["priority: p1"] : []),
       "---",
+      "",
+      `# ${id}`,
       "",
       body,
       "",
@@ -52,21 +50,21 @@ describe("checkDecompositionApplied", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("accepts a dropped original and ready subtasks changed by the run", () => {
+  it("accepts a dropped original and open subtasks changed by the run", () => {
     writeTask(
       workspaceRoot,
       "dropped",
       ORIGINAL_ID,
       `## Decomposed\n\n- ${SUBTASK_ID}`,
     );
-    writeTask(workspaceRoot, "ready", SUBTASK_ID, "## Problem\n\nScoped work.");
+    writeTask(workspaceRoot, "open", SUBTASK_ID, "## Problem\n\nScoped work.");
     vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
-      `data/tasks/dropped/${ORIGINAL_ID}.md`,
-      `data/tasks/ready/${SUBTASK_ID}.md`,
+      `data/tasks/archive/${ORIGINAL_ID}.md`,
+      `data/tasks/${SUBTASK_ID}.md`,
     ]);
 
     expect(checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toBe(
-      `OK: dropped ${ORIGINAL_ID} and prepared 1 ready subtask(s)`,
+      `OK: archived ${ORIGINAL_ID} as dropped and prepared 1 open subtask(s)`,
     );
   });
 
@@ -78,19 +76,19 @@ describe("checkDecompositionApplied", () => {
       ORIGINAL_ID,
       `## Decomposed\n\n- ${subtaskId}`,
     );
-    writeTask(workspaceRoot, "ready", subtaskId, "## Problem\n\nScoped work.");
+    writeTask(workspaceRoot, "open", subtaskId, "## Problem\n\nScoped work.");
     vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
-      `data/tasks/dropped/${ORIGINAL_ID}.md`,
-      `data/tasks/ready/${subtaskId}.md`,
+      `data/tasks/archive/${ORIGINAL_ID}.md`,
+      `data/tasks/${subtaskId}.md`,
     ]);
 
     expect(checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toBe(
-      `OK: dropped ${ORIGINAL_ID} and prepared 1 ready subtask(s)`,
+      `OK: archived ${ORIGINAL_ID} as dropped and prepared 1 open subtask(s)`,
     );
   });
 
   it("rejects an original left in the active queue", () => {
-    writeTask(workspaceRoot, "ready", ORIGINAL_ID, "## Problem\n\nStill active.");
+    writeTask(workspaceRoot, "open", ORIGINAL_ID, "## Problem\n\nStill active.");
 
     expect(() => checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toThrow(
       `Decomposer must move ${ORIGINAL_ID} to dropped`,
@@ -105,7 +103,7 @@ describe("checkDecompositionApplied", () => {
     );
   });
 
-  it("rejects a referenced subtask outside ready", () => {
+  it("rejects a referenced subtask outside open", () => {
     writeTask(
       workspaceRoot,
       "dropped",
@@ -114,7 +112,7 @@ describe("checkDecompositionApplied", () => {
     );
 
     expect(() => checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toThrow(
-      `Decomposed subtasks must exist in ready: ${SUBTASK_ID}`,
+      `Decomposed subtasks must be open: ${SUBTASK_ID}`,
     );
   });
 
@@ -125,13 +123,13 @@ describe("checkDecompositionApplied", () => {
       ORIGINAL_ID,
       `## Decomposed\n\n- ${SUBTASK_ID}`,
     );
-    writeTask(workspaceRoot, "ready", SUBTASK_ID, "## Problem\n\nScoped work.");
+    writeTask(workspaceRoot, "open", SUBTASK_ID, "## Problem\n\nScoped work.");
     vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
-      `data/tasks/dropped/${ORIGINAL_ID}.md`,
+      `data/tasks/archive/${ORIGINAL_ID}.md`,
     ]);
 
     expect(() => checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toThrow(
-      `Decomposition must create or update its task files: data/tasks/ready/${SUBTASK_ID}.md`,
+      `Decomposition must create or update its task files: data/tasks/${SUBTASK_ID}.md`,
     );
   });
 });

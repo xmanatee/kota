@@ -1,0 +1,30 @@
+---
+status: done
+---
+
+# Extract DaemonControlHandle factory from daemon.ts into daemon-handle.ts
+
+## Problem
+
+`src/core/daemon/daemon.ts` has grown from ~300 lines (when it was last split) to 645 lines. The primary culprit is the inline `DaemonControlHandle` object literal passed to `new DaemonControlServer(...)` in the `Daemon` constructor — this anonymous bridge spans approximately lines 121–397 and mixes workflow state projections, run-store data mapping, metric aggregation, and task status reads all in one deeply nested constructor call.
+
+The file violates the 300-line limit by 115%, making it hard to navigate and extend. Each new daemon API endpoint adds more code into this already large constructor, continuing the growth.
+
+## Desired Outcome
+
+A new `src/core/daemon/daemon-handle.ts` module exports a `buildDaemonHandle(daemon: Daemon): DaemonControlHandle` factory function. The `Daemon` constructor calls this factory rather than constructing the handle inline. `daemon.ts` returns to under 300 lines. No behavior changes.
+
+## Constraints
+
+- Public API of `Daemon` must not change.
+- `DaemonControlHandle` interface must not change.
+- All existing tests must continue to pass.
+- The factory may receive whatever `Daemon` internals it needs via a typed context parameter rather than tight coupling to `Daemon` internals — or it may be a method on `Daemon` that returns the handle. Either is acceptable as long as the result is a clear module boundary.
+- File lengths: `daemon.ts` must end measurably below 350 lines; `daemon-handle.ts` may be as long as needed to hold the full bridge.
+
+## Done When
+
+- `src/core/daemon/daemon-handle.ts` exists with the extracted handle factory.
+- `src/core/daemon/daemon.ts` is under 350 lines.
+- All existing daemon tests pass without modification.
+- `src/core/daemon/AGENTS.md` lists the new module.

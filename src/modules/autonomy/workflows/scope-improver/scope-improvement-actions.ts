@@ -70,10 +70,7 @@ function writeTask(args: {
       kind: "task",
       proposalKey,
       title: args.recommendation.title,
-      summary: args.recommendation.summary,
       priority: "p2",
-      area: "autonomy",
-      taskClass: "Meta",
       body: taskBody(args),
       provenance: {
         source: "scope-improver",
@@ -95,7 +92,7 @@ function writeTask(args: {
   return {
     kind: created ? "created-task" : "updated-task",
     taskId,
-    path: taskPath(actions) ?? `data/tasks/ready/${taskId}.md`,
+    path: taskPath(actions) ?? `data/tasks/${taskId}.md`,
     signature: args.recommendation.signature,
   };
 }

@@ -77,8 +77,7 @@ export type RecallTasksHit = {
   id: string;
   title: string;
   state: string;
-  priority: string;
-  updatedAt: string;
+  priority: string | null;
 };
 
 /**

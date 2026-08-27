@@ -9,39 +9,35 @@ import {
   materializeAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { aggregateAutonomyReport } from "./aggregate.js";
-import { classifyTaskShape } from "./task-classification.js";
 
 const NOW = Date.parse("2026-04-29T12:00:00.000Z");
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function writeTask(
   workspaceRoot: string,
-  state: string,
+  state: RepoTaskState,
   id: string,
   attrs: {
     priority: string;
-    area: string;
-    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
     title?: string;
-    updatedAt?: string;
     body?: string;
     dependsOn?: string[];
   },
 ): void {
-  const dir = join(workspaceRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
-  const updatedAt = attrs.updatedAt ?? new Date(NOW).toISOString();
   const title = attrs.title ?? id;
   const body = attrs.body ?? "## Problem\n\nTest body.\n";
   const dependencyLine = attrs.dependsOn
     ? `depends_on: [${attrs.dependsOn.join(", ")}]\n`
     : "";
-  const content =
-    `---\nid: ${id}\ntitle: ${title}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
-    `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n` +
-    `${attrs.taskClass ? `task_class: ${attrs.taskClass}\n` : ""}` +
-    `${dependencyLine}---\n\n${body}`;
+  const content = state === "done" || state === "dropped"
+    ? `---\nstatus: ${state}\n---\n\n# ${title}\n\n${body}`
+    : `---\nstatus: ${state}\npriority: ${attrs.priority}\n${dependencyLine}---\n\n# ${title}\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
@@ -112,9 +108,8 @@ function builderTrigger(taskId: string, title: string) {
     schemaRef: null,
     payload: {
       taskId,
-      taskPath: `data/tasks/ready/${taskId}.md`,
-      taskState: "ready",
-      taskUpdatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      taskPath: `data/tasks/${taskId}.md`,
+      taskState: "open",
       taskDigest,
       idempotencyKey: `builder:${taskId}:${taskDigest}`,
       title,
@@ -193,56 +188,6 @@ function writeUnsupportedTrajectoryDiagnostics(
   );
 }
 
-describe("classifyTaskShape", () => {
-  const shape = (area: string, title = "", summary = "") =>
-    classifyTaskShape({ area, title, summary });
-
-  it("buckets architecture/core/modules/autonomy as strategic when no surface markers appear", () => {
-    expect(shape("architecture", "Split ModuleContext into capability contexts")).toBe(
-      "strategic",
-    );
-    expect(shape("core", "Tighten daemon control protocol")).toBe("strategic");
-    expect(shape("modules", "Move shell helpers into the execution module")).toBe(
-      "strategic",
-    );
-    expect(shape("autonomy", "Add critic runtime probe protocol")).toBe("strategic");
-  });
-
-  it("buckets client/channel as fan-out", () => {
-    expect(shape("client", "Anything")).toBe("fan-out");
-    expect(shape("channel", "Anything")).toBe("fan-out");
-  });
-
-  it("demotes non-client area to fan-out when title carries surface-parity markers", () => {
-    expect(
-      shape(
-        "modules",
-        "Replace macOS workflow trigger text entry with definitions picker",
-      ),
-    ).toBe("fan-out");
-    expect(
-      shape("architecture", "Split large client protocol and state files"),
-    ).toBe("fan-out");
-    expect(
-      shape("autonomy", "Add web ui run comparison view for spotting regressions"),
-    ).toBe("fan-out");
-    expect(
-      shape("modules", "Wire up the dashboard for daemon health"),
-    ).toBe("fan-out");
-  });
-
-  it("buckets unknown / non-strategic areas as other", () => {
-    expect(shape("operator-ux", "Some operator polish")).toBe("other");
-    expect(shape("research", "Read upstream paper")).toBe("other");
-    expect(shape("", "")).toBe("other");
-  });
-
-  it("normalizes whitespace and case", () => {
-    expect(shape("  Architecture ", "Refactor")).toBe("strategic");
-    expect(shape("MODULES", "Replace the macOS picker")).toBe("fan-out");
-  });
-});
-
 describe("aggregateAutonomyReport", () => {
   let workspaceRoot: string;
   let runsDir: string;
@@ -260,33 +205,23 @@ describe("aggregateAutonomyReport", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("aggregates open queue priority and area mix", () => {
-    writeTask(workspaceRoot, "backlog", "task-arch-1", { priority: "p1", area: "architecture" });
-    writeTask(workspaceRoot, "backlog", "task-client-1", {
+  it("aggregates active queue priority and state mix", () => {
+    writeTask(workspaceRoot, "open", "task-arch-1", { priority: "p1" });
+    writeTask(workspaceRoot, "open", "task-client-1", {
       priority: "p2",
-      area: "client",
-      taskClass: "Product",
     });
-    writeTask(workspaceRoot, "ready", "task-modules-1", {
+    writeTask(workspaceRoot, "open", "task-modules-1", {
       priority: "p1",
-      area: "modules",
-      taskClass: "Platform",
     });
-    writeTask(workspaceRoot, "doing", "task-doing-1", {
+    writeTask(workspaceRoot, "open", "task-active-1", {
       priority: "p2",
-      area: "client",
-      taskClass: "Safety",
     });
     writeTask(workspaceRoot, "blocked", "task-blocked-1", {
       priority: "p1",
-      area: "architecture",
-      taskClass: "Meta",
-      body: "## Unblock Precondition\n\nkind: owner-decision\nslot: a\nquestion: Q?\n",
+      body: "## Blocked on\n\nkind: owner-decision\nslot: a\nquestion: Q?\n",
     });
     writeTask(workspaceRoot, "done", "task-done-old", {
       priority: "p2",
-      area: "modules",
-      updatedAt: new Date(NOW - 30 * MS_PER_DAY).toISOString(),
     });
 
     const report = aggregateAutonomyReport({
@@ -301,29 +236,20 @@ describe("aggregateAutonomyReport", () => {
       { priority: "p1", count: 3 },
       { priority: "p2", count: 2 },
     ]);
-    const byArea = Object.fromEntries(
-      report.openQueue.byArea.map((r) => [r.area, r.count]),
-    );
-    expect(byArea).toEqual({ architecture: 2, client: 2, modules: 1 });
-    expect(report.openQueue.byTaskClass).toEqual([
-      { taskClass: "Safety", count: 1 },
-      { taskClass: "Product", count: 1 },
-      { taskClass: "Platform", count: 1 },
-      { taskClass: "Meta", count: 1 },
-      { taskClass: "Unclassified", count: 1 },
+    expect(report.openQueue.byState).toEqual([
+      { state: "blocked", count: 1 },
+      { state: "open", count: 4 },
     ]);
     expect(report.doneInWindow.total).toBe(0);
   });
 
   it("surfaces open tasks waiting on hard predecessor task ids", () => {
-    writeTask(workspaceRoot, "ready", "task-dependent", {
+    writeTask(workspaceRoot, "open", "task-dependent", {
       priority: "p2",
-      area: "modules",
       dependsOn: ["task-enabler"],
     });
-    writeTask(workspaceRoot, "backlog", "task-enabler", {
+    writeTask(workspaceRoot, "open", "task-enabler", {
       priority: "p2",
-      area: "modules",
     });
 
     const report = aggregateAutonomyReport({
@@ -337,23 +263,31 @@ describe("aggregateAutonomyReport", () => {
       {
         taskId: "task-dependent",
         title: "task-dependent",
-        state: "ready",
+        state: "open",
         waitingOn: ["task-enabler"],
       },
     ]);
   });
 
-  it("includes done tasks updated within the window", () => {
+  it("includes archived done tasks completed by builder runs in the window", () => {
     writeTask(workspaceRoot, "done", "task-done-recent", {
       priority: "p2",
-      area: "modules",
-      updatedAt: new Date(NOW - 2 * MS_PER_DAY).toISOString(),
     });
     writeTask(workspaceRoot, "done", "task-done-old", {
       priority: "p2",
-      area: "modules",
-      updatedAt: new Date(NOW - 30 * MS_PER_DAY).toISOString(),
     });
+    const builderRunId = "2026-04-28T09-00-00-000Z-builder-done";
+    writeRun(runsDir, builderRunId, {
+      workflow: "builder",
+      trigger: builderTrigger("task-done-recent", "Recent task"),
+      startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+      status: "success",
+      durationMs: 1000,
+      steps: [],
+    });
+    writeWriterIntegration(runsDir, builderRunId, "builder", [
+      "data/tasks/archive/task-done-recent.md",
+    ]);
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
@@ -362,17 +296,15 @@ describe("aggregateAutonomyReport", () => {
       windowDays: 7,
     });
     expect(report.doneInWindow.total).toBe(1);
-    expect(report.doneInWindow.byPriority).toEqual([{ priority: "p2", count: 1 }]);
+    expect(report.doneInWindow.byPriority).toEqual([{ priority: "unknown", count: 1 }]);
   });
 
-  it("classifies explorer task additions by area", () => {
-    writeTask(workspaceRoot, "backlog", "task-strategic-add", {
+  it("reports explorer task additions without inferred classifications", () => {
+    writeTask(workspaceRoot, "open", "task-strategic-add", {
       priority: "p1",
-      area: "architecture",
     });
-    writeTask(workspaceRoot, "backlog", "task-fanout-add", {
+    writeTask(workspaceRoot, "open", "task-fanout-add", {
       priority: "p2",
-      area: "client",
     });
 
     const explorerRunId = "2026-04-28T08-00-00-000Z-explorer-aaa";
@@ -388,9 +320,9 @@ describe("aggregateAutonomyReport", () => {
       steps: [measuredAgentStep(0.5)],
     });
     writeWriterIntegration(runsDir, explorerRunId, "explorer", [
-      "data/tasks/backlog/task-strategic-add.md",
-      "data/tasks/backlog/task-fanout-add.md",
-      "data/tasks/backlog/task-missing.md",
+      "data/tasks/task-strategic-add.md",
+      "data/tasks/task-fanout-add.md",
+      "data/tasks/task-missing.md",
     ]);
 
     const report = aggregateAutonomyReport({
@@ -403,16 +335,15 @@ describe("aggregateAutonomyReport", () => {
     expect(report.explorer.totalRuns).toBe(1);
     expect(report.explorer.totalTaskAdditions).toBe(2);
     expect(report.explorer.unresolvedTaskAdditions).toBe(1);
-    const counts = Object.fromEntries(
-      report.explorer.byClassification.map((r) => [r.classification, r.tasks]),
-    );
-    expect(counts).toEqual({ strategic: 1, "fan-out": 1, other: 0 });
+    expect(report.explorer.taskAdditions.map((addition) => addition.taskId)).toEqual([
+      "task-strategic-add",
+      "task-fanout-add",
+    ]);
   });
 
   it("uses runtime integration evidence when explorer output omits addedTaskFiles", () => {
-    writeTask(workspaceRoot, "backlog", "task-explorer-fallback", {
+    writeTask(workspaceRoot, "open", "task-explorer-fallback", {
       priority: "p1",
-      area: "modules",
     });
 
     const explorerRunId = "2026-04-28T08-30-00-000Z-explorer-bbb";
@@ -428,7 +359,7 @@ describe("aggregateAutonomyReport", () => {
       steps: [measuredAgentStep(0.5)],
     });
     writeWriterIntegration(runsDir, explorerRunId, "explorer", [
-      "data/tasks/backlog/task-explorer-fallback.md",
+      "data/tasks/task-explorer-fallback.md",
       "src/modules/autonomy/report/aggregate.ts",
     ]);
 
@@ -443,19 +374,15 @@ describe("aggregateAutonomyReport", () => {
     expect(report.explorer.taskAdditions[0]?.taskId).toBe(
       "task-explorer-fallback",
     );
-    expect(report.explorer.taskAdditions[0]?.classification).toBe("strategic");
+    expect(report.explorer.taskAdditions[0]?.priority).toBe("p1");
   });
 
-  it("links builder commits to task area and priority", () => {
+  it("links builder commits to archived tasks", () => {
     writeTask(workspaceRoot, "done", "task-builder-arch", {
       priority: "p1",
-      area: "architecture",
-      updatedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
     });
     writeTask(workspaceRoot, "done", "task-builder-client", {
       priority: "p2",
-      area: "client",
-      updatedAt: new Date(NOW - 1 * MS_PER_DAY).toISOString(),
     });
 
     const archRunId = "2026-04-28T09-00-00-000Z-builder-bbb";
@@ -496,17 +423,16 @@ describe("aggregateAutonomyReport", () => {
     });
 
     expect(report.builder.totalCommittedRuns).toBe(2);
-    expect(report.builder.byArea).toEqual([
-      { area: "architecture", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
-      { area: "client", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
+    expect(report.builder.byPriority).toEqual([
+      {
+        priority: "unknown",
+        commits: 2,
+        measuredCostRuns: 2,
+        unavailableCostRuns: 0,
+        unknownCostRuns: 0,
+        totalCostUsd: 0.5,
+      },
     ]);
-    const byClass = Object.fromEntries(
-      report.builder.byClassification.map((r) => [r.classification, r]),
-    );
-    expect(byClass.strategic.commits).toBe(1);
-    expect(byClass["fan-out"].commits).toBe(1);
-    expect(byClass.strategic.totalCostUsd).toBeCloseTo(0.4);
-    expect(byClass["fan-out"].totalCostUsd).toBeCloseTo(0.1);
   });
 
   it("counts unresolved builder closures when integration evidence or task is missing", () => {
@@ -553,22 +479,14 @@ describe("aggregateAutonomyReport", () => {
   it("groups blockers by precondition kind", () => {
     writeTask(workspaceRoot, "blocked", "task-owner", {
       priority: "p1",
-      area: "architecture",
-      body: "## Unblock Precondition\n\nkind: owner-decision\nslot: foo\nquestion: Want this?\n",
+      body: "## Blocked on\n\nkind: owner-decision\nslot: foo\nquestion: Want this?\n",
     });
     writeTask(workspaceRoot, "blocked", "task-capture", {
       priority: "p2",
-      area: "client",
-      body: "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/screenshot.png\ndescription: capture\n",
-    });
-    writeTask(workspaceRoot, "blocked", "task-task-done", {
-      priority: "p2",
-      area: "core",
-      body: "## Unblock Precondition\n\nkind: task-done\nref: task-other\n",
+      body: "## Blocked on\n\nkind: operator-capture\npath: .kota/runs/screenshot.png\ndescription: capture\n",
     });
     writeTask(workspaceRoot, "blocked", "task-missing-section", {
       priority: "p2",
-      area: "core",
       body: "## Problem\n\nNo precondition section.\n",
     });
 
@@ -578,12 +496,11 @@ describe("aggregateAutonomyReport", () => {
       windowEndMs: NOW,
       windowDays: 7,
     });
-    expect(report.blockers.totalBlocked).toBe(4);
+    expect(report.blockers.totalBlocked).toBe(3);
     const byKind = Object.fromEntries(
       report.blockers.byKind.map((r) => [r.kind, r.count]),
     );
     expect(byKind).toEqual({
-      "task-done": 1,
       "owner-decision": 1,
       "operator-capture": 1,
       "missing-section": 1,

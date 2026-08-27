@@ -155,9 +155,8 @@ describe("Telegram /recall runtime evidence", () => {
             score: 0.55,
             id: "task-share-or-conformance-test-daemon-wire-contracts-ac",
             title: "Share or conformance-test daemon wire contracts across clients",
-            state: "doing",
+            state: "open",
             priority: "p1",
-            updatedAt: "2026-05-02T18:14:24.509Z",
           },
           {
             source: "answer",

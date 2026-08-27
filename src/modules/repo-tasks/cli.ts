@@ -1,13 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
-	blank,
 	type ColumnsNode,
 	columns,
-	type LineNode,
 	line,
 	plain,
 	type SemanticRole,
@@ -22,13 +17,14 @@ import type {
 } from "./client.js";
 import { renderRepoTaskSearchPlain } from "./render.js";
 import {
+	listFullRepoTasks,
 	listRepoTaskDependencyWaits,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
 	type RepoTaskState,
 } from "./repo-tasks-domain.js";
 
-const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
+const OPEN_STATES: RepoTaskState[] = ["open", "blocked"];
 const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
 
 function isRepoTaskPriority(value: string): value is RepoTaskPriority {
@@ -45,7 +41,7 @@ function collectStates(value: string, previous: RepoTaskState[]): RepoTaskState[
 
 type TaskEntry = {
 	id: string;
-	priority: string;
+	priority: RepoTaskPriority | null;
 	title: string;
 	state: RepoTaskState;
 	waitingOnTasks: string[];
@@ -56,45 +52,20 @@ type TaskEntry = {
  * local-side `tasks.list` handler and the CLI's table renderer.
  */
 export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): TaskEntry[] {
-	const results: TaskEntry[] = [];
-	const repoRoot = dirname(dirname(tasksDir));
+	const repoRoot = tasksDir.replace(/\/data\/tasks\/?$/, "");
 	const waitingById = new Map(
-		listRepoTaskDependencyWaits(repoRoot, states).map((wait) => [
+		listRepoTaskDependencyWaits(repoRoot).map((wait) => [
 			wait.id,
 			wait.waitingOn,
 		]),
 	);
-	for (const state of states) {
-		const dir = join(tasksDir, state);
-		let files: string[];
-		try {
-			files = readdirSync(dir).filter((f) => f.endsWith(".md") && f !== "AGENTS.md");
-		} catch {
-			continue;
-		}
-		for (const file of files) {
-			try {
-				const content = readFileSync(join(dir, file), "utf-8");
-				const { attrs } = parseFlatFrontMatter(content);
-				results.push({
-					id: String(attrs.id || basename(file, ".md")),
-					priority: String(attrs.priority || ""),
-					title: String(attrs.title || "(no title)"),
-					state,
-					waitingOnTasks: waitingById.get(String(attrs.id || basename(file, ".md"))) ?? [],
-				});
-			} catch {
-				results.push({
-					id: basename(file, ".md"),
-					priority: "",
-					title: "(unreadable)",
-					state,
-					waitingOnTasks: [],
-				});
-			}
-		}
-	}
-	return results;
+	return listFullRepoTasks(repoRoot, states).map((task) => ({
+		id: task.id,
+		priority: task.priority,
+		title: task.title,
+		state: task.state,
+		waitingOnTasks: waitingById.get(task.id) ?? [],
+	}));
 }
 
 export function registerTaskCommands(program: Command, ctx: ModuleContext): void {
@@ -107,7 +78,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.description("List normalized tasks in the queue")
 		.option(
 			"-s, --state <state>",
-			"Filter by state (backlog|ready|doing|blocked|done|dropped)",
+			"Filter by state (open|blocked|done|dropped)",
 		)
 		.action(async (opts: { state?: string }) => {
 			let states: RepoTaskState[];
@@ -175,63 +146,23 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		});
 
 	taskCmd
-		.command("gc")
-		.description(
-			"Remove terminal tasks (done, dropped) older than a threshold.\n\n" +
-			"  Removed tasks remain available in Git history. Only done and dropped tasks are eligible.",
-		)
-		.option("--days <n>", "Remove tasks older than N days (default: 30)")
-		.option("--dry-run", "Print what would be done without mutating anything")
-		.action(async (opts: { days?: string; dryRun?: boolean }) => {
-			const days = opts.days != null ? Number.parseInt(opts.days, 10) : 30;
-			if (Number.isNaN(days) || days <= 0) {
-				printToStderr(line(span("--days must be a positive number", "error")));
-				process.exit(1);
-			}
-			const result = await ctx.client.tasks.gc({
-				days,
-				...(opts.dryRun !== undefined && { dryRun: opts.dryRun }),
-			});
-			const affected = result.removed;
-			if (affected.length === 0) {
-				print(line(plain("Nothing to remove.")));
-				return;
-			}
-			const verb = opts.dryRun
-				? "Would remove"
-				: "Removed";
-			const header: LineNode = line(plain(
-				`${verb} ${affected.length} task${affected.length === 1 ? "" : "s"}:`,
-			));
-			const rows: LineNode[] = affected.map((f) => line(plain(`  ${f}`)));
-			print(stack(header, ...rows));
-			if (opts.dryRun) {
-				print(stack(blank(), line(span("(dry run — nothing was changed)", "muted"))));
-			}
-		});
-
-	taskCmd
 		.command("create <title>")
 		.description("Create a normalized task file with the recommended intent scaffold")
 		.option("-p, --priority <priority>", "Priority: p0, p1, p2, p3", "p2")
-		.option("-a, --area <area>", "Area (e.g. core, architecture, modules)", "core")
-		.option("-s, --state <state>", "Initial state directory", "backlog")
-		.option("--summary <summary>", "One-line summary")
-		.action(async (title: string, opts: { priority: string; area: string; state: string; summary?: string }) => {
+		.option("-s, --state <state>", "Initial state (open or blocked)", "open")
+		.action(async (title: string, opts: { priority: string; state: string }) => {
 			if (!isRepoTaskPriority(opts.priority)) {
 				printToStderr(line(span(`Invalid priority "${opts.priority}". Must be p0, p1, p2, or p3.`, "error")));
 				process.exit(1);
 			}
-			if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
-				printToStderr(line(span(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
+			if (opts.state !== "open" && opts.state !== "blocked") {
+				printToStderr(line(span(`Unknown active state "${opts.state}". Valid: open, blocked`, "error")));
 				process.exit(1);
 			}
 			const result = await ctx.client.tasks.create({
 				title,
 				priority: opts.priority,
-				area: opts.area,
-				state: opts.state as RepoTaskState,
-				...(opts.summary !== undefined && { summary: opts.summary }),
+				state: opts.state,
 			});
 			if (!result.ok) {
 				printToStderr(line(span(result.message ?? `Failed to create task: ${result.reason}`, "error")));
@@ -241,7 +172,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				line(
 					plain("Created task "),
 					span(`"${result.id}"`, "accent"),
-					plain(` in ${opts.state}/. Edit the file to fill in sections.`),
+					plain(" in data/tasks/. Edit the file to fill in sections."),
 				),
 				line(span(result.path, "muted")),
 			));
@@ -255,7 +186,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 		.option("-n, --limit <n>", "Max hits to show", "20")
 		.option(
 			"-s, --state <state>",
-			"Restrict to one state (backlog|ready|doing|blocked|done|dropped). Repeatable.",
+			"Restrict to one state (open|blocked|done|dropped). Repeatable.",
 			collectStates,
 			[] as RepoTaskState[],
 		)
@@ -358,7 +289,7 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 export function buildTaskListNode(
 	tasks: {
 		id: string;
-		priority: string;
+		priority: RepoTaskPriority | null;
 		state: RepoTaskState;
 		title: string;
 		waitingOnTasks: string[];
@@ -375,7 +306,7 @@ export function buildTaskListNode(
 		tasks.map((t) => ({
 			cells: [
 				{ spans: [{ text: t.id, role: "accent" }] },
-				{ spans: [{ text: t.priority, role: priorityRole(t.priority) }] },
+				{ spans: [{ text: t.priority ?? "—", role: priorityRole(t.priority) }] },
 				{ spans: [{ text: t.state, role: stateRole(t.state) }] },
 				{ spans: [{ text: t.title }] },
 				{ spans: [{ text: t.waitingOnTasks.join(", "), role: "warn" }] },
@@ -384,7 +315,7 @@ export function buildTaskListNode(
 	);
 }
 
-function priorityRole(priority: string): SemanticRole {
+function priorityRole(priority: RepoTaskPriority | null): SemanticRole {
 	switch (priority) {
 		case "p0":
 			return "error";
@@ -399,9 +330,7 @@ function priorityRole(priority: string): SemanticRole {
 
 function stateRole(state: RepoTaskState): SemanticRole {
 	switch (state) {
-		case "doing":
-			return "accent";
-		case "ready":
+		case "open":
 			return "success";
 		case "blocked":
 			return "warn";

@@ -10,10 +10,8 @@ export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
 export type ExplorerAssessment = {
   counts: ReturnType<typeof getRepoTaskQueueSnapshot>["counts"];
   inboxCount: number;
-  openCount: number;
-  pullableCount: number;
+  activeCount: number;
   actionableCount: number;
-  promotableBacklogCount: number;
   dispatchableCount: number;
   hasDispatchableWork: boolean;
   dirty: boolean;

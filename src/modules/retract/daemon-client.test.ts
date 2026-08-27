@@ -109,8 +109,8 @@ describe("retract module daemonClient(link)", () => {
       record: {
         target: "tasks",
         recordId: "task-x",
-        previousPath: "data/tasks/backlog/task-x.md",
-        path: "data/tasks/dropped/task-x.md",
+        previousPath: "data/tasks/task-x.md",
+        path: "data/tasks/archive/task-x.md",
         toState: "dropped",
       },
     };

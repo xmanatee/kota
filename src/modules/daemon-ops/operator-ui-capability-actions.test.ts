@@ -145,16 +145,16 @@ describe("capability shared UI actions", () => {
     const move = vi.fn(async () => ({
       ok: true as const,
       id: "task-ui",
-      fromState: "backlog" as const,
-      toState: "ready" as const,
-      path: "data/tasks/ready/task-ui.md",
-      previousPath: "data/tasks/backlog/task-ui.md",
+      fromState: "blocked" as const,
+      toState: "open" as const,
+      path: "data/tasks/task-ui.md",
+      previousPath: "data/tasks/task-ui.md",
     }));
     const updateBody = vi.fn(async () => ({
       ok: true as const,
       id: "task-ui",
-      state: "ready" as const,
-      content: "---\nid: task-ui\n---\n\nUpdated\n",
+      state: "open" as const,
+      content: "---\nstatus: open\npriority: p2\n---\n\n# Updated\n",
     }));
     const setAutonomyMode = vi.fn(async () => ({
       ok: true as const,
@@ -207,8 +207,8 @@ describe("capability shared UI actions", () => {
     await expect(executeCapabilityUiAction({
       client,
       operation: { kind: "client-namespace", namespace: "tasks", method: "move" },
-      parameters: { taskId: "task-ui", state: "ready" },
-    })).resolves.toEqual({ ok: true, message: "Moved task-ui from backlog to ready." });
+      parameters: { taskId: "task-ui", state: "open" },
+    })).resolves.toEqual({ ok: true, message: "Moved task-ui from blocked to open." });
     await expect(executeCapabilityUiAction({
       client,
       operation: { kind: "client-namespace", namespace: "tasks", method: "updateBody" },
@@ -232,7 +232,7 @@ describe("capability shared UI actions", () => {
     expect(reject).toHaveBeenCalledWith("a1b2c3d4", "Not now");
     expect(answer).toHaveBeenCalledWith("question-1", "Continue");
     expect(dismiss).toHaveBeenCalledWith("question-1", "Obsolete");
-    expect(move).toHaveBeenCalledWith("task-ui", "ready");
+    expect(move).toHaveBeenCalledWith("task-ui", "open");
     expect(updateBody).toHaveBeenCalledWith("task-ui", "Updated");
     expect(setAutonomyMode).toHaveBeenCalledWith("session-1", "autonomous");
     expect(search).toHaveBeenCalledWith("shared UI", { semantic: true, limit: 5 });

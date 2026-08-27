@@ -4,7 +4,6 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { registerTaskCommands } from "./cli.js";
 import type {
   RepoTaskCreateOptions,
-  RepoTaskGcOptions,
   RepoTaskSearchFilter,
   RepoTaskState,
 } from "./client.js";
@@ -37,9 +36,6 @@ function makeProgram(): Command {
         async capture() {
           return { ok: false as const, reason: "invalid_slug" as const };
         },
-        async gc(_options?: RepoTaskGcOptions) {
-          return { removed: [] };
-        },
         async search(_query: string, _filter?: RepoTaskSearchFilter) {
           return { ok: true as const, tasks: [] };
         },
@@ -64,7 +60,7 @@ describe("kota task move security", () => {
     }) as never);
     try {
       await expect(
-        program.parseAsync(["node", "kota", "task", "move", "../AGENTS", "doing"]),
+        program.parseAsync(["node", "kota", "task", "move", "../AGENTS", "open"]),
       ).rejects.toThrow("process.exit:1");
       const stderr = errSpy.mock.calls.map((call) => String(call[0])).join("");
       expect(stderr).toContain('Invalid task id "../AGENTS".');

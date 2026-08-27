@@ -52,7 +52,7 @@ export function renderAutonomyReport(data: AutonomyReportData): RenderNode {
     heading("Open queue", 2),
     ...renderQueueBalance(data.openQueue),
     blank(),
-    heading("Tasks moved to done in window", 2),
+    heading("Builder-completed tasks in window", 2),
     ...renderQueueBalance(data.doneInWindow),
     blank(),
     heading("Explorer output", 2),

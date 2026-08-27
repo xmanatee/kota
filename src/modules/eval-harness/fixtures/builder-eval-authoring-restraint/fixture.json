@@ -12,15 +12,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-author-refund-trace-evaluator.md"
+      "path": "data/tasks/task-author-refund-trace-evaluator.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-author-refund-trace-evaluator.md"
+      "path": "data/tasks/archive/task-author-refund-trace-evaluator.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-author-refund-trace-evaluator.md",
+      "path": "data/tasks/archive/task-author-refund-trace-evaluator.md",
       "needle": "status: done"
     },
     {
@@ -32,8 +32,8 @@
       "allowedPaths": [
         "artifacts/evaluation-result.json",
         "scripts/evaluate-traces.mjs",
-        "data/tasks/ready/task-author-refund-trace-evaluator.md",
-        "data/tasks/done/task-author-refund-trace-evaluator.md"
+        "data/tasks/task-author-refund-trace-evaluator.md",
+        "data/tasks/archive/task-author-refund-trace-evaluator.md"
       ]
     }
   ],
@@ -93,7 +93,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-author-refund-trace-evaluator.md"
+        "path": "data/tasks/task-author-refund-trace-evaluator.md"
       },
       "expected": "pass"
     },

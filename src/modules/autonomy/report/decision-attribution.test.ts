@@ -34,7 +34,6 @@ describe("buildDecisionAttributionReport", () => {
 
   it("classifies attribution, hard success, and weak-evidence cases from visible artifacts", () => {
     const ownerProduct = task("task-owner-product", {
-      taskClass: "Product",
       body: "## Source / Intent\n\nOwner requested the report output.\n",
     });
     const kotaPlanned = task("task-kota-planned", {
@@ -44,7 +43,6 @@ describe("buildDecisionAttributionReport", () => {
       body: "## Source / Intent\n\nOwner requested a follow-up from an explorer run.\n",
     });
     const weakProduct = task("task-weak-product", {
-      taskClass: "Product",
       body: "## Source / Intent\n\nOwner requested a CLI improvement.\n",
     });
     const tasks = new Map(
@@ -147,7 +145,7 @@ describe("buildDecisionAttributionReport", () => {
 
     const records = recordByRun(report.records);
     expect(records.get("run-owner-product")).toMatchObject({
-      workMode: "Product",
+      workMode: "workflow:builder",
       planning: "owner",
       execution: "kota",
     });
@@ -177,9 +175,7 @@ describe("buildDecisionAttributionReport", () => {
     expect(records.get("run-weak-product")?.hardSuccessSignals).not.toContain(
       "rendered-product-evidence",
     );
-    expect(records.get("run-weak-product")?.troubleSignals).toContain(
-      "weak-product-success-evidence",
-    );
+    expect(records.get("run-weak-product")?.troubleSignals).toEqual([]);
     expect(records.get("run-failed-tests")?.troubleSignals).toEqual([
       "failed-critic-verdict",
       "failed-run",

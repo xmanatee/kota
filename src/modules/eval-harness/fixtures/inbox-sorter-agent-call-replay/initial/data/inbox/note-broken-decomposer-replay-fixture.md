@@ -2,7 +2,7 @@
 
 Discovered while landing the pnpm-test smoke gate (task-gate-shipped-replay-fixtures-from-pnpm-test-so-wor, run 2026-04-24T22-33-19-581Z-builder-ezj3rl).
 
-The fixture's recorded `decompose.json` writes two new ready-queue subtasks
+The fixture's recorded `decompose.json` writes two new open subtasks
 (`task-fixture-replay-subtask-external-project-e2e.md`,
 `task-fixture-replay-subtask-workflow-precedence.md`) that were
 validation-passing when the recording was made but predate the open-task

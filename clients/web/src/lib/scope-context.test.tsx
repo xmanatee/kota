@@ -152,8 +152,8 @@ function makeFetchMock(): {
         ok: true,
         json: () =>
           Promise.resolve({
-            counts: { inbox: 0, ready: 0, backlog: 0, doing: 0, blocked: 0 },
-            tasks: { doing: [], ready: [], backlog: [], blocked: [] },
+            counts: { inbox: 0, open: 0, blocked: 0 },
+            tasks: { open: [], blocked: [] },
           }),
       } as Response;
     }

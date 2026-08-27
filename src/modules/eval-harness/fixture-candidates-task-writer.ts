@@ -13,30 +13,25 @@ function candidateTaskId(candidate: FixtureCandidateRecord): string {
 export function createCandidateTask(
   workspaceRoot: string,
   candidate: FixtureCandidateRecord,
-  nowIso: string,
+  _nowIso: string,
 ): FixtureCandidateAcceptedAction | null {
   if (candidate.disposition !== "proposed") return null;
   const id = candidateTaskId(candidate);
-  const state = "backlog" as const;
-  const taskDir = join(workspaceRoot, "data", "tasks", state);
+  const state = "open" as const;
+  const taskDir = join(workspaceRoot, "data", "tasks");
   const taskPath = join(taskDir, `${id}.md`);
   mkdirSync(taskDir, { recursive: true });
   const relativeTaskPath = relative(workspaceRoot, taskPath);
   if (!existsSync(taskPath)) {
     const title = `Add eval fixture for ${candidate.failurePattern.kind} from ${candidate.runId}`;
     const attrs: Record<string, string> = {
-      id,
-      title,
       status: state,
       priority: "p2",
-      area: "modules",
-      task_class: "Meta",
-      summary:
-        `Build a compact eval-harness fixture from ${candidate.runId} covering ${candidate.failurePattern.kind}.`,
-      created_at: nowIso,
-      updated_at: nowIso,
     };
-    writeFileSync(taskPath, serializeFlatFrontMatter(attrs, candidateTaskBody(candidate)));
+    writeFileSync(
+      taskPath,
+      serializeFlatFrontMatter(attrs, `# ${title}\n\n${candidateTaskBody(candidate)}`),
+    );
   }
   return { kind: "task", id, path: relativeTaskPath, state };
 }
@@ -46,7 +41,6 @@ function candidateTaskBody(candidate: FixtureCandidateRecord): string {
     ? candidate.failurePattern.evidencePaths
     : [`.kota/runs/${candidate.runId}/metadata.json`];
   return [
-    "",
     "## Problem",
     "",
     `Run ${candidate.runId} exposed ${candidate.failurePattern.kind}: ${candidate.failurePattern.summary}`,

@@ -720,8 +720,8 @@ describe("executeAgentStep — writeScope enforcement", () => {
     execFileSync("git", ["config", "user.email", "t@example.com"], { cwd: dir });
     execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
     execFileSync("git", ["config", "commit.gpgsign", "false"], { cwd: dir });
-    mkdirSync(join(dir, "data", "tasks", "ready"), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", "ready", "baseline.md"), "seed\n");
+    mkdirSync(join(dir, "data", "tasks"), { recursive: true });
+    writeFileSync(join(dir, "data", "tasks", "baseline.md"), "seed\n");
     mkdirSync(join(dir, "src", "core"), { recursive: true });
     writeFileSync(join(dir, "src", "core", "keep.ts"), "// seed\n");
     // Commit the prompt fixture so it sits in the clean baseline; the
@@ -770,7 +770,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     executeWithAgentSDKMock.mockImplementation(async () => {
       writeTracked(
         scopeRoot,
-        "data/tasks/ready/new-task.md",
+        "data/tasks/new-task.md",
         "---\ntitle: x\n---\n",
       );
       return {
@@ -810,7 +810,7 @@ describe("executeAgentStep — writeScope enforcement", () => {
     executeWithAgentSDKMock.mockImplementation(async () => {
       writeTracked(scopeRoot, "src/core/keep.ts", "// modified\n");
       writeTracked(scopeRoot, "AGENTS.md", "root agents\n");
-      writeTracked(scopeRoot, "data/tasks/ready/new-task.md", "ok\n");
+      writeTracked(scopeRoot, "data/tasks/new-task.md", "ok\n");
       return {
         text: "done",
         streamedText: "",

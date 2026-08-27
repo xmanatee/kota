@@ -1,5 +1,4 @@
 import {
-  existsSync,
   mkdirSync,
   readFileSync,
   realpathSync,
@@ -9,10 +8,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { RepoTaskState } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,
   createNormalizedTask,
-  gcTerminalTasks,
   showTask,
   slugifyTaskTitle,
 } from "./repo-tasks-operations.js";
@@ -28,27 +27,21 @@ function makeScopeRoot(): string {
 
 function writeTaskFile(
   repoRoot: string,
-  state: string,
+  state: RepoTaskState,
   id: string,
   extra: Record<string, string> = {},
 ): void {
-  const dir = join(repoRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(repoRoot, "data", "tasks", "archive")
+    : join(repoRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
-  const fm = {
-    id,
-    title: `Title for ${id}`,
-    status: state,
-    priority: "p2",
-    area: "test",
-    summary: "A test task.",
-    created_at: "2026-03-20",
-    updated_at: "2026-03-20",
-    ...extra,
-  };
+  const fm = state === "done" || state === "dropped"
+    ? { status: state }
+    : { status: state, priority: "p2", ...extra };
   const frontmatter = Object.entries(fm)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
-  const content = `---\n${frontmatter}\n---\n\n## Problem\n\nTest.\n`;
+  const content = `---\n${frontmatter}\n---\n\n# Title for ${id}\n\n## Problem\n\nTest.\n`;
   writeFileSync(join(dir, `${id}.md`), content);
 }
 
@@ -92,12 +85,12 @@ describe("showTask", () => {
   });
 
   it("finds task in any state and returns its content + state", () => {
-    writeTaskFile(repoRoot, "backlog", "task-foo");
+    writeTaskFile(repoRoot, "open", "task-foo");
     const result = showTask(repoRoot, "task-foo");
     expect(result.found).toBe(true);
     if (result.found) {
-      expect(result.state).toBe("backlog");
-      expect(result.content).toContain("id: task-foo");
+      expect(result.state).toBe("open");
+      expect(result.content).toContain("# Title for task-foo");
     }
   });
 
@@ -121,21 +114,21 @@ describe("createNormalizedTask", () => {
     rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("writes a normalized task file with full template", () => {
+  it("writes a normalized task file with minimal metadata and an intent template", () => {
     const result = createNormalizedTask(repoRoot, {
       title: "My new task",
       priority: "p2",
-      area: "core",
-      state: "backlog",
-      summary: "summary",
+      state: "open",
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.id).toBe("task-my-new-task");
       const content = readFileSync(join(repoRoot, result.path), "utf-8");
-      expect(content).toContain("id: task-my-new-task");
+      expect(content).toContain("# My new task");
       expect(content).toContain("priority: p2");
-      expect(content).toContain("status: backlog");
+      expect(content).toContain("status: open");
+      expect(content).not.toContain("id:");
+      expect(content).not.toContain("title:");
       expect(content).toContain("## Problem");
       expect(content).toContain("## How We Will Know");
     }
@@ -148,15 +141,14 @@ describe("createNormalizedTask", () => {
     const result = createNormalizedTask(unsafeScopeRoot, {
       title: "Literal path task",
       priority: "p2",
-      area: "core",
-      state: "backlog",
+      state: "open",
     });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.path).toBe("data/tasks/backlog/task-literal-path-task.md");
+      expect(result.path).toBe("data/tasks/task-literal-path-task.md");
       expect(readFileSync(join(unsafeScopeRoot, result.path), "utf8")).toContain(
-        "id: task-literal-path-task",
+        "# Literal path task",
       );
     }
   });
@@ -165,8 +157,7 @@ describe("createNormalizedTask", () => {
     const result = createNormalizedTask(repoRoot, {
       title: "   ",
       priority: "p2",
-      area: "core",
-      state: "backlog",
+      state: "open",
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("invalid_slug");
@@ -176,14 +167,12 @@ describe("createNormalizedTask", () => {
     createNormalizedTask(repoRoot, {
       title: "Dup",
       priority: "p2",
-      area: "core",
-      state: "backlog",
+      state: "open",
     });
     const second = createNormalizedTask(repoRoot, {
       title: "Dup",
       priority: "p2",
-      area: "core",
-      state: "backlog",
+      state: "open",
     });
     expect(second.ok).toBe(false);
     if (!second.ok) expect(second.reason).toBe("already_exists");
@@ -221,72 +210,5 @@ describe("captureInboxTask", () => {
     const result = captureInboxTask(repoRoot, "   ");
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("invalid_slug");
-  });
-});
-
-describe("gcTerminalTasks", () => {
-  let repoRoot: string;
-
-  beforeEach(() => {
-    repoRoot = makeScopeRoot();
-  });
-
-  afterEach(() => {
-    rmSync(repoRoot, { recursive: true, force: true });
-  });
-
-  function writeTerminalTask(
-    state: "done" | "dropped",
-    id: string,
-    updatedAt: string,
-  ): void {
-    const dir = join(repoRoot, "data", "tasks", state);
-    mkdirSync(dir, { recursive: true });
-    const content = `---\nid: ${id}\ntitle: Title\nstatus: ${state}\nupdated_at: ${updatedAt}\n---\n\n## Done.\n`;
-    writeFileSync(join(dir, `${id}.md`), content);
-  }
-
-  it("removes old terminal tasks while Git remains the archive", () => {
-    writeTerminalTask("done", "task-old", "2020-01-01");
-    const result = gcTerminalTasks(repoRoot, { days: 30 });
-    expect(result.removed).toHaveLength(1);
-    expect(result.removed[0]).toBe("task-old.md");
-    expect(existsSync(join(repoRoot, "data", "tasks", "done", "task-old.md"))).toBe(false);
-  });
-
-  it("does not remove tasks newer than threshold", () => {
-    const recent = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
-    writeTerminalTask("done", "task-recent", recent);
-    const result = gcTerminalTasks(repoRoot, { days: 30 });
-    expect(result.removed).toHaveLength(0);
-    expect(existsSync(join(repoRoot, "data", "tasks", "done", "task-recent.md"))).toBe(true);
-  });
-
-  it("removes old dropped tasks", () => {
-    writeTerminalTask("dropped", "task-drop-old", "2020-01-01");
-    const result = gcTerminalTasks(repoRoot, { days: 30 });
-    expect(result.removed).toHaveLength(1);
-    expect(existsSync(join(repoRoot, "data", "tasks", "dropped", "task-drop-old.md"))).toBe(false);
-  });
-
-  it("dry-run returns affected list without mutating files", () => {
-    writeTerminalTask("done", "task-dry", "2020-01-01");
-    const result = gcTerminalTasks(repoRoot, { days: 30, dryRun: true });
-    expect(result.removed).toHaveLength(1);
-    expect(existsSync(join(repoRoot, "data", "tasks", "done", "task-dry.md"))).toBe(true);
-  });
-
-  it("handles both done and dropped states", () => {
-    writeTerminalTask("done", "task-done-old", "2020-01-01");
-    writeTerminalTask("dropped", "task-dropped-old", "2020-02-01");
-    const result = gcTerminalTasks(repoRoot, { days: 30 });
-    expect(result.removed).toHaveLength(2);
-  });
-
-  it("does not touch open state tasks", () => {
-    writeTaskFile(repoRoot, "ready", "task-ready-skip", { updated_at: "2020-01-01" });
-    const result = gcTerminalTasks(repoRoot, { days: 30 });
-    expect(result.removed).toHaveLength(0);
-    expect(existsSync(join(repoRoot, "data", "tasks", "ready", "task-ready-skip.md"))).toBe(true);
   });
 });

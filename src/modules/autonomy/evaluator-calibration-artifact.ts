@@ -94,9 +94,9 @@ export function findCalibrationTaskFinalState(
     "done",
     "dropped",
     "blocked",
-    "doing",
-    "ready",
-    "backlog",
+    "open",
+    "open",
+    "open",
   ];
   for (const state of states) {
     const candidate = join(workspaceRoot, TASK_PATH_PREFIX, state, `${taskId}.md`);

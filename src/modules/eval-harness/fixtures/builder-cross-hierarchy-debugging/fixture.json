@@ -51,15 +51,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md"
+      "path": "data/tasks/task-fix-cross-hierarchy-signal-routing.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md"
+      "path": "data/tasks/archive/task-fix-cross-hierarchy-signal-routing.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md",
+      "path": "data/tasks/archive/task-fix-cross-hierarchy-signal-routing.md",
       "needle": "status: done"
     },
     {
@@ -67,8 +67,8 @@
       "allowedPaths": [
         "debug-trace-result.json",
         "src/channel-registry.mjs",
-        "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md",
-        "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md"
+        "data/tasks/task-fix-cross-hierarchy-signal-routing.md",
+        "data/tasks/archive/task-fix-cross-hierarchy-signal-routing.md"
       ]
     }
   ],
@@ -154,7 +154,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md"
+        "path": "data/tasks/task-fix-cross-hierarchy-signal-routing.md"
       },
       "expected": "pass"
     }

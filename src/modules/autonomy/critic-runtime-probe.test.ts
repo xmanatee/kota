@@ -5,17 +5,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
-  commitReadyTask,
+  commitOpenTask,
   getMockRunAgentHarness,
   getPromptArg,
   makeContext,
   makeRunDir,
   makeTmpDir,
-  moveReadyTaskToDoing,
   resetCriticTestMocks,
   setApiResponse,
   TEST_PARENT_STEP,
-  writeDoingTask,
+  writeOpenTask,
   writePackageJson,
 } from "./critic-test-fixture.integration.js";
 
@@ -31,14 +30,17 @@ describe("critic runtime probes", () => {
     });
     const taskContent = [
       "---",
-      "title: Probed task",
+      "status: open",
+      "priority: p2",
       "---",
+      "",
+      "# Probed task",
+      "",
       "## Runtime Probe",
       "command: pnpm run probe:pass",
       "timeoutMs: 5000",
     ].join("\n");
-    commitReadyTask(dir, "task-probed.md", taskContent);
-    moveReadyTaskToDoing(dir, "task-probed.md");
+    commitOpenTask(dir, "task-probed.md", taskContent);
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "pass",
@@ -58,7 +60,7 @@ describe("critic runtime probes", () => {
     expect(artifact.provenance).toEqual({
       status: "trusted",
       kind: "git-head",
-      sourcePath: "data/tasks/ready/task-probed.md",
+      sourcePath: "data/tasks/task-probed.md",
     });
     expect(artifact.output).toContain("probe-output-marker");
     expect(artifact.execution).toBe("os-contained-command");
@@ -84,14 +86,17 @@ describe("critic runtime probes", () => {
     });
     const taskContent = [
       "---",
-      "title: Workspace probe",
+      "status: open",
+      "priority: p2",
       "---",
+      "",
+      "# Workspace probe",
+      "",
       "## Runtime Probe",
       "command: pnpm run probe:pass",
       "timeoutMs: 5000",
     ].join("\n");
-    commitReadyTask(workspaceDir, "task-workspace-probe.md", taskContent);
-    moveReadyTaskToDoing(workspaceDir, "task-workspace-probe.md");
+    commitOpenTask(workspaceDir, "task-workspace-probe.md", taskContent);
     const canonicalRunDir = makeRunDir(canonicalDir);
     const workspaceRunDir = makeRunDir(workspaceDir);
     setApiResponse({
@@ -120,14 +125,17 @@ describe("critic runtime probes", () => {
     });
     const taskContent = [
       "---",
-      "title: Ignored workspace probe",
+      "status: open",
+      "priority: p2",
       "---",
+      "",
+      "# Ignored workspace probe",
+      "",
       "## Runtime Probe",
       "command: pnpm run probe:touch",
       "timeoutMs: 5000",
     ].join("\n");
-    commitReadyTask(workspaceDir, "task-ignored-probe.md", taskContent);
-    moveReadyTaskToDoing(workspaceDir, "task-ignored-probe.md");
+    commitOpenTask(workspaceDir, "task-ignored-probe.md", taskContent);
     writeFileSync(join(workspaceDir, ".gitignore"), ".kota/\n");
     const canonicalRunDir = makeRunDir(canonicalDir);
     const workspaceRunDir = makeRunDir(workspaceDir);
@@ -156,14 +164,17 @@ describe("critic runtime probes", () => {
     });
     const taskContent = [
       "---",
-      "title: Failing probe task",
+      "status: open",
+      "priority: p2",
       "---",
+      "",
+      "# Failing probe task",
+      "",
       "## Runtime Probe",
       "command: pnpm run probe:fail",
       "timeoutMs: 5000",
     ].join("\n");
-    commitReadyTask(dir, "task-probe-fail.md", taskContent);
-    moveReadyTaskToDoing(dir, "task-probe-fail.md");
+    commitOpenTask(dir, "task-probe-fail.md", taskContent);
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "fail",
@@ -190,15 +201,14 @@ describe("critic runtime probes", () => {
     writePackageJson(dir, {
       "probe:touch": "node -e \"require('node:fs').writeFileSync('probe-ran.txt', 'yes')\"",
     });
-    commitReadyTask(
+    commitOpenTask(
       dir,
       "task-added-probe.md",
-      "---\ntitle: Probe added later\n---\n## Problem\nNo trusted probe yet.",
+      "---\nstatus: open\npriority: p2\n---\n\n# Probe added later\n\n## Problem\nNo trusted probe yet.",
     );
-    moveReadyTaskToDoing(dir, "task-added-probe.md");
     writeFileSync(
-      join(dir, "data/tasks/doing/task-added-probe.md"),
-      "---\ntitle: Probe added later\n---\n## Runtime Probe\ncommand: pnpm run probe:touch\ntimeoutMs: 5000",
+      join(dir, "data/tasks/task-added-probe.md"),
+      "---\nstatus: open\npriority: p2\n---\n\n# Probe added later\n\n## Runtime Probe\ncommand: pnpm run probe:touch\ntimeoutMs: 5000",
     );
     const runDir = makeRunDir(dir);
 
@@ -215,7 +225,7 @@ describe("critic runtime probes", () => {
 
   it("does not write runtime-probe.json when the task has no probe section", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-noprobe.md", "---\ntitle: No probe\n---\nBody.");
+    writeOpenTask(dir, "task-noprobe.md", "---\nstatus: open\npriority: p2\n---\n\n# No probe\n\nBody.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "pass",

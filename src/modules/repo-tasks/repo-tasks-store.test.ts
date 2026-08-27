@@ -9,16 +9,7 @@ function makeScopeRoot(): string {
 		tmpdir(),
 		`kota-repo-tasks-default-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
 	);
-	for (const state of [
-		"backlog",
-		"ready",
-		"doing",
-		"blocked",
-		"done",
-		"dropped",
-	]) {
-		mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-	}
+	mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
 	return dir;
 }
 
@@ -28,22 +19,18 @@ function writeTask(
 	title: string,
 	state: string,
 	body = "",
-	summary = "",
 ): void {
-	const file = join(repoRoot, "data", "tasks", state, `${id}.md`);
+	const taskDir = state === "done" || state === "dropped"
+		? join(repoRoot, "data", "tasks", "archive")
+		: join(repoRoot, "data", "tasks");
+	const file = join(taskDir, `${id}.md`);
 	const fm = [
 		"---",
-		`id: ${id}`,
-		`title: ${title}`,
 		`status: ${state}`,
-		`priority: p2`,
-		`area: core`,
-		`summary: ${summary}`,
-		`created_at: 2026-04-27T00:00:00.000Z`,
-		`updated_at: 2026-04-27T00:00:00.000Z`,
+		...(state === "open" || state === "blocked" ? ["priority: p2"] : []),
 		"---",
 	].join("\n");
-	writeFileSync(file, `${fm}\n${body}\n`, "utf-8");
+	writeFileSync(file, `${fm}\n\n# ${title}\n\n${body}\n`, "utf-8");
 }
 
 describe("RepoTasksDefaultStore (keyword fallback)", () => {
@@ -82,23 +69,23 @@ describe("RepoTasksDefaultStore (keyword fallback)", () => {
 	});
 
 	it("filters by state when requested", async () => {
-		writeTask(repoRoot, "task-open", "Track spend in open", "ready");
+		writeTask(repoRoot, "task-open", "Track spend in open", "open");
 		writeTask(repoRoot, "task-closed", "Track spend in closed", "done");
 		const open = await store.searchTasks("spend", {
 			topK: 5,
-			states: ["ready"],
+			states: ["open"],
 		});
 		expect(open.map((r) => r.id)).toEqual(["task-open"]);
 	});
 
 	it("returns empty array on empty query or topK 0", async () => {
-		writeTask(repoRoot, "task-x", "Track spend", "ready");
+		writeTask(repoRoot, "task-x", "Track spend", "open");
 		expect(await store.searchTasks("", { topK: 5 })).toEqual([]);
 		expect(await store.searchTasks("spend", { topK: 0 })).toEqual([]);
 	});
 
 	it("returns hits across all states by default (open + terminal)", async () => {
-		writeTask(repoRoot, "task-a", "Track spend a", "ready");
+		writeTask(repoRoot, "task-a", "Track spend a", "open");
 		writeTask(repoRoot, "task-b", "Track spend b", "done");
 		writeTask(repoRoot, "task-c", "Track spend c", "dropped");
 		const result = await store.searchTasks("spend", { topK: 10 });

@@ -40,8 +40,7 @@ describe("renderOnDemandDigest", () => {
   beforeEach(async () => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "daily-digest-on-demand-"));
     mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
     observed.length = 0;
     const bus = initEventBus();
     const handler = (payload: unknown) => {
@@ -95,10 +94,10 @@ describe("renderOnDemandDigest", () => {
   });
 
   it("uses the persisted cadence snapshot for the queue delta baseline", () => {
-    persistCadenceState({ backlog: 0, ready: 0, doing: 0, blocked: 2 });
+    persistCadenceState({ open: 0, blocked: 2 });
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-x.md"),
-      "---\nid: task-x\n---\n",
+      join(workspaceRoot, "data", "tasks", "task-x.md"),
+      "---\nstatus: open\npriority: p2\n---\n\n# task-x\n",
     );
 
     const result = renderOnDemandDigest({
@@ -106,12 +105,10 @@ describe("renderOnDemandDigest", () => {
       stateDir: join(workspaceRoot, ".kota"),
     });
     expect(result.data.queueDelta.previous).toEqual({
-      backlog: 0,
-      ready: 0,
-      doing: 0,
+      open: 0,
       blocked: 2,
     });
-    expect(result.data.queueDelta.delta.ready).toBe(1);
+    expect(result.data.queueDelta.delta.open).toBe(1);
   });
 
   it("reads pending owner questions from the requested scope directory", async () => {

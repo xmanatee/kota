@@ -30,9 +30,9 @@ export const agent: AgentDef = {
 
 const RESEARCH_RETRY_EVENT = "autonomy.blocked-research.attemptable";
 const QUEUE_COUNT_KEYS = [
-  "backlog",
-  "ready",
-  "doing",
+  "open",
+  "open",
+  "open",
   "blocked",
   "done",
   "dropped",

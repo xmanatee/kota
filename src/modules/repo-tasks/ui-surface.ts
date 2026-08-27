@@ -17,9 +17,9 @@ import type { UiSurfaceSource } from "#core/modules/module-ui-surfaces.js";
 import type { RepoTaskListResult } from "./client.js";
 
 const taskStateOptions = [
-  { label: "Backlog", value: "backlog" },
-  { label: "Ready", value: "ready" },
+  { label: "Open", value: "open" },
   { label: "Blocked", value: "blocked" },
+  { label: "Done", value: "done" },
   { label: "Dropped", value: "dropped" },
 ] as const;
 
@@ -81,7 +81,6 @@ function taskCreateParameters(): UiActionParameterSpec {
   return {
     fields: [
       { id: "title", label: "Title", input: "text", required: true },
-      { id: "summary", label: "Summary", input: "multiline", required: false },
       {
         id: "priority",
         label: "Priority",
@@ -94,24 +93,21 @@ function taskCreateParameters(): UiActionParameterSpec {
           { label: "P3", value: "p3" },
         ],
       },
-      { id: "area", label: "Area", input: "text", required: true },
       {
         id: "state",
         label: "Initial state",
         input: "select",
         required: true,
-        options: taskStateOptions.slice(0, 3),
+        options: taskStateOptions.slice(0, 2),
       },
     ],
     schema: {
       type: "object",
-      required: ["title", "priority", "area", "state"],
+      required: ["title", "priority", "state"],
       properties: {
         title: { type: "string" },
-        summary: { type: "string" },
         priority: { type: "string", enum: ["p0", "p1", "p2", "p3"], default: "p2" },
-        area: { type: "string", default: "client" },
-        state: { type: "string", enum: ["backlog", "ready", "blocked"], default: "backlog" },
+        state: { type: "string", enum: ["open", "blocked"], default: "open" },
       },
       additionalProperties: false,
     },
@@ -245,7 +241,7 @@ export const repoTasksUiSurfaceSource: UiSurfaceSource = {
   sourceId: "tasks",
   scope: async (context) => {
     const tasks = await context.read("tasks", () =>
-      context.client.tasks.list(["doing", "ready", "blocked", "backlog"]),
+      context.client.tasks.list(["open", "blocked"]),
     );
     return [buildTasksUiSurface(context.scopeId, tasks)];
   },

@@ -1,0 +1,109 @@
+---
+status: done
+---
+
+# Repair persistent progress-reviewer workflow failure pattern
+
+## Problem
+
+The `progress-reviewer` workflow crossed the persistent failure-pattern gate.
+The detector excluded classified infrastructure/provider/auth/rate-limit
+and agent-step timeout failures before creating this task, so the remaining
+signal is considered local and code-actionable.
+
+Pattern fingerprint: `workflow-failure:consecutive-failures:progress-reviewer:step-error:5a927b61f240`
+Root-cause fingerprint: `workflow-failure-root:progress-reviewer:66404e9d7cec`
+Evidence fingerprint: `5c94bf95d90c7754948c4a3fffb42225fc25e7f15fecf5141678a4a18f847647`
+
+## Failure Evidence
+
+- Pattern: consecutive failure
+- Workflow: progress-reviewer
+- Failure class: step-error:review-evidence:a46a4e99c75a
+- Signal: step review-evidence error a46a4e99c75a
+- Run ids: 2026-08-05T07-44-52-888Z-progress-reviewer-c3ivzx, 2026-08-05T09-28-06-719Z-progress-reviewer-b6t5wx, 2026-08-05T09-30-07-321Z-progress-reviewer-f6pxjb, 2026-08-05T09-32-17-248Z-progress-reviewer-qtjjdb, 2026-08-05T09-34-19-400Z-progress-reviewer-k9on70, 2026-08-05T09-36-08-330Z-progress-reviewer-p3g9ne, 2026-08-05T09-37-47-719Z-progress-reviewer-w2svmz, 2026-08-05T09-40-00-997Z-progress-reviewer-vlzzxa, 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b, 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft, 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei, 2026-08-05T09-47-31-615Z-progress-reviewer-g34o2x, 2026-08-05T09-49-33-928Z-progress-reviewer-h56cr8, 2026-08-05T09-51-24-163Z-progress-reviewer-5tomg8, 2026-08-05T09-53-03-322Z-progress-reviewer-fix8h0, 2026-08-05T09-55-28-359Z-progress-reviewer-2b8kay, 2026-08-05T09-57-21-901Z-progress-reviewer-de21ok, 2026-08-05T09-59-07-484Z-progress-reviewer-qg7d7f, 2026-08-05T10-00-38-624Z-progress-reviewer-t14ayu, 2026-08-05T10-02-24-821Z-progress-reviewer-v3ntlr, 2026-08-05T10-04-26-485Z-progress-reviewer-yrxvz3, 2026-08-05T10-06-14-651Z-progress-reviewer-vwjxut, 2026-08-05T10-07-50-557Z-progress-reviewer-q2lwrn
+- Window: 2026-08-05T09:28:52.486Z to 2026-08-05T10:08:18.050Z
+- Actionable reason: progress-reviewer has 23 consecutive failed completed runs with the same owned failure class (step review-evidence error a46a4e99c75a).
+
+- run 2026-08-05T10-07-50-557Z-progress-reviewer-q2lwrn failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T10-06-14-651Z-progress-reviewer-vwjxut failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T10-04-26-485Z-progress-reviewer-yrxvz3 failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T10-02-24-821Z-progress-reviewer-v3ntlr failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T10-00-38-624Z-progress-reviewer-t14ayu failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-59-07-484Z-progress-reviewer-qg7d7f failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-57-21-901Z-progress-reviewer-de21ok failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-55-28-359Z-progress-reviewer-2b8kay failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-53-03-322Z-progress-reviewer-fix8h0 failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-51-24-163Z-progress-reviewer-5tomg8 failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-49-33-928Z-progress-reviewer-h56cr8 failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-47-31-615Z-progress-reviewer-g34o2x failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-45-17-583Z-progress-reviewer-dtdfei failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-43-41-536Z-progress-reviewer-mdvlft failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-41-58-224Z-progress-reviewer-hrzo8b failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-40-00-997Z-progress-reviewer-vlzzxa failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-37-47-719Z-progress-reviewer-w2svmz failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-36-08-330Z-progress-reviewer-p3g9ne failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-34-19-400Z-progress-reviewer-k9on70 failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-32-17-248Z-progress-reviewer-qtjjdb failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-30-07-321Z-progress-reviewer-f6pxjb failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T09-28-06-719Z-progress-reviewer-b6t5wx failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+- run 2026-08-05T07-44-52-888Z-progress-reviewer-c3ivzx failed at step review-evidence: Agent harness "codex" cannot honor requested run option(s): scopePolicy. scopePolicy: Codex CLI tool calls cannot be routed through KOTA's scope-policy evaluator.
+
+## Desired Outcome
+
+Repair the local workflow/runtime cause so the same pattern no longer
+fires on fresh run artifacts. The fix may live in workflow code, repair
+checks, validation, queue shaping, prompts, or local runtime handling, but
+it should not hide the signal by broadening infrastructure exclusions
+without evidence that the failure is actually outside KOTA's control.
+
+## Constraints
+
+- Use existing `.kota/runs/` metadata and run artifacts as evidence.
+- Keep cost and throughput data out of autonomy-agent context.
+- Do not create one task per run; keep this task anchored to the stable
+  root-cause fingerprint above.
+- Preserve provider/auth/rate-limit/timeout exclusions unless the local
+  runtime handling is the defect being repaired.
+
+## Product / Safety Link
+
+Persistent monitored workflow failures are a runtime posture blocker:
+autonomy cannot reliably ship or review Product/Safety work while this
+root cause keeps recurring. This Meta repair is actionable only because
+the detector crossed the local-code threshold on concrete run artifacts.
+
+## Done When
+
+- Fresh run artifacts no longer trigger this pattern fingerprint, or the
+  threshold/classification is deliberately adjusted with a committed reason.
+- Focused tests cover the local cause and the detector behavior that would
+  have caught this recurrence.
+- Operator-facing attention output still reports future escalations with
+  the generated task id and without cost fields.
+
+## Source / Intent
+
+Auto-created by `workflow-failure-escalator` from recent workflow run
+metadata. Persistent non-infrastructure workflow failures should become
+one evidence-backed repair task instead of remaining only in digests or
+improver context.
+
+## Initiative
+
+Autonomy fleet health: recurring local workflow failures should graduate
+into deterministic, reviewable repair work.
+
+## Acceptance Evidence
+
+- Commit `1aa26b0d` restored fail-closed native `scopePolicy` execution instead
+  of rejecting every Codex workflow at preflight; commit `5b68d01af` completed
+  the native sandbox and credential boundary.
+- Run `2026-08-05T10-10-15-492Z-progress-reviewer-9mlu60` completed its
+  Codex-backed `review-evidence` step successfully after the fix.
+- The focused workflow-failure, event-journal, scope-policy, and sandbox command
+  recorded above passed 32 checks, including duplicate suppression and
+  cost-free operator-attention formatting.
+
+<!-- workflow-failure-pattern-fingerprint: workflow-failure:consecutive-failures:progress-reviewer:step-error:5a927b61f240 -->
+<!-- workflow-failure-evidence-fingerprint: 5c94bf95d90c7754948c4a3fffb42225fc25e7f15fecf5141678a4a18f847647 -->

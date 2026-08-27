@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
-import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { RepoTaskFullRecord, RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const NOW = Date.parse("2026-04-29T12:00:00.000Z");
 export const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -28,26 +28,23 @@ export function createPostCompletionFollowUpsFixture(): {
 
 export function writeTask(
   workspaceRoot: string,
-  state: string,
+  state: RepoTaskState,
   id: string,
   attrs: {
     priority: string;
-    area: string;
     title?: string;
-    summary?: string;
-    updatedAt?: string;
     body?: string;
   },
 ): void {
-  const dir = join(workspaceRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
-  const updatedAt = attrs.updatedAt ?? new Date(NOW).toISOString();
   const title = attrs.title ?? id;
-  const summary = attrs.summary ?? "fixture task";
   const body = attrs.body ?? "## Problem\n\nFixture task.\n";
-  const content =
-    `---\nid: ${id}\ntitle: ${title}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
-    `area: ${attrs.area}\nsummary: ${summary}\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n${body}`;
+  const content = state === "done" || state === "dropped"
+    ? `---\nstatus: ${state}\n---\n\n# ${title}\n\n${body}`
+    : `---\nstatus: ${state}\npriority: ${attrs.priority}\n---\n\n# ${title}\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
@@ -101,9 +98,8 @@ export function writeWriterIntegration(
         schemaRef: null,
         payload: {
           taskId,
-          taskPath: `data/tasks/ready/${taskId}.md`,
-          taskState: "ready",
-          taskUpdatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+          taskPath: `data/tasks/${taskId}.md`,
+          taskState: "open",
           taskDigest,
           idempotencyKey: `builder:${taskId}:${taskDigest}`,
           title: taskId,
@@ -125,14 +121,9 @@ export function taskWithText(text: string): RepoTaskFullRecord {
   return {
     id: "task-fixture",
     title: "Fixture task",
-    state: "ready",
+    state: "open",
     priority: "p2",
-    area: "autonomy",
-    taskClass: "Meta",
-    summary: text,
-    updatedAt: new Date(NOW).toISOString(),
     body: `## Problem\n\n${text}\n`,
     dependsOn: [],
-    anchor: false,
   };
 }

@@ -36,15 +36,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-write-spool-route-strategy.md"
+      "path": "data/tasks/task-write-spool-route-strategy.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-write-spool-route-strategy.md"
+      "path": "data/tasks/archive/task-write-spool-route-strategy.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-write-spool-route-strategy.md",
+      "path": "data/tasks/archive/task-write-spool-route-strategy.md",
       "needle": "status: done"
     },
     {
@@ -53,8 +53,8 @@
         "programs/solution.spool",
         "scripts/generate-solution.mjs",
         "strategy-result.json",
-        "data/tasks/ready/task-write-spool-route-strategy.md",
-        "data/tasks/done/task-write-spool-route-strategy.md"
+        "data/tasks/task-write-spool-route-strategy.md",
+        "data/tasks/archive/task-write-spool-route-strategy.md"
       ]
     }
   ],
@@ -155,7 +155,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-write-spool-route-strategy.md"
+        "path": "data/tasks/task-write-spool-route-strategy.md"
       },
       "expected": "pass"
     }

@@ -12,7 +12,7 @@ import {
   makeTmpDir,
   resetCriticTestMocks,
   TEST_PARENT_STEP,
-  writeDoingTask,
+  writeOpenTask,
 } from "./critic-test-fixture.integration.js";
 
 const mockRunAgentHarness = getMockRunAgentHarness();
@@ -23,7 +23,7 @@ describe("critic judge retry handling", () => {
   it("retries up to 3 times on transient provider errors before throwing", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-retry.md", "---\ntitle: Test retry\n---\nContent.");
+    writeOpenTask(dir, "task-retry.md", "---\nstatus: open\npriority: p2\n---\n\n# Test retry\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockResolvedValue({
       text: "Claude Code returned an error result: API Error: 500 internal",
@@ -47,7 +47,7 @@ describe("critic judge retry handling", () => {
 
   it("returns a warning when the critic exhausts max_turns", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-runaway.md", "---\ntitle: Test runaway\n---\nContent.");
+    writeOpenTask(dir, "task-runaway.md", "---\nstatus: open\npriority: p2\n---\n\n# Test runaway\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockResolvedValue({
       text: "",
@@ -67,7 +67,7 @@ describe("critic judge retry handling", () => {
 
   it("clears a prior failed verdict when the final critic attempt is unavailable", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-stale-fail.md", "---\ntitle: Test stale fail\n---\nContent.");
+    writeOpenTask(dir, "task-stale-fail.md", "---\nstatus: open\npriority: p2\n---\n\n# Test stale fail\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockResolvedValueOnce({
       text: JSON.stringify({
@@ -108,7 +108,7 @@ describe("critic judge retry handling", () => {
 
   it("returns a warning when the SDK throws with a runaway max-turns message", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-thrown.md", "---\ntitle: Test thrown\n---\nContent.");
+    writeOpenTask(dir, "task-thrown.md", "---\nstatus: open\npriority: p2\n---\n\n# Test thrown\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockRejectedValue(
       new Error("Claude Code returned an error result: Reached maximum number of turns (20)"),
@@ -122,7 +122,7 @@ describe("critic judge retry handling", () => {
 
   it("still rejects on unclassified SDK throws that are not runaway", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-unknown.md", "---\ntitle: Test unknown\n---\nContent.");
+    writeOpenTask(dir, "task-unknown.md", "---\nstatus: open\npriority: p2\n---\n\n# Test unknown\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockRejectedValue(
       new Error("Claude Code returned an error result: something truly unexpected"),
@@ -138,7 +138,7 @@ describe("critic judge retry handling", () => {
   it("succeeds on second retry after initial transient provider failure", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-recover.md", "---\ntitle: Test recover\n---\nContent.");
+    writeOpenTask(dir, "task-recover.md", "---\nstatus: open\npriority: p2\n---\n\n# Test recover\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness
       .mockResolvedValueOnce({
@@ -174,7 +174,7 @@ describe("critic judge retry handling", () => {
   it("retries with a format reminder when a successful response is pure prose", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-prose.md", "---\ntitle: Test prose\n---\nContent.");
+    writeOpenTask(dir, "task-prose.md", "---\nstatus: open\npriority: p2\n---\n\n# Test prose\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness
       .mockResolvedValueOnce({
@@ -212,7 +212,7 @@ describe("critic judge retry handling", () => {
   it("throws after exhausting retries when every response is unparseable prose", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-prose-fail.md", "---\ntitle: Test prose fail\n---\nContent.");
+    writeOpenTask(dir, "task-prose-fail.md", "---\nstatus: open\npriority: p2\n---\n\n# Test prose fail\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockResolvedValue({
       text: "This change looks good to me, shipping it.",

@@ -36,21 +36,18 @@ function writeTask(
   id: string,
   attrs: {
     priority: string;
-    area: string;
-    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
-    updatedAt?: string;
     body?: string;
   },
 ): void {
-  const dir = join(workspaceRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
-  const updatedAt = attrs.updatedAt ?? new Date().toISOString();
   const body = attrs.body ?? "## Problem\n\nTest body.\n";
   const content =
-    `---\nid: ${id}\ntitle: ${id}\nstatus: ${state}\npriority: ${attrs.priority}\n` +
-    `area: ${attrs.area}\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n` +
-    `${attrs.taskClass ? `task_class: ${attrs.taskClass}\n` : ""}` +
-    `---\n\n${body}`;
+    `---\nstatus: ${state}\n` +
+    `${state === "open" || state === "blocked" ? `priority: ${attrs.priority}\n` : ""}` +
+    `---\n\n# ${id}\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
@@ -108,14 +105,11 @@ describe("kota report CLI", () => {
   });
 
   it("renders the report from the current project state", async () => {
-    writeTask(workspaceRoot, "backlog", "task-arch-1", {
+    writeTask(workspaceRoot, "open", "task-arch-1", {
       priority: "p1",
-      area: "architecture",
     });
-    writeTask(workspaceRoot, "backlog", "task-client-1", {
+    writeTask(workspaceRoot, "open", "task-client-1", {
       priority: "p2",
-      area: "client",
-      taskClass: "Product",
     });
 
     const out = await captureStdout(async () => {
@@ -127,19 +121,14 @@ describe("kota report CLI", () => {
     expect(out).toContain("Diff-summary consistency");
     expect(out).toContain("Owner interventions");
     expect(out).toContain("Total: 2");
-    expect(out).toContain("architecture");
-    expect(out).toContain("client");
-    expect(out).toContain("By task_class");
-    expect(out).toContain("Product");
-    expect(out).toContain("Unclassified");
+    expect(out).toContain("By priority");
     expect(out).toContain("Control coverage");
     expect(out).toContain("Cost");
   });
 
   it("--json emits the structured report payload", async () => {
-    writeTask(workspaceRoot, "backlog", "task-arch-1", {
+    writeTask(workspaceRoot, "open", "task-arch-1", {
       priority: "p1",
-      area: "architecture",
     });
 
     const out = await captureStdout(async () => {
@@ -148,12 +137,10 @@ describe("kota report CLI", () => {
 
     const parsed = JSON.parse(out.trim());
     expect(parsed.openQueue.total).toBe(1);
-    expect(parsed.openQueue.byTaskClass).toEqual([
-      { taskClass: "Unclassified", count: 1 },
-    ]);
+    expect(parsed.openQueue.byPriority).toEqual([{ priority: "p1", count: 1 }]);
     expect(parsed.windowDays).toBe(7);
     expect(Array.isArray(parsed.cost.byWorkflow)).toBe(true);
-    expect(parsed.explorer.byClassification).toHaveLength(3);
+    expect(parsed.explorer.taskAdditions).toEqual([]);
     expect(parsed.reviewScrutiny).toMatchObject({
       totalReviews: 0,
       thinAcceptances: 0,
@@ -227,13 +214,11 @@ describe("kota report CLI", () => {
     ]);
     writeTask(workspaceRoot, "done", "task-done-source", {
       priority: "p2",
-      area: "autonomy",
       body:
         "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/adopted\n",
     });
-    writeTask(workspaceRoot, "ready", "task-open-source", {
+    writeTask(workspaceRoot, "open", "task-open-source", {
       priority: "p2",
-      area: "autonomy",
       body:
         "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/open\n",
     });
@@ -270,7 +255,6 @@ describe("kota report CLI", () => {
     ]);
     writeTask(workspaceRoot, "done", "task-done-source", {
       priority: "p2",
-      area: "autonomy",
       body:
         "## Problem\n\nFixture.\n\n## Source / Intent\n\nSource-to-decision refs: https://example.com/adopted\n",
     });

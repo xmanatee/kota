@@ -60,8 +60,7 @@ function runGit(scopeRoot: string, args: readonly string[]): string {
 function createProject(parent: string): DirectoryScope {
   const scopeRoot = join(parent, "scope");
   mkdirSync(join(scopeRoot, "src"), { recursive: true });
-  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(scopeRoot, "data", "tasks", "ready"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks"), { recursive: true });
   mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
   runGit(scopeRoot, ["init", "--quiet", "--initial-branch=main"]);
   runGit(scopeRoot, ["config", "user.email", "eval-harness@kota.local"]);
@@ -72,17 +71,13 @@ function createProject(parent: string): DirectoryScope {
 
 function seedTask(scopeRoot: string): void {
   writeFileSync(
-    join(scopeRoot, "data", "tasks", "backlog", "task-status-display-card-polish.md"),
+    join(scopeRoot, "data", "tasks", "task-status-display-card-polish.md"),
     `---
-id: task-status-display-card-polish
-title: Polish status display card spacing
-status: backlog
+status: open
 priority: p3
-area: client
-summary: Distractor task mentioning operator status display but recommending visual card polish.
-created_at: 2026-05-01T00:00:00Z
-updated_at: 2026-05-01T00:00:00Z
 ---
+
+# Polish status display card spacing
 
 ## Problem
 

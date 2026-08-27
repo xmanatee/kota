@@ -8,10 +8,6 @@ import type {
   GeneratedWorkProposalAction,
 } from "#modules/autonomy/generated-work-proposal.js";
 import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-transaction.js";
-import {
-  type ClassifiedWorkflowGeneratedTask,
-  classifyWorkflowGeneratedTask,
-} from "#modules/autonomy/workflow-generated-task-class.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import type {
   ProgressReviewAgentOutput,
@@ -41,8 +37,7 @@ function normalizeFollowUpTask(
     ...task,
     topicKey: normalizeFrontMatterScalar("topic key", task.topicKey),
     title: normalizeFrontMatterScalar("title", task.title),
-    area: normalizeFrontMatterScalar("area", task.area),
-    summary: normalizeFrontMatterScalar("summary", task.summary),
+    problem: normalizeFrontMatterScalar("problem", task.problem),
     evidenceIds: task.evidenceIds.map((id) =>
       normalizeFrontMatterScalar("evidence id", id)
     ),
@@ -55,7 +50,7 @@ function buildTaskBody(args: {
 }): string {
   const evidenceIds = args.task.evidenceIds.map((id) => `- ${id}`).join("\n");
   return renderRepoTaskIntent({
-    problem: renderGeneratedTaskProse(args.task.summary),
+    problem: renderGeneratedTaskProse(args.task.problem),
     desiredOutcome:
       `Resolve the progress-review finding identified by topic ` +
       `${args.task.topicKey}.`,
@@ -92,15 +87,9 @@ export function writeFollowUpTask(args: {
   task: ProgressReviewFollowUpTaskOutput;
 }): ProgressReviewAppliedAction {
   const task = normalizeFollowUpTask(args.task);
-  const taskClass = classifyWorkflowGeneratedTask({
-    workflowName: "progress-reviewer",
-    area: task.area,
-    title: task.title,
-    summary: task.summary,
-  });
   const result = stageGeneratedWorkProposal({
     workspaceRoot: args.workspaceRoot,
-    proposal: progressReviewTaskProposal({ ...args, task, taskClass }),
+    proposal: progressReviewTaskProposal({ ...args, task }),
   });
   const created = result.actions.some((action) => action.kind === "created-task");
   const updated = result.actions.some((action) =>
@@ -110,7 +99,7 @@ export function writeFollowUpTask(args: {
     return {
       kind: created ? "created-task" : "updated-task",
       taskId: result.taskId,
-      path: taskActionPath(result.actions) ?? `data/tasks/ready/${result.taskId}.md`,
+      path: taskActionPath(result.actions) ?? `data/tasks/${result.taskId}.md`,
       title: task.title,
     };
   }
@@ -121,8 +110,8 @@ export function writeFollowUpTask(args: {
     ...(result.taskId
       ? {
         existingTaskId: result.taskId,
-        existingState: "ready" as const,
-        existingPath: `data/tasks/ready/${result.taskId}.md`,
+        existingState: "open" as const,
+        existingPath: `data/tasks/${result.taskId}.md`,
         existingScopeId: deriveDirectoryScopeId(args.workspaceRoot),
       }
       : {}),
@@ -188,23 +177,13 @@ export function progressReviewTaskProposal(args: {
   runId: string;
   review: ProgressReviewAgentOutput;
   task: ProgressReviewFollowUpTaskOutput;
-  taskClass?: ClassifiedWorkflowGeneratedTask;
 }): GeneratedWorkProposal {
   const task = normalizeFollowUpTask(args.task);
-  const taskClass = args.taskClass ?? classifyWorkflowGeneratedTask({
-    workflowName: "progress-reviewer",
-    area: task.area,
-    title: task.title,
-    summary: task.summary,
-  });
   return {
     kind: "task",
     proposalKey: progressReviewProposalKey(task.topicKey),
     title: task.title,
-    summary: task.summary,
     priority: task.priority,
-    area: task.area,
-    taskClass,
     body: buildTaskBody({ ...args, task }),
     provenance: {
       source: "progress-reviewer",

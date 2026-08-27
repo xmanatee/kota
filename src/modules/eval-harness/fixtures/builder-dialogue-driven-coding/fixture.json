@@ -41,15 +41,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-resolve-nova-launch-notification-copy.md"
+      "path": "data/tasks/task-resolve-nova-launch-notification-copy.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-resolve-nova-launch-notification-copy.md"
+      "path": "data/tasks/archive/task-resolve-nova-launch-notification-copy.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-resolve-nova-launch-notification-copy.md",
+      "path": "data/tasks/archive/task-resolve-nova-launch-notification-copy.md",
       "needle": "status: done"
     },
     {
@@ -57,8 +57,8 @@
       "allowedPaths": [
         "dialogue-result.json",
         "src/notification-copy.mjs",
-        "data/tasks/ready/task-resolve-nova-launch-notification-copy.md",
-        "data/tasks/done/task-resolve-nova-launch-notification-copy.md"
+        "data/tasks/task-resolve-nova-launch-notification-copy.md",
+        "data/tasks/archive/task-resolve-nova-launch-notification-copy.md"
       ]
     }
   ],
@@ -153,7 +153,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-resolve-nova-launch-notification-copy.md"
+        "path": "data/tasks/task-resolve-nova-launch-notification-copy.md"
       },
       "expected": "pass"
     },

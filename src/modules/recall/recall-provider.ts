@@ -106,7 +106,6 @@ function toRecallHit(entry: ScoredEntry): RecallHit {
         title: entry.payload.title,
         state: entry.payload.state,
         priority: entry.payload.priority,
-        updatedAt: entry.payload.updatedAt,
       };
     case "answer":
       return {

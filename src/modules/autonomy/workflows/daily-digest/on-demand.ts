@@ -31,9 +31,7 @@ export type DigestSnapshot = {
 
 export function readQueueCounts(workspaceRoot: string): QueueCounts {
   return {
-    backlog: countRepoTaskState(workspaceRoot, "backlog"),
-    ready: countRepoTaskState(workspaceRoot, "ready"),
-    doing: countRepoTaskState(workspaceRoot, "doing"),
+    open: countRepoTaskState(workspaceRoot, "open"),
     blocked: countRepoTaskState(workspaceRoot, "blocked"),
   };
 }

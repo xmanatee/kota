@@ -9,7 +9,7 @@ function formatFileList(files: readonly string[]): string {
 }
 
 function isNormalizedTaskFile(path: string): boolean {
-  return /^data\/tasks\/(?:backlog|ready|doing|blocked|done|dropped)\/task-[^/]+\.md$/.test(
+  return /^data\/tasks\/(?:archive\/)?task-[^/]+\.md$/.test(
     path,
   );
 }

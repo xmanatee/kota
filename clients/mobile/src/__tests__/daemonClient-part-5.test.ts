@@ -180,7 +180,7 @@ describe('DaemonClient', () => {
       record: {
         target: 'tasks',
         recordId: 'task-buy-milk',
-        path: 'data/tasks/ready/task-buy-milk.md',
+        path: 'data/tasks/task-buy-milk.md',
       },
     };
     fetchSpy.mockResolvedValueOnce(jsonResponse(tasksSuccess));

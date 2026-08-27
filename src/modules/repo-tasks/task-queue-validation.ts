@@ -7,7 +7,8 @@ import {
 } from "#core/util/frontmatter.js";
 import { parseBlockedPrecondition } from "./blocked-precondition.js";
 import {
-  getRepoTaskStateDir,
+  getRepoTaskArchiveDir,
+  getRepoTasksDir,
   REPO_TASK_STATES,
   type RepoTaskState,
 } from "./repo-tasks-domain.js";
@@ -20,14 +21,12 @@ import {
 import { isRepoTaskId } from "./task-id.js";
 
 export type TaskQueueValidationSeverity = "error" | "warning";
-
 export type TaskQueueValidationFinding = {
   code: string;
   severity: TaskQueueValidationSeverity;
   message: string;
   paths?: string[];
 };
-
 export type TaskQueueValidationResult = {
   findings: TaskQueueValidationFinding[];
   counts: Record<RepoTaskState, number>;
@@ -36,74 +35,54 @@ export type TaskQueueValidationResult = {
 };
 
 type TaskFileEntry = {
-  state: RepoTaskState;
-  fileName: string;
+  archived: boolean;
   path: string;
   taskId: string;
   raw: string;
 };
 
-type TaskEntryScan = {
-  entries: TaskFileEntry[];
-  findings: TaskQueueValidationFinding[];
-};
-
-const REQUIRED_ATTRS = [
-  "title",
-  "priority",
-  "area",
-  "summary",
-  "created_at",
-  "updated_at",
-] as const;
-
-function listTaskEntries(repoRoot: string): TaskEntryScan {
+function scanContainer(repoRoot: string, directory: string, archived: boolean) {
   const entries: TaskFileEntry[] = [];
   const findings: TaskQueueValidationFinding[] = [];
-  for (const state of REPO_TASK_STATES) {
-    const dir = getRepoTaskStateDir(repoRoot, state);
-    if (!existsSync(dir)) continue;
-    for (const dirent of readdirSync(dir, { withFileTypes: true })) {
-      if (!dirent.name.endsWith(".md") || dirent.name === "AGENTS.md") continue;
-      const path = join(dir, dirent.name);
-      if (!dirent.isFile()) {
-        findings.push({
-          code: "task-path-unsafe",
-          severity: "error",
-          message: `${path} must be a regular task file; links and special entries are not allowed`,
-          paths: [path],
-        });
-        continue;
-      }
-      entries.push({
-        state,
-        fileName: dirent.name,
-        path,
-        taskId: basename(dirent.name, ".md"),
-        raw: readFileSync(path, "utf8"),
+  if (!existsSync(directory)) return { entries, findings };
+  for (const dirent of readdirSync(directory, { withFileTypes: true })) {
+    if (dirent.name === "AGENTS.md" || (!archived && dirent.name === "archive")) continue;
+    const path = join(directory, dirent.name);
+    if (!dirent.name.endsWith(".md")) {
+      findings.push({
+        code: "task-layout-invalid",
+        severity: "error",
+        message: `${relative(repoRoot, path)} is not allowed in the task container`,
+        paths: [path],
       });
+      continue;
     }
+    if (!dirent.isFile()) {
+      findings.push({
+        code: "task-path-unsafe",
+        severity: "error",
+        message: `${relative(repoRoot, path)} must be a regular task file`,
+        paths: [path],
+      });
+      continue;
+    }
+    entries.push({
+      archived,
+      path,
+      taskId: basename(dirent.name, ".md"),
+      raw: readFileSync(path, "utf8"),
+    });
   }
   return { entries, findings };
 }
 
-function listNestedRuntimeStateDirsUnderData(repoRoot: string): string[] {
-  const dataDir = join(repoRoot, "data");
-  if (!existsSync(dataDir)) return [];
-  const paths: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const path = join(dir, entry.name);
-      if (entry.name === ".kota" || entry.name === "runs") {
-        paths.push(`${relative(repoRoot, path)}/`);
-      } else {
-        walk(path);
-      }
-    }
+function listTaskEntries(repoRoot: string) {
+  const active = scanContainer(repoRoot, getRepoTasksDir(repoRoot), false);
+  const archive = scanContainer(repoRoot, getRepoTaskArchiveDir(repoRoot), true);
+  return {
+    entries: [...active.entries, ...archive.entries],
+    findings: [...active.findings, ...archive.findings],
   };
-  walk(dataDir);
-  return paths.sort();
 }
 
 function frontmatterSyntaxError(raw: string): string | null {
@@ -122,13 +101,10 @@ function frontmatterSyntaxError(raw: string): string | null {
   return null;
 }
 
-function findDependencyCycle(
-  graph: ReadonlyMap<string, readonly string[]>,
-): string[] | null {
+function findDependencyCycle(graph: ReadonlyMap<string, readonly string[]>): string[] | null {
   const visited = new Set<string>();
   const visiting = new Set<string>();
   const stack: string[] = [];
-
   const visit = (taskId: string): string[] | null => {
     visited.add(taskId);
     visiting.add(taskId);
@@ -139,255 +115,120 @@ function findDependencyCycle(
         const nested = visit(dependency);
         if (nested) return nested;
       } else if (visiting.has(dependency)) {
-        const start = stack.indexOf(dependency);
-        return [...stack.slice(start), dependency];
+        return [...stack.slice(stack.indexOf(dependency)), dependency];
       }
     }
     stack.pop();
     visiting.delete(taskId);
     return null;
   };
-
   for (const taskId of graph.keys()) {
-    if (visited.has(taskId)) continue;
-    const cycle = visit(taskId);
-    if (cycle) return cycle;
+    if (!visited.has(taskId)) {
+      const cycle = visit(taskId);
+      if (cycle) return cycle;
+    }
   }
   return null;
 }
 
-export function formatTaskQueueValidationSummary(
-  result: TaskQueueValidationResult,
-): string {
+export function formatTaskQueueValidationSummary(result: TaskQueueValidationResult): string {
   return [
     `task-queue-valid: errors=${result.errorCount} warnings=${result.warningCount}`,
-    `ready: count=${result.counts.ready}`,
-    `backlog: count=${result.counts.backlog}`,
+    `active: count=${result.counts.open + result.counts.blocked}`,
+    `archive: count=${result.counts.done + result.counts.dropped}`,
   ].join("\n");
 }
 
-function formatFindingList(findings: TaskQueueValidationFinding[]): string {
-  return findings
-    .map((finding) => `- [${finding.code}] ${finding.message}`)
-    .join("\n");
+function finding(code: string, message: string, path?: string): TaskQueueValidationFinding {
+  return { code, severity: "error", message, ...(path ? { paths: [path] } : {}) };
 }
 
 export function validateTaskQueue(repoRoot: string): TaskQueueValidationResult {
   const scan = listTaskEntries(repoRoot);
-  const entries = scan.entries;
-  const counts = Object.fromEntries(
-    REPO_TASK_STATES.map((state) => [state, 0]),
-  ) as Record<RepoTaskState, number>;
+  const counts = Object.fromEntries(REPO_TASK_STATES.map((state) => [state, 0])) as Record<RepoTaskState, number>;
   const findings = [...scan.findings];
-  const seenTaskStates = new Map<string, RepoTaskState[]>();
+  const stateByTaskId = new Map<string, RepoTaskState>();
   const dependencyGraph = new Map<string, string[]>();
 
-  for (const entry of entries) {
-    counts[entry.state] += 1;
-    const seenStates = seenTaskStates.get(entry.taskId) ?? [];
-    seenStates.push(entry.state);
-    seenTaskStates.set(entry.taskId, seenStates);
-    dependencyGraph.set(entry.taskId, []);
-
+  for (const entry of scan.entries) {
     if (!isRepoTaskId(entry.taskId)) {
-      findings.push({
-        code: "task-id-invalid",
-        severity: "error",
-        message: `${entry.path} filename does not contain a valid task id`,
-        paths: [entry.path],
-      });
+      findings.push(finding("task-id-invalid", `${relative(repoRoot, entry.path)} has an invalid filename identity`, entry.path));
     }
-
+    if (stateByTaskId.has(entry.taskId)) {
+      findings.push(finding("task-duplicate", `${entry.taskId} appears more than once`, entry.path));
+    }
     const syntaxError = frontmatterSyntaxError(entry.raw);
-    if (syntaxError) {
-      findings.push({
-        code: "task-frontmatter-invalid",
-        severity: "error",
-        message: `${entry.path} has invalid metadata: ${syntaxError}`,
-        paths: [entry.path],
-      });
+    if (syntaxError) findings.push(finding("task-frontmatter-invalid", `${relative(repoRoot, entry.path)}: ${syntaxError}`, entry.path));
+
+    const { attrs, body } = parseFlatFrontMatter(entry.raw);
+    const status = attrs.status;
+    if (typeof status !== "string" || !REPO_TASK_STATES.includes(status as RepoTaskState)) {
+      findings.push(finding("task-status-invalid", `${relative(repoRoot, entry.path)} has invalid status ${String(status)}`, entry.path));
+      continue;
+    }
+    const state = status as RepoTaskState;
+    counts[state] += 1;
+    stateByTaskId.set(entry.taskId, state);
+    const shouldBeArchived = state === "done" || state === "dropped";
+    if (entry.archived !== shouldBeArchived) {
+      findings.push(finding("task-container-mismatch", `${relative(repoRoot, entry.path)} is stored in the wrong container for ${state}`, entry.path));
     }
 
-    const { attrs } = parseFlatFrontMatter(entry.raw);
-    const actualId = String(attrs.id ?? "");
-    if (actualId !== entry.taskId) {
-      findings.push({
-        code: "task-id-mismatch",
-        severity: "error",
-        message: `${entry.path} frontmatter id "${actualId}" does not match filename "${entry.taskId}"`,
-        paths: [entry.path],
-      });
+    const allowed = shouldBeArchived
+      ? new Set(["status"])
+      : new Set(["status", "priority", TASK_DEPENDENCIES_FIELD]);
+    for (const key of Object.keys(attrs)) {
+      if (!allowed.has(key)) findings.push(finding("task-attr-unnecessary", `${relative(repoRoot, entry.path)} has unnecessary frontmatter field: ${key}`, entry.path));
     }
-    const actualStatus = String(attrs.status ?? "");
-    if (actualStatus !== entry.state) {
-      findings.push({
-        code: "task-status-mismatch",
-        severity: "error",
-        message: `${entry.path} frontmatter status "${actualStatus}" does not match directory "${entry.state}"`,
-        paths: [entry.path],
-      });
+    if (!/^#\s+\S[^\n]*$/m.test(body) || !body.trimStart().startsWith("# ")) {
+      findings.push(finding("task-title-missing", `${relative(repoRoot, entry.path)} must begin its body with one H1 title`, entry.path));
     }
 
-    for (const attr of REQUIRED_ATTRS) {
-      if (typeof attrs[attr] !== "string" || attrs[attr].trim().length === 0) {
-        findings.push({
-          code: "task-missing-required-attr",
-          severity: "error",
-          message: `${entry.path} is missing required frontmatter field: ${attr}`,
-          paths: [entry.path],
-        });
-      }
+    if (shouldBeArchived) {
+      dependencyGraph.set(entry.taskId, []);
+      continue;
     }
-
-    const priority = attrs.priority;
-    if (
-      typeof priority === "string" &&
-      priority.length > 0 &&
-      !["p0", "p1", "p2", "p3"].includes(priority)
-    ) {
-      findings.push({
-        code: "task-invalid-priority",
-        severity: "error",
-        message: `${entry.path} has invalid priority "${priority}"`,
-        paths: [entry.path],
-      });
+    if (typeof attrs.priority !== "string" || !["p0", "p1", "p2", "p3"].includes(attrs.priority)) {
+      findings.push(finding("task-priority-invalid", `${relative(repoRoot, entry.path)} must have priority p0, p1, p2, or p3`, entry.path));
     }
-    for (const attr of ["created_at", "updated_at"] as const) {
-      if (
-        typeof attrs[attr] === "string" &&
-        attrs[attr].length > 0 &&
-        Number.isNaN(Date.parse(attrs[attr]))
-      ) {
-        findings.push({
-          code: "task-date-invalid",
-          severity: "error",
-          message: `${entry.path} has an invalid ${attr} timestamp`,
-          paths: [entry.path],
-        });
-      }
-    }
-
     const parsedDependencies = parseTaskDependencyIds(attrs);
     if (!parsedDependencies.ok) {
-      findings.push({
-        code: "task-dependencies-invalid",
-        severity: "error",
-        message: `${entry.path} has malformed ${TASK_DEPENDENCIES_FIELD}: ${parsedDependencies.error}`,
-        paths: [entry.path],
-      });
+      findings.push(finding("task-dependencies-invalid", `${relative(repoRoot, entry.path)}: ${parsedDependencies.error}`, entry.path));
+      dependencyGraph.set(entry.taskId, []);
     } else {
-      const dependencies = parsedDependencies.dependencies;
-      dependencyGraph.set(entry.taskId, dependencies);
-      const duplicates = findDuplicateTaskDependencyIds(dependencies);
-      if (duplicates.length > 0) {
-        findings.push({
-          code: "task-dependency-duplicate",
-          severity: "error",
-          message: `${entry.path} repeats predecessor id(s): ${duplicates.join(", ")}`,
-          paths: [entry.path],
-        });
-      }
-      if (dependencies.includes(entry.taskId)) {
-        findings.push({
-          code: "task-dependency-self",
-          severity: "error",
-          message: `${entry.path} cannot depend on itself`,
-          paths: [entry.path],
-        });
-      }
+      dependencyGraph.set(entry.taskId, parsedDependencies.dependencies);
+      const duplicates = findDuplicateTaskDependencyIds(parsedDependencies.dependencies);
+      if (duplicates.length) findings.push(finding("task-dependency-duplicate", `${relative(repoRoot, entry.path)} repeats: ${duplicates.join(", ")}`, entry.path));
+      if (parsedDependencies.dependencies.includes(entry.taskId)) findings.push(finding("task-dependency-self", `${relative(repoRoot, entry.path)} cannot depend on itself`, entry.path));
     }
-
-    if (entry.state === "blocked") {
-      const parsed = parseBlockedPrecondition(entry.raw);
-      if (!parsed.ok) {
-        findings.push({
-          code: "blocked-task-precondition-invalid",
-          severity: "error",
-          message: `${entry.path} has an invalid unblock precondition: ${parsed.error}`,
-          paths: [entry.path],
-        });
-      } else if (parsed.precondition.kind === "task-done" && parsedDependencies.ok) {
-        const dependencies = parsedDependencies.dependencies;
-        if (
-          dependencies.length !== 1 ||
-          dependencies[0] !== parsed.precondition.ref
-        ) {
-          findings.push({
-            code: "blocked-task-done-dependency-mismatch",
-            severity: "error",
-            message: `${entry.path} task-done precondition and ${TASK_DEPENDENCIES_FIELD} must name the same sole predecessor`,
-            paths: [entry.path],
-          });
-        }
-      }
+    if (state === "blocked") {
+      const parsed = parseBlockedPrecondition(body);
+      if (!parsed.ok) findings.push(finding("blocked-task-precondition-invalid", `${relative(repoRoot, entry.path)} has invalid Blocked on metadata: ${parsed.error}`, entry.path));
     }
   }
 
-  for (const [taskId, states] of seenTaskStates) {
-    if (states.length <= 1) continue;
-    findings.push({
-      code: "task-duplicate-state",
-      severity: "error",
-      message: `${taskId} appears in multiple task states: ${states.join(", ")}`,
-    });
-  }
-
-  const knownTaskIds = new Set(seenTaskStates.keys());
-  const stateByTaskId = new Map(
-    entries.map((entry) => [entry.taskId, entry.state] as const),
-  );
   for (const [taskId, dependencies] of dependencyGraph) {
-    const entry = entries.find((candidate) => candidate.taskId === taskId);
+    const entry = scan.entries.find((candidate) => candidate.taskId === taskId);
     for (const dependency of dependencies) {
-      if (knownTaskIds.has(dependency)) continue;
-      findings.push({
-        code: "task-dependency-missing",
-        severity: "error",
-        message: `${entry?.path ?? taskId} depends on missing predecessor: ${dependency}`,
-        paths: entry ? [entry.path] : undefined,
-      });
+      if (!stateByTaskId.has(dependency)) findings.push(finding("task-dependency-missing", `${relative(repoRoot, entry?.path ?? taskId)} depends on missing predecessor: ${dependency}`, entry?.path));
     }
     const dropped = findDroppedTaskDependencyIds(dependencies, stateByTaskId);
-    if (entry && !["done", "dropped"].includes(entry.state) && dropped.length > 0) {
-      findings.push({
-        code: "task-dependency-dropped",
-        severity: "error",
-        message: `${entry.path} depends on dropped predecessor(s): ${dropped.join(", ")}`,
-        paths: [entry.path],
-      });
-    }
+    if (entry && dropped.length) findings.push(finding("task-dependency-dropped", `${relative(repoRoot, entry.path)} depends on dropped predecessor(s): ${dropped.join(", ")}`, entry.path));
   }
-
   const cycle = findDependencyCycle(dependencyGraph);
-  if (cycle) {
-    findings.push({
-      code: "task-dependency-cycle",
-      severity: "error",
-      message: `Task dependency cycle detected: ${cycle.join(" -> ")}`,
-    });
-  }
-
-  const nestedRuntimeStateDirs = listNestedRuntimeStateDirsUnderData(repoRoot);
-  if (nestedRuntimeStateDirs.length > 0) {
-    findings.push({
-      code: "data-nested-runtime-state",
-      severity: "error",
-      message: `Runtime state directories are not allowed under data/: ${nestedRuntimeStateDirs.join(", ")}`,
-      paths: nestedRuntimeStateDirs,
-    });
-  }
+  if (cycle) findings.push(finding("task-dependency-cycle", `Task dependency cycle detected: ${cycle.join(" -> ")}`));
 
   return {
     findings,
     counts,
-    errorCount: findings.filter((finding) => finding.severity === "error").length,
-    warningCount: findings.filter((finding) => finding.severity === "warning").length,
+    errorCount: findings.filter(({ severity }) => severity === "error").length,
+    warningCount: findings.filter(({ severity }) => severity === "warning").length,
   };
 }
 
 export function assertTaskQueueValid(repoRoot: string): TaskQueueValidationResult {
   const result = validateTaskQueue(repoRoot);
-  const errors = result.findings.filter((finding) => finding.severity === "error");
-  if (errors.length > 0) throw new Error(formatFindingList(errors));
+  const errors = result.findings.filter(({ severity }) => severity === "error");
+  if (errors.length) throw new Error(errors.map(({ code, message }) => `- [${code}] ${message}`).join("\n"));
   return result;
 }

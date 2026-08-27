@@ -1,9 +1,6 @@
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { ReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
-import type {
-  RepoTaskClass,
-  RepoTaskFullRecord,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ReportPriority } from "./aggregate-types.js";
 import type { PostCompletionFollowUpReport } from "./post-completion-followups.js";
 
@@ -61,7 +58,6 @@ export type SupervisionLoadScore = {
 
 export type SupervisionLoadWorkstreamGroup = {
   workflow: string;
-  taskClass: RepoTaskClass;
   priority: ReportPriority;
   scopeId: string | null;
   activeRuns: number;

@@ -32,7 +32,7 @@ found three run-directory artifacts in the completed source run. The curated
 recording retains only `commit-message.txt`, which is the current
 agent-authored run-directory contract. The source commit touched only:
 
-- `data/tasks/done/task-synthesize-support-triage-ingestion-decision.md`
-- `data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md`
+- `data/tasks/archive/task-synthesize-support-triage-ingestion-decision.md`
+- `data/tasks/task-synthesize-support-triage-ingestion-decision.md`
 - `research-synthesis-result.json`
 - `research-synthesis-verification.json`

@@ -22,8 +22,8 @@ const rejectedIds = new Set([
 const allowedChangedPaths = new Set([
   resultPath,
   verificationPath,
-  "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md",
-  "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md",
+  "data/tasks/task-synthesize-support-triage-ingestion-decision.md",
+  "data/tasks/archive/task-synthesize-support-triage-ingestion-decision.md",
 ]);
 
 class CheckError extends Error {

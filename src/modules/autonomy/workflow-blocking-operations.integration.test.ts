@@ -65,7 +65,7 @@ describe("autonomy workflow blocking operations", () => {
       expect(scan.candidateCount).toBe(0);
       expect(digest).toMatchObject({
         data: { quiet: true },
-        currentCounts: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+        currentCounts: { open: 0, blocked: 0 },
       });
     } finally {
       rmSync(workspaceRoot, { recursive: true, force: true });

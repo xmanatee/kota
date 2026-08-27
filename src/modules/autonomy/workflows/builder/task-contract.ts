@@ -18,8 +18,7 @@ export const BUILDER_TASK_EVENT = "autonomy.queue.available";
 export type BuilderTaskIdentity = Readonly<{
   taskId: string;
   taskPath: string;
-  taskState: "ready" | "doing";
-  taskUpdatedAt: string;
+  taskState: "open";
   taskDigest: string;
   idempotencyKey: string;
 }>;
@@ -32,7 +31,7 @@ export type BuilderTaskDispatchPayload = Omit<
 >;
 
 export type BuilderTaskTarget = Readonly<{
-  ready: boolean;
+  actionable: boolean;
   taskId: string;
   taskPath: string;
   taskState: string;
@@ -50,7 +49,7 @@ const TASK_ID_PATTERN = /^task-[a-z0-9][a-z0-9-]*$/;
 const TASK_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 
 function taskPath(task: Pick<RepoTaskFullRecord, "id" | "state">): string {
-  return join("data", "tasks", task.state, `${task.id}.md`);
+  return join("data", "tasks", `${task.id}.md`);
 }
 
 function digestTask(task: RepoTaskFullRecord): string {
@@ -59,19 +58,14 @@ function digestTask(task: RepoTaskFullRecord): string {
     title: task.title,
     state: task.state,
     priority: task.priority,
-    area: task.area,
-    taskClass: task.taskClass,
-    summary: task.summary,
-    updatedAt: task.updatedAt,
     body: task.body,
     dependsOn: [...task.dependsOn].sort(),
-    anchor: task.anchor,
   };
   return createHash("sha256").update(JSON.stringify(contract)).digest("hex");
 }
 
 function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
-  if (task.state !== "ready" && task.state !== "doing") {
+  if (task.state !== "open") {
     throw new Error(`Task "${task.id}" is not actionable`);
   }
   const taskDigest = digestTask(task);
@@ -79,11 +73,9 @@ function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
     taskId: task.id,
     taskPath: taskPath(task),
     taskState: task.state,
-    taskUpdatedAt: task.updatedAt,
     taskDigest,
     title: task.title,
-    priority: task.priority,
-    taskClass: task.taskClass,
+    priority: task.priority!,
     dependsOn: Object.freeze([...task.dependsOn]),
     idempotencyKey: `builder:${task.id}:${taskDigest}`,
   });
@@ -97,14 +89,13 @@ export function listBuilderTaskDispatches(
   return allTasks
     .filter(
       (task) =>
-        (task.state === "ready" || task.state === "doing") &&
+        task.state === "open" &&
         findUnfinishedTaskDependencies(task.dependsOn, stateByTaskId).length === 0,
     )
     .sort((left, right) => {
-      if (left.state !== right.state) return left.state === "doing" ? -1 : 1;
       const priority =
-        (PRIORITY_ORDER.get(left.priority) ?? Number.MAX_SAFE_INTEGER) -
-        (PRIORITY_ORDER.get(right.priority) ?? Number.MAX_SAFE_INTEGER);
+        (PRIORITY_ORDER.get(left.priority!) ?? Number.MAX_SAFE_INTEGER) -
+        (PRIORITY_ORDER.get(right.priority!) ?? Number.MAX_SAFE_INTEGER);
       return priority !== 0 ? priority : left.id.localeCompare(right.id);
     })
     .map(payloadFor);
@@ -118,9 +109,8 @@ export function readBuilderTaskPayload(
     typeof dispatch.taskId !== "string" ||
     !TASK_ID_PATTERN.test(dispatch.taskId) ||
     typeof dispatch.taskPath !== "string" ||
-    (dispatch.taskState !== "ready" && dispatch.taskState !== "doing") ||
+    dispatch.taskState !== "open" ||
     dispatch.taskPath !== taskPath({ id: dispatch.taskId, state: dispatch.taskState }) ||
-    typeof dispatch.taskUpdatedAt !== "string" ||
     typeof dispatch.taskDigest !== "string" ||
     !TASK_DIGEST_PATTERN.test(dispatch.taskDigest) ||
     dispatch.idempotencyKey !==
@@ -132,7 +122,6 @@ export function readBuilderTaskPayload(
     taskId: dispatch.taskId,
     taskPath: dispatch.taskPath,
     taskState: dispatch.taskState,
-    taskUpdatedAt: dispatch.taskUpdatedAt,
     taskDigest: dispatch.taskDigest,
     idempotencyKey: dispatch.idempotencyKey,
   };
@@ -155,7 +144,7 @@ export function inspectBuilderTaskTarget(input: {
   );
   if (!current) {
     return {
-      ready: false,
+      actionable: false,
       taskId: expected.taskId,
       taskPath: expected.taskPath,
       taskState: "unavailable",
@@ -169,7 +158,7 @@ export function inspectBuilderTaskTarget(input: {
     current.idempotencyKey !== expected.idempotencyKey
   ) {
     return {
-      ready: false,
+      actionable: false,
       taskId: expected.taskId,
       taskPath: current.taskPath,
       taskState: current.taskState,
@@ -178,7 +167,7 @@ export function inspectBuilderTaskTarget(input: {
     };
   }
   return {
-    ready: true,
+    actionable: true,
     taskId: current.taskId,
     taskPath: current.taskPath,
     taskState: current.taskState,
@@ -200,7 +189,7 @@ export const verifyBuilderTaskContractAfterReconcile: WorkflowPostReconcileInvar
       workspaceRoot: input.repoRoot,
       payload: input.trigger.payload,
     });
-    return target.ready
+    return target.actionable
       ? { satisfied: true }
       : {
           satisfied: false,

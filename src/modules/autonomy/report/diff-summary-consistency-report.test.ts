@@ -12,21 +12,16 @@ import { renderReport, section } from "./render-test-helpers.js";
 const NOW = Date.parse("2026-06-24T12:00:00.000Z");
 
 function writeTask(workspaceRoot: string): void {
-  const dir = join(workspaceRoot, "data", "tasks", "done");
+  const dir = join(workspaceRoot, "data", "tasks", "archive");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, "task-eval-harness.md"),
     [
       "---",
-      "id: task-eval-harness",
-      "title: Fix eval-harness recorder guard",
       "status: done",
-      "priority: p2",
-      "area: modules",
-      "summary: Fix eval-harness recorder guard.",
-      "created_at: 2026-06-24T00:00:00.000Z",
-      "updated_at: 2026-06-24T10:00:00.000Z",
       "---",
+      "",
+      "# Fix eval-harness recorder guard",
       "",
       "## Problem",
       "",
@@ -103,7 +98,7 @@ function mismatchRecord(runId: string): DiffSummaryConsistencyRecord {
       docFileCount: 0,
       generatedOrBaselineChanged: false,
       largeDiff: false,
-      taskMovedToDone: true,
+      taskArchived: true,
     },
     mismatches: [
       {

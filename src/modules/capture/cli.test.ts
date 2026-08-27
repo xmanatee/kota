@@ -114,7 +114,7 @@ describe("kota capture", () => {
         record: {
           target: "tasks",
           recordId: "task-review-macos-push-permissions",
-          path: "data/tasks/backlog/task-review-macos-push-permissions.md",
+          path: "data/tasks/task-review-macos-push-permissions.md",
         },
       };
     });
@@ -131,7 +131,7 @@ describe("kota capture", () => {
     expect(captured.filter).toEqual({ target: "tasks" });
     expect(output).toContain("tasks  task-review-macos-push-permissions");
     expect(output).toContain(
-      "data/tasks/backlog/task-review-macos-push-permissions.md",
+      "data/tasks/task-review-macos-push-permissions.md",
     );
   });
 

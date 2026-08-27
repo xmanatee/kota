@@ -44,7 +44,7 @@ export type QuestionFixture = {
 
 export function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "owner-intervention-escalation-"));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+  for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
   }
   execFileSync("git", ["init", "--quiet"], { cwd: dir });

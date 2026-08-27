@@ -119,13 +119,13 @@ export class ResourcesHandler {
 			this.notifyResourceUpdated("kota://workflow/status");
 		};
 
-		const notifyTasksReady = () => {
-			this.notifyResourceUpdated("kota://tasks/ready");
+		const notifyOpenTasks = () => {
+			this.notifyResourceUpdated("kota://tasks/open");
 		};
 
 		this.busUnsubs.push(bus.on("workflow.started", notifyWorkflowStatus));
 		this.busUnsubs.push(bus.on("workflow.completed", notifyWorkflowStatus));
-		this.busUnsubs.push(bus.on("task.changed", notifyTasksReady));
+		this.busUnsubs.push(bus.on("task.changed", notifyOpenTasks));
 		this.busUnsubs.push(bus.on("daemon.config.reload", () => this.notifyResourceListChangedIfNeeded()));
 	}
 

@@ -34,7 +34,7 @@ const memRecord: CaptureRecord = { target: "memory", recordId: "mem-42" };
 const taskRecord: CaptureRecord = {
   target: "tasks",
   recordId: "task-x",
-  path: "data/tasks/backlog/task-x.md",
+  path: "data/tasks/task-x.md",
 };
 
 describe("capture tool — schema", () => {
@@ -71,7 +71,7 @@ describe("capture tool — runner success arms", () => {
     const result = await runner({ text: "Audit something tomorrow" });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toBe(
-      "Captured: tasks  task-x  data/tasks/backlog/task-x.md",
+      "Captured: tasks  task-x  data/tasks/task-x.md",
     );
   });
 });

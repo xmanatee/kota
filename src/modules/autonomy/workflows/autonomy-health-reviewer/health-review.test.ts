@@ -228,10 +228,7 @@ describe("autonomy health issue projection", () => {
         kind: "task",
         proposalKey: `autonomy-issue:${issueKey}`,
         title: "Repair the generated health issue",
-        summary: "Route the health issue through builder.",
         priority: "p1",
-        area: "autonomy",
-        taskClass: "Meta",
         body: "## Problem\n\nThe health issue is open.\n",
         provenance: {
           source: "improver",
@@ -268,10 +265,10 @@ describe("autonomy health issue projection", () => {
       { id: task.taskId, state: "dropped" },
     ]);
     expect(existsSync(
-      join(workspaceRoot, "data", "tasks", "dropped", `${task.taskId}.md`),
+      join(workspaceRoot, "data", "tasks", "archive", `${task.taskId}.md`),
     )).toBe(false);
     expect(existsSync(
-      join(workspaceRoot, "data", "tasks", "ready", `${task.taskId}.md`),
+      join(workspaceRoot, "data", "tasks", `${task.taskId}.md`),
     )).toBe(true);
     expect(readAutonomyIssueProjection(workspaceRoot).issues[0]?.status).toBe(
       "resolved",

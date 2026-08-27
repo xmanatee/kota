@@ -24,8 +24,8 @@ const VALID = {
     },
   },
   fileOperations: [
-    { op: "write", path: "data/tasks/ready/task-a.md", content: "a" },
-    { op: "delete", path: "data/tasks/doing/task-b.md" },
+    { op: "write", path: "data/tasks/task-a.md", content: "a" },
+    { op: "delete", path: "data/tasks/task-b.md" },
   ],
 };
 

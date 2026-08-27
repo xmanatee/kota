@@ -2,27 +2,25 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
-  getRepoTaskStateDir,
+  getRepoTaskContainerDir,
   listFullRepoTasks,
+  type RepoTaskPriority,
   type RepoTaskState,
   readVerifiedRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
-const SECURITY_FINDING_KEY_ATTR = "security_finding_key";
-const SECURITY_REVIEW_RUNS_ATTR = "security_review_runs";
-
 type ExistingSecurityFindingTask = {
-  attrs: Record<string, string | string[]>;
   body: string;
   id: string;
   path: string;
+  priority: RepoTaskPriority | null;
   reviewRunIds: string[];
   state: RepoTaskState;
   superseded: boolean;
 };
 
 export type SecurityFindingTaskTarget =
-  | { kind: "create"; id: string; state: "ready"; path: string }
+  | { kind: "create"; id: string; state: "open"; path: string }
   | ({ kind: "update" } & ExistingSecurityFindingTask);
 
 type SecurityFindingTaskResolution = {
@@ -46,18 +44,17 @@ function legacyFindingIdentity(body: string): {
   return findingId && candidateId ? { findingId, candidateId } : null;
 }
 
-function reviewRunIds(
-  attrs: Record<string, string | string[]>,
-  body: string,
-): string[] {
-  const stored = attrs[SECURITY_REVIEW_RUNS_ATTR];
-  const values = Array.isArray(stored)
-    ? [...stored]
-    : typeof stored === "string" && stored.length > 0
-      ? [stored]
-      : [];
+function reviewRunIds(body: string): string[] {
+  const values: string[] = [];
   for (const match of body.matchAll(/^Created by security-review workflow run ([^\r\n]+)\.$/gm)) {
     const runId = match[1]?.trim();
+    if (runId) values.push(runId);
+  }
+  const confirmed = body.match(
+    /^Confirmed by security-review workflow runs:\s*\n((?:\s*- [^\r\n]+\s*\n?)+)/m,
+  )?.[1];
+  for (const line of confirmed?.split(/\r?\n/) ?? []) {
+    const runId = line.match(/^\s*-\s+(.+?)\s*$/)?.[1];
     if (runId) values.push(runId);
   }
   return [...new Set(values)].sort();
@@ -76,15 +73,14 @@ function listMatchingSecurityFindingTasks(
     if (!file) return [];
     const parsed = parseFlatFrontMatter(file.content);
     const record: ExistingSecurityFindingTask = {
-      attrs: parsed.attrs,
       body: parsed.body,
       id: task.id,
       path: join(workspaceRoot, file.path),
-      reviewRunIds: reviewRunIds(parsed.attrs, parsed.body),
+      priority: task.priority,
+      reviewRunIds: reviewRunIds(parsed.body),
       state: task.state,
       superseded: /^## Superseded$/m.test(parsed.body),
     };
-    if (record.attrs[SECURITY_FINDING_KEY_ATTR] === args.key) return [record];
     const legacy = legacyFindingIdentity(record.body);
     return legacy?.findingId === args.persistedFindingId &&
       legacy.candidateId === args.persistedCandidateId
@@ -121,8 +117,8 @@ function nextAvailableSecurityFindingTaskTarget(
       return {
         kind: "create",
         id,
-        state: "ready",
-        path: join(getRepoTaskStateDir(workspaceRoot, "ready"), `${id}.md`),
+        state: "open",
+        path: join(getRepoTaskContainerDir(workspaceRoot, "open"), `${id}.md`),
       };
     }
   }
@@ -160,21 +156,9 @@ export function resolveSecurityFindingTaskTarget(
     ]),
   ].sort();
   return {
-    current: target.kind === "update" &&
-      target.attrs[SECURITY_FINDING_KEY_ATTR] === key &&
-      sameStrings(target.reviewRunIds, mergedReviewRunIds),
+    current: target.kind === "update" && sameStrings(target.reviewRunIds, mergedReviewRunIds),
     key,
     reviewRunIds: mergedReviewRunIds,
     target,
-  };
-}
-
-export function securityFindingIdentityAttrs(
-  key: string,
-  reviewRunIds: string[],
-): Record<string, string | string[]> {
-  return {
-    [SECURITY_FINDING_KEY_ATTR]: key,
-    [SECURITY_REVIEW_RUNS_ATTR]: reviewRunIds,
   };
 }

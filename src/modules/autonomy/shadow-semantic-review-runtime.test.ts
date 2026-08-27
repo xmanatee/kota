@@ -56,7 +56,7 @@ describe("shadow semantic review runtime", () => {
     git(workspaceRoot, ["config", "commit.gpgsign", "false"]);
     writeProjectFile(
       workspaceRoot,
-      "data/tasks/blocked/task-old.md",
+      "data/tasks/task-old.md",
       "## Resources\n- https://example.com/old\n",
     );
     git(workspaceRoot, ["add", "-A"]);
@@ -64,25 +64,25 @@ describe("shadow semantic review runtime", () => {
 
     writeProjectFile(
       workspaceRoot,
-      "data/tasks/blocked/task-old.md",
+      "data/tasks/task-old.md",
       "## Resources\n- https://example.com/updated\n\nUpdated source decision.\n",
     );
-    writeProjectFile(workspaceRoot, "data/tasks/ready/task-new.md", "## Problem\nNew queue task.\n");
+    writeProjectFile(workspaceRoot, "data/tasks/task-new.md", "## Problem\nNew queue task.\n");
 
     const artifacts = new Map(
       workflowMutationArtifacts(workspaceRoot).map((artifact) => [artifact.path, artifact.content]),
     );
 
     expect(artifacts.get("git:workflow-mutation-files")).toContain(
-      "data/tasks/blocked/task-old.md",
+      "data/tasks/task-old.md",
     );
-    expect(artifacts.get("git:workflow-mutation-files")).toContain("data/tasks/ready/task-new.md");
+    expect(artifacts.get("git:workflow-mutation-files")).toContain("data/tasks/task-new.md");
     const diff = artifacts.get("git:workflow-mutation-diff") ?? "";
     expect(diff).toContain(
-      "diff --git a/data/tasks/blocked/task-old.md b/data/tasks/blocked/task-old.md",
+      "diff --git a/data/tasks/task-old.md b/data/tasks/task-old.md",
     );
     expect(diff).toContain("Updated source decision.");
-    expect(diff).toContain("diff --git a/data/tasks/ready/task-new.md b/data/tasks/ready/task-new.md");
+    expect(diff).toContain("diff --git a/data/tasks/task-new.md b/data/tasks/task-new.md");
     expect(diff).toContain("new file mode");
     expect(diff).toContain("New queue task.");
     expect(git(workspaceRoot, ["diff", "--cached", "--name-only"])).toBe("");

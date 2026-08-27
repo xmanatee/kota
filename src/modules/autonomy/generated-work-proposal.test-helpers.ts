@@ -9,6 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   GeneratedWorkQuestionProposal,
@@ -16,9 +17,7 @@ import type {
 } from "./generated-work-proposal.js";
 
 export const GENERATED_WORK_TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
+  "open",
   "blocked",
   "done",
   "dropped",
@@ -29,9 +28,7 @@ const scopeRoots: string[] = [];
 export function makeGeneratedWorkScopeRoot(label: string): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-generated-work-${label}-`));
   scopeRoots.push(workspaceRoot);
-  for (const state of GENERATED_WORK_TASK_STATES) {
-    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
   return workspaceRoot;
 }
@@ -49,10 +46,7 @@ export function taskProposal(
     kind: "task",
     proposalKey: "autonomy-issue:stable-fixture",
     title: "Repair stable autonomy issue",
-    summary: "Repair the stable autonomy issue through the normal builder path.",
     priority: "p1",
-    area: "autonomy",
-    taskClass: "Meta",
     body: [
       "## Problem",
       "",
@@ -130,25 +124,26 @@ export function placeTaskInState(
   taskId: string,
   state: RepoTaskState,
 ): void {
-  if (state === "ready") return;
-  const readyPath = join(
+  if (state === "open") return;
+  const activePath = join(
     workspaceRoot,
     "data",
     "tasks",
-    "ready",
     `${taskId}.md`,
   );
+  const terminal = state === "done" || state === "dropped";
   const targetPath = join(
     workspaceRoot,
     "data",
     "tasks",
-    state,
+    ...(terminal ? ["archive"] : []),
     `${taskId}.md`,
   );
-  const content = readFileSync(readyPath, "utf-8").replace(
-    "status: ready",
-    `status: ${state}`,
+  const parsed = parseFlatFrontMatter(readFileSync(activePath, "utf-8"));
+  const content = serializeFlatFrontMatter(
+    terminal ? { status: state } : { status: state, priority: "p1" },
+    parsed.body,
   );
-  renameSync(readyPath, targetPath);
+  if (activePath !== targetPath) renameSync(activePath, targetPath);
   writeFileSync(targetPath, content, "utf-8");
 }

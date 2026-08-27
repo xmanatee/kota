@@ -49,12 +49,13 @@ describe("runInit", () => {
     expect(existsSync(join(tmpDir, "kota.config.ts"))).toBe(true);
   });
 
-  it("creates data/inbox and all normalized task subdirectories", () => {
+  it("creates data/inbox, the active task root, and terminal archive", () => {
     runInit(tmpDir, false);
     expect(existsSync(join(tmpDir, "data", "inbox"))).toBe(true);
-    const states = ["ready", "doing", "backlog", "blocked", "done", "dropped"];
-    for (const state of states) {
-      expect(existsSync(join(tmpDir, "data", "tasks", state))).toBe(true);
+    expect(existsSync(join(tmpDir, "data", "tasks"))).toBe(true);
+    expect(existsSync(join(tmpDir, "data", "tasks", "archive"))).toBe(true);
+    for (const retired of ["ready", "doing", "backlog", "blocked", "done", "dropped"]) {
+      expect(existsSync(join(tmpDir, "data", "tasks", retired))).toBe(false);
     }
   });
 
@@ -62,10 +63,7 @@ describe("runInit", () => {
     runInit(tmpDir, false);
     expect(existsSync(join(tmpDir, "data", "inbox", "AGENTS.md"))).toBe(false);
     expect(existsSync(join(tmpDir, "data", "tasks", "AGENTS.md"))).toBe(false);
-    const states = ["ready", "doing", "backlog", "blocked", "done", "dropped"];
-    for (const state of states) {
-      expect(existsSync(join(tmpDir, "data", "tasks", state, "AGENTS.md"))).toBe(false);
-    }
+    expect(existsSync(join(tmpDir, "data", "tasks", "archive", "AGENTS.md"))).toBe(false);
   });
 
   it("creates docs/ directory without instruction stubs", () => {

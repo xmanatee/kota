@@ -16,12 +16,12 @@ paths are covered by `decomposer-agent-call-replay` and focused workflow tests.
   a synthetic failed-builder run whose `build` step has no structured
   timeout or repair-exhaustion `errorKind`, so the classification returns
   no rescoping signal.
-- `data/tasks/doing/task-fixture-decomposer-decision-seed.md` is a
+- `data/tasks/task-fixture-decomposer-decision-seed.md` is a
   dependency-clear actionable task. The failed builder metadata carries its
   immutable task identity in the original trigger payload. If the gate ever
   lets the agent step run, that contract identifies this task as the candidate,
   which lets the fixture's predicates catch the regression by observing the
-  file move out of `doing/`.
+  task transition out of its active root path.
 
 ## triggerPayload shape
 
@@ -40,11 +40,11 @@ about the decompose step's status.
 ## Predicate rationale
 
 - `file-exists` and `file-contains` against the seeded
-  `data/tasks/doing/...` task assert the file is still in `doing/`
+  `data/tasks/...` task assert the file is still open at its root path
   and its body is byte-for-byte unchanged (canary line). A regression
   that lets the agent step run will overwhelmingly modify or move this
   file, tripping one of these.
-- `file-absent` against `data/tasks/dropped/<seed>` is the
+- `file-absent` against `data/tasks/archive/<seed>` is the
   anti-canary for the most likely move target — decomposer's prompt
   moves the original task to `dropped/` after sub-decomposing.
 - The metadata predicates against the decomposer's own

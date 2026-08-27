@@ -21,8 +21,6 @@ export { PROCESS_DISCIPLINE_RUBRIC_VERSION };
 export const PROCESS_DISCIPLINE_GROUP_DIMENSIONS = [
   "workflow",
   "harness",
-  "taskClass",
-  "taskArea",
 ] as const;
 
 export type ProcessDisciplineGroupDimension =
@@ -39,8 +37,6 @@ export type ProcessDisciplineReportRecord = {
   stepId: string;
   harness: string;
   taskId: string | null;
-  taskClass: string;
-  taskArea: string;
   sourceArtifactPath: string;
   processDiscipline: ProcessDisciplineRecord;
 };
@@ -125,8 +121,6 @@ function buildRunProcessDisciplineRecords(
         stepId: step.id,
         harness: stepHarness(step),
         taskId,
-        taskClass: task?.taskClass ?? "(missing)",
-        taskArea: task?.area || "(missing)",
         sourceArtifactPath: artifactPath,
         processDiscipline,
       },
@@ -232,10 +226,6 @@ function groupValue(
       return record.workflow;
     case "harness":
       return record.harness;
-    case "taskClass":
-      return record.taskClass;
-    case "taskArea":
-      return record.taskArea;
   }
 }
 

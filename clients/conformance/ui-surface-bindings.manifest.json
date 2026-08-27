@@ -8,7 +8,7 @@
   },
   "semanticInput": {
     "path": "scripts/ui-behavior-vectors.mjs",
-    "sha256": "bf3a903b9243f2f5f6cab851d28b2b71f0968434979b739d257eba0db1b6e262"
+    "sha256": "df21370a2e0887463081fa95225c0e2ebb58145888ce37f659856881de92614a"
   },
   "outputs": [
     {
@@ -29,15 +29,15 @@
     },
     {
       "path": "clients/conformance/ui-behavior-vectors.generated.json",
-      "sha256": "f92d1b02ebd6aa2573865759972236347d370c5bece0252c4f7a9cc8447a075b"
+      "sha256": "8f992d2859dadb80388592fed44994a6e9f5044709b8faa05e718317db297408"
     },
     {
       "path": "clients/mobile/src/__tests__/__fixtures__/ui-behavior-vectors.generated.json",
-      "sha256": "f92d1b02ebd6aa2573865759972236347d370c5bece0252c4f7a9cc8447a075b"
+      "sha256": "8f992d2859dadb80388592fed44994a6e9f5044709b8faa05e718317db297408"
     },
     {
       "path": "clients/apple/Tests/KotaSharedTests/ui-behavior-vectors.generated.json",
-      "sha256": "f92d1b02ebd6aa2573865759972236347d370c5bece0252c4f7a9cc8447a075b"
+      "sha256": "8f992d2859dadb80388592fed44994a6e9f5044709b8faa05e718317db297408"
     }
   ]
 }

@@ -205,8 +205,8 @@ export const SIMULATION_FIXTURES: readonly WorkflowSimulationFixture[] = [
       payload: {
         scopeId: SCOPE_ID,
         counts: {
-          ready: 2,
-          doing: 1,
+          pending: 2,
+          in_progress: 1,
           done: 12,
         },
       },

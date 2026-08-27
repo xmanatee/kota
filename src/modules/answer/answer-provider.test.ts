@@ -67,7 +67,6 @@ const sampleHits: RecallHit[] = [
     title: "Add cross-store recall seam",
     state: "done",
     priority: "p1",
-    updatedAt: "2026-04-25",
   },
   {
     source: "memory",

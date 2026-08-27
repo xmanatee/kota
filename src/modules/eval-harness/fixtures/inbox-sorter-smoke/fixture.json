@@ -45,7 +45,7 @@
         {
           "kind": "copy-fixture-file",
           "sourcePath": "calibration/golden/task-calibration-inbox-sorter-smoke.md",
-          "targetPath": "data/tasks/ready/task-calibration-inbox-sorter-smoke.md"
+          "targetPath": "data/tasks/task-calibration-inbox-sorter-smoke.md"
         }
       ]
     },

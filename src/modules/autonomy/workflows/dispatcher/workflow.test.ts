@@ -24,30 +24,25 @@ import dispatcherWorkflow from "./workflow.js";
 
 function taskFixture(
   id: string,
-  state: "ready" | "doing" | "backlog" | "blocked",
+  state: "open" | "blocked" | "done" | "dropped",
   options: {
-    anchor?: boolean;
     dependsOn?: string[];
     resources?: string[];
     marker?: string;
     priority?: "p0" | "p1" | "p2" | "p3";
-    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
   } = {},
 ): string {
+  const terminal = state === "done" || state === "dropped";
   return [
     "---",
-    `id: ${id}`,
-    `title: ${id}`,
     `status: ${state}`,
-    `priority: ${options.priority ?? "p2"}`,
-    "area: modules",
-    ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
-    `summary: ${id} summary`,
-    "created_at: 2026-05-08T00:00:00.000Z",
-    "updated_at: 2026-05-08T00:00:00.000Z",
-    ...(options.anchor ? ["anchor: true"] : []),
-    ...(options.dependsOn ? [`depends_on: [${options.dependsOn.join(", ")}]`] : []),
+    ...(terminal ? [] : [`priority: ${options.priority ?? "p2"}`]),
+    ...(!terminal && options.dependsOn
+      ? [`depends_on: [${options.dependsOn.join(", ")}]`]
+      : []),
     "---",
+    "",
+    `# ${id}`,
     "",
     ...(options.resources
       ? [
@@ -69,12 +64,7 @@ describe("dispatcher workflow", () => {
       tmpdir(),
       `kota-dispatcher-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "backlog"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "doing"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "done"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "dropped"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
     mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
     execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
     writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
@@ -155,19 +145,18 @@ describe("dispatcher workflow", () => {
     );
   }
 
-  it("emits one targeted autonomy.queue.available event per ready task", async () => {
+  it("emits one targeted autonomy.queue.available event per open task", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-foo.md"),
-      taskFixture("task-foo", "ready"),
+      join(workspaceRoot, "data", "tasks", "task-foo.md"),
+      taskFixture("task-foo", "open"),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-bar.md"),
-      taskFixture("task-bar", "ready"),
+      join(workspaceRoot, "data", "tasks", "task-bar.md"),
+      taskFixture("task-bar", "open"),
     );
     const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(2);
     expect(output.actionableCount).toBe(2);
     expect(output.dispatchableCount).toBe(2);
     expect(
@@ -186,79 +175,43 @@ describe("dispatcher workflow", () => {
         ),
     ).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
 
-  it("promotes a better backlog frontier before dispatching the builder", async () => {
+
+  it("does not treat open work with unfinished hard dependencies as actionable", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-platform-ready.md"),
-      taskFixture("task-platform-ready", "ready", {
-        priority: "p2",
-        taskClass: "Platform",
-      }),
+      join(workspaceRoot, "data", "tasks", "task-dependent.md"),
+      taskFixture("task-dependent", "open", { dependsOn: ["task-enabler"] }),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-product-backlog.md"),
-      taskFixture("task-product-backlog", "backlog", {
-        priority: "p1",
-        taskClass: "Product",
-      }),
-    );
-
-    const result = await runDispatcherScenario();
-
-    const output = result.steps["assess-and-dispatch"].output as Record<
-      string,
-      unknown
-    >;
-    expect(output.actionableCount).toBe(1);
-    expect(output.promotionFrontier).toMatchObject({
-      incumbentTaskId: "task-platform-ready",
-      improved: true,
-    });
-    expect(
-      result.emitted.some(
-        (event) => event.event === "autonomy.queue.needs-promotion",
-      ),
-    ).toBe(true);
-    expect(
-      result.emitted.some((event) => event.event === "autonomy.queue.available"),
-    ).toBe(false);
-  });
-
-  it("does not treat ready work with unfinished hard dependencies as actionable", async () => {
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-dependent.md"),
-      taskFixture("task-dependent", "ready", { dependsOn: ["task-enabler"] }),
-    );
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-enabler.md"),
-      taskFixture("task-enabler", "backlog"),
+      join(workspaceRoot, "data", "tasks", "task-enabler.md"),
+      taskFixture("task-enabler", "open"),
     );
     const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.actionableCount).toBe(0);
+    expect(output.actionableCount).toBe(1);
     expect(output.dependencyBlockedTasks).toEqual([
       {
         id: "task-dependent",
         title: "task-dependent",
-        state: "ready",
+        state: "open",
         dependsOn: ["task-enabler"],
         waitingOn: ["task-enabler"],
       },
     ]);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
+    expect(output.builderTaskIds).toEqual(["task-enabler"]);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
   });
 
-  it("treats ready work as actionable once hard dependencies are done", async () => {
+  it("treats open work as actionable once hard dependencies are done", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-dependent.md"),
-      taskFixture("task-dependent", "ready", { dependsOn: ["task-enabler"] }),
+      join(workspaceRoot, "data", "tasks", "task-dependent.md"),
+      taskFixture("task-dependent", "open", { dependsOn: ["task-enabler"] }),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "done", "task-enabler.md"),
-      taskFixture("task-enabler", "backlog").replace("status: backlog", "status: done"),
+      join(workspaceRoot, "data", "tasks", "archive", "task-enabler.md"),
+      taskFixture("task-enabler", "done"),
     );
     const result = await runDispatcherScenario();
 
@@ -286,20 +239,19 @@ describe("dispatcher workflow", () => {
     expect(output.inboxCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
 
-  it("stays quiescent when only dependency-blocked backlog remains", async () => {
+  it("stays quiescent when only dependency-blocked work remains", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-dependent-a.md"),
-      taskFixture("task-dependent-a", "backlog", { dependsOn: ["task-enabler"] }),
+      join(workspaceRoot, "data", "tasks", "task-dependent-a.md"),
+      taskFixture("task-dependent-a", "open", { dependsOn: ["task-enabler"] }),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-dependent-b.md"),
-      taskFixture("task-dependent-b", "backlog", { dependsOn: ["task-enabler"] }),
+      join(workspaceRoot, "data", "tasks", "task-dependent-b.md"),
+      taskFixture("task-dependent-b", "open", { dependsOn: ["task-enabler"] }),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-enabler.md"),
+      join(workspaceRoot, "data", "tasks", "task-enabler.md"),
       taskFixture("task-enabler", "blocked"),
     );
     const result = await runDispatcherScenario();
@@ -308,20 +260,19 @@ describe("dispatcher workflow", () => {
       {
         id: "task-dependent-a",
         title: "task-dependent-a",
-        state: "backlog",
+        state: "open",
         dependsOn: ["task-enabler"],
         waitingOn: ["task-enabler"],
       },
       {
         id: "task-dependent-b",
         title: "task-dependent-b",
-        state: "backlog",
+        state: "open",
         dependsOn: ["task-enabler"],
         waitingOn: ["task-enabler"],
       },
     ];
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(0);
     expect(output.actionableCount).toBe(0);
     expect(output.dependencyBlockedTasks).toEqual(expect.arrayContaining(dependencyBlockedTasks));
     expect(output.dependencyBlockedTasks).toHaveLength(2);
@@ -329,65 +280,26 @@ describe("dispatcher workflow", () => {
     expect(output.quiescentReason).toBe("work is dependency-blocked");
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
   });
 
-  it("emits autonomy.queue.needs-promotion when only backlog work remains", async () => {
+
+
+  it("does not dispatch when only blocked work remains", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
-      taskFixture("task-foo", "backlog"),
-    );
-    const result = await runDispatcherScenario();
-
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(1);
-    expect(output.actionableCount).toBe(0);
-    expect(output.promotableBacklogCount).toBe(1);
-    expect(output.dispatchableCount).toBe(1);
-    expect(output.inboxCount).toBe(0);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(true);
-  });
-
-  it("treats strategic-anchor-only backlog as empty dispatchable work", async () => {
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-anchor.md"),
-      taskFixture("task-anchor", "backlog", { anchor: true }),
-    );
-    const result = await runDispatcherScenario();
-
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(0);
-    expect(output.actionableCount).toBe(0);
-    expect(output.promotableBacklogCount).toBe(0);
-    expect(output.dispatchableCount).toBe(0);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
-    expect(output.quiescent).toBe(false);
-    expect(output.quiescentReason).toBe(null);
-  });
-
-  it("does not emit needs-promotion when only blocked work remains", async () => {
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-foo.md"),
+      join(workspaceRoot, "data", "tasks", "task-foo.md"),
       taskFixture("task-foo", "blocked"),
     );
     const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(0);
     expect(output.actionableCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.needs-promotion")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
   it("emits blocked-research attemptable without queue.available for a blocked-only retry candidate", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-research.md"),
+      join(workspaceRoot, "data", "tasks", "task-research.md"),
       taskFixture("task-research", "blocked", {
         resources: ["https://example.com/research-note"],
       }),
@@ -396,7 +308,6 @@ describe("dispatcher workflow", () => {
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
-    expect(output.promotableBacklogCount).toBe(0);
     expect(output.researchRetryCandidateCount).toBe(1);
     expect(output.researchRetryAttemptableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
@@ -407,7 +318,7 @@ describe("dispatcher workflow", () => {
     expect(retryEvent?.payload).toMatchObject({
       candidateCount: 1,
       attemptableCount: 1,
-      counts: expect.objectContaining({ ready: 0, doing: 0, backlog: 0, blocked: 1 }),
+      counts: expect.objectContaining({ open: 0, blocked: 1, done: 0, dropped: 0 }),
     });
   });
 
@@ -530,7 +441,7 @@ describe("dispatcher workflow", () => {
 
   it("does not emit blocked-research attemptable when capability is missing", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-research.md"),
+      join(workspaceRoot, "data", "tasks", "task-research.md"),
       taskFixture("task-research", "blocked", {
         resources: ["https://x.com/example/status/12345"],
       }),
@@ -553,7 +464,7 @@ describe("dispatcher workflow", () => {
       attemptedAt: "2026-05-16T00:00:00.000Z",
     });
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-research.md"),
+      join(workspaceRoot, "data", "tasks", "task-research.md"),
       taskFixture("task-research", "blocked", { resources, marker }),
     );
     const result = await runDispatcherScenario();
@@ -567,29 +478,28 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
-  it("emits autonomy.queue.thin for a one-item backlog tail", async () => {
+  it("emits autonomy.queue.thin for a one-item active queue", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
-      taskFixture("task-foo", "backlog"),
+      join(workspaceRoot, "data", "tasks", "task-foo.md"),
+      taskFixture("task-foo", "open"),
     );
     const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(1);
-    expect(output.actionableCount).toBe(0);
+    expect(output.actionableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
     expect(output.quiescent).toBe(false);
     expect(output.emitted).toContain("autonomy.queue.thin");
   });
 
-  it("emits autonomy.queue.thin when two backlog tasks remain", async () => {
+  it("emits autonomy.queue.thin when two open tasks remain", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-foo.md"),
-      taskFixture("task-foo", "backlog"),
+      join(workspaceRoot, "data", "tasks", "task-foo.md"),
+      taskFixture("task-foo", "open"),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-bar.md"),
-      taskFixture("task-bar", "backlog"),
+      join(workspaceRoot, "data", "tasks", "task-bar.md"),
+      taskFixture("task-bar", "open"),
     );
     const result = await runDispatcherScenario();
 
@@ -598,31 +508,30 @@ describe("dispatcher workflow", () => {
 
   it("does not emit autonomy.queue.thin when three or more tasks remain", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-a.md"),
-      taskFixture("task-a", "ready"),
+      join(workspaceRoot, "data", "tasks", "task-a.md"),
+      taskFixture("task-a", "open"),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-b.md"),
-      taskFixture("task-b", "backlog"),
+      join(workspaceRoot, "data", "tasks", "task-b.md"),
+      taskFixture("task-b", "open"),
     );
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "backlog", "task-c.md"),
-      taskFixture("task-c", "backlog"),
+      join(workspaceRoot, "data", "tasks", "task-c.md"),
+      taskFixture("task-c", "open"),
     );
     const result = await runDispatcherScenario();
 
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
   });
 
-  it("does not emit autonomy.queue.empty when doing work still exists", async () => {
+  it("does not emit autonomy.queue.empty when active work still exists", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "doing", "task-foo.md"),
-      taskFixture("task-foo", "doing"),
+      join(workspaceRoot, "data", "tasks", "task-foo.md"),
+      taskFixture("task-foo", "open"),
     );
     const result = await runDispatcherScenario();
 
     const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
-    expect(output.pullableCount).toBe(1);
     expect(output.actionableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
@@ -630,8 +539,8 @@ describe("dispatcher workflow", () => {
 
   it("emits both queue.available and inbox.available when both have items", async () => {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-bar.md"),
-      taskFixture("task-bar", "ready"),
+      join(workspaceRoot, "data", "tasks", "task-bar.md"),
+      taskFixture("task-bar", "open"),
     );
     writeFileSync(join(workspaceRoot, "data", "inbox", "idea.md"), "Some idea\n");
     const result = await runDispatcherScenario();

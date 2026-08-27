@@ -4,7 +4,6 @@ import {
   linkSync,
   mkdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -37,8 +36,7 @@ function makeFixture(mode: "staged" | "untracked") {
   );
   const workspaceRoot = join(parent, "project");
   const taskName = `task-${mode}-package-probe.md`;
-  const readyTask = join(workspaceRoot, "data/tasks/ready", taskName);
-  const doingTask = join(workspaceRoot, "data/tasks/doing", taskName);
+  const taskPath = join(workspaceRoot, "data/tasks", taskName);
   const outsideMarker = join(parent, "outside-marker.txt");
   const outsideHardLinkMarker = join(parent, "outside-hard-link-marker.txt");
   const insideHardLink = join(workspaceRoot, "host-hard-link.txt");
@@ -49,29 +47,31 @@ function makeFixture(mode: "staged" | "untracked") {
     tmpdir(),
     `kota-probe-${Date.now()}-${Math.random().toString(36).slice(2)}.sock`,
   );
-  mkdirSync(dirname(readyTask), { recursive: true });
+  mkdirSync(dirname(taskPath), { recursive: true });
   writeFileSync(outsideSecret, "HOST_FILE_READ_SUCCEEDED");
   writeFileSync(outsideHardLinkMarker, "host-hard-link-only");
   linkSync(outsideHardLinkMarker, insideHardLink);
   const taskContent = [
     "---",
-    `title: ${mode} package probe`,
+    "status: open",
+    "priority: p2",
     "---",
+    "",
+    `# ${mode} package probe`,
+    "",
     "## Runtime Probe",
     "command: pnpm run probe:escape",
     "timeoutMs: 5000",
   ].join("\n");
-  writeFileSync(readyTask, taskContent);
+  writeFileSync(taskPath, taskContent);
   runGit(workspaceRoot, ["init"]);
   runGit(workspaceRoot, ["config", "user.email", "test@example.com"]);
   runGit(workspaceRoot, ["config", "user.name", "Test User"]);
-  runGit(workspaceRoot, ["add", "data/tasks/ready"]);
+  runGit(workspaceRoot, ["add", "data/tasks"]);
   runGit(workspaceRoot, ["commit", "-m", "seed trusted task"]);
-  mkdirSync(dirname(doingTask), { recursive: true });
-  renameSync(readyTask, doingTask);
   const detachedProgram = [
     'if (typeof process.send !== "function") process.exit(40)',
-    'process.send("ready", () => process.disconnect())',
+    'process.send("open", () => process.disconnect())',
     `setTimeout(() => process.stderr.write(${JSON.stringify(DETACHED_PROCESS_SURVIVED)}), 800)`,
   ].join("; ");
   const escapeProgram = [
@@ -120,7 +120,7 @@ function makeFixture(mode: "staged" | "untracked") {
   return {
     parent,
     workspaceRoot,
-    doingTask,
+    taskPath,
     outsideMarker,
     outsideHardLinkMarker,
     outsideSocket,
@@ -180,7 +180,7 @@ describe("Runtime Probe mutable workspace containment", () => {
       try {
         const result = await runProbeIfDeclared(
           fixture.taskContent,
-          fixture.doingTask,
+          fixture.taskPath,
           fixture.workspaceRoot,
           fixture.runDir,
           createWorkflowCommandRunner({ cwd: fixture.workspaceRoot }),
@@ -202,7 +202,7 @@ describe("Runtime Probe mutable workspace containment", () => {
         );
         expect(artifact.provenance).toMatchObject({
           status: "trusted",
-          sourcePath: `data/tasks/ready/task-${mode}-package-probe.md`,
+          sourcePath: `data/tasks/task-${mode}-package-probe.md`,
         });
         if (artifact.isolation.status === "enforced") {
           expect(result).toMatchObject({
@@ -243,7 +243,7 @@ describe("Runtime Probe mutable workspace containment", () => {
       try {
         const result = await runProbeIfDeclared(
           fixture.taskContent,
-          fixture.doingTask,
+          fixture.taskPath,
           fixture.workspaceRoot,
           fixture.runDir,
           createWorkflowCommandRunner({ cwd: fixture.workspaceRoot }),

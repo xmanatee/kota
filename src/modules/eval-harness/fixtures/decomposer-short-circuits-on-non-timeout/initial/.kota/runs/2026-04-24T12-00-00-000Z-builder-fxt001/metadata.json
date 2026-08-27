@@ -7,15 +7,13 @@
 		"schemaRef": null,
 		"payload": {
       "taskId": "task-fixture-decomposer-decision-seed",
-      "taskPath": "data/tasks/doing/task-fixture-decomposer-decision-seed.md",
-      "taskState": "doing",
-      "taskUpdatedAt": "2026-04-24T00:00:00.000Z",
-      "taskDigest": "d0c6c231c3b3f550b713de32cb5ad993692d09602a951ebe4d663ca8b01b6a1a",
+      "taskPath": "data/tasks/task-fixture-decomposer-decision-seed.md",
+      "taskState": "open",
+      "taskDigest": "c10df203bba64e7a7c9af5dd5a98be63552f351ced99f27186a9bfe7c795aa9f",
       "title": "Seed task for decomposer non-timeout decision-gate fixture",
       "priority": "p3",
-      "taskClass": "Unclassified",
       "dependsOn": [],
-      "idempotencyKey": "builder:task-fixture-decomposer-decision-seed:d0c6c231c3b3f550b713de32cb5ad993692d09602a951ebe4d663ca8b01b6a1a"
+      "idempotencyKey": "builder:task-fixture-decomposer-decision-seed:c10df203bba64e7a7c9af5dd5a98be63552f351ced99f27186a9bfe7c795aa9f"
     }
   },
   "startedAt": "2026-04-24T12:00:00.000Z",
@@ -25,7 +23,7 @@
   "runDir": ".kota/runs/2026-04-24T12-00-00-000Z-builder-fxt001",
   "steps": [
     {
-      "id": "inspect-ready-queue",
+      "id": "inspect-target-task",
       "type": "code",
       "status": "success",
       "startedAt": "2026-04-24T12:00:00.001Z",

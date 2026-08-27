@@ -18,13 +18,8 @@ export function task(
     title: attrs.title ?? id,
     state: attrs.state ?? "done",
     priority: attrs.priority ?? "p2",
-    area: attrs.area ?? "autonomy",
-    taskClass: attrs.taskClass ?? "Platform",
-    summary: attrs.summary ?? "",
-    updatedAt: attrs.updatedAt ?? NOW,
     body: attrs.body,
     dependsOn: attrs.dependsOn ?? [],
-    anchor: attrs.anchor ?? false,
   };
 }
 
@@ -59,9 +54,8 @@ export function builderTrigger(taskId: string): WorkflowRunMetadata["trigger"] {
     schemaRef: null,
     payload: {
       taskId,
-      taskPath: `data/tasks/ready/${taskId}.md`,
-      taskState: "ready",
-      taskUpdatedAt: NOW,
+      taskPath: `data/tasks/${taskId}.md`,
+      taskState: "open",
       taskDigest,
       idempotencyKey: `builder:${taskId}:${taskDigest}`,
       title: taskId,

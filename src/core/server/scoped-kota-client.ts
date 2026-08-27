@@ -168,10 +168,6 @@ function assembleScopedKotaClient(
         scoped(selectedId, () =>
           base.tasks.capture(title, withScope(scopeSelector, selector)),
         ),
-      gc: (options) =>
-        scoped(selectedId, () =>
-          base.tasks.gc(withScope(options, selector)),
-        ),
       search: (query, filter) =>
         scoped(selectedId, () =>
           base.tasks.search(query, withScope(filter, selector)),

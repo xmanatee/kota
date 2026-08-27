@@ -3,14 +3,14 @@
  *
  * Exposes KOTA's read-only resources over the MCP protocol:
  *   mcp://server-card.json    - public first-party MCP server metadata
- *   kota://tasks/ready          - task queue snapshot
+ *   kota://tasks/open           - active task queue snapshot
  *   kota://workflow/status      – runtime state summary
  *   kota://workflow/runs/recent – 10 most recent run summaries
  *   kota://memory               – bounded memory index
  *   kota://knowledge            – bounded knowledge index
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { KotaJsonObject, KotaJsonValue } from "#core/agent-harness/message-protocol.js";
 import type { SkillDef } from "#core/agents/agent-types.js";
@@ -23,7 +23,7 @@ import { getKnowledgeProvider, getMemoryProvider } from "#core/modules/provider-
 import type { KnowledgeEntry, Memory } from "#core/modules/provider-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { readStoredWorkflowRuntimeState } from "#core/workflow/stored-runtime-state.js";
-import { getRepoTaskStateDir } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
 	buildKotaStatusUiResource,
 	isMcpUiResourceUri,
@@ -99,9 +99,9 @@ const CORE_KOTA_RESOURCES: McpResource[] = [
 		mimeType: "application/json",
 	},
 	{
-		uri: "kota://tasks/ready",
-		name: "Ready Tasks",
-		description: "Tasks in data/tasks/ready/ with id, title, priority, and summary.",
+		uri: "kota://tasks/open",
+		name: "Open Tasks",
+		description: "Open tasks in data/tasks/ with id, title, priority, dependencies, and blocked state.",
 		mimeType: "application/json",
 	},
 	{
@@ -561,36 +561,14 @@ function parseKotaUrl(uri: string): URL | KotaResourceReadResult {
 	return parsed;
 }
 
-function parseFrontmatter(content: string): Record<string, string> {
-	const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-	if (!match) return {};
-	const fields: Record<string, string> = {};
-	for (const line of match[1].split(/\r?\n/)) {
-		const colon = line.indexOf(":");
-		if (colon === -1) continue;
-		fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
-	}
-	return fields;
-}
-
-function readReadyTasks(scopeRoot: string): unknown {
-	const dir = getRepoTaskStateDir(scopeRoot, "ready");
-	if (!existsSync(dir)) return [];
-	const files = readdirSync(dir).filter((f) => f.endsWith(".md"));
-	const tasks = [];
-	for (const file of files) {
-		const content = readFileSync(join(dir, file), "utf-8");
-		const fm = parseFrontmatter(content);
-		if (fm.id && fm.title) {
-			tasks.push({
-				id: fm.id,
-				title: fm.title,
-				priority: fm.priority ?? "",
-				summary: fm.summary ?? "",
-			});
-		}
-	}
-	return tasks;
+function readOpenTasks(scopeRoot: string): unknown {
+	return listFullRepoTasks(scopeRoot, ["open", "blocked"]).map((task) => ({
+		id: task.id,
+		title: task.title,
+		state: task.state,
+		priority: task.priority,
+		dependsOn: task.dependsOn,
+	}));
 }
 
 function readWorkflowStatus(scopeRoot: string): unknown {
@@ -1036,8 +1014,8 @@ export function readKotaResource(
 				const message = err instanceof Error ? err.message : String(err);
 				return internalError(message);
 			}
-		case "kota://tasks/ready":
-			return resourceSuccess(readReadyTasks(scopeRoot));
+		case "kota://tasks/open":
+			return resourceSuccess(readOpenTasks(scopeRoot));
 		case "kota://workflow/status":
 			return resourceSuccess(readWorkflowStatus(scopeRoot));
 		case "kota://workflow/runs/recent":

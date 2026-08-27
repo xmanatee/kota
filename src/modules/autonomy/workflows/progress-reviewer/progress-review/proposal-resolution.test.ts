@@ -21,7 +21,7 @@ describe("progress-reviewer generated-work resolution", () => {
   it("drops stale steering work when canonical recovery evidence disproves it", () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-progress-resolution-"));
     scopeRoots.push(workspaceRoot);
-    for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+    for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
       mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
     }
     execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
@@ -32,10 +32,7 @@ describe("progress-reviewer generated-work resolution", () => {
         kind: "task",
         proposalKey,
         title: "Recover stale builder worktrees",
-        summary: "Two stale builder worktrees appear to block ready work.",
         priority: "p1",
-        area: "autonomy",
-        taskClass: "Meta",
         body: [
           "## Problem",
           "",
@@ -83,7 +80,7 @@ describe("progress-reviewer generated-work resolution", () => {
     expect(result).toMatchObject({
       touchedTaskQueue: true,
       applied: expect.arrayContaining([
-        { kind: "dropped-task", taskId: created.taskId, fromState: "ready" },
+        { kind: "dropped-task", taskId: created.taskId, fromState: "open" },
         {
           kind: "owner-question-dismissal-pending",
           topicKey: "recovery:stale-worktrees",

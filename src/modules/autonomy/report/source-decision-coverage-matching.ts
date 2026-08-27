@@ -127,7 +127,7 @@ function taskMentionsAnySource(
   task: RepoTaskFullRecord,
   sourceRefs: readonly string[],
 ): boolean {
-  const text = normalizeText([task.title, task.summary, task.body].join("\n"));
+  const text = normalizeText([task.title, task.body].join("\n"));
   return sourceRefs.some((ref) => {
     const normalizedRef = normalizeText(ref);
     return normalizedRef.length > 0 && text.includes(normalizedRef);

@@ -52,11 +52,11 @@ describe("autonomy workflow blocking review and task operations", () => {
       });
 
       const reviewRunDir = join(workspaceRoot, ".kota", "runs", "review-boundary");
-      mkdirSync(join(workspaceRoot, "data", "tasks", "doing"), { recursive: true });
+      mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
       mkdirSync(reviewRunDir, { recursive: true });
       writeFileSync(
-        join(workspaceRoot, "data", "tasks", "doing", "task-review-boundary.md"),
-        "---\ntitle: Review boundary\n---\n\n## Done When\n\n- Review stays responsive.\n",
+        join(workspaceRoot, "data", "tasks", "task-review-boundary.md"),
+        "---\nstatus: open\npriority: p2\n---\n\n# Review boundary\n\n## Done When\n\n- Review stays responsive.\n",
       );
       let reviewTimerFired = false;
       const reviewTimer = setTimeout(() => {
@@ -76,41 +76,26 @@ describe("autonomy workflow blocking review and task operations", () => {
       );
       clearTimeout(reviewTimer);
 
-      for (const state of [
-        "backlog",
-        "ready",
-        "doing",
-        "blocked",
-        "done",
-        "dropped",
-      ]) {
-        mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-      }
+      mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
       writeFileSync(
-        join(workspaceRoot, "data", "tasks", "done", "task-review-boundary.md"),
+        join(workspaceRoot, "data", "tasks", "archive", "task-review-boundary.md"),
         [
           "---",
-          "id: task-review-boundary",
-          "title: Review boundary",
           "status: done",
-          "priority: p2",
-          "area: autonomy",
-          "task_class: Platform",
-          "summary: Keep review workers responsive.",
-          "created_at: 2026-08-14T12:00:00.000Z",
-          "updated_at: 2026-08-14T12:00:00.000Z",
           "---",
+          "",
+          "# Review boundary",
           "",
           "Resolved.",
           "",
         ].join("\n"),
       );
       rmSync(
-        join(workspaceRoot, "data", "tasks", "doing", "task-review-boundary.md"),
+        join(workspaceRoot, "data", "tasks", "task-review-boundary.md"),
       );
       execFileSync(
         "git",
-        ["add", "data/tasks/done/task-review-boundary.md"],
+        ["add", "-A", "data/tasks"],
         { cwd: workspaceRoot, stdio: "ignore" },
       );
       const authorityInspection = await runWorkflowBlockingOperation(
@@ -186,12 +171,12 @@ describe("autonomy workflow blocking review and task operations", () => {
 
       expect(reviewTimerFired).toBe(true);
       expect(criticInspection).toMatchObject({
-        status: "ready",
-        target: { path: "data/tasks/doing/task-review-boundary.md" },
+        status: "open",
+        target: { path: "data/tasks/task-review-boundary.md" },
       });
       expect(semanticInspection).toMatchObject({
-        status: "ready",
-        changedFiles: "data/tasks/doing/task-review-boundary.md",
+        status: "open",
+        changedFiles: "data/tasks/task-review-boundary.md",
       });
       expect(shadowTargets).toEqual(
         expect.arrayContaining([
@@ -203,17 +188,15 @@ describe("autonomy workflow blocking review and task operations", () => {
       }
       expect(authorityInspection.status).toBe("passed");
       expect(blockedPromotions).toEqual({ promotions: [] });
-      expect(scopeImprovement.createdTaskIds).toEqual([
-        "task-worker-boundary-scope-improvement",
-      ]);
+      expect(scopeImprovement.createdTaskIds).toHaveLength(1);
+      const createdTaskId = scopeImprovement.createdTaskIds[0]!;
       expect(
         readFileSync(
           join(
             workspaceRoot,
             "data",
             "tasks",
-            "ready",
-            "task-worker-boundary-scope-improvement.md",
+            `${createdTaskId}.md`,
           ),
           "utf8",
         ),

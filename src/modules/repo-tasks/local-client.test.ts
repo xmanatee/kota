@@ -35,12 +35,11 @@ describe("repo-tasks localClient", () => {
 			contributed.tasks!.create({
 				title: "Command-created task",
 				priority: "p2",
-				area: "core",
-				state: "backlog",
+				state: "open",
 			}),
 		).rejects.toThrow("Repo-task mutation requires the active workflow runtime");
 
-		const listed = await contributed.tasks!.list(["backlog"]);
+		const listed = await contributed.tasks!.list(["open"]);
 		expect(listed.tasks).toEqual([]);
 	});
 
@@ -50,7 +49,7 @@ describe("repo-tasks localClient", () => {
 			getProvider: () => null,
 		} as unknown as ModuleContext);
 
-		await expect(contributed.tasks!.move("../AGENTS", "doing")).resolves.toEqual({
+		await expect(contributed.tasks!.move("../AGENTS", "open")).resolves.toEqual({
 			ok: false,
 			reason: "invalid_id",
 		});

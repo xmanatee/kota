@@ -1,0 +1,52 @@
+---
+status: done
+---
+
+# Add subprocess health monitoring and restart for KEMP foreign modules
+
+## Problem
+
+KEMP foreign modules run as subprocesses managed by `ForeignExtensionStdio`.
+If a subprocess crashes (non-zero exit), the transport marks itself `closed` and
+all subsequent tool invocations fail with `"Transport closed"`. There is no automatic
+restart, no health check, and no notification to the operator. The only recovery is
+a full daemon restart.
+
+For modules implementing long-lived tools or network-connected subprocesses, a
+crash is not rare — and a silent failure requiring full daemon restart is a poor
+operator experience.
+
+## Desired Outcome
+
+- When a KEMP subprocess exits unexpectedly, `ForeignExtensionStdio` detects the
+  exit and attempts to respawn the subprocess up to a configurable `maxRestarts`
+  (default: 3) with exponential backoff starting at 2 seconds.
+- A `log` message is emitted to KOTA's stderr for each restart attempt.
+- If all restarts are exhausted, the module is marked failed and a bus event
+  `module.failed` is emitted so modules (e.g. Telegram, webhook) can
+  notify the operator.
+- A ping/pong mechanism (`{"type":"ping"}` / `{"type":"pong"}`) lets KOTA
+  detect a hung (non-crashed) subprocess. If a `pong` is not received within
+  `pingTimeoutMs` (default: 5 seconds), the subprocess is killed and the restart
+  logic activates.
+- Foreign modules that do not implement ping silently time out and restart —
+  backward compatible.
+
+## Constraints
+
+- Default behavior (no ping, no restart on exit) is preserved if the module
+  config sets `maxRestarts: 0`.
+- The restart state must not leak to the tool registry — in-flight `invoke`
+  calls during a restart should return an error result, not hang.
+- KEMP protocol docs (`docs/FOREIGN-MODULES.md`) updated with ping/pong spec.
+- No changes to the HTTP transport shape or the stdio protocol envelope — ping/pong
+  is an optional module to the existing protocol, not a breaking change.
+
+## Done When
+
+- A crashed KEMP subprocess is automatically restarted up to `maxRestarts` times.
+- Hung subprocess detection via ping/pong works for modules that support it.
+- Restart attempts are logged to stderr.
+- Bus event `module.failed` is emitted when all restarts are exhausted.
+- `docs/FOREIGN-MODULES.md` documents ping/pong as an optional health check.
+- Unit tests cover: crash restart, max restarts exhausted, ping timeout.

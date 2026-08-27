@@ -1,0 +1,38 @@
+---
+status: dropped
+---
+
+# Auto-prune old run artifacts from .kota/runs/
+
+## Why Dropped
+
+Dropped in `dd57bbff` because the work is implemented: `WorkflowRunStore`
+exposes `pruneRuns`, the runtime wires pruning on startup, workflow-ops exposes
+GC/prune commands, and `src/core/workflow/run-store-prune.test.ts` covers the
+retention floor and running-run protection. This is completed work, not a
+forgotten backlog item.
+
+## Problem
+
+Every workflow execution writes a directory under `.kota/runs/` containing step outputs, cost records, and status. There is no cleanup mechanism. At 815+ completed runs the directory accumulates indefinitely, growing disk usage and slowing filesystem operations on the run index.
+
+## Desired Outcome
+
+- A configurable retention policy (default: keep runs from the last 7 days) applied at runtime startup or on a scheduled workflow step.
+- Runs older than the retention window are deleted from disk.
+- `done` and `failed` runs within the window are preserved; currently-running runs are never pruned regardless of age.
+- The retention window is configurable (e.g. via kota config or a runtime constant).
+
+## Constraints
+
+- Never delete a run that is currently `running`.
+- Keep the most recent N runs per workflow regardless of age (floor of ~10) to prevent pruning everything after a long idle period.
+- Pruning should be a background operation — do not block session startup.
+- No schema changes to the run artifact format.
+
+## Done When
+
+- Old run directories are pruned on a schedule or at startup.
+- Currently-running runs are never touched.
+- A per-workflow recency floor ensures recent runs survive even after long idle gaps.
+- `npm run typecheck` and `npm test` pass.

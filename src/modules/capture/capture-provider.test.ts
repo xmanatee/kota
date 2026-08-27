@@ -49,7 +49,7 @@ const knowRecord: CaptureRecord = {
 const taskRecord: CaptureRecord = {
   target: "tasks",
   recordId: "task-x",
-  path: "data/tasks/backlog/task-x.md",
+  path: "data/tasks/task-x.md",
 };
 const inboxRecord: CaptureRecord = {
   target: "inbox",

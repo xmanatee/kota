@@ -21,6 +21,12 @@ export type * from "./generated-work-proposal-types.js";
 
 const PROPOSAL_KEY_RE = /^[a-z0-9][a-z0-9:._/-]*$/;
 
+function taskMutationPath(state: "open" | "blocked" | "done" | "dropped", id: string): string {
+  return state === "done" || state === "dropped"
+    ? `data/tasks/archive/${id}.md`
+    : `data/tasks/${id}.md`;
+}
+
 export function generatedWorkTaskMutationPaths(
   actions: readonly GeneratedWorkProposalAction[],
 ): string[] {
@@ -30,14 +36,14 @@ export function generatedWorkTaskMutationPaths(
     }
     if (action.kind === "reopened-task") {
       return [
-        `data/tasks/${action.fromState}/${action.taskId}.md`,
+        taskMutationPath(action.fromState, action.taskId),
         action.path,
       ];
     }
     if (action.kind === "dropped-task") {
       return [
-        `data/tasks/${action.fromState}/${action.taskId}.md`,
-        `data/tasks/dropped/${action.taskId}.md`,
+        taskMutationPath(action.fromState, action.taskId),
+        `data/tasks/archive/${action.taskId}.md`,
       ];
     }
     return [];

@@ -79,8 +79,6 @@ describe("issue-driven autonomy lifecycle integration", () => {
         taskTitle: "Repair passive Codex workflow compatibility",
         taskSummary: "Keep incompatible native harness contracts out of dispatch.",
         taskPriority: "p1",
-        taskArea: "autonomy",
-        taskClass: "Product",
         taskHowWeWillKnow:
           "A production-shaped lifecycle fixture reaches a typed clear without another AI review.",
         ownerQuestion: "",
@@ -235,7 +233,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
       const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
       const tasks = listFullRepoTasks(workspaceRoot);
       expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
-      expect(tasks).toEqual([expect.objectContaining({ state: "ready" })]);
+      expect(tasks).toEqual([expect.objectContaining({ state: "open" })]);
       expect(issue).toMatchObject({
         status: "open",
         semanticRevision: 1,

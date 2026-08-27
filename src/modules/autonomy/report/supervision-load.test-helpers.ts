@@ -21,32 +21,25 @@ export function writeTask(
   workspaceRoot: string,
   state: RepoTaskState,
   id: string,
-  taskClass: RepoTaskFullRecord["taskClass"],
-  priority: string,
+  priority: RepoTaskFullRecord["priority"],
 ): RepoTaskFullRecord {
-  const dir = join(workspaceRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
   const title = `${id} title`;
-  const summary = `${id} summary`;
-  const updatedAt = new Date(NOW).toISOString();
-  const body = "## Problem\n\nFixture task.\n";
-  const content =
-    `---\nid: ${id}\ntitle: ${title}\nstatus: ${state}\npriority: ${priority}\n` +
-    `area: autonomy\ntask_class: ${taskClass}\nsummary: ${summary}\n` +
-    `created_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n${body}`;
+  const body = `# ${title}\n\n## Problem\n\nFixture task.\n`;
+  const content = state === "done" || state === "dropped"
+    ? `---\nstatus: ${state}\n---\n\n${body}`
+    : `---\nstatus: ${state}\npriority: ${priority}\n---\n\n${body}`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
   return {
     id,
     title,
     state,
     priority,
-    area: "autonomy",
-    taskClass,
-    summary,
-    updatedAt,
     body,
     dependsOn: [],
-    anchor: false,
   };
 }
 

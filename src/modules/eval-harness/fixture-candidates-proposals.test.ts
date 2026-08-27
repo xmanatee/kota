@@ -84,17 +84,13 @@ describe("fixture candidate proposals", () => {
       artifacts: { "verification.json": { ok: true } },
     });
     writeText(
-      join(workspaceRoot, "data/tasks/done/task-existing-eval-candidate.md"),
+      join(workspaceRoot, "data/tasks/archive/task-existing-eval-candidate.md"),
       [
         "---",
-        "id: task-existing-eval-candidate",
-        "title: Existing eval candidate",
         "status: done",
-        "priority: p2",
-        "area: modules",
-        "created_at: 2026-06-01T00:00:00.000Z",
-        "updated_at: 2026-06-01T00:00:00.000Z",
         "---",
+        "",
+        "# Existing eval candidate",
         "",
         "## Problem",
         "",
@@ -222,7 +218,7 @@ describe("fixture candidate proposals", () => {
     expect(byRun.get("run-validation")?.failurePattern.kind).toBe("workflow-schema-validation-failure");
   });
 
-  it("creates a normalized backlog task for accepted proposed candidates", () => {
+  it("creates a normalized open task for accepted proposed candidates", () => {
     seedRun(workspaceRoot, "run-accepted", {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
@@ -238,14 +234,14 @@ describe("fixture candidate proposals", () => {
 
     const candidate = result.report.candidates[0];
     expect(candidate.disposition).toBe("accepted");
-    expect(candidate.acceptedAction).toMatchObject({ kind: "task", state: "backlog" });
+    expect(candidate.acceptedAction).toMatchObject({ kind: "task", state: "open" });
     const task = readFileSync(join(workspaceRoot, candidate.acceptedAction?.path ?? ""), "utf-8");
-    expect(task).toContain("status: backlog");
+    expect(task).toContain("status: open");
     expect(task).toContain(".kota/runs/run-accepted/metadata.json");
     expect(task).toContain(`<!-- fixture-candidate-fingerprint: ${candidate.proposalFingerprint} -->`);
   });
 
-  it("keeps newline-bearing run ids inside generated task frontmatter values", () => {
+  it("keeps newline-bearing run ids out of generated task frontmatter", () => {
     const runId = "run-injected\npriority: p0";
     seedRun(workspaceRoot, runId, {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
@@ -265,10 +261,11 @@ describe("fixture candidate proposals", () => {
     const task = readFileSync(join(workspaceRoot, candidate.acceptedAction?.path ?? ""), "utf-8");
     const parsed = parseFlatFrontMatter(task);
     expect(parsed.attrs.priority).toBe("p2");
-    expect(parsed.attrs.summary).toBe(
-      `Build a compact eval-harness fixture from ${runId} covering terminal-trace.`,
+    expect(parsed.attrs).toEqual({ status: "open", priority: "p2" });
+    expect(parsed.body).toContain(`Add eval fixture for terminal-trace from ${runId}`);
+    expect(parsed.body).toContain(
+      `Run ${runId} exposed terminal-trace`,
     );
-    expect(parsed.attrs.title).toBe(`Add eval fixture for terminal-trace from ${runId}`);
     expect(splitFrontMatter(task)?.frontmatter).not.toContain("\npriority: p0");
   });
 });

@@ -17,26 +17,26 @@
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/ready/task-fix-broken-decomposer-agent-call-replay-fixture-so.md"
+      "path": "data/tasks/task-fix-broken-decomposer-agent-call-replay-fixture-so.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/ready/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
+      "path": "data/tasks/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
       "needle": "priority: p1"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/ready/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
+      "path": "data/tasks/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
       "needle": "## Source / Intent"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/ready/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
+      "path": "data/tasks/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
       "needle": "## Acceptance Evidence"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/ready/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
+      "path": "data/tasks/task-fix-broken-decomposer-agent-call-replay-fixture-so.md",
       "needle": "## Initiative"
     },
     {

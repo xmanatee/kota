@@ -138,18 +138,18 @@ describe("decomposer task read security", () => {
     const workspaceRoot = join(root, "project");
     const siblingScopeRoot = join(root, "sibling-project");
     prepareTaskProject(workspaceRoot);
-    const siblingReadyDir = join(siblingScopeRoot, "data", "tasks", "ready");
+    const siblingReadyDir = join(siblingScopeRoot, "data", "tasks");
     mkdirSync(siblingReadyDir, { recursive: true });
 
     const externalTaskPath = join(siblingReadyDir, `${TASK_ID}.md`);
     writeFileSync(
       externalTaskPath,
-      taskMarkdown(TASK_ID, "doing", EXTERNAL_MARKER),
+      taskMarkdown(EXTERNAL_MARKER),
       "utf8",
     );
     symlinkSync(
       externalTaskPath,
-      join(workspaceRoot, "data", "tasks", "doing", `${TASK_ID}.md`),
+      join(workspaceRoot, "data", "tasks", `${TASK_ID}.md`),
     );
 
     const metadata = failedBuilderMetadata(

@@ -29,10 +29,14 @@ function TaskCard({ task }: { task: TaskEntry }) {
     <View style={styles.taskCard}>
       <View style={styles.taskHeader}>
         <Text style={[styles.priority, { color: priorityColor }]}>{task.priority}</Text>
-        <Text style={styles.area}>{task.area}</Text>
+        {task.inProgress && <Text style={styles.inProgress}>in progress</Text>}
       </View>
       <Text style={styles.taskTitle}>{task.title}</Text>
-      {task.summary && <Text style={styles.taskSummary} numberOfLines={2}>{task.summary}</Text>}
+      {task.waitingOnTasks.length > 0 && (
+        <Text style={styles.taskSummary} numberOfLines={2}>
+          Waiting on {task.waitingOnTasks.join(', ')}
+        </Text>
+      )}
     </View>
   );
 }
@@ -49,8 +53,7 @@ export function TaskQueueScreen() {
   }
 
   const counts: TaskCounts = state.activity.tasks?.counts ?? {};
-  const doing: TaskEntry[] = state.activity.tasks?.tasks.doing ?? [];
-  const ready: TaskEntry[] = state.activity.tasks?.tasks.ready ?? [];
+  const open: TaskEntry[] = state.activity.tasks?.tasks.open ?? [];
   const blocked: TaskEntry[] = state.activity.tasks?.tasks.blocked ?? [];
 
   return (
@@ -61,23 +64,14 @@ export function TaskQueueScreen() {
     >
       <View style={styles.countsRow}>
         <CountBadge label="inbox" count={counts.inbox ?? 0} />
-        <CountBadge label="ready" count={counts.ready ?? 0} />
-        <CountBadge label="doing" count={counts.doing ?? 0} />
+        <CountBadge label="open" count={counts.open ?? 0} />
         <CountBadge label="blocked" count={counts.blocked ?? 0} />
-        <CountBadge label="backlog" count={counts.backlog ?? 0} />
       </View>
 
-      {doing.length > 0 && (
+      {open.length > 0 && (
         <>
-          <Text style={styles.sectionHeader}>In Progress</Text>
-          {doing.map((t) => <TaskCard key={t.id} task={t} />)}
-        </>
-      )}
-
-      {ready.length > 0 && (
-        <>
-          <Text style={styles.sectionHeader}>Ready</Text>
-          {ready.map((t) => <TaskCard key={t.id} task={t} />)}
+          <Text style={styles.sectionHeader}>Open</Text>
+          {open.map((t) => <TaskCard key={t.id} task={t} />)}
         </>
       )}
 
@@ -88,7 +82,7 @@ export function TaskQueueScreen() {
         </>
       )}
 
-      {doing.length === 0 && ready.length === 0 && blocked.length === 0 && (
+      {open.length === 0 && blocked.length === 0 && (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>
             {state.connection.online ? 'No tasks in queue.' : 'Daemon offline.'}
@@ -128,7 +122,7 @@ const styles = StyleSheet.create({
   },
   taskHeader: { flexDirection: 'row', gap: 8, marginBottom: 4 },
   priority: { fontSize: 12, fontWeight: '700' },
-  area: { fontSize: 12, color: '#8e8e93' },
+  inProgress: { fontSize: 12, color: '#1c1c1e', fontWeight: '600' },
   taskTitle: { fontSize: 14, fontWeight: '600', color: '#1c1c1e' },
   taskSummary: { fontSize: 13, color: '#3c3c43', marginTop: 4 },
   empty: { flex: 1, alignItems: 'center', paddingTop: 60 },

@@ -28,7 +28,7 @@ import { stableUnique } from "./fixture-candidates-types.js";
 const MAX_COMMANDS_PER_RUN = 12;
 const MAX_STRUCTURED_ARTIFACTS_PER_RUN = 16;
 const TEXT_SCAN_LIMIT = 6000;
-const TASK_PATH = /data\/tasks\/(?:ready|doing|done|blocked|backlog|dropped)\/(task-[A-Za-z0-9_.-]+)\.md/g;
+const TASK_PATH = /data\/tasks\/(?:archive\/)?(task-[A-Za-z0-9_.-]+)\.md/g;
 const OPERATOR_CAPTURE =
   /\b(?:screenshot|screencast|operator-capture|manual capture|actual conversation|playwright trace)\b/i;
 
@@ -197,8 +197,8 @@ function collectTaskMoves(
 ): readonly string[] {
   const states = new Set<string>();
   for (const path of changedPaths) {
-    const match = path.match(/^data\/tasks\/(ready|doing|done|blocked|backlog|dropped)\/(task-[A-Za-z0-9_.-]+)\.md$/);
-    if (match) states.add(`${match[2]}:${match[1]}`);
+    const match = path.match(/^data\/tasks\/(archive\/)?(task-[A-Za-z0-9_.-]+)\.md$/);
+    if (match) states.add(`${match[2]}:${match[1] ? "archived" : "active"}`);
   }
   for (const id of collectTaskPaths(textEvidence)) states.add(`${id}:mentioned`);
   return [...states].sort();

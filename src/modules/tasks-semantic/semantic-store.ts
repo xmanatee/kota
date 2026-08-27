@@ -6,10 +6,10 @@
  * `<scopeRoot>/.kota/tasks-semantic/` so it stays out of the git-tracked
  * `data/tasks/` tree (the file is a runtime cache, not source state).
  *
- * Staleness is detected via each task's frontmatter `updated_at` ISO
- * timestamp, which `pnpm kota task move|create` already maintains.
+ * Staleness is detected from a hash of the canonical persisted task fields.
  */
 
+import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type {
@@ -60,7 +60,9 @@ function buildAdapter(
 	};
 	return {
 		id: (entry) => entry.id,
-		fingerprint: (entry) => entry.updatedAt,
+		fingerprint: (entry) => createHash("sha256")
+			.update(JSON.stringify({ state: entry.state, priority: entry.priority, body: entry.body, dependsOn: entry.dependsOn }))
+			.digest("hex"),
 		indexableText: (entry) => buildIndexableTaskText(entry),
 		readEntry: (id) => findById(id),
 		resolveStorageDir: () => sidecarDir,
@@ -115,9 +117,6 @@ export class SemanticTasksStore implements RepoTasksProvider, RepoTasksSemanticS
 			title: entry.title,
 			state: entry.state,
 			priority: entry.priority,
-			area: entry.area,
-			summary: entry.summary,
-			updatedAt: entry.updatedAt,
 			score,
 		}));
 	}

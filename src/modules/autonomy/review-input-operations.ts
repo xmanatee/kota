@@ -23,7 +23,7 @@ export type CriticReviewInspectionInput =
 export type CriticReviewInspectionResult =
   | { status: "no-task" }
   | {
-      status: "ready";
+      status: "open";
       target: TaskReviewTarget;
       diffStat: string;
       diffContent: string;
@@ -45,7 +45,7 @@ export function inspectCriticReviewInWorker(
   const changedFiles = getWorkflowChangedFiles(input.reviewDir);
 
   return {
-    status: "ready",
+    status: "open",
     target,
     diffStat,
     diffContent,
@@ -67,7 +67,7 @@ export type ImproverSemanticInspectionInput = {
 export type ImproverSemanticInspectionResult =
   | { status: "no-changes" }
   | {
-      status: "ready";
+      status: "open";
       changedFiles: string;
       diffStat: string;
       diffContent: string;
@@ -87,7 +87,7 @@ export function inspectImproverSemanticReviewInWorker(
     ? readFileSync(commitMessagePath, "utf8").trim()
     : "(no commit message found)";
   return {
-    status: "ready",
+    status: "open",
     changedFiles,
     diffStat,
     diffContent,

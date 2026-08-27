@@ -3,9 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
 import {
-  getRepoTaskStateDir,
   REPO_TASK_STATES,
   type RepoTaskState,
+  readVerifiedRepoTaskFile,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { extractResourceUrls, listResearchRetryCandidates } from "./candidates.js";
@@ -201,14 +201,14 @@ export type MarkAttemptResult =
     };
 
 /**
- * Re-read the candidate's task file from `blocked/` after the agent has run,
+ * Re-read the blocked candidate's task file from `data/tasks/` after the agent has run,
  * compute a fresh fingerprint of the URLs that remain in `## Resources`, and
  * write (or refresh) the attempt marker in the body. The marker is the
  * workflow's "this URL set was just re-confirmed" record — when the next
  * cycle's fingerprint matches, the agent step is skipped.
  *
  * Side effects:
- * - Edits the task file in place when the task is still in `blocked/`.
+ * - Edits the task file in place when the task still has `status: blocked`.
  * - No-op (returns `written: false`) when the task moved to another state,
  *   when the file disappeared, or when no resource URLs remain.
  */
@@ -257,8 +257,8 @@ function locateTaskFile(
   candidateId: string,
 ): { state: RepoTaskState; path: string } | null {
   for (const state of REPO_TASK_STATES) {
-    const path = join(getRepoTaskStateDir(workspaceRoot, state), `${candidateId}.md`);
-    if (existsSync(path)) return { state, path };
+    const verified = readVerifiedRepoTaskFile(workspaceRoot, state, candidateId);
+    if (verified) return { state, path: join(workspaceRoot, verified.path) };
   }
   return null;
 }

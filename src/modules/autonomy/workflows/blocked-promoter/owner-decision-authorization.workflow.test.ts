@@ -45,20 +45,16 @@ function ownerQuestionQueue(answer: string) {
 function taskBody(question: string): string {
   return [
     "---",
-    "id: task-owner-decision",
-    "title: Owner decision",
     "status: blocked",
     "priority: p2",
-    "area: security",
-    "summary: Owner decision",
-    "created_at: 2026-07-01T00:00:00.000Z",
-    "updated_at: 2026-07-01T00:00:00.000Z",
     "---",
+    "",
+    "# Owner decision",
     "",
     "## Problem",
     "Owner input is required.",
     "",
-    "## Unblock Precondition",
+    "## Blocked on",
     "",
     "```",
     "kind: owner-decision",
@@ -78,16 +74,16 @@ function projectFixture(): { workspaceRoot: string; taskPath: string } {
     JSON.stringify({ scripts: { "validate-tasks": "true" } }),
   );
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    const dir = join(workspaceRoot, "data", "tasks", state);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
+  writeFileSync(join(workspaceRoot, "data", "tasks", "AGENTS.md"), "# tasks\n");
+  writeFileSync(
+    join(workspaceRoot, "data", "tasks", "archive", "AGENTS.md"),
+    "# archive\n",
+  );
   const taskPath = join(
     workspaceRoot,
     "data",
     "tasks",
-    "blocked",
     "task-owner-decision.md",
   );
   writeFileSync(taskPath, taskBody("Should this task remain blocked?"));
@@ -182,7 +178,7 @@ describe("blocked-promoter owner-decision authorization", () => {
       expect(result.status).toBe("success");
       expect(result.steps["promote-after-approval"].status).toBe("skipped");
       const after = readFileSync(
-        join(result.workspaceDir, "data", "tasks", "blocked", "task-owner-decision.md"),
+        join(result.workspaceDir, "data", "tasks", "task-owner-decision.md"),
         "utf-8",
       );
       expect(after).toContain("blocked-promoter-asked: slot=remain-blocked");
@@ -191,7 +187,6 @@ describe("blocked-promoter owner-decision authorization", () => {
         result.workspaceDir,
         "data",
         "tasks",
-        "blocked",
         "task-owner-decision.md",
       ))).toBe(true);
     },
@@ -219,7 +214,7 @@ describe("blocked-promoter owner-decision authorization", () => {
       "precondition changed while awaiting an answer",
     );
     const after = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "blocked", "task-owner-decision.md"),
+      join(result.workspaceDir, "data", "tasks", "task-owner-decision.md"),
       "utf-8",
     );
     expect(after).not.toContain("blocked-promoter-asked");

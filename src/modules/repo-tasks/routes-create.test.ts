@@ -33,35 +33,34 @@ describe("task create routes", () => {
     resetRouteTestAuthority();
   });
 
-  it("creates a new inbox task file", async () => {
+  it("creates a minimal open task file", async () => {
     const { res, result } = mockResponse();
-    await handleTaskCreate(mockRequest({ title: "My new task", summary: "A quick summary" }), res, mutationTarget(repoRoot));
+    await handleTaskCreate(mockRequest({ title: "My new task", priority: "p2" }), res, mutationTarget(repoRoot));
     expect(result.status).toBe(201);
-    expect((result.body as Record<string, string>).id).toMatch(/^task-my-new-task-/);
+    expect((result.body as Record<string, string>).id).toBe("task-my-new-task");
 
-    const inboxDir = join(repoRoot, "data", "inbox");
-    const files = readdirSync(inboxDir).filter((f) => f.endsWith(".md"));
-    expect(files).toHaveLength(1);
-    const content = readFileSync(join(inboxDir, files[0]), "utf-8");
+    const content = readFileSync(join(repoRoot, "data", "tasks", "task-my-new-task.md"), "utf-8");
     expect(content).toContain("# My new task");
-    expect(content).toContain("A quick summary");
+    expect(content).toContain("status: open");
+    expect(content).toContain("priority: p2");
   });
 
   it("returns 400 when inbox title is missing", async () => {
     const { res, result } = mockResponse();
-    await handleTaskCreate(mockRequest({ summary: "No title here" }), res, mutationTarget(repoRoot));
+    await handleTaskCreate(mockRequest({ priority: "p2" }), res, mutationTarget(repoRoot));
     expect(result.status).toBe(400);
   });
 
-  it("rejects a symlinked inbox directory in the daemon create route", async () => {
-    const outsideDir = join(repoRoot, "outside-inbox");
+  it("rejects a symlinked tasks directory in the daemon create route", async () => {
+    const outsideDir = join(repoRoot, "outside-tasks");
     mkdirSync(outsideDir, { recursive: true });
     mkdirSync(join(repoRoot, "data"), { recursive: true });
-    symlinkSync(outsideDir, join(repoRoot, "data", "inbox"), "dir");
+    rmSync(join(repoRoot, "data", "tasks"), { recursive: true, force: true });
+    symlinkSync(outsideDir, join(repoRoot, "data", "tasks"), "dir");
 
     const { res, result } = mockResponse();
     await handleTaskCreate(
-      mockRequest({ title: "Escaping inbox", summary: "Must not be written" }),
+      mockRequest({ title: "Escaping tasks", priority: "p2" }),
       res,
       mutationTarget(repoRoot),
     );
@@ -70,12 +69,12 @@ describe("task create routes", () => {
     expect(result.body).toMatchObject({
       error: expect.stringMatching(/symbolic-link directory components are forbidden/),
     });
-    expect(existsSync(join(outsideDir, "task-escaping-inbox.md"))).toBe(false);
+    expect(existsSync(join(outsideDir, "task-escaping-tasks.md"))).toBe(false);
     expect(readdirSync(outsideDir)).toEqual([]);
   });
 
   it("creates a normalized task with full template", async () => {
-    const req = mockRequest({ title: "Add dashboard", priority: "p2", area: "ui", state: "backlog", summary: "summary" });
+    const req = mockRequest({ title: "Add dashboard", priority: "p2", state: "open" });
     const { res, result } = mockResponse();
     await handleTaskCreateNormalized(req, res, mutationTarget(repoRoot));
     expect(result.status).toBe(201);
@@ -88,17 +87,17 @@ describe("task create routes", () => {
 
   it("rejects invalid normalized task fields and duplicate ids", async () => {
     const badPriority = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p9", area: "ui", state: "backlog" }), badPriority.res, mutationTarget(repoRoot));
+    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p9", state: "open" }), badPriority.res, mutationTarget(repoRoot));
     expect(badPriority.result.status).toBe(400);
 
     const badState = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p2", area: "ui", state: "nope" }), badState.res, mutationTarget(repoRoot));
+    await handleTaskCreateNormalized(mockRequest({ title: "Bad", priority: "p2", state: "nope" }), badState.res, mutationTarget(repoRoot));
     expect(badState.result.status).toBe(400);
 
     const first = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" }), first.res, mutationTarget(repoRoot));
+    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", state: "open" }), first.res, mutationTarget(repoRoot));
     const second = mockResponse();
-    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", area: "ui", state: "backlog" }), second.res, mutationTarget(repoRoot));
+    await handleTaskCreateNormalized(mockRequest({ title: "Dup", priority: "p2", state: "open" }), second.res, mutationTarget(repoRoot));
     expect(second.result.status).toBe(409);
   });
 

@@ -82,7 +82,7 @@ export type FixtureCandidateAcceptedAction = {
   kind: "task";
   id: string;
   path: string;
-  state: "backlog";
+  state: "open";
 };
 
 export type FixtureCandidateSafety = {

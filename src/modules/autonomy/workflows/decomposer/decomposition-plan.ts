@@ -2,16 +2,12 @@ import { z } from "zod";
 import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
 import type { CodeStepOutputValidator } from "#core/workflow/step-input-code.js";
 
-const taskClassValues = ["Product", "Safety", "Platform", "Meta"] as const;
 const priorityValues = ["p0", "p1", "p2", "p3"] as const;
 const nonBlankString = z.string().trim().min(1);
 
 const decompositionSubtaskSchema = z.object({
   title: nonBlankString,
-  summary: nonBlankString,
   priority: z.enum(priorityValues),
-  area: nonBlankString,
-  taskClass: z.enum(taskClassValues),
   problem: nonBlankString,
   desiredOutcome: nonBlankString,
   constraints: z.array(nonBlankString).min(1),
@@ -77,10 +73,7 @@ const subtaskOutputSchema = {
   type: "object",
   required: [
     "title",
-    "summary",
     "priority",
-    "area",
-    "taskClass",
     "problem",
     "desiredOutcome",
     "constraints",
@@ -90,10 +83,7 @@ const subtaskOutputSchema = {
   additionalProperties: false,
   properties: {
     title: { type: "string", minLength: 1 },
-    summary: { type: "string", minLength: 1 },
     priority: { type: "string", enum: [...priorityValues] },
-    area: { type: "string", minLength: 1 },
-    taskClass: { type: "string", enum: [...taskClassValues] },
     problem: { type: "string", minLength: 1 },
     desiredOutcome: { type: "string", minLength: 1 },
     constraints: stringArraySchema,

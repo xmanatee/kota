@@ -76,16 +76,7 @@ function makeScopeRoot(): string {
 	mkdirSync(dir, { recursive: true });
 	mkdirSync(join(dir, ".kota"), { recursive: true });
 	mkdirSync(join(dir, "data", "tasks"), { recursive: true });
-	for (const state of [
-		"backlog",
-		"ready",
-		"doing",
-		"blocked",
-		"done",
-		"dropped",
-	]) {
-		mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-	}
+	mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
 	// Init a git repo so child operations that touch git don't blow up — though
 	// the semantic store does not call git, the surrounding CLI flows do.
 	try {
@@ -103,28 +94,24 @@ type TaskSpec = {
 	title: string;
 	state: string;
 	priority?: string;
-	area?: string;
-	summary?: string;
-	updatedAt: string;
 	body?: string;
 };
 
 function writeTask(scopeRoot: string, spec: TaskSpec): void {
-	const filePath = join(scopeRoot, "data", "tasks", spec.state, `${spec.id}.md`);
+	const dir = spec.state === "done" || spec.state === "dropped"
+		? join(scopeRoot, "data", "tasks", "archive")
+		: join(scopeRoot, "data", "tasks");
+	const filePath = join(dir, `${spec.id}.md`);
 	const fmLines = [
 		"---",
-		`id: ${spec.id}`,
-		`title: ${spec.title}`,
 		`status: ${spec.state}`,
-		`priority: ${spec.priority ?? "p2"}`,
-		`area: ${spec.area ?? "core"}`,
-		`summary: ${spec.summary ?? ""}`,
-		`created_at: ${spec.updatedAt}`,
-		`updated_at: ${spec.updatedAt}`,
+		...(spec.state === "open" || spec.state === "blocked"
+			? [`priority: ${spec.priority ?? "p2"}`]
+			: []),
 		"---",
 	].join("\n");
 	const body = spec.body ?? "";
-	writeFileSync(filePath, `${fmLines}\n${body}\n`, "utf-8");
+	writeFileSync(filePath, `${fmLines}\n\n# ${spec.title}\n\n${body}\n`, "utf-8");
 }
 
 describe("SemanticTasksStore", () => {
@@ -153,8 +140,6 @@ describe("SemanticTasksStore", () => {
 			id: "task-cost-anomaly",
 			title: "Track spend anomaly alerts in the workflow run dashboard",
 			state: "done",
-			updatedAt: "2026-04-26T00:00:00.000Z",
-			summary: "Surface budget alerts so operators see cost spikes early.",
 			body: [
 				"## Problem",
 				"Operators miss spending spikes because no anomaly alert fires.",
@@ -170,14 +155,12 @@ describe("SemanticTasksStore", () => {
 			id: "task-bread",
 			title: "Document bread baking recipe",
 			state: "done",
-			updatedAt: "2026-04-26T00:00:00.000Z",
 			body: "## Problem\nBaking bread at home.\n",
 		});
 		writeTask(scopeRoot, {
 			id: "task-auth",
 			title: "Fix auth session cookie expiry",
 			state: "done",
-			updatedAt: "2026-04-26T00:00:00.000Z",
 			body: "## Problem\nAuth login session cookies expire too early.\n",
 		});
 
@@ -199,8 +182,7 @@ describe("SemanticTasksStore", () => {
 		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
-			state: "ready",
-			updatedAt: "2026-04-26T00:00:00.000Z",
+			state: "open",
 		});
 		await store.reindex();
 
@@ -210,17 +192,14 @@ describe("SemanticTasksStore", () => {
 		const file = new SemanticIndexFile(indexPathFor(sidecarDir));
 		const idx = file.load(provider.model);
 		expect(idx.entries["task-spend"]).toBeDefined();
-		expect(idx.entries["task-spend"].fingerprint).toBe(
-			"2026-04-26T00:00:00.000Z",
-		);
+		expect(idx.entries["task-spend"].fingerprint).toMatch(/^[a-f0-9]{64}$/);
 	});
 
 	it("lazily fills the sidecar for tasks added after reindex", async () => {
 		writeTask(scopeRoot, {
 			id: "task-original",
 			title: "Track spend",
-			state: "ready",
-			updatedAt: "2026-04-26T00:00:00.000Z",
+			state: "open",
 		});
 		await store.reindex();
 		const sidecarDir = tasksSidecarDir(scopeRoot);
@@ -232,8 +211,7 @@ describe("SemanticTasksStore", () => {
 		writeTask(scopeRoot, {
 			id: "task-newly-created",
 			title: "Monitor budget alerts",
-			state: "ready",
-			updatedAt: "2026-04-27T00:00:00.000Z",
+			state: "open",
 		});
 
 		// First semantic query should embed the new task on demand.
@@ -247,12 +225,11 @@ describe("SemanticTasksStore", () => {
 		expect(after.entries["task-newly-created"]).toBeDefined();
 	});
 
-	it("re-embeds when a task's updated_at changes", async () => {
+	it("re-embeds when canonical task content changes", async () => {
 		writeTask(scopeRoot, {
 			id: "task-evolving",
 			title: "Document bread baking",
-			state: "doing",
-			updatedAt: "2026-04-26T00:00:00.000Z",
+			state: "open",
 		});
 		await store.reindex();
 
@@ -265,8 +242,7 @@ describe("SemanticTasksStore", () => {
 		writeTask(scopeRoot, {
 			id: "task-evolving",
 			title: "Track spend anomaly alerts",
-			state: "doing",
-			updatedAt: "2026-04-27T00:00:00.000Z",
+			state: "open",
 		});
 
 		await store.searchTasks("cost", { topK: 3 });
@@ -280,8 +256,7 @@ describe("SemanticTasksStore", () => {
 		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
-			state: "ready",
-			updatedAt: "2026-04-26T00:00:00.000Z",
+			state: "open",
 		});
 		provider.failNext = true;
 		await expect(store.searchTasks("cost", { topK: 3 })).rejects.toThrow(
@@ -293,19 +268,17 @@ describe("SemanticTasksStore", () => {
 		writeTask(scopeRoot, {
 			id: "task-open-spend",
 			title: "Track spend in open work",
-			state: "ready",
-			updatedAt: "2026-04-26T00:00:00.000Z",
+			state: "open",
 		});
 		writeTask(scopeRoot, {
 			id: "task-done-spend",
 			title: "Track spend in finished work",
 			state: "done",
-			updatedAt: "2026-04-26T00:00:00.000Z",
 		});
 
 		const open = await store.searchTasks("cost tracking", {
 			topK: 5,
-			states: ["ready"],
+			states: ["open"],
 		});
 		expect(open.map((r) => r.id)).toEqual(["task-open-spend"]);
 	});
@@ -314,8 +287,7 @@ describe("SemanticTasksStore", () => {
 		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
-			state: "ready",
-			updatedAt: "2026-04-26T00:00:00.000Z",
+			state: "open",
 		});
 		await store.reindex();
 		const before = provider.calls;

@@ -35,7 +35,7 @@ describe("SlackBot", () => {
         record: {
           target: "tasks",
           recordId: "task-fix-redirect",
-          path: "data/tasks/ready/task-fix-redirect.md",
+          path: "data/tasks/task-fix-redirect.md",
         },
       });
       const bot = makeBot({ capture: { capture: captureFn } });
@@ -54,7 +54,7 @@ describe("SlackBot", () => {
         target: "tasks",
       });
       expect(post.text).toBe(
-        "Captured to tasks: task-fix-redirect (data/tasks/ready/task-fix-redirect.md)",
+        "Captured to tasks: task-fix-redirect (data/tasks/task-fix-redirect.md)",
       );
 
       bot.stop();

@@ -94,21 +94,15 @@ describe('TaskSearchScreen', () => {
         {
           id: 't-1',
           title: 'Foo',
-          state: 'ready',
+          state: 'open',
           priority: 'p2',
-          area: 'client',
-          summary: 'Foo task summary',
-          updatedAt: '2026-04-27T06:30:52.806Z',
           score: 0.91,
         },
         {
           id: 't-22',
           title: 'Bar',
-          state: 'doing',
+          state: 'open',
           priority: 'p3',
-          area: 'core',
-          summary: 'Bar task summary',
-          updatedAt: '2026-04-25T18:30:00.000Z',
           score: 0.42,
         },
       ],
@@ -119,7 +113,7 @@ describe('TaskSearchScreen', () => {
     const expected = renderRepoTaskSearchPlain(result.tasks);
     expect(getByText(expected)).toBeTruthy();
     expect(expected).toBe(
-      't-1   ready  p2    Foo\n' + 't-22  doing  p3    Bar',
+      't-1   open  p2    Foo\n' + 't-22  open  p3    Bar',
     );
     expect(queryByText('No matching tasks.')).toBeNull();
   });
@@ -131,11 +125,8 @@ describe('TaskSearchScreen', () => {
         {
           id: 'task-foo',
           title: 'Add foo',
-          state: 'ready',
+          state: 'open',
           priority: 'p2',
-          area: 'client',
-          summary: 'Add foo to the surface',
-          updatedAt: '2026-04-26T12:00:00.000Z',
           score: 0.91,
         },
       ],

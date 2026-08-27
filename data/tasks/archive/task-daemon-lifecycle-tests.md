@@ -1,0 +1,54 @@
+---
+status: done
+---
+
+# Add integration tests for daemon install/uninstall lifecycle
+
+## Problem
+
+`kota daemon install` and `kota daemon uninstall` generate OS-specific service
+files (launchd `.plist` on macOS, systemd `.service` on Linux). The generated
+file content includes environment variable injection, binary paths, log paths,
+and project directory references. Errors in any of these fields produce a
+daemon service that silently fails to start or restart.
+
+No automated tests verify this output. Manual QA on each platform is the only
+current check, and regressions from future refactors in the daemon module
+or config system would go undetected until a user reports a broken install.
+
+## Desired Outcome
+
+Integration tests run against the install/uninstall command logic and assert
+the generated file content without touching the actual OS service manager
+(launchd/systemd). Tests cover:
+
+- Correct plist structure for macOS: `ProgramArguments`, `EnvironmentVariables`
+  (including `KOTA_SCOPE_ROOT`), `StandardOutPath`, `StandardErrorPath`,
+  `RunAtLoad`, `Label`.
+- Correct service unit for Linux: `[Unit]`, `[Service]` section fields
+  (`ExecStart`, `Environment=`, `Restart`, `StandardOutput`, `StandardError`),
+  `[Install]`.
+- Uninstall removes exactly what install created; second uninstall returns a
+  clear "not installed" error.
+- Install when already installed returns a clear "already installed" error.
+
+Tests write generated files to a temp directory; they do not invoke
+`launchctl` or `systemctl`.
+
+## Constraints
+
+- Do not actually register with the OS service manager in tests.
+- Platform-specific test paths (launchd vs. systemd) should either use
+  platform detection to skip inapplicable tests or mock the platform selector
+  so both paths run on any OS.
+- Tests should live alongside the daemon module implementation
+  (`src/modules/daemon-ops/`).
+- No new production flags or test-only conditionals in production code.
+
+## Done When
+
+- Tests cover install and uninstall for both launchd and systemd backends.
+- File content assertions cover all required fields listed above.
+- Error cases (already installed, not installed) return correct exit codes and
+  messages.
+- Tests pass in CI; no flakes on retry.

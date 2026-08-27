@@ -95,7 +95,6 @@ const sampleResult: AnswerResult = {
       title: "Add recall seam",
       state: "done",
       priority: "p1",
-      updatedAt: "2026-04-27",
     },
   ],
 };

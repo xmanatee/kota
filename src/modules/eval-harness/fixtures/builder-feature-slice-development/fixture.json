@@ -66,15 +66,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-add-gift-wrap-checkout-slice.md"
+      "path": "data/tasks/task-add-gift-wrap-checkout-slice.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-add-gift-wrap-checkout-slice.md"
+      "path": "data/tasks/archive/task-add-gift-wrap-checkout-slice.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-add-gift-wrap-checkout-slice.md",
+      "path": "data/tasks/archive/task-add-gift-wrap-checkout-slice.md",
       "needle": "status: done"
     },
     {
@@ -84,8 +84,8 @@
         "src/catalog.mjs",
         "src/pricing.mjs",
         "src/receipt-renderer.mjs",
-        "data/tasks/ready/task-add-gift-wrap-checkout-slice.md",
-        "data/tasks/done/task-add-gift-wrap-checkout-slice.md"
+        "data/tasks/task-add-gift-wrap-checkout-slice.md",
+        "data/tasks/archive/task-add-gift-wrap-checkout-slice.md"
       ]
     }
   ],
@@ -171,7 +171,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-add-gift-wrap-checkout-slice.md"
+        "path": "data/tasks/task-add-gift-wrap-checkout-slice.md"
       },
       "expected": "pass"
     },

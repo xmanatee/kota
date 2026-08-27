@@ -23,7 +23,7 @@ describe("explorer workflow refresh", () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
-    for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+    for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
       const dir = join(tempDir, "data", "tasks", state);
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);

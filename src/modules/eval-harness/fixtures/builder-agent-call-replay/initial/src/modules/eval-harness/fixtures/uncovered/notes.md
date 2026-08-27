@@ -17,14 +17,14 @@ or `smoke-fixture`.
 The predicate contract extension (`run-emits-event`, `run-omits-event`)
 and the per-run `emitted-events.jsonl` log produced by the workflow
 runtime have removed the harness-capability blocker for every emit-only
-workflow. `fixtures/dispatcher-emits-on-ready-queue/` is the smoke
+workflow. `fixtures/dispatcher-emits-on-open-queue/` is the smoke
 fixture that proves that plumbing end-to-end. The workflows below are
 retired from the uncovered list because the new blocker is the absence
 of a real failure to encode, not a harness gap.
 
 - **dispatcher** — retired. 987 runs in `.kota/runs/`, all status=success.
   No real failure to encode today. Harness coverage is provided by the
-  smoke fixture `dispatcher-emits-on-ready-queue`, which exercises the
+  smoke fixture `dispatcher-emits-on-open-queue`, which exercises the
   new predicate kinds against a real dispatcher run. Replace with a
   real-failure fixture when the first bad dispatcher run lands.
 - **attention-digest** — retired. 622 runs, all status=success. The new
@@ -59,7 +59,7 @@ a reason the predicate/payload changes do not resolve.
   status=success. The representative real-failure shape in
   `2026-04-18T15-45-49-339Z-decomposer-zloyo6` is now expressible
   (seed a fake failed-builder `.kota/runs/<id>/metadata.json`, seed
-  `doing/` + `ready/` task files, forward `{runDir, runId}` via
+  active root task files, forward `{runDir, runId}` via
   `triggerPayload`), but the `decompose` step is an agent call that
   costs a real autonomous LLM run per fixture replay. Until the eval
   harness grows an agent-step fake (or the fixture is reshaped to

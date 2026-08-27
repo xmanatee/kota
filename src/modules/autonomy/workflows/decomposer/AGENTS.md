@@ -17,7 +17,7 @@ Decomposer rescopes a failed builder task after timeout or exhausted repair.
 - Planning and review agents are read-only. Review compares the plan with the
   exact screened task markdown before mutation.
 - `apply-decomposition` is the only semantic mutation path. It uses repo-tasks
-  operations to create dependency-linked ready tasks, annotate the original,
+  operations to create dependency-linked open tasks, annotate the original,
   and move it to `dropped`.
 - Tests cover source authentication, superseding task evidence, shared resource
   binding, approved mutations, and observable queue outcomes rather than claim

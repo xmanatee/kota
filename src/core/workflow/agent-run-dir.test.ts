@@ -39,13 +39,13 @@ describe("resolveAgentRunDir", () => {
       [
         ".kota/runs/run-1/agent-output/commit-message.txt",
         ".kota/runs/run-1/metadata.json",
-        "data/tasks/ready/a.md",
+        "data/tasks/a.md",
       ],
       "deny-all",
       [".kota/runs/run-1/agent-output"],
     )).toEqual([
       ".kota/runs/run-1/metadata.json",
-      "data/tasks/ready/a.md",
+      "data/tasks/a.md",
     ]);
   });
 });

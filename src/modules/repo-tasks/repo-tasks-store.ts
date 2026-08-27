@@ -2,7 +2,7 @@
  * Default `RepoTasksProvider` implementation.
  *
  * Answers search queries with substring/grep ranking against the same
- * `title + summary + body-sections` text the semantic provider indexes.
+ * title and body sections the semantic provider indexes.
  * Operators that configure the `tasks-semantic` module receive an
  * embedding-backed override; without that, this implementation keeps
  * `kota task search --keyword` and the default search seam useful.
@@ -56,9 +56,6 @@ export class RepoTasksDefaultStore implements RepoTasksProvider {
 				title: record.title,
 				state: record.state,
 				priority: record.priority,
-				area: record.area,
-				summary: record.summary,
-				updatedAt: record.updatedAt,
 				score,
 			});
 		}
@@ -83,17 +80,14 @@ function tokenize(query: string): string[] {
 }
 
 const TITLE_WEIGHT = 5;
-const SUMMARY_WEIGHT = 3;
 const BODY_WEIGHT = 1;
 
 function scoreKeyword(record: RepoTaskFullRecord, tokens: string[]): number {
 	const title = record.title.toLowerCase();
-	const summary = record.summary.toLowerCase();
 	const indexable = buildIndexableTaskText(record).toLowerCase();
 	let score = 0;
 	for (const token of tokens) {
 		score += countOccurrences(title, token) * TITLE_WEIGHT;
-		score += countOccurrences(summary, token) * SUMMARY_WEIGHT;
 		score += countOccurrences(indexable, token) * BODY_WEIGHT;
 	}
 	return score;

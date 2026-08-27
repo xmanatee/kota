@@ -377,7 +377,7 @@ indirect enum RecallHit: Codable, Equatable {
     case knowledge(score: Double, id: String, title: String, preview: String, updated: String, provenance: WorkMemoryProvenance?, freshness: WorkMemoryFreshness?)
     case memory(score: Double, id: String, preview: String, created: String, updated: String?, provenance: WorkMemoryProvenance?, freshness: WorkMemoryFreshness?)
     case history(score: Double, id: String, title: String, cwd: String, updatedAt: String)
-    case tasks(score: Double, id: String, title: String, state: String, priority: String, updatedAt: String)
+    case tasks(score: Double, id: String, title: String, state: String, priority: String?)
     case answer(score: Double, id: String, query: String, preview: String, citationCount: Double, createdAt: String, result: RecallHitAnswerResult)
 
     private enum CodingKeys: String, CodingKey {
@@ -442,8 +442,7 @@ indirect enum RecallHit: Codable, Equatable {
                 id: try container.decode(String.self, forKey: .id),
                 title: try container.decode(String.self, forKey: .title),
                 state: try container.decode(String.self, forKey: .state),
-                priority: try container.decode(String.self, forKey: .priority),
-                updatedAt: try container.decode(String.self, forKey: .updatedAt)
+                priority: try container.decode(String?.self, forKey: .priority)
             )
             return
         }
@@ -490,14 +489,13 @@ indirect enum RecallHit: Codable, Equatable {
             try container.encode(title, forKey: .title)
             try container.encode(cwd, forKey: .cwd)
             try container.encode(updatedAt, forKey: .updatedAt)
-        case .tasks(let score, let id, let title, let state, let priority, let updatedAt):
+        case .tasks(let score, let id, let title, let state, let priority):
             try container.encode("tasks", forKey: .source)
             try container.encode(score, forKey: .score)
             try container.encode(id, forKey: .id)
             try container.encode(title, forKey: .title)
             try container.encode(state, forKey: .state)
             try container.encode(priority, forKey: .priority)
-            try container.encode(updatedAt, forKey: .updatedAt)
         case .answer(let score, let id, let query, let preview, let citationCount, let createdAt, let result):
             try container.encode("answer", forKey: .source)
             try container.encode(score, forKey: .score)
@@ -581,8 +579,7 @@ struct RecallTasksHit: Codable, Equatable, Identifiable {
     let id: String
     let title: String
     let state: String
-    let priority: String
-    let updatedAt: String
+    let priority: String?
 }
 
 struct RecallAnswerHit: Codable, Equatable, Identifiable {
@@ -1242,17 +1239,12 @@ struct RepoTaskSearchHit: Codable, Equatable, Identifiable {
     let id: String
     let title: String
     let state: RepoTaskState
-    let priority: String
-    let area: String
-    let summary: String
-    let updatedAt: String
+    let priority: String?
     let score: Double
 }
 
 enum RepoTaskState: String, Codable, Equatable, CaseIterable {
-    case backlog
-    case ready
-    case doing
+    case `open`
     case blocked
     case done
     case dropped
@@ -1310,8 +1302,7 @@ struct DecomposerSplitItem: Codable, Equatable {
 struct BlockedPromoterMoveItem: Codable, Equatable {
     let runId: String
     let promotedTaskIds: [String]
-    let toReady: [String]
-    let toBacklog: [String]
+    let toOpen: [String]
 }
 
 struct FailedRunItem: Codable, Equatable {
@@ -1341,9 +1332,7 @@ struct QueueDelta: Codable, Equatable {
 }
 
 struct QueueCounts: Codable, Equatable {
-    let backlog: Double
-    let ready: Double
-    let doing: Double
+    let `open`: Double
     let blocked: Double
 }
 
@@ -1895,9 +1884,7 @@ enum FailedRunItemStatus: String, Codable, Equatable, CaseIterable {
 }
 
 struct QueueDeltaDelta: Codable, Equatable {
-    let backlog: Double?
-    let ready: Double?
-    let doing: Double?
+    let `open`: Double?
     let blocked: Double?
 }
 

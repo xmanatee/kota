@@ -23,9 +23,9 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const OPEN_TASK_STATES: ReadonlySet<RepoTaskState> = new Set([
-  "backlog",
-  "ready",
-  "doing",
+  "open",
+  "open",
+  "open",
   "blocked",
 ]);
 

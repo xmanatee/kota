@@ -9,8 +9,6 @@ export function taskDimensions(
 ): Partial<Record<QualityStratificationDimension, string[]>> {
   return {
     taskPriority: [normalizePriority(task.priority)],
-    taskClass: [task.taskClass],
-    taskArea: [task.area || "(unset)"],
   };
 }
 

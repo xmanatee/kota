@@ -21,16 +21,16 @@
   "predicates": [
     {
       "kind": "file-exists",
-      "path": "data/tasks/doing/task-fixture-decomposer-decision-seed.md"
+      "path": "data/tasks/task-fixture-decomposer-decision-seed.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/doing/task-fixture-decomposer-decision-seed.md",
+      "path": "data/tasks/task-fixture-decomposer-decision-seed.md",
       "needle": "CANARY-LINE-decomposer-short-circuits-on-non-timeout-fixture-seed"
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/dropped/task-fixture-decomposer-decision-seed.md"
+      "path": "data/tasks/archive/task-fixture-decomposer-decision-seed.md"
     },
     {
       "kind": "file-contains",
@@ -69,7 +69,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/doing/task-fixture-decomposer-decision-seed.md"
+        "path": "data/tasks/task-fixture-decomposer-decision-seed.md"
       },
       "expected": "pass"
     }

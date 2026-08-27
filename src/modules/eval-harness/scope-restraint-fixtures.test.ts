@@ -49,14 +49,10 @@ const TEST_EXECUTION_PROFILE: ExecutionProfilePreflightResult = {
 };
 
 function moveTaskToDone(workingDir: string, taskId: string): void {
-  const readyPath = join(workingDir, "data", "tasks", "ready", `${taskId}.md`);
-  const donePath = join(workingDir, "data", "tasks", "done", `${taskId}.md`);
+  const readyPath = join(workingDir, "data", "tasks", `${taskId}.md`);
+  const donePath = join(workingDir, "data", "tasks", "archive", `${taskId}.md`);
   const content = readFileSync(readyPath, "utf-8")
-    .replace("status: ready", "status: done")
-    .replace(
-      "updated_at: 2026-05-19T00:00:00.000Z",
-      "updated_at: 2026-05-19T01:00:00.000Z",
-    );
+    .replace("status: open\npriority: p2", "status: done");
   mkdirSync(dirname(donePath), { recursive: true });
   writeFileSync(donePath, content);
   rmSync(readyPath);

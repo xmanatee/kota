@@ -11,7 +11,7 @@
  *               file. The seam returns `not_found` if the slug is unknown.
  * - tasks     — the repo-tasks mutation boundary serializes the state change
  *               against any workflow owning `task:<id>`. The contributor
- *               never deletes the file or bypasses `updated_at`.
+ *               never deletes the file or bypasses the canonical task mutation path.
  * - inbox     — the repo-tasks domain identity-checks, removes, and stages the
  *               resolved path through its descriptor-anchored boundary.
  *

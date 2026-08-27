@@ -9,21 +9,21 @@ describe("semantic task transitions", () => {
   it("parses task additions, removals, modifications, and renames", () => {
     expect(
       parseChangedTaskPaths([
-        "A\tdata/tasks/ready/task-added.md",
-        "D\tdata/tasks/backlog/task-removed.md",
-        "M\tdata/tasks/doing/task-modified.md",
-        "R100\tdata/tasks/ready/task-moved.md\tdata/tasks/done/task-moved.md",
+        "A\tdata/tasks/task-added.md",
+        "D\tdata/tasks/task-removed.md",
+        "M\tdata/tasks/task-modified.md",
+        "R100\tdata/tasks/task-moved.md\tdata/tasks/archive/task-moved.md",
       ].join("\n")),
     ).toEqual([
-      { oldPath: null, newPath: "data/tasks/ready/task-added.md" },
-      { oldPath: "data/tasks/backlog/task-removed.md", newPath: null },
+      { oldPath: null, newPath: "data/tasks/task-added.md" },
+      { oldPath: "data/tasks/task-removed.md", newPath: null },
       {
-        oldPath: "data/tasks/doing/task-modified.md",
-        newPath: "data/tasks/doing/task-modified.md",
+        oldPath: "data/tasks/task-modified.md",
+        newPath: "data/tasks/task-modified.md",
       },
       {
-        oldPath: "data/tasks/ready/task-moved.md",
-        newPath: "data/tasks/done/task-moved.md",
+        oldPath: "data/tasks/task-moved.md",
+        newPath: "data/tasks/archive/task-moved.md",
       },
     ]);
   });

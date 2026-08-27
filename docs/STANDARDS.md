@@ -4,9 +4,13 @@
 
 - `docs/` is for durable, cross-cutting reference docs.
 - `data/inbox/` is for quick captures, rough ideas, and owner notes.
-- `data/tasks/` is the normalized live work queue and the source of truth for outstanding work after sorting.
+- `data/tasks/*.md` is the normalized active work queue; terminal task history
+  lives under `data/tasks/archive/`. Active task state is only `open` or
+  `blocked`; an active builder run is the transient in-progress projection.
 - Local `AGENTS.md` files explain directory purpose and boundaries.
-- Git history and `.kota/runs/` are the historical record. Do not add parallel changelog, audit, archive, or lesson surfaces.
+- Git history, `.kota/runs/`, and terminal task records in
+  `data/tasks/archive/` are the historical record. Do not add parallel
+  changelog, audit, or lesson surfaces.
 - Runtime state belongs under `.kota/`. Do not add sibling runtime directories
   such as `runs/` or `kota/` at the repo root.
 

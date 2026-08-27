@@ -23,9 +23,8 @@ const hits: RecallHit[] = [
     score: 0.4,
     id: "task-recall-seam",
     title: "Add recall",
-    state: "doing",
+    state: "open",
     priority: "p2",
-    updatedAt: "2026-04-27",
   },
 ];
 

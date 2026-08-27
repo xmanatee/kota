@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
   type BlockedPrecondition,
@@ -8,6 +9,7 @@ const UNBLOCK_ANSWER = "unblock";
 
 export type OwnerDecisionCandidateSnapshot = {
   taskId: string;
+  taskPath: string;
   slot: string;
   question: string;
   context: string | null;
@@ -55,7 +57,7 @@ export function assertOwnerDecisionCandidateIsCurrent(
   const { attrs } = parseFlatFrontMatter(raw);
   const parsed = parseBlockedPrecondition(raw);
   if (
-    String(attrs.id ?? "") !== candidate.taskId ||
+    basename(candidate.taskPath, ".md") !== candidate.taskId ||
     String(attrs.status ?? "") !== "blocked" ||
     !parsed.ok ||
     parsed.precondition.kind !== "owner-decision" ||

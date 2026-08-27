@@ -10,7 +10,7 @@ import type {
 } from "#core/evidence/policy.js";
 import type { EvidencePrunedReasonCode } from "#core/evidence/pruned-reference.js";
 import type {
-  RepoTaskClass,
+  RepoTaskPriority,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
@@ -71,27 +71,10 @@ export type ProgressReviewTaskEvidence = ProgressReviewEvidenceRef & {
   taskId: string;
   title: string;
   state: RepoTaskState;
-  updatedAt: string;
-  priority: string;
-  area: string;
-  taskClass: RepoTaskClass;
-  anchor: boolean;
+  priority: RepoTaskPriority | null;
   dependsOn: string[];
   waitingOn: string[];
   operatorEvidenceMentioned: boolean;
-};
-
-export type ProgressReviewTaskClassCount = {
-  taskClass: RepoTaskClass;
-  count: number;
-};
-
-export type ProgressReviewOperatorJourneyRisk = {
-  taskId: string;
-  title: string;
-  state: RepoTaskState;
-  evidenceId: string;
-  reason: string;
 };
 
 export type ProgressReviewEventEvidence = ProgressReviewEvidenceRef & {
@@ -191,8 +174,6 @@ export type ProgressReviewScopeEvidence = {
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
   deadLetters: ProgressReviewDeadLetterEvidence[];
   canonicalState: ProgressReviewEvidenceRef[];
-  taskClassDistribution: ProgressReviewTaskClassCount[];
-  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };
@@ -230,8 +211,6 @@ export type ProgressReviewEvidencePacket = {
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
   deadLetters: ProgressReviewDeadLetterEvidence[];
   canonicalState: ProgressReviewEvidenceRef[];
-  taskClassDistribution: ProgressReviewTaskClassCount[];
-  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };

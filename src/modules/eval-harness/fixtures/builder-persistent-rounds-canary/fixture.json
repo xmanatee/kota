@@ -23,7 +23,7 @@
         {
           "predicate": {
             "kind": "file-exists",
-            "path": "data/tasks/ready/task-implement-ledger-summary-round-1.md"
+            "path": "data/tasks/task-implement-ledger-summary-round-1.md"
           },
           "expected": "pass"
         }
@@ -36,15 +36,15 @@
         },
         {
           "kind": "file-absent",
-          "path": "data/tasks/ready/task-implement-ledger-summary-round-1.md"
+          "path": "data/tasks/task-implement-ledger-summary-round-1.md"
         },
         {
           "kind": "file-exists",
-          "path": "data/tasks/done/task-implement-ledger-summary-round-1.md"
+          "path": "data/tasks/archive/task-implement-ledger-summary-round-1.md"
         },
         {
           "kind": "file-contains",
-          "path": "data/tasks/done/task-implement-ledger-summary-round-1.md",
+          "path": "data/tasks/archive/task-implement-ledger-summary-round-1.md",
           "needle": "status: done"
         }
       ]
@@ -56,7 +56,7 @@
       "taskInput": {
         "kind": "copy-fixture-file",
         "sourcePath": "rounds/task-add-ledger-export-round-2.md",
-        "targetPath": "data/tasks/ready/task-add-ledger-export-round-2.md"
+        "targetPath": "data/tasks/task-add-ledger-export-round-2.md"
       },
       "preRunExpectations": [
         {
@@ -78,7 +78,7 @@
         {
           "predicate": {
             "kind": "file-exists",
-            "path": "data/tasks/ready/task-add-ledger-export-round-2.md"
+            "path": "data/tasks/task-add-ledger-export-round-2.md"
           },
           "expected": "pass"
         }
@@ -91,19 +91,19 @@
         },
         {
           "kind": "file-exists",
-          "path": "data/tasks/done/task-implement-ledger-summary-round-1.md"
+          "path": "data/tasks/archive/task-implement-ledger-summary-round-1.md"
         },
         {
           "kind": "file-absent",
-          "path": "data/tasks/ready/task-add-ledger-export-round-2.md"
+          "path": "data/tasks/task-add-ledger-export-round-2.md"
         },
         {
           "kind": "file-exists",
-          "path": "data/tasks/done/task-add-ledger-export-round-2.md"
+          "path": "data/tasks/archive/task-add-ledger-export-round-2.md"
         },
         {
           "kind": "file-contains",
-          "path": "data/tasks/done/task-add-ledger-export-round-2.md",
+          "path": "data/tasks/archive/task-add-ledger-export-round-2.md",
           "needle": "status: done"
         }
       ]

@@ -72,9 +72,7 @@ function makeScopeRoot(active: boolean): string {
   const scopeRoot = mkdtempSync(join(tmpdir(), "telegram-digest-runtime-"));
   const runsDir = join(scopeRoot, ".kota", "runs");
   mkdirSync(runsDir, { recursive: true });
-  for (const state of ["backlog", "ready", "doing", "blocked"]) {
-    mkdirSync(join(scopeRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(scopeRoot, "data", "tasks", "archive"), { recursive: true });
   if (!active) return scopeRoot;
 
   const now = Date.now();
@@ -90,9 +88,8 @@ function makeScopeRoot(active: boolean): string {
       event: "autonomy.queue.available",
       payload: {
         taskId: "task-foo",
-        taskPath: "data/tasks/ready/task-foo.md",
-        taskState: "ready",
-        taskUpdatedAt: new Date(now - 60_000).toISOString(),
+        taskPath: "data/tasks/task-foo.md",
+        taskState: "open",
         taskDigest,
         idempotencyKey: `builder:task-foo:${taskDigest}`,
         title: "Add foo",
@@ -102,8 +99,8 @@ function makeScopeRoot(active: boolean): string {
   });
   writeBuilderIntegration(runsDir, runId);
   writeFileSync(
-    join(scopeRoot, "data", "tasks", "ready", "task-ready.md"),
-    "---\nid: task-ready\nstatus: ready\n---\n",
+    join(scopeRoot, "data", "tasks", "task-open.md"),
+    "---\nstatus: open\npriority: p2\n---\n\n# Open task\n",
     "utf-8",
   );
   return scopeRoot;

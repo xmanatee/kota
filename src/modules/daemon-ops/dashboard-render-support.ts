@@ -147,11 +147,10 @@ export function renderControlHelp(): RenderNode[] {
 export function taskQueueHasSignal(task: DashboardTaskQueue): boolean {
 	if (task.inboxCount > 0) return true;
 	if (taskQueueHasDispatchableWork(task)) return true;
-	if (task.pullableCount > 0) return true;
 	if (task.actionableCount > 0) return true;
-	if (task.openCount > 0) return true;
+	if (task.activeCount > 0) return true;
 	const { counts } = task;
-	return counts.ready > 0 || counts.doing > 0 || counts.backlog > 0 || counts.blocked > 0;
+	return counts.open > 0 || counts.blocked > 0;
 }
 
 export function taskQueueHasDispatchableWork(task: DashboardTaskQueue): boolean {
@@ -159,17 +158,14 @@ export function taskQueueHasDispatchableWork(task: DashboardTaskQueue): boolean 
 		task.hasDispatchableWork ||
 		task.dispatchableCount > 0 ||
 		task.inboxCount > 0 ||
-		task.actionableCount > 0 ||
-		task.promotableBacklogCount > 0
+		task.actionableCount > 0
 	);
 }
 
 export function formatQueueCountsRow(task: DashboardTaskQueue): string {
 	const entries: string[] = [];
 	if (task.inboxCount > 0) entries.push(`Inbox ${task.inboxCount}`);
-	if (task.counts.ready > 0) entries.push(`Ready ${task.counts.ready}`);
-	if (task.counts.doing > 0) entries.push(`Doing ${task.counts.doing}`);
-	if (task.counts.backlog > 0) entries.push(`Backlog ${task.counts.backlog}`);
+	if (task.counts.open > 0) entries.push(`Open ${task.counts.open}`);
 	if (task.counts.blocked > 0) entries.push(`Blocked ${task.counts.blocked}`);
 	return entries.join("  ");
 }

@@ -6,5 +6,5 @@ now errors surface the failure but not the recovery path, which slows
 troubleshooting for anyone who is not already deep in the code.
 
 This might already be tracked — there was a similar note captured a
-while back. Sorter should check the backlog before spinning up a
+while back. Sorter should check the active tasks before spinning up a
 duplicate task.

@@ -7,7 +7,6 @@ import type {
   BuilderClosure,
   ReportPriority,
 } from "./aggregate-types.js";
-import { classifyTaskShape } from "./task-classification.js";
 
 export function buildBuilderBreakdown(
   runs: WorkflowRunMetadata[],
@@ -35,35 +34,20 @@ export function buildBuilderBreakdown(
       runId: run.id,
       taskId: delivery.taskId,
       taskTitle: delivery.taskTitle ?? task.title,
-      area: task.area || "(unset)",
       priority: normalizePriority(task.priority),
-      classification: classifyTaskShape({
-        area: task.area,
-        title: task.title,
-        summary: task.summary,
-      }),
       cost: delivery.cost,
       durationMs: run.durationMs ?? null,
     });
   }
 
-  const byArea = aggregateClosureCosts(closures, (c) => c.area)
-    .map(({ key: area, ...row }) => ({ area, ...row }))
-    .sort((a, b) => b.commits - a.commits || a.area.localeCompare(b.area));
   const byPriority = sortPriorityClosureRows(
     aggregateClosureCosts(closures, (c) => c.priority),
   ).map(({ key: priority, ...row }) => ({ priority, ...row }));
-  const byClassification = aggregateClosureCosts(
-    closures,
-    (c) => c.classification,
-  ).map(({ key: classification, ...row }) => ({ classification, ...row }));
 
   return {
     totalCommittedRuns: closures.length,
     unresolvedClosures,
-    byArea,
     byPriority,
-    byClassification,
     closures,
   };
 }

@@ -21,8 +21,6 @@ import { listRecentRunsForSources } from "./run-evidence.js";
 import {
   listDeadLetterReferencedTasks,
   listRecentTasks,
-  operatorJourneyRisks,
-  taskClassDistribution,
 } from "./task-evidence.js";
 import {
   batchSummary,
@@ -72,7 +70,12 @@ function collectProgressReviewEvidenceForSource(args: {
     excluded,
   );
   const runs = scopedRuns.map((run) => run.evidence);
-  const tasks = listRecentTasks([args.source], args.windowStartMs, excluded);
+  const tasks = listRecentTasks(
+    [args.source],
+    args.windowStartMs,
+    excluded,
+    gitCollection?.evidence ?? [],
+  );
   const events = listBatchEvents(
     args.source,
     args.trigger,
@@ -99,8 +102,6 @@ function collectProgressReviewEvidenceForSource(args: {
     ...tasks,
     ...listDeadLetterReferencedTasks(args.source, deadLetters, tasks, excluded),
   ];
-  const taskClassCounts = taskClassDistribution(allTasks);
-  const journeyRisks = operatorJourneyRisks(allTasks);
   const evidence = evidenceRefs({
     runs,
     tasks: allTasks,
@@ -125,8 +126,6 @@ function collectProgressReviewEvidenceForSource(args: {
     deadLetterCounts,
     deadLetters,
     canonicalState,
-    taskClassDistribution: taskClassCounts,
-    operatorJourneyRisks: journeyRisks,
     evidence,
     excluded,
   };
@@ -207,8 +206,6 @@ export function collectProgressReviewEvidence(args: {
   const canonicalState = scopes.flatMap((scope) =>
     scope.canonicalState.map(cloneEvidenceItem)
   );
-  const taskClassCounts = taskClassDistribution(tasks);
-  const journeyRisks = operatorJourneyRisks(tasks);
   const evidence = evidenceRefs({
     runs,
     tasks,
@@ -250,8 +247,6 @@ export function collectProgressReviewEvidence(args: {
     deadLetterCounts,
     deadLetters,
     canonicalState,
-    taskClassDistribution: taskClassCounts,
-    operatorJourneyRisks: journeyRisks,
     evidence,
     excluded: aggregateExcluded(scopes),
   };

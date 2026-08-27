@@ -94,8 +94,8 @@ describe('DaemonClient', () => {
       record: {
         target: 'tasks',
         recordId: 'task-foo',
-        previousPath: 'data/tasks/ready/task-foo.md',
-        path: 'data/tasks/dropped/task-foo.md',
+        previousPath: 'data/tasks/task-foo.md',
+        path: 'data/tasks/archive/task-foo.md',
         toState: 'dropped',
       },
     };
@@ -205,7 +205,7 @@ describe('DaemonClient', () => {
         record: {
           target: 'tasks',
           recordId: 'task-foo',
-          path: 'data/tasks/dropped/task-foo.md',
+          path: 'data/tasks/archive/task-foo.md',
           toState: 'dropped',
         },
       }),
@@ -222,8 +222,8 @@ describe('DaemonClient', () => {
         record: {
           target: 'tasks',
           recordId: 'task-foo',
-          previousPath: 'data/tasks/ready/task-foo.md',
-          path: 'data/tasks/done/task-foo.md',
+          previousPath: 'data/tasks/task-foo.md',
+          path: 'data/tasks/archive/task-foo.md',
           toState: 'done',
         },
       }),

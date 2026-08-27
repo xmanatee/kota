@@ -7,18 +7,14 @@ import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js"
 
 export type DashboardTaskQueue = {
 	counts: {
-		backlog: number;
-		ready: number;
-		doing: number;
+		open: number;
 		blocked: number;
 		done: number;
 		dropped: number;
 	};
 	inboxCount: number;
-	openCount: number;
-	pullableCount: number;
+	activeCount: number;
 	actionableCount: number;
-	promotableBacklogCount: number;
 	dispatchableCount: number;
 	hasDispatchableWork: boolean;
 };

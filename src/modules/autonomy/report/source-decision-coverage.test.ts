@@ -52,7 +52,7 @@ describe("source decision coverage report", () => {
       body: sourceTaskBody("https://example.com/adopted"),
     });
     writeTask(workspaceRoot, {
-      state: "ready",
+      state: "open",
       id: "task-open-source",
       title: "Open source task",
       body: sourceTaskBody("https://example.com/open"),
@@ -160,7 +160,7 @@ describe("source decision coverage report", () => {
       body: sourceTaskBody("https://example.com/adopted"),
     });
     writeTask(workspaceRoot, {
-      state: "ready",
+      state: "open",
       id: "task-open-source",
       title: "Open source task",
       body: sourceTaskBody("https://example.com/open"),
@@ -220,26 +220,24 @@ function watchlistEntry(args: {
 }
 
 function writeTask(workspaceRoot: string, args: {
-  state: "ready" | "done";
+  state: "open" | "done";
   id: string;
   title: string;
   body: string;
 }): void {
-  const dir = join(workspaceRoot, "data", "tasks", args.state);
+  const dir = args.state === "done"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, `${args.id}.md`),
     [
       "---",
-      `id: ${args.id}`,
-      `title: ${args.title}`,
       `status: ${args.state}`,
-      "priority: p2",
-      "area: autonomy",
-      "summary: fixture",
-      "created_at: 2026-07-01T00:00:00.000Z",
-      "updated_at: 2026-07-01T00:00:00.000Z",
+      ...(args.state === "open" ? ["priority: p2"] : []),
       "---",
+      "",
+      `# ${args.title}`,
       "",
       args.body,
     ].join("\n"),

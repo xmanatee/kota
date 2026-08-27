@@ -148,7 +148,7 @@ function makeScopeRoot(): string {
     scopeDir,
     "capture-pipeline",
   ).workspaceRoot;
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
 }
@@ -166,7 +166,7 @@ function snapshotWrites(args: {
   knowledgeStore: KnowledgeStore;
   scopeRoot: string;
 }): WriteSnapshot {
-  const tasksDir = join(args.scopeRoot, "data", "tasks", "backlog");
+  const tasksDir = join(args.scopeRoot, "data", "tasks");
   const inboxDir = join(args.scopeRoot, "data", "inbox");
   return {
     memory: args.memoryStore.list().length,
@@ -276,7 +276,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
     expect(entry?.content).toBe(KNOWLEDGE_TEXT);
   });
 
-  it("tasks arm: explicit target mints a backlog file at the typed path", async () => {
+  it("tasks arm: explicit target mints an open task at the typed path", async () => {
     const result = await client.capture.capture(TASKS_TEXT, {
       target: "tasks",
     });
@@ -288,14 +288,14 @@ describe("cross-store capture pipeline (HTTP)", () => {
       "task-audit-capture-pipeline-integration-coverage",
     );
     expect(result.record.path).toBe(
-      `data/tasks/backlog/${result.record.recordId}.md`,
+      `data/tasks/${result.record.recordId}.md`,
     );
 
     const filePath = join(scopeRoot, result.record.path);
     expect(existsSync(filePath)).toBe(true);
     const body = readFileSync(filePath, "utf-8");
-    expect(body).toMatch(new RegExp(`title: ${TASKS_TEXT}`));
-    expect(body).toMatch(/status: backlog/);
+    expect(body).toContain(`# ${TASKS_TEXT}`);
+    expect(body).toMatch(/status: open/);
   });
 
   it("inbox arm: explicit target writes a slugged note file at the typed path", async () => {

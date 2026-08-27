@@ -93,28 +93,20 @@ function writeTask(
   id: string,
   options: {
     title?: string;
-    updatedAt?: string;
-    area?: string;
-    taskClass?: "Product" | "Safety" | "Platform" | "Meta";
     howWeWillKnow?: string;
     sourceIntent?: string;
   } = {},
 ): void {
   const title = options.title ?? id;
-  const updatedAt = options.updatedAt ?? NOW.toISOString();
-  const area = options.area ?? "autonomy";
+  const terminal = state === "done" || state === "dropped";
   const content = [
     "---",
-    `id: ${id}`,
-    `title: ${title}`,
     `status: ${state}`,
-    "priority: p2",
-    `area: ${area}`,
-    `summary: ${title} summary`,
-    `created_at: ${updatedAt}`,
-    `updated_at: ${updatedAt}`,
-    ...(options.taskClass ? [`task_class: ${options.taskClass}`] : []),
+    ...(terminal ? [] : ["priority: p2"]),
     "---",
+    "",
+    `# ${title}`,
+    "",
     renderRepoTaskIntent({
       problem: "Review fixture problem.",
       desiredOutcome: "Review fixture outcome.",
@@ -123,7 +115,16 @@ function writeTask(
       context: options.sourceIntent ?? "Progress reviewer test fixture.",
     }),
   ].join("\n");
-  writeFileSync(join(workspaceRoot, "data", "tasks", state, `${id}.md`), content);
+  writeFileSync(
+    join(
+      workspaceRoot,
+      "data",
+      "tasks",
+      ...(terminal ? ["archive"] : []),
+      `${id}.md`,
+    ),
+    content,
+  );
 }
 
 function writeInboxEntry(workspaceRoot: string, id: string, title: string): void {
@@ -405,7 +406,6 @@ describe("progress-reviewer workflow", () => {
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
     writeTask(workspaceRoot, "done", "task-ship-coding-slice", {
       title: "Ship coding slice",
-      updatedAt: "2026-06-04T11:30:00.000Z",
     });
     writeRun(
       workspaceRoot,
@@ -422,6 +422,7 @@ describe("progress-reviewer workflow", () => {
 
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
+      ports: { runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }) },
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -433,7 +434,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     expect(result.steps["apply-actions"].status).toBe("success");
     expect(result.steps["write-commit-message"].status).toBe("skipped");
     expect(result.steps["validate-changes"].status).toBe("skipped");
@@ -555,7 +556,6 @@ describe("progress-reviewer workflow", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-schedule");
     writeTask(workspaceRoot, "done", "task-ship-coding-slice", {
       title: "Ship coding slice",
-      updatedAt: "2026-06-04T11:30:00.000Z",
     });
     writeRun(
       workspaceRoot,
@@ -572,6 +572,7 @@ describe("progress-reviewer workflow", () => {
 
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
+      ports: { runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }) },
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -600,10 +601,8 @@ describe("progress-reviewer workflow", () => {
     const scopeARoot = trackScopeRoot("progress-reviewer-scheduled-global-a");
     const scopeBRoot = trackScopeRoot("progress-reviewer-scheduled-global-b");
     writeTask(scopeARoot, "done", "task-scheduled-scope-a", {
-      updatedAt: "2026-06-04T11:30:00.000Z",
     });
     writeTask(scopeBRoot, "done", "task-scheduled-scope-b", {
-      updatedAt: "2026-06-04T11:25:00.000Z",
     });
     writeRun(
       scopeARoot,
@@ -828,12 +827,12 @@ describe("progress-reviewer workflow", () => {
     expect(result.steps["validate-changes"].status).toBe("success");
     const actions = result.steps["apply-actions"].output as ProgressReviewActionResult;
     expect(actions.createdTaskIds).toEqual([
-      "task-add-channel-progress-review-routing-fixture",
+      "task-generated-2a2c3d885f63407d",
     ]);
     expect(actions.ownerQuestionIds).toHaveLength(0);
     expect(
-      readTaskStatus(workspaceRoot, "task-add-channel-progress-review-routing-fixture"),
-    ).toBe("ready");
+      readTaskStatus(workspaceRoot, "task-generated-2a2c3d885f63407d"),
+    ).toBe("open");
     expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
     expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
     expect(result.emitted.map((event) => event.event)).toContain(
@@ -842,13 +841,6 @@ describe("progress-reviewer workflow", () => {
 
     const repeatedReview = readFixture("channel-processing-review");
     repeatedReview.ownerQuestions = [];
-    repeatedReview.summary = "The same evidence was described with different wording.";
-    repeatedReview.findings.localScope.followUpTasks[0] = {
-      ...repeatedReview.findings.localScope.followUpTasks[0]!,
-      title: "Reworded channel routing follow-up",
-      summary: "The model rephrased the same evidence-backed proposal.",
-      howWeWillKnow: "The same evidence would support a differently worded check.",
-    };
     const repeated = await new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
       workspaceDir: workspaceRoot,
@@ -877,12 +869,11 @@ describe("progress-reviewer workflow", () => {
           workspaceRoot,
           "data",
           "tasks",
-          "ready",
-          "task-add-channel-progress-review-routing-fixture.md",
+          "task-generated-2a2c3d885f63407d.md",
         ),
         "utf-8",
       ),
-    ).not.toContain("Reworded channel routing follow-up");
+    ).toContain("Add channel progress review routing fixture");
   });
 
   it("stages an owner question when a topic changes from task to owner decision", () => {
@@ -1449,192 +1440,13 @@ describe("progress-reviewer workflow", () => {
     ).toThrow(/unknown evidence id/);
   });
 
-  it("reports task_class distribution and Product operator-journey risks", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-task-class-risk");
-    writeTask(workspaceRoot, "done", "task-product-tests-only", {
-      title: "Improve dashboard empty state",
-      area: "client",
-      taskClass: "Product",
-      howWeWillKnow: "- Unit tests pass.",
-    });
-    writeTask(workspaceRoot, "done", "task-safety-check", {
-      title: "Tighten approval guard",
-      area: "modules",
-      taskClass: "Safety",
-    });
-    writeTask(workspaceRoot, "done", "task-platform-api", {
-      title: "Add setup contract field",
-      area: "modules",
-      taskClass: "Platform",
-    });
-    writeTask(workspaceRoot, "done", "task-meta-with-link", {
-      title: "Improve evaluator calibration",
-      area: "autonomy",
-      taskClass: "Meta",
-    });
-
-    const evidence = collectProgressReviewEvidence({
-      workspaceRoot,
-      scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
-      trigger: {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: { windowMs: 3_600_000 },
-      },
-      now: NOW,
-    });
-    const reviewInput = compactProgressReviewEvidenceForAgent(evidence);
-
-    // Current queue balance deliberately excludes terminal history. The recent
-    // done Product task remains available for operator-journey scrutiny below.
-    expect(reviewInput.counts.taskClasses).toEqual([]);
-    expect(reviewInput.operatorJourneyRisks).toEqual([
-      expect.objectContaining({
-        taskId: "task-product-tests-only",
-        evidenceId: "task:task-product-tests-only",
-      }),
-    ]);
-    expect(reviewInput.operatorJourneyRisks[0]?.reason).toContain(
-      "Product task moved to done without transcript",
-    );
-  });
-
-  it("classifies workflow-generated follow-up tasks in frontmatter without gating them", () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-generated-task-class");
-    writeTask(workspaceRoot, "done", "task-security-generated", {
-      title: "Security review: tighten approval replay",
-      area: "security",
-      sourceIntent: "Created by security-review workflow run security-review-run.",
-    });
-    writeTask(workspaceRoot, "done", "task-platform-generated", {
-      title: "Add observability evidence for platform DLQ cleanup",
-      area: "platform",
-      sourceIntent: "Created by progress-reviewer workflow run progress-review-run.",
-    });
-    writeTask(workspaceRoot, "done", "task-clear-stale-builder-dlq-items-after-repair-merge", {
-      title: "Clear stale builder DLQ items after repair merge",
-      area: "platform",
-      sourceIntent: "Follow-up from `task-resolve-current-builder-workflow-dead-letters`.",
-    });
-    writeTask(workspaceRoot, "done", "task-meta-generated", {
-      title: "Clear runtime repair reviewer drift",
-      area: "autonomy",
-      sourceIntent: "Created by progress-reviewer workflow run progress-review-run.",
-    });
-    execFileSync("git", [
-      "add",
-      "data/tasks/done/task-security-generated.md",
-      "data/tasks/done/task-platform-generated.md",
-      "data/tasks/done/task-clear-stale-builder-dlq-items-after-repair-merge.md",
-      "data/tasks/done/task-meta-generated.md",
-    ], { cwd: workspaceRoot });
-
-    const evidence = collectProgressReviewEvidence({
-      workspaceRoot,
-      scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
-      trigger: {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: { windowMs: 3_600_000 },
-      },
-      now: NOW,
-    });
-
-    expect(evidence.taskClassDistribution).toEqual([]);
-    expect(
-      evidence.tasks.find((task) => task.taskId === "task-security-generated")?.taskClass,
-    ).toBe("Safety");
-    expect(
-      evidence.tasks.find((task) => task.taskId === "task-platform-generated")?.taskClass,
-    ).toBe("Platform");
-    expect(
-      evidence.tasks.find(
-        (task) => task.taskId === "task-clear-stale-builder-dlq-items-after-repair-merge",
-      )?.taskClass,
-    ).toBe("Platform");
-    expect(evidence.tasks.find((task) => task.taskId === "task-meta-generated")?.taskClass)
-      .toBe("Meta");
-
-    const actionResult = applyProgressReviewActions({
-      workspaceRoot,
-      runId: "progress-review-run",
-      evidence,
-      review: reviewOutput({
-        verdict: "needs-steering",
-        summary: "Generated follow-up tasks need deterministic task_class metadata.",
-        localScope: {
-          followUpTasks: [
-            {
-              topicKey: "security-generated-follow-up",
-              title: "Security generated follow-up",
-              summary: "Security finding follow-up should enter the Safety balance.",
-              priority: "p2",
-              area: "security",
-              evidenceIds: ["task:task-security-generated"],
-              howWeWillKnow: "Generated task frontmatter records task_class: Safety.",
-            },
-            {
-              topicKey: "platform-generated-follow-up",
-              title: "Platform generated follow-up",
-              summary: "Platform observability follow-up should enter the Platform balance.",
-              priority: "p3",
-              area: "platform",
-              evidenceIds: ["task:task-platform-generated"],
-              howWeWillKnow: "Generated task frontmatter records task_class: Platform.",
-            },
-            {
-              topicKey: "meta-generated-follow-up",
-              title: "Meta generated follow-up",
-              summary: "Runtime repair follow-up should retain Meta routing metadata.",
-              priority: "p3",
-              area: "autonomy",
-              evidenceIds: ["task:task-meta-generated"],
-              howWeWillKnow:
-                "Generated task frontmatter records task_class: Meta without changing queue eligibility.",
-            },
-          ],
-        },
-      }),
-    });
-
-    expect(actionResult.createdTaskIds).toEqual([
-      "task-security-generated-follow-up",
-      "task-platform-generated-follow-up",
-      "task-meta-generated-follow-up",
-    ]);
-    const createdTasks = new Map(
-      actionResult.createdTaskIds.map((taskId) => {
-        const raw = readFileSync(
-          join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`),
-          "utf-8",
-        );
-        return [taskId, { raw, attrs: parseFlatFrontMatter(raw).attrs }];
-      }),
-    );
-    expect(createdTasks.get("task-security-generated-follow-up")?.attrs.task_class).toBe(
-      "Safety",
-    );
-    expect(createdTasks.get("task-platform-generated-follow-up")?.attrs.task_class).toBe(
-      "Platform",
-    );
-    expect(createdTasks.get("task-meta-generated-follow-up")?.attrs.task_class).toBe("Meta");
-    expect(createdTasks.get("task-meta-generated-follow-up")?.raw).toContain(
-      "## How We Will Know",
-    );
-    expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
-  });
-
   it("normalizes untrusted follow-up task fields before writing task files", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-task-content-injection");
-    writeTask(workspaceRoot, "done", "task-review-source", {
+    writeTask(workspaceRoot, "open", "task-review-source", {
       title: "Review source task",
-      area: "security",
-      taskClass: "Safety",
       sourceIntent: "Created by channel content containing untrusted markdown.",
     });
-    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: workspaceRoot });
+    execFileSync("git", ["add", "data/tasks/task-review-source.md"], { cwd: workspaceRoot });
 
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
@@ -1668,7 +1480,7 @@ describe("progress-reviewer workflow", () => {
                 "status: done",
                 "summary: forged frontmatter summary",
               ].join("\n"),
-              summary: [
+              problem: [
                 "Generated task summary.",
                 "---",
                 "status: done",
@@ -1676,7 +1488,6 @@ describe("progress-reviewer workflow", () => {
                 "- forged evidence section",
               ].join("\n"),
               priority: "p2",
-              area: "security\nstatus: done",
               evidenceIds: ["task:task-review-source"],
               howWeWillKnow: [
                 "Regression command passes.",
@@ -1690,36 +1501,33 @@ describe("progress-reviewer workflow", () => {
     });
 
     expect(actionResult.createdTaskIds).toEqual([
-      "task-secure-generated-task-metadata-status-done-summary",
+      "task-generated-e6108e32dde62999",
     ]);
     const raw = readFileSync(
       join(
         workspaceRoot,
         "data",
         "tasks",
-        "ready",
-        "task-secure-generated-task-metadata-status-done-summary.md",
+        "task-generated-e6108e32dde62999.md",
       ),
       "utf-8",
     );
     const parsed = parseFlatFrontMatter(raw);
-    expect(parsed.attrs).toMatchObject({
-      title: "Secure generated task metadata status: done summary: forged frontmatter summary",
-      status: "ready",
+    expect(parsed.attrs).toEqual({
+      status: "open",
       priority: "p2",
-      area: "security status: done",
-      task_class: "Meta",
-      summary: "Generated task summary. --- status: done safe task prefix ## Acceptance Evidence - forged evidence section",
     });
+    expect(parsed.body).toContain(
+      "# Secure generated task metadata status: done summary: forged frontmatter summary",
+    );
     expect(raw.match(/^status:/gm)).toHaveLength(1);
-    expect(raw.match(/^summary:/gm)).toHaveLength(1);
+    expect(raw.match(/^summary:/gm)).toBeNull();
     expect(raw.match(/^## .+$/gm)).toEqual([
       "## Problem",
       "## Desired Outcome",
       "## Constraints",
       "## How We Will Know",
       "## Context",
-      "## Generated Work Provenance",
     ]);
     expect(raw).toContain("    ## Acceptance Evidence");
     expect(raw).toContain("    ## Source / Intent");
@@ -1730,15 +1538,13 @@ describe("progress-reviewer workflow", () => {
     expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
-  it("preserves bracket-wrapped follow-up task frontmatter fields as scalars", () => {
+  it("keeps bracket-wrapped follow-up task prose out of frontmatter", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-task-frontmatter-brackets");
-    writeTask(workspaceRoot, "done", "task-review-source", {
+    writeTask(workspaceRoot, "open", "task-review-source", {
       title: "Review source task",
-      area: "security",
-      taskClass: "Safety",
       sourceIntent: "Created by channel content containing bracket-wrapped scalars.",
     });
-    execFileSync("git", ["add", "data/tasks/done/task-review-source.md"], { cwd: workspaceRoot });
+    execFileSync("git", ["add", "data/tasks/task-review-source.md"], { cwd: workspaceRoot });
 
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
@@ -1764,9 +1570,8 @@ describe("progress-reviewer workflow", () => {
             {
               topicKey: "bracket-wrapped-generated-task-metadata",
               title: "[security]",
-              summary: "[x]",
+              problem: "[x]",
               priority: "p2",
-              area: "[a, b]",
               evidenceIds: ["task:task-review-source"],
               howWeWillKnow: "Generated task frontmatter parses bracket fields as strings.",
             },
@@ -1775,23 +1580,15 @@ describe("progress-reviewer workflow", () => {
       }),
     });
 
-    expect(actionResult.createdTaskIds).toEqual(["task-security"]);
+    expect(actionResult.createdTaskIds).toEqual(["task-generated-098fc7ed515bf915"]);
     const raw = readFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-security.md"),
+      join(workspaceRoot, "data", "tasks", "task-generated-098fc7ed515bf915.md"),
       "utf-8",
     );
-    expect(raw).toContain('title: "[security]"');
-    expect(raw).toContain('area: "[a, b]"');
-    expect(raw).toContain('summary: "[x]"');
+    expect(raw).toContain("# [security]");
+    expect(raw).toContain("## Problem\n\n[x]");
     const parsed = parseFlatFrontMatter(raw);
-    expect(parsed.attrs).toMatchObject({
-      title: "[security]",
-      area: "[a, b]",
-      summary: "[x]",
-    });
-    expect(Array.isArray(parsed.attrs.title)).toBe(false);
-    expect(Array.isArray(parsed.attrs.area)).toBe(false);
-    expect(Array.isArray(parsed.attrs.summary)).toBe(false);
+    expect(parsed.attrs).toEqual({ status: "open", priority: "p2" });
     expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
   });
 
@@ -1829,7 +1626,6 @@ describe("progress-reviewer workflow", () => {
       `artifact:${runId}:artifact-${String(PROGRESS_REVIEW_MAX_ARTIFACTS - 1).padStart(2, "0")}.json`;
     for (let index = 0; index < 24; index += 1) {
       writeTask(workspaceRoot, "done", `task-large-packet-${String(index).padStart(2, "0")}`, {
-        updatedAt: `2026-06-04T10:${String(index).padStart(2, "0")}:00.000Z`,
       });
     }
     const deadLetterQueue = new DeadLetterQueueStore(
@@ -2118,8 +1914,8 @@ describe("progress-reviewer workflow", () => {
   it("keeps directory scope evidence isolated to the selected scope directory", () => {
     const scopeARoot = trackScopeRoot("progress-reviewer-scope-a");
     const scopeBRoot = trackScopeRoot("progress-reviewer-scope-b");
-    writeTask(scopeARoot, "done", "task-scope-a", { updatedAt: "2026-06-04T11:00:00.000Z" });
-    writeTask(scopeBRoot, "done", "task-scope-b", { updatedAt: "2026-06-04T11:00:00.000Z" });
+    writeTask(scopeARoot, "open", "task-scope-a");
+    writeTask(scopeBRoot, "open", "task-scope-b");
     writeRun(scopeARoot, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
     writeRun(scopeBRoot, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
     const scopeAId = deriveDirectoryScopeId(scopeARoot);
@@ -2489,9 +2285,7 @@ describe("progress-reviewer workflow", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-dlq-task-reference");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const taskId = "task-review-autonomous-workflow-failure";
-    writeTask(workspaceRoot, "backlog", taskId, {
-      updatedAt: "2026-06-01T12:00:00.000Z",
-      taskClass: "Meta",
+    writeTask(workspaceRoot, "open", taskId, {
     });
     const queue = new DeadLetterQueueStore(
       join(workspaceRoot, ".kota", "dead-letter-queue"),
@@ -2507,8 +2301,8 @@ describe("progress-reviewer workflow", () => {
         payload: { scopeId },
       },
       reason:
-        `- [meta-task-missing-product-safety-link] ${workspaceRoot}/data/tasks/ready/${taskId}.md ` +
-        "is actionable task_class=Meta work but does not explain which Product or Safety blocker it closes.",
+        `- [meta-task-missing-product-safety-link] ${workspaceRoot}/data/tasks/${taskId}.md ` +
+        "is actionable open work but does not explain which higher-priority blocker it closes.",
       errorClass: "validation",
     });
 
@@ -2530,7 +2324,7 @@ describe("progress-reviewer workflow", () => {
       expect.objectContaining({
         id: `task:${taskId}`,
         kind: "task",
-        path: `data/tasks/backlog/${taskId}.md`,
+        path: `data/tasks/${taskId}.md`,
       }),
     );
     expect(() =>
@@ -2771,8 +2565,8 @@ describe("progress-reviewer workflow", () => {
   it("collects global scope evidence from every configured directory scope", () => {
     const scopeARoot = trackScopeRoot("progress-reviewer-global-a");
     const scopeBRoot = trackScopeRoot("progress-reviewer-global-b");
-    writeTask(scopeARoot, "done", "task-scope-a", { updatedAt: "2026-06-04T11:00:00.000Z" });
-    writeTask(scopeBRoot, "done", "task-scope-b", { updatedAt: "2026-06-04T11:00:00.000Z" });
+    writeTask(scopeARoot, "open", "task-scope-a");
+    writeTask(scopeBRoot, "open", "task-scope-b");
     writeRun(scopeARoot, "run-scope-a", "builder", "success", "2026-06-04T11:00:00.000Z");
     writeRun(scopeBRoot, "run-scope-b", "builder", "success", "2026-06-04T11:00:00.000Z");
     const scopeAId = deriveDirectoryScopeId(scopeARoot);
@@ -2891,11 +2685,11 @@ describe("progress-reviewer workflow", () => {
     });
 
     expect(result.createdTaskIds).toEqual([
-      "task-add-channel-progress-review-routing-fixture",
+      "task-generated-2a2c3d885f63407d",
     ]);
     expect(result.applied[0]).toMatchObject({
       kind: "created-task",
-      taskId: "task-add-channel-progress-review-routing-fixture",
+      taskId: "task-generated-2a2c3d885f63407d",
     });
   });
 
@@ -2903,9 +2697,8 @@ describe("progress-reviewer workflow", () => {
     const scopeARoot = trackScopeRoot("progress-reviewer-global-dedupe-a");
     const scopeBRoot = trackScopeRoot("progress-reviewer-global-dedupe-b");
     const scopeBId = deriveDirectoryScopeId(scopeBRoot);
-    writeTask(scopeBRoot, "ready", "task-repair-scoped-progress-drift", {
+    writeTask(scopeBRoot, "open", "task-repair-scoped-progress-drift", {
       title: "Repair scoped progress drift",
-      updatedAt: "2026-06-04T11:30:00.000Z",
     });
     new ScopeRegistry({
       stateDir: join(scopeARoot, ".kota"),
@@ -2940,9 +2733,8 @@ describe("progress-reviewer workflow", () => {
             {
               topicKey: "scoped-progress-drift",
               title: "Repair scoped progress drift",
-              summary: "The progress-review finding is already represented by a task in the affected scope.",
+              problem: "The progress-review finding is already represented by a task in the affected scope.",
               priority: "p2",
-              area: "autonomy",
               evidenceIds: [`scope:${scopeBId}:task:task-repair-scoped-progress-drift`],
               howWeWillKnow: "The existing scope task remains the single follow-up.",
             },
@@ -2951,11 +2743,11 @@ describe("progress-reviewer workflow", () => {
       }),
     });
 
-    expect(result.createdTaskIds).toEqual(["task-repair-scoped-progress-drift"]);
+    expect(result.createdTaskIds).toEqual(["task-generated-6d0f21e3de2d4dd6"]);
     expect(result.applied[0]).toMatchObject({
       kind: "created-task",
       title: "Repair scoped progress drift",
-      taskId: "task-repair-scoped-progress-drift",
+      taskId: "task-generated-6d0f21e3de2d4dd6",
     });
     expect(
       existsSync(
@@ -2963,8 +2755,7 @@ describe("progress-reviewer workflow", () => {
           scopeARoot,
           "data",
           "tasks",
-          "ready",
-          "task-repair-scoped-progress-drift.md",
+          "task-generated-6d0f21e3de2d4dd6.md",
         ),
       ),
     ).toBe(true);
@@ -3021,9 +2812,8 @@ describe("progress-reviewer workflow", () => {
               {
                 topicKey: "invalid-priority-fixture",
                 title: "Invalid priority fixture",
-                summary: "Priority must stay inside the task enum.",
+                problem: "Priority must stay inside the task enum.",
                 priority: "urgent",
-                area: "autonomy",
                 evidenceIds: ["task:task-autonomous-coding-review-fixture"],
                 howWeWillKnow: "Schema rejects invalid follow-up priority.",
               },

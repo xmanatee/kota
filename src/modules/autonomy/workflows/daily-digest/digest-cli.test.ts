@@ -62,8 +62,7 @@ describe("kota digest CLI", () => {
   beforeEach(async () => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "kota-digest-cli-"));
     mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
     origCwd = process.cwd();
     origEnvKotaScopeRoot = process.env.KOTA_SCOPE_ROOT;
     delete process.env.KOTA_SCOPE_ROOT;

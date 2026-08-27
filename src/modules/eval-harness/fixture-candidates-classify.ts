@@ -30,7 +30,7 @@ import type {
 import { stableUnique } from "./fixture-candidates-types.js";
 
 const GENERATED_ARTIFACT = /\.(?:json|jsonl|txt|md|html|png|csv)$/;
-const TASK_PATH = /data\/tasks\/(?:ready|doing|done|blocked|backlog|dropped)\/(task-[A-Za-z0-9_.-]+)\.md/g;
+const TASK_PATH = /data\/tasks\/(?:archive\/)?(task-[A-Za-z0-9_.-]+)\.md/g;
 
 function verifierHintsFor(evidence: RunEvidence): FixtureCandidateVerifierHints {
   const stateTargets = stableUnique([

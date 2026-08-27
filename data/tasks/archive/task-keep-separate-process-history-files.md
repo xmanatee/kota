@@ -1,0 +1,35 @@
+---
+status: dropped
+---
+
+# Keep separate process history files
+
+## Why Dropped
+
+Dropped during the inbox/task split (`1717fcfd`) because this proposed keeping
+the exact parallel history surfaces KOTA intentionally removed. Current
+standards make git history and `.kota/runs/` the historical record, while
+active guidance lives in docs, tasks, and scoped `AGENTS.md` files. Reopening
+this would reintroduce duplicate process archives.
+
+## Problem
+
+The repo had accumulated separate history and process files that duplicated git
+history, run artifacts, docs, and tasks.
+
+## Desired Outcome
+
+History should come from commits and `.kota/runs/`, while guidance comes from
+docs and `AGENTS.md` files.
+
+## Constraints
+
+- Keep one clear source of truth per purpose.
+- Do not preserve historical process files just because they used to exist.
+- Avoid reintroducing archive layers around tasks.
+
+## Done When
+
+- Separate process-history files are no longer part of the active workflow.
+- Future work does not depend on those files.
+- The remaining coordination surfaces are simpler and clearer.

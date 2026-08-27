@@ -66,7 +66,7 @@ export async function executeWorkCapabilityUiAction(
   }
 
   if (operation.namespace === "tasks" && operation.method === "list") {
-    const result = await client.tasks.list(["doing", "ready", "blocked", "backlog"]);
+    const result = await client.tasks.list(["open", "blocked"]);
     return { ok: true, message: `${result.tasks.length} open task(s).` };
   }
   if (operation.namespace === "tasks" && operation.method === "show") {
@@ -105,19 +105,21 @@ export async function executeWorkCapabilityUiAction(
   }
   if (operation.namespace === "tasks" && operation.method === "create") {
     const title = stringParameter(parameters, "title");
-    const summary = stringParameter(parameters, "summary");
     const priority = stringParameter(parameters, "priority");
-    const area = stringParameter(parameters, "area");
     const state = stringParameter(parameters, "state");
     if (!title) return missingParameter("title");
     if (priority !== "p0" && priority !== "p1" && priority !== "p2" && priority !== "p3") {
       return { ok: false, reason: "invalid-input", message: "priority must be p0, p1, p2, or p3." };
     }
-    if (!area) return missingParameter("area");
-    if (!state || !isRepoTaskState(state)) {
-      return { ok: false, reason: "invalid-input", message: "state must be a valid task state." };
+    if (state && state !== "open" && state !== "blocked") {
+      return { ok: false, reason: "invalid-input", message: "state must be open or blocked." };
     }
-    const result = await client.tasks.create({ title, summary, priority, area, state });
+    const activeState = state === "open" || state === "blocked" ? state : undefined;
+    const result = await client.tasks.create({
+      title,
+      priority,
+      ...(activeState ? { state: activeState } : {}),
+    });
     if (!result.ok) {
       return { ok: false, reason: result.reason, message: result.message ?? `Task was not created: ${result.reason}.` };
     }
@@ -166,9 +168,8 @@ export async function executeWorkCapabilityUiAction(
 
 function isRepoTaskState(
   value: string,
-): value is "backlog" | "ready" | "doing" | "blocked" | "done" | "dropped" {
-  return value === "backlog" || value === "ready" || value === "doing"
-    || value === "blocked" || value === "done" || value === "dropped";
+): value is "open" | "blocked" | "done" | "dropped" {
+  return value === "open" || value === "blocked" || value === "done" || value === "dropped";
 }
 
 function runDetail(run: WorkflowRunDetail): string {

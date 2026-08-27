@@ -28,8 +28,12 @@ export function buildPostCompletionQualityObservations(
   return input.tasks
     .filter((task) => task.state === "done")
     .filter((task) => {
-      const updatedAt = taskUpdatedAtMs(task);
-      return updatedAt >= startMs && updatedAt <= endMs;
+      return (indexes.runIdsByTaskId.get(task.id) ?? []).some((runId) => {
+        const run = indexes.runById.get(runId);
+        if (!run) return false;
+        const completedAt = Date.parse(run.completedAt ?? run.startedAt);
+        return completedAt >= startMs && completedAt <= endMs;
+      });
     })
     .map((task) => {
       const taskLinks = linksByCompletedTaskId.get(task.id) ?? [];
@@ -77,9 +81,4 @@ function groupLinksByCompletedTaskId(
     grouped.set(link.completedTaskId, existing);
   }
   return grouped;
-}
-
-function taskUpdatedAtMs(task: RepoTaskFullRecord): number {
-  const ms = Date.parse(task.updatedAt);
-  return Number.isNaN(ms) ? 0 : ms;
 }

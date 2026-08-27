@@ -44,8 +44,7 @@ describe("GET /api/digest", () => {
   beforeEach(async () => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "kota-digest-route-"));
     mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "blocked"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
 
     observed.length = 0;
     const bus = initEventBus();

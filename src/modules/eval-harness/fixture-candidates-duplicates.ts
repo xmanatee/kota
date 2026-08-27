@@ -1,7 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { resolveKotaRuntimeAsset } from "#core/util/kota-install-paths.js";
-import { REPO_TASK_STATES } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { listVerifiedFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   isJsonObject,
   parseString,
@@ -84,16 +84,10 @@ function collectTaskDuplicateCoverage(
   taskReferencesByFingerprint: Map<string, FixtureCandidateDuplicateReference[]>,
 ): void {
   const tasksDir = join(workspaceRoot, "data", "tasks");
-  for (const state of REPO_TASK_STATES) {
-    const stateDir = join(tasksDir, state);
-    if (!existsSync(stateDir)) continue;
-    for (const entry of readdirSync(stateDir, { withFileTypes: true })) {
-      if (!entry.isFile() || !entry.name.endsWith(".md") || entry.name === "AGENTS.md") {
-        continue;
-      }
-      const id = basename(entry.name, ".md");
-      const path = join(stateDir, entry.name);
-      const content = readFileSync(path, "utf-8");
+  if (!existsSync(tasksDir)) return;
+  for (const task of listVerifiedFullRepoTasks(workspaceRoot)) {
+      const { id, state, body: content } = task;
+      const path = join(workspaceRoot, task.taskFile.path);
       const reference: FixtureCandidateDuplicateReference = {
         kind: "task",
         id,
@@ -111,6 +105,5 @@ function collectTaskDuplicateCoverage(
           reference,
         );
       }
-    }
   }
 }

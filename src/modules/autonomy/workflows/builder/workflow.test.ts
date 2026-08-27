@@ -13,26 +13,23 @@ const roots: string[] = [];
 function project(): string {
   const root = mkdtempSync(join(tmpdir(), "kota-builder-contract-"));
   roots.push(root);
-  for (const state of ["ready", "doing", "backlog", "blocked", "done", "dropped"]) {
-    mkdirSync(join(root, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(root, "data", "tasks", "archive"), { recursive: true });
   return root;
 }
 
 function writeTask(root: string, state: string, marker = "initial"): void {
+  const dir = state === "done" || state === "dropped"
+    ? join(root, "data", "tasks", "archive")
+    : join(root, "data", "tasks");
   writeFileSync(
-    join(root, "data", "tasks", state, "task-target.md"),
+    join(dir, "task-target.md"),
     [
       "---",
-      "id: task-target",
-      "title: Target",
       `status: ${state}`,
-      "priority: p1",
-      "area: runtime",
-      "task_class: Product",
-      "summary: Ship target",
-      "updated_at: 2026-08-25T00:00:00.000Z",
+      ...(state === "open" || state === "blocked" ? ["priority: p1"] : []),
       "---",
+      "",
+      "# Target",
       "",
       marker,
       "",
@@ -51,9 +48,8 @@ describe("targeted builder contract", () => {
       schemaRef: null,
       payload: {
         taskId: "task-target",
-        taskPath: "data/tasks/ready/task-target.md",
-        taskState: "ready",
-        taskUpdatedAt: "2026-08-25T00:00:00.000Z",
+        taskPath: "data/tasks/task-target.md",
+        taskState: "open",
         taskDigest: "a".repeat(64),
         idempotencyKey: `builder:task-target:${"a".repeat(64)}`,
       },
@@ -72,12 +68,12 @@ describe("targeted builder contract", () => {
 
   it("rejects a queued target after its task contract changes", () => {
     const root = project();
-    writeTask(root, "ready");
+    writeTask(root, "open");
     const payload = listBuilderTaskDispatches(root)[0]!;
-    writeTask(root, "ready", "changed");
+    writeTask(root, "open", "changed");
 
     expect(inspectBuilderTaskTarget({ workspaceRoot: root, payload })).toMatchObject({
-      ready: false,
+      actionable: false,
       taskId: "task-target",
       reason: "task contract changed after dispatch",
     });
@@ -85,7 +81,7 @@ describe("targeted builder contract", () => {
 
   it("rechecks the admitted source contract after reconciliation", () => {
     const root = project();
-    writeTask(root, "ready");
+    writeTask(root, "open");
     const payload = listBuilderTaskDispatches(root)[0]!;
     const invariant = builderWorkflow.integration?.postReconcile;
     if (!invariant) throw new Error("missing builder post-reconcile invariant");
@@ -105,7 +101,7 @@ describe("targeted builder contract", () => {
     };
 
     expect(invariant(input)).toEqual({ satisfied: true });
-    writeTask(root, "ready", "changed after admission");
+    writeTask(root, "open", "changed after admission");
     expect(invariant(input)).toMatchObject({
       satisfied: false,
       reason: expect.stringMatching(/no longer matches its admitted source contract/i),
@@ -116,10 +112,10 @@ describe("targeted builder contract", () => {
     const build = builderWorkflow.steps.find((step) => step.id === "build");
     if (!build || build.type !== "agent" || !build.when) throw new Error("missing build step");
     const target = {
-      ready: true,
+      actionable: true,
       taskId: "task-target",
-      taskPath: "data/tasks/ready/task-target.md",
-      taskState: "ready",
+      taskPath: "data/tasks/task-target.md",
+      taskState: "open",
       taskDigest: "a".repeat(64),
       reason: null,
     };
@@ -138,7 +134,7 @@ describe("targeted builder contract", () => {
       build.when({
         ...context,
         stepOutputs: {
-          "inspect-target-task": { ...target, ready: false, reason: "stale" },
+          "inspect-target-task": { ...target, actionable: false, reason: "stale" },
         },
       } as never),
     ).toBe(false);

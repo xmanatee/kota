@@ -14,7 +14,7 @@ const NOW = Date.parse("2026-05-29T12:00:00.000Z");
 
 export function makeTrajectoryDiagnosticScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "trajectory-diagnostic-escalation-"));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+  for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
   }
   mkdirSync(join(dir, ".kota", "runs"), { recursive: true });

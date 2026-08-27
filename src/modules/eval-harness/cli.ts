@@ -687,7 +687,7 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
     .option("--since <iso>", "Only scan runs at or after this ISO timestamp when --run-id is absent")
     .option(
       "--create-task",
-      "Create backlog tasks for proposed candidates and mark them accepted in the report",
+      "Create open tasks for proposed candidates and mark them accepted in the report",
     )
     .action((opts: {
       outputDir: string;

@@ -129,7 +129,7 @@
             "title": "Queue",
             "metrics": [
               {
-                "label": "Ready",
+                "label": "Open",
                 "value": "2",
                 "role": "info"
               }

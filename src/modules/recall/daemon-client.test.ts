@@ -225,9 +225,8 @@ describe("recall module daemonClient(link)", () => {
           score: 0.4,
           id: "task-x",
           title: "Do the thing",
-          state: "ready",
+          state: "open",
           priority: "p1",
-          updatedAt: "2026-05-04T00:00:00.000Z",
         },
       ],
     };

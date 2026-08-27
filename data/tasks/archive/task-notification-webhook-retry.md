@@ -1,0 +1,29 @@
+---
+status: done
+---
+
+# Add retry with backoff to webhook notification delivery
+
+## Problem
+
+The built-in `webhook` and `slack` modules post notifications to external URLs but make no attempt to retry on failure. A transient 5xx response, a brief network interruption, or a slow downstream webhook handler causes the alert to be silently lost. Operators may miss failure alerts, approval requests, or budget alerts because of a temporary connectivity issue.
+
+## Desired Outcome
+
+Webhook and Slack notification delivery retries on failure with configurable backoff. The default should be a small number of retries (e.g. 3) with exponential backoff (e.g. 1s, 2s, 4s). Failures after all retries should be logged as a warning. The feature should be opt-in or transparently on by default with sensible defaults.
+
+## Constraints
+
+- Changes are confined to the webhook and slack module modules (`src/modules/webhook.ts`, `src/modules/slack.ts`).
+- Retry logic should be extracted into a shared helper to avoid duplication.
+- Do not block the notification event handler indefinitely — retries must be async and not hold the bus callback.
+- Keep retry count and delay configurable via module config; use safe defaults if not set.
+- Do not add a retry queue that persists across daemon restarts — in-memory retry attempts only.
+
+## Done When
+
+- Webhook and Slack POSTs retry up to a configurable number of times on non-2xx response or network error.
+- Retries use exponential backoff with a configurable base delay.
+- Final failure after all retries is logged as a warning with the URL and last error.
+- Retry count and delay are configurable via the module config block; defaults apply when not set.
+- Unit tests cover retry behavior, final-failure logging, and the shared retry helper.

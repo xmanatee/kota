@@ -16,7 +16,7 @@ const NOW = new Date("2026-06-04T12:00:00.000Z");
 
 function makeScopeRoot(label: string): string {
   const dir = mkdtempSync(join(tmpdir(), `kota-${label}-`));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+  for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
   }

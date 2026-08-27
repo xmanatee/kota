@@ -74,8 +74,7 @@ function queueEvidence(workspaceRoot: string): ScopeImprovementEvidence {
     id: "queue:snapshot",
     kind: "queue",
     summary:
-      `Task queue open=${snapshot.openCount} actionable=${snapshot.actionableCount} ` +
-      `pullable=${snapshot.pullableCount}`,
+      `Task queue active=${snapshot.activeCount} actionable=${snapshot.actionableCount}`,
   };
 }
 

@@ -19,7 +19,6 @@ import type {
 function summarizeCandidate(candidate: ResearchRetryCandidate): CandidateSummary {
   return {
     id: candidate.id,
-    updatedAt: candidate.updatedAt,
     urls: candidate.urls,
   };
 }

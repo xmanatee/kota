@@ -10,7 +10,7 @@
  * - knowledge — `KnowledgeProvider.create({ title, content })` returns
  *               the slug; the title is the first non-empty line of the
  *               note (capped) and the body is the remainder.
- * - tasks    — the repo-task writer workflow creates a normalized backlog
+ * - tasks    — the repo-task writer workflow creates a normalized open
  *               task from the first non-empty line.
  * - inbox    — the same writer workflow creates the verified inbox note.
  *
@@ -95,9 +95,7 @@ async function createTasksRecord(
     options: {
       title,
       priority: "p3",
-      area: "uncategorized",
-      state: "backlog",
-      summary: title,
+      state: "open",
     },
   });
   if (!result.ok) {
@@ -107,7 +105,7 @@ async function createTasksRecord(
       }`,
     );
   }
-  const repoRelative = join(REPO_TASKS_DIR, "backlog", `${result.id}.md`);
+  const repoRelative = join(REPO_TASKS_DIR, `${result.id}.md`);
   return {
     target: "tasks" as const,
     recordId: result.id,

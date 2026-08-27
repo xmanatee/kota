@@ -75,6 +75,7 @@ function deriveWorkflowOperationalState(
         runId: run.id,
         workflow: run.workflow,
         startedAt: run.startedAt,
+        trigger: run.trigger,
       }];
     }),
     pendingRuns: runs.flatMap((run) => {

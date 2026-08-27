@@ -40,7 +40,7 @@ const ATTRIBUTION_ORDER: DecisionAttribution[] = [
 ];
 
 const KOTA_PLANNING_RE =
-  /\b(?:explorer run|decomposer|progress-reviewer|critic|review-scrutiny|autonomy-health|trajectory-diagnostic|follow-up task|repair task|backlog-promoter|blocked-promoter|inbox-sorter|scope-improver)\b/i;
+  /\b(?:explorer run|decomposer|progress-reviewer|critic|review-scrutiny|autonomy-health|trajectory-diagnostic|follow-up task|repair task|blocked-promoter|inbox-sorter|scope-improver)\b/i;
 const OWNER_PLANNING_RE =
   /\b(?:owner (?:asked|requested|decided|captured|accepted|provided)|user (?:asked|requested|provided)|operator (?:asked|requested|provided)|inbox capture|manual capture)\b/i;
 const DOMAIN_CONTEXT_RE =
@@ -48,7 +48,6 @@ const DOMAIN_CONTEXT_RE =
 const AUTONOMOUS_EXECUTION_WORKFLOWS = new Set([
   "attention-digest",
   "autonomy-health-reviewer",
-  "backlog-promoter",
   "blocked-promoter",
   "builder",
   "decomposer",
@@ -101,9 +100,7 @@ function classifyRun(
   );
   const ownerRecords = dedupeOwnerRecords([...taskOwnerRecords, ...runOwnerRecords]);
   const reviewRecords = input.reviewRecords.filter((record) => record.runId === run.id);
-  const productEvidenceRefs = task?.taskClass === "Product"
-    ? operatorEvidenceRefs(input.runsDir, run.id, delivery)
-    : [];
+  const productEvidenceRefs = operatorEvidenceRefs(input.runsDir, run.id, delivery);
   const planningContext =
     task && hasDecisionAttributionDomainContext(task) || ownerRecords.length > 0
       ? "owner-or-domain"
@@ -129,9 +126,7 @@ function classifyRun(
   return {
     runId: run.id,
     workflow: run.workflow,
-    workMode: task?.taskClass !== undefined && task.taskClass !== "Unclassified"
-      ? task.taskClass
-      : `workflow:${run.workflow}`,
+    workMode: `workflow:${run.workflow}`,
     taskId,
     taskTitle: triggerTask.taskTitle ?? task?.title ?? null,
     planning: planningAttribution(task, ownerRecords),
@@ -156,7 +151,7 @@ function planningAttribution(
   ownerRecords: OwnerInterventionReport["records"],
 ): DecisionAttribution {
   const text = task
-    ? [task.title, task.summary, task.body].join("\n")
+    ? [task.title, task.body].join("\n")
     : "";
   const owner = ownerRecords.length > 0 || OWNER_PLANNING_RE.test(text);
   const kota = task !== null && KOTA_PLANNING_RE.test(text);
@@ -262,5 +257,5 @@ function countRows<T, TKey extends string>(
 export function hasDecisionAttributionDomainContext(
   task: RepoTaskFullRecord,
 ): boolean {
-  return DOMAIN_CONTEXT_RE.test([task.title, task.summary, task.body].join("\n"));
+  return DOMAIN_CONTEXT_RE.test([task.title, task.body].join("\n"));
 }

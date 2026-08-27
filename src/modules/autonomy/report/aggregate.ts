@@ -8,6 +8,7 @@
  */
 
 import { collectReviewScrutinyReport } from "#modules/autonomy/review-scrutiny.js";
+import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import type { RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   listFullRepoTasks,
@@ -39,7 +40,6 @@ import { buildShadowSemanticReviewReport } from "./shadow-semantic-reviews.js";
 import { buildSupervisionLoadReport } from "./supervision-load.js";
 
 export {
-  type AreaCount,
   type AutonomyHealthBreakdown,
   type AutonomyReportData,
   type AutonomyReportInput,
@@ -65,13 +65,10 @@ export {
   type ShadowSemanticReviewReport,
   type StateCount,
   type SupervisionLoadReport,
-  type TaskClassCount,
   type TrajectoryDiagnosticPatternSummary,
   type TrajectoryDiagnosticReport,
   type WorkflowCostRow,
 } from "./aggregate-types.js";
-export type { AreaClassification } from "./task-classification.js";
-export { classifyTaskShape } from "./task-classification.js";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -85,29 +82,9 @@ export function aggregateAutonomyReport(
   const allTasks = listFullRepoTasks(input.workspaceRoot);
   const taskById = buildTaskLookup(allTasks);
   const openQueue = buildQueueBalance(
-    allTasks.filter((t) =>
-      t.state === "backlog" ||
-      t.state === "ready" ||
-      t.state === "doing" ||
-      t.state === "blocked",
-    ),
-    listRepoTaskDependencyWaits(input.workspaceRoot, [
-      "backlog",
-      "ready",
-      "doing",
-      "blocked",
-    ]),
+    allTasks.filter((task) => task.state === "open" || task.state === "blocked"),
+    listRepoTaskDependencyWaits(input.workspaceRoot),
   );
-  const doneInWindow = buildQueueBalance(
-    allTasks.filter(
-      (t) =>
-        t.state === "done" &&
-        Date.parse(t.updatedAt) >= windowStartMs &&
-        Date.parse(t.updatedAt) <= input.windowEndMs,
-    ),
-    [],
-  );
-
   const reportRuns = loadRunsInWindow(input.runsDir, windowStartMs - windowMs).filter(
     (r) => Date.parse(r.startedAt) <= input.windowEndMs,
   );
@@ -118,6 +95,24 @@ export function aggregateAutonomyReport(
     const startedMs = Date.parse(run.startedAt);
     return startedMs >= windowStartMs - windowMs && startedMs < windowStartMs;
   });
+  const completedTaskIds = new Set(
+    runs.flatMap((run) => {
+      if (
+        run.workflow !== "builder" ||
+        (run.status !== "success" && run.status !== "completed-with-warnings")
+      ) {
+        return [];
+      }
+      const delivery = readAutonomyRunDeliveryEvidence(input.runsDir, run);
+      return delivery?.taskId ? [delivery.taskId] : [];
+    }),
+  );
+  const doneInWindow = buildQueueBalance(
+    allTasks.filter(
+      (task) => task.state === "done" && completedTaskIds.has(task.id),
+    ),
+    [],
+  );
   const reviewScrutiny = collectReviewScrutinyReport({
     runsDir: input.runsDir,
     runs,

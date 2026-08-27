@@ -39,12 +39,12 @@ describe("createScopedKotaClient", () => {
     const scoped = createScopedKotaClient(base, "scope-b");
     await scoped.workflow.status();
     await scoped.approvals.list({ status: "all" });
-    await scoped.tasks.list(["ready"]);
+    await scoped.tasks.list(["open"]);
 
     expect(calls).toEqual([
       ["workflow.status", { scopeId: "scope-b" }],
       ["approvals.list", { status: "all", scopeId: "scope-b" }],
-      ["tasks.list", ["ready"], { scopeId: "scope-b" }],
+      ["tasks.list", ["open"], { scopeId: "scope-b" }],
     ]);
   });
 

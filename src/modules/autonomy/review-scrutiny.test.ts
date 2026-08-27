@@ -65,9 +65,8 @@ function builderTrigger(taskId: string): WorkflowRunMetadata["trigger"] {
     schemaRef: null,
     payload: {
       taskId,
-      taskPath: `data/tasks/ready/${taskId}.md`,
-      taskState: "ready",
-      taskUpdatedAt: NOW,
+      taskPath: `data/tasks/${taskId}.md`,
+      taskState: "open",
       taskDigest,
       idempotencyKey: `builder:${taskId}:${taskDigest}`,
       title: taskId,

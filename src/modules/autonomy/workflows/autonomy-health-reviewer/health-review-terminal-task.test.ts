@@ -86,7 +86,7 @@ describe("autonomy health review terminal task handling", () => {
   });
 
   it("leaves completed tasks untouched when an issue recurs", () => {
-    const doneDir = join(workspaceRoot, "data", "tasks", "done");
+    const doneDir = join(workspaceRoot, "data", "tasks", "archive");
     mkdirSync(doneDir, { recursive: true });
     writeFileSync(
       join(
@@ -95,16 +95,10 @@ describe("autonomy health review terminal task handling", () => {
       ),
       [
         "---",
-        "id: task-health-dead-letter-execution-workflow-runtime-progress-reviewer",
-        "title: Repair autonomy health pattern dead-letter:execution:workflow-runtime:progress-reviewer",
         "status: done",
-        "priority: p2",
-        "area: autonomy",
-        "summary: Prior progress-reviewer DLQ repair for older evidence.",
-        `created_at: ${NOW}`,
-        `updated_at: ${NOW}`,
-        "task_class: Meta",
         "---",
+        "",
+        "# Repair autonomy health pattern dead-letter:execution:workflow-runtime:progress-reviewer",
         "",
         "<!-- autonomy-health-dedupe-key: dead-letter:execution:workflow-runtime:progress-reviewer -->",
         "<!-- autonomy-health-evidence-fingerprint: bf712eea3fd1821c -->",
@@ -163,7 +157,7 @@ describe("autonomy health review terminal task handling", () => {
       }),
     ]);
     const task = readFileSync(
-      join(workspaceRoot, "data", "tasks", "done", `${expectedTaskId}.md`),
+      join(workspaceRoot, "data", "tasks", "archive", `${expectedTaskId}.md`),
       "utf-8",
     );
     expect(task).toContain(

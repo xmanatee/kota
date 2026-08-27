@@ -42,13 +42,10 @@ function makeProgram(): Command {
 }
 
 function writeTask(workspaceRoot: string, id: string): void {
-  const dir = join(workspaceRoot, "data", "tasks", "backlog");
+  const dir = join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
-  const updatedAt = new Date("2026-07-07T12:00:00.000Z").toISOString();
   const content =
-    `---\nid: ${id}\ntitle: ${id}\nstatus: backlog\npriority: p1\n` +
-    `area: architecture\nsummary: t\ncreated_at: ${updatedAt}\n` +
-    `updated_at: ${updatedAt}\n---\n\n## Problem\n\nTest body.\n`;
+    `---\nstatus: open\npriority: p1\n---\n\n# ${id}\n\n## Problem\n\nTest body.\n`;
   writeFileSync(join(dir, `${id}.md`), content, "utf-8");
 }
 
@@ -202,7 +199,7 @@ describe("kota report CLI supervision load", () => {
       pendingApprovals: null,
       pendingOwnerQuestions: null,
       openDeadLetters: null,
-      attentionItems: 1,
+      attentionItems: 0,
       postCompletionFollowUps: 0,
       reviewEvidenceGaps: 0,
     });

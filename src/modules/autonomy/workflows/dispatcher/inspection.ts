@@ -5,10 +5,6 @@ import {
   type RepoTaskQueueSnapshot,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
-  buildPromotionRationale,
-  type PromotionRationale,
-} from "../backlog-promoter/promotion.js";
-import {
   type BuilderTaskDispatchPayload,
   listBuilderTaskDispatches,
 } from "../builder/task-contract.js";
@@ -30,7 +26,6 @@ import {
 export type DispatcherInspection = {
   queue: RepoTaskQueueSnapshot;
   builderTasks: BuilderTaskDispatchPayload[];
-  promotionRationale: PromotionRationale;
   researchRetryAvailability: ResearchRetryAvailability;
   securityReviewDue: SecurityReviewDueDecision;
   scopeBoundary: ScopeBoundaryInspection;
@@ -54,7 +49,6 @@ export function inspectDispatcherStateInWorker(
   return {
     queue: getRepoTaskQueueSnapshot(input.workspaceRoot),
     builderTasks: listBuilderTaskDispatches(input.workspaceRoot),
-    promotionRationale: buildPromotionRationale(input.workspaceRoot),
     researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot),
     securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,

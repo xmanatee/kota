@@ -1,13 +1,9 @@
 ---
-id: task-add-ledger-export-round-2
-title: Add ledger CSV export without regressing summaries
-status: ready
+status: open
 priority: p2
-area: eval-harness
-summary: Add the second-round ledger export behavior while preserving the first-round summary behavior.
-created_at: 2026-05-28T00:00:00.000Z
-updated_at: 2026-05-28T00:00:00.000Z
 ---
+
+# Add ledger CSV export without regressing summaries
 
 ## Problem
 
@@ -44,7 +40,7 @@ node scripts/check-ledger.mjs --round=2
 
 - `node scripts/check-ledger.mjs --round=2` exits successfully.
 - The round 1 summary checks still pass.
-- This task has moved from `data/tasks/ready/` to `data/tasks/done/`.
+- This task has moved from `data/tasks/` to `data/tasks/archive/`.
 
 ## Acceptance Evidence
 

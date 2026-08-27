@@ -96,8 +96,6 @@ describe("production dead-letter routing replay", () => {
         taskTitle: "Repair passive Codex workflow compatibility",
         taskSummary: "Reject the incompatible native harness contract before dispatch.",
         taskPriority: "p1",
-        taskArea: "autonomy",
-        taskClass: "Product",
         taskHowWeWillKnow:
           "The captured production incident reaches one typed clear without another AI review.",
         ownerQuestion: "",
@@ -198,7 +196,7 @@ describe("production dead-letter routing replay", () => {
           );
           if (index === 0) {
             await waitForLifecycle(
-              () => listFullRepoTasks(workspaceRoot).some((task) => task.state === "ready"),
+              () => listFullRepoTasks(workspaceRoot).some((task) => task.state === "open"),
               "the single generated repair task",
             );
           }
@@ -229,7 +227,7 @@ describe("production dead-letter routing replay", () => {
           "repeated",
           "repeated",
         ]);
-        expect(readyTasks).toEqual([expect.objectContaining({ state: "ready" })]);
+        expect(readyTasks).toEqual([expect.objectContaining({ state: "open" })]);
         expect(openIssue.links.taskIds).toEqual([readyTasks[0]!.id]);
         expect(getRepoTaskQueueSnapshot(workspaceRoot).hasDispatchableWork).toBe(true);
         expect(attention.some((text) => text.includes("action decision-requested"))).toBe(

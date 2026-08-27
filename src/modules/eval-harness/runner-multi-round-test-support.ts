@@ -32,11 +32,11 @@ export function writeMultiRoundFixture(fixturesRoot: string, id = "multi-round-m
           taskInput: {
             kind: "copy-fixture-file",
             sourcePath: "rounds/round-2-task.md",
-            targetPath: "data/tasks/ready/task-round-2.md",
+            targetPath: "data/tasks/task-round-2.md",
           },
           preRunExpectations: [
             { predicate: { kind: "file-exists", path: "state/round-1.txt" }, expected: "pass" },
-            { predicate: { kind: "file-exists", path: "data/tasks/ready/task-round-2.md" }, expected: "pass" },
+            { predicate: { kind: "file-exists", path: "data/tasks/task-round-2.md" }, expected: "pass" },
             { predicate: { kind: "file-exists", path: "state/round-2.txt" }, expected: "fail" },
           ],
           predicates: [

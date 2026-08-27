@@ -31,7 +31,6 @@ describe("generated-work proposal materializer", () => {
       const revised = materializeGeneratedWorkProposal({
         workspaceRoot,
         proposal: taskProposal({
-          summary: "Revised issue disposition with stronger evidence.",
           provenance: {
             source: "improver",
             runId: "review-run-2",
@@ -45,10 +44,10 @@ describe("generated-work proposal materializer", () => {
       expect(revised.taskId).toBe(taskId);
       const tasks = listFullRepoTasks(workspaceRoot);
       expect(tasks).toHaveLength(1);
-      expect(tasks[0]?.state).toBe(state === "doing" ? "doing" : "ready");
-      expect(tasks[0]?.body).toContain("review-run-1");
-      expect(tasks[0]?.body).toContain("review-run-2");
-      expect(tasks[0]?.body).toContain("failure-2/metadata.json");
+      expect(tasks[0]?.state).toBe("open");
+      expect(tasks[0]?.priority).toBe("p1");
+      expect(tasks[0]?.body).toContain("A durable autonomy issue needs implementation work.");
+      expect(tasks[0]?.body).not.toContain("review-run-");
     });
   }
 
@@ -128,8 +127,8 @@ describe("generated-work proposal materializer", () => {
     expect(resolved.taskId).toBeNull();
     expect(resolved.ownerQuestionId).toBeNull();
     expect(generatedWorkTaskMutationPaths(resolved.actions)).toEqual([
-      `data/tasks/dropped/${task.taskId}.md`,
-      `data/tasks/ready/${task.taskId}.md`,
+      `data/tasks/archive/${task.taskId}.md`,
+      `data/tasks/${task.taskId}.md`,
     ]);
     expect(listFullRepoTasks(workspaceRoot)[0]?.state).toBe("dropped");
     expect(

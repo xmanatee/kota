@@ -3,7 +3,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { resolveDecompositionOwnership } from "./assessment-ownership.js";
 import {
   failedBuilderMetadata,
@@ -29,26 +28,26 @@ afterEach(() => {
 describe("decomposer assessment ownership", () => {
   it("resolves the exact task bound to the failed builder trigger", () => {
     const workspaceRoot = project();
-    const task = writeActionableTask(workspaceRoot, TASK_ID, "doing");
+    const task = writeActionableTask(workspaceRoot, TASK_ID);
     const metadata = failedBuilderMetadata(task);
 
     expect(resolveDecompositionOwnership(workspaceRoot, metadata)).toMatchObject({
       kind: "owned-task",
       task: {
         id: TASK_ID,
-        path: `data/tasks/doing/${TASK_ID}.md`,
+        path: `data/tasks/${TASK_ID}.md`,
         digest: task.taskDigest,
       },
     });
   });
 
-  it("treats a canonical ready-to-doing move as a changed immutable contract", () => {
+  it("treats a canonical task-content change as a changed immutable contract", () => {
     const workspaceRoot = project();
-    const task = writeActionableTask(workspaceRoot, TASK_ID, "ready");
+    const task = writeActionableTask(workspaceRoot, TASK_ID);
     const metadata = failedBuilderMetadata(task);
     execFileSync("git", ["add", "--", task.taskPath], { cwd: workspaceRoot });
 
-    moveTaskById(workspaceRoot, TASK_ID, "doing");
+    writeActionableTask(workspaceRoot, TASK_ID, "Changed task intent.");
 
     expect(resolveDecompositionOwnership(workspaceRoot, metadata)).toEqual({
       kind: "superseded-task",
@@ -58,7 +57,7 @@ describe("decomposer assessment ownership", () => {
 
   it("rejects source metadata outside the builder queue contract", () => {
     const workspaceRoot = project();
-    const task = writeActionableTask(workspaceRoot, TASK_ID, "doing");
+    const task = writeActionableTask(workspaceRoot, TASK_ID);
     const metadata = failedBuilderMetadata(task);
     metadata.trigger = { ...metadata.trigger, event: "runtime.idle" };
 

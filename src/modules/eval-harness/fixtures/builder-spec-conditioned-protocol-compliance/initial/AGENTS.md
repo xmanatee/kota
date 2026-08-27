@@ -7,4 +7,4 @@ This fixture is a tiny dependency-free Node project for the KOTA eval harness.
 - `test/protocol-generic.test.mjs` covers visible defensive cases only.
 - Implement protocol behavior in `src/protocol-handler.mjs`.
 - Write compliance evidence to `spec-compliance-result.json`.
-- Move the seeded task from `data/tasks/ready/` to `data/tasks/done/` when complete.
+- Move the seeded task from `data/tasks/` to `data/tasks/archive/` when complete.

@@ -19,9 +19,8 @@
         {
           "topicKey": "channel-progress-review-routing-fixture",
           "title": "Add channel progress review routing fixture",
-          "summary": "Create a fixture that shows an inbound channel batch being reviewed with routed workflow evidence.",
+          "problem": "An inbound channel batch lacks reviewable routed workflow evidence.",
           "priority": "p2",
-          "area": "channel",
           "evidenceIds": ["event:1"],
           "howWeWillKnow": "The inbound channel batch produces the expected review action in the real progress-review workflow."
         }

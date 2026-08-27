@@ -147,9 +147,8 @@ describe('AnswerScreen', () => {
           score: 0.71,
           id: 'task-foo',
           title: 'Wire mobile answer',
-          state: 'ready',
+          state: 'open',
           priority: 'p2',
-          updatedAt: '2026-04-25T12:00:00.000Z',
         },
       ],
     };

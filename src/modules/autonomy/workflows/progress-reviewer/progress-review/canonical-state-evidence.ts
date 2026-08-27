@@ -66,8 +66,7 @@ export function listCanonicalProgressState(args: {
       id: "queue",
       path: "data/tasks/",
       summary:
-        `Canonical queue open=${queue.openCount} actionable=${queue.actionableCount} ` +
-        `promotableBacklog=${queue.promotableBacklogCount} ` +
+        `Canonical queue active=${queue.activeCount} actionable=${queue.actionableCount} ` +
         `dependencyBlocked=${queue.dependencyBlockedTasks.length}`,
     }),
     stateRef({

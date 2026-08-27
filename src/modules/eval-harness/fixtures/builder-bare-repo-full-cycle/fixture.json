@@ -31,15 +31,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-repair-project-code-full-cycle.md"
+      "path": "data/tasks/task-repair-project-code-full-cycle.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-repair-project-code-full-cycle.md"
+      "path": "data/tasks/archive/task-repair-project-code-full-cycle.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-repair-project-code-full-cycle.md",
+      "path": "data/tasks/archive/task-repair-project-code-full-cycle.md",
       "needle": "status: done"
     },
     {
@@ -49,8 +49,8 @@
         "pnpm-lock.yaml",
         "src/project-code.mjs",
         "test/project-code.test.mjs",
-        "data/tasks/ready/task-repair-project-code-full-cycle.md",
-        "data/tasks/done/task-repair-project-code-full-cycle.md"
+        "data/tasks/task-repair-project-code-full-cycle.md",
+        "data/tasks/archive/task-repair-project-code-full-cycle.md"
       ]
     }
   ],
@@ -129,7 +129,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-repair-project-code-full-cycle.md"
+        "path": "data/tasks/task-repair-project-code-full-cycle.md"
       },
       "expected": "pass"
     }

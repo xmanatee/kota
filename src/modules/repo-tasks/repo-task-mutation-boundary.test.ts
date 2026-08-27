@@ -30,11 +30,11 @@ afterEach(() => {
 function projectWithTask() {
   const workspaceRoot = join(tmpdir(), `kota-task-mutation-${Date.now()}-${Math.random()}`);
   roots.push(workspaceRoot);
-  mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
-  const taskPath = join(workspaceRoot, "data", "tasks", "ready", "task-example.md");
+  mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
+  const taskPath = join(workspaceRoot, "data", "tasks", "task-example.md");
   writeFileSync(
     taskPath,
-    "---\nid: task-example\ntitle: Example\nstatus: ready\n---\n\n## Problem\n\nOld.\n",
+    "---\nstatus: open\npriority: p2\n---\n\n# Example\n\n## Problem\n\nOld.\n",
   );
   return {
     workspaceRoot,
@@ -67,7 +67,7 @@ describe("repo-task mutation", () => {
     const execute = vi.fn<WorkflowDispatcher["execute"]>().mockResolvedValue({
       ok: true,
       runId: "run-repo-task-mutation",
-      output: { ok: true, id: "task-example", state: "ready" },
+      output: { ok: true, id: "task-example", state: "open" },
     });
     registerDispatcher(execute);
 
@@ -98,12 +98,12 @@ describe("repo-task mutation", () => {
     await expect(mutateRepoTask(target, {
       kind: "move",
       id: "task-missing",
-      state: "doing",
+      state: "open",
     })).resolves.toEqual({ ok: false, reason: "not_found" });
 
     await expect(mutateRepoTask(
       { authority: "runtime-owned-sandbox", repositoryAccess: {} as never },
-      { kind: "move", id: "task-missing", state: "doing" },
+      { kind: "move", id: "task-missing", state: "open" },
     )).rejects.toThrow(/runtime-owned writer repository/i);
   });
 
@@ -116,7 +116,7 @@ describe("repo-task mutation", () => {
     await expect(mutateRepoTask(target, {
       kind: "move",
       id: "task-missing",
-      state: "doing",
+      state: "open",
     })).rejects.toThrow(/not active/i);
   });
 
@@ -138,28 +138,7 @@ describe("repo-task mutation", () => {
   it("rejects invalid untyped workflow payloads before resource admission", () => {
     expect(() => decodeRepoTaskMutationRequest({
       kind: "create",
-      options: { title: "Bad", priority: "p9", area: "core", state: "ready" },
+      options: { title: "Bad", priority: "p9", state: "open" },
     })).toThrow(/valid priority/);
-    expect(() => decodeRepoTaskMutationRequest({
-      kind: "gc",
-      options: { days: 0 },
-    })).toThrow(/positive number/);
-  });
-
-  it("does not overwrite a colliding quick-create inbox id", async () => {
-    const scopeDir = join(tmpdir(), `kota-task-collision-${Date.now()}`);
-    roots.push(scopeDir);
-    const target = createRepoTaskRuntimeSandbox(scopeDir, "repo-task-collision-test");
-    mkdirSync(join(target.workspaceRoot, "data", "inbox"), { recursive: true });
-    const path = join(target.workspaceRoot, "data", "inbox", "task-example.md");
-    writeFileSync(path, "original\n");
-
-    await expect(mutateRepoTask(target, {
-      kind: "quick-create",
-      id: "task-example",
-      title: "Replacement",
-      summary: "must not win",
-    })).resolves.toEqual({ ok: false, reason: "already_exists" });
-    expect(readFileSync(path, "utf8")).toBe("original\n");
   });
 });

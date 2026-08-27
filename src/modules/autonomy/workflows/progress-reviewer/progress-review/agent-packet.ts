@@ -74,7 +74,6 @@ function progressReviewEvidenceCounts(
     | "deadLetters"
     | "canonicalState"
     | "evidence"
-    | "taskClassDistribution"
   >,
 ): ProgressReviewEvidenceCounts {
   return {
@@ -88,7 +87,6 @@ function progressReviewEvidenceCounts(
     deadLetters: packet.deadLetters.length,
     state: packet.canonicalState.length,
     evidence: packet.evidence.length,
-    taskClasses: packet.taskClassDistribution,
   };
 }
 
@@ -245,7 +243,6 @@ export function compactProgressReviewEvidenceForAgent(
       packet.deadLetterCounts,
       excluded,
     ),
-    operatorJourneyRisks: packet.operatorJourneyRisks,
     evidence: compacted.evidence,
     excluded,
   };

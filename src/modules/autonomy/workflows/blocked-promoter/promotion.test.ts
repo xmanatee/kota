@@ -1,5 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -11,7 +17,6 @@ import {
 } from "#modules/repo-tasks/blocked-precondition.js";
 import {
   applyOperatorCaptureInstruction,
-  type BlockedTaskRecord,
   type BlockerAction,
   classifyBlockedActions,
   extractRecommendedAnswer,
@@ -24,10 +29,9 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function makeScopeRoot(): string {
   const dir = mkdtempSync(join(tmpdir(), "blocked-promoter-promotion-"));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
-  }
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
+  writeFileSync(join(dir, "data", "tasks", "AGENTS.md"), "# tasks\n");
+  writeFileSync(join(dir, "data", "tasks", "archive", "AGENTS.md"), "# archive\n");
   execFileSync("git", ["init", "--quiet"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
@@ -47,21 +51,17 @@ function blockedTask(opts: {
   const priority = opts.priority ?? "p2";
   const content = [
     "---",
-    `id: ${opts.id}`,
-    `title: ${opts.id}`,
     "status: blocked",
     `priority: ${priority}`,
-    "area: autonomy",
-    `summary: ${opts.id}`,
-    `created_at: ${updatedAt}`,
-    `updated_at: ${updatedAt}`,
     ...(opts.dependsOn ? [`depends_on: [${opts.dependsOn.join(", ")}]`] : []),
     "---",
+    "",
+    `# ${opts.id}`,
     "",
     "## Problem",
     "Body.",
     "",
-    "## Unblock Precondition",
+    "## Blocked on",
     "",
     "```",
     ...opts.preconditionLines,
@@ -70,10 +70,10 @@ function blockedTask(opts: {
     opts.bodySuffix ?? "",
     "",
   ].join("\n");
-  writeFileSync(
-    join(opts.workspaceRoot, "data", "tasks", "blocked", `${opts.id}.md`),
-    content,
-  );
+  const path = join(opts.workspaceRoot, "data", "tasks", `${opts.id}.md`);
+  writeFileSync(path, content);
+  const changedAt = new Date(updatedAt);
+  utimesSync(path, changedAt, changedAt);
 }
 
 describe("extractRecommendedAnswer", () => {
@@ -140,42 +140,6 @@ describe("pickOwnerAskCandidate surfaces recommendedAnswer", () => {
 });
 
 describe("classifyBlockedActions", () => {
-  it("classifies task-done blockers as auto-promotable when enabler is in done/", () => {
-    const dir = makeScopeRoot();
-    writeFileSync(
-      join(dir, "data", "tasks", "done", "task-enabler.md"),
-      "---\nid: task-enabler\nstatus: done\n---\n# done\n",
-    );
-    blockedTask({
-      workspaceRoot: dir,
-      id: "task-depends",
-      daysAgo: 2,
-      preconditionLines: ["kind: task-done", "ref: task-enabler"],
-    });
-    const records = listBlockedTasksWithPreconditions(dir);
-    const actions = classifyBlockedActions(records, dir, Date.now());
-    expect(actions).toHaveLength(1);
-    expect(actions[0].kind).toBe("auto-promotable");
-    expect(actions[0].preconditionKind).toBe("task-done");
-  });
-
-  it("classifies task-done blockers as still-awaiting-task when enabler missing", () => {
-    const dir = makeScopeRoot();
-    blockedTask({
-      workspaceRoot: dir,
-      id: "task-depends-missing",
-      daysAgo: 2,
-      preconditionLines: ["kind: task-done", "ref: task-enabler-missing"],
-    });
-    const records = listBlockedTasksWithPreconditions(dir);
-    const actions = classifyBlockedActions(records, dir, Date.now());
-    expect(actions).toHaveLength(1);
-    expect(actions[0].kind).toBe("still-awaiting-task");
-    if (actions[0].kind === "still-awaiting-task") {
-      expect(actions[0].enablerRef).toBe("task-enabler-missing");
-    }
-  });
-
   it("classifies capability-installed as still-awaiting-capability when probe fails", () => {
     const dir = makeScopeRoot();
     blockedTask({
@@ -196,8 +160,8 @@ describe("classifyBlockedActions", () => {
   it("classifies blocked tasks with unfinished hard dependencies before precondition action", () => {
     const dir = makeScopeRoot();
     writeFileSync(
-      join(dir, "data", "tasks", "backlog", "task-enabler.md"),
-      "---\nid: task-enabler\nstatus: backlog\n---\n# backlog\n",
+      join(dir, "data", "tasks", "task-enabler.md"),
+      "---\nstatus: open\npriority: p2\n---\n\n# Enabler\n",
     );
     blockedTask({
       workspaceRoot: dir,
@@ -520,38 +484,6 @@ describe("classifyBlockedActions includes ageDays", () => {
     expect(actions[0].ageDays).toBe(7);
   });
 
-  it("yields ageDays null when frontmatter updated_at is unparseable", () => {
-    const dir = makeScopeRoot();
-    writeFileSync(
-      join(dir, "data", "tasks", "blocked", "task-broken.md"),
-      [
-        "---",
-        "id: task-broken",
-        "title: task-broken",
-        "status: blocked",
-        "priority: p2",
-        "area: autonomy",
-        "summary: x",
-        "created_at: 2026-05-02T00:00:00.000Z",
-        "updated_at: not-a-date",
-        "---",
-        "",
-        "## Problem",
-        "x",
-        "",
-        "## Unblock Precondition",
-        "",
-        "```",
-        "kind: capability-installed",
-        "probe: playwright",
-        "```",
-        "",
-      ].join("\n"),
-    );
-    const records: BlockedTaskRecord[] = listBlockedTasksWithPreconditions(dir);
-    const actions = classifyBlockedActions(records, dir, Date.now());
-    expect(actions[0].ageDays).toBeNull();
-  });
 });
 
 describe("readOwnerAskMarkers integration", () => {

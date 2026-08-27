@@ -11,7 +11,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
   moveTaskById,
-  REPO_TASK_STATES,
   type RepoTaskState,
 } from "./repo-tasks-domain.js";
 import {
@@ -28,9 +27,7 @@ describe("task queue integrity", () => {
 
   beforeEach(() => {
     repoRoot = mkdtempSync(join(tmpdir(), "kota-task-integrity-"));
-    for (const state of REPO_TASK_STATES) {
-      mkdirSync(join(repoRoot, "data", "tasks", state), { recursive: true });
-    }
+    mkdirSync(join(repoRoot, "data", "tasks", "archive"), { recursive: true });
   });
 
   afterEach(() => {
@@ -43,22 +40,23 @@ describe("task queue integrity", () => {
     overrides: Record<string, string | string[]> = {},
     body = "Clear natural-language intent with no prescribed headings or proof artifacts.",
   ): string {
-    const path = join(repoRoot, "data", "tasks", state, `${id}.md`);
+    const terminal = state === "done" || state === "dropped";
+    const path = join(
+      repoRoot,
+      "data",
+      "tasks",
+      ...(terminal ? ["archive"] : []),
+      `${id}.md`,
+    );
     writeFileSync(
       path,
       serializeFlatFrontMatter(
         {
-          id,
-          title: "Lean task",
           status: state,
-          priority: "p2",
-          area: "core",
-          summary: "Preserve one clear outcome.",
-          created_at: "2026-08-26T00:00:00.000Z",
-          updated_at: "2026-08-26T00:00:00.000Z",
+          ...(terminal ? {} : { priority: "p2" }),
           ...overrides,
         },
-        body,
+        `# Lean task\n\n${body}`,
       ),
       "utf8",
     );
@@ -67,15 +65,11 @@ describe("task queue integrity", () => {
 
   it("accepts and moves a clear task without class, evidence, or fixed prose sections", () => {
     const id = "task-natural-intent";
-    writeTask(id, "backlog");
+    writeTask(id, "open");
 
     expect(() => assertTaskQueueValid(repoRoot)).not.toThrow();
-    expect(moveTaskById(repoRoot, id, "ready")).toMatchObject({
-      fromState: "backlog",
-      toState: "ready",
-    });
     expect(moveTaskById(repoRoot, id, "done")).toMatchObject({
-      fromState: "ready",
+      fromState: "open",
       toState: "done",
     });
   });
@@ -85,43 +79,40 @@ describe("task queue integrity", () => {
       repoRoot,
       "data",
       "tasks",
-      "backlog",
       "task-malformed.md",
     );
-    writeFileSync(path, "---\nid: task-malformed\nid: task-malformed\nbroken\n---\nIntent\n");
+    writeFileSync(path, "---\nstatus: open\nstatus: open\nbroken\n---\n# Intent\n");
 
     expect(findingCodes(repoRoot)).toContain("task-frontmatter-invalid");
   });
 
-  it("checks task id, filename, and state agreement", () => {
-    writeTask("bad_id", "backlog", {
-      id: "task-other",
-      status: "ready",
+  it("checks filename identity and root/archive state agreement", () => {
+    writeTask("bad_id", "open", {
+      status: "done",
     });
 
     expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
       "task-id-invalid",
-      "task-id-mismatch",
-      "task-status-mismatch",
+      "task-container-mismatch",
     ]));
   });
 
-  it("checks required routing metadata without interpreting task prose", () => {
-    writeTask("task-bad-metadata", "backlog", {
-      title: "",
-      priority: "urgent",
-      updated_at: "yesterday-ish",
-    });
+  it("checks minimal active metadata and body title without interpreting prose", () => {
+    const path = join(repoRoot, "data", "tasks", "task-bad-metadata.md");
+    writeFileSync(
+      path,
+      "---\nstatus: open\npriority: urgent\nupdated_at: yesterday-ish\n---\nNo title.\n",
+    );
 
     expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
-      "task-missing-required-attr",
-      "task-invalid-priority",
-      "task-date-invalid",
+      "task-priority-invalid",
+      "task-attr-unnecessary",
+      "task-title-missing",
     ]));
   });
 
   it("rejects missing, duplicate, and self dependencies", () => {
-    writeTask("task-dependencies", "backlog", {
+    writeTask("task-dependencies", "open", {
       depends_on: [
         "task-missing",
         "task-missing",
@@ -137,15 +128,15 @@ describe("task queue integrity", () => {
   });
 
   it("rejects dependency cycles", () => {
-    writeTask("task-cycle-a", "backlog", { depends_on: ["task-cycle-b"] });
-    writeTask("task-cycle-b", "backlog", { depends_on: ["task-cycle-a"] });
+    writeTask("task-cycle-a", "open", { depends_on: ["task-cycle-b"] });
+    writeTask("task-cycle-b", "open", { depends_on: ["task-cycle-a"] });
 
     expect(findingCodes(repoRoot)).toContain("task-dependency-cycle");
   });
 
   it("rejects live work that depends on a dropped task", () => {
     writeTask("task-retired", "dropped");
-    writeTask("task-live", "backlog", { depends_on: ["task-retired"] });
+    writeTask("task-live", "open", { depends_on: ["task-retired"] });
 
     expect(findingCodes(repoRoot)).toContain("task-dependency-dropped");
   });
@@ -156,45 +147,26 @@ describe("task queue integrity", () => {
     expect(findingCodes(repoRoot)).toContain("blocked-task-precondition-invalid");
   });
 
-  it("keeps task-done preconditions aligned with the dependency edge", () => {
-    writeTask("task-enabler", "backlog");
-    writeTask(
-      "task-blocked",
-      "blocked",
-      { depends_on: [] },
-      "## Unblock Precondition\n\n```\nkind: task-done\nref: task-enabler\n```",
-    );
-
-    expect(findingCodes(repoRoot)).toContain(
-      "blocked-task-done-dependency-mismatch",
-    );
-  });
-
   it("rejects the same id in more than one state", () => {
-    writeTask("task-duplicate", "backlog");
-    writeTask("task-duplicate", "ready");
+    writeTask("task-duplicate", "open");
+    writeTask("task-duplicate", "done");
 
-    expect(findingCodes(repoRoot)).toContain("task-duplicate-state");
+    expect(findingCodes(repoRoot)).toContain("task-duplicate");
   });
 
-  it("rejects linked task entries and runtime state nested under data", () => {
-    const target = writeTask("task-target", "backlog");
+  it("rejects linked task entries", () => {
+    const target = writeTask("task-target", "open");
     symlinkSync(
       target,
-      join(repoRoot, "data", "tasks", "ready", "task-linked.md"),
+      join(repoRoot, "data", "tasks", "task-linked.md"),
     );
-    mkdirSync(join(repoRoot, "data", "nested", ".kota"), { recursive: true });
-
-    expect(findingCodes(repoRoot)).toEqual(expect.arrayContaining([
-      "task-path-unsafe",
-      "data-nested-runtime-state",
-    ]));
+    expect(findingCodes(repoRoot)).toContain("task-path-unsafe");
   });
 
   it("does not turn package-manager wording, diff preferences, or evidence terms into errors", () => {
     writeTask(
       "task-prose-is-not-policy",
-      "backlog",
+      "open",
       {},
       "The owner mentioned npm, a small diff, screenshots, and an inaccessible source. Review the actual desired behavior instead of classifying these words.",
     );

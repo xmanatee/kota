@@ -6,7 +6,7 @@ import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operati
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import {
-  getRepoTaskStateDir,
+  getRepoTaskContainerDir,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
@@ -54,7 +54,7 @@ export function createMentionTaskInWorker(input: {
       taskId,
       path: relative(
         input.workspaceRoot,
-        join(getRepoTaskStateDir(input.workspaceRoot, existing.state), `${taskId}.md`),
+        join(getRepoTaskContainerDir(input.workspaceRoot, existing.state), `${taskId}.md`),
       ),
       title: input.taskTitle,
     };
@@ -62,9 +62,7 @@ export function createMentionTaskInWorker(input: {
   const result = createNormalizedTask(input.workspaceRoot, {
     title: input.taskTitle,
     priority: "p2",
-    area: "modules",
-    state: "ready",
-    summary: input.taskSummary,
+    state: "open",
   });
   if (!result.ok) {
     throw new Error(

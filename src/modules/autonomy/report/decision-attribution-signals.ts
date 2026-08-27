@@ -52,7 +52,7 @@ export function hardSuccessSignalsForRun(args: {
   ) {
     signals.add("owner-acceptance");
   }
-  if (args.task?.taskClass === "Product" && args.productEvidenceRefs.length > 0) {
+  if (args.productEvidenceRefs.length > 0) {
     signals.add("rendered-product-evidence");
   }
   return [...signals].sort();
@@ -99,13 +99,6 @@ export function troubleSignalsForRun(args: {
     args.run.status === "success" || args.run.status === "completed-with-warnings";
   if (successful && args.hardSuccessSignals.length === 0) {
     signals.add("claimed-success-without-hard-evidence");
-  }
-  if (
-    successful &&
-    args.task?.taskClass === "Product" &&
-    args.productEvidenceRefs.length === 0
-  ) {
-    signals.add("weak-product-success-evidence");
   }
   return [...signals].sort();
 }

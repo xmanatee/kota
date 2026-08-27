@@ -120,8 +120,7 @@ export type RawRecallEntry =
       payload: {
         title: string;
         state: string;
-        priority: string;
-        updatedAt: string;
+        priority: string | null;
       };
     }
   | {

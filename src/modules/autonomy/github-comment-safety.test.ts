@@ -47,7 +47,7 @@ describe("outbound GitHub comment safety", () => {
     const body = [
       "Thanks for the implementation mention on issue #17.",
       "",
-      "Created KOTA task `task-block-high-confidence-secret-patterns-in-github-wor` in `data/tasks/ready/task-block-high-confidence-secret-patterns-in-github-wor.md`.",
+      "Created KOTA task `task-block-high-confidence-secret-patterns-in-github-wor` in `data/tasks/task-block-high-confidence-secret-patterns-in-github-wor.md`.",
       "Reference: https://github.com/owner/repo/issues/17#issuecomment-1234",
       "This can mention secret or token as prose without a credential value.",
     ].join("\n");

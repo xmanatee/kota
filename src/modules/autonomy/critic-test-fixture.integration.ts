@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Mock, vi } from "vitest";
@@ -102,10 +102,10 @@ export function makeRunDir(workspaceRoot: string): string {
   return runDir;
 }
 
-export function writeDoingTask(dir: string, filename: string, content: string): void {
-  const doingDir = join(dir, "data/tasks/doing");
-  mkdirSync(doingDir, { recursive: true });
-  writeFileSync(join(doingDir, filename), content);
+export function writeOpenTask(dir: string, filename: string, content: string): void {
+  const tasksDir = join(dir, "data/tasks");
+  mkdirSync(tasksDir, { recursive: true });
+  writeFileSync(join(tasksDir, filename), content);
 }
 
 export function runGit(dir: string, args: string[]): void {
@@ -119,24 +119,15 @@ export function runGit(dir: string, args: string[]): void {
   }
 }
 
-export function commitReadyTask(dir: string, filename: string, content: string): void {
-  const readyDir = join(dir, "data/tasks/ready");
-  mkdirSync(readyDir, { recursive: true });
-  writeFileSync(join(readyDir, filename), content);
+export function commitOpenTask(dir: string, filename: string, content: string): void {
+  const tasksDir = join(dir, "data/tasks");
+  mkdirSync(tasksDir, { recursive: true });
+  writeFileSync(join(tasksDir, filename), content);
   runGit(dir, ["init"]);
   runGit(dir, ["config", "user.email", "test@example.com"]);
   runGit(dir, ["config", "user.name", "Test User"]);
-  runGit(dir, ["add", "data/tasks/ready"]);
-  runGit(dir, ["commit", "-m", "seed ready task"]);
-}
-
-export function moveReadyTaskToDoing(dir: string, filename: string): void {
-  const doingDir = join(dir, "data/tasks/doing");
-  mkdirSync(doingDir, { recursive: true });
-  renameSync(
-    join(dir, "data/tasks/ready", filename),
-    join(doingDir, filename),
-  );
+  runGit(dir, ["add", "data/tasks"]);
+  runGit(dir, ["commit", "-m", "seed open task"]);
 }
 
 export function writePackageJson(dir: string, scripts: Record<string, string>): void {
@@ -178,25 +169,24 @@ export function makeContext(
     stepOutputs: {},
     stepResults: {},
     runBlocking: mockRunBlocking,
-    runCommand: taskMutationStatus === undefined
-      ? supervisedCommand
-      : async (input: Parameters<typeof supervisedCommand>[0]) => {
-          if (
-            input.command === "git" &&
-            input.args?.includes("--name-status") &&
-            input.args.includes("data/tasks/done/")
-          ) {
-            return {
-              ...(await successfulWorkflowCommandRun(input)),
-              stdout: {
-                text: taskMutationStatus,
-                totalBytes: Buffer.byteLength(taskMutationStatus),
-                truncated: false,
-              },
-            };
-          }
-          return supervisedCommand(input);
-        },
+    runCommand: async (input: Parameters<typeof supervisedCommand>[0]) => {
+      if (
+        input.command === "git" &&
+        input.args?.includes("--name-status") &&
+        input.args.includes("data/tasks/")
+      ) {
+        const status = taskMutationStatus ?? "";
+        return {
+          ...(await successfulWorkflowCommandRun(input)),
+          stdout: {
+            text: status,
+            totalBytes: Buffer.byteLength(status),
+            truncated: false,
+          },
+        };
+      }
+      return supervisedCommand(input);
+    },
     runTool: vi.fn(),
     runAgentHarness: mockRunAgentHarness,
     emit: vi.fn(),

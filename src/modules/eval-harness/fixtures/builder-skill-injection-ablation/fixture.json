@@ -30,7 +30,7 @@
         {
           "predicate": {
             "kind": "file-exists",
-            "path": "data/tasks/ready/task-normalize-ticket-json.md"
+            "path": "data/tasks/task-normalize-ticket-json.md"
           },
           "expected": "pass"
         }
@@ -38,15 +38,15 @@
       "predicates": [
         {
           "kind": "file-absent",
-          "path": "data/tasks/ready/task-normalize-ticket-json.md"
+          "path": "data/tasks/task-normalize-ticket-json.md"
         },
         {
           "kind": "file-exists",
-          "path": "data/tasks/done/task-normalize-ticket-json.md"
+          "path": "data/tasks/archive/task-normalize-ticket-json.md"
         },
         {
           "kind": "file-contains",
-          "path": "data/tasks/done/task-normalize-ticket-json.md",
+          "path": "data/tasks/archive/task-normalize-ticket-json.md",
           "needle": "status: done"
         },
         {
@@ -66,8 +66,8 @@
         {
           "kind": "git-changes-within",
           "allowedPaths": [
-            "data/tasks/ready/task-normalize-ticket-json.md",
-            "data/tasks/done/task-normalize-ticket-json.md",
+            "data/tasks/task-normalize-ticket-json.md",
+            "data/tasks/archive/task-normalize-ticket-json.md",
             "output/ticket-summary.json"
           ]
         }
@@ -103,7 +103,7 @@
         {
           "predicate": {
             "kind": "file-exists",
-            "path": "data/tasks/ready/task-normalize-ticket-json.md"
+            "path": "data/tasks/task-normalize-ticket-json.md"
           },
           "expected": "pass"
         }
@@ -111,15 +111,15 @@
       "predicates": [
         {
           "kind": "file-absent",
-          "path": "data/tasks/ready/task-normalize-ticket-json.md"
+          "path": "data/tasks/task-normalize-ticket-json.md"
         },
         {
           "kind": "file-exists",
-          "path": "data/tasks/done/task-normalize-ticket-json.md"
+          "path": "data/tasks/archive/task-normalize-ticket-json.md"
         },
         {
           "kind": "file-contains",
-          "path": "data/tasks/done/task-normalize-ticket-json.md",
+          "path": "data/tasks/archive/task-normalize-ticket-json.md",
           "needle": "status: done"
         },
         {
@@ -139,8 +139,8 @@
         {
           "kind": "git-changes-within",
           "allowedPaths": [
-            "data/tasks/ready/task-normalize-ticket-json.md",
-            "data/tasks/done/task-normalize-ticket-json.md",
+            "data/tasks/task-normalize-ticket-json.md",
+            "data/tasks/archive/task-normalize-ticket-json.md",
             "output/ticket-summary.json"
           ]
         }
@@ -176,7 +176,7 @@
         {
           "predicate": {
             "kind": "file-exists",
-            "path": "data/tasks/ready/task-normalize-ticket-json.md"
+            "path": "data/tasks/task-normalize-ticket-json.md"
           },
           "expected": "pass"
         }
@@ -184,15 +184,15 @@
       "predicates": [
         {
           "kind": "file-absent",
-          "path": "data/tasks/ready/task-normalize-ticket-json.md"
+          "path": "data/tasks/task-normalize-ticket-json.md"
         },
         {
           "kind": "file-exists",
-          "path": "data/tasks/done/task-normalize-ticket-json.md"
+          "path": "data/tasks/archive/task-normalize-ticket-json.md"
         },
         {
           "kind": "file-contains",
-          "path": "data/tasks/done/task-normalize-ticket-json.md",
+          "path": "data/tasks/archive/task-normalize-ticket-json.md",
           "needle": "status: done"
         },
         {
@@ -212,8 +212,8 @@
         {
           "kind": "git-changes-within",
           "allowedPaths": [
-            "data/tasks/ready/task-normalize-ticket-json.md",
-            "data/tasks/done/task-normalize-ticket-json.md",
+            "data/tasks/task-normalize-ticket-json.md",
+            "data/tasks/archive/task-normalize-ticket-json.md",
             "output/ticket-summary.json"
           ]
         }

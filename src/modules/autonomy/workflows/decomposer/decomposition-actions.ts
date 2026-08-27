@@ -11,7 +11,7 @@ import {
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import {
   extractTaskSections,
-  getRepoTaskStateDir,
+  getRepoTaskContainerDir,
   moveTaskById,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -85,7 +85,7 @@ export function applyDecompositionPlan(args: {
     throw new Error(`Task ${args.taskId} already records a decomposition`);
   }
   const droppedPath = join(
-    getRepoTaskStateDir(args.workspaceRoot, "dropped"),
+    getRepoTaskContainerDir(args.workspaceRoot, "dropped"),
     `${args.taskId}.md`,
   );
   if (existsSync(droppedPath)) {
@@ -95,8 +95,6 @@ export function applyDecompositionPlan(args: {
   const subtasks = args.plan.subtasks.map((task) => ({
     ...task,
     title: normalizeScalar("title", task.title),
-    summary: normalizeScalar("summary", task.summary),
-    area: normalizeScalar("area", task.area),
   }));
   const subtaskIds = subtasks.map((task) => `task-${slugifyTaskTitle(task.title)}`);
   if (subtaskIds.includes("task-")) {
@@ -114,38 +112,30 @@ export function applyDecompositionPlan(args: {
     }
   }
 
-  const readyDir = getRepoTaskStateDir(args.workspaceRoot, "ready");
-  const now = new Date().toISOString();
+  const openDir = getRepoTaskContainerDir(args.workspaceRoot, "open");
   for (const [index, task] of subtasks.entries()) {
     const id = subtaskIds[index]!;
     const dependsOn = [...new Set(task.dependsOn)].map(
       (dependencyIndex) => subtaskIds[dependencyIndex]!,
     );
     const attrs: Record<string, string | string[]> = {
-      id,
-      title: task.title,
-      status: "ready",
+      status: "open",
       priority: task.priority,
-      area: task.area,
-      task_class: task.taskClass,
-      summary: task.summary,
       ...(dependsOn.length > 0 ? { depends_on: dependsOn } : {}),
-      created_at: now,
-      updated_at: now,
     };
     writeRepoTaskFile(
       args.workspaceRoot,
-      join(readyDir, `${id}.md`),
+      join(openDir, `${id}.md`),
       serializeFlatFrontMatter(
         attrs,
-        subtaskBody({
+        `# ${task.title}\n\n${subtaskBody({
           taskId: args.taskId,
           failedRunId: args.failedRunId,
           problem: task.problem,
           desiredOutcome: task.desiredOutcome,
           constraints: task.constraints,
           howWeWillKnow: task.howWeWillKnow,
-        }),
+        })}`,
       ),
     );
   }

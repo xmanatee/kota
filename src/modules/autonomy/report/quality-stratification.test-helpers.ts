@@ -40,7 +40,6 @@ export function buildReport(
 export function task(
   id: string,
   state: RepoTaskFullRecord["state"],
-  area: string,
   body = "## Problem\n\nTest task.\n",
 ): RepoTaskFullRecord {
   return {
@@ -48,13 +47,8 @@ export function task(
     title: id,
     state,
     priority: "p2",
-    area,
-    taskClass: area === "security" ? "Safety" : "Meta",
-    summary: "test",
-    updatedAt: new Date(WINDOW_START + MS_PER_DAY).toISOString(),
     body,
     dependsOn: [],
-    anchor: false,
   };
 }
 
@@ -77,9 +71,8 @@ export function run(
           schemaRef: null,
           payload: {
             taskId,
-            taskPath: `data/tasks/ready/${taskId}.md`,
-            taskState: "ready",
-            taskUpdatedAt: new Date(startedMs).toISOString(),
+            taskPath: `data/tasks/${taskId}.md`,
+            taskState: "open",
             taskDigest,
             idempotencyKey: `builder:${taskId}:${taskDigest}`,
             title: taskId,
@@ -183,7 +176,7 @@ export function postReport(
         completedTaskTitle: completedTaskId,
         activeFollowUpTaskId: followUpTaskId,
         activeFollowUpTitle: followUpTaskId,
-        activeFollowUpState: "ready",
+        activeFollowUpState: "open",
         reasons,
         matchedRefs: [],
         sourceRunIds: [],

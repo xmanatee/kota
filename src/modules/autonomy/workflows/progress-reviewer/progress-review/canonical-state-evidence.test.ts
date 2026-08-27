@@ -11,22 +11,16 @@ import { collectProgressReviewEvidence } from "./collect.js";
 
 function task(args: {
   id: string;
-  anchor?: boolean;
   dependsOn?: string[];
 }): string {
   return [
     "---",
-    `id: ${args.id}`,
-    `title: ${args.id}`,
-    "status: backlog",
+    "status: open",
     "priority: p2",
-    "area: autonomy",
-    `summary: ${args.id} summary`,
-    `created_at: ${NOW.toISOString()}`,
-    `updated_at: ${NOW.toISOString()}`,
-    ...(args.anchor ? ["anchor: true"] : []),
     ...(args.dependsOn ? [`depends_on: [${args.dependsOn.join(", ")}]`] : []),
     "---",
+    "",
+    `# ${args.id}`,
     "",
     "## Problem",
     "",
@@ -50,10 +44,9 @@ describe("progress-reviewer canonical state evidence", () => {
     for (let index = 0; index < 25; index += 1) {
       const id = `task-open-${String(index).padStart(2, "0")}`;
       writeFileSync(
-        join(workspaceRoot, "data", "tasks", "backlog", `${id}.md`),
+        join(workspaceRoot, "data", "tasks", `${id}.md`),
         task({
           id,
-          anchor: index === 0,
           dependsOn: index === 1 ? ["task-open-00"] : undefined,
         }),
       );
@@ -70,13 +63,12 @@ describe("progress-reviewer canonical state evidence", () => {
       },
       now: NOW,
     });
-    expect(evidence.tasks.filter((item) => item.state === "backlog"))
+    expect(evidence.tasks.filter((item) => item.state === "open"))
       .toHaveLength(25);
     expect(evidence.tasks.find((item) => item.taskId === "task-open-00"))
-      .toMatchObject({ anchor: true, dependsOn: [], waitingOn: [] });
+      .toMatchObject({ dependsOn: [], waitingOn: [] });
     expect(evidence.tasks.find((item) => item.taskId === "task-open-01"))
       .toMatchObject({
-        anchor: false,
         dependsOn: ["task-open-00"],
         waitingOn: ["task-open-00"],
       });

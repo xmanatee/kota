@@ -58,18 +58,7 @@ export function proposalFor(
         "title",
         disposition.taskTitle,
       ),
-      summary: normalizeGeneratedTaskScalar(
-        "autonomy issue proposal",
-        "summary",
-        disposition.taskSummary,
-      ),
       priority: disposition.taskPriority,
-      area: normalizeGeneratedTaskScalar(
-        "autonomy issue proposal",
-        "area",
-        disposition.taskArea,
-      ),
-      taskClass: disposition.taskClass,
       body: issueTaskBody(issue, disposition),
       provenance,
     };

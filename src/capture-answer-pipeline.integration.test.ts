@@ -213,7 +213,7 @@ function makeScopeRoot(): string {
     scopeDir,
     "capture-answer",
   ).workspaceRoot;
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
 }
@@ -385,7 +385,7 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
     });
   });
 
-  it("tasks: capture mints a backlog task and a content-derived answer cites the just-written tasks record; the answer-history record matches", async () => {
+  it("tasks: capture mints an open task and a content-derived answer cites the just-written tasks record; the answer-history record matches", async () => {
     const beforeCount = (await client.answer.log({ limit: 200 })).entries.length;
     const captureResult = await client.capture.capture(TASKS_TEXT, {
       target: "tasks",

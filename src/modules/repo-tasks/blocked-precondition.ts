@@ -1,15 +1,14 @@
 import { type Dirent, existsSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, extname, isAbsolute, join, resolve } from "node:path";
-import { getRepoTaskStateDir } from "./repo-tasks-domain.js";
 
 /**
- * Typed unblock-precondition vocabulary for tasks in `data/tasks/blocked/`.
+ * Typed unblock-precondition vocabulary for tasks with `status: blocked` in `data/tasks/`.
  *
- * Each blocked task declares one precondition in a `## Unblock Precondition`
+ * Each blocked task declares one precondition in a `## Blocked on`
  * body section using fixed-key syntax. The autonomy `blocked-promoter`
  * workflow reads the parsed precondition each cycle: deterministic kinds
- * auto-promote the task back to `backlog/` (or `ready/` for p0/p1) when the
+ * returns the task to `open` when the
  * condition is satisfied; `owner-decision` gets re-asked through the
  * `askOwnerSteps` recipe on a 14-day cadence; `operator-capture` promotes
  * only after its named evidence path contains operator-visible proof, and its
@@ -19,18 +18,11 @@ import { getRepoTaskStateDir } from "./repo-tasks-domain.js";
  * malformed values at frontmatter-load time; there is no permissive coercion.
  */
 export type BlockedPrecondition =
-  | TaskDonePrecondition
   | CapabilityInstalledPrecondition
   | OwnerDecisionPrecondition
   | OperatorCapturePrecondition;
 
 export type BlockedPreconditionKind = BlockedPrecondition["kind"];
-
-export type TaskDonePrecondition = {
-  kind: "task-done";
-  /** Task id of the enabler that must sit in `data/tasks/done/`. */
-  ref: string;
-};
 
 export type CapabilityInstalledPrecondition = {
   kind: "capability-installed";
@@ -84,16 +76,15 @@ export type BlockedPreconditionParseResult =
   | { ok: true; precondition: BlockedPrecondition }
   | { ok: false; error: string };
 
-const SECTION_HEADING = "## Unblock Precondition";
+const SECTION_HEADING = "## Blocked on";
 const RECOGNIZED_KINDS: BlockedPreconditionKind[] = [
-  "task-done",
   "capability-installed",
   "owner-decision",
   "operator-capture",
 ];
 
 /**
- * Extract the raw `key: value` block from inside the `## Unblock Precondition`
+ * Extract the raw `key: value` block from inside the `## Blocked on`
  * section. The block may be wrapped in a fenced code block (```...```) so the
  * markdown renders cleanly. Returns null when the section is absent so the
  * caller can decide whether absence is an error in this context.
@@ -128,7 +119,6 @@ function parseProposedAnswers(raw: string | undefined): string[] {
   return raw.split(",").map((entry) => entry.trim()).filter((entry) => entry.length > 0);
 }
 
-const TASK_ID_RE = /^task-[a-z0-9-]+$/;
 const SLOT_RE = /^[a-z0-9][a-z0-9-]*$/;
 const PROBE_PLAYWRIGHT = /^playwright$/;
 const PROBE_STORAGE_STATE = /^storageState:.+$/;
@@ -145,17 +135,6 @@ function buildPrecondition(
     };
   }
   switch (kind as BlockedPreconditionKind) {
-    case "task-done": {
-      const ref = fields.ref;
-      if (!ref) return { ok: false, error: "task-done precondition requires 'ref'" };
-      if (!TASK_ID_RE.test(ref)) {
-        return {
-          ok: false,
-          error: `task-done 'ref' must match ${TASK_ID_RE.source}, got '${ref}'`,
-        };
-      }
-      return { ok: true, precondition: { kind: "task-done", ref } };
-    }
     case "capability-installed": {
       const probe = fields.probe;
       if (!probe) return { ok: false, error: "capability-installed precondition requires 'probe'" };
@@ -215,7 +194,7 @@ function buildPrecondition(
 }
 
 /**
- * Parse the `## Unblock Precondition` section out of a blocked task's body.
+ * Parse the `## Blocked on` section out of a blocked task's body.
  *
  * - `{ ok: false, error: "missing-section" }` when the section is absent.
  * - `{ ok: false, error: <reason> }` when the section is malformed or
@@ -228,7 +207,7 @@ export function parseBlockedPrecondition(
   const block = extractPreconditionBlock(body);
   if (block === null) return { ok: false, error: "missing-section" };
   if (block.length === 0) {
-    return { ok: false, error: "## Unblock Precondition section is empty" };
+    return { ok: false, error: "## Blocked on section is empty" };
   }
   return buildPrecondition(parseKeyValueBlock(block));
 }
@@ -516,19 +495,6 @@ export function evaluateBlockedPrecondition(
   ctx: EvaluationContext,
 ): BlockedPreconditionEvaluation {
   switch (precondition.kind) {
-    case "task-done": {
-      const path = join(
-        getRepoTaskStateDir(ctx.workspaceRoot, "done"),
-        `${precondition.ref}.md`,
-      );
-      if (existsSync(path)) {
-        return { satisfied: true, reason: `enabler ${precondition.ref} is in done/` };
-      }
-      return {
-        satisfied: false,
-        reason: `enabler ${precondition.ref} is not in done/`,
-      };
-    }
     case "capability-installed": {
       if (precondition.probe === "playwright") {
         return isPlaywrightAvailable(ctx.workspaceRoot)
@@ -582,13 +548,4 @@ export function evaluateBlockedPrecondition(
       return { satisfied: false, reason: evaluation.reason };
     }
   }
-}
-
-/**
- * Auto-promotion target state for a blocked task whose precondition fired.
- * Conservative: the promoter only sends `p0`/`p1` work straight to `ready/`;
- * everything else lands in `backlog/` for normal triage.
- */
-export function promotionTargetState(priority: string): "ready" | "backlog" {
-  return priority === "p0" || priority === "p1" ? "ready" : "backlog";
 }

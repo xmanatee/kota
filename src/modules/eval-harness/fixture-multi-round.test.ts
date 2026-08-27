@@ -45,7 +45,7 @@ describe("loadFixture multi-round specs", () => {
           taskInput: {
             kind: "copy-fixture-file",
             sourcePath: "rounds/round-2-task.md",
-            targetPath: "data/tasks/ready/task-round-2.md",
+            targetPath: "data/tasks/task-round-2.md",
           },
           preRunExpectations: [
             { predicate: { kind: "file-exists", path: "round-2.txt" }, expected: "fail" },
@@ -131,7 +131,7 @@ describe("loadFixture multi-round specs", () => {
     ]);
     expect(loaded.spec.rounds[1].taskInput).toMatchObject({
       kind: "copy-fixture-file",
-      targetPath: "data/tasks/ready/task-round-2.md",
+      targetPath: "data/tasks/task-round-2.md",
     });
     expect(loaded.spec.aggregatePredicates).toHaveLength(1);
     expect(loaded.spec.aggregateObjectiveMetrics).toHaveLength(1);

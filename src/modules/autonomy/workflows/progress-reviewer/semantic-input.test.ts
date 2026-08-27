@@ -17,7 +17,7 @@ describe("progress review semantic consumption", () => {
       automatic: true,
       boundary: "parked-queue" as const,
       inputRevision: 4,
-      evidenceRefs: ["data/tasks/done/task-delivery.md"],
+      evidenceRefs: ["data/tasks/archive/task-delivery.md"],
     },
   };
 

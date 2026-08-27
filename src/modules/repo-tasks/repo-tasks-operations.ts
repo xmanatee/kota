@@ -1,14 +1,10 @@
 /**
- * Shared mutation logic for `kota task create / capture / show / move / gc`.
+ * Shared mutation logic for task create, capture, show, move, and body updates.
  *
  * Both the CLI subcommands (via the local-client handler) and the daemon
  * HTTP routes route through these functions so the two transports cannot
  * diverge in behavior.
  */
-import {
-  existsSync,
-  readdirSync,
-} from "node:fs";
 import { join, relative } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type {
@@ -22,8 +18,9 @@ import { readVerifiedRepoMarkdownFile } from "./repo-file-mutations.js";
 import { renderRepoTaskIntent } from "./repo-task-intent.js";
 import {
   getRepoInboxDir,
+  getRepoTaskPath,
   getRepoTasksDir,
-  REPO_TASK_STATES,
+  listVerifiedFullRepoTasks,
   writeRepoInboxFile,
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
@@ -48,29 +45,20 @@ export function slugifyTaskTitle(title: string): string {
     .replace(/-+$/, "");
 }
 
-/** Read a normalized task by id, scanning every state directory. */
+/** Read a normalized task by its filename-derived id. */
 export function showTask(repoRoot: string, id: string): RepoTaskShowResult {
   if (!isRepoTaskId(id)) {
     return { found: false };
   }
 
-  const tasksDir = getRepoTasksDir(repoRoot);
-  for (const state of REPO_TASK_STATES) {
-    const filePath = join(tasksDir, state, `${id}.md`);
-    const content = readVerifiedRepoMarkdownFile({
-      repoRoot,
-      rootDir: tasksDir,
-      filePath,
-    });
-    if (content !== null) {
-      return {
-        found: true,
-        state,
-        content,
-      };
-    }
-  }
-  return { found: false };
+  const record = listVerifiedFullRepoTasks(repoRoot).find((task) => task.id === id);
+  if (!record) return { found: false };
+  const content = readVerifiedRepoMarkdownFile({
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
+    filePath: join(repoRoot, record.taskFile.path),
+  });
+  return content === null ? { found: false } : { found: true, state: record.state, content };
 }
 
 /** Replace a non-terminal task's markdown body through the path-safe domain writer. */
@@ -80,35 +68,22 @@ export function updateTaskBody(
   body: string,
 ): RepoTaskUpdateBodyResult {
   if (!isRepoTaskId(id)) return { ok: false, reason: "invalid_id" };
-  const tasksDir = getRepoTasksDir(repoRoot);
-  for (const state of REPO_TASK_STATES) {
-    const stateDir = join(tasksDir, state);
-    if (!existsSync(stateDir)) continue;
-    for (const file of readdirSync(stateDir)) {
-      if (!file.endsWith(".md") || file === "AGENTS.md") continue;
-      const filePath = join(stateDir, file);
-      const content = readVerifiedRepoMarkdownFile({
-        repoRoot,
-        rootDir: tasksDir,
-        filePath,
-      });
-      if (content === null) continue;
-      if (parseFlatFrontMatter(content).attrs.id !== id) continue;
-      if (state === "done" || state === "dropped") {
-        return { ok: false, reason: "terminal" };
-      }
-      const frontMatter = content.match(/^(---\r?\n[\s\S]*?\r?\n---)\r?\n[\s\S]*$/)?.[1];
-      if (!frontMatter) return { ok: false, reason: "malformed" };
-      const updatedAt = new Date().toISOString();
-      const updatedFrontMatter = /^(updated_at:\s*)\S+/m.test(frontMatter)
-        ? frontMatter.replace(/^(updated_at:\s*)\S+/m, `$1${updatedAt}`)
-        : frontMatter.replace(/\r?\n---$/, `\nupdated_at: ${updatedAt}\n---`);
-      const nextContent = `${updatedFrontMatter}\n\n${body.trim()}\n`;
-      writeRepoTaskFile(repoRoot, filePath, nextContent);
-      return { ok: true, id, state, content: nextContent };
-    }
+  const record = listVerifiedFullRepoTasks(repoRoot).find((task) => task.id === id);
+  if (!record) return { ok: false, reason: "not_found" };
+  if (record.state === "done" || record.state === "dropped") {
+    return { ok: false, reason: "terminal" };
   }
-  return { ok: false, reason: "not_found" };
+  const filePath = join(repoRoot, record.taskFile.path);
+  const content = readVerifiedRepoMarkdownFile({
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
+    filePath,
+  });
+  if (content === null) return { ok: false, reason: "not_found" };
+  const { attrs } = parseFlatFrontMatter(content);
+  const nextContent = serializeFlatFrontMatter(attrs, body.trim());
+  writeRepoTaskFile(repoRoot, filePath, nextContent);
+  return { ok: true, id, state: record.state, content: nextContent };
 }
 
 function buildNormalizedTaskBody(): string {
@@ -138,40 +113,32 @@ export function createNormalizedTask(
   }
 
   const id = `task-${slug}`;
-  const tasksDir = getRepoTasksDir(repoRoot);
-  const stateDir = join(tasksDir, options.state);
-  const filePath = join(stateDir, `${id}.md`);
+  const state = options.state ?? "open";
+  const filePath = getRepoTaskPath(repoRoot, state, id);
 
   if (
     readVerifiedRepoMarkdownFile({
       repoRoot,
-      rootDir: tasksDir,
+      rootDir: getRepoTasksDir(repoRoot),
       filePath,
     }) !== null
   ) {
     return {
       ok: false,
       reason: "already_exists",
-      message: `Task file "${id}.md" already exists in ${options.state}/.`,
+      message: `Task file "${id}.md" already exists.`,
     };
   }
 
-  const now = new Date().toISOString();
   const attrs: Record<string, string> = {
-    id,
-    title: options.title,
-    status: options.state,
+    status: state,
     priority: options.priority,
-    area: options.area,
-    summary: options.summary ?? "",
-    created_at: now,
-    updated_at: now,
   };
 
   writeRepoTaskFile(
     repoRoot,
     filePath,
-    serializeFlatFrontMatter(attrs, buildNormalizedTaskBody()),
+    serializeFlatFrontMatter(attrs, `# ${options.title}\n\n${buildNormalizedTaskBody()}`),
   );
   return { ok: true, id, path: relative(repoRoot, filePath) };
 }
@@ -214,5 +181,3 @@ export function captureInboxTask(
   writeRepoInboxFile(repoRoot, filePath, `# ${title}\n`);
   return { ok: true, id, path: relative(repoRoot, filePath) };
 }
-
-export { gcTerminalTasks } from "./repo-task-gc.js";

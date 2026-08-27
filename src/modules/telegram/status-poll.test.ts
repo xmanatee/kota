@@ -417,9 +417,9 @@ describe("startTelegramStatusPoll", () => {
 
   it("responds to /attention from the configured chat with rendered attention text", async () => {
     const renderedBody =
-      "Attention digest (1 item):\n• *Stalled work*: 2 tasks stuck in doing";
+      "Attention digest (1 item):\n• *Blocked tasks*: 2 blocked tasks";
     mockedRenderOnDemandAttention.mockReturnValue({
-      items: [{ label: "Stalled work", detail: "2 tasks stuck in doing" }],
+      items: [{ label: "Blocked tasks", detail: "2 blocked tasks" }],
       text: renderedBody,
     });
     mockedCallTelegramApi
@@ -1080,11 +1080,8 @@ describe("startTelegramStatusPoll", () => {
         {
           id: "task-add-telegram-tasks-command",
           title: "Add Telegram /tasks command",
-          state: "ready",
+          state: "open",
           priority: "p2",
-          area: "modules",
-          summary: "fan-out",
-          updatedAt: "2026-04-27T05:57:05.496Z",
           score: 0.92,
         },
         {
@@ -1092,9 +1089,6 @@ describe("startTelegramStatusPoll", () => {
           title: "Add tasks-semantic provider",
           state: "done",
           priority: "p2",
-          area: "modules",
-          summary: "seed",
-          updatedAt: "2026-04-26T08:00:00.000Z",
           score: 0.81,
         },
       ],
@@ -1134,7 +1128,7 @@ describe("startTelegramStatusPoll", () => {
     // Plain text — id, state, priority, title, one entry per line.
     expect(payload.text).toContain("task-add-telegram-tasks-command");
     expect(payload.text).toContain("task-tasks-semantic-seam");
-    expect(payload.text).toContain("ready");
+    expect(payload.text).toContain("open");
     expect(payload.text).toContain("done");
     expect(payload.text).toContain("p2");
     expect(payload.text).toContain("Add Telegram /tasks command");
@@ -1296,7 +1290,7 @@ describe("startTelegramStatusPoll", () => {
           score: 0.55,
           id: "task-recall-seam",
           title: "Add recall seam",
-          state: "doing",
+          state: "open",
           priority: "p2",
           updatedAt: "2026-04-27",
         },
@@ -2467,15 +2461,15 @@ describe("startTelegramStatusPoll", () => {
         record: {
           target: "tasks",
           recordId: "task-x",
-          previousPath: "data/tasks/backlog/task-x.md",
-          path: "data/tasks/dropped/task-x.md",
+          previousPath: "data/tasks/task-x.md",
+          path: "data/tasks/archive/task-x.md",
           toState: "dropped",
         },
       } satisfies RetractResult);
       const payload = await runRetractCase("/retract-tasks task-x", retractFn);
       expect(retractFn).toHaveBeenCalledWith({ target: "tasks", id: "task-x" });
       expect(payload.text).toBe(
-        "Retracted: tasks  task-x  data/tasks/backlog/task-x.md -> data/tasks/dropped/task-x.md (dropped)",
+        "Retracted: tasks  task-x  data/tasks/task-x.md -> data/tasks/archive/task-x.md (dropped)",
       );
     });
 
@@ -2536,14 +2530,14 @@ describe("startTelegramStatusPoll", () => {
         ok: false,
         reason: "contributor_failed",
         target: "tasks",
-        message: "ENOENT: data/tasks/dropped missing",
+        message: "ENOENT: data/tasks/archive missing",
       } satisfies RetractResult);
       const payload = await runRetractCase(
         "/retract-tasks task-x",
         retractFn,
       );
       expect(payload.text).toBe(
-        "Retract from tasks failed: ENOENT: data/tasks/dropped missing",
+        "Retract from tasks failed: ENOENT: data/tasks/archive missing",
       );
     });
 
@@ -2753,10 +2747,7 @@ describe("startTelegramStatusPoll", () => {
         id: "task-b",
         title: "B task",
         priority: "p2",
-        state: "ready" as const,
-        area: "modules",
-        summary: "Scope B task",
-        updatedAt: "2026-01-01T00:00:00.000Z",
+        state: "open" as const,
         score: 1,
       }],
     }));

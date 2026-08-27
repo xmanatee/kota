@@ -1,9 +1,7 @@
 import { join } from "node:path";
 import { mentionsOperatorEvidence } from "#modules/autonomy/product-evidence.js";
-import { classifyStoredWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
 import {
   listFullRepoTasks,
-  type RepoTaskClass,
   type RepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { PROGRESS_REVIEW_MAX_TASKS } from "./constants.js";
@@ -11,13 +9,12 @@ import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
 import type {
   ProgressReviewDeadLetterEvidence,
   ProgressReviewDirectorySource,
-  ProgressReviewOperatorJourneyRisk,
-  ProgressReviewTaskClassCount,
+  ProgressReviewGitEvidence,
   ProgressReviewTaskEvidence,
 } from "./types.js";
 
 const TASK_PATH_REFERENCE_RE =
-  /\bdata\/tasks\/(?:backlog|ready|doing|blocked|done|dropped)\/(task-[A-Za-z0-9-]+)\.md\b/g;
+  /\bdata\/tasks\/(?:archive\/)?(task-[A-Za-z0-9-]+)\.md\b/g;
 const TASK_EVIDENCE_ID_REFERENCE_RE = /\btask:(task-[A-Za-z0-9-]+)\b/g;
 
 function summarizeTask(
@@ -25,9 +22,6 @@ function summarizeTask(
   record: RepoTaskFullRecord,
   stateByTaskId: ReadonlyMap<string, RepoTaskFullRecord["state"]> = new Map(),
 ): ProgressReviewTaskEvidence {
-  const taskClass = record.taskClass === "Unclassified"
-    ? classifyStoredWorkflowGeneratedTask(record) ?? record.taskClass
-    : record.taskClass;
   const waitingOn = record.dependsOn.filter((id) => {
     const state = stateByTaskId.get(id);
     return state !== "done" && state !== "dropped";
@@ -38,18 +32,19 @@ function summarizeTask(
     taskId: record.id,
     title: record.title,
     state: record.state,
-    updatedAt: record.updatedAt,
     priority: record.priority,
-    area: record.area,
-    taskClass,
-    anchor: record.anchor,
     dependsOn: [...record.dependsOn],
     waitingOn,
     operatorEvidenceMentioned: taskMentionsOperatorEvidence(record),
-    path: join("data", "tasks", record.state, `${record.id}.md`),
+    path: join(
+      "data",
+      "tasks",
+      ...(record.state === "done" || record.state === "dropped" ? ["archive"] : []),
+      `${record.id}.md`,
+    ),
     summary: sourceSummary(
       source,
-      `${record.id} ${record.state}${record.anchor ? " strategic-anchor" : ""}: ` +
+      `${record.id} ${record.state}: ` +
         `${record.title}; dependsOn=${record.dependsOn.join(",") || "none"}; ` +
         `waitingOn=${waitingOn.join(",") || "none"}`,
     ),
@@ -58,7 +53,7 @@ function summarizeTask(
 
 function taskMentionsOperatorEvidence(record: RepoTaskFullRecord): boolean {
   return mentionsOperatorEvidence(
-    [record.title, record.summary, record.body].join("\n"),
+    [record.title, record.body].join("\n"),
   );
 }
 
@@ -66,20 +61,24 @@ export function listRecentTasks(
   sources: readonly ProgressReviewDirectorySource[],
   windowStartMs: number,
   excluded: string[],
+  gitEvidence: readonly ProgressReviewGitEvidence[] = [],
 ): ProgressReviewTaskEvidence[] {
-  const openStates = new Set(["backlog", "ready", "doing", "blocked"]);
+  const openStates = new Set(["open", "blocked"]);
+  const recentTerminalIds = new Set(
+    gitEvidence.flatMap((item) => {
+      if (item.gitKind !== "commit-file") return [];
+      if (Date.parse(item.committedAt) < windowStartMs) return [];
+      const match = item.file.match(/^data\/tasks\/archive\/(task-[A-Za-z0-9-]+)\.md$/);
+      return match?.[1] ? [match[1]] : [];
+    }),
+  );
   const records = sources.flatMap((source) => {
     const all = listFullRepoTasks(source.workspaceRoot);
     const stateByTaskId = new Map(all.map((record) => [record.id, record.state]));
     const open = all.filter((record) => openStates.has(record.state));
-    const recentTerminal = all.filter((record) => {
-      if (openStates.has(record.state)) return false;
-      const updatedMs = Date.parse(record.updatedAt);
-      return Number.isFinite(updatedMs) && updatedMs >= windowStartMs;
-    });
-    recentTerminal.sort((a, b) =>
-      Date.parse(b.updatedAt) - Date.parse(a.updatedAt) || a.id.localeCompare(b.id)
-    );
+    const recentTerminal = all
+      .filter((record) => !openStates.has(record.state) && recentTerminalIds.has(record.id))
+      .sort((a, b) => a.id.localeCompare(b.id));
     if (recentTerminal.length > PROGRESS_REVIEW_MAX_TASKS) {
       excluded.push(
         `terminal tasks: truncated ${recentTerminal.length} recent records to ${PROGRESS_REVIEW_MAX_TASKS}; the open queue remains complete`,
@@ -89,13 +88,11 @@ export function listRecentTasks(
       (record) => ({ source, record, stateByTaskId }),
     );
   });
-  records.sort((a, b) => {
-    const byUpdated = Date.parse(b.record.updatedAt) - Date.parse(a.record.updatedAt);
-    if (byUpdated !== 0) return byUpdated;
-    return sourceEvidenceId(a.source, a.record.id).localeCompare(
+  records.sort((a, b) =>
+    sourceEvidenceId(a.source, a.record.id).localeCompare(
       sourceEvidenceId(b.source, b.record.id),
-    );
-  });
+    )
+  );
 
   return records
     .map(({ source, record, stateByTaskId }) =>
@@ -145,49 +142,4 @@ export function listDeadLetterReferencedTasks(
   }
 
   return tasks;
-}
-
-export function taskClassDistribution(
-  tasks: readonly ProgressReviewTaskEvidence[],
-): ProgressReviewTaskClassCount[] {
-  const counts = new Map<RepoTaskClass, number>();
-  for (const task of tasks) {
-    if (task.state === "done" || task.state === "dropped") continue;
-    counts.set(task.taskClass, (counts.get(task.taskClass) ?? 0) + 1);
-  }
-  const order = new Map<RepoTaskClass, number>([
-    ["Safety", 0],
-    ["Product", 1],
-    ["Platform", 2],
-    ["Meta", 3],
-    ["Unclassified", 4],
-  ]);
-  return [...counts.entries()]
-    .map(([taskClass, count]) => ({ taskClass, count }))
-    .sort(
-      (a, b) =>
-        (order.get(a.taskClass) ?? 9) - (order.get(b.taskClass) ?? 9) ||
-        a.taskClass.localeCompare(b.taskClass),
-    );
-}
-
-export function operatorJourneyRisks(
-  tasks: readonly ProgressReviewTaskEvidence[],
-): ProgressReviewOperatorJourneyRisk[] {
-  return tasks
-    .filter(
-      (task) =>
-        task.taskClass === "Product" &&
-        task.state === "done" &&
-        !task.operatorEvidenceMentioned,
-    )
-    .map((task) => ({
-      taskId: task.taskId,
-      title: task.title,
-      state: task.state,
-      evidenceId: task.id,
-      reason:
-        "Product task moved to done without transcript, screenshot, runtime probe, rendered fixture, trace, snapshot, demo, or equivalent evidence in the task record.",
-    }))
-    .sort((a, b) => a.taskId.localeCompare(b.taskId));
 }

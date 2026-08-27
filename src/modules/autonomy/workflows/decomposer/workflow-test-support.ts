@@ -14,18 +14,7 @@ import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 
 export const FAILED_RUN_ID = "run-failed-builder";
 export const TASK_ID = "task-big-refactor";
-export const TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
-  "blocked",
-  "done",
-  "dropped",
-] as const;
-
 export function taskMarkdown(
-  taskId: string,
-  state: "ready" | "doing",
   marker = "Canonical task intent.",
 ): string {
   const body = renderRepoTaskIntent({
@@ -36,38 +25,30 @@ export function taskMarkdown(
     context: "Recover a failed builder run without changing its task target.",
   });
   return `---
-id: ${taskId}
-title: Decompose an exhausted builder task
-status: ${state}
+status: open
 priority: p1
-area: modules
-task_class: Platform
-summary: Split an exhausted builder task into independently verifiable work.
-created_at: 2026-08-25T00:00:00.000Z
-updated_at: 2026-08-25T00:00:00.000Z
 ---
+# Decompose an exhausted builder task
+
 ${body}
 `;
 }
 
-export const TASK_MARKDOWN = taskMarkdown(TASK_ID, "doing");
+export const TASK_MARKDOWN = taskMarkdown();
 
 export function prepareTaskProject(workspaceRoot: string): void {
-  for (const state of TASK_STATES) {
-    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
 }
 
 export function writeActionableTask(
   workspaceRoot: string,
   taskId = TASK_ID,
-  state: "ready" | "doing" = "doing",
   marker?: string,
 ): BuilderTaskDispatchPayload {
   prepareTaskProject(workspaceRoot);
   writeFileSync(
-    join(workspaceRoot, "data", "tasks", state, `${taskId}.md`),
-    taskMarkdown(taskId, state, marker),
+    join(workspaceRoot, "data", "tasks", `${taskId}.md`),
+    taskMarkdown(marker),
     "utf8",
   );
   const dispatch = listBuilderTaskDispatches(workspaceRoot).find(
@@ -81,18 +62,15 @@ export function writeActionableTask(
 
 export function immutableTaskPayload(
   taskId: string,
-  state: "ready" | "doing" = "doing",
   digest = "a".repeat(64),
 ): BuilderTaskDispatchPayload {
   return {
     taskId,
-    taskPath: `data/tasks/${state}/${taskId}.md`,
-    taskState: state,
-    taskUpdatedAt: "2026-08-25T00:00:00.000Z",
+    taskPath: `data/tasks/${taskId}.md`,
+    taskState: "open",
     taskDigest: digest,
     title: "Immutable task target",
     priority: "p1",
-    taskClass: "Platform",
     dependsOn: [],
     idempotencyKey: `builder:${taskId}:${digest}`,
   };

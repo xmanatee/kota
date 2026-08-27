@@ -82,11 +82,11 @@ export const operatorApi = {
       },
     ),
   getTasks: () => apiJson<DaemonTaskStatusResponse>("/api/tasks"),
-  createTask: (title: string, summary: string) =>
+  createTask: (title: string, priority: "p0" | "p1" | "p2" | "p3" = "p2") =>
     apiJson<{ id: string }>("/api/tasks", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, summary }),
+      body: JSON.stringify({ title, priority }),
     }),
   moveTask: (id: string, state: string) =>
     apiJson<{ ok: boolean }>(`/api/tasks/${encodeURIComponent(id)}/state`, {

@@ -123,7 +123,7 @@ function declaredTextFor(input: BuildDiffSummaryConsistencyRecordInput) {
 		commitSubject: boundText(input.delivery?.commitSubject ?? null),
 		commitMessageFile: boundText(input.commitMessageFile),
 		taskTitle: boundText(input.delivery?.taskTitle ?? input.task?.title ?? null),
-		taskSummary: boundText(input.task?.summary ?? null),
+		taskSummary: boundText(input.task?.body ?? null),
 	};
 }
 

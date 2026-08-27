@@ -14,21 +14,14 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 function task(
   id: string,
   state: RepoTaskState,
-  taskClass: RepoTaskFullRecord["taskClass"],
-  area: string,
 ): RepoTaskFullRecord {
   return {
     id,
     state,
-    taskClass,
-    area,
     title: id,
     priority: "p2",
-    summary: "summary",
-    updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
     body: "## Problem\n\nTest body.\n",
     dependsOn: [],
-    anchor: false,
   };
 }
 
@@ -52,9 +45,8 @@ function run(
           schemaRef: null,
           payload: {
             taskId,
-            taskPath: `data/tasks/ready/${taskId}.md`,
-            taskState: "ready",
-            taskUpdatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+            taskPath: `data/tasks/${taskId}.md`,
+            taskState: "open",
             taskDigest,
             idempotencyKey: `builder:${taskId}:${taskDigest}`,
             title: taskId,
@@ -142,7 +134,7 @@ describe("buildProcessDisciplineReport", () => {
   it("scopes workflow agent trajectory diagnostics into grouped discipline records", () => {
     const runId = "2026-04-28T12-30-00-000Z-builder-discipline";
     const taskById = new Map([
-      ["task-discipline", task("task-discipline", "done", "Safety", "autonomy")],
+      ["task-discipline", task("task-discipline", "done")],
     ]);
     writeDiagnostics(runsDir, runId, "build", [
       "missing_final_verification_after_edit",
@@ -161,8 +153,6 @@ describe("buildProcessDisciplineReport", () => {
       stepId: "build",
       harness: "codex",
       taskId: "task-discipline",
-      taskClass: "Safety",
-      taskArea: "autonomy",
       processDiscipline: {
         aggregate: { score: 75, grade: "caution", missingEvidenceDimensions: 1 },
       },
@@ -194,7 +184,7 @@ describe("buildProcessDisciplineReport", () => {
     const taskById = new Map([
       [
         "task-blocked-discipline",
-        task("task-blocked-discipline", "blocked", "Safety", "security"),
+        task("task-blocked-discipline", "blocked"),
       ],
     ]);
     writeDiagnostics(runsDir, blockedRunId, "build", []);

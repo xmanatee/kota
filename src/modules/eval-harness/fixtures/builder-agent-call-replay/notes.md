@@ -10,7 +10,7 @@ LLM.
 
 ## Shape
 
-- `initial/` seeds one ready-queue task (`task-add-decomposer-
+- `initial/` seeds one open task (`task-add-decomposer-
   shoulddecompose-false-smoke-fixture`) plus the minimal repo scaffolding
   builder needs: a stub `package.json` whose script entries satisfy builder's
   repair-loop shell-outs, a stub `dist/cli.js` for
@@ -19,7 +19,7 @@ LLM.
   run edited).
 - `recordings/build.json` carries the builder agent's source response envelope
   and the current file operations needed to reproduce the post-agent repo
-  state: the task move from `ready/` to `done/`, the four new files under
+  state: the task move from `data/tasks/` to the done archive, the four new files under
   `src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/`,
   the edited `fixtures/uncovered/notes.md`, and the run-directory
   `commit-message.txt` artifact.

@@ -10,7 +10,7 @@ export const ATTENTION_DIGEST_COUNTER_STATE_KEY = "attention-digest/counter";
 const DEFAULT_WARNINGS_COUNT = 3;
 const DEFAULT_WARNINGS_WINDOW = 10;
 // KOTA_DIGEST_BLOCKED_AGE_DAYS: a blocked task is "long-blocked" when its
-// updated_at is older than this many days (default 3)
+// The task's observed filesystem change is older than this many days (default 3).
 // KOTA_DIGEST_BLOCKED_AGED_DAYS: an additional escalation threshold for
 // blocked tasks the autonomy loop genuinely cannot promote on its own —
 // owner-decision and operator-capture preconditions surface here so they do
@@ -100,29 +100,13 @@ function detectAttentionItems(
   const warningsItem = builderWarningsCheck(recentRuns);
   if (warningsItem) items.push(warningsItem);
 
-  const doingCount = countRepoTaskState(workspaceRoot, "doing");
-  if (doingCount >= 2) {
-    items.push({
-      label: "Stalled work",
-      detail: `${doingCount} tasks stuck in doing`,
-    });
-  }
-
   items.push(...blockedAttentionItems(workspaceRoot));
 
-  const readyCount = countRepoTaskState(workspaceRoot, "ready");
-  if (readyCount === 0) {
+  const openCount = countRepoTaskState(workspaceRoot, "open");
+  if (openCount === 0) {
     items.push({
-      label: "Empty ready queue",
-      detail: "Builder has nothing to pull.",
-    });
-  }
-
-  const backlogCount = countRepoTaskState(workspaceRoot, "backlog");
-  if (backlogCount === 0) {
-    items.push({
-      label: "Empty backlog",
-      detail: "No reserves for explorer to promote.",
+      label: "Empty task queue",
+      detail: "Builder has no open task to pick up.",
     });
   }
 

@@ -65,12 +65,6 @@ export const AGY_MODEL_EVALUATION_SCENARIOS:
       instructionTraceRules: withAntigravityHarnessInstructions([
         {
           kind: "required-command",
-          command: "pnpm run start-task",
-          sourceRoot: "fixture-initial-state",
-          sourcePath: "AGENTS.md",
-        },
-        {
-          kind: "required-command",
           command:
             "node scripts/check-strategy.mjs --visible-only --no-strategy",
           sourceRoot: "fixture-initial-state",
@@ -98,16 +92,10 @@ export const AGY_MODEL_EVALUATION_SCENARIOS:
       instructionTraceRules: withAntigravityHarnessInstructions([
         {
           kind: "required-command",
-          command: "pnpm kota task move task-cover-cart-pricing-rules doing",
-          sourceRoot: "fixture-initial-state",
-          sourcePath: "AGENTS.md",
-        },
-        {
-          kind: "required-command",
           command: "node scripts/check-targeted-tests.mjs",
           sourceRoot: "fixture-initial-state",
           sourcePath:
-            "data/tasks/ready/task-cover-cart-pricing-rules.md",
+            "data/tasks/task-cover-cart-pricing-rules.md",
         },
         {
           kind: "required-command",
@@ -125,17 +113,10 @@ export const AGY_MODEL_EVALUATION_SCENARIOS:
       instructionTraceRules: withAntigravityHarnessInstructions([
         {
           kind: "required-command",
-          command:
-            "pnpm kota task move task-fix-cross-hierarchy-signal-routing doing",
-          sourceRoot: "fixture-initial-state",
-          sourcePath: "AGENTS.md",
-        },
-        {
-          kind: "required-command",
           command: "node scripts/check-debug-trace.mjs",
           sourceRoot: "fixture-initial-state",
           sourcePath:
-            "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md",
+            "data/tasks/task-fix-cross-hierarchy-signal-routing.md",
         },
         {
           kind: "required-command",

@@ -34,9 +34,9 @@ const emptyDigest: DailyDigestData = {
   pendingOwnerQuestions: [],
   agingOperatorCaptures: [],
   queueDelta: {
-    current: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+    current: { open: 0, blocked: 0 },
     previous: null,
-    delta: { backlog: null, ready: null, doing: null, blocked: null },
+    delta: { open: null, blocked: null },
   },
   quiet: true,
 };
@@ -47,7 +47,7 @@ describe("renderDailyDigest", () => {
     expect(text).toContain("Daily digest");
     expect(text).toContain("No autonomy activity in this window.");
     expect(text).toContain("Queue state");
-    expect(text).toContain("ready: 0");
+    expect(text).toContain("open: 0");
     expect(text).toContain("(no prior snapshot)");
   });
 
@@ -77,8 +77,7 @@ describe("renderDailyDigest", () => {
         {
           runId: "run-promo-a",
           promotedTaskIds: ["task-x", "task-y"],
-          toReady: ["task-x"],
-          toBacklog: ["task-y"],
+          toOpen: ["task-x", "task-y"],
         },
       ],
       failedMonitoredRuns: [
@@ -105,9 +104,9 @@ describe("renderDailyDigest", () => {
         },
       ],
       queueDelta: {
-        current: { backlog: 5, ready: 2, doing: 1, blocked: 3 },
-        previous: { backlog: 7, ready: 0, doing: 1, blocked: 4 },
-        delta: { backlog: -2, ready: 2, doing: 0, blocked: -1 },
+        current: { open: 8, blocked: 3 },
+        previous: { open: 8, blocked: 4 },
+        delta: { open: 0, blocked: -1 },
       },
       quiet: false,
     };
@@ -119,8 +118,7 @@ describe("renderDailyDigest", () => {
     expect(text).toContain("Decomposer splits (1)");
     expect(text).toContain("task-big → 3 child tasks");
     expect(text).toContain("Blocked-promoter moves (2 tasks promoted across 1 run)");
-    expect(text).toContain("blocked → ready");
-    expect(text).toContain("blocked → backlog");
+    expect(text).toContain("blocked → open");
     expect(text).toContain("Failed/interrupted monitored runs (1)");
     expect(text).toContain("see attention-digest");
     expect(text).toContain("Pending owner questions (1)");
@@ -128,11 +126,7 @@ describe("renderDailyDigest", () => {
     expect(text).toContain("Aging operator-capture preconditions (1)");
     expect(text).toContain("task-needs-shot");
     expect(text).toContain("Queue state");
-    expect(text).toContain("backlog: 5");
-    expect(text).toContain("(-2)");
-    expect(text).toContain("ready: 2");
-    expect(text).toContain("(+2)");
-    expect(text).toContain("doing: 1");
+    expect(text).toContain("open: 8");
     expect(text).toContain("(=)");
   });
 

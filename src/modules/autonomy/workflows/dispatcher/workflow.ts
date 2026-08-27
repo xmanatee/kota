@@ -84,7 +84,6 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         ]);
         const {
           queue,
-          promotionRationale,
           researchRetryAvailability,
           securityReviewDue,
           scopeBoundary,
@@ -109,36 +108,19 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           !queue.hasDispatchableWork &&
           queue.dependencyBlockedTasks.length > 0;
         const queueEmpty = !queue.hasDispatchableWork && !queueBlocked;
-        // Builders run only on ready/doing work. Backlog-only queues route
-        // through promotion when at least one non-anchor, dependency-clear task
-        // can enter ready under the canonical transition contract.
-        const queueNeedsPromotion =
-          promotionRationale.selected.length > 0;
-        const queueActionable =
-          !queueNeedsPromotion && builderTasks.length > 0;
+        const queueActionable = builderTasks.length > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
-        const dispatchableTailCount =
-          queue.actionableCount + queue.promotableBacklogCount;
         const queueThin =
           queue.inboxCount === 0 &&
-          dispatchableTailCount > 0 &&
-          dispatchableTailCount <= 2;
+          queue.actionableCount > 0 &&
+          queue.actionableCount <= 2;
 
         if (queue.inboxCount > 0) {
           emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
         }
         if (queueActionable) {
           for (const task of builderTasks) emit("autonomy.queue.available", task);
-        }
-        if (queueNeedsPromotion) {
-          emit("autonomy.queue.needs-promotion", {
-            backlogCount: queue.counts.backlog,
-            promotableBacklogCount: queue.promotableBacklogCount,
-            dispatchableCount: queue.dispatchableCount,
-            counts: queue.counts,
-            dependencyBlockedTasks: queue.dependencyBlockedTasks,
-          });
         }
         if (queueEmpty) {
           emit("autonomy.queue.empty", {
@@ -178,8 +160,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         }
         if (queueThin) {
           emit("autonomy.queue.thin", {
-            pullableCount: queue.pullableCount,
-            promotableBacklogCount: queue.promotableBacklogCount,
+            actionableCount: queue.actionableCount,
             dispatchableCount: queue.dispatchableCount,
             dependencyBlockedTasks: queue.dependencyBlockedTasks,
             counts: queue.counts,
@@ -188,7 +169,6 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const emitted = [
           queue.inboxCount > 0 && "autonomy.inbox.available",
           ...builderTasks.map(() => queueActionable && "autonomy.queue.available"),
-          queueNeedsPromotion && "autonomy.queue.needs-promotion",
           queueEmpty && "autonomy.queue.empty",
           blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
           securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
@@ -200,13 +180,10 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
 
         return {
           inboxCount: queue.inboxCount,
-          pullableCount: queue.pullableCount,
           actionableCount: queue.actionableCount,
           dispatchableCount: queue.dispatchableCount,
           dependencyBlockedTasks: queue.dependencyBlockedTasks,
           builderTaskIds: builderTasks.map((task) => task.taskId),
-          promotableBacklogCount: queue.promotableBacklogCount,
-          promotionFrontier: promotionRationale.frontier,
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
           securityReviewDue,

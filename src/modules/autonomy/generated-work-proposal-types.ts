@@ -1,8 +1,5 @@
 import type { OwnerQuestionEnqueueInput } from "#core/daemon/owner-question-queue.js";
-import type {
-  RepoTaskClass,
-  RepoTaskState,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export type GeneratedWorkProvenance = {
   source: string;
@@ -12,19 +9,11 @@ export type GeneratedWorkProvenance = {
   evidenceRefs: string[];
 };
 
-export type GeneratedWorkMarker = {
-  key: string;
-  provenance: GeneratedWorkProvenance[];
-};
-
 export type GeneratedWorkTaskProposal = {
   kind: "task";
   proposalKey: string;
   title: string;
-  summary: string;
   priority: "p0" | "p1" | "p2" | "p3";
-  area: string;
-  taskClass: RepoTaskClass;
   body: string;
   provenance: GeneratedWorkProvenance;
 };

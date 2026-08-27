@@ -128,11 +128,8 @@ function blockedPromoterSection(
   );
   const label = `Blocked-promoter moves (${totalPromoted} task${totalPromoted === 1 ? "" : "s"} promoted across ${items.length} run${items.length === 1 ? "" : "s"})`;
   const rows: ListItem[] = items.flatMap((item) => [
-    ...item.toReady.map((id) => ({
-      spans: [plain(id), span(": blocked → ready", "success")],
-    })),
-    ...item.toBacklog.map((id) => ({
-      spans: [plain(id), span(": blocked → backlog", "info")],
+    ...item.toOpen.map((id) => ({
+      spans: [plain(id), span(": blocked → open", "success")],
     })),
   ]);
   return [sectionRule(label), list(rows), blank()];
@@ -185,7 +182,7 @@ function operatorCaptureSection(
 
 function queueDeltaSection(delta: QueueDelta): RenderNode[] {
   const rows: ListItem[] = (
-    ["ready", "backlog", "doing", "blocked"] as const
+    ["open", "blocked"] as const
   ).map((key) => {
     const current = delta.current[key];
     const change = delta.delta[key];

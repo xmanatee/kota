@@ -12,12 +12,13 @@ export function renderRepoTaskSearchPlain(hits: RepoTaskSearchHit[]): string {
 	if (hits.length === 0) return "";
 	const idWidth = Math.max(...hits.map((h) => h.id.length), 2);
 	const stateWidth = Math.max(...hits.map((h) => h.state.length), 5);
-	const prioWidth = Math.max(...hits.map((h) => h.priority.length), 4);
+	const priorities = hits.map((hit) => hit.priority ?? "—");
+	const prioWidth = Math.max(...priorities.map((priority) => priority.length), 4);
 	return hits
 		.map((hit) => {
 			const id = hit.id.padEnd(idWidth);
 			const state = hit.state.padEnd(stateWidth);
-			const priority = hit.priority.padEnd(prioWidth);
+			const priority = (hit.priority ?? "—").padEnd(prioWidth);
 			return `${id}  ${state}  ${priority}  ${hit.title}`;
 		})
 		.join("\n");

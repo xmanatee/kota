@@ -30,8 +30,7 @@ function makeRuntimeTarget() {
     scopeDir,
     "retract-contributor-test",
   );
-  mkdirSync(join(target.workspaceRoot, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(target.workspaceRoot, "data", "tasks", "dropped"), { recursive: true });
+  mkdirSync(join(target.workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(target.workspaceRoot, "data", "inbox"), { recursive: true });
   return target;
 }
@@ -97,26 +96,18 @@ describe("createKnowledgeContributor (real KnowledgeStore)", () => {
 });
 
 describe("createTasksContributor (real repo-tasks state machine)", () => {
-  it("moves a task from backlog into dropped via the state machine, not a raw delete", async () => {
+  it("moves an open task into the archive as dropped via the state machine", async () => {
     const target = makeRuntimeTarget();
     const scopeRoot = target.workspaceRoot;
     const created = createNormalizedTask(scopeRoot, {
       title: "review macOS push permissions",
       priority: "p3",
-      area: "uncategorized",
-      state: "backlog",
-      summary: "review macOS push permissions",
+      state: "open",
     });
     if (!created.ok) throw new Error("setup: createNormalizedTask failed");
     const id = created.id;
-    const backlogPath = join(
-      scopeRoot,
-      "data",
-      "tasks",
-      "backlog",
-      `${id}.md`,
-    );
-    expect(existsSync(backlogPath)).toBe(true);
+    const openPath = join(scopeRoot, "data", "tasks", `${id}.md`);
+    expect(existsSync(openPath)).toBe(true);
 
     const contrib = createTasksContributor(target);
     const result = await contrib.retract({ id });
@@ -126,22 +117,16 @@ describe("createTasksContributor (real repo-tasks state machine)", () => {
     expect(result.record.target).toBe("tasks");
     if (result.record.target !== "tasks") throw new Error("unreachable");
     expect(result.record.recordId).toBe(id);
-    expect(result.record.previousPath).toBe(`data/tasks/backlog/${id}.md`);
-    expect(result.record.path).toBe(`data/tasks/dropped/${id}.md`);
+    expect(result.record.previousPath).toBe(`data/tasks/${id}.md`);
+    expect(result.record.path).toBe(`data/tasks/archive/${id}.md`);
     expect(result.record.toState).toBe("dropped");
 
-    const droppedPath = join(
-      scopeRoot,
-      "data",
-      "tasks",
-      "dropped",
-      `${id}.md`,
-    );
-    expect(existsSync(backlogPath)).toBe(false);
+    const droppedPath = join(scopeRoot, "data", "tasks", "archive", `${id}.md`);
+    expect(existsSync(openPath)).toBe(false);
     expect(existsSync(droppedPath)).toBe(true);
     const body = readFileSync(droppedPath, "utf-8");
     expect(body).toMatch(/status: dropped/);
-    expect(body).not.toMatch(/status: backlog/);
+    expect(body).not.toMatch(/status: open/);
   });
 
   it("returns not_found when the task id is not present in any state directory", async () => {
@@ -232,7 +217,7 @@ describe("createInboxContributor (real filesystem)", () => {
     const target = makeRuntimeTarget();
     const contrib = createInboxContributor(target);
     await expect(
-      contrib.retract({ path: "data/tasks/backlog/something.md" }),
+      contrib.retract({ path: "data/tasks/something.md" }),
     ).rejects.toThrow(/outside data\/inbox/);
     await expect(
       contrib.retract({ path: "../etc/passwd" }),

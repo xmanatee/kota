@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { getRepoTaskPath } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { OwnerAskCandidate } from "./promotion.js";
 
 export const BLOCKED_OWNER_DECISION_REQUESTED_EVENT =
@@ -83,12 +83,6 @@ export function ownerAskCandidateForWorkspace(
 ): OwnerAskCandidate {
   return {
     ...candidate,
-    taskPath: join(
-      workspaceRoot,
-      "data",
-      "tasks",
-      "blocked",
-      `${candidate.taskId}.md`,
-    ),
+    taskPath: getRepoTaskPath(workspaceRoot, "blocked", candidate.taskId),
   };
 }

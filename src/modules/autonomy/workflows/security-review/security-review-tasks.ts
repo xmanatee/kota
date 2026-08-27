@@ -1,17 +1,17 @@
+import { join } from "node:path";
 import { serializeFlatFrontMatter } from "#core/util/frontmatter.js";
-import { classifyWorkflowGeneratedTask } from "#modules/autonomy/workflow-generated-task-class.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
-import { writeRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
+import {
+  reopenTaskById,
+  writeRepoTaskFile,
+} from "#modules/repo-tasks/repo-tasks-domain.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { writeJsonArtifact } from "./security-review-candidates.js";
 import type {
   SecurityFindingSeverity,
   SecurityRevalidatedFinding,
 } from "./security-review-output.js";
-import {
-  resolveSecurityFindingTaskTarget,
-  securityFindingIdentityAttrs,
-} from "./security-review-task-identity.js";
+import { resolveSecurityFindingTaskTarget } from "./security-review-task-identity.js";
 
 function taskPriorityForSeverity(severity: SecurityFindingSeverity): "p1" | "p2" | "p3" {
   if (severity === "critical" || severity === "high") return "p1";
@@ -193,38 +193,26 @@ export function createOrUpdateSecurityFindingTasks(
       unchangedFindingIds.push(finding.id);
       continue;
     }
-    const { key, reviewRunIds: mergedReviewRunIds, target } = resolution;
-    const now = new Date().toISOString();
-    const existingCreatedAt = target.kind === "update"
-      ? String(target.attrs.created_at ?? now)
-      : now;
+    const { reviewRunIds: mergedReviewRunIds, target } = resolution;
+    const priority = taskPriorityForUpdate(
+      target.kind === "update" ? target.priority ?? undefined : undefined,
+      taskPriorityForSeverity(finding.severity),
+    );
+    if (target.kind === "update" && (target.state === "done" || target.state === "dropped")) {
+      const moved = reopenTaskById(workspaceRoot, target.id, priority);
+      target.path = join(workspaceRoot, moved.path);
+      target.state = "open";
+    }
     const attrs: Record<string, string | string[]> = {
-      ...(target.kind === "update" ? target.attrs : {}),
-      id: target.id,
-      title: `Security review: ${safeClaim}`,
       status: target.state,
-      priority: taskPriorityForUpdate(
-        target.kind === "update" ? target.attrs.priority : undefined,
-        taskPriorityForSeverity(finding.severity),
-      ),
-      area: "security",
-      task_class: classifyWorkflowGeneratedTask({
-        workflowName: "security-review",
-        area: "security",
-        title,
-        summary: safeClaim,
-      }),
-      summary: safeClaim,
-      created_at: existingCreatedAt,
-      updated_at: now,
-      ...securityFindingIdentityAttrs(key, mergedReviewRunIds),
+      ...((target.state === "open" || target.state === "blocked") ? { priority } : {}),
     };
     writeRepoTaskFile(
       workspaceRoot,
       target.path,
       serializeFlatFrontMatter(
         attrs,
-        buildFindingTaskBody({ finding, reviewRunIds: mergedReviewRunIds }),
+        `# ${title}\n\n${buildFindingTaskBody({ finding, reviewRunIds: mergedReviewRunIds })}`,
       ),
     );
     taskPaths.push(target.path);

@@ -106,16 +106,12 @@ describe("renderDashboard status", () => {
         makeSnapshot({
           taskQueue: {
             inboxCount: 3,
-            openCount: 12,
-            pullableCount: 8,
+            activeCount: 11,
             actionableCount: 2,
-            promotableBacklogCount: 1,
             dispatchableCount: 6,
             hasDispatchableWork: true,
             counts: {
-              backlog: 6,
-              ready: 2,
-              doing: 0,
+              open: 8,
               blocked: 3,
               done: 100,
               dropped: 4,
@@ -127,8 +123,9 @@ describe("renderDashboard status", () => {
     );
     expect(output).toContain("Work");
     expect(output).toContain("Inbox 3");
-    expect(output).toContain("Backlog 6");
+    expect(output).toContain("Open 8");
+    expect(output).toContain("Dispatchable 6");
     expect(output).toContain("Actionable 2");
-    expect(output).not.toMatch(/Doing\s+0/);
+    expect(output).not.toMatch(/Done\s+100/);
   });
 });

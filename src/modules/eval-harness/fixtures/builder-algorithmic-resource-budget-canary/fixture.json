@@ -51,15 +51,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-implement-scalable-inversion-counter.md"
+      "path": "data/tasks/task-implement-scalable-inversion-counter.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-implement-scalable-inversion-counter.md"
+      "path": "data/tasks/archive/task-implement-scalable-inversion-counter.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-implement-scalable-inversion-counter.md",
+      "path": "data/tasks/archive/task-implement-scalable-inversion-counter.md",
       "needle": "status: done"
     },
     {
@@ -67,8 +67,8 @@
       "allowedPaths": [
         "resource-budget-result.json",
         "src/inversions.mjs",
-        "data/tasks/ready/task-implement-scalable-inversion-counter.md",
-        "data/tasks/done/task-implement-scalable-inversion-counter.md"
+        "data/tasks/task-implement-scalable-inversion-counter.md",
+        "data/tasks/archive/task-implement-scalable-inversion-counter.md"
       ]
     }
   ],
@@ -145,7 +145,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-implement-scalable-inversion-counter.md"
+        "path": "data/tasks/task-implement-scalable-inversion-counter.md"
       },
       "expected": "pass"
     },

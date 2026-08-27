@@ -56,9 +56,8 @@ function tasksHit(id: string, nativeScore: number): RawRecallEntry {
     nativeScore,
     payload: {
       title: `task-${id}`,
-      state: "ready",
+      state: "open",
       priority: "p2",
-      updatedAt: "2026-04-04",
     },
   };
 }
@@ -228,9 +227,8 @@ describe("RecallProviderImpl", () => {
       nativeScore: 0.8,
       payload: {
         title: "Add recall seam",
-        state: "doing",
+        state: "open",
         priority: "p1",
-        updatedAt: "2026-04-27",
       },
     }]));
     const [hit] = await provider.recall("q");
@@ -238,9 +236,8 @@ describe("RecallProviderImpl", () => {
       source: "tasks",
       id: "t1",
       title: "Add recall seam",
-      state: "doing",
+      state: "open",
       priority: "p1",
-      updatedAt: "2026-04-27",
     });
   });
 });

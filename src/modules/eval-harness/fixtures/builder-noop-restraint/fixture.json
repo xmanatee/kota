@@ -12,22 +12,22 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-verify-existing-noop-marker.md"
+      "path": "data/tasks/task-verify-existing-noop-marker.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-verify-existing-noop-marker.md"
+      "path": "data/tasks/archive/task-verify-existing-noop-marker.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-verify-existing-noop-marker.md",
+      "path": "data/tasks/archive/task-verify-existing-noop-marker.md",
       "needle": "status: done"
     },
     {
       "kind": "git-changes-within",
       "allowedPaths": [
-        "data/tasks/ready/task-verify-existing-noop-marker.md",
-        "data/tasks/done/task-verify-existing-noop-marker.md"
+        "data/tasks/task-verify-existing-noop-marker.md",
+        "data/tasks/archive/task-verify-existing-noop-marker.md"
       ]
     }
   ],
@@ -45,7 +45,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/done/task-verify-existing-noop-marker.md"
+        "path": "data/tasks/archive/task-verify-existing-noop-marker.md"
       },
       "expected": "fail"
     },

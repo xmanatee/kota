@@ -22,24 +22,24 @@
   "predicates": [
     {
       "kind": "file-absent",
-      "path": "data/tasks/doing/task-fixture-agent-call-replay-target.md"
+      "path": "data/tasks/task-fixture-agent-call-replay-target.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/dropped/task-fixture-agent-call-replay-target.md"
+      "path": "data/tasks/archive/task-fixture-agent-call-replay-target.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/dropped/task-fixture-agent-call-replay-target.md",
+      "path": "data/tasks/archive/task-fixture-agent-call-replay-target.md",
       "needle": "## Decomposed"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/ready/task-fixture-replay-subtask-external-project-e2e.md"
+      "path": "data/tasks/task-fixture-replay-subtask-external-project-e2e.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/ready/task-fixture-replay-subtask-workflow-precedence.md"
+      "path": "data/tasks/task-fixture-replay-subtask-workflow-precedence.md"
     },
     {
       "kind": "file-contains",
@@ -59,14 +59,14 @@
     {
       "predicate": {
         "kind": "file-absent",
-        "path": "data/tasks/doing/task-fixture-agent-call-replay-target.md"
+        "path": "data/tasks/task-fixture-agent-call-replay-target.md"
       },
       "expected": "fail"
     },
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/doing/task-fixture-agent-call-replay-target.md"
+        "path": "data/tasks/task-fixture-agent-call-replay-target.md"
       },
       "expected": "pass"
     }

@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
+import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
@@ -7,8 +9,10 @@ import {
 } from "./repo-task-mutation-boundary.js";
 import {
   type DaemonTaskStatusResponse,
+  extractRepoTaskTitle,
   getRepoInboxDir,
   getRepoTasksDir,
+  listFullRepoTasks,
   type RepoTaskState,
 } from "./repo-tasks-domain.js";
 import { readRouteJsonBody } from "./route-body.js";
@@ -16,11 +20,10 @@ import {
   COUNTED_STATES,
   countMarkdownFiles,
   DETAIL_STATES,
-  listTaskFiles,
   readStateTasks,
 } from "./route-task-files.js";
 
-const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["backlog", "ready", "blocked", "dropped"];
+const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["open", "blocked", "done", "dropped"];
 
 export async function handleTaskStateChange(
   req: IncomingMessage,
@@ -96,11 +99,9 @@ export async function handleTaskBodyUpdate(
     }
     const { attrs, body: parsedBody } = parseFlatFrontMatter(result.content);
     jsonResponse(res, 200, {
-      id: attrs.id,
-      title: attrs.title,
+      id,
+      title: extractRepoTaskTitle(parsedBody),
       priority: attrs.priority ?? "",
-      area: attrs.area ?? "",
-      summary: attrs.summary ?? "",
       body: parsedBody.trim(),
     });
   } catch (err) {
@@ -108,20 +109,40 @@ export async function handleTaskBodyUpdate(
   }
 }
 
-export function handleTaskStatus(
+export async function handleTaskStatus(
   res: ServerResponse,
   repoRoot = process.cwd(),
-): void {
+): Promise<void> {
   const tasksDir = getRepoTasksDir(repoRoot);
   const inboxDir = getRepoInboxDir(repoRoot);
   const counts = Object.fromEntries(
     COUNTED_STATES.map((state) => [
       state,
-      state === "inbox" ? countMarkdownFiles(inboxDir) : listTaskFiles(tasksDir, state).length,
+      state === "inbox" ? countMarkdownFiles(inboxDir) : listFullRepoTasks(repoRoot, [state]).length,
     ]),
   ) as DaemonTaskStatusResponse["counts"];
+  const transport = getDaemonTransport();
+  const workflowStatus = transport
+    ? await transport.request<WorkflowLiveStatus>("GET", "/workflow/status")
+    : null;
+  const inProgressTaskIds = activeBuilderTaskIds(workflowStatus);
   const tasks = Object.fromEntries(
-    DETAIL_STATES.map((state) => [state, readStateTasks(repoRoot, tasksDir, state)]),
+    DETAIL_STATES.map((state) => [
+      state,
+      readStateTasks(repoRoot, tasksDir, state, inProgressTaskIds),
+    ]),
   ) as DaemonTaskStatusResponse["tasks"];
   jsonResponse(res, 200, { counts, tasks } satisfies DaemonTaskStatusResponse);
+}
+
+export function activeBuilderTaskIds(
+  workflowStatus: Pick<WorkflowLiveStatus, "activeRuns"> | null,
+): Set<string> {
+  return new Set(
+    (workflowStatus?.activeRuns ?? []).flatMap((run) => {
+      if (run.workflow !== "builder") return [];
+      const taskId = run.trigger?.payload.taskId;
+      return typeof taskId === "string" ? [taskId] : [];
+    }),
+  );
 }

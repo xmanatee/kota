@@ -68,15 +68,14 @@ describe("autonomous workflow loop integration", () => {
     "explorer does not run when exploration refresh is not due (no-op churn eliminated)",
     { timeout: 10_000 },
     async () => {
-      // Clear ready tasks, backlog, and inbox so the dispatcher emits autonomy.queue.empty.
+      // Clear active tasks and inbox so the dispatcher emits autonomy.queue.empty.
       // The explorer trigger cooldown (30 min) matches the exploration refresh window,
       // so with the last completion only 10 minutes ago, the explorer should not be
       // eligible to run — eliminating no-op churn.
-      for (const f of readdirSync(join(workspaceRoot, "data/tasks/ready"))) {
-        rmSync(join(workspaceRoot, "data/tasks/ready", f));
-      }
-      for (const f of readdirSync(join(workspaceRoot, "data/tasks/backlog"))) {
-        rmSync(join(workspaceRoot, "data/tasks/backlog", f));
+      for (const f of readdirSync(join(workspaceRoot, "data/tasks"))) {
+        if (f.endsWith(".md") && f !== "AGENTS.md") {
+          rmSync(join(workspaceRoot, "data/tasks", f));
+        }
       }
       for (const f of readdirSync(join(workspaceRoot, "data/inbox"))) {
         rmSync(join(workspaceRoot, "data/inbox", f));

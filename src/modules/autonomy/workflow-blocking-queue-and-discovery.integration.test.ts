@@ -10,7 +10,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import { applyBacklogPromotionOperation } from "#modules/autonomy/workflows/backlog-promoter/blocking-operations.js";
 import { listBuilderTaskDispatches } from "#modules/autonomy/workflows/builder/task-contract.js";
 import { applyDecompositionOperation } from "#modules/autonomy/workflows/decomposer/blocking-operations.js";
 import {
@@ -21,27 +20,13 @@ import {
 import { discoverRepoAiChecksOperation } from "#modules/autonomy/workflows/repo-ai-checks/blocking-operations.js";
 import { readVerifiedRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
 
-const TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
-  "blocked",
-  "done",
-  "dropped",
-] as const;
-
-function taskMarkdown(id: string, status: string, title: string): string {
+function taskMarkdown(status: string, title: string): string {
   return `---
-id: ${id}
-title: ${title}
 status: ${status}
 priority: p1
-area: core
-task_class: Platform
-summary: Exercise a production repository operation through a worker.
-created_at: 2026-08-14T12:00:00.000Z
-updated_at: 2026-08-14T12:00:00.000Z
 ---
+
+# ${title}
 
 ## Problem
 
@@ -75,9 +60,7 @@ Responsive daemon control.
 
 function makeProject(prefix: string): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), prefix));
-  for (const state of TASK_STATES) {
-    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: workspaceRoot });
   execFileSync("git", ["config", "user.email", "kota@example.test"], {
     cwd: workspaceRoot,
@@ -96,31 +79,20 @@ function commitFixture(workspaceRoot: string): void {
   });
 }
 
-describe("queue and discovery blocking operations", () => {
-  it("runs production queue mutation, decomposition, and recursive discovery in real workers", async () => {
-    const backlogProject = makeProject("kota-backlog-worker-");
+describe("task and discovery blocking operations", () => {
+  it("runs production decomposition and recursive discovery in real workers", async () => {
     const decomposerProject = makeProject("kota-decomposer-worker-");
     const discoveryScope = makeProject("kota-repo-ai-worker-");
     try {
       writeFileSync(
-        join(backlogProject, "data/tasks/backlog/task-worker-promotion.md"),
-        taskMarkdown("task-worker-promotion", "backlog", "Worker promotion"),
-      );
-      commitFixture(backlogProject);
-
-      writeFileSync(
-        join(decomposerProject, "data/tasks/doing/task-worker-decomposition.md"),
-        taskMarkdown(
-          "task-worker-decomposition",
-          "doing",
-          "Worker decomposition",
-        ),
+        join(decomposerProject, "data/tasks/task-worker-decomposition.md"),
+        taskMarkdown("open", "Worker decomposition"),
       );
       commitFixture(decomposerProject);
       const decompositionTaskId = "task-worker-decomposition";
       const decompositionTask = readVerifiedRepoTaskFile(
         decomposerProject,
-        "doing",
+        "open",
         decompositionTaskId,
       );
       if (decompositionTask === null) {
@@ -153,11 +125,7 @@ describe("queue and discovery blocking operations", () => {
       const timer = setTimeout(() => {
         timerFired = true;
       }, 0);
-      const [promotion, decomposition, discovery] = await Promise.all([
-        runWorkflowBlockingOperation(applyBacklogPromotionOperation, {
-          workspaceRoot: backlogProject,
-          taskIds: ["task-worker-promotion"],
-        }),
+      const [decomposition, discovery] = await Promise.all([
         runWorkflowBlockingOperation(applyDecompositionOperation, {
           workspaceRoot: decomposerProject,
           stateDir,
@@ -176,10 +144,7 @@ describe("queue and discovery blocking operations", () => {
             subtasks: [
               {
                 title: "Worker decomposition slice",
-                summary: "Complete the decomposed repository operation safely.",
                 priority: "p1",
-                area: "core",
-                taskClass: "Platform",
                 problem: "The original work requires a smaller execution unit.",
                 desiredOutcome: "The bounded slice is independently verifiable.",
                 constraints: ["Preserve the original task intent."],
@@ -207,18 +172,6 @@ describe("queue and discovery blocking operations", () => {
       clearTimeout(timer);
 
       expect(timerFired).toBe(true);
-      expect(promotion.promotions).toEqual([
-        expect.objectContaining({
-          id: "task-worker-promotion",
-          fromState: "backlog",
-          toState: "ready",
-        }),
-      ]);
-      expect(
-        existsSync(
-          join(backlogProject, "data/tasks/ready/task-worker-promotion.md"),
-        ),
-      ).toBe(true);
       expect(decomposition).toEqual({
         taskId: "task-worker-decomposition",
         subtaskIds: ["task-worker-decomposition-slice"],
@@ -227,7 +180,7 @@ describe("queue and discovery blocking operations", () => {
         existsSync(
           join(
             decomposerProject,
-            "data/tasks/dropped/task-worker-decomposition.md",
+            "data/tasks/archive/task-worker-decomposition.md",
           ),
         ),
       ).toBe(true);
@@ -243,7 +196,6 @@ describe("queue and discovery blocking operations", () => {
         existsSync(join(discoveryScope, artifactDir, "discovery.json")),
       ).toBe(true);
     } finally {
-      rmSync(backlogProject, { recursive: true, force: true });
       rmSync(decomposerProject, { recursive: true, force: true });
       rmSync(discoveryScope, { recursive: true, force: true });
     }

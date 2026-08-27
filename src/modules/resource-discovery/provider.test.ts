@@ -241,7 +241,6 @@ describe("ResourceDiscoveryProviderImpl", () => {
             title: "Finish deployment checklist",
             state: "done",
             priority: "p1",
-            updatedAt: "2026-06-24T00:00:00.000Z",
           },
           {
             source: "answer",

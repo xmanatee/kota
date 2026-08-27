@@ -6,4 +6,4 @@ This fixture is a tiny dependency-free Node project for the KOTA eval harness.
 - `scripts/check-spec-faithfulness.mjs` and `scripts/check-spec-faithfulness/*.mjs` are the verifier. Do not edit them.
 - Implement the executable contract in `src/spec-contract.mjs`.
 - Write evidence to `spec-faithfulness-result.json`.
-- Move the seeded task from `data/tasks/ready/` to `data/tasks/done/` when complete.
+- Move the seeded task from `data/tasks/` to `data/tasks/archive/` when complete.

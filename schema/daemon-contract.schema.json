@@ -1524,10 +1524,10 @@
           "type": "string"
         },
         "priority": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         }
       },
       "required": [
@@ -1536,8 +1536,7 @@
         "id",
         "title",
         "state",
-        "priority",
-        "updatedAt"
+        "priority"
       ],
       "additionalProperties": false,
       "description": "Repo-task-queue hit payload surfaced through `recall`."
@@ -2244,11 +2243,11 @@
         },
         "previousPath": {
           "type": "string",
-          "description": "Previous repo-relative path (`data/tasks/<state>/<id>.md`)."
+          "description": "Previous repo-relative path (`data/tasks/<id>.md`)."
         },
         "path": {
           "type": "string",
-          "description": "New repo-relative path (always under `data/tasks/dropped/`)."
+          "description": "New repo-relative path (always under `data/tasks/archive/`)."
         },
         "toState": {
           "type": "string",
@@ -2264,7 +2263,7 @@
         "toState"
       ],
       "additionalProperties": false,
-      "description": "Tasks-store record dropped by a successful retract.\n\nRetracting a task does not delete the file — it routes through the existing task-state machine into `data/tasks/dropped/`. The arm carries the previous and resulting paths plus the explicit destination state so the operator surface can render \"moved to dropped\", not \"deleted\"."
+      "description": "Tasks-store record dropped by a successful retract.\n\nRetracting a task does not delete the file — it routes through the existing task-state machine into `data/tasks/archive/`. The arm carries the previous and resulting paths plus the explicit destination state so the operator surface can render \"moved to dropped\", not \"deleted\"."
     },
     "RetractInboxRecord": {
       "type": "object",
@@ -2617,16 +2616,10 @@
           "$ref": "#/definitions/RepoTaskState"
         },
         "priority": {
-          "type": "string"
-        },
-        "area": {
-          "type": "string"
-        },
-        "summary": {
-          "type": "string"
-        },
-        "updatedAt": {
-          "type": "string"
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "score": {
           "type": "number"
@@ -2637,9 +2630,6 @@
         "title",
         "state",
         "priority",
-        "area",
-        "summary",
-        "updatedAt",
         "score"
       ],
       "additionalProperties": false,
@@ -2648,9 +2638,7 @@
     "RepoTaskState": {
       "type": "string",
       "enum": [
-        "backlog",
-        "ready",
-        "doing",
+        "open",
         "blocked",
         "done",
         "dropped"
@@ -2873,13 +2861,7 @@
             "type": "string"
           }
         },
-        "toReady": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "toBacklog": {
+        "toOpen": {
           "type": "array",
           "items": {
             "type": "string"
@@ -2889,8 +2871,7 @@
       "required": [
         "runId",
         "promotedTaskIds",
-        "toReady",
-        "toBacklog"
+        "toOpen"
       ],
       "additionalProperties": false
     },
@@ -2985,19 +2966,7 @@
         "delta": {
           "type": "object",
           "properties": {
-            "backlog": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "ready": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "doing": {
+            "open": {
               "type": [
                 "number",
                 "null"
@@ -3011,9 +2980,7 @@
             }
           },
           "required": [
-            "backlog",
-            "ready",
-            "doing",
+            "open",
             "blocked"
           ],
           "additionalProperties": false,
@@ -3030,13 +2997,7 @@
     "QueueCounts": {
       "type": "object",
       "properties": {
-        "backlog": {
-          "type": "number"
-        },
-        "ready": {
-          "type": "number"
-        },
-        "doing": {
+        "open": {
           "type": "number"
         },
         "blocked": {
@@ -3044,9 +3005,7 @@
         }
       },
       "required": [
-        "backlog",
-        "ready",
-        "doing",
+        "open",
         "blocked"
       ],
       "additionalProperties": false

@@ -37,7 +37,7 @@ export function taskEntries(tasks: SurfaceRead<RepoTaskListResult>): {
       name: safeText(task.title, 72),
       state: task.state,
       detail: `${task.priority}${task.waitingOnTasks.length > 0 ? `; waiting on ${task.waitingOnTasks.join(", ")}` : ""}`,
-      role: task.state === "blocked" ? "warn" : task.state === "doing" ? "info" : "muted",
+      role: task.state === "blocked" ? "warn" : "muted",
       route: { method: "GET", path: `/api/tasks/${encodeURIComponent(task.id)}`, label: "Open task" },
     };
     if (task.state === "blocked") blocked.push(entry);

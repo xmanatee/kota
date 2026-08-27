@@ -98,11 +98,8 @@ describe("SlackBot", () => {
         {
           id: "task-foo",
           title: "do foo",
-          state: "ready" as const,
+          state: "open" as const,
           priority: "p2",
-          area: "architecture",
-          summary: "",
-          updatedAt: "2026-04-20T00:00:00Z",
           score: 0.5,
         },
       ];
@@ -114,7 +111,6 @@ describe("SlackBot", () => {
           move: vi.fn(),
           create: vi.fn(),
           capture: vi.fn(),
-          gc: vi.fn(),
           search: searchFn,
           reindex: vi.fn(),
         },
@@ -143,7 +139,6 @@ describe("SlackBot", () => {
           move: vi.fn(),
           create: vi.fn(),
           capture: vi.fn(),
-          gc: vi.fn(),
           search: searchFn,
           reindex: vi.fn(),
         },

@@ -16,52 +16,12 @@ import { isRepoTaskId } from "./task-id.js";
 
 const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
 
-function slugify(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-}
-
 function isRepoTaskState(value: string): value is ContractRepoTaskState {
   return typeof value === "string" && (REPO_TASK_STATES as readonly string[]).includes(value);
 }
 
 function isRepoTaskPriority(value: string): value is RepoTaskPriority {
   return typeof value === "string" && (ALLOWED_PRIORITIES as readonly string[]).includes(value);
-}
-
-export async function handleTaskCreate(
-  req: IncomingMessage,
-  res: ServerResponse,
-  target: RepoTaskMutationTarget,
-): Promise<void> {
-  const body = await readRouteJsonBody(req, res);
-  if (body === null) return;
-
-  const title = typeof body.title === "string" ? body.title.trim() : "";
-  if (!title) {
-    jsonResponse(res, 400, { error: "title is required" });
-    return;
-  }
-  const summary = typeof body.summary === "string" ? body.summary.trim() : "";
-  const id = `task-${slugify(title)}-${Math.random().toString(36).slice(2, 7)}`;
-  try {
-    const result = await mutateRepoTask(target, {
-      kind: "quick-create",
-      id,
-      title,
-      summary,
-    });
-    if (!result.ok) {
-      jsonResponse(res, 400, { reason: result.reason, error: result.message });
-      return;
-    }
-    jsonResponse(res, 201, { id: result.id, state: "inbox" });
-  } catch (err) {
-    jsonResponse(res, 500, { error: (err as Error).message });
-  }
 }
 
 export async function handleTaskShow(
@@ -168,33 +128,40 @@ export async function handleTaskCreateNormalized(
     });
     return;
   }
-  const state = typeof body.state === "string" && isRepoTaskState(body.state) ? body.state : null;
+  const state = body.state === undefined
+    ? "open"
+    : typeof body.state === "string" && (body.state === "open" || body.state === "blocked")
+      ? body.state
+      : null;
   if (state === null) {
     jsonResponse(res, 400, {
-      error: `state must be one of: ${REPO_TASK_STATES.join(", ")}`,
+      error: "state must be open or blocked",
     });
-    return;
-  }
-  if (typeof body.area !== "string" || body.area.trim() === "") {
-    jsonResponse(res, 400, { error: "area is required" });
     return;
   }
 
   const options: RepoTaskCreateOptions = {
     title: body.title,
     priority,
-    area: body.area,
     state,
-    ...(typeof body.summary === "string" && { summary: body.summary }),
   };
-  const result = await mutateRepoTask(target, { kind: "create", options });
-  if (!result.ok) {
-    const status = result.reason === "already_exists" ? 409 : 400;
-    jsonResponse(res, status, { reason: result.reason, error: result.message });
-    return;
+  try {
+    const result = await mutateRepoTask(target, { kind: "create", options });
+    if (!result.ok) {
+      const status = result.reason === "already_exists" ? 409 : 400;
+      jsonResponse(res, status, { reason: result.reason, error: result.message });
+      return;
+    }
+    jsonResponse(res, 201, { id: result.id, path: result.path });
+  } catch (error) {
+    jsonResponse(res, 500, {
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
-  jsonResponse(res, 201, { id: result.id, path: result.path });
 }
+
+/** Both task-creation routes use the same minimal active-task contract. */
+export const handleTaskCreate = handleTaskCreateNormalized;
 
 export async function handleTaskCapture(
   req: IncomingMessage,
@@ -215,27 +182,4 @@ export async function handleTaskCapture(
     return;
   }
   jsonResponse(res, 201, { id: result.id, path: result.path });
-}
-
-export async function handleTaskGc(
-  req: IncomingMessage,
-  res: ServerResponse,
-  target: RepoTaskMutationTarget,
-): Promise<void> {
-  const body = await readRouteJsonBody(req, res);
-  if (body === null) return;
-
-  const days = typeof body.days === "number" ? body.days : undefined;
-  if (days !== undefined && (!Number.isFinite(days) || days <= 0)) {
-    jsonResponse(res, 400, { error: "days must be a positive number" });
-    return;
-  }
-  const result = await mutateRepoTask(target, {
-    kind: "gc",
-    options: {
-      ...(days !== undefined && { days }),
-      ...(typeof body.dryRun === "boolean" && { dryRun: body.dryRun }),
-    },
-  });
-  jsonResponse(res, 200, result);
 }

@@ -192,8 +192,6 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
         return {
           runId: ctx.workflow.runId,
           promotedTaskIds: all.map((move) => move.id),
-          promotedToReady: all.filter((move) => move.toState === "ready").map((move) => move.id),
-          promotedToBacklog: all.filter((move) => move.toState === "backlog").map((move) => move.id),
         };
       },
     },

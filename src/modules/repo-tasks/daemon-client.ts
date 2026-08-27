@@ -3,8 +3,6 @@ import type {
 	RepoTaskCaptureResult,
 	RepoTaskCreateOptions,
 	RepoTaskCreateResult,
-	RepoTaskGcOptions,
-	RepoTaskGcResult,
 	RepoTaskListEntry,
 	RepoTaskMoveResult,
 	RepoTaskReindexResult,
@@ -22,9 +20,7 @@ import {
 } from "./daemon-client-errors.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
-	"backlog",
-	"ready",
-	"doing",
+	"open",
 	"blocked",
 ];
 
@@ -35,9 +31,7 @@ type ListBody = {
 		{
 			id: string;
 			title: string;
-			priority: string;
-			area: string;
-			summary: string;
+			priority: "p0" | "p1" | "p2" | "p3";
 			body: string;
 			waitingOnTasks?: string[];
 		}[]
@@ -228,19 +222,6 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			}
 			const okBody = (await res.json()) as { id: string; path: string };
 			return { ok: true, id: okBody.id, path: okBody.path };
-		},
-		gc: async (options?: RepoTaskGcOptions): Promise<RepoTaskGcResult> => {
-			const { scopeId, ...body } = options ?? {};
-			const query = scopeQuery(scopeId);
-			const res = await link.fetchRaw(`/api/tasks/gc${query}`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(body),
-			});
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			return (await res.json()) as RepoTaskGcResult;
 		},
 		search: async (
 			query: string,

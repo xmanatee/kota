@@ -1,0 +1,49 @@
+---
+status: done
+---
+
+# Complete guardrails-audit module to own audit state (CLI already migrated)
+
+## Problem
+
+`src/guardrails-audit.ts` still owns the audit log appender and query helpers in core, even though the CLI commands have already moved to `src/modules/guardrails-audit/`. Core `guardrails.ts` calls the audit module directly, making it impossible to disable or swap the audit backend without touching core. Audit state should be fully owned by the module.
+
+## Current State
+
+`src/modules/guardrails-audit/` exists with `cli.ts` (all `kota audit` subcommands) and
+`index.ts` (module module). `audit-cli.ts` has been removed from `src/`. The CLI half of
+the migration is complete.
+
+The remaining gap: `src/guardrails-audit.ts` (audit log appender, query helpers, AuditEntry type)
+still lives in core. There are two core callsites:
+
+1. `src/tool-runner.ts` — calls `getAuditStore()?.record(assessment, sessionId)` after each tool assessment
+2. `src/core/tools/audit.ts` — calls `getAuditStore()` to serve the agent's audit query tool
+
+## Desired Outcome
+
+Complete the module so it fully owns the audit subsystem:
+
+- Move audit log storage, `appendAuditEntry`, `queryAuditLog`, and `AuditEntry` into the module
+- `tool-runner.ts` emits assessment events to the event bus instead of calling the audit store directly
+- The module subscribes to those events and writes to `.kota/audit.jsonl`
+- `src/core/tools/audit.ts` either imports the store from the module or queries via an event/response mechanism
+- The module can be disabled via config without touching core tool-runner logic
+
+The core guardrails assessment logic remains in `guardrails.ts` and `tool-runner.ts`; only the audit logging and query path moves to the module.
+No behavior change; this is a refactoring + decoupling.
+
+## Constraints
+
+- Audit trail format and query APIs must remain stable.
+- All existing audit workflows and queries must work unchanged.
+- The module should not break if disabled; audit just won't be logged.
+
+## Done When
+
+- `src/guardrails-audit.ts` is removed or reduced to a minimal type re-export.
+- `src/modules/guardrails-audit/` has full state + CLI implementation.
+- `tool-runner.ts` emits assessment events to the bus instead of calling the audit store directly.
+- Audit module subscribes and logs assessments to `.kota/audit.jsonl`.
+- `kota audit` commands work unchanged.
+- All guardrails-audit tests pass.

@@ -26,7 +26,7 @@ export function renderDecisionAttribution(
   appendCounts(lines, "Execution attribution", report.byExecution, "attribution", report.totalRuns);
   if (report.byWorkMode.length > 0) {
     lines.push(blank());
-    appendCounts(lines, "Work mode / task_class", report.byWorkMode, "workMode", report.totalRuns);
+    appendCounts(lines, "Work mode / workflow", report.byWorkMode, "workMode", report.totalRuns);
   }
   if (report.hardSuccessSignals.length > 0) {
     lines.push(blank());

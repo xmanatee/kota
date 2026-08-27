@@ -106,8 +106,7 @@ function makeScopeRoot(): string {
     scopeDir,
     "retract-pipeline",
   ).workspaceRoot;
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
 }
@@ -142,9 +141,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
     const taskCreate = createNormalizedTask(scopeRoot, {
       title: "obsolete review macOS push permissions",
       priority: "p3",
-      area: "uncategorized",
-      state: "backlog",
-      summary: "obsolete review macOS push permissions",
+      state: "open",
     });
     if (!taskCreate.ok) throw new Error("setup: createNormalizedTask failed");
     taskId = taskCreate.id;
@@ -236,15 +233,9 @@ describe("cross-store retract pipeline (HTTP)", () => {
     ).toBe(false);
   });
 
-  it("tasks arm: a retract routes through the state machine, file ends up under data/tasks/dropped/ with status: dropped frontmatter", async () => {
-    const backlogPath = join(
-      scopeRoot,
-      "data",
-      "tasks",
-      "backlog",
-      `${taskId}.md`,
-    );
-    expect(existsSync(backlogPath)).toBe(true);
+  it("tasks arm: a retract routes through the state machine, file ends up under data/tasks/archive/ with status: dropped frontmatter", async () => {
+    const openPath = join(scopeRoot, "data", "tasks", `${taskId}.md`);
+    expect(existsSync(openPath)).toBe(true);
 
     const result = await client.retract.retract({
       target: "tasks",
@@ -255,23 +246,17 @@ describe("cross-store retract pipeline (HTTP)", () => {
     expect(result.record.target).toBe("tasks");
     if (result.record.target !== "tasks") throw new Error("unreachable");
     expect(result.record.recordId).toBe(taskId);
-    expect(result.record.previousPath).toBe(`data/tasks/backlog/${taskId}.md`);
-    expect(result.record.path).toBe(`data/tasks/dropped/${taskId}.md`);
+    expect(result.record.previousPath).toBe(`data/tasks/${taskId}.md`);
+    expect(result.record.path).toBe(`data/tasks/archive/${taskId}.md`);
     expect(result.record.toState).toBe("dropped");
 
-    const droppedPath = join(
-      scopeRoot,
-      "data",
-      "tasks",
-      "dropped",
-      `${taskId}.md`,
-    );
+    const droppedPath = join(scopeRoot, "data", "tasks", "archive", `${taskId}.md`);
     // The file is moved, not deleted.
-    expect(existsSync(backlogPath)).toBe(false);
+    expect(existsSync(openPath)).toBe(false);
     expect(existsSync(droppedPath)).toBe(true);
     const body = readFileSync(droppedPath, "utf-8");
     expect(body).toMatch(/status: dropped/);
-    expect(body).not.toMatch(/status: backlog/);
+    expect(body).not.toMatch(/status: open/);
   });
 
   it("inbox arm: a retract unlinks the file at the named path", async () => {

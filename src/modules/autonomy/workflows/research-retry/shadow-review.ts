@@ -19,7 +19,6 @@ import type {
 
 export type CandidateSummary = {
   id: string;
-  updatedAt: string;
   urls: string[];
 };
 

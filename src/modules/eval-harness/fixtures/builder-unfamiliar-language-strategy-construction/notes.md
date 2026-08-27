@@ -13,7 +13,7 @@ task, or solved program.
 The fixture seeds a small route-key project with a target language named
 Spool. The initial tree includes a compact language spec, visible examples,
 an incomplete `programs/solution.spool`, a deterministic verifier with hidden
-cases, and one ready task.
+cases, and one open task.
 
 Spool is deliberately tiny but non-JavaScript-shaped: it has one-based indexed
 base36 shifts, seed-offset rail partitioning, rail reassembly order, and a

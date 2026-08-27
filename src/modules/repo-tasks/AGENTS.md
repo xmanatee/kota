@@ -5,8 +5,11 @@ actionability, validation, CLI/control operations, and task status/search
 projections.
 
 - The domain is the source of truth for state names and for the difference
-  between open, promotable, and dispatchable work. Consumers use its typed
+  between active, actionable, and dispatchable work. Consumers use its typed
   snapshot fields rather than recomputing actionability from raw counts.
+- Active task files live directly under `data/tasks/`; terminal files live in
+  `data/tasks/archive/`. In-progress state is a transient projection of active
+  builder workflow runs and is never persisted in task frontmatter or paths.
 - Every production mutation under `data/tasks/` or `data/inbox/` goes through
   the domain operations. They own state-transition semantics, physical path
   safety, directory creation, and rollback of failed file operations.

@@ -17,12 +17,11 @@ export function buildBlockerMix(
     counts.set(kind, (counts.get(kind) ?? 0) + 1);
   }
   const order = new Map<BlockerKind, number>([
-    ["task-done", 0],
-    ["capability-installed", 1],
-    ["owner-decision", 2],
-    ["operator-capture", 3],
-    ["missing-section", 4],
-    ["malformed", 5],
+    ["capability-installed", 0],
+    ["owner-decision", 1],
+    ["operator-capture", 2],
+    ["missing-section", 3],
+    ["malformed", 4],
   ]);
   return {
     totalBlocked: blocked.length,

@@ -147,7 +147,7 @@ function runGit(scopeRoot: string, args: readonly string[]): string {
 function createProject(parent: string): DirectoryScope {
   const scopeRoot = join(parent, "scope");
   mkdirSync(join(scopeRoot, "src"), { recursive: true });
-  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks"), { recursive: true });
   mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
   runGit(scopeRoot, ["init", "--quiet", "--initial-branch=main"]);
   runGit(scopeRoot, ["config", "user.email", "eval-harness@kota.local"]);
@@ -220,17 +220,13 @@ function seedInitialState(scope: DirectoryScope): SeededRecords {
 function seedTaskDistractor(scopeRoot: string): string {
   const id = "task-aging-runbook-initial-router-polish";
   writeFileSync(
-    join(scopeRoot, "data", "tasks", "backlog", `${id}.md`),
+    join(scopeRoot, "data", "tasks", `${id}.md`),
     `---
-id: ${id}
-title: Old lifecycle routing runbook polish ${INITIAL_POLICY}
-status: backlog
+status: open
 priority: p3
-area: modules
-summary: Distractor task with superseded escalation runbook routing language.
-created_at: 2026-05-01T00:00:00Z
-updated_at: 2026-05-01T00:00:00Z
 ---
+
+# Old lifecycle routing runbook polish ${INITIAL_POLICY}
 
 ## Problem
 

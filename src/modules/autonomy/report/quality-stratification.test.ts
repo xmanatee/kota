@@ -2,6 +2,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   buildReport,
   MS_PER_DAY,
@@ -32,7 +33,7 @@ describe("quality stratification", () => {
   });
 
   it("keeps pooled review trends separate from workflow composition shifts", () => {
-    const tasks = [task("task-a", "ready", "autonomy"), task("task-b", "ready", "security")];
+    const tasks = [task("task-a", "open"), task("task-b", "open")];
     const runs = [
       ...reviewRuns("prior-a", "builder-a", "harness-a", 10, PRIOR_START + MS_PER_DAY),
       ...reviewRuns("prior-b", "builder-b", "harness-b", 1, PRIOR_START + MS_PER_DAY),
@@ -71,7 +72,7 @@ describe("quality stratification", () => {
   });
 
   it("keeps isolated slice regressions visible when pooled review rate is flat", () => {
-    const tasks = [task("task-a", "ready", "autonomy"), task("task-b", "ready", "security")];
+    const tasks = [task("task-a", "open"), task("task-b", "open")];
     const runs = [
       ...reviewRuns("prior-a", "builder-a", "harness-a", 3, PRIOR_START + MS_PER_DAY),
       ...reviewRuns("prior-b", "builder-b", "harness-b", 3, PRIOR_START + MS_PER_DAY),
@@ -97,12 +98,25 @@ describe("quality stratification", () => {
 
   it("stratifies follow-up signals while keeping missing metadata explicit", () => {
     const tasks = [
-      task("task-followed", "done", "security"),
+      task("task-followed", "done"),
     ];
+    writeWriterIntegrationFixture(runsDir, {
+      runId: "run-followed",
+      workflow: "builder",
+      completedAt: new Date(WINDOW_START + MS_PER_DAY + 1000).toISOString(),
+    });
 
     const report = buildReport(runsDir, {
       tasks,
-      runs: [],
+      runs: [
+        run(
+          "run-followed",
+          "builder",
+          WINDOW_START + MS_PER_DAY,
+          "harness-a",
+          "task-followed",
+        ),
+      ],
       reviewScrutiny: reviewReport([
         reviewRecord("missing-review", "critic", "builder", true, undefined),
       ]),
@@ -131,7 +145,7 @@ describe("quality stratification", () => {
       credential: "sk-test-secret",
     };
     const report = buildReport(runsDir, {
-      tasks: [task("task-safe", "done", "autonomy", "sk-test-secret in task body")],
+      tasks: [task("task-safe", "done", "sk-test-secret in task body")],
       runs: [unsafeRun],
       reviewScrutiny: reviewReport([
         reviewRecord("unsafe-run", "critic", "builder", true, "task-safe"),

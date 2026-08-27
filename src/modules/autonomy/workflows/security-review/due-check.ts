@@ -1,13 +1,12 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
+import { extname, join } from "node:path";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   WRITER_INTEGRATION_EVIDENCE,
   type WriterIntegrationEvidence,
 } from "#core/workflow/writer-integration-evidence.js";
 import {
-  getRepoTaskStateDir,
+  listVerifiedFullRepoTasks,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
@@ -17,13 +16,6 @@ import {
 
 export const SECURITY_REVIEW_DUE_EVENT = "autonomy.security-review.due";
 export const SECURITY_REVIEW_ROUTINE_COOLDOWN_MS = 60 * 60 * 1000;
-
-const OPEN_SECURITY_TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
-  "blocked",
-] as const satisfies readonly RepoTaskState[];
 
 const SOURCE_CODE_EXTENSIONS = new Set([
   ".cjs",
@@ -385,26 +377,14 @@ function taskLooksLikeSecurityReviewFollowUp(id: string, body: string): boolean 
 }
 
 function listOpenSecurityReviewTasks(workspaceRoot: string): SecurityReviewOpenTask[] {
-  const tasks: SecurityReviewOpenTask[] = [];
-  for (const state of OPEN_SECURITY_TASK_STATES) {
-    const dir = getRepoTaskStateDir(workspaceRoot, state);
-    if (!existsSync(dir)) continue;
-    for (const name of readdirSync(dir).sort()) {
-      if (!name.endsWith(".md") || name === "AGENTS.md") continue;
-      const path = join(dir, name);
-      const raw = readFileSync(path, "utf-8");
-      const parsed = parseFlatFrontMatter(raw);
-      const id = String(parsed.attrs.id ?? name.replace(/\.md$/, ""));
-      if (!taskLooksLikeSecurityReviewFollowUp(id, parsed.body)) continue;
-      tasks.push({
-        id,
-        title: String(parsed.attrs.title ?? id),
-        state,
-        path: relative(workspaceRoot, path),
-      });
-    }
-  }
-  return tasks;
+  return listVerifiedFullRepoTasks(workspaceRoot, ["open", "blocked"])
+    .filter((task) => taskLooksLikeSecurityReviewFollowUp(task.id, task.body))
+    .map((task) => ({
+      id: task.id,
+      title: task.title,
+      state: task.state,
+      path: task.taskFile.path,
+    }));
 }
 
 function computeCooldown(

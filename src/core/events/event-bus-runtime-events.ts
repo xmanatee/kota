@@ -7,9 +7,7 @@ import type { EventPayloadRecord } from "./event-bus-types.js";
 import type { ScopeId } from "./scope.js";
 
 type QueueCounts = {
-  backlog: number;
-  ready: number;
-  doing: number;
+  open: number;
   blocked: number;
   done: number;
   dropped: number;
@@ -18,7 +16,7 @@ type QueueCounts = {
 type QueueDependencyBlockedTask = {
   id: string;
   title: string;
-  state: "backlog" | "ready" | "doing";
+  state: "open";
   dependsOn: string[];
   waitingOn: string[];
 };
@@ -27,12 +25,10 @@ export type AutonomyQueueAvailableEvent = Readonly<{
   scopeId: ScopeId;
   taskId: string;
   taskPath: string;
-  taskState: "ready" | "doing";
-  taskUpdatedAt: string;
+  taskState: "open";
   taskDigest: string;
   title: string;
   priority: string;
-  taskClass: "Product" | "Safety" | "Platform" | "Meta" | "Unclassified";
   dependsOn: readonly string[];
   idempotencyKey: string;
 }>;
@@ -68,14 +64,6 @@ export type RuntimeBusEvents = {
     scopeId: ScopeId;
     inboxCount: number;
   };
-  "autonomy.queue.needs-promotion": {
-    scopeId: ScopeId;
-    backlogCount: number;
-    promotableBacklogCount: number;
-    dispatchableCount?: number;
-    counts: QueueCounts;
-    dependencyBlockedTasks: QueueDependencyBlockedTask[];
-  };
   "autonomy.queue.empty": {
     scopeId: ScopeId;
     counts: QueueCounts;
@@ -89,8 +77,7 @@ export type RuntimeBusEvents = {
   };
   "autonomy.queue.thin": {
     scopeId: ScopeId;
-    pullableCount: number;
-    promotableBacklogCount: number;
+    actionableCount: number;
     dispatchableCount?: number;
     counts: QueueCounts;
     dependencyBlockedTasks: QueueDependencyBlockedTask[];

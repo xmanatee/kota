@@ -27,8 +27,8 @@ const allowedChangedPaths = new Set([
   "artifacts/test-writing-evidence.json",
   "test/pricing.test.mjs",
   "test/targeted-tests.json",
-  "data/tasks/ready/task-cover-cart-pricing-rules.md",
-  "data/tasks/done/task-cover-cart-pricing-rules.md",
+  "data/tasks/task-cover-cart-pricing-rules.md",
+  "data/tasks/archive/task-cover-cart-pricing-rules.md",
 ]);
 const mutations = [
   {

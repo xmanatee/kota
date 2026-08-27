@@ -103,7 +103,7 @@ describe("createCaptureRouteHandler", () => {
           record: {
             target: "tasks",
             recordId: "task-x",
-            path: "data/tasks/backlog/task-x.md",
+            path: "data/tasks/task-x.md",
           },
         },
         recorded,

@@ -6,10 +6,7 @@ import type {
 import type {
   BlockedPreconditionKind,
 } from "#modules/repo-tasks/blocked-precondition.js";
-import type {
-  RepoTaskClass,
-  RepoTaskState,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ShadowSemanticReviewReport } from "../shadow-semantic-review-types.js";
 import type { DecisionAttributionReport } from "./decision-attribution-types.js";
 import type { DiffSummaryConsistencyReport } from "./diff-summary-consistency-report.js";
@@ -20,7 +17,6 @@ import type {
 } from "./process-discipline-report.js";
 import type { QualityStratificationReport } from "./quality-stratification.js";
 import type { SupervisionLoadReport } from "./supervision-load.js";
-import type { AreaClassification } from "./task-classification.js";
 
 export type { ShadowSemanticReviewReport } from "../shadow-semantic-review-types.js";
 export type { DecisionAttributionReport } from "./decision-attribution-types.js";
@@ -49,9 +45,7 @@ export const DEFAULT_REPORT_WINDOW_DAYS = 7;
 export type ReportPriority = "p0" | "p1" | "p2" | "p3" | "unknown";
 
 export type PriorityCount = { priority: ReportPriority; count: number };
-export type AreaCount = { area: string; count: number };
 export type StateCount = { state: RepoTaskState; count: number };
-export type TaskClassCount = { taskClass: RepoTaskClass; count: number };
 export type QueueDependencyWait = {
   taskId: string;
   title: string;
@@ -62,9 +56,7 @@ export type QueueDependencyWait = {
 export type QueueBalance = {
   total: number;
   byPriority: PriorityCount[];
-  byArea: AreaCount[];
   byState: StateCount[];
-  byTaskClass: TaskClassCount[];
   waitingOnTasks: QueueDependencyWait[];
 };
 
@@ -72,16 +64,13 @@ export type ExplorerTaskAddition = {
   runId: string;
   taskId: string;
   title: string;
-  area: string;
   priority: ReportPriority;
-  classification: AreaClassification;
 };
 
 export type ExplorerBalance = {
   totalRuns: number;
   totalTaskAdditions: number;
   unresolvedTaskAdditions: number;
-  byClassification: { classification: AreaClassification; tasks: number }[];
   taskAdditions: ExplorerTaskAddition[];
 };
 
@@ -89,9 +78,7 @@ export type BuilderClosure = {
   runId: string;
   taskId: string;
   taskTitle: string;
-  area: string;
   priority: ReportPriority;
-  classification: AreaClassification;
   cost: AgentUsageCost;
   durationMs: number | null;
 };
@@ -107,9 +94,7 @@ export type BuilderCostSummary = {
 export type BuilderBreakdown = {
   totalCommittedRuns: number;
   unresolvedClosures: number;
-  byArea: ({ area: string } & BuilderCostSummary)[];
   byPriority: ({ priority: ReportPriority } & BuilderCostSummary)[];
-  byClassification: ({ classification: AreaClassification } & BuilderCostSummary)[];
   closures: BuilderClosure[];
 };
 

@@ -463,16 +463,14 @@ describe("runtime idle dispatch", () => {
               type: "code",
               run: ({ emit }) => {
                 emit("autonomy.queue.available", {
-                  pullableCount: 1,
-                  actionableCount: 1,
-                  counts: {
-                    backlog: 0,
-                    ready: 1,
-                    doing: 0,
-                    blocked: 0,
-                    done: 0,
-                    dropped: 0,
-                  },
+                  taskId: "task-runtime-dispatch",
+                  taskPath: "data/tasks/task-runtime-dispatch.md",
+                  taskState: "open",
+                  taskDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  title: "Runtime dispatch fixture",
+                  priority: "p2",
+                  dependsOn: [],
+                  idempotencyKey: "builder:task-runtime-dispatch:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 });
                 emit("autonomy.security-review.due", {
                   due: true,

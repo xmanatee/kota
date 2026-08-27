@@ -8,7 +8,7 @@
  * byte-for-byte.
  *
  * Risk classification: `dangerous`. Retract permanently removes user data
- * (memory/knowledge/inbox files) or moves a task to `data/tasks/dropped/`.
+ * (memory/knowledge/inbox files) or moves a task to `data/tasks/archive/`.
  * Tool guardrails route this through the standard approval/autonomy gates
  * for destructive actions.
  */
@@ -29,7 +29,7 @@ export const retractTool: KotaTool = {
     "Use this when the user explicitly contradicts or corrects a fact you previously captured, " +
     "instead of appending a contradicting note. Specify the destination store and the typed " +
     "identifier — memory/tasks use `id`, knowledge uses `slug`, inbox uses `path`. The seam " +
-    "never guesses a target. Tasks route through the state machine into data/tasks/dropped/; " +
+    "never guesses a target. Tasks route through the state machine into data/tasks/archive/; " +
     "they are not deleted.",
   input_schema: {
     type: "object",

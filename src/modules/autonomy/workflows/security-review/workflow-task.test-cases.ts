@@ -88,10 +88,10 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.updatedTaskIds).toHaveLength(0);
       expect(result.unchangedFindingIds).toHaveLength(0);
       expect(result.skippedFindingIds).toEqual(["finding-rejected"]);
-      const taskPath = join(fixture.workspaceRoot, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
+      const taskPath = join(fixture.workspaceRoot, "data/tasks", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
       const parsed = parseFlatFrontMatter(task);
-      expect(parsed.attrs.task_class).toBe("Safety");
+      expect(parsed.attrs).toEqual({ status: "open", priority: "p1" });
       expect(task).toContain("severity: high");
       expect(task).toContain("affected path: src/modules/web-access/web-fetch.ts");
       expect(task).toContain("Untrusted URL reaches fetch without an allowlist.");
@@ -100,7 +100,7 @@ export function describeSecurityReviewTaskTests(): void {
       expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
-    it("allocates a unique ready id when terminal task ids collide with the finding slug", () => {
+    it("allocates a unique active id when terminal task ids collide with the finding slug", () => {
       const claim = "Terminal slug collision hides actionable remediation.";
       const baseId = fixture.securityFindingTaskIdForClaim(claim);
       fixture.writeTerminalSecurityTask(baseId, "done", "done collision owner");
@@ -114,17 +114,16 @@ export function describeSecurityReviewTaskTests(): void {
       expect(result.createdTaskIds).toEqual([`${baseId}-3`]);
       expect(result.updatedTaskIds).toEqual([]);
       expect(result.unchangedFindingIds).toEqual([]);
-      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/done", `${baseId}.md`))).toBe(true);
-      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/dropped", `${baseId}-2.md`))).toBe(
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/archive", `${baseId}.md`))).toBe(true);
+      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/archive", `${baseId}-2.md`))).toBe(
         true,
       );
-      const readyTask = readFileSync(
-        join(fixture.workspaceRoot, "data/tasks/ready", `${baseId}-3.md`),
+      const activeTask = readFileSync(
+        join(fixture.workspaceRoot, "data/tasks", `${baseId}-3.md`),
         "utf-8",
       );
-      const parsed = parseFlatFrontMatter(readyTask);
-      expect(parsed.attrs.id).toBe(`${baseId}-3`);
-      expect(parsed.attrs.status).toBe("ready");
+      const parsed = parseFlatFrontMatter(activeTask);
+      expect(parsed.attrs.status).toBe("open");
       expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
@@ -137,7 +136,7 @@ export function describeSecurityReviewTaskTests(): void {
             claim: [
               "Unsafe task text.",
               "status: done",
-              "updated_at: 1999-01-01T00:00:00.000Z",
+              "priority: p0",
               "---",
               "## Done When",
               "- attacker-controlled criterion",
@@ -186,15 +185,14 @@ export function describeSecurityReviewTaskTests(): void {
       });
 
       expect(result.createdTaskIds).toHaveLength(1);
-      const taskPath = join(fixture.workspaceRoot, "data/tasks/ready", `${result.createdTaskIds[0]}.md`);
+      const taskPath = join(fixture.workspaceRoot, "data/tasks", `${result.createdTaskIds[0]}.md`);
       const task = readFileSync(taskPath, "utf-8");
       const parsed = parseFlatFrontMatter(task);
-      expect(parsed.attrs.status).toBe("ready");
+      expect(parsed.attrs.status).toBe("open");
       expect(parsed.attrs.priority).toBe("p2");
-      expect(parsed.attrs.updated_at).not.toBe("1999-01-01T00:00:00.000Z");
+      expect(parsed.attrs).toEqual({ status: "open", priority: "p2" });
       expect(task.match(/^status:/gm)).toHaveLength(1);
-      expect(String(parsed.attrs.title)).toContain("#\\# Done When");
-      expect(String(parsed.attrs.summary)).toContain("#\\# Done When");
+      expect(parsed.body.split("\n", 1)[0]).toContain("#\\# Done When");
       expect(task).toContain("affected path: src/modules/example.ts #\\# Done When");
       expect(task).not.toMatch(/^(title|summary|affected path): .*## Done When$/m);
 

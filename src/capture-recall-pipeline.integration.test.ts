@@ -212,7 +212,7 @@ function makeScopeRoot(): string {
     scopeDir,
     "capture-recall",
   ).workspaceRoot;
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   return dir;
 }
@@ -229,7 +229,7 @@ function snapshotWrites(args: {
   knowledgeStore: KnowledgeStore;
   scopeRoot: string;
 }): WriteSnapshot {
-  const tasksDir = join(args.scopeRoot, "data", "tasks", "backlog");
+  const tasksDir = join(args.scopeRoot, "data", "tasks");
   const inboxDir = join(args.scopeRoot, "data", "inbox");
   return {
     memory: args.memoryStore.list().length,
@@ -376,7 +376,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
     expect(hit.preview).toContain("kfallbacku");
   });
 
-  it("tasks: capture mints a backlog task and recall surfaces the typed tasks hit by content-derived query", async () => {
+  it("tasks: capture mints an open task and recall surfaces the typed tasks hit by content-derived query", async () => {
     const captureResult = await client.capture.capture(TASKS_TEXT, {
       target: "tasks",
     });
@@ -395,7 +395,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
     if (!hit || hit.source !== "tasks") throw new Error("unreachable");
     expect(hit.id).toBe(TASKS_EXPECTED_ID);
     expect(hit.title).toBe(TASKS_TEXT);
-    expect(hit.state).toBe("backlog");
+    expect(hit.state).toBe("open");
   });
 
   it("inbox: capture writes the file, but the same content does not surface in any recall hit (capture-superset-of-recall invariant)", async () => {

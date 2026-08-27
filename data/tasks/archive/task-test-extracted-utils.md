@@ -1,0 +1,29 @@
+---
+status: done
+---
+
+# Add direct unit tests for extracted utility modules
+
+## Problem
+
+Several utility modules extracted during recent file splits have no dedicated test files. They are currently only covered by integration tests of their parent modules.
+
+Modules to address:
+- `src/data/html-extract-utils.ts` — `decodeEntities`, `stripTags`, `removeBlocks`, `convertCodeBlocks`, `convertTables`, `convertHeadings`, `convertInlineElements`, `finalCleanup`
+- `src/core/tools/http-request-utils.ts` — `safePositiveInt`, `formatBytes`, `looksLikeJson`, `isBinaryContentType`, `formatTabularJson`
+- `src/core/daemon/daemon-state.ts` — `assertDaemonState`
+
+## Desired Outcome
+
+Each module has a dedicated unit test file covering all exported functions with meaningful cases.
+
+## Constraints
+
+All three modules contain only pure functions with no integration dependencies.
+
+## Done When
+
+- `src/data/html-extract-utils.test.ts` exists and passes
+- `src/core/tools/http-request-utils.test.ts` exists and passes
+- `src/core/daemon/daemon-state.test.ts` exists and passes
+- `npm test` passes in full

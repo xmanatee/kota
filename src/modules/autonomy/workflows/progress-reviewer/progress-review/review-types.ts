@@ -14,9 +14,8 @@ export type ProgressReviewClaimOutput = {
 export type ProgressReviewFollowUpTaskOutput = {
   topicKey: string;
   title: string;
-  summary: string;
+  problem: string;
   priority: "p0" | "p1" | "p2" | "p3";
-  area: string;
   evidenceIds: string[];
   howWeWillKnow: string;
 };

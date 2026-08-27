@@ -210,7 +210,7 @@ describe('CaptureScreen', () => {
       record: {
         target: 'tasks',
         recordId: 'task-buy-milk',
-        path: 'data/tasks/ready/task-buy-milk.md',
+        path: 'data/tasks/task-buy-milk.md',
       },
     };
     mockDaemon({ captureText: 'buy milk', captureResult: result });
@@ -219,7 +219,7 @@ describe('CaptureScreen', () => {
     expect(getAllByText('tasks').length).toBeGreaterThan(0);
     expect(
       getByText(
-        'Captured: tasks  task-buy-milk  data/tasks/ready/task-buy-milk.md',
+        'Captured: tasks  task-buy-milk  data/tasks/task-buy-milk.md',
       ),
     ).toBeTruthy();
     expect(getByText(renderCaptureResultPlain(result))).toBeTruthy();
@@ -350,7 +350,7 @@ describe('CaptureScreen', () => {
       record: {
         target: 'tasks',
         recordId: 'task-buy-milk',
-        path: 'data/tasks/ready/task-buy-milk.md',
+        path: 'data/tasks/task-buy-milk.md',
       },
     };
     const successInbox: CaptureResult = {
@@ -418,7 +418,7 @@ describe('CaptureScreen', () => {
         id: 'success-tasks',
         state: baseState({ captureText: 'note', captureResult: successTasks }),
         expectedText:
-          'Captured: tasks  task-buy-milk  data/tasks/ready/task-buy-milk.md',
+          'Captured: tasks  task-buy-milk  data/tasks/task-buy-milk.md',
         proves:
           'CaptureScreen rendered the tasks success arm with filesystem path metadata.',
       },

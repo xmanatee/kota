@@ -30,16 +30,16 @@ new task without scanning `data/tasks/` for overlap doubles the queue
 for every restated idea. That is the failure mode `data/tasks/AGENTS.md`
 has warned against ("Before creating a task, scan open tasks and
 related inbox items for overlap.") — and the class of rediscovery that
-commits like `62d7ca6d` (three duplicate backlog tasks) and `50622921`
+commits like `62d7ca6d` (three duplicate open tasks) and `50622921`
 (duplicate explorer trigger-form task) had to clean up by hand.
 
 ## Why this fixture captures it
 
-The fixture seeds `data/tasks/backlog/task-add-cli-error-message-hints.md`
+The fixture seeds `data/tasks/task-add-cli-error-message-hints.md`
 with a clearly-scoped existing task and drops
 `data/inbox/rough-idea-cli-hint-suffixes.md` restating the same idea —
 the same overlap shape j7lclg encountered. Predicates require the inbox
-to be drained, the existing backlog task to be preserved, and the total
+to be drained, the existing open task to be preserved, and the total
 count under `data/tasks/` to stay at one. A sorter that respects dedup
 passes; a sorter that mints a duplicate task fails the count predicate
 at the harness layer, without needing an improver sweep after the fact.

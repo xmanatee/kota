@@ -29,28 +29,22 @@ function bodyFromUrls(urls: string[]): string {
 const roots: string[] = [];
 
 function createResearchProject(
-  candidates: Array<{ id: string; updatedAt: string; urls: string[]; marker?: string }> = [],
+  candidates: Array<{ id: string; urls: string[]; marker?: string }> = [],
 ): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-workflow-"));
   roots.push(workspaceRoot);
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
   for (const candidate of candidates) {
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", `${candidate.id}.md`),
+      join(workspaceRoot, "data", "tasks", `${candidate.id}.md`),
       [
         "---",
-        `id: ${candidate.id}`,
-        `title: ${candidate.id}`,
         "status: blocked",
         "priority: p2",
-        "area: research",
-        `summary: ${candidate.id} needs source access.`,
-        "created_at: 2026-04-01T00:00:00.000Z",
-        `updated_at: ${candidate.updatedAt}`,
         "---",
+        "",
+        `# ${candidate.id}`,
         "",
         bodyFromUrls(candidate.urls),
         ...(candidate.marker ? ["", candidate.marker] : []),
@@ -85,9 +79,7 @@ function researchRetryTrigger(): WorkflowRunTrigger {
       candidateCount: 1,
       attemptableCount: 1,
       counts: {
-        backlog: 0,
-        ready: 0,
-        doing: 0,
+        open: 0,
         blocked: 1,
         done: 0,
         dropped: 0,
@@ -174,7 +166,6 @@ describe("research-retry workflow", () => {
     const workspaceRoot = createResearchProject([
       {
         id: "task-a",
-        updatedAt: "2026-04-20T00:00:00.000Z",
         urls: ["https://example.com/article"],
       },
     ]);
@@ -241,32 +232,28 @@ describe("research-retry workflow", () => {
     const freshUrls = ["https://example.com/article"];
     const workspaceRoot = createResearchProject([
       {
-        id: "task-stale",
-        updatedAt: "2026-04-14T00:00:00.000Z",
+        id: "task-a-stale",
         urls: staleUrls,
         marker: staleMarker,
       },
       {
-        id: "task-fresh",
-        updatedAt: "2026-04-20T00:00:00.000Z",
+        id: "task-z-fresh",
         urls: freshUrls,
       },
     ]);
     const output = inspectResearchRetryCandidatesInWorker({ workspaceRoot });
-    expect(output.candidate).toMatchObject({ id: "task-fresh" });
-    expect(output.examined.map((e) => e.id)).toEqual(["task-stale"]);
+    expect(output.candidate).toMatchObject({ id: "task-z-fresh" });
+    expect(output.examined.map((e) => e.id)).toEqual(["task-a-stale"]);
   });
 
-  it("picks the oldest candidate when capability is met and nothing is stale", async () => {
+  it("picks the first stable task identity when capability is met", async () => {
     const workspaceRoot = createResearchProject([
       {
         id: "task-old",
-        updatedAt: "2026-04-14T00:29:07.947Z",
         urls: ["https://example.com/old"],
       },
       {
         id: "task-new",
-        updatedAt: "2026-04-20T20:18:43.712Z",
         urls: ["https://example.com/article"],
       },
     ]);
@@ -287,7 +274,7 @@ describe("research-retry workflow", () => {
 
     const result = await harness.run();
     expect(result.steps["inspect-candidates"].output).toMatchObject({
-      candidate: { id: "task-old" },
+      candidate: { id: "task-new" },
       candidateCount: 2,
     });
     expect(result.steps.retry.status).toBe("success");
@@ -303,7 +290,7 @@ describe("research-retry workflow", () => {
       cwd: workspaceRoot,
       stdio: "ignore",
     });
-    const blockedDir = join(workspaceRoot, "data", "tasks", "blocked");
+    const blockedDir = join(workspaceRoot, "data", "tasks");
     mkdirSync(blockedDir, { recursive: true });
     const taskFile = join(blockedDir, "task-x.md");
     const initialUrls = [
@@ -314,9 +301,11 @@ describe("research-retry workflow", () => {
       taskFile,
       [
         "---",
-        "id: task-x",
-        "updated_at: 2026-04-22T00:00:00.000Z",
+        "status: blocked",
+        "priority: p2",
         "---",
+        "",
+        "# Task X",
         "## Problem",
         "Body",
         "",
@@ -344,16 +333,17 @@ describe("research-retry workflow", () => {
   it("writeMarkerForCandidate is a no-op when the task moved out of blocked", async () => {
     const { writeMarkerForCandidate } = await import("./precondition.js");
     const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-mark-"));
-    const doneDir = join(workspaceRoot, "data", "tasks", "done");
+    const doneDir = join(workspaceRoot, "data", "tasks", "archive");
     mkdirSync(doneDir, { recursive: true });
     const taskFile = join(doneDir, "task-y.md");
     writeFileSync(
       taskFile,
       [
         "---",
-        "id: task-y",
-        "updated_at: 2026-04-22T00:00:00.000Z",
+        "status: done",
         "---",
+        "",
+        "# Task Y",
         "## Problem",
         "Body",
         "",

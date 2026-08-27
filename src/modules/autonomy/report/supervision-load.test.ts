@@ -31,8 +31,8 @@ describe("buildSupervisionLoadReport", () => {
   it("reports normal load when every store is present and quiet", () => {
     createKnownStores(workspaceRoot);
     const tasks = [
-      writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1"),
-      writeTask(workspaceRoot, "backlog", "task-backlog", "Platform", "p2"),
+      writeTask(workspaceRoot, "open", "task-active", "p1"),
+      writeTask(workspaceRoot, "open", "task-open", "p2"),
     ];
 
     const report = buildSupervisionLoadReport({
@@ -68,10 +68,10 @@ describe("buildSupervisionLoadReport", () => {
   it("reports overloaded load with human-action stores and multi-scope workstreams", () => {
     createKnownStores(workspaceRoot);
     const tasks = [
-      writeTask(workspaceRoot, "doing", "task-alpha", "Product", "p1"),
-      writeTask(workspaceRoot, "doing", "task-beta", "Safety", "p0"),
-      writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1"),
-      writeTask(workspaceRoot, "backlog", "task-backlog", "Platform", "p2"),
+      writeTask(workspaceRoot, "open", "task-alpha", "p1"),
+      writeTask(workspaceRoot, "open", "task-beta", "p0"),
+      writeTask(workspaceRoot, "open", "task-active", "p1"),
+      writeTask(workspaceRoot, "open", "task-open", "p2"),
     ];
     writeApproval(workspaceRoot, "approval-1", "pending");
     writeOwnerQuestion(workspaceRoot, "question-1", "pending", "task-alpha");
@@ -111,12 +111,11 @@ describe("buildSupervisionLoadReport", () => {
       pendingApprovals: 1,
       pendingOwnerQuestions: 1,
       openDeadLetters: 1,
-      attentionItems: 1,
+      attentionItems: 0,
     });
     expect(report.workstreams).toContainEqual(
       expect.objectContaining({
         workflow: "builder",
-        taskClass: "Product",
         priority: "p1",
         scopeId: "scope-a",
         activeRuns: 1,
@@ -141,9 +140,8 @@ describe("buildSupervisionLoadReport", () => {
     createKnownStores(workspaceRoot);
     const task = writeTask(
       workspaceRoot,
-      "ready",
+      "open",
       "task-target",
-      "Product",
       "p1",
     );
     const run = runningRun(
@@ -167,7 +165,6 @@ describe("buildSupervisionLoadReport", () => {
     expect(report.workstreams).toContainEqual(
       expect.objectContaining({
         workflow: "explorer",
-        taskClass: "Unclassified",
         priority: "unknown",
       }),
     );
@@ -184,8 +181,8 @@ describe("buildSupervisionLoadReport", () => {
   it("weights review evidence gaps as supervision pressure", () => {
     createKnownStores(workspaceRoot);
     const tasks = [
-      writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1"),
-      writeTask(workspaceRoot, "backlog", "task-backlog", "Platform", "p2"),
+      writeTask(workspaceRoot, "open", "task-active", "p1"),
+      writeTask(workspaceRoot, "open", "task-open", "p2"),
     ];
 
     const report = buildSupervisionLoadReport({
@@ -209,7 +206,7 @@ describe("buildSupervisionLoadReport", () => {
   });
 
   it("renders missing and unreadable stores as unknown evidence instead of zero load", () => {
-    writeTask(workspaceRoot, "ready", "task-ready", "Product", "p1");
+    writeTask(workspaceRoot, "open", "task-active", "p1");
     mkdirSync(join(workspaceRoot, ".kota", "approvals"), { recursive: true });
     writeFileSync(
       join(workspaceRoot, ".kota", "approvals", "broken.json"),

@@ -59,8 +59,8 @@ describe('reducer', () => {
         record: {
           target: 'tasks',
           recordId: 'task-foo',
-          previousPath: 'data/tasks/ready/task-foo.md',
-          path: 'data/tasks/dropped/task-foo.md',
+          previousPath: 'data/tasks/task-foo.md',
+          path: 'data/tasks/archive/task-foo.md',
           toState: 'dropped',
         },
       },
@@ -118,8 +118,8 @@ describe('reducer', () => {
         record: {
           target: 'tasks',
           recordId: 'task-foo',
-          previousPath: 'data/tasks/ready/task-foo.md',
-          path: 'data/tasks/dropped/task-foo.md',
+          previousPath: 'data/tasks/task-foo.md',
+          path: 'data/tasks/archive/task-foo.md',
           toState: 'dropped',
         },
       },

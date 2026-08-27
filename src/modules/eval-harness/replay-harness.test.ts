@@ -34,10 +34,10 @@ const RECORDING: AgentStepRecording = {
     sessionId: "s-1",
   },
   fileOperations: [
-    { op: "delete", path: "data/tasks/doing/task-target.md" },
+    { op: "delete", path: "data/tasks/task-target.md" },
     {
       op: "write",
-      path: "data/tasks/dropped/task-target.md",
+      path: "data/tasks/archive/task-target.md",
       content: "dropped contents",
     },
     {
@@ -72,9 +72,9 @@ describe("createReplayAgentHarness", () => {
     );
 
     cwd = mkdtempSync(join(tmpdir(), "kota-replay-cwd-"));
-    mkdirSync(join(cwd, "data", "tasks", "doing"), { recursive: true });
+    mkdirSync(join(cwd, "data", "tasks"), { recursive: true });
     writeFileSync(
-      join(cwd, "data", "tasks", "doing", "task-target.md"),
+      join(cwd, "data", "tasks", "task-target.md"),
       "initial body",
     );
   });
@@ -105,11 +105,11 @@ describe("createReplayAgentHarness", () => {
     expect(result.sessionId).toBe("s-1");
 
     expect(
-      existsSync(join(cwd, "data", "tasks", "doing", "task-target.md")),
+      existsSync(join(cwd, "data", "tasks", "task-target.md")),
     ).toBe(false);
     expect(
       readFileSync(
-        join(cwd, "data", "tasks", "dropped", "task-target.md"),
+        join(cwd, "data", "tasks", "archive", "task-target.md"),
         "utf-8",
       ),
     ).toBe("dropped contents");
@@ -222,7 +222,7 @@ describe("createReplayAgentHarness", () => {
       "seed task body",
       "",
       "## Task state",
-      "data/tasks/done/task-x.md (done)",
+      "data/tasks/archive/task-x.md (done)",
       "",
       "## Review context",
       "Scope root: /tmp/project",

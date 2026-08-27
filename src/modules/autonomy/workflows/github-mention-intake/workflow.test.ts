@@ -137,7 +137,7 @@ function makeScopeRoot(): string {
     cwd: workspaceRoot,
   });
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+  for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
   mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
@@ -167,7 +167,7 @@ function successfulCommandRunner(): WorkflowCommandRunner {
 }
 
 function listReadyTaskFiles(workspaceRoot: string): string[] {
-  const readyDir = join(workspaceRoot, "data", "tasks", "ready");
+  const readyDir = join(workspaceRoot, "data", "tasks");
   return readdirSync(readyDir).filter((entry) => entry.endsWith(".md"));
 }
 
@@ -208,7 +208,7 @@ describe("github-mention-intake workflow", () => {
     const created = result.steps["create-task"].output as { path: string; taskId: string };
     expect(existsSync(join(workspaceRoot, created.path))).toBe(true);
     const taskContent = readFileSync(join(workspaceRoot, created.path), "utf-8");
-    expect(taskContent).toContain("status: ready");
+    expect(taskContent).toContain("status: open");
     expect(taskContent).toContain("Repository: owner/repo");
     expect(taskContent).toContain("Issue number: #17");
     expect(taskContent).toContain("Comment URL: https://github.com/owner/repo/issues/17#issuecomment-1234");

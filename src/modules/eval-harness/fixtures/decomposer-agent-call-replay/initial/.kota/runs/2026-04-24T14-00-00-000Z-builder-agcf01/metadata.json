@@ -7,15 +7,13 @@
 		"schemaRef": null,
 		"payload": {
       "taskId": "task-fixture-agent-call-replay-target",
-      "taskPath": "data/tasks/doing/task-fixture-agent-call-replay-target.md",
-      "taskState": "doing",
-      "taskUpdatedAt": "2026-04-24T14:00:00.000Z",
-      "taskDigest": "fbf40f8f110e1cd3ce6c6ed7339ff406667c2f46527e3c5060519cace4d463d0",
+      "taskPath": "data/tasks/task-fixture-agent-call-replay-target.md",
+      "taskState": "open",
+      "taskDigest": "f52eea169cf0394f61e391f38392b917a7e473f7e8603516eea26626e981e3a8",
       "title": "Fixture target task for decomposer agent-call replay",
       "priority": "p2",
-      "taskClass": "Unclassified",
       "dependsOn": [],
-      "idempotencyKey": "builder:task-fixture-agent-call-replay-target:fbf40f8f110e1cd3ce6c6ed7339ff406667c2f46527e3c5060519cace4d463d0"
+      "idempotencyKey": "builder:task-fixture-agent-call-replay-target:f52eea169cf0394f61e391f38392b917a7e473f7e8603516eea26626e981e3a8"
     }
   },
   "startedAt": "2026-04-24T14:00:00.000Z",

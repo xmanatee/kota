@@ -27,8 +27,6 @@ const OBSERVED_DISPOSITION = {
   taskTitle: "",
   taskSummary: "",
   taskPriority: "p2" as const,
-  taskArea: "autonomy",
-  taskClass: "Meta" as const,
   taskHowWeWillKnow: "",
   ownerQuestion: "",
   ownerReason: "",
@@ -219,7 +217,7 @@ describe("improver issue disposition workflow", () => {
     const taskId = applied.materialized.taskId;
     expect(taskId).toEqual(expect.stringMatching(/^task-/));
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", `${taskId}.md`)),
     ).toBe(true);
     expect(projection.issues[0]?.links.taskIds).toEqual([]);
     projection = publishImproverDisposition({
@@ -279,7 +277,7 @@ describe("improver issue disposition workflow", () => {
       ]),
     });
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "dropped", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", "archive", `${taskId}.md`)),
     ).toBe(true);
     expect(resolved.steps["validate-changes"].status).toBe("success");
     projection = publishImproverDisposition({

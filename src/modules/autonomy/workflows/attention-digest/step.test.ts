@@ -2,6 +2,7 @@ import {
   mkdirSync,
   readdirSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -14,10 +15,18 @@ import {
 } from "./step.js";
 
 function makeTaskDir(workspaceRoot: string, state: string, count: number): void {
-  const dir = join(workspaceRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(workspaceRoot, "data", "tasks", "archive")
+    : join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
+  const offset = readdirSync(dir).filter((name) => name.startsWith(`task-${state}-`)).length;
   for (let i = 0; i < count; i++) {
-    writeFileSync(join(dir, `task-test-${i}.md`), `# task ${i}\n`, "utf-8");
+    const id = `task-${state}-${offset + i}`;
+    writeFileSync(
+      join(dir, `${id}.md`),
+      `---\nstatus: ${state}\npriority: p2\n---\n\n# ${id}\n`,
+      "utf-8",
+    );
   }
 }
 
@@ -26,16 +35,18 @@ function writeBlockedTask(
   id: string,
   opts: { daysAgo: number; ownerBlocker?: boolean; body?: string },
 ): void {
-  const dir = join(workspaceRoot, "data", "tasks", "blocked");
+  const dir = join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
   const updatedAt = new Date(Date.now() - opts.daysAgo * 24 * 60 * 60 * 1000)
-    .toISOString();
+  const blockedAt = new Date(updatedAt);
   const ownerSection = opts.ownerBlocker
-    ? "## Blocker\n\nWaiting on owner decision between options A and B.\n"
+    ? "## Blocked on\n\nWaiting on owner decision between options A and B.\n"
     : "";
   const extraBody = opts.body ?? "";
-  const content = `---\nid: ${id}\ntitle: ${id}\nstatus: blocked\npriority: p2\narea: autonomy\nsummary: test\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n## Problem\n\nTest.\n\n${ownerSection}${extraBody}`;
-  writeFileSync(join(dir, `${id}.md`), content, "utf-8");
+  const path = join(dir, `${id}.md`);
+  const content = `---\nstatus: blocked\npriority: p2\n---\n\n# ${id}\n\nTest.\n\n${ownerSection}${extraBody}`;
+  writeFileSync(path, content, "utf-8");
+  utimesSync(path, blockedAt, blockedAt);
 }
 
 function writeRunMetadata(
@@ -107,8 +118,7 @@ describe("attention digest inspection", () => {
   });
 
   it("does not emit at 10 invocations when nothing warrants attention", () => {
-    makeTaskDir(workspaceRoot, "ready", 1);
-    makeTaskDir(workspaceRoot, "backlog", 1);
+    makeTaskDir(workspaceRoot, "open", 1);
     runSteps(10);
     expect(emittedEvents).toHaveLength(0);
   });
@@ -127,8 +137,7 @@ describe("attention digest inspection", () => {
   });
 
   it("does not emit at 10 invocations when builder failures < 3", () => {
-    makeTaskDir(workspaceRoot, "ready", 1);
-    makeTaskDir(workspaceRoot, "backlog", 1);
+    makeTaskDir(workspaceRoot, "open", 1);
     writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
     writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
@@ -136,82 +145,57 @@ describe("attention digest inspection", () => {
     expect(emittedEvents).toHaveLength(0);
   });
 
-  it("emits digest for stalled work when doing count >= 2", () => {
-    makeTaskDir(workspaceRoot, "doing", 2);
-
-    runSteps(10);
-    expect(emittedEvents).toHaveLength(1);
-    expect(emittedEvents[0].event).toBe("workflow.attention.digest");
-    const text = emittedEvents[0].payload.text as string;
-    expect(text).toContain("Stalled work");
-    expect(text).toContain("2 tasks stuck in doing");
-  });
-
-  it("emits digest for blocked backlog when blocked count >= 2", () => {
+  it("emits digest when multiple tasks are blocked", () => {
     makeTaskDir(workspaceRoot, "blocked", 2);
 
     runSteps(10);
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
-    expect(text).toContain("Blocked backlog");
+    expect(text).toContain("Blocked tasks");
     expect(text).toContain("2 blocked tasks");
   });
 
-  it("emits digest when ready queue is empty", () => {
-    makeTaskDir(workspaceRoot, "backlog", 1);
+  it("emits digest when the open task queue is empty", () => {
     runSteps(10);
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
-    expect(text).toContain("Empty ready queue");
-    expect(text).toContain("Builder has nothing to pull");
+    expect(text).toContain("Empty task queue");
+    expect(text).toContain("Builder has no open task to pick up");
   });
 
-  it("emits digest when backlog is empty", () => {
-    makeTaskDir(workspaceRoot, "ready", 1);
-    runSteps(10);
-    expect(emittedEvents).toHaveLength(1);
-    const text = emittedEvents[0].payload.text as string;
-    expect(text).toContain("Empty backlog");
-    expect(text).toContain("No reserves for explorer to promote");
-  });
-
-  it("does not emit when ready and backlog are populated and nothing else warrants attention", () => {
-    makeTaskDir(workspaceRoot, "ready", 2);
-    makeTaskDir(workspaceRoot, "backlog", 1);
+  it("does not emit when the open queue is populated and nothing else warrants attention", () => {
+    makeTaskDir(workspaceRoot, "open", 1);
     runSteps(10);
     expect(emittedEvents).toHaveLength(0);
   });
 
   it("includes multiple attention items in one digest", () => {
-    makeTaskDir(workspaceRoot, "doing", 3);
+    makeTaskDir(workspaceRoot, "open", 1);
     makeTaskDir(workspaceRoot, "blocked", 2);
-    makeTaskDir(workspaceRoot, "ready", 1);
-    makeTaskDir(workspaceRoot, "backlog", 1);
+    writeRunMetadata(runsDir, "2026-03-27-run-c", "builder", "failed");
+    writeRunMetadata(runsDir, "2026-03-27-run-b", "builder", "failed");
+    writeRunMetadata(runsDir, "2026-03-27-run-a", "builder", "failed");
 
     runSteps(10);
     expect(emittedEvents).toHaveLength(1);
     const text = emittedEvents[0].payload.text as string;
-    expect(text).toContain("Stalled work");
-    expect(text).toContain("Blocked backlog");
+    expect(text).toContain("Builder failure streak");
+    expect(text).toContain("Blocked tasks");
     expect(text).toContain("2 items");
   });
 
   it("emits digest every 10 invocations, not just once", () => {
-    makeTaskDir(workspaceRoot, "doing", 2);
-
     runSteps(20);
     expect(emittedEvents).toHaveLength(2);
   });
 
   it("digest text starts with attention digest header", () => {
-    makeTaskDir(workspaceRoot, "doing", 2);
     runSteps(10);
     const text = emittedEvents[0].payload.text as string;
     expect(text).toMatch(/^Attention digest \(\d+ items?\):/);
   });
 
   it("emits digest without emit callback (no-op, no throw)", () => {
-    makeTaskDir(workspaceRoot, "doing", 2);
     inspectAttentionDigestStep({ workspaceRoot, runsDir, count: 10 });
     expect(emittedEvents).toHaveLength(0);
   });
@@ -235,8 +219,8 @@ describe("attention digest inspection", () => {
     });
 
     it("emits digest when N builder runs have completed-with-warnings (default N=3, M=10)", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       for (let i = 0; i < 3; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
       }
@@ -248,8 +232,8 @@ describe("attention digest inspection", () => {
     });
 
     it("does not emit when fewer than N builder runs have warnings", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       for (let i = 0; i < 2; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
       }
@@ -260,8 +244,8 @@ describe("attention digest inspection", () => {
     it("respects custom N and M env vars", () => {
       process.env.KOTA_DIGEST_WARNINGS_COUNT = "2";
       process.env.KOTA_DIGEST_WARNINGS_WINDOW = "5";
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       for (let i = 0; i < 2; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings");
       }
@@ -272,8 +256,8 @@ describe("attention digest inspection", () => {
     });
 
     it("includes warning type in detail when all warnings share the same type", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       const warnings = [{ type: "maxStepOutputBytes", message: "output truncated" }];
       for (let i = 0; i < 3; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "builder", "completed-with-warnings", warnings);
@@ -285,8 +269,8 @@ describe("attention digest inspection", () => {
     });
 
     it("does not include type in detail when warnings have mixed types", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeRunMetadata(runsDir, "2026-04-01-warn-0", "builder", "completed-with-warnings", [{ type: "typeA", message: "a" }]);
       writeRunMetadata(runsDir, "2026-04-01-warn-1", "builder", "completed-with-warnings", [{ type: "typeB", message: "b" }]);
       writeRunMetadata(runsDir, "2026-04-01-warn-2", "builder", "completed-with-warnings", [{ type: "typeA", message: "a2" }]);
@@ -299,8 +283,8 @@ describe("attention digest inspection", () => {
     });
 
     it("does not count non-builder warning runs", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       for (let i = 0; i < 5; i++) {
         writeRunMetadata(runsDir, `2026-04-01-warn-${i}`, "explorer", "completed-with-warnings");
       }
@@ -319,22 +303,22 @@ describe("attention digest inspection", () => {
     });
 
     it("does not surface a task that has not reached the threshold", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       // Just under 3 days (default threshold) — floor(ageDays) = 2
       writeBlockedTask(workspaceRoot, "task-fresh-a", { daysAgo: 2.9 });
       writeBlockedTask(workspaceRoot, "task-fresh-b", { daysAgo: 1 });
       runSteps(10);
       expect(emittedEvents).toHaveLength(1);
       const text = emittedEvents[0].payload.text as string;
-      expect(text).toContain("Blocked backlog");
+      expect(text).toContain("Blocked tasks");
       expect(text).not.toContain("Stale blocker");
       expect(text).not.toContain("Owner decision pending");
     });
 
     it("surfaces a task sitting exactly at the threshold", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       // daysAgo=3 with default threshold=3 → floor(ageDays)=3 ≥ 3
       writeBlockedTask(workspaceRoot, "task-threshold", { daysAgo: 3 });
       writeBlockedTask(workspaceRoot, "task-fresh", { daysAgo: 1 });
@@ -343,12 +327,12 @@ describe("attention digest inspection", () => {
       expect(text).toContain("Stale blocker");
       expect(text).toContain("task-threshold");
       expect(text).toContain("blocked 3d");
-      expect(text).toContain("Blocked backlog");
+      expect(text).toContain("Blocked tasks");
     });
 
     it("surfaces a task one day past the threshold", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-stale-a", { daysAgo: 4 });
       writeBlockedTask(workspaceRoot, "task-fresh-b", { daysAgo: 1 });
       runSteps(10);
@@ -356,12 +340,12 @@ describe("attention digest inspection", () => {
       expect(text).toContain("Stale blocker");
       expect(text).toContain("task-stale-a");
       expect(text).toContain("blocked 4d");
-      expect(text).toContain("Blocked backlog");
+      expect(text).toContain("Blocked tasks");
     });
 
     it("labels an owner-blocker task differently from a stale blocker", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-owner", {
         daysAgo: 5,
         ownerBlocker: true,
@@ -376,20 +360,20 @@ describe("attention digest inspection", () => {
     });
 
     it("suppresses the aggregate line when every blocked task is long-blocked", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-old-a", { daysAgo: 10 });
       writeBlockedTask(workspaceRoot, "task-old-b", { daysAgo: 5 });
       runSteps(10);
       const text = emittedEvents[0].payload.text as string;
-      expect(text).not.toContain("Blocked backlog");
+      expect(text).not.toContain("Blocked tasks");
       expect(text).toContain("task-old-a");
       expect(text).toContain("task-old-b");
     });
 
     it("caps individual items at five and summarizes the tail", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       for (let i = 0; i < 7; i++) {
         writeBlockedTask(workspaceRoot, `task-old-${i}`, { daysAgo: 10 + i });
       }
@@ -407,8 +391,8 @@ describe("attention digest inspection", () => {
 
     it("respects KOTA_DIGEST_BLOCKED_AGE_DAYS override", () => {
       process.env.KOTA_DIGEST_BLOCKED_AGE_DAYS = "1";
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-day-old", { daysAgo: 1 });
       runSteps(10);
       const text = emittedEvents[0].payload.text as string;
@@ -419,10 +403,6 @@ describe("attention digest inspection", () => {
 
   describe("renderOnDemandAttention", () => {
     it("returns the same body cadence would emit when items exist", () => {
-      makeTaskDir(workspaceRoot, "doing", 2);
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
-
       // Drive the cadence so we can compare its emitted text against the
       // on-demand body for the exact same repo state.
       runSteps(10);
@@ -435,8 +415,7 @@ describe("attention digest inspection", () => {
     });
 
     it("returns the short fixed reply when nothing warrants attention", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
 
       const result = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
       expect(result.items).toEqual([]);
@@ -444,13 +423,10 @@ describe("attention digest inspection", () => {
     });
 
     it("does not depend on cadence state", () => {
-      makeTaskDir(workspaceRoot, "doing", 2);
-
-      expect(renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir }).items).toHaveLength(3);
+      expect(renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir }).items).toHaveLength(1);
     });
 
     it("does not emit workflow.attention.digest", () => {
-      makeTaskDir(workspaceRoot, "doing", 2);
       // Even though detection finds an item, the on-demand path must not emit.
       renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
       expect(emittedEvents).toHaveLength(0);
@@ -464,13 +440,13 @@ describe("attention digest inspection", () => {
     });
 
     it("suppresses an aged owner-decision when a fresh ask marker is on the body", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       const recentAsk = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
       writeBlockedTask(workspaceRoot, "task-actioned-owner", {
         daysAgo: 20,
         body: [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -491,13 +467,13 @@ describe("attention digest inspection", () => {
     });
 
     it("suppresses an aged operator-capture when a fresh instructed marker is on the body", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       const recentInstruct = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
       writeBlockedTask(workspaceRoot, "task-actioned-capture", {
         daysAgo: 30,
         body: [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -516,13 +492,13 @@ describe("attention digest inspection", () => {
     });
 
     it("surfaces an aged operator-capture again once the marker ages past 14 days", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       const staleInstruct = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString();
       writeBlockedTask(workspaceRoot, "task-stale-marker", {
         daysAgo: 60,
         body: [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -548,12 +524,12 @@ describe("attention digest inspection", () => {
     });
 
     it("surfaces an aged owner-decision precondition past 14 days", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-aged-owner", {
         daysAgo: 20,
         body: [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -572,12 +548,12 @@ describe("attention digest inspection", () => {
     });
 
     it("does not surface an operator-capture precondition under the threshold", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
+      makeTaskDir(workspaceRoot, "open", 1);
       writeBlockedTask(workspaceRoot, "task-fresh-capture", {
         daysAgo: 5,
         body: [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -592,27 +568,6 @@ describe("attention digest inspection", () => {
       expect(text).not.toContain("Operator-gated blocker aged");
     });
 
-    it("does not surface an aged task-done precondition (autonomy can promote it)", () => {
-      makeTaskDir(workspaceRoot, "ready", 1);
-      makeTaskDir(workspaceRoot, "backlog", 1);
-      writeBlockedTask(workspaceRoot, "task-aged-task-done", {
-        daysAgo: 30,
-        body: [
-          "## Unblock Precondition",
-          "",
-          "```",
-          "kind: task-done",
-          "ref: task-enabler",
-          "```",
-          "",
-        ].join("\n"),
-      });
-      runSteps(10);
-      const text = emittedEvents[0].payload.text as string;
-      // task-done preconditions can auto-promote, so they only show under the
-      // shorter "long-blocked" threshold, not the operator-gated escalation.
-      expect(text).not.toContain("Operator-gated blocker aged");
-    });
   });
 
 });

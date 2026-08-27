@@ -45,17 +45,17 @@ describe("extractAgentStepRecording", () => {
     const renameBody =
       "A fairly long body so the commit-diff rename detector recognizes the " +
       "move as a rename even when one line changes at the end. ".repeat(10);
-    writeFile(workspaceRoot, "data/tasks/ready/task-a.md", `${renameBody}v1\n`);
+    writeFile(workspaceRoot, "data/tasks/task-a.md", `${renameBody}v1\n`);
     writeFile(workspaceRoot, "docs/note.md", "before\n");
     writeFile(workspaceRoot, "to-delete.md", "gone\n");
     execSync("git add -A", { cwd: workspaceRoot });
     execSync('git commit -q -m "pre"', { cwd: workspaceRoot });
 
-    mkdirSync(join(workspaceRoot, "data/tasks/done"), { recursive: true });
-    execSync("git mv data/tasks/ready/task-a.md data/tasks/done/task-a.md", {
+    mkdirSync(join(workspaceRoot, "data/tasks/archive"), { recursive: true });
+    execSync("git mv data/tasks/task-a.md data/tasks/archive/task-a.md", {
       cwd: workspaceRoot,
     });
-    writeFile(workspaceRoot, "data/tasks/done/task-a.md", `${renameBody}v2\n`);
+    writeFile(workspaceRoot, "data/tasks/archive/task-a.md", `${renameBody}v2\n`);
     writeFile(workspaceRoot, "docs/note.md", "after\n");
     writeFile(workspaceRoot, "src/newfile.ts", "export const x = 1;\n");
     execSync("git rm to-delete.md", { cwd: workspaceRoot });
@@ -127,13 +127,13 @@ describe("extractAgentStepRecording", () => {
     const byPath = new Map(
       result.recording.fileOperations.map((op) => [op.path, op]),
     );
-    expect(byPath.get("data/tasks/ready/task-a.md")).toEqual({
+    expect(byPath.get("data/tasks/task-a.md")).toEqual({
       op: "delete",
-      path: "data/tasks/ready/task-a.md",
+      path: "data/tasks/task-a.md",
     });
-    expect(byPath.get("data/tasks/done/task-a.md")).toEqual({
+    expect(byPath.get("data/tasks/archive/task-a.md")).toEqual({
       op: "write",
-      path: "data/tasks/done/task-a.md",
+      path: "data/tasks/archive/task-a.md",
       content: `${renameBody}v2\n`,
     });
     expect(byPath.get("docs/note.md")).toEqual({

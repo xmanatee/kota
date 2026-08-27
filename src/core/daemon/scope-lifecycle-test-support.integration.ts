@@ -11,7 +11,7 @@ export function mockPendingWorkflowBuffers(
     .mockReturnValue([{
       workflowName: "pending-scope-work",
       triggerIndex: 0,
-      files: ["data/tasks/ready/pending.md"],
+      files: ["data/tasks/pending.md"],
     }]);
   const getState = vi.spyOn(runtime.workflowRuntime, "getState").mockReturnValue({
     ...runtimeState,

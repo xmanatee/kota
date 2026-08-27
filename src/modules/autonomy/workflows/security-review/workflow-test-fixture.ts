@@ -98,7 +98,7 @@ export class SecurityReviewProjectFixture {
               excerpt: "writeFileSync(taskPath, body);",
             },
           ],
-          recommendedOutcome: "Create actionable ready remediation without mutating terminal task history.",
+          recommendedOutcome: "Create actionable remediation without mutating terminal task history.",
         },
       ],
     });
@@ -108,7 +108,7 @@ export class SecurityReviewProjectFixture {
           {
             id: "finding-terminal-task-regression",
             verdict: "confirmed",
-            rationale: "The terminal task collision still leaves no actionable ready remediation.",
+            rationale: "The terminal task collision still leaves no actionable remediation.",
           },
         ],
         summary: "Confirmed terminal task suppression.",
@@ -121,7 +121,7 @@ export class SecurityReviewProjectFixture {
   }
 
   writeTerminalSecurityTask(id: string, state: "done" | "dropped", marker: string): void {
-    const path = `data/tasks/${state}/${id}.md`;
+    const path = `data/tasks/archive/${id}.md`;
     const body = renderRepoTaskIntent({
       problem: marker,
       desiredOutcome: "Keep this terminal task as historical context.",
@@ -132,15 +132,11 @@ export class SecurityReviewProjectFixture {
       path,
       [
         "---",
-        `id: ${id}`,
-        `title: ${marker}`,
         `status: ${state}`,
-        "priority: p2",
-        "area: security",
-        `summary: ${marker}`,
-        "created_at: 2026-06-19T00:00:00.000Z",
-        "updated_at: 2026-06-19T00:00:00.000Z",
         "---",
+        "",
+        `# ${marker}`,
+        "",
         body,
       ].join("\n"),
     );
@@ -149,7 +145,7 @@ export class SecurityReviewProjectFixture {
 
   writeLegacySecurityFindingTask(args: {
     id: string;
-    state: "ready" | "done" | "dropped";
+    state: "open" | "done" | "dropped";
     runId: string;
     claim: string;
     findingId?: string;
@@ -159,7 +155,9 @@ export class SecurityReviewProjectFixture {
     const findingId = args.findingId ?? "finding-terminal-task-regression";
     const candidateId = args.candidateId ??
       "task-workflow-mutation:src/modules/example.ts:12";
-    const path = `data/tasks/${args.state}/${args.id}.md`;
+    const path = args.state === "open"
+      ? `data/tasks/${args.id}.md`
+      : `data/tasks/archive/${args.id}.md`;
     const body = renderRepoTaskIntent({
       problem: [
         "The security-review workflow confirmed an application-security finding.",
@@ -180,16 +178,12 @@ export class SecurityReviewProjectFixture {
       path,
       [
         "---",
-        `id: ${args.id}`,
-        `title: Security review: ${args.claim}`,
         `status: ${args.state}`,
-        "priority: p2",
-        "area: security",
-        "task_class: Safety",
-        `summary: ${args.claim}`,
-        "created_at: 2026-06-19T00:00:00.000Z",
-        "updated_at: 2026-06-19T00:00:00.000Z",
+        ...(args.state === "open" ? ["priority: p2"] : []),
         "---",
+        "",
+        `# Security review: ${args.claim}`,
+        "",
         body,
         ...(args.supersededBy
           ? [

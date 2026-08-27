@@ -249,8 +249,8 @@ describe("evaluatePredicate — emitted-events predicates", () => {
 
   it("run-emits-event passes when the event was emitted, fails when absent", () => {
     seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-abcd12", [
-      { event: "autonomy.queue.available", payload: { pullableCount: 1 } },
-      { event: "autonomy.queue.thin", payload: { pullableCount: 1 } },
+      { event: "autonomy.queue.available", payload: { actionableCount: 1 } },
+      { event: "autonomy.queue.thin", payload: { actionableCount: 1 } },
     ]);
     const ok = evaluatePredicate(workDir, {
       kind: "run-emits-event",
@@ -267,28 +267,28 @@ describe("evaluatePredicate — emitted-events predicates", () => {
 
   it("run-emits-event honors a workflow filter", () => {
     seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-aaaa11", [
-      { event: "autonomy.queue.available", payload: { pullableCount: 1 } },
+      { event: "autonomy.queue.available", payload: { actionableCount: 1 } },
     ]);
     seedRunWithEvents("2026-04-24T00-00-01-000Z-explorer-bbbb22", [
-      { event: "autonomy.queue.available", payload: { pullableCount: 99 } },
+      { event: "autonomy.queue.available", payload: { actionableCount: 99 } },
     ]);
     const dispatcherOnly = evaluatePredicate(workDir, {
       kind: "run-emits-event",
       event: "autonomy.queue.available",
       workflow: "dispatcher",
-      payloadMatch: { pullableCount: 1 },
+      payloadMatch: { actionableCount: 1 },
     });
     const explorerOnly = evaluatePredicate(workDir, {
       kind: "run-emits-event",
       event: "autonomy.queue.available",
       workflow: "explorer",
-      payloadMatch: { pullableCount: 99 },
+      payloadMatch: { actionableCount: 99 },
     });
     const explorerWithWrongPayload = evaluatePredicate(workDir, {
       kind: "run-emits-event",
       event: "autonomy.queue.available",
       workflow: "explorer",
-      payloadMatch: { pullableCount: 1 },
+      payloadMatch: { actionableCount: 1 },
     });
     expect(dispatcherOnly.passed).toBe(true);
     expect(explorerOnly.passed).toBe(true);
@@ -300,20 +300,20 @@ describe("evaluatePredicate — emitted-events predicates", () => {
       {
         event: "autonomy.queue.available",
         payload: {
-          pullableCount: 1,
-          counts: { ready: 1, doing: 0, backlog: 0 },
+          actionableCount: 1,
+          counts: { open: 1, blocked: 0 },
         },
       },
     ]);
     const deepMatch = evaluatePredicate(workDir, {
       kind: "run-emits-event",
       event: "autonomy.queue.available",
-      payloadMatch: { counts: { ready: 1 } },
+      payloadMatch: { counts: { open: 1 } },
     });
     const deepMismatch = evaluatePredicate(workDir, {
       kind: "run-emits-event",
       event: "autonomy.queue.available",
-      payloadMatch: { counts: { ready: 99 } },
+      payloadMatch: { counts: { open: 99 } },
     });
     expect(deepMatch.passed).toBe(true);
     expect(deepMismatch.passed).toBe(false);
@@ -321,7 +321,7 @@ describe("evaluatePredicate — emitted-events predicates", () => {
 
   it("run-omits-event passes when the event never fired, fails when it did", () => {
     seedRunWithEvents("2026-04-24T00-00-00-000Z-dispatcher-dddd44", [
-      { event: "autonomy.queue.available", payload: { pullableCount: 1 } },
+      { event: "autonomy.queue.available", payload: { actionableCount: 1 } },
     ]);
     const ok = evaluatePredicate(workDir, {
       kind: "run-omits-event",

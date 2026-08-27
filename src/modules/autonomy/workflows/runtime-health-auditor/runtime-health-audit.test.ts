@@ -160,21 +160,17 @@ describe("runtime health audit", () => {
         updatedAt: "2026-06-17T08:00:00.000Z",
       }),
     ]);
-    const readyDir = join(workspaceRoot, "data", "tasks", "ready");
+    const readyDir = join(workspaceRoot, "data", "tasks");
     mkdirSync(readyDir, { recursive: true });
     writeFileSync(
       join(readyDir, "task-clear-stale-progress-reviewer-write-scope-dlq-item.md"),
       [
         "---",
-        "id: task-clear-stale-progress-reviewer-write-scope-dlq-item",
-        "title: Clear stale progress-reviewer write-scope DLQ item",
-        "status: ready",
+        "status: open",
         "priority: p3",
-        "area: platform",
-        "summary: Existing active work tracks the stale DLQ item.",
-        `created_at: ${RUNTIME_HEALTH_AUDIT_NOW}`,
-        `updated_at: ${RUNTIME_HEALTH_AUDIT_NOW}`,
         "---",
+        "",
+        "# Clear stale progress-reviewer write-scope DLQ item",
         "",
         "<!-- autonomy-health-dedupe-key: dead-letter:execution:workflow-runtime:progress-reviewer -->",
         "",

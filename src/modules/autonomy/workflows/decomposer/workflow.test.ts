@@ -35,10 +35,7 @@ const DECOMPOSITION_PLAN: DecompositionPlan = {
   subtasks: [
     {
       title: "Scoped subtask",
-      summary: "Implement one bounded portion of the failed task.",
       priority: "p1",
-      area: "modules",
-      taskClass: "Platform",
       problem: "The original task could not produce stageable progress.",
       desiredOutcome: "The bounded portion is complete and independently verifiable.",
       constraints: ["Preserve the original task intent."],
@@ -239,7 +236,6 @@ describe("decomposer workflow", () => {
     writeActionableTask(
       fixture.workspaceRoot,
       TASK_ID,
-      "doing",
       "The task changed after decomposer admission.",
     );
     expect(invariant(input)).toMatchObject({
@@ -303,7 +299,7 @@ describe("decomposer workflow", () => {
       shouldDecompose: true,
       failureKind: errorKind === "step-timeout" ? "timeout" : "repair-exhausted",
       taskId,
-      taskPath: `data/tasks/doing/${taskId}.md`,
+      taskPath: `data/tasks/${taskId}.md`,
     });
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps["validate-decomposition"].status).toBe("success");
@@ -314,7 +310,6 @@ describe("decomposer workflow", () => {
     writeActionableTask(
       fixture.workspaceRoot,
       TASK_ID,
-      "doing",
       "The task changed after the failed builder run.",
     );
 
@@ -362,7 +357,6 @@ describe("decomposer workflow", () => {
           writeActionableTask(
             cwd,
             TASK_ID,
-            "doing",
             "The task changed during semantic review.",
           );
           return DECOMPOSITION_REVIEW;

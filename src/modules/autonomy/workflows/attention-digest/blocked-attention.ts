@@ -19,7 +19,7 @@ const ACTION_COOLDOWN_MS = 14 * MS_PER_DAY;
 type LongBlockedEntry = { record: RepoTaskRecord; ageDays: number };
 
 function hasOwnerBlocker(body: string): boolean {
-  const match = body.match(/(?:^|\n)##\s+Blocker\b[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
+  const match = body.match(/(?:^|\n)##\s+Blocked on\b[^\n]*\n([\s\S]*?)(?=\n##\s|$)/i);
   return match ? /\bowner\b/i.test(match[1]) : false;
 }
 
@@ -42,7 +42,7 @@ function hasFreshActionMarker(record: RepoTaskRecord, nowMs: number): boolean {
 }
 
 function ageInDays(record: RepoTaskRecord, nowMs: number): number | null {
-  const updatedAt = Date.parse(record.frontmatter.updatedAt);
+  const updatedAt = Date.parse(record.observedModifiedAt);
   return Number.isNaN(updatedAt)
     ? null
     : Math.floor((nowMs - updatedAt) / MS_PER_DAY);
@@ -106,12 +106,12 @@ export function blockedAttentionItems(workspaceRoot: string): AttentionItem[] {
   );
   const items: AttentionItem[] = [];
   if (blockedCount >= 2 && longBlocked.length < blockedCount) {
-    items.push({ label: "Blocked backlog", detail: `${blockedCount} blocked tasks` });
+    items.push({ label: "Blocked tasks", detail: `${blockedCount} blocked tasks` });
   }
   for (const { record, ageDays } of longBlocked.slice(0, MAX_INDIVIDUAL_BLOCKED_ITEMS)) {
     items.push({
       label: hasOwnerBlocker(record.body) ? "Owner decision pending" : "Stale blocker",
-      detail: `${record.frontmatter.id} (blocked ${ageDays}d)`,
+      detail: `${record.id} (blocked ${ageDays}d)`,
     });
   }
   const tail = longBlocked.length - MAX_INDIVIDUAL_BLOCKED_ITEMS;
@@ -124,7 +124,7 @@ export function blockedAttentionItems(workspaceRoot: string): AttentionItem[] {
   for (const { record, ageDays } of operatorGatedAged) {
     items.push({
       label: "Operator-gated blocker aged",
-      detail: `${record.frontmatter.id} (blocked ${ageDays}d, operator-gated precondition)`,
+      detail: `${record.id} (blocked ${ageDays}d, operator-gated precondition)`,
     });
   }
   return items;

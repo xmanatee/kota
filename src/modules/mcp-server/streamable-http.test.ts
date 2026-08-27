@@ -905,7 +905,7 @@ describe("Streamable HTTP MCP transport", () => {
 			method: "subscriptions/listen",
 			params: draftParams({
 				notifications: {
-					resourceSubscriptions: ["kota://tasks/ready"],
+					resourceSubscriptions: ["kota://tasks/open"],
 					resourcesListChanged: true,
 					promptsListChanged: true,
 				},
@@ -921,7 +921,7 @@ describe("Streamable HTTP MCP transport", () => {
 				params: {
 					_meta: { "io.modelcontextprotocol/subscriptionId": "70" },
 					notifications: {
-						resourceSubscriptions: ["kota://tasks/ready"],
+						resourceSubscriptions: ["kota://tasks/open"],
 						resourcesListChanged: true,
 						promptsListChanged: true,
 					},
@@ -940,7 +940,7 @@ describe("Streamable HTTP MCP transport", () => {
 						method: "notifications/resources/updated",
 						params: {
 							_meta: { "io.modelcontextprotocol/subscriptionId": "70" },
-							uri: "kota://tasks/ready",
+							uri: "kota://tasks/open",
 						},
 					}));
 				});
@@ -1083,7 +1083,7 @@ describe("Streamable HTTP MCP transport", () => {
 			jsonrpc: "2.0",
 			id: 41,
 			method: "resources/subscribe",
-			params: draftParams({ uri: "kota://tasks/ready" }),
+			params: draftParams({ uri: "kota://tasks/open" }),
 		}));
 		expect(subscribe.status).toBe(404);
 		expect(parseBody(subscribe).error).toMatchObject({
@@ -1094,7 +1094,7 @@ describe("Streamable HTTP MCP transport", () => {
 			jsonrpc: "2.0",
 			id: 42,
 			method: "resources/unsubscribe",
-			params: draftParams({ uri: "kota://tasks/ready" }),
+			params: draftParams({ uri: "kota://tasks/open" }),
 		}));
 		expect(unsubscribe.status).toBe(404);
 		expect(parseBody(unsubscribe).error).toMatchObject({

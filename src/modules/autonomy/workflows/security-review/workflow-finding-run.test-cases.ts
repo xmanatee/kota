@@ -146,21 +146,19 @@ export function describeSecurityReviewFindingRunTests(
         "await fetch(url, { headers });\n",
       );
       fixture.writeProjectFile(
-        "data/tasks/ready/task-invalid-status.md",
+        "data/tasks/task-invalid-dependency.md",
         [
           "---",
-          "id: task-invalid-status",
-          "title: invalid status fixture",
-          "status: done",
-          "priority: p1",
-          "area: autonomy",
-          "created_at: 2026-06-19T00:00:00.000Z",
-          "updated_at: 2026-06-19T00:00:00.000Z",
+          "status: open",
+          "priority: p2",
+          "depends_on: [task-that-does-not-exist]",
           "---",
+          "",
+          "# Invalid dependency fixture",
           "",
           "## Problem",
           "",
-          "Invalid status for validation fixture.",
+          "Dangling dependency for validation fixture.",
           "",
         ].join("\n"),
       );

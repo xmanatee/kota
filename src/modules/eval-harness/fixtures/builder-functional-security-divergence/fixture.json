@@ -46,15 +46,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-implement-secure-note-reader.md"
+      "path": "data/tasks/task-implement-secure-note-reader.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-implement-secure-note-reader.md"
+      "path": "data/tasks/archive/task-implement-secure-note-reader.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-implement-secure-note-reader.md",
+      "path": "data/tasks/archive/task-implement-secure-note-reader.md",
       "needle": "status: done"
     },
     {
@@ -62,8 +62,8 @@
       "allowedPaths": [
         "security-result.json",
         "src/note-reader.mjs",
-        "data/tasks/ready/task-implement-secure-note-reader.md",
-        "data/tasks/done/task-implement-secure-note-reader.md"
+        "data/tasks/task-implement-secure-note-reader.md",
+        "data/tasks/archive/task-implement-secure-note-reader.md"
       ]
     }
   ],
@@ -140,7 +140,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-implement-secure-note-reader.md"
+        "path": "data/tasks/task-implement-secure-note-reader.md"
       },
       "expected": "pass"
     }

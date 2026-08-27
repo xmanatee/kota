@@ -152,7 +152,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         inspectionInput,
       );
       if (inspection.status === "no-task") {
-        return "OK: no task in doing/ — skipping critic review";
+        return "OK: no active builder task — skipping critic review";
       }
 
       const {

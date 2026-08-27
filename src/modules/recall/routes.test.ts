@@ -73,9 +73,8 @@ describe("recall route handler", () => {
         score: 0.8,
         id: "task-recall",
         title: "Add recall seam",
-        state: "doing",
+        state: "open",
         priority: "p2",
-        updatedAt: "2026-04-27",
       },
     ];
     const handler = createRecallRouteHandler(() => fakeProvider(hits));

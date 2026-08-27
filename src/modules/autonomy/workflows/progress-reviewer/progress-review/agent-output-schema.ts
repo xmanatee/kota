@@ -11,9 +11,8 @@ const reviewClaimSchema = z.object({
 const reviewFollowUpTaskSchema = z.object({
   topicKey: z.string().regex(/^[a-z0-9][a-z0-9:_-]*$/),
   title: z.string().min(1),
-  summary: z.string().min(1),
+  problem: z.string().min(1),
   priority: z.enum(["p0", "p1", "p2", "p3"]),
-  area: z.string().min(1),
   evidenceIds: z.array(z.string().min(1)).min(1),
   howWeWillKnow: z.string().min(1),
 }).strict();

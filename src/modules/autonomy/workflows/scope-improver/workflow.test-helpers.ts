@@ -17,7 +17,7 @@ export function runScopeFixtureGit(workspaceRoot: string, args: string[]): strin
 
 export function makeScopeFixture(label: string): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-scope-semantic-${label}-`));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+  for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
     writeFileSync(join(workspaceRoot, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
   }

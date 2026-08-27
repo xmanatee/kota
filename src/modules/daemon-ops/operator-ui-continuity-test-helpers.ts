@@ -15,7 +15,7 @@ export function continuityInput(
           id: "task-active-work",
           priority: "p2",
           title: "Improve operator continuity",
-          state: "doing",
+          state: "open",
           waitingOnTasks: [],
         },
       ],

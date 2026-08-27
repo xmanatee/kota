@@ -9,9 +9,9 @@
   "pendingOwnerQuestions": [],
   "agingOperatorCaptures": [],
   "queueDelta": {
-    "current": { "backlog": 4, "ready": 2, "doing": 0, "blocked": 1 },
-    "previous": { "backlog": 4, "ready": 2, "doing": 0, "blocked": 1 },
-    "delta": { "backlog": 0, "ready": 0, "doing": 0, "blocked": 0 }
+    "current": { "open": 6, "blocked": 1 },
+    "previous": { "open": 6, "blocked": 1 },
+    "delta": { "open": 0, "blocked": 0 }
   },
   "quiet": true
 }

@@ -37,9 +37,7 @@ import {
 import { repoTasksUiSurfaceSource } from "./ui-surface.js";
 
 const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
-	"backlog",
-	"ready",
-	"doing",
+	"open",
 	"blocked",
 ];
 
@@ -150,11 +148,6 @@ const repoTasksModule: KotaModule = {
 			async capture(title, scopeSelector) {
 				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, { kind: "capture", title });
-			},
-			async gc(options) {
-				const { scopeId, ...gcOptions } = options ?? {};
-				const resolved = resolveRepoTasksScope(scopeStores, scopeId);
-				return await mutateRepoTask(resolved, { kind: "gc", options: gcOptions });
 			},
 			async search(query, filter): Promise<RepoTaskSearchResult> {
 				const semantic = filter?.semantic !== false;

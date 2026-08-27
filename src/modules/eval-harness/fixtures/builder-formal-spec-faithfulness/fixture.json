@@ -59,15 +59,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+      "path": "data/tasks/task-author-return-label-spec-contract.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-author-return-label-spec-contract.md"
+      "path": "data/tasks/archive/task-author-return-label-spec-contract.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-author-return-label-spec-contract.md",
+      "path": "data/tasks/archive/task-author-return-label-spec-contract.md",
       "needle": "status: done"
     },
     {
@@ -76,8 +76,8 @@
         "src/spec-contract.mjs",
         "spec-faithfulness-result.json",
         "spec-faithfulness-verification.json",
-        "data/tasks/ready/task-author-return-label-spec-contract.md",
-        "data/tasks/done/task-author-return-label-spec-contract.md"
+        "data/tasks/task-author-return-label-spec-contract.md",
+        "data/tasks/archive/task-author-return-label-spec-contract.md"
       ]
     }
   ],
@@ -172,7 +172,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-author-return-label-spec-contract.md"
+        "path": "data/tasks/task-author-return-label-spec-contract.md"
       },
       "expected": "pass"
     },

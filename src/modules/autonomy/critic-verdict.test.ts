@@ -12,7 +12,7 @@ import {
   resetCriticTestMocks,
   setApiResponse,
   TEST_PARENT_STEP,
-  writeDoingTask,
+  writeOpenTask,
 } from "./critic-test-fixture.integration.js";
 import { getImproverSemanticGatePromptHash } from "./improver-semantic-gate.js";
 
@@ -23,7 +23,7 @@ describe("critic verdict handling", () => {
 
   it("recovers verdict from response with preamble text before JSON", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-preamble.md", "---\ntitle: Test preamble\n---\nContent.");
+    writeOpenTask(dir, "task-preamble.md", "---\nstatus: open\npriority: p2\n---\n\n# Test preamble\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockResolvedValue({
       text: 'Based on my review:\n\n```json\n{"verdict":"pass","critical_issues":[],"warnings":[],"summary":"Looks good."}\n```',
@@ -40,7 +40,7 @@ describe("critic verdict handling", () => {
 
   it("recovers verdict from response with bare JSON after preamble", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-bare.md", "---\ntitle: Test bare\n---\nContent.");
+    writeOpenTask(dir, "task-bare.md", "---\nstatus: open\npriority: p2\n---\n\n# Test bare\n\nContent.");
     const runDir = makeRunDir(dir);
     mockRunAgentHarness.mockResolvedValue({
       text: 'Assessment:\n\n{"verdict":"pass_with_warnings","critical_issues":[],"warnings":["Minor issue"],"summary":"Mostly complete."}',
@@ -57,7 +57,7 @@ describe("critic verdict handling", () => {
 
   it("throws on fail verdict with critical issues", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-bar.md", "---\ntitle: Do bar\n---\nDo bar.");
+    writeOpenTask(dir, "task-bar.md", "---\nstatus: open\npriority: p2\n---\n\n# Do bar\n\nDo bar.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "fail",
@@ -74,7 +74,7 @@ describe("critic verdict handling", () => {
 
   it("writes critic-review.json on fail", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-bar.md", "---\ntitle: Do bar\n---\nDo bar.");
+    writeOpenTask(dir, "task-bar.md", "---\nstatus: open\npriority: p2\n---\n\n# Do bar\n\nDo bar.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "fail",
@@ -126,7 +126,7 @@ describe("critic verdict handling", () => {
 
   it("passes with warnings and writes critic-review.json", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-baz.md", "---\ntitle: Do baz\n---\nDo baz.");
+    writeOpenTask(dir, "task-baz.md", "---\nstatus: open\npriority: p2\n---\n\n# Do baz\n\nDo baz.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "pass_with_warnings",
@@ -164,7 +164,7 @@ describe("critic verdict handling", () => {
   it("preserves a clean accepted verdict without manufacturing a warning", async () => {
     const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-thin.md", "---\ntitle: Do thin\n---\nDo thin.");
+    writeOpenTask(dir, "task-thin.md", "---\nstatus: open\npriority: p2\n---\n\n# Do thin\n\nDo thin.");
     const runDir = makeRunDir(dir);
     vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
       const argStr = Array.isArray(args) ? args.join(" ") : "";
@@ -251,7 +251,7 @@ describe("critic verdict handling", () => {
 
   it("writes citation-backed clean passes as non-thin review scrutiny", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-cited.md", "---\ntitle: Do cited\n---\nDo cited.");
+    writeOpenTask(dir, "task-cited.md", "---\nstatus: open\npriority: p2\n---\n\n# Do cited\n\nDo cited.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "pass",

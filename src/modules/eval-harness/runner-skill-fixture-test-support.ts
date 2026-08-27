@@ -76,7 +76,7 @@ function skillAblationVariantFixture(params: {
       {
         predicate: {
           kind: "file-exists",
-          path: "data/tasks/ready/task-normalize-ticket-json.md",
+          path: "data/tasks/task-normalize-ticket-json.md",
         },
         expected: "pass",
       },
@@ -84,11 +84,11 @@ function skillAblationVariantFixture(params: {
     predicates: [
       {
         kind: "file-absent",
-        path: "data/tasks/ready/task-normalize-ticket-json.md",
+        path: "data/tasks/task-normalize-ticket-json.md",
       },
       {
         kind: "file-exists",
-        path: "data/tasks/done/task-normalize-ticket-json.md",
+        path: "data/tasks/archive/task-normalize-ticket-json.md",
       },
       {
         kind: "file-contains",
@@ -103,8 +103,8 @@ function skillAblationVariantFixture(params: {
       {
         kind: "git-changes-within",
         allowedPaths: [
-          "data/tasks/ready/task-normalize-ticket-json.md",
-          "data/tasks/done/task-normalize-ticket-json.md",
+          "data/tasks/task-normalize-ticket-json.md",
+          "data/tasks/archive/task-normalize-ticket-json.md",
           "output/ticket-summary.json",
         ],
       },
@@ -121,16 +121,18 @@ export function writeSkillAblationFixture(
 ): void {
   const id = params.id ?? "skill-ablation-mini";
   const fixtureDir = join(fixturesRoot, id);
-  mkdirSync(join(fixtureDir, "initial", "data", "tasks", "ready"), {
+  mkdirSync(join(fixtureDir, "initial", "data", "tasks"), {
     recursive: true,
   });
   writeFileSync(
-    join(fixtureDir, "initial", "data", "tasks", "ready", "task-normalize-ticket-json.md"),
+    join(fixtureDir, "initial", "data", "tasks", "task-normalize-ticket-json.md"),
     [
       "---",
-      "id: task-normalize-ticket-json",
-      "status: ready",
+      "status: open",
+      "priority: p2",
       "---",
+      "",
+      "# Normalize ticket JSON",
       "",
       "Normalize T-1042 ticket JSON.",
       "",

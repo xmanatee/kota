@@ -104,9 +104,8 @@ describe("progress-reviewer citation correction", () => {
           followUpTasks: attempts === 1 ? [{
             topicKey: "citation-contract-correction",
             title: "Do not apply the malformed cited follow-up",
-            summary: "Unknown citations must be corrected before actions run.",
+            problem: "Unknown citations must be corrected before actions run.",
             priority: "p1",
-            area: "autonomy",
             evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
             howWeWillKnow: "The corrected workflow run cites the packet.",
           }] : [],
@@ -157,9 +156,8 @@ describe("progress-reviewer citation correction", () => {
         localScope: { followUpTasks: [{
           topicKey: "citation-contract-exhausted",
           title: "Do not create this malformed follow-up",
-          summary: "This action remains ungrounded after bounded correction.",
+          problem: "This action remains ungrounded after bounded correction.",
           priority: "p1",
-          area: "autonomy",
           evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
           howWeWillKnow: "This malformed action is never applied.",
         }] },
@@ -188,7 +186,7 @@ describe("progress-reviewer citation correction", () => {
       .toBeUndefined();
     expect(existsSync(join(
       workspaceRoot,
-      "data/tasks/ready/task-citation-contract-exhausted.md",
+      "data/tasks/task-citation-contract-exhausted.md",
     ))).toBe(false);
     expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
     const diagnostic = readFileSync(

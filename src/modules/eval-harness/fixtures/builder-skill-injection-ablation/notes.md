@@ -4,7 +4,7 @@ This fixture is a compact skill-ablation smoke test. It does not import
 SWE-Skills-Bench data or scripts; it mirrors only the paired evaluation
 shape on a fixture-native software task.
 
-The initial project has one ready task asking an agent to normalize
+The initial project has one open task asking an agent to normalize
 `data/tickets/T-1042.json` into `output/ticket-summary.json` and move the
 task to `done/`. Three fixture-local workflows run the same prompt and
 same initial tree:

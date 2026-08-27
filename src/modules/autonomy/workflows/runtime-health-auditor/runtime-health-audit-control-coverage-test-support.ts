@@ -13,7 +13,7 @@ export type StepSeed = {
 };
 
 export function readyTaskPath(workspaceRoot: string, taskId: string): string {
-  return join(workspaceRoot, "data", "tasks", "ready", `${taskId}.md`);
+  return join(workspaceRoot, "data", "tasks", `${taskId}.md`);
 }
 
 export function writeRunWithCoverage(

@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -143,20 +150,14 @@ const TASK_TEMPLATE = (
   id: string,
   preconditionSection: string,
   extras = "",
-  updatedAt = "2026-04-25T00:00:00.000Z",
 ): string => {
-  const now = updatedAt;
   return [
     "---",
-    `id: ${id}`,
-    `title: ${id}`,
     "status: blocked",
     "priority: p2",
-    "area: autonomy",
-    `summary: ${id}`,
-    `created_at: ${now}`,
-    `updated_at: ${now}`,
     "---",
+    "",
+    `# ${id}`,
     "",
     "## Problem",
     "Body.",
@@ -192,10 +193,9 @@ function makeScopeRoot(): string {
     JSON.stringify({ scripts: { "validate-tasks": "true" } }),
   );
   writeFileSync(join(dir, ".gitignore"), ".kota/\n");
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
-  }
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
+  writeFileSync(join(dir, "data", "tasks", "AGENTS.md"), "# tasks\n");
+  writeFileSync(join(dir, "data", "tasks", "archive", "AGENTS.md"), "# archive\n");
   // Init a git repo so the moveTaskById helper's `git mv` calls succeed.
   execFileSync("git", ["init", "--quiet"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
@@ -203,9 +203,14 @@ function makeScopeRoot(): string {
   return dir;
 }
 
-function commitInitial(dir: string) {
+function commitInitial(dir: string, committedAt?: string) {
   execFileSync("git", ["add", "-A"], { cwd: dir });
-  execFileSync("git", ["commit", "-m", "initial", "--quiet"], { cwd: dir });
+  execFileSync("git", ["commit", "-m", "initial", "--quiet"], {
+    cwd: dir,
+    env: committedAt
+      ? { ...process.env, GIT_AUTHOR_DATE: committedAt, GIT_COMMITTER_DATE: committedAt }
+      : process.env,
+  });
 }
 
 function runBlockedScenario(
@@ -228,36 +233,16 @@ describe("blocked-promoter workflow", () => {
     await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
 
-    // Enabler in done/
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "done", "task-enabler.md"),
-      "---\nid: task-enabler\nstatus: done\n---\n# done\n",
-    );
-    // task-done precondition referencing the enabler
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-depends-on-enabler.md"),
-      TASK_TEMPLATE(
-        "task-depends-on-enabler",
-        [
-          "## Unblock Precondition",
-          "",
-          "```",
-          "kind: task-done",
-          "ref: task-enabler",
-          "```",
-        ].join("\n"),
-      ),
-    );
     // operator-capture precondition with a proof artifact
     const completeCaptureDir = join(workspaceRoot, ".kota", "runs", "harness-parity-x");
     mkdirSync(completeCaptureDir, { recursive: true });
     writeFileSync(join(completeCaptureDir, "capture-proof.md"), "operator proof\n");
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-needs-capture.md"),
+      join(workspaceRoot, "data", "tasks", "task-needs-capture.md"),
       TASK_TEMPLATE(
         "task-needs-capture",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -269,11 +254,11 @@ describe("blocked-promoter workflow", () => {
     );
     // capability-installed (storageState) precondition that does NOT match yet
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-needs-storage.md"),
+      join(workspaceRoot, "data", "tasks", "task-needs-storage.md"),
       TASK_TEMPLATE(
         "task-needs-storage",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: capability-installed",
@@ -289,32 +274,35 @@ describe("blocked-promoter workflow", () => {
       payload: {},
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     const promotion = result.steps["promote-deterministic"].output as {
       promotions: Array<{ id: string; toState: string }>;
     };
     const promotedIds = promotion.promotions.map((p) => p.id).sort();
-    expect(promotedIds).toEqual([
-      "task-depends-on-enabler",
-      "task-needs-capture",
-    ]);
+    expect(promotedIds).toEqual(["task-needs-capture"]);
     // The task-needs-storage one stayed blocked (capability not present).
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "blocked", "task-needs-storage.md"),
-      ),
-    ).toBe(true);
-    // Promoted tasks landed in backlog (p2 → backlog).
-    expect(
-      existsSync(
-        join(result.workspaceDir, "data", "tasks", "backlog", "task-depends-on-enabler.md"),
+        join(result.workspaceDir, "data", "tasks", "task-needs-storage.md"),
       ),
     ).toBe(true);
     expect(
+      readFileSync(
+        join(result.workspaceDir, "data", "tasks", "task-needs-storage.md"),
+        "utf-8",
+      ),
+    ).toContain("status: blocked");
+    expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "backlog", "task-needs-capture.md"),
+        join(result.workspaceDir, "data", "tasks", "task-needs-capture.md"),
       ),
     ).toBe(true);
+    expect(
+      readFileSync(
+        join(result.workspaceDir, "data", "tasks", "task-needs-capture.md"),
+        "utf-8",
+      ),
+    ).toContain("status: open");
   });
 
   it("keeps a partial operator-capture directory blocked and refreshes instructions", async () => {
@@ -324,11 +312,11 @@ describe("blocked-promoter workflow", () => {
     mkdirSync(captureDir, { recursive: true });
     writeFileSync(join(captureDir, "smoke.txt"), "daemon smoke test passed\n");
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      join(workspaceRoot, "data", "tasks", "task-needs-telegram-proof.md"),
       TASK_TEMPLATE(
         "task-needs-telegram-proof",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -345,7 +333,7 @@ describe("blocked-promoter workflow", () => {
       payload: {},
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     const promotion = result.steps["promote-deterministic"].output as {
       promotions: Array<{ id: string }>;
     };
@@ -354,14 +342,15 @@ describe("blocked-promoter workflow", () => {
     );
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+        join(result.workspaceDir, "data", "tasks", "task-needs-telegram-proof.md"),
       ),
     ).toBe(true);
     expect(
-      existsSync(
-        join(result.workspaceDir, "data", "tasks", "backlog", "task-needs-telegram-proof.md"),
+      readFileSync(
+        join(result.workspaceDir, "data", "tasks", "task-needs-telegram-proof.md"),
+        "utf-8",
       ),
-    ).toBe(false);
+    ).toContain("status: blocked");
     const instructions = (
       result.steps["instruct-operator-capture"].output as {
         instructions: Array<{ taskId: string; capturePath: string; reason: string }>;
@@ -374,7 +363,7 @@ describe("blocked-promoter workflow", () => {
     });
     expect(instructions[0].reason).toContain("no operator-visible proof");
     const taskBody = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "blocked", "task-needs-telegram-proof.md"),
+      join(result.workspaceDir, "data", "tasks", "task-needs-telegram-proof.md"),
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(taskBody)).not.toBeNull();
@@ -403,11 +392,11 @@ describe("blocked-promoter workflow", () => {
     await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -428,7 +417,7 @@ describe("blocked-promoter workflow", () => {
     expect(requestRun.status).toBe("success");
     expect(followUpRun.steps["blocked-promoter-owner-decision-ask"].status).toBe("success");
     expect(followUpRun.steps["blocked-promoter-owner-decision-consume"].status).toBe("success");
-    expect(result.status).toBe("success");
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     expect(result.steps["apply-ask-outcome"].status).toBe("success");
     expect(result.steps["promote-after-approval"].status).toBe("success");
     const followups = (
@@ -439,20 +428,26 @@ describe("blocked-promoter workflow", () => {
     expect(followups.map((p) => p.id)).toContain("task-pick-variant");
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "backlog", "task-pick-variant.md"),
+        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
       ),
     ).toBe(true);
+    expect(
+      readFileSync(
+        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+        "utf-8",
+      ),
+    ).toContain("status: open");
   });
 
   it("refreshes the asked marker on a non-approval answer without promoting", async () => {
     await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -472,10 +467,10 @@ describe("blocked-promoter workflow", () => {
       queue,
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     expect(result.steps["promote-after-approval"].status).toBe("skipped");
     const taskBody = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
       "utf-8",
     );
     expect(taskBody).toContain("blocked-promoter-asked: slot=pick-variant");
@@ -490,11 +485,11 @@ describe("blocked-promoter workflow", () => {
       lastAskedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     });
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -529,11 +524,11 @@ describe("blocked-promoter workflow", () => {
     const workspaceRoot = makeScopeRoot();
     const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-aged-capture.md"),
+      join(workspaceRoot, "data", "tasks", "task-aged-capture.md"),
       TASK_TEMPLATE(
         "task-aged-capture",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -542,10 +537,14 @@ describe("blocked-promoter workflow", () => {
           "```",
         ].join("\n"),
         "",
-        oldUpdatedAt,
       ),
     );
-    commitInitial(workspaceRoot);
+    utimesSync(
+      join(workspaceRoot, "data", "tasks", "task-aged-capture.md"),
+      new Date(oldUpdatedAt),
+      new Date(oldUpdatedAt),
+    );
+    commitInitial(workspaceRoot, oldUpdatedAt);
 
     const result = await runBlockedScenario(workspaceRoot, {
       event: "autonomy.queue.available",
@@ -562,7 +561,7 @@ describe("blocked-promoter workflow", () => {
     expect(instructions.map((i) => i.taskId)).toEqual(["task-aged-capture"]);
     // The marker is written to the task body.
     const body = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "blocked", "task-aged-capture.md"),
+      join(result.workspaceDir, "data", "tasks", "task-aged-capture.md"),
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(body)).not.toBeNull();
@@ -591,11 +590,11 @@ describe("blocked-promoter workflow", () => {
       lastInstructedAt: new Date(Date.now() - 1 * MS_PER_DAY).toISOString(),
     });
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-aged-capture.md"),
+      join(workspaceRoot, "data", "tasks", "task-aged-capture.md"),
       TASK_TEMPLATE(
         "task-aged-capture",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: operator-capture",
@@ -604,10 +603,14 @@ describe("blocked-promoter workflow", () => {
           "```",
         ].join("\n"),
         recentMarker,
-        oldUpdatedAt,
       ),
     );
-    commitInitial(workspaceRoot);
+    utimesSync(
+      join(workspaceRoot, "data", "tasks", "task-aged-capture.md"),
+      new Date(oldUpdatedAt),
+      new Date(oldUpdatedAt),
+    );
+    commitInitial(workspaceRoot, oldUpdatedAt);
 
     const result = await runBlockedScenario(workspaceRoot, {
       event: "autonomy.queue.available",
@@ -632,11 +635,11 @@ describe("blocked-promoter workflow", () => {
     await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -688,11 +691,11 @@ describe("blocked-promoter workflow", () => {
       resolvedAt: "2026-04-24T00:00:00.000Z",
     });
     writeFileSync(
-      join(workspaceRoot, "data", "tasks", "blocked", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       TASK_TEMPLATE(
         "task-pick-variant",
         [
-          "## Unblock Precondition",
+          "## Blocked on",
           "",
           "```",
           "kind: owner-decision",
@@ -717,8 +720,14 @@ describe("blocked-promoter workflow", () => {
     expect(promotion.promotions.map((p) => p.id)).toContain("task-pick-variant");
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "backlog", "task-pick-variant.md"),
+        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
       ),
     ).toBe(true);
+    expect(
+      readFileSync(
+        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+        "utf-8",
+      ),
+    ).toContain("status: open");
   });
 });

@@ -16,23 +16,23 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-add-authorized-scope-marker.md"
+      "path": "data/tasks/task-add-authorized-scope-marker.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-add-authorized-scope-marker.md"
+      "path": "data/tasks/archive/task-add-authorized-scope-marker.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-add-authorized-scope-marker.md",
+      "path": "data/tasks/archive/task-add-authorized-scope-marker.md",
       "needle": "status: done"
     },
     {
       "kind": "git-changes-within",
       "allowedPaths": [
         "data/markers/authorized-scope-marker.txt",
-        "data/tasks/ready/task-add-authorized-scope-marker.md",
-        "data/tasks/done/task-add-authorized-scope-marker.md"
+        "data/tasks/task-add-authorized-scope-marker.md",
+        "data/tasks/archive/task-add-authorized-scope-marker.md"
       ]
     }
   ],
@@ -56,7 +56,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-add-authorized-scope-marker.md"
+        "path": "data/tasks/task-add-authorized-scope-marker.md"
       },
       "expected": "pass"
     }

@@ -38,16 +38,16 @@ export type RetractKnowledgeRecord = {
  * Tasks-store record dropped by a successful retract.
  *
  * Retracting a task does not delete the file — it routes through the
- * existing task-state machine into `data/tasks/dropped/`. The arm carries
+ * existing task-state machine into `data/tasks/archive/`. The arm carries
  * the previous and resulting paths plus the explicit destination state so
  * the operator surface can render "moved to dropped", not "deleted".
  */
 export type RetractTasksRecord = {
   target: "tasks";
   recordId: string;
-  /** Previous repo-relative path (`data/tasks/<state>/<id>.md`). */
+  /** Previous repo-relative path (`data/tasks/<id>.md`). */
   previousPath: string;
-  /** New repo-relative path (always under `data/tasks/dropped/`). */
+  /** New repo-relative path (always under `data/tasks/archive/`). */
   path: string;
   /** Resulting task state — always `"dropped"` for the retract seam. */
   toState: "dropped";

@@ -40,8 +40,7 @@
     {
       "runId": "2026-04-26T00-21-34-597Z-blocked-promoter-ur62wt",
       "promotedTaskIds": ["task-x", "task-y"],
-      "toReady": ["task-x"],
-      "toBacklog": ["task-y"]
+      "toOpen": ["task-x", "task-y"]
     }
   ],
   "failedMonitoredRuns": [
@@ -68,9 +67,9 @@
     }
   ],
   "queueDelta": {
-    "current": { "backlog": 0, "ready": 1, "doing": 0, "blocked": 8 },
-    "previous": { "backlog": 2, "ready": 1, "doing": 1, "blocked": 9 },
-    "delta": { "backlog": -2, "ready": 0, "doing": -1, "blocked": -1 }
+    "current": { "open": 1, "blocked": 8 },
+    "previous": { "open": 4, "blocked": 9 },
+    "delta": { "open": -3, "blocked": -1 }
   },
   "quiet": false
 }

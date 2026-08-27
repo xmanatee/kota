@@ -16,7 +16,6 @@ export function buildWorkstreamGroups(
   const add = (partial: Omit<SupervisionLoadWorkstreamGroup, "activeRuns">) => {
     const key = [
       partial.workflow,
-      partial.taskClass,
       partial.priority,
       partial.scopeId ?? "",
       partial.scopeId ?? "",
@@ -38,7 +37,6 @@ export function buildWorkstreamGroups(
     const scope = scopeFromPayload(payload);
     add({
       workflow: run.workflow,
-      taskClass: task?.taskClass ?? "Unclassified",
       priority: task ? normalizePriority(task.priority) : "unknown",
       scopeId: scope.scopeId,
     });
@@ -54,7 +52,6 @@ function compareWorkstreamGroups(
   return (
     b.activeRuns - a.activeRuns ||
     a.workflow.localeCompare(b.workflow) ||
-    a.priority.localeCompare(b.priority) ||
-    a.taskClass.localeCompare(b.taskClass)
+    a.priority.localeCompare(b.priority)
   );
 }

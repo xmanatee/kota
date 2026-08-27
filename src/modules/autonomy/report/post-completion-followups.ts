@@ -30,12 +30,13 @@ export {
   type PostCompletionFollowUpReport,
 } from "./post-completion-followup-types.js";
 
-const OPEN_TASK_STATES = new Set(["backlog", "ready", "doing", "blocked"]);
+const OPEN_TASK_STATES = new Set(["open", "blocked"]);
 export const POST_COMPLETION_FOLLOW_UP_LINK_LIMIT = 12;
 
 type CompletedTaskEvidence = {
   task: RepoTaskFullRecord;
   refs: EvidenceRefs;
+  completedAtMs: number;
 };
 
 export function buildPostCompletionFollowUpReport(
@@ -54,18 +55,21 @@ export function buildPostCompletionCorrectiveLinks(
     input.runsDir,
   );
   const completedEvidence = input.tasks
-    .filter((task) =>
-      task.state === "done" &&
-      taskUpdatedAtMs(task) >= input.windowStartMs &&
-      taskUpdatedAtMs(task) <= input.windowEndMs
-    )
-    .map((task) => ({
-      task,
-      refs: buildCompletedTaskEvidenceRefs(
+    .filter((task) => task.state === "done")
+    .flatMap((task) => {
+      const evidence = builderEvidenceByTaskId.get(task.id) ?? [];
+      const completedAtMs = Math.max(
+        ...evidence
+          .map((item) => item.completedAtMs)
+          .filter((value) => value >= input.windowStartMs && value <= input.windowEndMs),
+      );
+      if (!Number.isFinite(completedAtMs)) return [];
+      return [{
         task,
-        builderEvidenceByTaskId.get(task.id) ?? [],
-      ),
-    }));
+        refs: buildCompletedTaskEvidenceRefs(task, evidence),
+        completedAtMs,
+      }];
+    });
 
   const openTasks = input.tasks.filter((task) =>
     OPEN_TASK_STATES.has(task.state) && !isBlockedOperatorCapture(task)
@@ -73,9 +77,8 @@ export function buildPostCompletionCorrectiveLinks(
   const links: PostCompletionCorrectiveLink[] = [];
 
   for (const completed of completedEvidence) {
-    const completedAtMs = taskUpdatedAtMs(completed.task);
     for (const followUp of openTasks) {
-      const link = buildCorrectiveLink(completed, followUp, completedAtMs);
+      const link = buildCorrectiveLink(completed, followUp);
       if (link) links.push(link);
     }
   }
@@ -111,9 +114,7 @@ export function summarizePostCompletionFollowUpLinks(
 function buildCorrectiveLink(
   completed: CompletedTaskEvidence,
   followUp: RepoTaskFullRecord,
-  completedAtMs: number,
 ): PostCompletionCorrectiveLink | null {
-  if (taskUpdatedAtMs(followUp) < completedAtMs) return null;
   const reasons = classifyCorrectiveReasons(followUp);
   if (reasons.length === 0) return null;
   if (isPlannedContinuation(followUp) && !hasHardCorrectiveReason(reasons)) {
@@ -140,7 +141,13 @@ function buildBuilderEvidenceByTaskId(
     const delivery = readAutonomyRunDeliveryEvidence(runsDir, run);
     if (!delivery?.taskId) continue;
     const existing = evidence.get(delivery.taskId) ?? [];
-    existing.push({ runId: run.id, commitSha: delivery.publishedHead });
+    const completedAtMs = Date.parse(run.completedAt ?? run.startedAt);
+    if (!Number.isFinite(completedAtMs)) continue;
+    existing.push({
+      runId: run.id,
+      commitSha: delivery.publishedHead,
+      completedAtMs,
+    });
     evidence.set(delivery.taskId, existing);
   }
   return evidence;
@@ -180,11 +187,6 @@ function buildReasonCounts(
   return POST_COMPLETION_FOLLOW_UP_REASONS
     .map((reason) => ({ reason, count: counts.get(reason)?.size ?? 0 }))
     .filter((row) => row.count > 0);
-}
-
-function taskUpdatedAtMs(task: RepoTaskFullRecord): number {
-  const ms = Date.parse(task.updatedAt);
-  return Number.isNaN(ms) ? 0 : ms;
 }
 
 function refsByPrefix(refs: readonly string[], prefix: string): string[] {

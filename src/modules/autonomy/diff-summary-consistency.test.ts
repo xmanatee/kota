@@ -36,11 +36,11 @@ function delivery(
   };
 }
 
-function task(summaryText = "Fix eval-harness recorder guard") {
+function task(body = "## Problem\n\nFix eval-harness recorder guard\n") {
   return {
     id: "task-eval-harness",
     title: "Fix eval-harness recorder guard",
-    summary: summaryText,
+    body,
     state: "done" as const,
   };
 }
@@ -54,7 +54,7 @@ describe("diff-summary consistency diagnostic", () => {
     const files = [
       "src/modules/eval-harness/recorder.ts",
       "src/modules/eval-harness/recorder.test.ts",
-      "data/tasks/done/task-eval-harness.md",
+      "data/tasks/archive/task-eval-harness.md",
     ];
 
     const record = buildDiffSummaryConsistencyRecord({
@@ -72,11 +72,11 @@ describe("diff-summary consistency diagnostic", () => {
       { bucket: "task", count: 1 },
       { bucket: "test", count: 1 },
     ]);
-    expect(record.facts.taskMovedToDone).toBe(true);
+    expect(record.facts.taskArchived).toBe(true);
   });
 
   it("flags task-only completions that claim implementation work", () => {
-    const files = ["data/tasks/done/task-eval-harness.md"];
+    const files = ["data/tasks/archive/task-eval-harness.md"];
     const record = buildDiffSummaryConsistencyRecord({
       delivery: delivery("Fix eval-harness recorder guard", files),
       commitMessageFile: "Fix eval-harness recorder guard",

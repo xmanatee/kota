@@ -16,8 +16,6 @@ const issueDispositionSchema = z.object({
   taskTitle: z.string(),
   taskSummary: z.string(),
   taskPriority: z.enum(["p0", "p1", "p2", "p3"]),
-  taskArea: z.string(),
-  taskClass: z.enum(["Product", "Safety", "Platform", "Meta"]),
   taskHowWeWillKnow: z.string(),
   ownerQuestion: z.string(),
   ownerReason: z.string(),
@@ -28,7 +26,6 @@ const issueDispositionSchema = z.object({
     for (const [field, text] of [
       ["taskTitle", value.taskTitle],
       ["taskSummary", value.taskSummary],
-      ["taskArea", value.taskArea],
       ["taskHowWeWillKnow", value.taskHowWeWillKnow],
     ] as const) {
       if (!text.trim()) {
@@ -81,8 +78,6 @@ export const issueDispositionOutputSchema = {
     "taskTitle",
     "taskSummary",
     "taskPriority",
-    "taskArea",
-    "taskClass",
     "taskHowWeWillKnow",
     "ownerQuestion",
     "ownerReason",
@@ -95,11 +90,6 @@ export const issueDispositionOutputSchema = {
     taskTitle: { type: "string" },
     taskSummary: { type: "string" },
     taskPriority: { type: "string", enum: ["p0", "p1", "p2", "p3"] },
-    taskArea: { type: "string" },
-    taskClass: {
-      type: "string",
-      enum: ["Product", "Safety", "Platform", "Meta"],
-    },
     taskHowWeWillKnow: { type: "string" },
     ownerQuestion: { type: "string" },
     ownerReason: { type: "string" },

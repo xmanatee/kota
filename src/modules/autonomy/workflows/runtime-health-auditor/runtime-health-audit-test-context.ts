@@ -86,7 +86,7 @@ export function writeRuntimeHealthModuleLog(
 }
 
 export function runtimeHealthReadyTaskFiles(workspaceRoot: string): string[] {
-  const dir = join(workspaceRoot, "data", "tasks", "ready");
+  const dir = join(workspaceRoot, "data", "tasks");
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((name) => name.endsWith(".md"));
 }

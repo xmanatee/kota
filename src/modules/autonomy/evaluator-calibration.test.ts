@@ -98,9 +98,8 @@ function makeStepContext(
       schemaRef: null,
       payload: {
         taskId,
-        taskPath: `data/tasks/ready/${taskId}.md`,
-        taskState: "ready",
-        taskUpdatedAt: "2026-04-20T11:59:00.000Z",
+        taskPath: `data/tasks/${taskId}.md`,
+        taskState: "open",
         taskDigest,
         idempotencyKey: `builder:${taskId}:${taskDigest}`,
         title: "Calibration task",
@@ -409,7 +408,7 @@ describe("writeCalibrationArtifact", () => {
       publishedHead: TEST_SOURCE_REVISION,
       changedPaths: [
         "src/modules/autonomy/evaluator-calibration.ts",
-        "data/tasks/done/task-1.md",
+        "data/tasks/archive/task-1.md",
       ],
       completedAt: "2026-04-20T12:00:00.000Z",
     });

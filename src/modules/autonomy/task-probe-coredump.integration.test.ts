@@ -36,8 +36,8 @@ describe("Runtime Probe coredump containment", () => {
       );
       const workspaceRoot = join(parent, "project");
       const taskName = "task-package-abort.md";
-      const readyTask = join(workspaceRoot, "data/tasks/ready", taskName);
-      const doingTask = join(workspaceRoot, "data/tasks/doing", taskName);
+      const readyTask = join(workspaceRoot, "data/tasks", taskName);
+      const doingTask = join(workspaceRoot, "data/tasks", taskName);
       const runDir = join(workspaceRoot, ".kota/runs/test-run");
       const packageLaunchMarker = join(workspaceRoot, "package-abort-ran.txt");
       const taskContent = [
@@ -54,7 +54,7 @@ describe("Runtime Probe coredump containment", () => {
       runGit(workspaceRoot, ["init"]);
       runGit(workspaceRoot, ["config", "user.email", "test@example.com"]);
       runGit(workspaceRoot, ["config", "user.name", "Test User"]);
-      runGit(workspaceRoot, ["add", "data/tasks/ready"]);
+      runGit(workspaceRoot, ["add", "data/tasks"]);
       runGit(workspaceRoot, ["commit", "-m", "seed trusted abort task"]);
       mkdirSync(dirname(doingTask), { recursive: true });
       renameSync(readyTask, doingTask);

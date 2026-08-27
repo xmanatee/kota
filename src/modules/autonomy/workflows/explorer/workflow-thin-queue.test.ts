@@ -17,29 +17,21 @@ describe("explorer workflow thin queue gating", () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
-    for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-      const dir = join(tempDir, "data", "tasks", state);
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);
-    }
+    mkdirSync(join(tempDir, "data", "tasks", "archive"), { recursive: true });
     writeFileSync(join(tempDir, ".gitignore"), ".kota/\n");
     execFileSync("git", ["init", "--quiet"], { cwd: tempDir });
     execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: tempDir });
     execFileSync("git", ["config", "user.name", "KOTA test"], { cwd: tempDir });
   });
 
-  function writeTask(state: "backlog" | "ready" | "doing", id: string): void {
-    writeFileSync(join(tempDir, "data", "tasks", state, `${id}.md`), [
+  function writeTask(id: string): void {
+    writeFileSync(join(tempDir, "data", "tasks", `${id}.md`), [
       "---",
-      `id: ${id}`,
-      `title: ${id}`,
-      `status: ${state}`,
+      "status: open",
       "priority: p2",
-      "area: autonomy",
-      `summary: ${id} summary`,
-      "created_at: 2026-08-01T00:00:00.000Z",
-      "updated_at: 2026-08-01T00:00:00.000Z",
       "---",
+      "",
+      `# ${id}`,
       "",
     ].join("\n"));
   }
@@ -61,8 +53,8 @@ describe("explorer workflow thin queue gating", () => {
     }).run();
   }
 
-  it("runs explore when only a one-item backlog tail remains and refresh is due", async () => {
-    writeTask("backlog", "task-tail");
+  it("runs explore when a single open task remains and refresh is due", async () => {
+    writeTask("task-open");
 
     const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.thin", payload: {} },
@@ -74,46 +66,8 @@ describe("explorer workflow thin queue gating", () => {
 
     expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
-      pullableCount: 1,
-      actionableCount: 0,
-      needsAttention: true,
-    });
-    expect(result.steps.explore.status).toBe("success");
-  });
-
-  it("runs explore when a single ready task remains and refresh is due", async () => {
-    writeTask("ready", "task-ready");
-
-    const result = await runExplorerScenario({
-      trigger: { event: "autonomy.queue.thin", payload: {} },
-      stepOutputs: {
-        explore: { turns: [], totalCostUsd: 0.02 },
-      },
-      runtimeState: { workflows: {} },
-    });
-
-    expect(result.status).toBe("success");
-    expect(result.steps["inspect-queue"].output).toMatchObject({
-      pullableCount: 1,
       actionableCount: 1,
-      needsAttention: true,
-    });
-    expect(result.steps.explore.status).toBe("success");
-  });
-
-  it("explores when only active doing work remains", async () => {
-    writeTask("doing", "task-doing");
-
-    const result = await runExplorerScenario({
-      trigger: { event: "autonomy.queue.thin", payload: {} },
-      stepOutputs: {
-        explore: { turns: [], totalCostUsd: 0.02 },
-      },
-      runtimeState: { workflows: {} },
-    });
-
-    expect(result.status).toBe("success");
-    expect(result.steps["inspect-queue"].output).toMatchObject({
+      activeCount: 1,
       needsAttention: true,
     });
     expect(result.steps.explore.status).toBe("success");

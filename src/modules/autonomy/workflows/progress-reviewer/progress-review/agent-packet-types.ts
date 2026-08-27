@@ -2,9 +2,7 @@ import type {
   ProgressReviewDeadLetterCounts,
   ProgressReviewEvidencePacket,
   ProgressReviewEvidenceRef,
-  ProgressReviewOperatorJourneyRisk,
   ProgressReviewScope,
-  ProgressReviewTaskClassCount,
   ProgressReviewTriggerKind,
 } from "./types.js";
 
@@ -19,7 +17,6 @@ export type ProgressReviewEvidenceCounts = {
   deadLetters: number;
   state: number;
   evidence: number;
-  taskClasses: ProgressReviewTaskClassCount[];
 };
 
 export type ProgressReviewAgentScopeSummary = {
@@ -40,7 +37,6 @@ export type ProgressReviewAgentEvidencePacket = {
   scopes: ProgressReviewAgentScopeSummary[];
   counts: ProgressReviewEvidenceCounts;
   deadLetterCounts: ProgressReviewDeadLetterCounts[];
-  operatorJourneyRisks: ProgressReviewOperatorJourneyRisk[];
   evidence: ProgressReviewEvidenceRef[];
   excluded: string[];
 };

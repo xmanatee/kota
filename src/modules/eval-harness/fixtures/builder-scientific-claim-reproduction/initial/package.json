@@ -9,7 +9,6 @@
     "lint:fix": "true",
     "test": "node scripts/check-claim.mjs --max-error-pct 0.000001",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
-    "start-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-reproduce-lx12-biomass-claim doing",
     "finish-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-reproduce-lx12-biomass-claim done",
     "kota": "node \"$KOTA_DIST_DIR/cli.js\""
   }

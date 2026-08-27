@@ -16,11 +16,9 @@ import type {
 } from "#core/modules/provider-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
-/** A repo-task queue state, mirroring `data/tasks/<state>/`. */
+/** A repo-task lifecycle state. Active tasks live directly in `data/tasks/`. */
 export type RepoTaskState =
-  | "backlog"
-  | "ready"
-  | "doing"
+  | "open"
   | "blocked"
   | "done"
   | "dropped";
@@ -28,7 +26,7 @@ export type RepoTaskState =
 /** A single normalized repo-task entry as the CLI surfaces it. */
 export type RepoTaskListEntry = {
   id: string;
-  priority: string;
+  priority: RepoTaskPriority | null;
   title: string;
   state: RepoTaskState;
   /** Hard predecessor task ids that are not yet in done/. */
@@ -82,9 +80,7 @@ export type RepoTaskPriority = "p0" | "p1" | "p2" | "p3";
 export type RepoTaskCreateOptions = ScopeSelector & {
   title: string;
   priority: RepoTaskPriority;
-  area: string;
-  state: RepoTaskState;
-  summary?: string;
+  state?: "open" | "blocked";
 };
 
 export type RepoTaskCreateResult =
@@ -104,16 +100,6 @@ export type RepoTaskCaptureResult =
       reason: "invalid_slug" | "already_exists";
       message?: string;
     };
-
-/** Options accepted by `tasks.gc`. Defaults retain removed tasks in Git history. */
-export type RepoTaskGcOptions = ScopeSelector & {
-  days?: number;
-  dryRun?: boolean;
-};
-
-export type RepoTaskGcResult = {
-  removed: string[];
-};
 
 /** Filter for `RepoTasksClient.search`. */
 export type RepoTaskSearchFilter = RepoTaskScopeSelection & {
@@ -147,17 +133,16 @@ export type RepoTaskReindexResult = ReindexOperationResult;
  * Repo-task queue operations (the `data/tasks/*` filesystem queue).
  *
  * `list` enumerates open-state task headers. `show` returns one task's full
- * file content. `move` transitions a task between any two states (including
- * the autonomy-owned `doing` and terminal `done`/`dropped`); web-UI restricted
- * moves stay on `/api/tasks/:id/state`. `create` writes a normalized task with
- * the full template; `capture` writes a quick `# title` inbox note. `gc`
- * removes terminal tasks older than the threshold, retaining normal Git history.
+ * file content. `move` transitions a task between active and terminal states;
+ * web-UI restricted
+ * moves stay on `/api/tasks/:id/state`. `create` writes a normalized active task;
+ * `capture` writes a quick `# title` inbox note.
  */
 export interface RepoTasksClient {
   /**
    * List repo tasks restricted to the given queue states. When no states
    * are provided, the implementor returns all open states
-   * (`backlog`, `ready`, `doing`, `blocked`).
+   * (`open`, `blocked`).
    */
   list(
     states?: RepoTaskState[],
@@ -180,7 +165,6 @@ export interface RepoTasksClient {
     title: string,
     scopeSelector?: RepoTaskScopeSelection,
   ): Promise<RepoTaskCaptureResult>;
-  gc(options?: RepoTaskGcOptions): Promise<RepoTaskGcResult>;
   /**
    * Run semantic or keyword ranking across the repo task queue. Semantic
    * ranking requires an embedding-backed provider; when the caller asks

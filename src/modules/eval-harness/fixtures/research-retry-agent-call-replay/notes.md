@@ -37,7 +37,7 @@ artifact so a non-committing run could not be silently recorded.
     project makes.
   - A `.gitignore` covering `.kota/` and `node_modules/`.
   - One synthetic blocked task at
-    `data/tasks/blocked/task-fixture-research-blocker.md`. Its
+    `data/tasks/task-fixture-research-blocker.md`. Its
     `## Resources` section carries one plain-http URL
     (`https://example.com/research-retry-fixture-resource`) — no
     `x.com/.../status/...` and no `openai.com/index/…`. That's the
@@ -105,7 +105,7 @@ workflow-runtime surface is distinct from the other five replays:
 - The `autonomy.blocked-research.attemptable` trigger receipt path with a
   research-retry-specific `inspect-candidates` step that consults
   `runtime-detect.ts` for Playwright + `modules.browser.storageStatePath`,
-  walks `data/tasks/blocked/` oldest-first via `candidates.ts`, and
+  walks `data/tasks/` oldest-first via `candidates.ts`, and
   evaluates each candidate's URL set against the current capability
   via `precondition.ts`'s `evaluateCandidate` (URL classification,
   marker fingerprint, capability gating).

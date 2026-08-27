@@ -49,7 +49,7 @@
           "score": 0.633,
           "id": "task-recall",
           "title": "Wire recall surfaces",
-          "state": "ready",
+          "state": "open",
           "priority": "p2",
           "updatedAt": "2026-04-23T07:00:00.000Z"
         },
@@ -79,7 +79,7 @@
       "knowledge:kn-1": "Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current",
       "memory:mem-1": "Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27",
       "history:hist-1": "Recall design discussion",
-      "tasks:task-recall": "[ready/p2] Wire recall surfaces",
+      "tasks:task-recall": "[open/p2] Wire recall surfaces",
       "answer:ans-ok": "[ok(2)] How does the harness boundary work?",
       "answer:ans-fail": "[semantic_unavailable] Why did synthesis fail?"
     },
@@ -91,7 +91,7 @@
       "answer:ans-ok": "0.521",
       "answer:ans-fail": "0.409"
     },
-    "plain": "knowledge  0.912  kn-1         Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current\nmemory     0.834  mem-1        Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27\nhistory    0.712  hist-1       Recall design discussion\ntasks      0.633  task-recall  [ready/p2] Wire recall surfaces\nanswer     0.521  ans-ok       [ok(2)] How does the harness boundary work?\nanswer     0.409  ans-fail     [semantic_unavailable] Why did synthesis fail?"
+    "plain": "knowledge  0.912  kn-1         Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current\nmemory     0.834  mem-1        Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27\nhistory    0.712  hist-1       Recall design discussion\ntasks      0.633  task-recall  [open/p2] Wire recall surfaces\nanswer     0.521  ans-ok       [ok(2)] How does the harness boundary work?\nanswer     0.409  ans-fail     [semantic_unavailable] Why did synthesis fail?"
   },
   "empty": {
     "result": { "ok": true, "hits": [] },

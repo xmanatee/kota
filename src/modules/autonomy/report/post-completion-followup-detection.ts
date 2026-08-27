@@ -28,7 +28,7 @@ export function buildCompletedTaskEvidenceRefs(
   task: RepoTaskFullRecord,
   builderEvidence: readonly BuilderEvidence[],
 ): EvidenceRefs {
-  const refs = extractEvidenceRefs(`${task.title}\n${task.summary}\n${task.body}`);
+  const refs = extractEvidenceRefs(`${task.title}\n${task.body}`);
   refs.taskIds.clear();
   refs.taskIds.add(task.id);
   for (const evidence of builderEvidence) {
@@ -143,7 +143,7 @@ function emptyRefs(): EvidenceRefs {
 }
 
 function taskSearchText(task: RepoTaskFullRecord): string {
-  return `${task.id}\n${task.title}\n${task.summary}\n${task.body}`;
+  return `${task.id}\n${task.title}\n${task.body}`;
 }
 
 function stripLocalOverlapCheckSections(text: string): string {

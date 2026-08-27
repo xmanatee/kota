@@ -10,6 +10,7 @@ import {
   createRepoTaskRuntimeSandbox,
   repoTaskRuntimeSandboxTarget,
 } from "./repo-task-mutation-test-support.js";
+import type { RepoTaskState } from "./repo-tasks-domain.js";
 
 type JsonValue =
   | string
@@ -42,16 +43,30 @@ export function mutationTarget(repoRoot: string): RepoTaskMutationTarget {
 
 export function writeTaskFile(
   repoRoot: string,
-  state: string,
+  state: RepoTaskState,
   slug: string,
   frontmatter: Record<string, string>,
 ): void {
-  const dir = join(repoRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(repoRoot, "data", "tasks", "archive")
+    : join(repoRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
-  const fm = Object.entries(frontmatter)
-    .map(([k, v]) => `${k}: ${v}`)
-    .join("\n");
-  writeFileSync(join(dir, `task-${slug}.md`), `---\n${fm}\n---\n\n## Problem\n\nSome problem.\n`);
+  const id = slug.startsWith("task-") ? slug : `task-${slug}`;
+  const status = frontmatter.status ?? state;
+  const title = frontmatter.title ?? id;
+  const priority = frontmatter.priority ?? "p2";
+  const dependsOn = frontmatter.depends_on;
+  const fm = state === "done" || state === "dropped"
+    ? `status: ${status}`
+    : [
+        `status: ${status}`,
+        `priority: ${priority}`,
+        ...(dependsOn === undefined ? [] : [`depends_on: ${dependsOn}`]),
+      ].join("\n");
+  writeFileSync(
+    join(dir, `${id}.md`),
+    `---\n${fm}\n---\n\n# ${title}\n\n## Problem\n\nSome problem.\n`,
+  );
 }
 
 export function mockResponse() {

@@ -217,8 +217,8 @@ describe('RetractScreen', () => {
       record: {
         target: 'tasks',
         recordId: 'task-foo',
-        previousPath: 'data/tasks/ready/task-foo.md',
-        path: 'data/tasks/dropped/task-foo.md',
+        previousPath: 'data/tasks/task-foo.md',
+        path: 'data/tasks/archive/task-foo.md',
         toState: 'dropped',
       },
     };
@@ -233,7 +233,7 @@ describe('RetractScreen', () => {
     expect(getByText(renderRetractResultPlain(result))).toBeTruthy();
     expect(
       getByText(
-        'Retracted: tasks  task-foo  data/tasks/ready/task-foo.md -> data/tasks/dropped/task-foo.md (dropped)',
+        'Retracted: tasks  task-foo  data/tasks/task-foo.md -> data/tasks/archive/task-foo.md (dropped)',
       ),
     ).toBeTruthy();
     expect(getAllByText('dropped').length).toBeGreaterThan(0);

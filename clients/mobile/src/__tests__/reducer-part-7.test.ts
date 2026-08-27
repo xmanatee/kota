@@ -125,7 +125,7 @@ describe('reducer', () => {
       record: {
         target: 'tasks',
         recordId: 'task-buy-milk',
-        path: 'data/tasks/ready/task-buy-milk.md',
+        path: 'data/tasks/task-buy-milk.md',
       },
     };
     const loading = reducer(initialState, { type: 'CAPTURE_LOADING' });

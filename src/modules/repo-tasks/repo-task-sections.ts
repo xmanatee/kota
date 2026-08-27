@@ -48,12 +48,10 @@ export function extractTaskSections(
 
 export function buildIndexableTaskText(record: {
   title: string;
-  summary: string;
   body: string;
 }): string {
   const parts: string[] = [];
   if (record.title) parts.push(record.title);
-  if (record.summary) parts.push(record.summary);
   const sections = extractTaskSections(record.body, INDEXABLE_TASK_SECTIONS);
   for (const heading of INDEXABLE_TASK_SECTIONS) {
     const body = sections[heading];

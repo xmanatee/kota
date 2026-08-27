@@ -48,7 +48,7 @@ describe("task dependencies", () => {
 
     const states = new Map([
       ["task-a", "done"],
-      ["task-b", "ready"],
+      ["task-b", "open"],
     ]);
     expect(
       findUnfinishedTaskDependencies(["task-a", "task-b", "task-missing"], states),

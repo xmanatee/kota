@@ -43,9 +43,7 @@ export type TaskProviderRegistration = {
 };
 
 export type RepoTaskState =
-	| "backlog"
-	| "ready"
-	| "doing"
+	| "open"
 	| "blocked"
 	| "done"
 	| "dropped";
@@ -60,10 +58,7 @@ export type RepoTaskSearchHit = {
 	id: string;
 	title: string;
 	state: RepoTaskState;
-	priority: string;
-	area: string;
-	summary: string;
-	updatedAt: string;
+	priority: string | null;
 	score: number;
 };
 

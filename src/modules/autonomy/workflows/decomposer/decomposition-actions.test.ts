@@ -23,10 +23,7 @@ function runGit(workspaceRoot: string, args: string[]): string {
 
 function plan(): DecompositionPlan {
   const base = {
-    summary: "Complete one bounded authorization outcome.",
     priority: "p1" as const,
-    area: "security",
-    taskClass: "Safety" as const,
     problem: "The current authorization path retains stale authority.",
     desiredOutcome: "Every authorization boundary reads current authority.",
     constraints: ["Do not weaken the authorization boundary."],
@@ -53,23 +50,16 @@ describe("applyDecompositionPlan", () => {
     runGit(workspaceRoot, ["init", "-q"]);
     runGit(workspaceRoot, ["config", "user.email", "test@example.com"]);
     runGit(workspaceRoot, ["config", "user.name", "Test"]);
-    const readyDir = join(workspaceRoot, "data", "tasks", "ready");
-    mkdirSync(readyDir, { recursive: true });
+    const activeDir = join(workspaceRoot, "data", "tasks");
+    mkdirSync(join(activeDir, "archive"), { recursive: true });
     writeFileSync(
-      join(readyDir, `${ORIGINAL_ID}.md`),
+      join(activeDir, `${ORIGINAL_ID}.md`),
       serializeFlatFrontMatter(
         {
-          id: ORIGINAL_ID,
-          title: "Original security fix",
-          status: "ready",
+          status: "open",
           priority: "p1",
-          area: "security",
-          task_class: "Safety",
-          summary: "Fix stale authority.",
-          created_at: "2026-08-03T00:00:00.000Z",
-          updated_at: "2026-08-03T00:00:00.000Z",
         },
-        "\n## Problem\n\nAuthority is stale.\n",
+        "# Original security fix\n\n## Problem\n\nAuthority is stale.\n",
       ),
     );
     runGit(workspaceRoot, ["add", "."]);
@@ -80,7 +70,7 @@ describe("applyDecompositionPlan", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  it("creates ordered ready tasks and retires the original through task APIs", () => {
+  it("creates ordered open tasks and archives the original through task APIs", () => {
     const result = applyDecompositionPlan({
       workspaceRoot,
       taskId: ORIGINAL_ID,
@@ -97,14 +87,14 @@ describe("applyDecompositionPlan", () => {
     if (!original.found) throw new Error("original task missing");
     expect(original.content).toContain("## Decomposed");
     for (const id of result.subtaskIds) {
-      expect(showTask(workspaceRoot, id)).toMatchObject({ found: true, state: "ready" });
+      expect(showTask(workspaceRoot, id)).toMatchObject({ found: true, state: "open" });
     }
     const second = showTask(workspaceRoot, result.subtaskIds[1]!);
     if (!second.found) throw new Error("second subtask missing");
     expect(parseFlatFrontMatter(second.content).attrs.depends_on).toEqual([
       result.subtaskIds[0],
     ]);
-    expect(readFileSync(join(workspaceRoot, "data", "tasks", "ready", `${result.subtaskIds[0]}.md`), "utf-8"))
+    expect(readFileSync(join(workspaceRoot, "data", "tasks", `${result.subtaskIds[0]}.md`), "utf-8"))
       .toContain("Decomposed from `task-original-security-fix`");
   });
 
@@ -113,7 +103,6 @@ describe("applyDecompositionPlan", () => {
       workspaceRoot,
       "data",
       "tasks",
-      "ready",
       `${ORIGINAL_ID}.md`,
     );
     writeFileSync(
@@ -135,7 +124,6 @@ describe("applyDecompositionPlan", () => {
           workspaceRoot,
           "data",
           "tasks",
-          "ready",
           "task-resolve-current-authority-at-hosted-tool-boundarie.md",
         ),
       ),

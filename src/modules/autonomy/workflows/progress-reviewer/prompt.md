@@ -13,10 +13,6 @@ Do not edit repository files or run mutating commands; this step only reviews
 evidence and returns structured output.
 
 Assess outcomes, not effort. Tie every claim to evidence ids from the packet.
-Use `counts.taskClasses` to report the Product/Safety/Platform/Meta balance.
-Treat `operatorJourneyRisks` as a green-test/unchanged-UX warning: Product work
-marked done without rendered operator evidence should normally be
-`needs-steering` unless cited evidence proves the human path some other way.
 Use verdict exactly `on-track`, `needs-steering`, `blocked`, or
 `insufficient-evidence`.
 Put findings that compare multiple directory scopes, describe daemon-wide

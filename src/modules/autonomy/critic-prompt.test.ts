@@ -14,7 +14,7 @@ import {
   resetCriticTestMocks,
   setApiResponse,
   TEST_PARENT_STEP,
-  writeDoingTask,
+  writeOpenTask,
 } from "./critic-test-fixture.integration.js";
 import { AUTONOMY_DISALLOWED_TOOLS } from "./shared.js";
 
@@ -25,7 +25,7 @@ describe("critic prompt context", () => {
 
   it("judges fulfillment, ownership, safety, and proportional proof", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-classify.md", "---\ntitle: Classify\n---\nClassify.");
+    writeOpenTask(dir, "task-classify.md", "---\nstatus: open\npriority: p2\n---\n\n# Classify\n\nClassify.");
     const runDir = makeRunDir(dir);
     setApiResponse({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" });
 
@@ -44,7 +44,7 @@ describe("critic prompt context", () => {
 
   it("classifies an observable defect independently of test presence", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-drift.md", "---\ntitle: Drift\n---\nDrift.");
+    writeOpenTask(dir, "task-drift.md", "---\nstatus: open\npriority: p2\n---\n\n# Drift\n\nDrift.");
     const runDir = makeRunDir(dir);
     setApiResponse({ verdict: "pass", critical_issues: [], warnings: [], summary: "ok" });
 
@@ -61,7 +61,7 @@ describe("critic prompt context", () => {
 
   it("gives the critic optional run-trace affordances without requiring a fixed evidence file", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-trace.md", "---\ntitle: Review trace\n---\nReview trace.");
+    writeOpenTask(dir, "task-trace.md", "---\nstatus: open\npriority: p2\n---\n\n# Review trace\n\nReview trace.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "pass",
@@ -102,19 +102,16 @@ describe("critic prompt context", () => {
 
   it("passes Product tasks with a rendered transcript artifact through to the critic", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(
+    writeOpenTask(
       dir,
       "task-product-transcript.md",
       [
         "---",
-        "id: task-product-transcript",
-        "title: Ship product surface",
-        "status: doing",
+        "status: open",
         "priority: p1",
-        "area: client",
-        "summary: Improve the operator path.",
-        "task_class: Product",
         "---",
+        "",
+        "# Ship product surface",
         "",
         "## Done When",
         "",

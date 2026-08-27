@@ -63,7 +63,7 @@ export type DiffSummaryFacts = {
 	docFileCount: number;
 	generatedOrBaselineChanged: boolean;
 	largeDiff: boolean;
-	taskMovedToDone: boolean;
+	taskArchived: boolean;
 };
 
 export type DiffSummaryMismatch = {
@@ -94,7 +94,7 @@ export type DiffSummaryConsistencyRecord = {
 export type BuildDiffSummaryConsistencyRecordInput = {
 	delivery: AutonomyRunDeliveryEvidence | null;
 	commitMessageFile: string | null;
-	task: Pick<RepoTaskFullRecord, "id" | "title" | "summary" | "state"> | null;
+	task: Pick<RepoTaskFullRecord, "id" | "title" | "body" | "state"> | null;
 	nameStatus: readonly DiffSummaryNameStatus[] | null;
 	knownModuleNames?: readonly string[];
 };

@@ -179,11 +179,11 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     execFileSync("git", ["commit", "--allow-empty", "-m", "initial", "--quiet"], {
       cwd: scopeRoot,
     });
-    const doingDir = join(scopeRoot, "data/tasks/doing");
-    mkdirSync(doingDir, { recursive: true });
+    const tasksDir = join(scopeRoot, "data/tasks");
+    mkdirSync(tasksDir, { recursive: true });
     writeFileSync(
-      join(doingDir, "task-openai-judge.md"),
-      "---\ntitle: Openai judge\n---\nContent.",
+      join(tasksDir, "task-openai-judge.md"),
+      "---\nstatus: open\npriority: p2\n---\n\n# OpenAI judge\n\nContent.",
     );
     const runDir = join(scopeRoot, ".kota/runs/run-critic");
     mkdirSync(runDir, { recursive: true });

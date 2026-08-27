@@ -99,7 +99,7 @@ describe("buildAgentPrompt trigger payload trust boundary", () => {
   it("wraps a benign trigger payload as untrusted data while preserving JSON", () => {
     const prompt = buildPrompt({
       event: "manual",
-      schemaRef: null, payload: { scopeId: "8nrg1m", pullableCount: 1 },
+      schemaRef: null, payload: { scopeId: "8nrg1m", actionableCount: 1 },
     });
 
     expect(prompt).toContain("Workflow: test-workflow");
@@ -115,7 +115,7 @@ describe("buildAgentPrompt trigger payload trust boundary", () => {
     const block = untrustedBlock(prompt);
     expect(block).toContain("```json");
     expect(block).toContain('"scopeId": "8nrg1m"');
-    expect(block).toContain('"pullableCount": 1');
+    expect(block).toContain('"actionableCount": 1');
     expect(block).not.toContain("Run ID: run-1");
   });
 

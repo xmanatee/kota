@@ -43,15 +43,11 @@ describe("post-completion follow-up quality stratification", () => {
       writeWriterIntegration(runsDir, runId, completedTaskId, commitSha);
       writeTask(workspaceRoot, "done", completedTaskId, {
         priority: "p2",
-        area: "autonomy",
-        updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
         body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
       });
-      writeTask(workspaceRoot, "ready", followUpTaskId, {
+      writeTask(workspaceRoot, "open", followUpTaskId, {
         priority: "p2",
-        area: "autonomy",
         title: `Fix regression follow-up ${suffix}`,
-        updatedAt: new Date(NOW).toISOString(),
         body:
           "## Problem\n\nA runtime regression cites completed builder evidence.\n\n" +
           `Evidence ids:\n\n- run:${runId}\n- git:commit:${commitSha}\n`,
@@ -107,24 +103,18 @@ describe("post-completion follow-up quality stratification", () => {
     );
     writeTask(workspaceRoot, "done", "task-completed-parent", {
       priority: "p2",
-      area: "autonomy",
-      updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
     });
-    writeTask(workspaceRoot, "ready", "task-regression-follow-up", {
+    writeTask(workspaceRoot, "open", "task-regression-follow-up", {
       priority: "p2",
-      area: "autonomy",
       title: "Fix runtime regression after completed parent",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nA runtime regression cites completed builder evidence.\n\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n`,
     });
-    writeTask(workspaceRoot, "ready", "task-security-follow-up", {
+    writeTask(workspaceRoot, "open", "task-security-follow-up", {
       priority: "p2",
-      area: "security",
       title: "Fix security approval boundary after completed parent",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nA security approval boundary issue cites completed builder evidence.\n\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n`,

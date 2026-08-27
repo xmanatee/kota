@@ -56,11 +56,8 @@ function repoTaskHit(id: string, score: number): RepoTaskSearchHit {
   return {
     id,
     title: `Task ${id}`,
-    state: "ready",
+    state: "open",
     priority: "p2",
-    area: "core",
-    summary: `summary for ${id}`,
-    updatedAt: "2026-04-06",
     score,
   };
 }
@@ -257,7 +254,7 @@ describe("createTasksContributor", () => {
     expect(first.id).toBe("t1");
     expect(first.nativeScore).toBe(0.92);
     expect(first.payload.title).toBe("Task t1");
-    expect(first.payload.state).toBe("ready");
+    expect(first.payload.state).toBe("open");
     expect(first.payload.priority).toBe("p2");
   });
 });

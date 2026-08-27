@@ -16,9 +16,9 @@ import {
 } from "#modules/autonomy/workflows/progress-reviewer/progress-review.js";
 
 const TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
+  "open",
+  "open",
+  "open",
   "blocked",
   "done",
   "dropped",
@@ -72,10 +72,9 @@ describe("progress-review blocking operation", () => {
                 {
                   topicKey: "worker-boundary",
                   title: "Exercise progress review worker boundary",
-                  summary:
+                  problem:
                     "Keep progress-review task scans and writes off the daemon event loop.",
                   priority: "p2",
-                  area: "core",
                   evidenceIds: ["event:worker-boundary"],
                   howWeWillKnow: "Focused real-worker integration output.",
                 },
@@ -96,15 +95,11 @@ describe("progress-review blocking operation", () => {
       clearTimeout(timer);
 
       expect(timerFired).toBe(true);
-      expect(result.createdTaskIds).toEqual([
-        "task-exercise-progress-review-worker-boundary",
-      ]);
+      expect(result.createdTaskIds).toHaveLength(1);
+      const createdTaskId = result.createdTaskIds[0]!;
       expect(
         existsSync(
-          join(
-            workspaceRoot,
-            "data/tasks/ready/task-exercise-progress-review-worker-boundary.md",
-          ),
+          join(workspaceRoot, `data/tasks/${createdTaskId}.md`),
         ),
       ).toBe(true);
     } finally {

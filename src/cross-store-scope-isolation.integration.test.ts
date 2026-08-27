@@ -103,8 +103,7 @@ async function invoke(
 
 function makeScopeRoot(parent: string, name: string): string {
   const scopeRoot = join(parent, name);
-  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(scopeRoot, "data", "tasks", "dropped"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(scopeRoot, "data", "inbox"), { recursive: true });
   execSync("git init -q", { cwd: scopeRoot });
   execSync('git config user.email "test@test"', { cwd: scopeRoot });

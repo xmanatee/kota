@@ -77,13 +77,11 @@ function tracedReport(
 }
 
 const TARGETED_TEST_REQUIRED_COMMANDS = [
-  "pnpm kota task move task-cover-cart-pricing-rules doing",
   "node scripts/check-targeted-tests.mjs",
   "pnpm kota task move task-cover-cart-pricing-rules done",
 ] as const;
 
 const REPAIR_REQUIRED_COMMANDS = [
-  "pnpm kota task move task-fix-cross-hierarchy-signal-routing doing",
   "node scripts/check-debug-trace.mjs",
   "pnpm kota task move task-fix-cross-hierarchy-signal-routing done",
 ] as const;

@@ -18,7 +18,7 @@ export const NOW = new Date("2026-06-04T12:00:00.000Z");
 export const DROPPED_AT = "2026-06-04T11:50:00.000Z";
 export const LIVE_AT = "2026-06-04T11:59:00.000Z";
 
-const TASK_STATES = ["backlog", "ready", "doing", "blocked", "done", "dropped"];
+const TASK_STATES = ["open", "open", "open", "blocked", "done", "dropped"];
 const tempDirs: string[] = [];
 
 export type ReviewBatchCase = {

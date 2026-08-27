@@ -86,7 +86,7 @@ export function diffFactsFor(
 		docFileCount,
 		generatedOrBaselineChanged: paths.some(isGeneratedOrBaselinePath),
 		largeDiff: paths.length >= LARGE_DIFF_FILE_THRESHOLD,
-		taskMovedToDone: paths.some((path) => path.startsWith("data/tasks/done/")),
+		taskArchived: paths.some((path) => path.startsWith("data/tasks/archive/")),
 	};
 }
 

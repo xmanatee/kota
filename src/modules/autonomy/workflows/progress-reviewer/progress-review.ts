@@ -66,12 +66,10 @@ export type {
   ProgressReviewEvidenceRef,
   ProgressReviewEvidenceWindow,
   ProgressReviewGitEvidence,
-  ProgressReviewOperatorJourneyRisk,
   ProgressReviewOwnerQuestionEvidence,
   ProgressReviewRunEvidence,
   ProgressReviewScope,
   ProgressReviewScopeEvidence,
-  ProgressReviewTaskClassCount,
   ProgressReviewTaskEvidence,
   ProgressReviewTriggerKind,
 } from "./progress-review/types.js";

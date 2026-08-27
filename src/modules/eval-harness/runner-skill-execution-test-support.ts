@@ -6,26 +6,23 @@ export function completeTicketNormalization(params: {
   valid: boolean;
   routing: string;
 }): void {
-  const readyPath = join(
-    params.workingDir,
-    "data",
-    "tasks",
-    "ready",
-    "task-normalize-ticket-json.md",
-  );
+  const readyPath = join(params.workingDir, "data", "tasks", "task-normalize-ticket-json.md");
   const donePath = join(
     params.workingDir,
     "data",
     "tasks",
-    "done",
+    "archive",
     "task-normalize-ticket-json.md",
   );
-  mkdirSync(join(params.workingDir, "data", "tasks", "done"), {
+  mkdirSync(join(params.workingDir, "data", "tasks", "archive"), {
     recursive: true,
   });
   const taskText = readFileSync(readyPath, "utf-8");
   rmSync(readyPath, { force: true });
-  writeFileSync(donePath, taskText.replace("status: ready", "status: done"));
+  writeFileSync(
+    donePath,
+    taskText.replace("status: open\npriority: p2", "status: done"),
+  );
   mkdirSync(join(params.workingDir, "output"), { recursive: true });
   writeFileSync(
     join(params.workingDir, "output", "ticket-summary.json"),

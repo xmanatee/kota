@@ -12,23 +12,23 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-improve-forecast-predictor.md"
+      "path": "data/tasks/task-improve-forecast-predictor.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-improve-forecast-predictor.md"
+      "path": "data/tasks/archive/task-improve-forecast-predictor.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-improve-forecast-predictor.md",
+      "path": "data/tasks/archive/task-improve-forecast-predictor.md",
       "needle": "status: done"
     },
     {
       "kind": "git-changes-within",
       "allowedPaths": [
         "src/predictor.mjs",
-        "data/tasks/ready/task-improve-forecast-predictor.md",
-        "data/tasks/done/task-improve-forecast-predictor.md"
+        "data/tasks/task-improve-forecast-predictor.md",
+        "data/tasks/archive/task-improve-forecast-predictor.md"
       ]
     }
   ],
@@ -100,7 +100,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-improve-forecast-predictor.md"
+        "path": "data/tasks/task-improve-forecast-predictor.md"
       },
       "expected": "pass"
     }

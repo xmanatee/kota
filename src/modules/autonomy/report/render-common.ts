@@ -1,7 +1,5 @@
 import type {
-  AreaClassification,
   BlockerClassMix,
-  QueueBalance,
   ReportPriority,
 } from "./aggregate.js";
 
@@ -35,36 +33,6 @@ export function priorityRole(
   }
 }
 
-export function classificationRole(
-  classification: AreaClassification,
-): "success" | "warn" | "muted" {
-  switch (classification) {
-    case "strategic":
-      return "success";
-    case "fan-out":
-      return "warn";
-    case "other":
-      return "muted";
-  }
-}
-
-export function taskClassRole(
-  taskClass: QueueBalance["byTaskClass"][number]["taskClass"],
-): "error" | "success" | "warn" | "info" | "muted" {
-  switch (taskClass) {
-    case "Safety":
-      return "error";
-    case "Product":
-      return "success";
-    case "Platform":
-      return "info";
-    case "Meta":
-      return "warn";
-    case "Unclassified":
-      return "muted";
-  }
-}
-
 export function healthSeverityRole(
   severity: string,
 ): "error" | "warn" | "info" | "muted" {
@@ -90,8 +58,6 @@ export function blockerRole(
     case "operator-capture":
       return "warn";
     case "capability-installed":
-      return "info";
-    case "task-done":
       return "info";
     case "missing-section":
       return "error";

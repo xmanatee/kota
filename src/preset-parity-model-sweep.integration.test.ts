@@ -8,7 +8,7 @@
  * active preset is `codex`, no consumer surface may resolve to a `claude-*`
  * model id; when it is `gemini`, no `gpt-*`; when it is `claude`, no
  * `gemini-*`. Every consumer surface this test exercises corresponds to a
- * call site catalogued in `data/tasks/done/task-eradicate-hardcoded-claude-
+ * call site catalogued in `data/tasks/archive/task-eradicate-hardcoded-claude-
  * model-defaults.md`.
  *
  * Pairs with `src/preset-parity.integration.test.ts`, which boots the daemon

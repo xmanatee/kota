@@ -47,36 +47,25 @@ export const emptyAutonomyReportData: AutonomyReportData = {
   openQueue: {
     total: 0,
     byPriority: [],
-    byArea: [],
     byState: [],
-    byTaskClass: [],
     waitingOnTasks: [],
   },
   doneInWindow: {
     total: 0,
     byPriority: [],
-    byArea: [],
     byState: [],
-    byTaskClass: [],
     waitingOnTasks: [],
   },
   explorer: {
     totalRuns: 0,
     totalTaskAdditions: 0,
     unresolvedTaskAdditions: 0,
-    byClassification: [
-      { classification: "strategic", tasks: 0 },
-      { classification: "fan-out", tasks: 0 },
-      { classification: "other", tasks: 0 },
-    ],
     taskAdditions: [],
   },
   builder: {
     totalCommittedRuns: 0,
     unresolvedClosures: 0,
-    byArea: [],
     byPriority: [],
-    byClassification: [],
     closures: [],
   },
   decisionAttribution: {

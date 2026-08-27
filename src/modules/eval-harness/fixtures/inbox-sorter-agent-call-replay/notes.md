@@ -11,9 +11,9 @@ in production, without invoking a real LLM.
 
 Source run: `2026-04-24T22-53-55-335Z-inbox-sorter-1u1xc9` — the real
 inbox-sorter run that committed `241b3382` ("Graduate broken
-decomposer-replay-fixture inbox note into a p1 ready task"). That run
+decomposer-replay-fixture inbox note into a p1 open task"). That run
 sorted the lone inbox capture (`note-broken-decomposer-replay-fixture.md`)
-into one normalized p1 ready-queue task and emitted the run-directory
+into one normalized p1 open task and emitted the run-directory
 `commit-message.txt`, with no repair iterations.
 
 ## Shape
@@ -29,14 +29,14 @@ into one normalized p1 ready-queue task and emitted the run-directory
     real inbox capture from before the source-run commit
     (`git show 241b3382^:data/inbox/note-broken-decomposer-replay-fixture.md`).
   - No seeded `data/tasks/` tree: the recorded sort-inbox response writes
-    one new ready-queue task into a fresh `data/tasks/ready/` directory,
+    one new open task into a fresh `data/tasks/` directory,
     so the fixture exercises the create-tasks-tree-on-first-write path
     that production inbox-sorter runs hit on a fresh repo.
 
 - `recordings/sort-inbox.json` carries the inbox-sorter agent's real
   response envelope and the commit-diff `fileOperations` that reproduce
   the post-agent repo state the source run produced: the inbox capture
-  deletion, the one new ready-queue task file
+  deletion, the one new open task file
   (`task-fix-broken-decomposer-agent-call-replay-fixture-so.md`,
   `priority: p1`), and the `{{runDir}}`-templated run-directory artifact
   (`commit-message.txt`). Every entry was written by

@@ -1,7 +1,6 @@
 import {
   existsSync,
   lstatSync,
-  mkdirSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -32,88 +31,85 @@ describe("task state routes", () => {
     resetRouteTestAuthority();
   });
 
-  it("moves a task from ready to backlog and updates frontmatter", async () => {
-    writeTaskFile(repoRoot, "ready", "x", {
+  it("moves a task from open to blocked and updates frontmatter", async () => {
+    writeTaskFile(repoRoot, "open", "x", {
       id: "task-x",
       title: "X",
       priority: "p2",
-      status: "ready",
+      status: "open",
     });
 
     const { res, result } = mockResponse();
-    await handleTaskStateChange(mockRequest({ state: "backlog" }), res, "task-x", mutationTarget(repoRoot));
+    await handleTaskStateChange(mockRequest({ state: "blocked" }), res, "task-x", mutationTarget(repoRoot));
     expect(result.status).toBe(200);
-    expect((result.body as Record<string, string>).state).toBe("backlog");
+    expect((result.body as Record<string, string>).state).toBe("blocked");
 
-    const newPath = join(repoRoot, "data", "tasks", "backlog", "task-x.md");
+    const newPath = join(repoRoot, "data", "tasks", "task-x.md");
     expect(existsSync(newPath)).toBe(true);
-    expect(readFileSync(newPath, "utf-8")).toContain("status: backlog");
-    expect(existsSync(join(repoRoot, "data", "tasks", "ready", "task-x.md"))).toBe(false);
+    expect(readFileSync(newPath, "utf-8")).toContain("status: blocked");
   });
 
   it("moves a task to dropped", async () => {
-    writeTaskFile(repoRoot, "backlog", "y", {
+    writeTaskFile(repoRoot, "open", "y", {
       id: "task-y",
       title: "Y",
       priority: "p3",
-      status: "backlog",
+      status: "open",
     });
 
     const { res, result } = mockResponse();
     await handleTaskStateChange(mockRequest({ state: "dropped" }), res, "task-y", mutationTarget(repoRoot));
     expect(result.status).toBe(200);
     expect((result.body as Record<string, string>).state).toBe("dropped");
-    expect(existsSync(join(repoRoot, "data", "tasks", "dropped", "task-y.md"))).toBe(true);
+    expect(existsSync(join(repoRoot, "data", "tasks", "archive", "task-y.md"))).toBe(true);
   });
 
   it("returns 200 with no-op when state is same", async () => {
-    writeTaskFile(repoRoot, "ready", "z", {
+    writeTaskFile(repoRoot, "open", "z", {
       id: "task-z",
       title: "Z",
       priority: "p1",
-      status: "ready",
+      status: "open",
     });
 
     const { res, result } = mockResponse();
-    await handleTaskStateChange(mockRequest({ state: "ready" }), res, "task-z", mutationTarget(repoRoot));
+    await handleTaskStateChange(mockRequest({ state: "open" }), res, "task-z", mutationTarget(repoRoot));
     expect(result.status).toBe(200);
-    expect(existsSync(join(repoRoot, "data", "tasks", "ready", "task-z.md"))).toBe(true);
+    expect(existsSync(join(repoRoot, "data", "tasks", "task-z.md"))).toBe(true);
   });
 
   it("returns 400 for invalid target state", async () => {
-    writeTaskFile(repoRoot, "ready", "task-q", { id: "task-q", title: "Q", priority: "p2", status: "ready" });
+    writeTaskFile(repoRoot, "open", "task-q", { id: "task-q", title: "Q", priority: "p2", status: "open" });
     const { res, result } = mockResponse();
-    await handleTaskStateChange(mockRequest({ state: "doing" }), res, "task-q", mutationTarget(repoRoot));
+    await handleTaskStateChange(mockRequest({ state: "invalid" }), res, "task-q", mutationTarget(repoRoot));
     expect(result.status).toBe(400);
   });
 
   it("returns 404 when task not found", async () => {
     const { res, result } = mockResponse();
-    await handleTaskStateChange(mockRequest({ state: "backlog" }), res, "task-nonexistent", mutationTarget(repoRoot));
+    await handleTaskStateChange(mockRequest({ state: "open" }), res, "task-nonexistent", mutationTarget(repoRoot));
     expect(result.status).toBe(404);
   });
 
-  it("moves a task to doing through the unrestricted move route", async () => {
-    writeTaskFile(repoRoot, "ready", "mover", { id: "task-mover", status: "ready" });
-    mkdirSync(join(repoRoot, "data", "tasks", "doing"), { recursive: true });
+  it("moves a task to blocked through the unrestricted move route", async () => {
+    writeTaskFile(repoRoot, "open", "mover", { id: "task-mover", status: "open" });
 
     const { res, result } = mockResponse();
-    await handleTaskMove(mockRequest({ state: "doing" }), res, "task-mover", mutationTarget(repoRoot));
+    await handleTaskMove(mockRequest({ state: "blocked" }), res, "task-mover", mutationTarget(repoRoot));
     expect(result.status).toBe(200);
-    expect(result.body).toMatchObject({ fromState: "ready", toState: "doing" });
-    expect(existsSync(join(repoRoot, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
+    expect(result.body).toMatchObject({ fromState: "open", toState: "blocked" });
+    expect(existsSync(join(repoRoot, "data", "tasks", "task-mover.md"))).toBe(true);
   });
 
   it("rejects a symlinked task in the daemon move route without changing its target", async () => {
-    writeTaskFile(repoRoot, "ready", "linked-route", {
+    writeTaskFile(repoRoot, "open", "linked-route", {
       id: "task-linked-route",
-      status: "ready",
+      status: "open",
     });
     const sourcePath = join(
       repoRoot,
       "data",
       "tasks",
-      "ready",
       "task-linked-route.md",
     );
     const outsidePath = join(repoRoot, "outside-route-target.md");
@@ -124,7 +120,7 @@ describe("task state routes", () => {
 
     const { res, result } = mockResponse();
     await handleTaskMove(
-      mockRequest({ state: "doing" }),
+      mockRequest({ state: "blocked" }),
       res,
       "task-linked-route",
       mutationTarget(repoRoot),
@@ -138,7 +134,7 @@ describe("task state routes", () => {
     expect(lstatSync(sourcePath).isSymbolicLink()).toBe(true);
     expect(
       existsSync(
-        join(repoRoot, "data", "tasks", "doing", "task-linked-route.md"),
+        join(repoRoot, "data", "tasks", "archive", "task-linked-route.md"),
       ),
     ).toBe(false);
   });
@@ -148,19 +144,19 @@ describe("task state routes", () => {
     expect(match?.params).toEqual({ id: "../AGENTS" });
 
     const { res, result } = mockResponse();
-    await handleTaskMove(mockRequest({ state: "doing" }), res, match?.params.id ?? "", mutationTarget(repoRoot));
+    await handleTaskMove(mockRequest({ state: "open" }), res, match?.params.id ?? "", mutationTarget(repoRoot));
     expect(result.status).toBe(400);
     expect(result.body).toMatchObject({ reason: "invalid_id" });
   });
 
   it("returns move errors for missing, duplicate, and invalid states", async () => {
     const missing = mockResponse();
-    await handleTaskMove(mockRequest({ state: "backlog" }), missing.res, "task-missing", mutationTarget(repoRoot));
+    await handleTaskMove(mockRequest({ state: "open" }), missing.res, "task-missing", mutationTarget(repoRoot));
     expect(missing.result.status).toBe(404);
 
-    writeTaskFile(repoRoot, "ready", "stay", { id: "task-stay", status: "ready" });
+    writeTaskFile(repoRoot, "open", "stay", { id: "task-stay", status: "open" });
     const same = mockResponse();
-    await handleTaskMove(mockRequest({ state: "ready" }), same.res, "task-stay", mutationTarget(repoRoot));
+    await handleTaskMove(mockRequest({ state: "open" }), same.res, "task-stay", mutationTarget(repoRoot));
     expect(same.result.status).toBe(409);
 
     const invalid = mockResponse();

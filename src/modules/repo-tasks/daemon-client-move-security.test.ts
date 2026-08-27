@@ -31,7 +31,7 @@ describe("repo-tasks daemon client move security", () => {
     );
 
     expect(
-      await repoTasksModule.daemonClient!(transport).tasks!.move("../AGENTS", "doing"),
+      await repoTasksModule.daemonClient!(transport).tasks!.move("../AGENTS", "open"),
     ).toEqual({ ok: false, reason: "invalid_id" });
   });
 });

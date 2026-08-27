@@ -73,12 +73,12 @@ export function seedAutonomousLoopFixture(workspaceRoot: string): void {
     "src/modules/autonomy/workflows/builder",
     "src/modules/autonomy/workflows/improver",
     "data/inbox",
-    "data/tasks/ready",
-    "data/tasks/backlog",
-    "data/tasks/doing",
-    "data/tasks/blocked",
-    "data/tasks/done",
-    "data/tasks/dropped",
+    "data/tasks",
+    "data/tasks",
+    "data/tasks",
+    "data/tasks",
+    "data/tasks/archive",
+    "data/tasks/archive",
     ".kota",
   ]) {
     mkdirSync(join(workspaceRoot, dir), { recursive: true });
@@ -105,8 +105,8 @@ export function seedAutonomousLoopFixture(workspaceRoot: string): void {
     "# Capture\n\nInteresting idea.\n",
   );
 
-  const makeTask = (id: string, title: string, status: "ready" | "backlog") =>
-    `---\nid: ${id}\ntitle: ${title}\nstatus: ${status}\npriority: ${status === "ready" ? "p2" : "p3"}\narea: workflow\nsummary: Summary.\ncreated_at: 2026-01-01\nupdated_at: 2026-01-01\n---\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
+  const makeTask = (title: string) =>
+    `---\nstatus: open\npriority: p2\n---\n\n# ${title}\n\n## Problem\n\nA problem exists.\n\n## Desired Outcome\n\nThe problem is resolved.\n\n## Constraints\n\nNone.\n\n## Done When\n\nThe problem is gone.\n`;
   for (const [id, title] of [
     ["task-alpha", "Task Alpha"],
     ["task-beta", "Task Beta"],
@@ -114,14 +114,14 @@ export function seedAutonomousLoopFixture(workspaceRoot: string): void {
     ["task-delta", "Task Delta"],
   ]) {
     writeFileSync(
-      join(workspaceRoot, `data/tasks/ready/${id}.md`),
-      makeTask(id, title, "ready"),
+      join(workspaceRoot, `data/tasks/${id}.md`),
+      makeTask(title),
     );
   }
   for (let i = 1; i <= 8; i++) {
     writeFileSync(
-      join(workspaceRoot, `data/tasks/backlog/task-${i}.md`),
-      makeTask(`task-${i}`, `Backlog ${i}`, "backlog"),
+      join(workspaceRoot, `data/tasks/task-${i}.md`),
+      makeTask(`Task ${i}`),
     );
   }
 
@@ -184,12 +184,12 @@ export function seedAutonomousLoopFixture(workspaceRoot: string): void {
 
 export function seedIssueDrivenLoopFixture(workspaceRoot: string): void {
   for (const dir of [
-    "data/tasks/ready",
-    "data/tasks/backlog",
-    "data/tasks/doing",
-    "data/tasks/blocked",
-    "data/tasks/done",
-    "data/tasks/dropped",
+    "data/tasks",
+    "data/tasks",
+    "data/tasks",
+    "data/tasks",
+    "data/tasks/archive",
+    "data/tasks/archive",
     ".kota",
   ]) {
     mkdirSync(join(workspaceRoot, dir), { recursive: true });

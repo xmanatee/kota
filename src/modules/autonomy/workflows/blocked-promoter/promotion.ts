@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { parseFlatFrontMatter, splitFrontMatter } from "#core/util/frontmatter.js";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { relative } from "node:path";
+import { splitFrontMatter } from "#core/util/frontmatter.js";
 import {
   type BlockedPrecondition,
   type BlockedPreconditionKind,
@@ -8,7 +9,6 @@ import {
   type OperatorCaptureInstructedMarker,
   type OwnerAskMarker,
   parseBlockedPrecondition,
-  promotionTargetState,
   readOperatorCaptureInstructedMarker,
   readOwnerAskMarkers,
   renderOwnerResolvedMarker,
@@ -16,25 +16,38 @@ import {
   upsertOwnerAskMarker,
 } from "#modules/repo-tasks/blocked-precondition.js";
 import {
-  getRepoTaskStateDir,
+  getRepoTaskPath,
   getUnfinishedTaskDependencies,
+  listFullRepoTasks,
   type MoveTaskResult,
   moveTaskById,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { readTaskDependencyIds } from "#modules/repo-tasks/task-dependencies.js";
 import { assertOwnerDecisionCandidateIsCurrent } from "./owner-decision-authorization.js";
 
 export type BlockedTaskRecord = {
   id: string;
   path: string;
-  priority: string;
   body: string;
   precondition: BlockedPrecondition;
   dependsOn: string[];
-  /** ISO-8601 timestamp from the task frontmatter `updated_at` field. */
+  /** Filesystem observation time used only for operator aging hints. */
   updatedAt: string;
 };
+
+function lastChangedAt(workspaceRoot: string, filePath: string): string {
+  try {
+    const committedAt = execFileSync(
+      "git",
+      ["log", "-1", "--format=%cI", "--", relative(workspaceRoot, filePath)],
+      { cwd: workspaceRoot, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+    if (committedAt && !Number.isNaN(Date.parse(committedAt))) return committedAt;
+  } catch {
+    // Untracked files and non-Git fixtures fall back to their observed mtime.
+  }
+  return statSync(filePath).mtime.toISOString();
+}
 
 /**
  * Read every parseable blocked task. Tasks whose precondition fails to parse
@@ -44,31 +57,18 @@ export type BlockedTaskRecord = {
 export function listBlockedTasksWithPreconditions(
   workspaceRoot: string,
 ): BlockedTaskRecord[] {
-  const dir = getRepoTaskStateDir(workspaceRoot, "blocked");
   const records: BlockedTaskRecord[] = [];
-  if (!existsSync(dir)) return records;
-  const entries = readdirSync(dir);
-  for (const fileName of entries) {
-    if (!fileName.endsWith(".md") || fileName === "AGENTS.md") continue;
-    const filePath = join(dir, fileName);
-    const raw = readFileSync(filePath, "utf-8");
-    const split = splitFrontMatter(raw);
-    if (!split) continue;
-    const { attrs } = parseFlatFrontMatter(raw);
-    const id = String(attrs.id ?? "");
-    const priority = String(attrs.priority ?? "");
-    const updatedAt = String(attrs.updated_at ?? "");
-    if (!id) continue;
-    const parsed = parseBlockedPrecondition(raw);
+  for (const task of listFullRepoTasks(workspaceRoot, ["blocked"])) {
+    const filePath = getRepoTaskPath(workspaceRoot, "blocked", task.id);
+    const parsed = parseBlockedPrecondition(task.body);
     if (!parsed.ok) continue;
     records.push({
-      id,
+      id: task.id,
       path: filePath,
-      priority,
-      body: split.body,
+      body: task.body,
       precondition: parsed.precondition,
-      dependsOn: readTaskDependencyIds(attrs),
-      updatedAt,
+      dependsOn: task.dependsOn,
+      updatedAt: lastChangedAt(workspaceRoot, filePath),
     });
   }
   return records;
@@ -77,7 +77,7 @@ export function listBlockedTasksWithPreconditions(
 export type PromotionAction = {
   taskId: string;
   fromState: "blocked";
-  toState: "ready" | "backlog";
+  toState: "open";
   reason: string;
 };
 
@@ -88,8 +88,8 @@ export type DeterministicPromotionResult = {
 /**
  * Walk every blocked task, evaluate its precondition, and promote the ones
  * whose preconditions are now satisfied. Idempotent: a second call finds no
- * remaining blocked tasks to promote because each is moved out of `blocked/`
- * inside this call.
+ * remaining blocked tasks to promote because each task's persisted status is
+ * changed to `open` inside this call.
  */
 export function promoteSatisfiedBlockedTasks(
   workspaceRoot: string,
@@ -106,8 +106,7 @@ export function promoteSatisfiedBlockedTasks(
       taskBody: record.body,
     });
     if (!evaluation.satisfied) continue;
-    const target = promotionTargetState(record.priority);
-    promotions.push(moveTaskById(workspaceRoot, record.id, target));
+    promotions.push(moveTaskById(workspaceRoot, record.id, "open"));
   }
   return { promotions };
 }
@@ -399,7 +398,7 @@ export type BlockerAction =
   | {
       kind: "auto-promotable";
       taskId: string;
-      preconditionKind: "task-done" | "operator-capture" | "owner-decision";
+      preconditionKind: "operator-capture" | "owner-decision";
       reason: string;
       ageDays: number | null;
     }
@@ -408,13 +407,6 @@ export type BlockerAction =
       taskId: string;
       preconditionKind: BlockedPreconditionKind;
       waitingOn: string[];
-      ageDays: number | null;
-    }
-  | {
-      kind: "still-awaiting-task";
-      taskId: string;
-      preconditionKind: "task-done";
-      enablerRef: string;
       ageDays: number | null;
     }
   | {
@@ -469,7 +461,7 @@ export type BlockerAction =
 /**
  * Walk every blocked task and pick the single best-fit action label for
  * each. The classifier is pure: it inspects records, the project's `done/`
- * directory (for task-done), and existing markers — it does not mutate any
+ * directory and existing markers — it does not mutate any
  * task body. Workflow steps consume this list to write a per-cycle
  * `blocker-actions.json` artifact and emit summary noise to operators.
  */
@@ -483,10 +475,7 @@ export function classifyBlockedActions(
   for (const record of records) {
     const age = ageDays(record.updatedAt, nowMs);
     const waitingOn = getUnfinishedTaskDependencies(workspaceRoot, record.dependsOn);
-    if (
-      waitingOn.length > 0 &&
-      !(record.precondition.kind === "task-done" && waitingOn.length === 1 && waitingOn[0] === record.precondition.ref)
-    ) {
+    if (waitingOn.length > 0) {
       actions.push({
         kind: "still-awaiting-dependency",
         taskId: record.id,
@@ -502,26 +491,6 @@ export function classifyBlockedActions(
       taskBody: record.body,
     });
     switch (record.precondition.kind) {
-      case "task-done": {
-        if (eval_.satisfied) {
-          actions.push({
-            kind: "auto-promotable",
-            taskId: record.id,
-            preconditionKind: "task-done",
-            reason: eval_.reason,
-            ageDays: age,
-          });
-        } else {
-          actions.push({
-            kind: "still-awaiting-task",
-            taskId: record.id,
-            preconditionKind: "task-done",
-            enablerRef: record.precondition.ref,
-            ageDays: age,
-          });
-        }
-        break;
-      }
       case "capability-installed": {
         actions.push({
           kind: "still-awaiting-capability",

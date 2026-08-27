@@ -1,34 +1,32 @@
 {
   "id": "builder-agent-call-replay",
-  "description": "End-to-end replay of builder's `build` agent step plus the phase-2 critic repair check. Seeds one ready-queue task, forwards the autonomy.queue.available trigger payload, and routes both the agent step and the critic judge through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T15-11-48-347Z-builder-gnt9c6 — the real builder run that committed 1a2ea1bb (Add decomposer non-timeout decision-gate smoke fixture).",
+  "description": "End-to-end replay of builder's `build` agent step plus the phase-2 critic repair check. Seeds one actionable open task, forwards its autonomy.queue.available contract, and routes both the agent step and the critic judge through the eval-harness replay adapter so the agent-call branch regression-gates without paying for a real LLM run. Derived from source run 2026-04-24T15-11-48-347Z-builder-gnt9c6 — the real builder run that committed 1a2ea1bb (Add decomposer non-timeout decision-gate smoke fixture).",
   "role": "builder",
   "workflowName": "builder",
   "budgetMs": 120000,
   "triggerPayload": {
     "_runId": "fixture-builder-agent-call-replay-2026-04-24",
-    "pullableCount": 1,
-    "actionableCount": 1,
-    "counts": {
-      "backlog": 0,
-      "ready": 1,
-      "doing": 0,
-      "blocked": 0,
-      "done": 0,
-      "dropped": 0
-    }
+    "taskId": "task-add-decomposer-shoulddecompose-false-smoke-fixture",
+    "taskPath": "data/tasks/task-add-decomposer-shoulddecompose-false-smoke-fixture.md",
+    "taskState": "open",
+    "taskDigest": "4596988cb53b533ae5e3fb5dfb7ca53d0c0af225cb288ccce3dbe4130bebe98c",
+    "title": "Add decomposer shouldDecompose-false smoke fixture exercising triggerPayload plumbing",
+    "priority": "p2",
+    "dependsOn": [],
+    "idempotencyKey": "builder:task-add-decomposer-shoulddecompose-false-smoke-fixture:4596988cb53b533ae5e3fb5dfb7ca53d0c0af225cb288ccce3dbe4130bebe98c"
   },
   "predicates": [
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
+      "path": "data/tasks/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
+      "path": "data/tasks/archive/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-add-decomposer-shoulddecompose-false-smoke-fixture.md",
+      "path": "data/tasks/archive/task-add-decomposer-shoulddecompose-false-smoke-fixture.md",
       "needle": "status: done"
     },
     {
@@ -46,11 +44,11 @@
     },
     {
       "kind": "file-exists",
-      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/data/tasks/doing/task-fixture-decomposer-decision-seed.md"
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/data/tasks/task-fixture-decomposer-decision-seed.md"
     },
     {
       "kind": "file-contains",
-      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/data/tasks/doing/task-fixture-decomposer-decision-seed.md",
+      "path": "src/modules/eval-harness/fixtures/decomposer-short-circuits-on-non-timeout/initial/data/tasks/task-fixture-decomposer-decision-seed.md",
       "needle": "CANARY-LINE-decomposer-short-circuits-on-non-timeout-fixture-seed"
     },
     {
@@ -90,14 +88,14 @@
     {
       "predicate": {
         "kind": "file-absent",
-        "path": "data/tasks/ready/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
+        "path": "data/tasks/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
       },
       "expected": "fail"
     },
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
+        "path": "data/tasks/task-add-decomposer-shoulddecompose-false-smoke-fixture.md"
       },
       "expected": "pass"
     }

@@ -120,9 +120,8 @@ describe("progress-reviewer evidence integrity", () => {
           followUpTasks: [{
             topicKey: "forged-agent-evidence",
             title: "Do not create this forged follow-up",
-            summary: "This task cites evidence added by the review agent.",
+            problem: "This task cites evidence added by the review agent.",
             priority: "p1",
-            area: "security",
             evidenceIds: [forgedEvidenceId],
             howWeWillKnow: "The digest-bound review rejects this action.",
           }],
@@ -155,8 +154,8 @@ describe("progress-reviewer evidence integrity", () => {
     expect(result.metadata.steps.find((step) => step.id === "apply-actions"))
       .toBeUndefined();
     expect(
-      readdirSync(join(workspaceRoot, "data", "tasks", "ready")).filter(
-        (file) => file !== "AGENTS.md",
+      readdirSync(join(workspaceRoot, "data", "tasks")).filter(
+        (file) => file !== "AGENTS.md" && file !== "archive",
       ),
     ).toEqual([]);
     expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);

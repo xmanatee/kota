@@ -8,7 +8,7 @@ describe("renderAutonomyReport", () => {
     expect(text).toContain("Autonomy report");
     expect(text).toContain("Supervision load");
     expect(text).toContain("Open queue");
-    expect(text).toContain("Tasks moved to done in window");
+    expect(text).toContain("Builder-completed tasks in window");
     expect(text).toContain("Explorer output");
     expect(text).toContain("Builder breakdown");
     expect(text).toContain("Decision attribution");
@@ -129,7 +129,7 @@ describe("renderAutonomyReport", () => {
             completedTaskTitle: "Completed parent",
             activeFollowUpTaskId: "task-workflow-failure-follow-up",
             activeFollowUpTitle: "Repair recurring workflow failure",
-            activeFollowUpState: "ready",
+            activeFollowUpState: "open",
             reasons: ["ci-build-failure", "workflow-failure", "operator-report"],
             matchedRefs: [
               "run:2026-04-28T09-00-00-000Z-builder-bbb",

@@ -153,7 +153,7 @@ export function buildUiBehaviorVectors() {
     permissions: [{ kind: "capability-scope", scope: "read" }],
     nodes: [
       { kind: "status-summary", entries: [{ label: "workflow.trigger", value: "ready", role: "success" }] },
-      { kind: "metrics", title: "Queue", metrics: [{ label: "Ready", value: "2", role: "info" }] },
+      { kind: "metrics", title: "Queue", metrics: [{ label: "Open", value: "2", role: "info" }] },
       { kind: "text", title: "Action unavailable", body: "One action is intentionally unavailable.", role: "warn" },
       { kind: "link", label: "Open shared UI surface route", target: { kind: "daemon-route", path: "/ui/surfaces" }, role: "info" },
       {

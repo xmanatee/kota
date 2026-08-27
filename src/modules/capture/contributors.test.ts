@@ -76,7 +76,7 @@ function makeRuntimeTarget() {
     scopeDir,
     "capture-contributor-test",
   );
-  mkdirSync(join(target.workspaceRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(target.workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(target.workspaceRoot, "data", "inbox"), { recursive: true });
   return target;
 }
@@ -140,8 +140,8 @@ describe("createTasksContributor", () => {
     const filePath = join(target.workspaceRoot, record.path);
     expect(existsSync(filePath)).toBe(true);
     const body = readFileSync(filePath, "utf-8");
-    expect(body).toMatch(/title: review macOS push permissions/);
-    expect(body).toMatch(/status: backlog/);
+    expect(body).toContain("# review macOS push permissions");
+    expect(body).toMatch(/status: open/);
     expect(body).toMatch(/priority: p3/);
   });
 

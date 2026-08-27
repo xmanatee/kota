@@ -141,7 +141,7 @@ describe("capture module daemonClient(link)", () => {
       record: {
         target: "tasks",
         recordId: "task-x",
-        path: "data/tasks/backlog/task-x.md",
+        path: "data/tasks/task-x.md",
       },
     };
     const { transport, calls } = makeRecordingTransport(() => expected);
@@ -191,7 +191,7 @@ describe("capture module daemonClient(link)", () => {
       record: {
         target: "tasks",
         recordId: "task-y",
-        path: "data/tasks/backlog/task-y.md",
+        path: "data/tasks/task-y.md",
       },
     };
     const { transport } = makeRecordingTransport(() => expected);

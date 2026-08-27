@@ -95,7 +95,7 @@ describe("kota eval fixture-candidates CLI", () => {
     expect(writes.join("\n")).toContain("fixture candidates:");
   });
 
-  it("creates accepted backlog tasks when requested", async () => {
+  it("creates accepted open tasks when requested", async () => {
     const runId = "run-cli-accepted-candidate";
     const runDir = join(workspaceRoot, ".kota/runs", runId);
     mkdirSync(runDir, { recursive: true });
@@ -154,7 +154,7 @@ describe("kota eval fixture-candidates CLI", () => {
     };
     expect(report.candidates[0]?.disposition).toBe("accepted");
     const acceptedPath = report.candidates[0]?.acceptedAction?.path;
-    expect(acceptedPath).toMatch(/^data\/tasks\/backlog\/task-eval-candidate-/);
+    expect(acceptedPath).toMatch(/^data\/tasks\/task-eval-candidate-/);
     expect(readFileSync(join(workspaceRoot, acceptedPath ?? ""), "utf-8")).toContain(runId);
   });
 });

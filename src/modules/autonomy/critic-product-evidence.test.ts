@@ -13,7 +13,7 @@ import {
   resetCriticTestMocks,
   setApiResponse,
   TEST_PARENT_STEP,
-  writeDoingTask,
+  writeOpenTask,
 } from "./critic-test-fixture.integration.js";
 
 const mockRunAgentHarness = getMockRunAgentHarness();
@@ -23,19 +23,16 @@ describe("critic operator evidence context", () => {
 
   it("lets the critic judge whether a Product task needs operator evidence", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(
+    writeOpenTask(
       dir,
       "task-product-no-evidence.md",
       [
         "---",
-        "id: task-product-no-evidence",
-        "title: Ship product surface",
-        "status: doing",
+        "status: open",
         "priority: p1",
-        "area: client",
-        "summary: Improve the operator path.",
-        "task_class: Product",
         "---",
+        "",
+        "# Ship product surface",
         "",
         "## Done When",
         "",
@@ -64,19 +61,16 @@ describe("critic operator evidence context", () => {
 
   it("shows only durable operator artifacts to the critic", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(
+    writeOpenTask(
       dir,
       "task-product-screened-evidence.md",
       [
         "---",
-        "id: task-product-screened-evidence",
-        "title: Ship product surface",
-        "status: doing",
+        "status: open",
         "priority: p1",
-        "area: client",
-        "summary: Improve the operator path.",
-        "task_class: Product",
         "---",
+        "",
+        "# Ship product surface",
         "",
         "## Done When",
         "",

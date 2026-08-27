@@ -6,7 +6,7 @@ Embedding-backed semantic search over the repo task queue.
   `SemanticTasksStore`.
 - Keeps the sidecar index under `<scopeRoot>/.kota/tasks-semantic/`, not in
   git-tracked `data/tasks/`.
-- Indexable text per task is title, summary, `## Problem`,
+- Indexable text per task is title, `## Problem`,
   `## Desired Outcome`, `## Constraints`, `## Source / Intent`, and
   `## Initiative`. `## Plan` and `## Acceptance Evidence` are excluded because
   they churn faster than intent.
@@ -15,7 +15,8 @@ Embedding-backed semantic search over the repo task queue.
 ## Boundaries
 
 - Does not change canonical task files under `data/tasks/`.
-- Adapter fingerprint is each task's `updated_at` timestamp.
+- Adapter fingerprint is a SHA-256 digest of the canonical persisted task
+  fields, so content changes invalidate the sidecar without timestamp metadata.
 - Reindex on demand via `kota task reindex`.
 - CLI semantic search exits non-zero on embedding errors; pass `--keyword` for
   the default substring path.

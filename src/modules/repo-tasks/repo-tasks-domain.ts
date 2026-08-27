@@ -1,8 +1,5 @@
-import {
-  existsSync,
-  readdirSync,
-} from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
+import { basename, join, relative } from "node:path";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
 import {
@@ -22,6 +19,7 @@ import { isRepoTaskId } from "./task-id.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
+export const REPO_TASK_ARCHIVE_DIR = join(REPO_TASKS_DIR, "archive");
 export const REPO_INBOX_DIR = join(REPO_DATA_DIR, "inbox");
 
 export {
@@ -30,47 +28,46 @@ export {
   INDEXABLE_TASK_SECTIONS,
 } from "./repo-task-sections.js";
 
-export const REPO_TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
-  "blocked",
-  "done",
-  "dropped",
-] as const;
+export const REPO_TASK_STATES = ["open", "blocked", "done", "dropped"] as const;
+export const ACTIVE_REPO_TASK_STATES = ["open", "blocked"] as const;
+export const ARCHIVED_REPO_TASK_STATES = ["done", "dropped"] as const;
 
 export type RepoTaskState = (typeof REPO_TASK_STATES)[number];
+export type ActiveRepoTaskState = (typeof ACTIVE_REPO_TASK_STATES)[number];
+export type ArchivedRepoTaskState = (typeof ARCHIVED_REPO_TASK_STATES)[number];
+export type RepoTaskPriority = "p0" | "p1" | "p2" | "p3";
+
+export function isActiveRepoTaskState(state: RepoTaskState): state is ActiveRepoTaskState {
+  return state === "open" || state === "blocked";
+}
+
+export function isArchivedRepoTaskState(state: RepoTaskState): state is ArchivedRepoTaskState {
+  return state === "done" || state === "dropped";
+}
 
 export type RepoTaskQueueSnapshot = {
   counts: Record<RepoTaskState, number>;
   inboxCount: number;
-  openCount: number;
-  pullableCount: number;
+  activeCount: number;
   actionableCount: number;
-  promotableBacklogCount: number;
   dispatchableCount: number;
   hasDispatchableWork: boolean;
   dependencyBlockedTasks: RepoTaskDependencyWait[];
   headSha: string;
 };
 
-export function isRepoTaskQueueSnapshot(
-  value: unknown,
-): value is RepoTaskQueueSnapshot {
+export function isRepoTaskQueueSnapshot(value: unknown): value is RepoTaskQueueSnapshot {
   if (!value || typeof value !== "object" || !("counts" in value)) return false;
   const counts = value.counts as Record<string, unknown>;
   if (!counts || typeof counts !== "object") return false;
-
   return (
     REPO_TASK_STATES.every((state) => typeof counts[state] === "number") &&
     "inboxCount" in value &&
     typeof value.inboxCount === "number" &&
-    "pullableCount" in value &&
-    typeof value.pullableCount === "number" &&
+    "activeCount" in value &&
+    typeof value.activeCount === "number" &&
     "actionableCount" in value &&
     typeof value.actionableCount === "number" &&
-    "promotableBacklogCount" in value &&
-    typeof value.promotableBacklogCount === "number" &&
     "dispatchableCount" in value &&
     typeof value.dispatchableCount === "number" &&
     "hasDispatchableWork" in value &&
@@ -84,19 +81,25 @@ export function getRepoTasksDir(repoRoot: string): string {
   return join(repoRoot, REPO_TASKS_DIR);
 }
 
+export function getRepoTaskArchiveDir(repoRoot: string): string {
+  return join(repoRoot, REPO_TASK_ARCHIVE_DIR);
+}
+
 export function getRepoInboxDir(repoRoot: string): string {
   return join(repoRoot, REPO_INBOX_DIR);
 }
 
-export function getRepoTaskStateDir(repoRoot: string, state: RepoTaskState): string {
-  return join(getRepoTasksDir(repoRoot), state);
+export function getRepoTaskContainerDir(repoRoot: string, state: RepoTaskState): string {
+  return isArchivedRepoTaskState(state)
+    ? getRepoTaskArchiveDir(repoRoot)
+    : getRepoTasksDir(repoRoot);
 }
 
-export function writeRepoTaskFile(
-  repoRoot: string,
-  filePath: string,
-  content: string,
-): void {
+export function getRepoTaskPath(repoRoot: string, state: RepoTaskState, id: string): string {
+  return join(getRepoTaskContainerDir(repoRoot, state), `${id}.md`);
+}
+
+export function writeRepoTaskFile(repoRoot: string, filePath: string, content: string): void {
   writeRepoMarkdownFile({
     repoRoot,
     rootDir: getRepoTasksDir(repoRoot),
@@ -105,11 +108,7 @@ export function writeRepoTaskFile(
   });
 }
 
-export function writeRepoInboxFile(
-  repoRoot: string,
-  filePath: string,
-  content: string,
-): void {
+export function writeRepoInboxFile(repoRoot: string, filePath: string, content: string): void {
   writeRepoMarkdownFile({
     repoRoot,
     rootDir: getRepoInboxDir(repoRoot),
@@ -118,10 +117,7 @@ export function writeRepoInboxFile(
   });
 }
 
-export function readRepoInboxFile(
-  repoRoot: string,
-  filePath: string,
-): string | null {
+export function readRepoInboxFile(repoRoot: string, filePath: string): string | null {
   return readVerifiedRepoMarkdownFile({
     repoRoot,
     rootDir: getRepoInboxDir(repoRoot),
@@ -129,176 +125,48 @@ export function readRepoInboxFile(
   });
 }
 
-export function removeRepoInboxFile(
-  repoRoot: string,
-  filePath: string,
-): boolean {
+export function removeRepoInboxFile(repoRoot: string, filePath: string): boolean {
   const inboxDir = getRepoInboxDir(repoRoot);
-  if (
-    readVerifiedRepoMarkdownFile({
-      repoRoot,
-      rootDir: inboxDir,
-      filePath,
-    }) === null
-  ) {
+  if (readVerifiedRepoMarkdownFile({ repoRoot, rootDir: inboxDir, filePath }) === null) {
     return false;
   }
-  removeRepoMarkdownFile({
-    repoRoot,
-    rootDir: inboxDir,
-    filePath,
-  });
+  removeRepoMarkdownFile({ repoRoot, rootDir: inboxDir, filePath });
   return true;
-}
-
-export function countRepoTaskState(repoRoot: string, state: RepoTaskState): number {
-  const dir = getRepoTaskStateDir(repoRoot, state);
-  return listVerifiedRepoMarkdownFiles({
-    repoRoot,
-    rootDir: getRepoTasksDir(repoRoot),
-    directoryPath: dir,
-  }).filter((entry) => entry.name !== "AGENTS.md").length;
 }
 
 export function countRepoInboxEntries(repoRoot: string): number {
   const dir = getRepoInboxDir(repoRoot);
   if (!existsSync(dir)) return 0;
-  return readdirSync(dir).filter(
-    (name) => name.endsWith(".md") && name !== "AGENTS.md",
-  ).length;
+  return readdirSync(dir).filter((name) => name.endsWith(".md") && name !== "AGENTS.md").length;
 }
 
-export function getRepoTaskQueueSnapshot(
-  repoRoot: string,
-): RepoTaskQueueSnapshot {
-  const counts = Object.fromEntries(
-    REPO_TASK_STATES.map((state) => [state, countRepoTaskState(repoRoot, state)]),
-  ) as Record<RepoTaskState, number>;
-  const inboxCount = countRepoInboxEntries(repoRoot);
-  const dependencyBlockedTasks = listRepoTaskDependencyWaits(repoRoot, [
-    "backlog",
-    "ready",
-    "doing",
-  ]);
-  const dependencyBlockedByState = new Map<RepoTaskState, number>();
-  for (const wait of dependencyBlockedTasks) {
-    dependencyBlockedByState.set(
-      wait.state,
-      (dependencyBlockedByState.get(wait.state) ?? 0) + 1,
-    );
+function parseRepoTaskState(raw: unknown, path: string): RepoTaskState {
+  if (typeof raw === "string" && REPO_TASK_STATES.includes(raw as RepoTaskState)) {
+    return raw as RepoTaskState;
   }
-  const dependencyBlockedCount = (state: RepoTaskState): number =>
-    dependencyBlockedByState.get(state) ?? 0;
-  const actionableCount =
-    counts.ready +
-    counts.doing -
-    dependencyBlockedCount("ready") -
-    dependencyBlockedCount("doing");
-  const waitingBacklogIds = new Set(
-    dependencyBlockedTasks
-      .filter((wait) => wait.state === "backlog")
-      .map((wait) => wait.id),
-  );
-  const promotableBacklogCount = countRepoPromotableBacklogTasksWithWaits(
-    repoRoot,
-    waitingBacklogIds,
-  );
-  const dispatchableCount =
-    inboxCount + actionableCount + promotableBacklogCount;
-
-  return {
-    counts,
-    inboxCount,
-    openCount:
-      inboxCount +
-      counts.backlog +
-      counts.ready +
-      counts.doing +
-      counts.blocked,
-    pullableCount: actionableCount + promotableBacklogCount,
-    actionableCount,
-    promotableBacklogCount,
-    dispatchableCount,
-    hasDispatchableWork: dispatchableCount > 0,
-    dependencyBlockedTasks,
-    headSha: getRepoHeadSha(repoRoot),
-  };
+  throw new Error(`Task entry ${path} has invalid status ${String(raw)}`);
 }
 
-export function countRepoPromotableBacklogTasks(repoRoot: string): number {
-  const waitingIds = new Set(
-    listRepoTaskDependencyWaits(repoRoot, ["backlog"]).map((wait) => wait.id),
-  );
-  return countRepoPromotableBacklogTasksWithWaits(repoRoot, waitingIds);
+function parseRepoTaskPriority(raw: unknown, path: string): RepoTaskPriority {
+  if (typeof raw === "string" && ["p0", "p1", "p2", "p3"].includes(raw)) {
+    return raw as RepoTaskPriority;
+  }
+  throw new Error(`Active task entry ${path} has invalid priority ${String(raw)}`);
 }
 
-function countRepoPromotableBacklogTasksWithWaits(
-  repoRoot: string,
-  waitingIds: ReadonlySet<string>,
-): number {
-  return listFullRepoTasks(repoRoot, ["backlog"]).filter((record) =>
-    !record.anchor && !waitingIds.has(record.id)
-  ).length;
+export function extractRepoTaskTitle(body: string, path = "task"): string {
+  const title = body.match(/^#\s+(.+)\s*$/m)?.[1]?.trim();
+  if (!title) throw new Error(`Task entry ${path} must begin its body with a level-one title`);
+  return title;
 }
 
-export function isThinDispatchableQueue(
-  snapshot: RepoTaskQueueSnapshot,
-  promotableBacklogCount = snapshot.promotableBacklogCount,
-): boolean {
-  const dependencyBlockedCount = (state: "ready" | "doing"): number =>
-    snapshot.dependencyBlockedTasks.filter((task) => task.state === state).length;
-  const readyTailCount = snapshot.counts.ready - dependencyBlockedCount("ready");
-  const doingCount = snapshot.counts.doing - dependencyBlockedCount("doing");
-  const dispatchableTailCount = readyTailCount + promotableBacklogCount;
-
-  return (
-    snapshot.inboxCount === 0 &&
-    dispatchableTailCount <= 2 &&
-    (dispatchableTailCount > 0 || doingCount > 0)
-  );
-}
-
-export type RepoTaskFrontmatter = {
-  id: string;
-  updatedAt: string;
-};
-
-export type RepoTaskRecord = {
-  frontmatter: RepoTaskFrontmatter;
-  body: string;
-};
-
-export type RepoTaskClass =
-  | "Product"
-  | "Safety"
-  | "Platform"
-  | "Meta"
-  | "Unclassified";
-
-/**
- * A full task record carrying every frontmatter field needed to render a
- * search hit, plus the raw body. Used by the `repo-tasks` provider seam to
- * answer search queries with metadata-rich hits without re-reading files.
- */
 export type RepoTaskFullRecord = {
   id: string;
   title: string;
   state: RepoTaskState;
-  priority: string;
-  area: string;
-  taskClass: RepoTaskClass;
-  summary: string;
-  updatedAt: string;
+  priority: RepoTaskPriority | null;
   body: string;
-  /** Hard predecessor task ids declared in frontmatter `depends_on`. */
   dependsOn: string[];
-  /**
-   * Strategic backlog anchor. Anchors track an initiative across a sequenced
-   * set of sub-slice tasks; their `Done When` is met by completing the
-   * sub-slices, not by implementing the anchor as a single block. The
-   * backlog-promoter skips anchors so they never land in `ready/`.
-   */
-  anchor: boolean;
 };
 
 export type RepoTaskFileDescriptor = {
@@ -310,94 +178,63 @@ export type VerifiedRepoTaskFullRecord = RepoTaskFullRecord & {
   taskFile: RepoTaskFileDescriptor;
 };
 
-export function readVerifiedRepoTaskFile(
-  repoRoot: string,
-  state: RepoTaskState,
-  id: string,
-): ({ content: string } & RepoTaskFileDescriptor) | null {
-  if (!isRepoTaskId(id)) {
-    throw new Error(`Invalid task id: ${id}`);
-  }
-  const path = join(REPO_TASKS_DIR, state, `${id}.md`);
-  const verified = readVerifiedRepoMarkdownFileWithIdentity({
-    repoRoot,
-    rootDir: getRepoTasksDir(repoRoot),
-    filePath: join(repoRoot, path),
-  });
-  if (verified === null) return null;
-  const { attrs } = parseFlatFrontMatter(verified.content);
-  if (attrs.id !== id) {
-    throw new Error(`Task entry ${path} does not declare its canonical id ${id}`);
-  }
-  return { path, content: verified.content, snapshot: verified.snapshot };
-}
-
-export type RepoTaskDependencyWait = {
-  id: string;
-  title: string;
-  state: RepoTaskState;
-  dependsOn: string[];
-  waitingOn: string[];
+type TaskContainer = {
+  directory: string;
+  archived: boolean;
 };
 
-/**
- * List every full task record across the requested states, reading the
- * normalized frontmatter fields the provider seam needs. Tasks missing
- * required frontmatter (id, title, status, updated_at) are skipped so
- * downstream callers can rely on strict shapes.
- */
+function taskContainers(repoRoot: string): TaskContainer[] {
+  return [
+    { directory: getRepoTasksDir(repoRoot), archived: false },
+    { directory: getRepoTaskArchiveDir(repoRoot), archived: true },
+  ];
+}
+
+function recordFromEntry(args: {
+  repoRoot: string;
+  container: TaskContainer;
+  name: string;
+  content: string;
+  snapshot: FileSnapshot;
+}): VerifiedRepoTaskFullRecord {
+  const id = basename(args.name, ".md");
+  const path = relative(args.repoRoot, join(args.container.directory, args.name));
+  if (!isRepoTaskId(id)) throw new Error(`Task entry ${path} has invalid filename identity`);
+  const { attrs, body } = parseFlatFrontMatter(args.content);
+  const state = parseRepoTaskState(attrs.status, path);
+  if (args.container.archived !== isArchivedRepoTaskState(state)) {
+    throw new Error(`Task entry ${path} is stored in the wrong task container for ${state}`);
+  }
+  const priority = isActiveRepoTaskState(state)
+    ? parseRepoTaskPriority(attrs.priority, path)
+    : null;
+  const dependsOn = isActiveRepoTaskState(state) ? readTaskDependencyIds(attrs) : [];
+  return {
+    id,
+    title: extractRepoTaskTitle(body, path),
+    state,
+    priority,
+    body,
+    dependsOn,
+    taskFile: { path, snapshot: args.snapshot },
+  };
+}
+
 export function listVerifiedFullRepoTasks(
   repoRoot: string,
   states: readonly RepoTaskState[] = REPO_TASK_STATES,
 ): VerifiedRepoTaskFullRecord[] {
-  const tasksDir = getRepoTasksDir(repoRoot);
+  const wanted = new Set(states);
   const result: VerifiedRepoTaskFullRecord[] = [];
-  for (const state of states) {
-    const dir = join(tasksDir, state);
+  for (const container of taskContainers(repoRoot)) {
     for (const entry of listVerifiedRepoMarkdownFiles({
       repoRoot,
-      rootDir: tasksDir,
-      directoryPath: dir,
+      rootDir: getRepoTasksDir(repoRoot),
+      directoryPath: container.directory,
     })) {
-      const { name, content, snapshot } = entry;
-      if (name === "AGENTS.md") continue;
-      const { attrs, body } = parseFlatFrontMatter(content);
-      if (
-        typeof attrs.id !== "string" ||
-        typeof attrs.title !== "string" ||
-        typeof attrs.updated_at !== "string"
-      ) {
-        continue;
-      }
-      const expectedName = `${attrs.id}.md`;
-      if (name !== expectedName) {
-        throw new Error(
-          `Task entry ${join(REPO_TASKS_DIR, state, name)} must be named ${expectedName}`,
-        );
-      }
-      const priority = typeof attrs.priority === "string" ? attrs.priority : "";
-      const area = typeof attrs.area === "string" ? attrs.area : "";
-      const summary = typeof attrs.summary === "string" ? attrs.summary : "";
-      const taskClass = parseTaskClass(
-        typeof attrs.task_class === "string" ? attrs.task_class : undefined,
-      );
-      result.push({
-        id: attrs.id,
-        title: attrs.title,
-        state,
-        priority,
-        area,
-        taskClass,
-        summary,
-        updatedAt: attrs.updated_at,
-        body,
-        dependsOn: readTaskDependencyIds(attrs),
-        anchor: parseAnchorField(typeof attrs.anchor === "string" ? attrs.anchor : undefined),
-        taskFile: {
-          path: join(REPO_TASKS_DIR, state, name),
-          snapshot,
-        },
-      });
+      if (entry.name === "AGENTS.md") continue;
+      const record = recordFromEntry({ repoRoot, container, ...entry });
+      if (wanted.has(record.state)) result.push(record);
     }
   }
   return result;
@@ -410,15 +247,51 @@ export function listFullRepoTasks(
   return listVerifiedFullRepoTasks(repoRoot, states);
 }
 
+export function countRepoTaskState(repoRoot: string, state: RepoTaskState): number {
+  return listFullRepoTasks(repoRoot, [state]).length;
+}
+
+export function readVerifiedRepoTaskFile(
+  repoRoot: string,
+  state: RepoTaskState,
+  id: string,
+): ({ content: string } & RepoTaskFileDescriptor) | null {
+  if (!isRepoTaskId(id)) throw new Error(`Invalid task id: ${id}`);
+  const path = getRepoTaskPath(repoRoot, state, id);
+  const verified = readVerifiedRepoMarkdownFileWithIdentity({
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
+    filePath: path,
+  });
+  if (verified === null) return null;
+  const { attrs } = parseFlatFrontMatter(verified.content);
+  if (parseRepoTaskState(attrs.status, relative(repoRoot, path)) !== state) return null;
+  return {
+    path: relative(repoRoot, path),
+    content: verified.content,
+    snapshot: verified.snapshot,
+  };
+}
+
+export type RepoTaskDependencyWait = {
+  id: string;
+  title: string;
+  state: ActiveRepoTaskState;
+  dependsOn: string[];
+  waitingOn: string[];
+};
+
 export function listRepoTaskDependencyWaits(
   repoRoot: string,
-  states: readonly RepoTaskState[] = REPO_TASK_STATES,
+  states: readonly ActiveRepoTaskState[] = ACTIVE_REPO_TASK_STATES,
 ): RepoTaskDependencyWait[] {
   const allTasks = listFullRepoTasks(repoRoot);
   const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
   const wanted = new Set(states);
   return allTasks
-    .filter((task) => wanted.has(task.state))
+    .filter((task): task is RepoTaskFullRecord & { state: ActiveRepoTaskState } =>
+      isActiveRepoTaskState(task.state) && wanted.has(task.state),
+    )
     .map((task) => ({
       id: task.id,
       title: task.title,
@@ -439,175 +312,147 @@ export function getUnfinishedTaskDependencies(
   return findUnfinishedTaskDependencies(dependencies, stateByTaskId);
 }
 
-/**
- * Parse the optional `anchor` frontmatter field. Only the literal `true`
- * marks a task as a strategic anchor; everything else (absent, `false`,
- * malformed) is treated as a normal task.
- */
-function parseAnchorField(raw: string | undefined): boolean {
-  return raw?.trim().toLowerCase() === "true";
+export function getRepoTaskQueueSnapshot(repoRoot: string): RepoTaskQueueSnapshot {
+  const counts = Object.fromEntries(
+    REPO_TASK_STATES.map((state) => [state, countRepoTaskState(repoRoot, state)]),
+  ) as Record<RepoTaskState, number>;
+  const inboxCount = countRepoInboxEntries(repoRoot);
+  const dependencyBlockedTasks = listRepoTaskDependencyWaits(repoRoot, ["open"]);
+  const actionableCount = counts.open - dependencyBlockedTasks.length;
+  const dispatchableCount = inboxCount + actionableCount;
+  return {
+    counts,
+    inboxCount,
+    activeCount: counts.open + counts.blocked,
+    actionableCount,
+    dispatchableCount,
+    hasDispatchableWork: dispatchableCount > 0,
+    dependencyBlockedTasks,
+    headSha: getRepoHeadSha(repoRoot),
+  };
 }
 
-function parseTaskClass(raw: string | undefined): RepoTaskClass {
-  switch (raw) {
-    case "Product":
-    case "Safety":
-    case "Platform":
-    case "Meta":
-      return raw;
-    case undefined:
-      return "Unclassified";
-  }
-  return "Unclassified";
+export function isThinDispatchableQueue(snapshot: RepoTaskQueueSnapshot): boolean {
+  return snapshot.inboxCount === 0 && snapshot.actionableCount > 0 && snapshot.actionableCount <= 2;
 }
 
-function parseFrontmatterBlock(content: string): Record<string, string> | null {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return null;
-  const fields: Record<string, string> = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const colon = line.indexOf(":");
-    if (colon === -1) continue;
-    fields[line.slice(0, colon).trim()] = line.slice(colon + 1).trim();
-  }
-  return fields;
-}
+export type RepoTaskRecord = {
+  id: string;
+  state: RepoTaskState;
+  body: string;
+  observedModifiedAt: string;
+};
 
-function extractBodyAfterFrontmatter(content: string): string {
-  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n([\s\S]*)$/);
-  return match ? match[1] : "";
-}
-
-/**
- * List task records in a given state with their frontmatter id/updated_at and
- * body. Tasks missing either id or updated_at are skipped so callers can treat
- * the result as strict.
- */
-export function listRepoTasksInState(
-  repoRoot: string,
-  state: RepoTaskState,
-): RepoTaskRecord[] {
-  const dir = getRepoTaskStateDir(repoRoot, state);
-  const records: RepoTaskRecord[] = [];
-  for (const entry of listVerifiedRepoMarkdownFiles({
-    repoRoot,
-    rootDir: getRepoTasksDir(repoRoot),
-    directoryPath: dir,
-  })) {
-    if (entry.name === "AGENTS.md") continue;
-    const content = entry.content;
-    const fm = parseFrontmatterBlock(content);
-    if (!fm || !fm.id || !fm.updated_at) continue;
-    records.push({
-      frontmatter: { id: fm.id, updatedAt: fm.updated_at },
-      body: extractBodyAfterFrontmatter(content),
-    });
-  }
-  return records;
+export function listRepoTasksInState(repoRoot: string, state: RepoTaskState): RepoTaskRecord[] {
+  return listVerifiedFullRepoTasks(repoRoot, [state]).map((task) => ({
+    id: task.id,
+    state: task.state,
+    body: task.body,
+    observedModifiedAt: new Date(task.taskFile.snapshot.mtimeMs).toISOString(),
+  }));
 }
 
 export type MoveTaskResult = {
   id: string;
   fromState: RepoTaskState;
   toState: RepoTaskState;
-  /** Repo-relative destination path. */
   path: string;
-  /** Repo-relative previous path. */
   previousPath: string;
 };
 
-/**
- * Move a normalized task file between state directories, updating the
- * `status` and `updated_at` frontmatter fields.
- *
- * This is the single filesystem mechanism for state transitions. Workflow
- * callers invoke it inside their sandbox; external canonical callers first
- * pass through the repo-task mutation boundary. Throws when the task is not
- * found, is already in the target state, or when the file operation fails.
- */
+function locateTask(repoRoot: string, id: string): { record: VerifiedRepoTaskFullRecord; content: string } {
+  const record = listVerifiedFullRepoTasks(repoRoot).find((task) => task.id === id);
+  if (!record) throw new Error(`Task "${id}" not found`);
+  const content = readVerifiedRepoMarkdownFile({
+    repoRoot,
+    rootDir: getRepoTasksDir(repoRoot),
+    filePath: join(repoRoot, record.taskFile.path),
+  });
+  if (content === null) throw new Error(`Task "${id}" disappeared while being read`);
+  return { record, content };
+}
+
+function transitionTask(args: {
+  repoRoot: string;
+  id: string;
+  toState: RepoTaskState;
+  reopeningPriority?: RepoTaskPriority;
+}): MoveTaskResult {
+  if (!isRepoTaskId(args.id)) throw new Error("Invalid task id");
+  const { record, content } = locateTask(args.repoRoot, args.id);
+  if (record.state === args.toState) {
+    throw new Error(`Task "${args.id}" is already in "${args.toState}"`);
+  }
+  if (isArchivedRepoTaskState(record.state) && isActiveRepoTaskState(args.toState)) {
+    if (args.toState !== "open" || !args.reopeningPriority) {
+      throw new Error(`Archived task "${args.id}" can only reopen with an explicit priority`);
+    }
+  }
+  const sourcePath = join(args.repoRoot, record.taskFile.path);
+  const destinationPath = getRepoTaskPath(args.repoRoot, args.toState, args.id);
+  const { attrs: priorAttrs, body } = parseFlatFrontMatter(content);
+  const attrs: Record<string, string | string[]> = isArchivedRepoTaskState(args.toState)
+    ? { status: args.toState }
+    : {
+        status: args.toState,
+        priority: args.reopeningPriority ?? record.priority ?? "",
+        ...(record.dependsOn.length > 0 ? { depends_on: record.dependsOn } : {}),
+      };
+  if (isActiveRepoTaskState(args.toState) && !args.reopeningPriority) {
+    attrs.priority = priorAttrs.priority as string;
+  }
+  const updated = serializeFlatFrontMatter(attrs, body);
+  if (sourcePath === destinationPath) {
+    writeRepoTaskFile(args.repoRoot, sourcePath, updated);
+  } else {
+    moveRepoMarkdownFile({
+      repoRoot: args.repoRoot,
+      sourceRootDir: getRepoTasksDir(args.repoRoot),
+      sourcePath,
+      destinationRootDir: getRepoTasksDir(args.repoRoot),
+      destinationPath,
+      sourceContent: content,
+      destinationContent: updated,
+    });
+  }
+  return {
+    id: args.id,
+    fromState: record.state,
+    toState: args.toState,
+    path: relative(args.repoRoot, destinationPath),
+    previousPath: relative(args.repoRoot, sourcePath),
+  };
+}
+
 export function moveTaskById(
   repoRoot: string,
   id: string,
   toState: RepoTaskState,
 ): MoveTaskResult {
-  if (!isRepoTaskId(id)) {
-    throw new Error("Invalid task id");
-  }
+  return transitionTask({ repoRoot, id, toState });
+}
 
-  const tasksDir = getRepoTasksDir(repoRoot);
-  let fromState: RepoTaskState | null = null;
-  let fromPath: string | null = null;
-  let content: string | null = null;
-  for (const state of REPO_TASK_STATES) {
-    const candidate = join(tasksDir, state, `${id}.md`);
-    const candidateContent = readVerifiedRepoMarkdownFile({
-      repoRoot,
-      rootDir: tasksDir,
-      filePath: candidate,
-    });
-    if (candidateContent !== null) {
-      fromState = state;
-      fromPath = candidate;
-      content = candidateContent;
-      break;
-    }
-  }
-  if (!fromState || !fromPath || content === null) {
-    throw new Error(`Task "${id}" not found in any state directory`);
-  }
-  if (fromState === toState) {
-    throw new Error(`Task "${id}" is already in "${toState}"`);
-  }
-  const dstPath = join(tasksDir, toState, `${id}.md`);
-  if (
-    readVerifiedRepoMarkdownFile({
-      repoRoot,
-      rootDir: tasksDir,
-      filePath: dstPath,
-    }) !== null
-  ) {
-    throw new Error(`Task "${id}" already exists in "${toState}"`);
-  }
-  const { attrs, body } = parseFlatFrontMatter(content);
-  attrs.status = toState;
-  attrs.updated_at = new Date().toISOString();
-  const updated = serializeFlatFrontMatter(attrs, body);
-
-  moveRepoMarkdownFile({
-    repoRoot,
-    sourceRootDir: tasksDir,
-    sourcePath: fromPath,
-    destinationRootDir: tasksDir,
-    destinationPath: dstPath,
-    sourceContent: content,
-    destinationContent: updated,
-  });
-
-  return {
-    id,
-    fromState,
-    toState,
-    path: dstPath.slice(repoRoot.length + 1),
-    previousPath: fromPath.slice(repoRoot.length + 1),
-  };
+export function reopenTaskById(
+  repoRoot: string,
+  id: string,
+  priority: RepoTaskPriority,
+): MoveTaskResult {
+  return transitionTask({ repoRoot, id, toState: "open", reopeningPriority: priority });
 }
 
 export type DaemonTaskDetail = {
   id: string;
   title: string;
-  priority: string;
-  area: string;
-  summary: string;
+  priority: RepoTaskPriority;
   body: string;
   waitingOnTasks: string[];
+  inProgress: boolean;
 };
 
 export type DaemonTaskStatusResponse = {
-  counts: { inbox: number; ready: number; backlog: number; doing: number; blocked: number };
+  counts: { inbox: number; open: number; blocked: number };
   tasks: {
-    doing: DaemonTaskDetail[];
-    ready: DaemonTaskDetail[];
-    backlog: DaemonTaskDetail[];
+    open: DaemonTaskDetail[];
     blocked: DaemonTaskDetail[];
   };
 };

@@ -37,22 +37,13 @@ function initializeLargeQueueRepo(scopeRoot: string): void {
     cwd: scopeRoot,
   });
   const tasksDir = join(scopeRoot, "data", "tasks");
-  for (const state of [
-    "backlog",
-    "ready",
-    "doing",
-    "blocked",
-    "done",
-    "dropped",
-  ]) {
-    mkdirSync(join(tasksDir, state), { recursive: true });
-  }
+  mkdirSync(join(tasksDir, "archive"), { recursive: true });
   mkdirSync(join(scopeRoot, "data", "inbox"), { recursive: true });
   for (let index = 0; index < LARGE_QUEUE_SIZE; index += 1) {
     const id = `task-dashboard-load-${String(index).padStart(4, "0")}`;
     writeFileSync(
-      join(tasksDir, "backlog", `${id}.md`),
-      `---\nid: ${id}\ntitle: Dashboard load ${index}\nstatus: backlog\npriority: p2\narea: core\ntask_class: Platform\nsummary: Queue fixture ${index}.\ncreated_at: 2026-08-13T00:00:00.000Z\nupdated_at: 2026-08-13T00:00:00.000Z\n---\n\n## Done When\n\n- Complete.\n\n## Acceptance Evidence\n\n- Fixture evidence.\n`,
+      join(tasksDir, `${id}.md`),
+      `---\nstatus: open\npriority: p2\n---\n\n# Dashboard load ${index}\n\n## Done When\n\n- Complete.\n\n## Acceptance Evidence\n\n- Fixture evidence.\n`,
       "utf8",
     );
   }
@@ -173,7 +164,7 @@ describe("foreground dashboard responsiveness", () => {
       expect(daemon.getState().lastStopReason).toBe("sigterm");
 
       await waitUntil(() => projection.getSnapshot() !== undefined);
-      expect(projection.getSnapshot()?.counts.backlog).toBe(LARGE_QUEUE_SIZE);
+      expect(projection.getSnapshot()?.counts.open).toBe(LARGE_QUEUE_SIZE);
       expect(refreshProjection).toHaveBeenCalledTimes(1);
       writeEvidence(
         `[dashboard-responsiveness-evidence] ${JSON.stringify({

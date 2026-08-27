@@ -115,7 +115,7 @@ describe("Slack /capture runtime evidence", () => {
         record: {
           target: "tasks",
           recordId: "task-fix-redirect",
-          path: "data/tasks/ready/task-fix-redirect.md",
+          path: "data/tasks/task-fix-redirect.md",
         },
       }),
       await runCaptureCommand("/capture-to-inbox raw morning thought", {
@@ -155,7 +155,7 @@ describe("Slack /capture runtime evidence", () => {
       ["architecture decision", { target: "knowledge" }],
     ]);
     expect(cases[2].reply.text).toBe(
-      "Captured to tasks: task-fix-redirect (data/tasks/ready/task-fix-redirect.md)",
+      "Captured to tasks: task-fix-redirect (data/tasks/task-fix-redirect.md)",
     );
     expect(cases[4].reply.text).toBe(
       "Capture target ambiguous. Suggestions: memory, knowledge, tasks, inbox. Re-run with one of: /capture-to-memory, /capture-to-knowledge, /capture-to-tasks, /capture-to-inbox.",

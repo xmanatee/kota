@@ -26,7 +26,7 @@ import {
 describe("pathInScope", () => {
   it("admits every path when scope is empty (unrestricted)", () => {
     expect(pathInScope("src/core/workflow/types.ts", [])).toBe(true);
-    expect(pathInScope("data/tasks/ready/task-x.md", [])).toBe(true);
+    expect(pathInScope("data/tasks/task-x.md", [])).toBe(true);
     expect(pathInScope("package.json", [])).toBe(true);
   });
 
@@ -37,11 +37,11 @@ describe("pathInScope", () => {
   });
 
   it("admits a path that lives under a directory scope entry", () => {
-    expect(pathInScope("data/tasks/ready/task-x.md", ["data/tasks/"])).toBe(
+    expect(pathInScope("data/tasks/task-x.md", ["data/tasks/"])).toBe(
       true,
     );
     // Trailing slash should be optional.
-    expect(pathInScope("data/tasks/ready/task-x.md", ["data/tasks"])).toBe(
+    expect(pathInScope("data/tasks/task-x.md", ["data/tasks"])).toBe(
       true,
     );
   });
@@ -57,7 +57,7 @@ describe("findWriteScopeViolations", () => {
   it("returns [] when scope is unrestricted even if mutations exist", () => {
     expect(
       findWriteScopeViolations(
-        ["src/core/workflow/types.ts", "data/tasks/ready/task.md"],
+        ["src/core/workflow/types.ts", "data/tasks/task.md"],
         [],
       ),
     ).toEqual([]);
@@ -66,7 +66,7 @@ describe("findWriteScopeViolations", () => {
   it("returns [] when every mutation is in scope", () => {
     expect(
       findWriteScopeViolations(
-        ["data/tasks/ready/a.md", "data/watchlist.yaml"],
+        ["data/tasks/a.md", "data/watchlist.yaml"],
         ["data/tasks/", "data/watchlist.yaml"],
       ),
     ).toEqual([]);
@@ -77,7 +77,7 @@ describe("findWriteScopeViolations", () => {
       findWriteScopeViolations(
         [
           "src/core/foo.ts",
-          "data/tasks/ready/a.md",
+          "data/tasks/a.md",
           "AGENTS.md",
           "docs/overview.md",
         ],
@@ -132,12 +132,12 @@ describe("listWorkflowMutatedPaths", () => {
   });
 
   it("lists staged additions of new files", () => {
-    const newPath = join(scopeRoot, "data", "tasks", "ready", "task-x.md");
+    const newPath = join(scopeRoot, "data", "tasks", "task-x.md");
     mkdirSync(dirname(newPath), { recursive: true });
     writeFileSync(newPath, "hello\n");
     execFileSync("git", ["add", "-A"], { cwd: scopeRoot });
     expect(listWorkflowMutatedPaths(scopeRoot)).toEqual([
-      "data/tasks/ready/task-x.md",
+      "data/tasks/task-x.md",
     ]);
   });
 
@@ -160,15 +160,15 @@ describe("listWorkflowMutatedPaths", () => {
 
   it("merges tracked mutations, staged additions, and untracked files", () => {
     writeFileSync(join(scopeRoot, "seed.txt"), "seed\nmore\n");
-    const staged = join(scopeRoot, "data", "tasks", "ready", "task-x.md");
+    const staged = join(scopeRoot, "data", "tasks", "task-x.md");
     mkdirSync(dirname(staged), { recursive: true });
     writeFileSync(staged, "hello\n");
-    execFileSync("git", ["add", "data/tasks/ready/task-x.md"], {
+    execFileSync("git", ["add", "data/tasks/task-x.md"], {
       cwd: scopeRoot,
     });
     writeFileSync(join(scopeRoot, "scratch.txt"), "scratch\n");
     expect(listWorkflowMutatedPaths(scopeRoot)).toEqual([
-      "data/tasks/ready/task-x.md",
+      "data/tasks/task-x.md",
       "scratch.txt",
       "seed.txt",
     ]);
@@ -204,8 +204,8 @@ describe("diffMutatedPaths", () => {
   it("returns [] when pre and post match exactly", () => {
     expect(
       diffMutatedPaths(
-        ["data/tasks/ready/a.md", "scratch.txt"],
-        ["data/tasks/ready/a.md", "scratch.txt"],
+        ["data/tasks/a.md", "scratch.txt"],
+        ["data/tasks/a.md", "scratch.txt"],
       ),
     ).toEqual([]);
   });
@@ -216,10 +216,10 @@ describe("diffMutatedPaths", () => {
         ["src/modules/autonomy/AGENTS.md"],
         [
           "src/modules/autonomy/AGENTS.md",
-          "data/tasks/ready/new-task.md",
+          "data/tasks/new-task.md",
         ],
       ),
-    ).toEqual(["data/tasks/ready/new-task.md"]);
+    ).toEqual(["data/tasks/new-task.md"]);
   });
 
   it("excludes prior-step or concurrent mutations from this step's attribution", () => {
@@ -289,7 +289,7 @@ describe("writeScope enforcement over mutated paths", () => {
   });
 
   it("accepts an untracked file inside the declared writeScope", () => {
-    const inScope = join(scopeRoot, "data", "tasks", "ready", "new.md");
+    const inScope = join(scopeRoot, "data", "tasks", "new.md");
     mkdirSync(dirname(inScope), { recursive: true });
     writeFileSync(inScope, "hello\n");
     const violations = findWriteScopeViolations(

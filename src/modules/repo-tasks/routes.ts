@@ -5,7 +5,6 @@ import {
   handleTaskCapture,
   handleTaskCreate,
   handleTaskCreateNormalized,
-  handleTaskGc,
   handleTaskMove,
   handleTaskShow,
 } from "./routes-lifecycle-handlers.js";
@@ -21,7 +20,6 @@ export {
   handleTaskCapture,
   handleTaskCreate,
   handleTaskCreateNormalized,
-  handleTaskGc,
   handleTaskMove,
   handleTaskShow,
 } from "./routes-lifecycle-handlers.js";
@@ -34,7 +32,7 @@ export {
 // Sibling literal paths that share the `/api/tasks/<id>` shape with the
 // `/api/tasks/:id` show route. Exact routes win, but unsupported methods on
 // these names should still 404 instead of being interpreted as task ids.
-const RESERVED_TASK_NAMES = new Set(["normalized", "capture", "gc"]);
+const RESERVED_TASK_NAMES = new Set(["normalized", "capture"]);
 
 export function taskRoutes(
   scopeStores?: RepoTasksScopeStores,
@@ -74,15 +72,6 @@ export function taskRoutes(
         const scope = resolveRouteScope(scopeStores, req, res);
         if (!scope.ok) return;
         return handleTaskCapture(req, res, scope);
-      },
-    },
-    {
-      method: "POST",
-      path: "/api/tasks/gc",
-      handler: (req, res) => {
-        const scope = resolveRouteScope(scopeStores, req, res);
-        if (!scope.ok) return;
-        return handleTaskGc(req, res, scope);
       },
     },
     {

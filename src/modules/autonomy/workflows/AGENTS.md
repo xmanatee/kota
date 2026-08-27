@@ -34,10 +34,8 @@ own completion; validation rejects self-trigger loops.
 
 Dispatcher emits queue-shape events rather than a fixed workflow graph:
 
-- `autonomy.queue.available` identifies one dependency-clear `ready` or `doing`
-  task. Its immutable digest and `taskId` bind builder to `task:<taskId>`.
-- `autonomy.queue.needs-promotion` means no actionable task exists and at least
-  one dependency-clear backlog task can enter `ready`.
+- `autonomy.queue.available` identifies one dependency-clear `open` task. Its
+  immutable digest and `taskId` bind builder to `task:<taskId>`.
 - `autonomy.queue.empty` means no dispatchable task or known dependency blocker
   exists; explorer may look for new work.
 - `autonomy.queue.thin` reports a small dispatchable tail without treating
@@ -45,8 +43,8 @@ Dispatcher emits queue-shape events rather than a fixed workflow graph:
 - `autonomy.blocked-research.attemptable` identifies blocked research that the
   current runtime can retry.
 
-Builder never consumes backlog directly; backlog promotion records why work was
-selected before a targeted builder event is emitted.
+Blocked tasks remain active in `data/tasks/`; the blocked promoter changes a
+satisfied task back to `open` before dispatcher can emit a builder event.
 
 ## Repair And Tests
 

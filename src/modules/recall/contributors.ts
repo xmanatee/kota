@@ -140,7 +140,6 @@ async function recallTasks(
       title: hit.title,
       state: hit.state,
       priority: hit.priority,
-      updatedAt: hit.updatedAt,
     },
   }));
 }

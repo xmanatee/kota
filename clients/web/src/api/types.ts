@@ -94,23 +94,19 @@ export type DaemonTaskDetail = {
   id: string;
   title: string;
   priority: string;
-  area: string;
-  summary: string;
   body: string;
+  waitingOnTasks: string[];
+  inProgress: boolean;
 };
 
 export type DaemonTaskStatusResponse = {
   counts: {
     inbox: number;
-    ready: number;
-    backlog: number;
-    doing: number;
+    open: number;
     blocked: number;
   };
   tasks: {
-    doing: DaemonTaskDetail[];
-    ready: DaemonTaskDetail[];
-    backlog: DaemonTaskDetail[];
+    open: DaemonTaskDetail[];
     blocked: DaemonTaskDetail[];
   };
 };

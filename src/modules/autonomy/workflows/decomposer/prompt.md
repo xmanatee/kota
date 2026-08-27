@@ -32,7 +32,7 @@ progress, and split or sharpen it only where real conceptual seams exist.
 ## Output
 
 Return one JSON object with `rationale` and a non-empty `subtasks` array matching
-the supplied schema. The workflow deterministically creates those ready tasks,
+the supplied schema. The workflow deterministically creates those open tasks,
 records their dependencies, annotates the original with `## Decomposed`, and
-moves it to `dropped/` through the canonical repo-task APIs only after an
+moves it to `tasks/archive/` with `status: dropped` through the canonical repo-task APIs only after an
 independent semantic review approves alignment with the original task.

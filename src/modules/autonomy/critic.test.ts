@@ -15,7 +15,7 @@ import {
   resetCriticTestMocks,
   setApiResponse,
   TEST_PARENT_STEP,
-  writeDoingTask,
+  writeOpenTask,
 } from "./critic-test-fixture.integration.js";
 import { builderRepairChecks } from "./workflows/builder/repair-checks.js";
 
@@ -26,9 +26,8 @@ function builderTaskPayload(taskId: string): Record<string, unknown> {
   const taskDigest = taskId === "task-alpha" ? "a".repeat(64) : "b".repeat(64);
   return {
     taskId,
-    taskPath: `data/tasks/doing/${taskId}.md`,
-    taskState: "doing",
-    taskUpdatedAt: "2026-08-25T00:00:00.000Z",
+    taskPath: `data/tasks/${taskId}.md`,
+    taskState: "open",
     taskDigest,
     idempotencyKey: `builder:${taskId}:${taskDigest}`,
   };
@@ -45,7 +44,7 @@ describe("createCriticCheck", () => {
 
   it("runs through the workflow agent runtime instead of requiring a separate SDK key", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-test.md", "---\ntitle: Test\n---\nContent.");
+    writeOpenTask(dir, "task-test.md", "---\nstatus: open\npriority: p2\n---\n\n# Test\n\nContent.");
     makeRunDir(dir);
     setApiResponse({
       verdict: "pass",
@@ -67,10 +66,10 @@ describe("createCriticCheck", () => {
   it("reviews task and diff from workspaceDir when provided", async () => {
     const workspaceRoot = makeTmpDir();
     const workspaceDir = makeTmpDir();
-    writeDoingTask(
+    writeOpenTask(
       workspaceDir,
       "task-workspace.md",
-      "---\ntitle: Workspace task\n---\nWorkspace task content.",
+      "---\nstatus: open\npriority: p2\n---\n\n# Workspace task\n\nWorkspace task content.",
     );
     const runDir = makeRunDir(workspaceRoot);
     setApiResponse({
@@ -99,15 +98,15 @@ describe("createCriticCheck", () => {
     const alphaWorkspace = makeTmpDir();
     const betaWorkspace = makeTmpDir();
     for (const workspace of [alphaWorkspace, betaWorkspace]) {
-      writeDoingTask(
+      writeOpenTask(
         workspace,
         "task-alpha.md",
-        "---\nid: task-alpha\ntitle: Alpha\n---\nAlpha task only.",
+        "---\nstatus: open\npriority: p2\n---\n\n# Alpha\n\nAlpha task only.",
       );
-      writeDoingTask(
+      writeOpenTask(
         workspace,
         "task-beta.md",
-        "---\nid: task-beta\ntitle: Beta\n---\nBeta task only.",
+        "---\nstatus: open\npriority: p2\n---\n\n# Beta\n\nBeta task only.",
       );
     }
     const alphaProject = makeTmpDir();
@@ -160,10 +159,10 @@ describe("createCriticCheck", () => {
   it("fails closed when the builder critic cannot find its expected task", async () => {
     const workspaceRoot = makeTmpDir();
     const workspaceDir = makeTmpDir();
-    writeDoingTask(
+    writeOpenTask(
       workspaceDir,
       "task-alpha.md",
-      "---\nid: task-alpha\ntitle: Alpha\n---\nUnrelated task.",
+      "---\nstatus: open\npriority: p2\n---\n\n# Alpha\n\nUnrelated task.",
     );
     const runDir = makeRunDir(workspaceRoot);
     const check = builderCriticCheck();
@@ -183,22 +182,25 @@ describe("createCriticCheck", () => {
     expect(mockRunAgentHarness).not.toHaveBeenCalled();
   });
 
-  it("skips when no task in doing/ and no staged done/ task", async () => {
+  it("skips when no target task and no staged archive move exist", async () => {
     const dir = makeTmpDir();
     const check = createCriticCheck();
     const result = await (check as CodeCheck).run(makeContext(dir), TEST_PARENT_STEP);
     expect(result).toMatch(/skipping critic review/);
   });
 
-  it("finds task in done/ via staged git diff when doing/ is empty", async () => {
+  it("finds a done task via its staged archive move", async () => {
     const dir = makeTmpDir();
-    const doneDir = join(dir, "data/tasks/done");
+    const doneDir = join(dir, "data/tasks/archive");
     mkdirSync(doneDir, { recursive: true });
-    writeFileSync(join(doneDir, "task-moved.md"), "---\ntitle: Moved task\n---\nTask content.");
+    writeFileSync(
+      join(doneDir, "task-moved.md"),
+      "---\nstatus: done\n---\n\n# Moved task\n\nTask content.",
+    );
     const runDir = makeRunDir(dir);
 
     const taskMutationStatus =
-      "R100\tdata/tasks/backlog/task-moved.md\tdata/tasks/done/task-moved.md\n";
+      "R100\tdata/tasks/task-moved.md\tdata/tasks/archive/task-moved.md\n";
     setApiResponse({
       verdict: "pass",
       critical_issues: [],
@@ -219,23 +221,23 @@ describe("createCriticCheck", () => {
 
   it("reviews a staged done task before collateral blocked task edits", async () => {
     const dir = makeTmpDir();
-    const blockedDir = join(dir, "data/tasks/blocked");
-    const doneDir = join(dir, "data/tasks/done");
+    const blockedDir = join(dir, "data/tasks");
+    const doneDir = join(dir, "data/tasks/archive");
     mkdirSync(blockedDir, { recursive: true });
     mkdirSync(doneDir, { recursive: true });
     writeFileSync(
       join(blockedDir, "task-collateral-blocker.md"),
-      "---\ntitle: Collateral blocker\n---\nBlocked task content.",
+      "---\nstatus: blocked\npriority: p2\n---\n\n# Collateral blocker\n\nBlocked task content.",
     );
     writeFileSync(
       join(doneDir, "task-implemented-work.md"),
-      "---\ntitle: Implemented work\n---\nDone task content.",
+      "---\nstatus: done\n---\n\n# Implemented work\n\nDone task content.",
     );
     const runDir = makeRunDir(dir);
 
     const taskMutationStatus = [
-      "M\tdata/tasks/blocked/task-collateral-blocker.md",
-      "A\tdata/tasks/done/task-implemented-work.md",
+      "M\tdata/tasks/task-collateral-blocker.md",
+      "A\tdata/tasks/archive/task-implemented-work.md",
       "",
     ].join("\n");
     setApiResponse({
@@ -259,7 +261,7 @@ describe("createCriticCheck", () => {
 
   it("calls the critic agent and passes on pass verdict", async () => {
     const dir = makeTmpDir();
-    writeDoingTask(dir, "task-foo.md", "---\ntitle: Do foo\n---\nDo foo.");
+    writeOpenTask(dir, "task-foo.md", "---\nstatus: open\npriority: p2\n---\n\n# Do foo\n\nDo foo.");
     const runDir = makeRunDir(dir);
     setApiResponse({
       verdict: "pass",

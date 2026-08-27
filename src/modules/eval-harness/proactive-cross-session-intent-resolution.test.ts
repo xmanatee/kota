@@ -124,7 +124,7 @@ function runGit(scopeRoot: string, args: readonly string[]): string {
 
 function createProject(parent: string): DirectoryScope {
   const scopeRoot = join(parent, "scope");
-  mkdirSync(join(scopeRoot, "data", "tasks", "backlog"), { recursive: true });
+  mkdirSync(join(scopeRoot, "data", "tasks"), { recursive: true });
   mkdirSync(join(scopeRoot, ".kota", "runs"), { recursive: true });
   runGit(scopeRoot, ["init", "--quiet", "--initial-branch=main"]);
   runGit(scopeRoot, ["config", "user.email", "eval-harness@kota.local"]);
@@ -161,17 +161,13 @@ function seedConversation(params: {
 function seedNewsletterPrepTask(scopeRoot: string): string {
   const id = "task-newsletter-prep-distractor";
   writeFileSync(
-    join(scopeRoot, "data", "tasks", "backlog", `${id}.md`),
+    join(scopeRoot, "data", "tasks", `${id}.md`),
     `---
-id: ${id}
-title: Newsletter prep checklist for Friday launch
-status: backlog
+status: open
 priority: p3
-area: client
-summary: Distractor task for editorial prep, unrelated to personal-assistant parent visit logistics.
-created_at: 2026-05-01T00:00:00Z
-updated_at: 2026-05-01T00:00:00Z
 ---
+
+# Newsletter prep checklist for Friday launch
 
 ## Problem
 

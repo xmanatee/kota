@@ -86,7 +86,7 @@ function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
 		if (taskQueueHasDispatchableWork(snapshot.taskQueue)) {
 			return [plain("dispatchable work available; waiting for idle dispatch - inspect `kota workflow status`")];
 		}
-		if (snapshot.taskQueue.openCount > 0) {
+		if (snapshot.taskQueue.activeCount > 0) {
 			return [plain("open work parked; no dispatchable tasks - inspect `kota status` or open `kota navigate` > Work")];
 		}
 	}
@@ -115,10 +115,8 @@ function renderWorkSection(snapshot: DashboardSnapshot): RenderNode[] {
 		line(plain(`  ${formatQueueCountsRow(task)}`)),
 		line(
 			plain(
-				`  Open ${task.openCount}  Dispatchable ${task.dispatchableCount}` +
-					`  Actionable ${task.actionableCount}` +
-					`  Promotable ${task.promotableBacklogCount}` +
-					`  Pullable ${task.pullableCount}`,
+				`  Active ${task.activeCount}  Dispatchable ${task.dispatchableCount}` +
+					`  Actionable ${task.actionableCount}`,
 			),
 		),
 		blank(),

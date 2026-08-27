@@ -24,7 +24,7 @@ const NOW = new Date("2026-06-04T12:00:00.000Z");
 
 function makeScope(label: string): string {
   const dir = mkdtempSync(join(tmpdir(), `kota-scope-improver-actions-${label}-`));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
+  for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
     writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
   }
@@ -141,7 +141,7 @@ describe("scope improvement actions", () => {
       expect.arrayContaining([expect.objectContaining({ kind: "dropped-task", taskId })]),
     );
     expect(
-      existsSync(join(workspaceRoot, "data", "tasks", "dropped", `${taskId}.md`)),
+      existsSync(join(workspaceRoot, "data", "tasks", "archive", `${taskId}.md`)),
     ).toBe(true);
   });
 

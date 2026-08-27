@@ -76,14 +76,10 @@ function writeFileEnsuringDir(path: string, content: string): void {
 }
 
 function moveTaskToDone(workingDir: string): void {
-  const readyPath = join(workingDir, "data", "tasks", "ready", `${TASK_ID}.md`);
-  const donePath = join(workingDir, "data", "tasks", "done", `${TASK_ID}.md`);
+  const readyPath = join(workingDir, "data", "tasks", `${TASK_ID}.md`);
+  const donePath = join(workingDir, "data", "tasks", "archive", `${TASK_ID}.md`);
   const content = readFileSync(readyPath, "utf8")
-    .replace("status: ready", "status: done")
-    .replace(
-      "updated_at: 2026-05-26T00:00:00.000Z",
-      "updated_at: 2026-05-26T01:00:00.000Z",
-    );
+    .replace("status: open\npriority: p2", "status: done");
   writeFileEnsuringDir(donePath, content);
   rmSync(readyPath);
 }

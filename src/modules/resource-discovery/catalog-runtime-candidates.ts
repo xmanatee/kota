@@ -195,7 +195,7 @@ function recallSearchText(hit: RecallHit): string {
     case "history":
       return compact([hit.title, hit.cwd]);
     case "tasks":
-      return compact([hit.title, hit.state, hit.priority]);
+      return compact([hit.title, hit.state, hit.priority ?? ""]);
     case "answer":
       return compact([hit.query, hit.preview]);
   }
@@ -223,8 +223,7 @@ function recallMetadata(
       return metadata({
         ...base,
         state: hit.state,
-        priority: hit.priority,
-        updatedAt: hit.updatedAt,
+        ...(hit.priority !== null && { priority: hit.priority }),
       });
     case "answer":
       return metadata({

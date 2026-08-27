@@ -97,7 +97,7 @@ export function registerRetractCommand(
     .command("retract")
     .description(
       "Remove or supersede one prior cross-store record (memory, knowledge, tasks, inbox). " +
-        "Tasks route through the state machine into data/tasks/dropped/ — the file is not deleted.",
+        "Tasks route through the state machine into data/tasks/archive/ — the file is not deleted.",
     )
     .requiredOption(
       "-t, --target <target>",

@@ -50,15 +50,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md"
+      "path": "data/tasks/task-synthesize-support-triage-ingestion-decision.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md"
+      "path": "data/tasks/archive/task-synthesize-support-triage-ingestion-decision.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md",
+      "path": "data/tasks/archive/task-synthesize-support-triage-ingestion-decision.md",
       "needle": "status: done"
     },
     {
@@ -66,8 +66,8 @@
       "allowedPaths": [
         "research-synthesis-result.json",
         "research-synthesis-verification.json",
-        "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md",
-        "data/tasks/done/task-synthesize-support-triage-ingestion-decision.md"
+        "data/tasks/task-synthesize-support-triage-ingestion-decision.md",
+        "data/tasks/archive/task-synthesize-support-triage-ingestion-decision.md"
       ]
     }
   ],
@@ -135,7 +135,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-synthesize-support-triage-ingestion-decision.md"
+        "path": "data/tasks/task-synthesize-support-triage-ingestion-decision.md"
       },
       "expected": "pass"
     },

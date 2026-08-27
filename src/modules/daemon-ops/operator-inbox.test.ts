@@ -190,7 +190,7 @@ describe("operator inbox", () => {
         approvals: [approval()],
         questions: [ownerQuestion()],
         blockedContent: {
-          "task-needs-owner": "## Unblock Precondition\n\nkind: owner-decision\nslot: product-priority\n",
+          "task-needs-owner": "## Blocked on\n\nkind: owner-decision\nslot: product-priority\n",
         },
         setup: [setupRequirement()],
         runs: [failedRun()],

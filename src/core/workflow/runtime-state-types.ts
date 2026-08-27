@@ -49,6 +49,8 @@ export type WorkflowActiveRun = {
   runId: string;
   workflow: string;
   startedAt: string;
+  /** Trigger identity retained so task views can derive transient in-progress state. */
+  trigger?: WorkflowRunTrigger;
 };
 
 export type WorkflowQueuedRun = {

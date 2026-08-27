@@ -178,7 +178,6 @@ describe("answer route handler", () => {
             title: "Add recall seam",
             state: "done",
             priority: "p1",
-            updatedAt: "2026-04-25",
           },
         ],
       }),

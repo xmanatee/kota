@@ -9,8 +9,8 @@ export const requiredCausalFiles = [
 export const allowedChangedPaths = new Set([
   "debug-trace-result.json",
   "src/channel-registry.mjs",
-  "data/tasks/ready/task-fix-cross-hierarchy-signal-routing.md",
-  "data/tasks/done/task-fix-cross-hierarchy-signal-routing.md",
+  "data/tasks/task-fix-cross-hierarchy-signal-routing.md",
+  "data/tasks/archive/task-fix-cross-hierarchy-signal-routing.md",
 ]);
 
 export const forbiddenChangedPaths = [

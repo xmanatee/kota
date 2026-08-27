@@ -7,9 +7,10 @@ Your job is to implement the one normalized task identified by the trigger paylo
   task.
 - The runtime already owns this task resource and isolated this workspace. Do
   not create branches, worktrees, claims, leases, commits, or merge attempts.
-- A `ready` task may move to `doing` while you work. Before stopping, move only
+- The task stays `open` while this builder run is active; runtime ownership is
+  the transient evidence that work is in progress. Before stopping, move only
   the targeted task to `done`, `blocked`, or `dropped` through the normal task
-  command so its state is part of the isolated change set.
+  command so its terminal or blocked state is part of the isolated change set.
 - Treat typed `depends_on` entries as hard constraints. The dispatcher admitted
   this contract only after its dependencies were complete; report a changed or
   contradictory contract instead of switching tasks.

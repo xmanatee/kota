@@ -20,9 +20,8 @@ const reviewFollowUpTaskOutputSchema = {
   required: [
     "topicKey",
     "title",
-    "summary",
+    "problem",
     "priority",
-    "area",
     "evidenceIds",
     "howWeWillKnow",
   ],
@@ -30,12 +29,11 @@ const reviewFollowUpTaskOutputSchema = {
   properties: {
     topicKey: { type: "string", pattern: "^[a-z0-9][a-z0-9:_-]*$" },
     title: { type: "string" },
-    summary: { type: "string" },
+    problem: { type: "string" },
     priority: {
       type: "string",
       enum: ["p0", "p1", "p2", "p3"],
     },
-    area: { type: "string" },
     evidenceIds: { type: "array", items: { type: "string" } },
     howWeWillKnow: { type: "string" },
   },

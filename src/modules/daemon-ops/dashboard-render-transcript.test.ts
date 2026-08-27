@@ -22,16 +22,12 @@ describe("renderDashboard owner transcript regression", () => {
     lastCompletedStatus: "success",
     taskQueue: {
       inboxCount: 0,
-      openCount: 8,
-      pullableCount: 1,
+      activeCount: 8,
       actionableCount: 1,
-      promotableBacklogCount: 0,
       dispatchableCount: 1,
       hasDispatchableWork: true,
       counts: {
-        backlog: 0,
-        ready: 1,
-        doing: 0,
+        open: 1,
         blocked: 7,
         done: 668,
         dropped: 17,
@@ -54,10 +50,10 @@ describe("renderDashboard owner transcript regression", () => {
       expect(output).toMatch(/Definitions\s+14/);
       expect(output.match(/KOTA Daemon/g) ?? []).toHaveLength(1);
       expect(output).toContain("Work");
-      expect(output).toMatch(/Ready\s+1/);
+      expect(output).toMatch(/Open\s+1/);
       expect(output).toMatch(/Blocked\s+7/);
-      expect(output).not.toMatch(/Doing\s+0/);
-      expect(output).not.toMatch(/Backlog\s+0/);
+      expect(output).not.toMatch(/Done\s+668/);
+      expect(output).not.toMatch(/Dropped\s+17/);
       const activityLine = output
         .split("\n")
         .find((line) => line.trim().startsWith("Activity "));

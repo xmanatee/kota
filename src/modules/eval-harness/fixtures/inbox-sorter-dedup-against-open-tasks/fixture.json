@@ -1,6 +1,6 @@
 {
   "id": "inbox-sorter-dedup-against-open-tasks",
-  "description": "Inbox contains a rough idea that duplicates an existing backlog task. Fixture passes only when the inbox is drained AND no new duplicate task was created AND the existing task is preserved.",
+  "description": "Inbox contains a rough idea that duplicates an existing open task. Fixture passes only when the inbox is drained AND no new duplicate task was created AND the existing task is preserved.",
   "role": "inbox-sorter",
   "workflowName": "inbox-sorter",
   "budgetMs": 900000,
@@ -11,7 +11,7 @@
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/backlog/task-add-cli-error-message-hints.md"
+      "path": "data/tasks/task-add-cli-error-message-hints.md"
     },
     {
       "kind": "shell-succeeds",
@@ -38,7 +38,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/backlog/task-add-cli-error-message-hints.md"
+        "path": "data/tasks/task-add-cli-error-message-hints.md"
       },
       "expected": "pass"
     }
@@ -49,7 +49,7 @@
         {
           "kind": "copy-fixture-file",
           "sourcePath": "calibration/adversarial/task-calibration-extra.md",
-          "targetPath": "data/tasks/ready/task-calibration-dedup-extra.md"
+          "targetPath": "data/tasks/task-calibration-dedup-extra.md"
         }
       ]
     },
@@ -67,7 +67,7 @@
         {
           "kind": "copy-fixture-file",
           "sourcePath": "calibration/adversarial/task-calibration-extra.md",
-          "targetPath": "data/tasks/ready/task-calibration-dedup-extra.md"
+          "targetPath": "data/tasks/task-calibration-dedup-extra.md"
         }
       ]
     }

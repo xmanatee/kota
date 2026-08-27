@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
   evaluateBlockedPrecondition,
   parseBlockedPrecondition,
-  promotionTargetState,
   readOwnerAskMarkers,
   renderOwnerAskMarker,
   renderOwnerResolvedMarker,
@@ -24,11 +23,11 @@ function bodyWith(section: string): string {
 }
 
 function fenced(...lines: string[]): string {
-  return ["## Unblock Precondition", "", "```", ...lines, "```"].join("\n");
+  return ["## Blocked on", "", "```", ...lines, "```"].join("\n");
 }
 
 function inline(...lines: string[]): string {
-  return ["## Unblock Precondition", "", ...lines].join("\n");
+  return ["## Blocked on", "", ...lines].join("\n");
 }
 
 describe("parseBlockedPrecondition", () => {
@@ -39,7 +38,7 @@ describe("parseBlockedPrecondition", () => {
   });
 
   it("rejects an empty section", () => {
-    const result = parseBlockedPrecondition(bodyWith("## Unblock Precondition\n\n"));
+    const result = parseBlockedPrecondition(bodyWith("## Blocked on\n\n"));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toMatch(/empty/);
   });
@@ -50,27 +49,6 @@ describe("parseBlockedPrecondition", () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toMatch(/unknown precondition kind/);
-  });
-
-  it("parses task-done", () => {
-    const result = parseBlockedPrecondition(
-      bodyWith(fenced("kind: task-done", "ref: task-foo-bar")),
-    );
-    expect(result.ok).toBe(true);
-    if (result.ok) {
-      expect(result.precondition).toEqual({
-        kind: "task-done",
-        ref: "task-foo-bar",
-      });
-    }
-  });
-
-  it("rejects task-done with a non-task-id ref", () => {
-    const result = parseBlockedPrecondition(
-      bodyWith(fenced("kind: task-done", "ref: not-a-task-id")),
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatch(/task-done 'ref' must match/);
   });
 
   it("parses capability-installed playwright probe", () => {
@@ -185,7 +163,7 @@ describe("parseBlockedPrecondition", () => {
 
   it("accepts a section without a fenced code block", () => {
     const result = parseBlockedPrecondition(
-      bodyWith(inline("kind: task-done", "ref: task-something")),
+      bodyWith(inline("kind: owner-decision", "slot: decision", "question: Decide?")),
     );
     expect(result.ok).toBe(true);
   });
@@ -193,35 +171,11 @@ describe("parseBlockedPrecondition", () => {
 
 function makeBlockedTaskTree(): { workspaceRoot: string } {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "blocked-precondition-"));
-  for (const state of ["done", "blocked", "ready", "backlog"]) {
-    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   return { workspaceRoot };
 }
 
 describe("evaluateBlockedPrecondition", () => {
-  it("task-done is satisfied when the referent file exists in done/", () => {
-    const { workspaceRoot } = makeBlockedTaskTree();
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "done", "task-enabler.md"),
-      "---\nid: task-enabler\n---\n",
-    );
-    const result = evaluateBlockedPrecondition(
-      { kind: "task-done", ref: "task-enabler" },
-      { workspaceRoot, taskBody: "" },
-    );
-    expect(result.satisfied).toBe(true);
-  });
-
-  it("task-done is not satisfied when the referent file is missing", () => {
-    const { workspaceRoot } = makeBlockedTaskTree();
-    const result = evaluateBlockedPrecondition(
-      { kind: "task-done", ref: "task-enabler" },
-      { workspaceRoot, taskBody: "" },
-    );
-    expect(result.satisfied).toBe(false);
-  });
-
   it("operator-capture matches a glob path", () => {
     const { workspaceRoot } = makeBlockedTaskTree();
     const proofDir = join(workspaceRoot, ".kota", "runs", "harness-parity-2026-04-25");
@@ -332,16 +286,6 @@ describe("evaluateBlockedPrecondition", () => {
       { workspaceRoot, taskBody: "" },
     );
     expect(missing.satisfied).toBe(false);
-  });
-});
-
-describe("promotionTargetState", () => {
-  it("sends p0 and p1 to ready and everything else to backlog", () => {
-    expect(promotionTargetState("p0")).toBe("ready");
-    expect(promotionTargetState("p1")).toBe("ready");
-    expect(promotionTargetState("p2")).toBe("backlog");
-    expect(promotionTargetState("p3")).toBe("backlog");
-    expect(promotionTargetState("")).toBe("backlog");
   });
 });
 

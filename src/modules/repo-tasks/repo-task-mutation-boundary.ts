@@ -10,14 +10,11 @@ import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provid
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateResult,
-  RepoTaskGcOptions,
-  RepoTaskGcResult,
   RepoTaskMoveResult,
   RepoTaskPriority,
   RepoTaskState,
   RepoTaskUpdateBodyResult,
 } from "./client.js";
-import { gcTerminalTasks } from "./repo-task-gc.js";
 import {
   getRepoInboxDir,
   moveTaskById,
@@ -52,17 +49,9 @@ export type RepoTaskMutationTarget =
 type NormalizedCreateInput = Readonly<{
   title: string;
   priority: RepoTaskPriority;
-  area: string;
-  state: RepoTaskState;
-  summary?: string;
+  state?: "open" | "blocked";
 }>;
 
-type QuickCreateRequest = Readonly<{
-  kind: "quick-create";
-  id: string;
-  title: string;
-  summary: string;
-}>;
 type CreateRequest = Readonly<{ kind: "create"; options: NormalizedCreateInput }>;
 type CaptureRequest = Readonly<{ kind: "capture"; title: string }>;
 type CaptureInboxRequest = Readonly<{
@@ -72,20 +61,14 @@ type CaptureInboxRequest = Readonly<{
 }>;
 type MoveRequest = Readonly<{ kind: "move"; id: string; state: RepoTaskState }>;
 type UpdateBodyRequest = Readonly<{ kind: "update-body"; id: string; body: string }>;
-type GcRequest = Readonly<{
-  kind: "gc";
-  options: Omit<RepoTaskGcOptions, "scopeId">;
-}>;
 type RetractInboxRequest = Readonly<{ kind: "retract-inbox"; path: string }>;
 
 export type RepoTaskMutationRequest =
-  | QuickCreateRequest
   | CreateRequest
   | CaptureRequest
   | CaptureInboxRequest
   | MoveRequest
   | UpdateBodyRequest
-  | GcRequest
   | RetractInboxRequest;
 
 export type RepoTaskInboxRetractionResult =
@@ -97,7 +80,6 @@ export type RepoTaskMutationValue =
   | RepoTaskCaptureResult
   | RepoTaskMoveResult
   | RepoTaskUpdateBodyResult
-  | RepoTaskGcResult
   | RepoTaskInboxRetractionResult;
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -141,13 +123,6 @@ export function decodeRepoTaskMutationRequest(value: unknown): RepoTaskMutationR
     throw new Error("Repo-task mutation request must be an object with a kind");
   }
   switch (value.kind) {
-    case "quick-create":
-      return {
-        kind: value.kind,
-        id: requireString(value, "id"),
-        title: requireString(value, "title"),
-        summary: requireString(value, "summary"),
-      };
     case "create": {
       if (!isObject(value.options)) throw new Error("Repo-task create requires options");
       const options = value.options;
@@ -156,9 +131,9 @@ export function decodeRepoTaskMutationRequest(value: unknown): RepoTaskMutationR
         options: {
           title: requireString(options, "title"),
           priority: requirePriority(options, "priority"),
-          area: requireString(options, "area"),
-          state: requireState(options, "state"),
-          ...(typeof options.summary === "string" ? { summary: options.summary } : {}),
+          ...(options.state === undefined
+            ? {}
+            : { state: requireState(options, "state") as "open" | "blocked" }),
         },
       };
     }
@@ -182,20 +157,6 @@ export function decodeRepoTaskMutationRequest(value: unknown): RepoTaskMutationR
         id: requireString(value, "id"),
         body: requireString(value, "body"),
       };
-    case "gc": {
-      if (!isObject(value.options)) throw new Error("Repo-task gc requires options");
-      const days = value.options.days;
-      if (days !== undefined && (typeof days !== "number" || !Number.isFinite(days) || days <= 0)) {
-        throw new Error("Repo-task gc days must be a positive number");
-      }
-      return {
-        kind: value.kind,
-        options: {
-          ...(days !== undefined ? { days } : {}),
-          ...(typeof value.options.dryRun === "boolean" ? { dryRun: value.options.dryRun } : {}),
-        },
-      };
-    }
     case "retract-inbox":
       return { kind: value.kind, path: requireString(value, "path") };
     default:
@@ -252,21 +213,6 @@ function executeRepoTaskMutation(
   request: RepoTaskMutationRequest,
 ): RepoTaskMutationValue {
   switch (request.kind) {
-    case "quick-create": {
-      if (!isRepoTaskId(request.id)) {
-        return { ok: false, reason: "invalid_slug", message: "Invalid generated task id" };
-      }
-      const path = join(getRepoInboxDir(repoRoot), `${request.id}.md`);
-      if (readRepoInboxFile(repoRoot, path) !== null) {
-        return { ok: false, reason: "already_exists" };
-      }
-      writeRepoInboxFile(
-        repoRoot,
-        path,
-        `# ${request.title}\n${request.summary ? `\n${request.summary}\n` : ""}`,
-      );
-      return { ok: true, id: request.id, path: relative(repoRoot, path) };
-    }
     case "create":
       return createNormalizedTask(repoRoot, request.options);
     case "capture":
@@ -283,8 +229,6 @@ function executeRepoTaskMutation(
       return moveResult(repoRoot, request.id, request.state);
     case "update-body":
       return updateTaskBody(repoRoot, request.id, request.body);
-    case "gc":
-      return gcTerminalTasks(repoRoot, request.options);
     case "retract-inbox":
       return retractInbox(repoRoot, request.path);
   }
@@ -297,7 +241,6 @@ export function repoTaskMutationResources(
   if (request.kind === "move" || request.kind === "update-body") {
     return [`task:${request.id}`];
   }
-  if (request.kind === "quick-create") return [`inbox:${request.id}`];
   if (request.kind === "capture-inbox") return [`inbox:${request.id}`];
   if (request.kind === "retract-inbox") {
     return [`inbox:${resolveInboxRetraction(repoRoot, request.path).recordId}`];
@@ -310,16 +253,7 @@ export function repoTaskMutationResources(
     const slug = slugifyTaskTitle(request.title);
     return slug ? [`inbox:task-${slug}`] : ["repo-tasks:invalid-request"];
   }
-  const preview = gcTerminalTasks(repoRoot, {
-    ...request.options,
-    dryRun: true,
-  });
-  return [
-    "repo-tasks:gc",
-    ...preview.removed.map(
-      (file) => `task:${file.replace(/\.md$/, "")}`,
-    ),
-  ];
+  return ["repo-tasks:mutation"];
 }
 
 function preflightRepoTaskMutation(
@@ -330,9 +264,6 @@ function preflightRepoTaskMutation(
   }
   if (request.kind === "update-body" && !isRepoTaskId(request.id)) {
     return { ok: false, reason: "invalid_id" };
-  }
-  if (request.kind === "quick-create" && !isRepoTaskId(request.id)) {
-    return { ok: false, reason: "invalid_slug", message: "Invalid generated task id" };
   }
   return null;
 }
@@ -383,7 +314,7 @@ export function executeRepoTaskMutationInRun(
 
 export function mutateRepoTask(
   target: RepoTaskMutationTarget,
-  request: QuickCreateRequest | CreateRequest,
+  request: CreateRequest,
 ): Promise<RepoTaskCreateResult>;
 export function mutateRepoTask(
   target: RepoTaskMutationTarget,
@@ -401,10 +332,6 @@ export function mutateRepoTask(
   target: RepoTaskMutationTarget,
   request: UpdateBodyRequest,
 ): Promise<RepoTaskUpdateBodyResult>;
-export function mutateRepoTask(
-  target: RepoTaskMutationTarget,
-  request: GcRequest,
-): Promise<RepoTaskGcResult>;
 export function mutateRepoTask(
   target: RepoTaskMutationTarget,
   request: RetractInboxRequest,

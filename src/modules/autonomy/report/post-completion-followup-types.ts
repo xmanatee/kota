@@ -57,6 +57,7 @@ export type BuildPostCompletionFollowUpReportInput = {
 export type BuilderEvidence = {
   runId: string;
   commitSha: string;
+  completedAtMs: number;
 };
 
 export type EvidenceRefs = {

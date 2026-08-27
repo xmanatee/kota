@@ -65,7 +65,7 @@ export function baseShadowReviewDeclaration(
         kind: "task-queue",
         summary: "Fixture target.",
         artifacts: [
-          { path: "artifact:diff", content: "diff --git a/data/inbox/x b/data/tasks/ready/y" },
+          { path: "artifact:diff", content: "diff --git a/data/inbox/x b/data/tasks/y" },
         ],
       },
     }),

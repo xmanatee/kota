@@ -17,13 +17,14 @@ describe("task show route", () => {
   });
 
   it("returns 200 with state and content for an existing task", async () => {
-    writeTaskFile(repoRoot, "ready", "showme", { id: "task-showme", title: "Show me" });
+    writeTaskFile(repoRoot, "open", "showme", { id: "task-showme", title: "Show me" });
     const { res, result } = mockResponse();
     await handleTaskShow(res, "task-showme", repoRoot);
     expect(result.status).toBe(200);
     const body = result.body as { state: string; content: string };
-    expect(body.state).toBe("ready");
-    expect(body.content).toContain("id: task-showme");
+    expect(body.state).toBe("open");
+    expect(body.content).toContain("# Show me");
+    expect(body.content).not.toContain("id: task-showme");
   });
 
   it("returns 404 when task does not exist", async () => {

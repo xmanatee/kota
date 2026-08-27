@@ -94,7 +94,7 @@ export async function inspectProgressSemanticBoundary(args: {
   const scopeId = deriveDirectoryScopeId(args.scopeRoot);
   const head = getRepoHeadSha(args.workspaceRoot);
   const queue = getRepoTaskQueueSnapshot(args.workspaceRoot);
-  const parked = queue.openCount > 0 && !queue.hasDispatchableWork;
+  const parked = queue.activeCount > 0 && !queue.hasDispatchableWork;
   const ownerWatermark = latestOwnerDecisionWatermark(args.stateDir);
   const stored = args.progressBoundaryState;
   const previous = stored?.scopeId === scopeId ? stored : null;
@@ -147,7 +147,10 @@ export async function inspectProgressSemanticBoundary(args: {
       transition.toState === "blocked" || transition.toState === "dropped",
   );
   const strategic = transitions.filter((transition) =>
-    isStrategicCompletion({ ...transition, task: taskById.get(transition.id) })
+    isStrategicCompletion({
+      ...transition,
+      task: taskById.get(transition.id),
+    })
   );
   const newlyResolvedDecisions = ownerDecisionRecords(args.stateDir)
     .flatMap((record) => {

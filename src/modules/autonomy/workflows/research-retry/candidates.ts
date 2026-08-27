@@ -9,7 +9,6 @@ import { listRepoTasksInState } from "#modules/repo-tasks/repo-tasks-domain.js";
  */
 export type ResearchRetryCandidate = {
   id: string;
-  updatedAt: string;
   urls: string[];
   body: string;
 };
@@ -34,8 +33,7 @@ export function extractResourceUrls(taskBody: string): string[] {
 
 /**
  * List blocked tasks whose body carries a `## Resources` section of URLs
- * eligible for retry. Sorted by `updatedAt` ascending so the oldest
- * blocker is retried first.
+ * eligible for retry. Sorted by stable task identity.
  */
 export function listResearchRetryCandidates(workspaceRoot: string): ResearchRetryCandidate[] {
   const blocked = listRepoTasksInState(workspaceRoot, "blocked");
@@ -45,12 +43,11 @@ export function listResearchRetryCandidates(workspaceRoot: string): ResearchRetr
     const urls = extractResourceUrls(record.body);
     if (urls.length === 0) continue;
     candidates.push({
-      id: record.frontmatter.id,
-      updatedAt: record.frontmatter.updatedAt,
+      id: record.id,
       urls,
       body: record.body,
     });
   }
-  candidates.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+  candidates.sort((a, b) => a.id.localeCompare(b.id));
   return candidates;
 }

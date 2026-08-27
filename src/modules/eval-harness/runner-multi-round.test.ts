@@ -47,7 +47,7 @@ describe("runFixture multi-round", () => {
           );
           expect(
             readFileSync(
-              join(workingDir, "data", "tasks", "ready", "task-round-2.md"),
+              join(workingDir, "data", "tasks", "task-round-2.md"),
               "utf-8",
             ),
           ).toBe("round 2 task");

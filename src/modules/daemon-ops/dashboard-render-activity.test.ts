@@ -9,16 +9,12 @@ describe("renderDashboard activity", () => {
   it("skips the Work section entirely when the task queue has no open signal", () => {
     const emptyQueue: DashboardTaskQueue = {
       inboxCount: 0,
-      openCount: 0,
-      pullableCount: 0,
+      activeCount: 0,
       actionableCount: 0,
-      promotableBacklogCount: 0,
       dispatchableCount: 0,
       hasDispatchableWork: false,
       counts: {
-        backlog: 0,
-        ready: 0,
-        doing: 0,
+        open: 0,
         blocked: 0,
         done: 500,
         dropped: 10,
@@ -36,16 +32,12 @@ describe("renderDashboard activity", () => {
         makeSnapshot({
           taskQueue: {
             inboxCount: 0,
-            openCount: 15,
-            pullableCount: 5,
+            activeCount: 15,
             actionableCount: 0,
-            promotableBacklogCount: 0,
             dispatchableCount: 0,
             hasDispatchableWork: false,
             counts: {
-              backlog: 7,
-              ready: 0,
-              doing: 0,
+              open: 7,
               blocked: 8,
               done: 1411,
               dropped: 23,
@@ -58,8 +50,7 @@ describe("renderDashboard activity", () => {
     expect(output).toContain("open work parked; no dispatchable tasks");
     expect(output).not.toContain("work available; waiting for idle dispatch");
     expect(output).toContain("Dispatchable 0");
-    expect(output).toContain("Promotable 0");
-    expect(output).toContain("Pullable 5");
+    expect(output).toContain("Active 15");
   });
 
   it("shows last completed workflow", () => {

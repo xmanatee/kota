@@ -53,40 +53,30 @@ describe("post-completion corrective follow-up report", () => {
 
     writeTask(workspaceRoot, "done", "task-completed-parent", {
       priority: "p2",
-      area: "autonomy",
-      updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
     });
     writeTask(workspaceRoot, "done", "task-source-parent", {
       priority: "p2",
-      area: "autonomy",
-      updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the source change.\n",
     });
-    writeTask(workspaceRoot, "ready", "task-progress-regression-follow-up", {
+    writeTask(workspaceRoot, "open", "task-progress-regression-follow-up", {
       priority: "p2",
-      area: "autonomy",
       title: "Fix regression from progress review",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nCreated by progress-reviewer after review verdict: needs-steering.\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n\n` +
         "The runtime regression needs a corrective follow-up.\n",
     });
-    writeTask(workspaceRoot, "ready", "task-planned-sibling", {
+    writeTask(workspaceRoot, "open", "task-planned-sibling", {
       priority: "p2",
-      area: "autonomy",
       title: "Planned sibling for the parent initiative",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nThis planned sibling references " +
         `task-completed-parent and ${parentRunId}, but it is normal decomposition.\n`,
     });
-    writeTask(workspaceRoot, "ready", "task-local-overlap-diagnostic", {
+    writeTask(workspaceRoot, "open", "task-local-overlap-diagnostic", {
       priority: "p2",
-      area: "autonomy",
       title: "Record lifecycle diagnostic without linking overlap checks",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nThis lifecycle diagnostic compares existing surfaces.\n\n" +
         "## Source / Intent\n\nLocal overlap check:\n\n" +
@@ -95,19 +85,15 @@ describe("post-completion corrective follow-up report", () => {
     });
     writeTask(workspaceRoot, "blocked", "task-operator-capture-follow-up", {
       priority: "p2",
-      area: "client",
       title: "Capture missing evidence for completed parent",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nMissing evidence cites " +
         `${parentRunId} and git:commit:abc123def456.\n\n` +
-        "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
+        "## Blocked on\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
     });
-    writeTask(workspaceRoot, "ready", "task-workflow-failure-follow-up", {
+    writeTask(workspaceRoot, "open", "task-workflow-failure-follow-up", {
       priority: "p3",
-      area: "autonomy",
       title: "Repair recurring workflow failure",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nCreated by progress-reviewer after a workflow-failure report.\n" +
         `Evidence ids:\n\n- run:${sourceRunId}\n- git:commit:fedcba987654\n`,
@@ -178,47 +164,37 @@ describe("post-completion corrective follow-up report", () => {
 
     writeTask(workspaceRoot, "done", "task-completed-parent", {
       priority: "p2",
-      area: "autonomy",
-      updatedAt: new Date(NOW - MS_PER_DAY).toISOString(),
       body: "## Acceptance Evidence\n\n- Builder run landed the parent change.\n",
     });
-    writeTask(workspaceRoot, "ready", "task-ci-failure-follow-up", {
+    writeTask(workspaceRoot, "open", "task-ci-failure-follow-up", {
       priority: "p2",
-      area: "autonomy",
       title: "Repair failed CI after completed parent",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nCI failed after the completed builder work landed.\n\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n- git:commit:abc123def456\n\n` +
         "The follow-up should be counted as integration-boundary breakage.\n",
     });
-    writeTask(workspaceRoot, "ready", "task-generic-regression-follow-up", {
+    writeTask(workspaceRoot, "open", "task-generic-regression-follow-up", {
       priority: "p2",
-      area: "autonomy",
       title: "Repair generic runtime regression",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nA runtime regression references the completed parent.\n\n" +
         `Evidence ids:\n\n- run:${parentRunId}\n`,
     });
-    writeTask(workspaceRoot, "ready", "task-planned-test-expansion", {
+    writeTask(workspaceRoot, "open", "task-planned-test-expansion", {
       priority: "p2",
-      area: "autonomy",
       title: "Planned test expansion sibling",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nThis planned sibling adds ordinary test coverage for " +
         `task-completed-parent after ${parentRunId}; it is not corrective fallout.\n`,
     });
     writeTask(workspaceRoot, "blocked", "task-blocked-ci-capture", {
       priority: "p2",
-      area: "client",
       title: "Capture CI failure evidence for completed parent",
-      updatedAt: new Date(NOW).toISOString(),
       body:
         "## Problem\n\nCI failed after " +
         `${parentRunId} and git:commit:abc123def456.\n\n` +
-        "## Unblock Precondition\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
+        "## Blocked on\n\nkind: operator-capture\npath: .kota/runs/capture.png\ndescription: Capture the operator-visible proof.\n",
     });
 
     const report = aggregateAutonomyReport({

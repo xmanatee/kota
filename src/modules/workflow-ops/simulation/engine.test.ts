@@ -481,7 +481,7 @@ describe("workflow automation simulation engine", () => {
       event: "task.changed",
       payload: {
         scopeId: "scope-a",
-        bucket: "ready",
+        bucket: "open",
         taskId: "task-one",
       },
     }));
@@ -491,7 +491,7 @@ describe("workflow automation simulation engine", () => {
       event: "task.changed",
       payload: {
         scopeId: "scope-a",
-        bucket: "ready",
+        bucket: "open",
         taskId: "task-two",
       },
     }));

@@ -10,7 +10,7 @@ eval-harness replay adapter. The fixture regression-gates the
 - `initial/` seeds a failed-builder run with `errorKind: step-timeout` and the
   immutable task identity carried by the builder's original
   `autonomy.queue.available` trigger. The matching task remains actionable in
-  `doing/` with the same path, timestamp, and semantic digest. No workflow-owned
+  `open` at the same path with the same semantic digest. No workflow-owned
   claim file participates in ownership. The fixture subprocess runs
   `kota workflow exec decomposer` with the
   builder-failure trigger payload, so `assess-failure` resolves

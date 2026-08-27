@@ -112,21 +112,17 @@ describe("security-review due check", () => {
   }
 
   function writeOpenSecurityTask(): void {
-    const dir = join(workspaceRoot, "data", "tasks", "ready");
+    const dir = join(workspaceRoot, "data", "tasks");
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       join(dir, "task-security-review-open-finding.md"),
       [
         "---",
-        "id: task-security-review-open-finding",
-        "title: Security review: open finding",
-        "status: ready",
+        "status: open",
         "priority: p1",
-        "area: security",
-        "summary: open finding",
-        "created_at: 2026-05-24T00:00:00.000Z",
-        "updated_at: 2026-05-24T00:00:00.000Z",
         "---",
+        "",
+        "# Security review: open finding",
         "",
         "## Source / Intent",
         "",

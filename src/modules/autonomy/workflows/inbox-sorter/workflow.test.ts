@@ -8,9 +8,9 @@ import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
 const TASK_STATES = [
-  "backlog",
-  "ready",
-  "doing",
+  "open",
+  "open",
+  "open",
   "blocked",
   "done",
   "dropped",

@@ -83,7 +83,7 @@ export function describeSecurityReviewScanTests(): void {
           `clients/apple/.build/generated/contract-fixture-${index}.json`,
           noisyMatch,
         );
-        fixture.writeProjectFile(`data/tasks/done/noisy-security-note-${index}.md`, noisyMatch);
+        fixture.writeProjectFile(`data/tasks/archive/noisy-security-note-${index}.md`, noisyMatch);
       }
       fixture.writeProjectFile(
         "src/modules/approval-queue/index.ts",

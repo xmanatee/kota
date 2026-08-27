@@ -61,15 +61,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-implement-reimbursement-requirements-canary.md"
+      "path": "data/tasks/task-implement-reimbursement-requirements-canary.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-implement-reimbursement-requirements-canary.md"
+      "path": "data/tasks/archive/task-implement-reimbursement-requirements-canary.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-implement-reimbursement-requirements-canary.md",
+      "path": "data/tasks/archive/task-implement-reimbursement-requirements-canary.md",
       "needle": "status: done"
     },
     {
@@ -77,8 +77,8 @@
       "allowedPaths": [
         "requirements-result.json",
         "src/reimbursement-service.mjs",
-        "data/tasks/ready/task-implement-reimbursement-requirements-canary.md",
-        "data/tasks/done/task-implement-reimbursement-requirements-canary.md"
+        "data/tasks/task-implement-reimbursement-requirements-canary.md",
+        "data/tasks/archive/task-implement-reimbursement-requirements-canary.md"
       ]
     }
   ],
@@ -146,7 +146,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-implement-reimbursement-requirements-canary.md"
+        "path": "data/tasks/task-implement-reimbursement-requirements-canary.md"
       },
       "expected": "pass"
     }

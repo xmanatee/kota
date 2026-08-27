@@ -4,9 +4,7 @@ import { daemonRequest, type DaemonHttp } from './http';
 
 export interface TaskCounts {
   inbox?: number;
-  ready?: number;
-  backlog?: number;
-  doing?: number;
+  open?: number;
   blocked?: number;
 }
 
@@ -14,20 +12,19 @@ export interface TaskEntry {
   id: string;
   title: string;
   priority: string;
-  area: string;
-  summary: string;
+  body: string;
+  waitingOnTasks: string[];
+  inProgress: boolean;
 }
 
 export interface TasksResponse {
   counts: TaskCounts;
   tasks: {
-    doing?: TaskEntry[];
-    ready?: TaskEntry[];
-    backlog?: TaskEntry[];
+    open?: TaskEntry[];
     blocked?: TaskEntry[];
   };
 }
 
 export function getTasks(http: DaemonHttp): Promise<TasksResponse> {
-  return daemonRequest<TasksResponse>(http, '/tasks');
+  return daemonRequest<TasksResponse>(http, '/api/tasks');
 }

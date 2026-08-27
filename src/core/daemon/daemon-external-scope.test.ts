@@ -54,9 +54,8 @@ describe("daemon operates against an external scope fixture", () => {
   const kotaRoot = process.cwd();
   let fixtureDir: string;
   let kotaRunsBefore: Set<string>;
-  let kotaTasksReadyBefore: Set<string>;
-  let kotaTasksBacklogBefore: Set<string>;
-  let kotaTasksDoingBefore: Set<string>;
+  let kotaTasksBefore: Set<string>;
+  let kotaTaskArchiveBefore: Set<string>;
   let kotaInboxBefore: Set<string>;
 
   beforeEach(() => {
@@ -79,9 +78,8 @@ describe("daemon operates against an external scope fixture", () => {
     );
 
     kotaRunsBefore = snapshotDirEntries(join(kotaRoot, ".kota", "runs"));
-    kotaTasksReadyBefore = snapshotDirEntries(join(kotaRoot, "data", "tasks", "ready"));
-    kotaTasksBacklogBefore = snapshotDirEntries(join(kotaRoot, "data", "tasks", "backlog"));
-    kotaTasksDoingBefore = snapshotDirEntries(join(kotaRoot, "data", "tasks", "doing"));
+    kotaTasksBefore = snapshotDirEntries(join(kotaRoot, "data", "tasks"));
+    kotaTaskArchiveBefore = snapshotDirEntries(join(kotaRoot, "data", "tasks", "archive"));
     kotaInboxBefore = snapshotDirEntries(join(kotaRoot, "data", "inbox"));
   });
 
@@ -97,17 +95,13 @@ describe("daemon operates against an external scope fixture", () => {
       "fixture-noop runs may not escape into KOTA's .kota/runs",
     ).toEqual([]);
     expect(
-      snapshotDirEntries(join(kotaRoot, "data", "tasks", "ready")),
-      "no task may have escaped into KOTA's data/tasks/ready",
-    ).toEqual(kotaTasksReadyBefore);
+      snapshotDirEntries(join(kotaRoot, "data", "tasks")),
+      "no task may have escaped into KOTA's data/tasks",
+    ).toEqual(kotaTasksBefore);
     expect(
-      snapshotDirEntries(join(kotaRoot, "data", "tasks", "backlog")),
-      "no task may have escaped into KOTA's data/tasks/backlog",
-    ).toEqual(kotaTasksBacklogBefore);
-    expect(
-      snapshotDirEntries(join(kotaRoot, "data", "tasks", "doing")),
-      "no task may have escaped into KOTA's data/tasks/doing",
-    ).toEqual(kotaTasksDoingBefore);
+      snapshotDirEntries(join(kotaRoot, "data", "tasks", "archive")),
+      "no task may have escaped into KOTA's data/tasks/archive",
+    ).toEqual(kotaTaskArchiveBefore);
     expect(
       snapshotDirEntries(join(kotaRoot, "data", "inbox")),
       "no entry may have escaped into KOTA's data/inbox",

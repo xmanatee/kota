@@ -12,9 +12,7 @@ import type {
   TrajectoryDiagnosticReport,
 } from "./aggregate.js";
 import {
-  classificationRole,
   fmtUsd,
-  pct,
   priorityLabel,
   priorityRole,
 } from "./render-common.js";
@@ -37,28 +35,13 @@ export function renderExplorerBalance(explorer: ExplorerBalance): RenderNode[] {
       "muted",
     )));
   }
-  lines.push(blank());
-  lines.push(line(span("Strategic vs fan-out (by task area)", "muted", true)));
-  for (const row of explorer.byClassification) {
-    lines.push(line(
-      plain(`  ${row.classification.padEnd(10)} `),
-      span(
-        `${row.tasks} (${pct(row.tasks, explorer.totalTaskAdditions)})`,
-        classificationRole(row.classification),
-      ),
-    ));
-  }
   if (explorer.taskAdditions.length > 0) {
     lines.push(blank());
     lines.push(line(span("Task additions", "muted", true)));
     for (const t of explorer.taskAdditions) {
       lines.push(line(
         plain("  "),
-        span(t.classification.padEnd(10), classificationRole(t.classification)),
-        plain(" "),
         span(priorityLabel(t.priority).padEnd(3), priorityRole(t.priority)),
-        plain(" "),
-        plain(t.area.padEnd(14)),
         plain(" "),
         plain(t.title),
       ));
@@ -84,28 +67,12 @@ export function renderBuilderBreakdown(builder: BuilderBreakdown): RenderNode[] 
     )));
   }
   lines.push(blank());
-  lines.push(line(span("By area", "muted", true)));
-  for (const row of builder.byArea) {
-    lines.push(line(plain(
-      `  ${row.area.padEnd(16)} ${formatBuilderCostRow(row)}`,
-    )));
-  }
-  lines.push(blank());
   lines.push(line(span("By priority", "muted", true)));
   for (const row of builder.byPriority) {
     lines.push(line(
       plain("  "),
       span(priorityLabel(row.priority).padEnd(4), priorityRole(row.priority)),
       plain(`   ${formatBuilderCostRow(row)}`),
-    ));
-  }
-  lines.push(blank());
-  lines.push(line(span("Strategic vs fan-out", "muted", true)));
-  for (const row of builder.byClassification) {
-    lines.push(line(
-      plain("  "),
-      span(row.classification.padEnd(10), classificationRole(row.classification)),
-      plain(` ${formatBuilderCostRow(row)} (${pct(row.commits, builder.totalCommittedRuns)})`),
     ));
   }
   return lines;

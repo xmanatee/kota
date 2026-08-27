@@ -49,7 +49,7 @@ export type TaskProbeResult = {
 const PROBE_SECTION_RE = /(?:^|\n)## +Runtime Probe\s*\n([\s\S]*?)(?=\n## |\n?$)/;
 const CODE_FENCE_RE = /^\s*```[\w]*\n([\s\S]*?)\n```/;
 const DEFAULT_PROBE_TIMEOUT_MS = 120_000;
-const TRUSTED_PROBE_TASK_STATES = ["ready", "doing", "blocked", "done", "backlog"] as const;
+const TRUSTED_PROBE_TASK_DIRECTORIES = ["data/tasks", "data/tasks/archive"] as const;
 
 export function extractTaskProbe(taskContent: string): TaskProbe | null {
   const sectionMatch = taskContent.match(PROBE_SECTION_RE);
@@ -129,8 +129,8 @@ export async function verifyTaskProbeProvenance(args: {
   runCommand: WorkflowCommandRunner;
 }): Promise<TaskProbeProvenance> {
   const filename = basename(args.taskPath);
-  for (const state of TRUSTED_PROBE_TASK_STATES) {
-    const sourcePath = `data/tasks/${state}/${filename}`;
+  for (const directory of TRUSTED_PROBE_TASK_DIRECTORIES) {
+    const sourcePath = `${directory}/${filename}`;
     const sourceContent = await readHeadFile(
       args.workspaceRoot,
       sourcePath,

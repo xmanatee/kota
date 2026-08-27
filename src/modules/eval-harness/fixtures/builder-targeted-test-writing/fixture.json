@@ -35,15 +35,15 @@
     },
     {
       "kind": "file-absent",
-      "path": "data/tasks/ready/task-cover-cart-pricing-rules.md"
+      "path": "data/tasks/task-cover-cart-pricing-rules.md"
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/done/task-cover-cart-pricing-rules.md"
+      "path": "data/tasks/archive/task-cover-cart-pricing-rules.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/done/task-cover-cart-pricing-rules.md",
+      "path": "data/tasks/archive/task-cover-cart-pricing-rules.md",
       "needle": "status: done"
     },
     {
@@ -52,8 +52,8 @@
         "artifacts/test-writing-evidence.json",
         "test/pricing.test.mjs",
         "test/targeted-tests.json",
-        "data/tasks/ready/task-cover-cart-pricing-rules.md",
-        "data/tasks/done/task-cover-cart-pricing-rules.md"
+        "data/tasks/task-cover-cart-pricing-rules.md",
+        "data/tasks/archive/task-cover-cart-pricing-rules.md"
       ]
     }
   ],
@@ -131,7 +131,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/ready/task-cover-cart-pricing-rules.md"
+        "path": "data/tasks/task-cover-cart-pricing-rules.md"
       },
       "expected": "pass"
     },

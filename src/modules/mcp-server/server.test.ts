@@ -1165,7 +1165,7 @@ describe("McpServer", () => {
 				arguments: {},
 			});
 			const callResp = await readResponse(output);
-			sendRequest(input, 4, "resources/read", { uri: "kota://tasks/ready" });
+			sendRequest(input, 4, "resources/read", { uri: "kota://tasks/open" });
 			const resourceResp = await readResponse(output);
 			sendRequest(input, 5, "prompts/list");
 			const promptsResp = await readResponse(output);
@@ -1190,7 +1190,7 @@ describe("McpServer", () => {
 			});
 			expect(resourceResp.error).toBeUndefined();
 			expect(resourceResp.result).toMatchObject({
-				contents: [{ uri: "kota://tasks/ready", mimeType: "application/json" }],
+				contents: [{ uri: "kota://tasks/open", mimeType: "application/json" }],
 			});
 			expect(promptsResp.error).toBeUndefined();
 			const promptsResult = promptsResp.result as { prompts: Array<{ name: string }> };
@@ -2925,9 +2925,9 @@ describe("McpServer", () => {
 									type: "mcp_content",
 									content: {
 										type: "resource_link",
-										uri: "kota://tasks/ready",
-										name: "ready tasks",
-										description: "Ready queue",
+										uri: "kota://tasks/open",
+										name: "open tasks",
+										description: "Open task queue",
 										annotations: { audience: ["assistant"], priority: 0.4 },
 										_meta: { linkMeta: "kept" },
 									},
@@ -2965,9 +2965,9 @@ describe("McpServer", () => {
 			});
 			expect(result.content[1]).toMatchObject({
 				type: "resource_link",
-				uri: "kota://tasks/ready",
-				name: "ready tasks",
-				description: "Ready queue",
+				uri: "kota://tasks/open",
+				name: "open tasks",
+				description: "Open task queue",
 				annotations: { audience: ["assistant"], priority: 0.4 },
 				_meta: { linkMeta: "kept" },
 			});
@@ -3333,18 +3333,17 @@ describe("McpServer", () => {
 describe("resources", () => {
 	function makeScopeRoot(): string {
 		const dir = mkdtempSync(join(tmpdir(), "kota-mcp-test-"));
-		mkdirSync(join(dir, "data", "tasks", "ready"), { recursive: true });
+		mkdirSync(join(dir, "data", "tasks"), { recursive: true });
 		mkdirSync(join(dir, ".kota", "runs"), { recursive: true });
 		writeFileSync(
-			join(dir, "data", "tasks", "ready", "task-one.md"),
+			join(dir, "data", "tasks", "task-one.md"),
 			[
 				"---",
-				"id: task-one",
-				"title: First Task",
+				"status: open",
 				"priority: p1",
-				"summary: A test task",
-				"status: ready",
 				"---",
+				"# First Task",
+				"",
 				"Body",
 			].join("\n"),
 		);
@@ -3470,7 +3469,7 @@ describe("resources", () => {
 		}
 		const uris = resources.map((r) => r.uri);
 		expect(uris).toContain("mcp://server-card.json");
-		expect(uris).toContain("kota://tasks/ready");
+		expect(uris).toContain("kota://tasks/open");
 		expect(uris).toContain("kota://workflow/status");
 		expect(uris).toContain("kota://workflow/runs/recent");
 
@@ -3652,7 +3651,7 @@ describe("resources", () => {
 		expect(firstResult.cacheScope).toBe("public");
 		expect(firstResult.resources.map((resource) => resource.uri)).toEqual([
 			"mcp://server-card.json",
-			"kota://tasks/ready",
+			"kota://tasks/open",
 			"kota://workflow/status",
 		]);
 		expect(firstResult.nextCursor).toEqual(expect.any(String));
@@ -3705,7 +3704,7 @@ describe("resources", () => {
 		expect(resp.error).toBeUndefined();
 		const result = resp.result as { resources: Array<{ uri: string }> };
 		const uris = result.resources.map((r) => r.uri);
-		expect(uris).toContain("kota://tasks/ready");
+		expect(uris).toContain("kota://tasks/open");
 
 		server.stop();
 	});
@@ -3716,7 +3715,7 @@ describe("resources", () => {
 		await server.start();
 
 		sendRequest(input, 1, "resources/read", currentStableRequestParams({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 		}));
 		const resp = await readResponse(output);
 
@@ -3725,7 +3724,7 @@ describe("resources", () => {
 			contents: Array<{ uri: string; mimeType: string }>;
 		};
 		expect(result.contents[0]).toMatchObject({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 			mimeType: "application/json",
 		});
 
@@ -3869,13 +3868,13 @@ describe("resources", () => {
 		server.stop();
 	});
 
-	it("resources/read returns ready task content", async () => {
+	it("resources/read returns open task content", async () => {
 		const scopeRoot = makeScopeRoot();
 		const { input, output } = createTestStreams();
 		const server = new McpServer({ input, output, log: () => {}, scopeRoot });
 		await initServer(server, input, output);
 
-		sendRequest(input, 2, "resources/read", { uri: "kota://tasks/ready" });
+		sendRequest(input, 2, "resources/read", { uri: "kota://tasks/open" });
 		const resp = await readResponse(output);
 
 		expect(resp.id).toBe(2);
@@ -3887,7 +3886,7 @@ describe("resources", () => {
 		expect(result.ttlMs).toBe(0);
 		expect(result.cacheScope).toBe("private");
 		expect(result.contents).toHaveLength(1);
-		expect(result.contents[0].uri).toBe("kota://tasks/ready");
+		expect(result.contents[0].uri).toBe("kota://tasks/open");
 		expect(result.contents[0].mimeType).toBe("application/json");
 		const tasks = JSON.parse(result.contents[0].text) as Array<{
 			id: string;
@@ -3904,15 +3903,14 @@ describe("resources", () => {
 		const fallbackScopeRoot = makeScopeRoot();
 		const rootScopeRoot = makeScopeRoot();
 		writeFileSync(
-			join(rootScopeRoot, "data", "tasks", "ready", "task-root.md"),
+			join(rootScopeRoot, "data", "tasks", "task-root.md"),
 			[
 				"---",
-				"id: task-root",
-				"title: Root Task",
+				"status: open",
 				"priority: p1",
-				"summary: Root-scoped task",
-				"status: ready",
 				"---",
+				"# Root Task",
+				"",
 				"Body",
 			].join("\n"),
 		);
@@ -3921,7 +3919,7 @@ describe("resources", () => {
 		await initDraftServer(server, input, output);
 
 		sendRequest(input, 20, "resources/read", draftRequestParams({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 		}, { roots: {} }));
 		const firstResp = await readResponse(output);
 
@@ -3935,7 +3933,7 @@ describe("resources", () => {
 		expect(inputRequired.inputRequests.roots.method).toBe("roots/list");
 
 		sendRequest(input, 21, "resources/read", draftRequestParams({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 			inputResponses: {
 				roots: { roots: [{ uri: pathToFileURL(rootScopeRoot).href }] },
 			},
@@ -3960,7 +3958,7 @@ describe("resources", () => {
 		await initDraftServer(server, input, output);
 
 		sendRequest(input, 30, "resources/read", draftRequestParams({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 		}, { roots: {} }));
 		const firstResp = await readResponse(output);
 		const inputRequired = firstResp.result as { requestState: string };
@@ -3990,13 +3988,13 @@ describe("resources", () => {
 		await initDraftServer(server, input, output);
 
 		sendRequest(input, 32, "resources/read", draftRequestParams({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 		}, { roots: {} }));
 		const firstResp = await readResponse(output);
 		const inputRequired = firstResp.result as { requestState: string };
 
 		sendRequest(input, 33, "resources/read", draftRequestParams({
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 			inputResponses: {},
 			requestState: inputRequired.requestState,
 		}, { roots: {} }));
@@ -4806,7 +4804,7 @@ describe("resource subscriptions", () => {
 		const server = new McpServer({ input, output, log: () => {}, eventBus: null });
 		await initServer(server, input, output);
 
-		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/open" });
 		const resp = await readResponse(output);
 
 		expect(resp.id).toBe(2);
@@ -4820,10 +4818,10 @@ describe("resource subscriptions", () => {
 		const server = new McpServer({ input, output, log: () => {}, eventBus: null });
 		await initServer(server, input, output);
 
-		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/open" });
 		await readResponse(output);
 
-		sendRequest(input, 3, "resources/unsubscribe", { uri: "kota://tasks/ready" });
+		sendRequest(input, 3, "resources/unsubscribe", { uri: "kota://tasks/open" });
 		const resp = await readResponse(output);
 
 		expect(resp.id).toBe(3);
@@ -4856,7 +4854,7 @@ describe("resource subscriptions", () => {
 
 		sendRequest(input, 2, "subscriptions/listen", draftRequestParams({
 			notifications: {
-				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/ready"],
+				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/open"],
 			},
 		}));
 		const ack = await reader.read();
@@ -4864,7 +4862,7 @@ describe("resource subscriptions", () => {
 		expect(ack.params).toEqual({
 			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
 			notifications: {
-				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/ready"],
+				resourceSubscriptions: ["kota://workflow/status", "kota://tasks/open"],
 			},
 		});
 
@@ -4881,7 +4879,7 @@ describe("resource subscriptions", () => {
 		expect(taskNotif.method).toBe("notifications/resources/updated");
 		expect(taskNotif.params).toEqual({
 			_meta: { "io.modelcontextprotocol/subscriptionId": "2" },
-			uri: "kota://tasks/ready",
+			uri: "kota://tasks/open",
 		});
 
 		server.stop();
@@ -5044,7 +5042,7 @@ describe("resource subscriptions", () => {
 		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
 		await initServer(server, input, output);
 
-		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/open" });
 		await readResponse(output);
 
 		const notifPromise = readNotification(output);
@@ -5053,7 +5051,7 @@ describe("resource subscriptions", () => {
 		const notif = await notifPromise;
 		expect(notif.method).toBe("notifications/resources/updated");
 		const params = notif.params as Record<string, unknown>;
-		expect(params.uri).toBe("kota://tasks/ready");
+		expect(params.uri).toBe("kota://tasks/open");
 
 		server.stop();
 	});
@@ -5064,7 +5062,7 @@ describe("resource subscriptions", () => {
 		const server = new McpServer({ input, output, log: () => {}, eventBus: bus });
 		await initServer(server, input, output);
 
-		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/ready" });
+		sendRequest(input, 2, "resources/subscribe", { uri: "kota://tasks/open" });
 		await readResponse(output);
 
 		emitWorkflowCompleted(bus);

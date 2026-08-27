@@ -40,8 +40,6 @@ export const validateProgressReviewEvidencePacket: CodeStepOutputValidator<
     "evidence",
     "approvals",
     "excluded",
-    "taskClassDistribution",
-    "operatorJourneyRisks",
   ]);
 
 export const validateProgressReviewEvidenceHandle: CodeStepOutputValidator<
@@ -89,7 +87,6 @@ export const validateProgressReviewAgentEvidencePacket: CodeStepOutputValidator<
     "scopes",
     "counts",
     "deadLetterCounts",
-    "operatorJourneyRisks",
     "evidence",
     "excluded",
   ]);

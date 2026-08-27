@@ -6,7 +6,7 @@ import { blank, group, line, plain, type RenderNode, span, stack } from "#module
 import { print } from "#modules/rendering/transport.js";
 import {
   REPO_INBOX_DIR,
-  REPO_TASK_STATES,
+  REPO_TASK_ARCHIVE_DIR,
   REPO_TASKS_DIR,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
@@ -81,10 +81,7 @@ export function runInit(scopeRoot: string, force: boolean): ScaffoldResult {
 
   const tasksDir = join(scopeRoot, REPO_TASKS_DIR);
   ensureDir(tasksDir);
-  for (const state of REPO_TASK_STATES) {
-    const stateDir = join(tasksDir, state);
-    ensureDir(stateDir);
-  }
+  ensureDir(join(scopeRoot, REPO_TASK_ARCHIVE_DIR));
 
   // docs/
   const docsDir = join(scopeRoot, "docs");

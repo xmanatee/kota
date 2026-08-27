@@ -6,10 +6,10 @@
  * relies on:
  *
  *  1. The repo-tasks module exposes a `daemonClient(link)` factory that
- *     contributes `tasks` with all eight methods.
+ *     contributes the task operations.
  *  2. `list(states)` GETs `/api/tasks` through `link.fetchRaw`, flattens the
  *     state-keyed body, and skips terminal `done`/`dropped` states. When
- *     the caller passes no states, it defaults to the four open states.
+ *     the caller passes no states, it defaults to `open` and `blocked`.
  *  3. `list` soft-fails on transport error and on non-ok response: it
  *     returns `{ tasks: [] }` rather than throwing.
  *  4. `show(id)` GETs `/api/tasks/<encodeURIComponent(id)>`. 404 collapses
@@ -24,15 +24,13 @@
  *     throws; success returns `{ ok: true, id, path }`.
  *  7. `capture(title)` POSTs `/api/tasks/capture` with body `{ title }`.
  *     Same conflict and success arms as `create`.
- *  8. `gc(options)` POSTs `/api/tasks/gc` with `options ?? {}`. Non-ok
- *     throws; success returns the body verbatim.
- *  9. `search(query, filter)` GETs `/tasks/search?q=…` with `semantic`,
+ *  8. `search(query, filter)` GETs `/tasks/search?q=…` with `semantic`,
  *     `limit`, and `state` query params. Non-ok throws; success returns
  *     the body verbatim.
- * 10. `reindex()` POSTs `/tasks/reindex`. Non-ok throws; success returns
+ *  9. `reindex()` POSTs `/tasks/reindex`. Non-ok throws; success returns
  *     the body verbatim.
- * 11. Supplying the contribution to the assembly path satisfies coverage.
- * 12. Removing the repo-tasks module's contribution makes the assembled
+ * 10. Supplying the contribution to the assembly path satisfies coverage.
+ * 11. Removing the repo-tasks module's contribution makes the assembled
  *     client fail loudly with a clear "tasks" missing-handler error.
  */
 
@@ -94,27 +92,24 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect(typeof tasks.move).toBe("function");
     expect(typeof tasks.create).toBe("function");
     expect(typeof tasks.capture).toBe("function");
-    expect(typeof tasks.gc).toBe("function");
     expect(typeof tasks.search).toBe("function");
     expect(typeof tasks.reindex).toBe("function");
   });
 
-  it("list flattens the state-keyed body and defaults to the four open states", async () => {
+  it("list flattens the state-keyed body and defaults to active states", async () => {
     const { transport, calls } = makeRecordingTransport({
       fetchRaw: () =>
         jsonResponse(200, {
-          counts: { backlog: 1, ready: 1, doing: 0, blocked: 0, done: 1, dropped: 0 },
+          counts: { open: 1, blocked: 1, done: 1, dropped: 0 },
           tasks: {
-            backlog: [
-              { id: "b1", title: "B-One", priority: "p1", area: "a", summary: "", body: "" },
+            open: [
+              { id: "o1", title: "O-One", priority: "p1", body: "" },
             ],
-            ready: [
-              { id: "r1", title: "R-One", priority: "p2", area: "a", summary: "", body: "" },
+            blocked: [
+              { id: "b1", title: "B-One", priority: "p2", body: "" },
             ],
-            doing: [],
-            blocked: [],
             done: [
-              { id: "d1", title: "D-One", priority: "p3", area: "a", summary: "", body: "" },
+              { id: "d1", title: "D-One", priority: "p3", body: "" },
             ],
             dropped: [],
           },
@@ -124,8 +119,8 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     const result = await contributed.tasks!.list();
     expect(result).toEqual({
       tasks: [
-        { id: "b1", title: "B-One", priority: "p1", state: "backlog", waitingOnTasks: [] },
-        { id: "r1", title: "R-One", priority: "p2", state: "ready", waitingOnTasks: [] },
+        { id: "o1", title: "O-One", priority: "p1", state: "open", waitingOnTasks: [] },
+        { id: "b1", title: "B-One", priority: "p2", state: "blocked", waitingOnTasks: [] },
       ],
     });
     expect(calls).toHaveLength(1);
@@ -139,15 +134,15 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
         jsonResponse(200, {
           counts: {},
           tasks: {
-            done: [{ id: "d1", title: "D", priority: "p2", area: "a", summary: "", body: "" }],
-            dropped: [{ id: "x1", title: "X", priority: "p2", area: "a", summary: "", body: "" }],
-            ready: [{ id: "r1", title: "R", priority: "p2", area: "a", summary: "", body: "" }],
+            done: [{ id: "d1", title: "D", priority: "p2", body: "" }],
+            dropped: [{ id: "x1", title: "X", priority: "p2", body: "" }],
+            open: [{ id: "o1", title: "O", priority: "p2", body: "" }],
           },
         }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.list(["done", "dropped", "ready"]);
-    expect(result.tasks.map((t) => t.id)).toEqual(["r1"]);
+    const result = await contributed.tasks!.list(["done", "dropped", "open"]);
+    expect(result.tasks.map((t) => t.id)).toEqual(["o1"]);
   });
 
   it("list soft-fails on non-ok response (returns { tasks: [] })", async () => {
@@ -172,11 +167,11 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
 
   it("show GETs /api/tasks/<id> and decodes the success arm", async () => {
     const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { state: "ready", content: "task body" }),
+      fetchRaw: () => jsonResponse(200, { state: "open", content: "task body" }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
     const result = await contributed.tasks!.show("task-foo bar");
-    expect(result).toEqual({ found: true, state: "ready", content: "task body" });
+    expect(result).toEqual({ found: true, state: "open", content: "task body" });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.path).toBe("/api/tasks/task-foo%20bar");
     expect(calls[0]!.init?.method).toBe("GET");
@@ -201,21 +196,21 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
       fetchRaw: () =>
         jsonResponse(200, {
           id: "t1",
-          fromState: "ready",
-          toState: "doing",
-          path: "data/tasks/doing/t1.md",
-          previousPath: "data/tasks/ready/t1.md",
+          fromState: "open",
+          toState: "open",
+          path: "data/tasks/t1.md",
+          previousPath: "data/tasks/t1.md",
         }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.move("t1", "doing");
+    const result = await contributed.tasks!.move("t1", "open");
     expect(result).toEqual({
       ok: true,
       id: "t1",
-      fromState: "ready",
-      toState: "doing",
-      path: "data/tasks/doing/t1.md",
-      previousPath: "data/tasks/ready/t1.md",
+      fromState: "open",
+      toState: "open",
+      path: "data/tasks/t1.md",
+      previousPath: "data/tasks/t1.md",
     });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.path).toBe("/api/tasks/t1/move");
@@ -223,7 +218,7 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect((calls[0]!.init?.headers as Record<string, string>)["Content-Type"]).toBe(
       "application/json",
     );
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ state: "doing" });
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ state: "open" });
   });
 
   it("move decodes not-found, same-state, and active resource ownership", async () => {
@@ -231,15 +226,15 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
       fetchRaw: () => jsonResponse(404, {}),
     });
     expect(
-      await repoTasksModule.daemonClient!(t404).tasks!.move("missing", "ready"),
+      await repoTasksModule.daemonClient!(t404).tasks!.move("missing", "open"),
     ).toEqual({ ok: false, reason: "not_found" });
 
     const { transport: t409 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(409, { state: "doing" }),
+      fetchRaw: () => jsonResponse(409, { state: "open" }),
     });
     expect(
-      await repoTasksModule.daemonClient!(t409).tasks!.move("t1", "ready"),
-    ).toEqual({ ok: false, reason: "already_in_state", state: "doing" });
+      await repoTasksModule.daemonClient!(t409).tasks!.move("t1", "open"),
+    ).toEqual({ ok: false, reason: "already_in_state", state: "open" });
 
     const { transport: t409Empty } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(409, {}),
@@ -252,24 +247,22 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
 
   it("create POSTs /api/tasks/normalized and decodes 200/409/400", async () => {
     const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/ready/t1.md" }),
+      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/t1.md" }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
     const result = await contributed.tasks!.create({
       title: "Hello",
       priority: "p2",
-      area: "core",
-      state: "ready",
+      state: "open",
     });
-    expect(result).toEqual({ ok: true, id: "t1", path: "data/tasks/ready/t1.md" });
+    expect(result).toEqual({ ok: true, id: "t1", path: "data/tasks/t1.md" });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.path).toBe("/api/tasks/normalized");
     expect(calls[0]!.init?.method).toBe("POST");
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
       title: "Hello",
       priority: "p2",
-      area: "core",
-      state: "ready",
+      state: "open",
     });
 
     const { transport: t409 } = makeRecordingTransport({
@@ -279,8 +272,7 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
       await repoTasksModule.daemonClient!(t409).tasks!.create({
         title: "Hello",
         priority: "p2",
-        area: "core",
-        state: "ready",
+        state: "open",
       }),
     ).toEqual({ ok: false, reason: "already_exists", message: "exists" });
 
@@ -291,30 +283,27 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
       await repoTasksModule.daemonClient!(t400).tasks!.create({
         title: "Hello",
         priority: "p2",
-        area: "core",
-        state: "ready",
+        state: "open",
       }),
     ).toEqual({ ok: false, reason: "invalid_slug", message: "bad slug" });
   });
 
   it("scope-scoped create sends scopeId in the query, not the JSON body", async () => {
     const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/ready/t1.md" }),
+      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/t1.md" }),
     });
     const contributed = repoTasksModule.daemonClient!(transport);
     await contributed.tasks!.create({
       title: "Hello",
       priority: "p2",
-      area: "core",
-      state: "ready",
+      state: "open",
       scopeId: "scope-a",
     });
     expect(calls[0]!.path).toBe("/api/tasks/normalized?scopeId=scope-a");
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
       title: "Hello",
       priority: "p2",
-      area: "core",
-      state: "ready",
+      state: "open",
     });
   });
 
@@ -331,23 +320,6 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ title: "Quick thought" });
   });
 
-  it("gc POSTs /api/tasks/gc with options and returns the body verbatim", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { removed: ["a", "d"] }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.gc({ days: 30, dryRun: true });
-    expect(result).toEqual({ removed: ["a", "d"] });
-    expect(calls[0]!.path).toBe("/api/tasks/gc");
-    expect(calls[0]!.init?.method).toBe("POST");
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ days: 30, dryRun: true });
-
-    const { transport: tNoOpts } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { removed: [] }),
-    });
-    await repoTasksModule.daemonClient!(tNoOpts).tasks!.gc();
-  });
-
   it("search GETs /tasks/search with q/semantic/limit/state params", async () => {
     const { transport, calls } = makeRecordingTransport({
       fetchRaw: () => jsonResponse(200, { ok: true, tasks: [] }),
@@ -356,12 +328,12 @@ describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
     const result = await contributed.tasks!.search("query terms", {
       semantic: false,
       limit: 5,
-      states: ["ready", "doing"],
+      states: ["open", "blocked"],
     });
     expect(result).toEqual({ ok: true, tasks: [] });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.path).toBe(
-      "/tasks/search?q=query+terms&semantic=false&limit=5&state=ready&state=doing",
+      "/tasks/search?q=query+terms&semantic=false&limit=5&state=open&state=blocked",
     );
   });
 

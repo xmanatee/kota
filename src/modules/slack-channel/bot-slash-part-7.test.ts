@@ -124,8 +124,8 @@ describe("SlackBot", () => {
         record: {
           target: "tasks",
           recordId: "task-fix-redirect",
-          previousPath: "data/tasks/ready/task-fix-redirect.md",
-          path: "data/tasks/dropped/task-fix-redirect.md",
+          previousPath: "data/tasks/task-fix-redirect.md",
+          path: "data/tasks/archive/task-fix-redirect.md",
           toState: "dropped",
         },
       };

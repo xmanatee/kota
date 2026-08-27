@@ -7,10 +7,7 @@ import {
 function subtask(dependsOn: number[]) {
   return {
     title: "Scoped task",
-    summary: "A bounded outcome.",
     priority: "p1",
-    area: "core",
-    taskClass: "Safety",
     problem: "The original task exhausted repair.",
     desiredOutcome: "The bounded outcome is complete.",
     constraints: ["Preserve authorization boundaries."],

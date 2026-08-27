@@ -132,11 +132,11 @@ syncBuiltinESMExports();
   it("keeps destination installation in the verified parent when replaced at link", () => {
     const root = makeRoot("kota-repo-write-race-");
     const repoRoot = join(root, "project");
-    const readyDir = join(repoRoot, "data", "tasks", "ready");
-    const parkedReadyDir = join(repoRoot, "data", "tasks", "ready-parked");
+    const tasksDir = join(repoRoot, "data", "tasks");
+    const parkedTasksDir = join(repoRoot, "data", "tasks-parked");
     const outsideDir = join(root, "outside");
     const fileName = "task-race.md";
-    mkdirSync(readyDir, { recursive: true });
+    mkdirSync(tasksDir, { recursive: true });
     mkdirSync(outsideDir);
     const outsidePath = join(outsideDir, fileName);
     writeFileSync(outsidePath, "outside must remain\n");
@@ -167,15 +167,15 @@ syncBuiltinESMExports();
       env: {
         KOTA_RACE_FILE: fileName,
         KOTA_RACE_OUTSIDE: outsideDir,
-        KOTA_RACE_PARENT: readyDir,
-        KOTA_RACE_PARKED: parkedReadyDir,
+        KOTA_RACE_PARENT: tasksDir,
+        KOTA_RACE_PARKED: parkedTasksDir,
       },
       request: {
         operation: "write",
         repoRootPath,
         repoRootIdentity: { dev: repoStats.dev, ino: repoStats.ino },
-        parentParts: ["data", "tasks", "ready"],
-        parentPath: readyDir,
+        parentParts: ["data", "tasks"],
+        parentPath: tasksDir,
         fileName,
         createParent: true,
         expectation: "missing",
@@ -185,7 +185,7 @@ syncBuiltinESMExports();
 
     expect(response.ok).toBe(true);
     expect(readFileSync(outsidePath, "utf8")).toBe("outside must remain\n");
-    expect(readFileSync(join(parkedReadyDir, fileName), "utf8")).toBe(
+    expect(readFileSync(join(parkedTasksDir, fileName), "utf8")).toBe(
       "installed inside\n",
     );
   });

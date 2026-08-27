@@ -20,8 +20,8 @@ describe("repo-task mutation workflow", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-repo-task-workflow-"));
     roots.push(root);
     const workspaceRoot = join(root, "project");
-    const taskPath = join(workspaceRoot, "data", "tasks", "ready", "task-new-task.md");
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    const taskPath = join(workspaceRoot, "data", "tasks", "task-new-task.md");
+    mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
     writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
     execFileSync("git", ["init", "--quiet", "--initial-branch=main"], { cwd: workspaceRoot });
     execFileSync("git", ["config", "user.name", "KOTA Test"], { cwd: workspaceRoot });
@@ -53,18 +53,17 @@ describe("repo-task mutation workflow", () => {
             options: {
               title: "New task",
               priority: "p1",
-              area: "runtime",
-              state: "ready",
+              state: "open",
             },
           },
         },
       });
       expect(result.run.state).toBe("succeeded");
-      expect(readFileSync(taskPath, "utf8")).toContain("title: New task");
+      expect(readFileSync(taskPath, "utf8")).toContain("# New task");
       expect(result.metadata?.steps.at(-1)?.output).toEqual({
         ok: true,
         id: "task-new-task",
-        path: "data/tasks/ready/task-new-task.md",
+        path: "data/tasks/task-new-task.md",
       });
       expect(result.run.integration).toMatchObject({ phase: "merged" });
     } finally {

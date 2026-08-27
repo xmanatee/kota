@@ -1,30 +1,40 @@
+import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import type {
   listFullRepoTasks,
+  RepoTaskPriority,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+
+type TaskRevisionSnapshot = {
+  state: RepoTaskState;
+  priority: RepoTaskPriority | null;
+  body: string;
+};
 
 export type SemanticTaskTransition = {
   id: string;
   fromState: RepoTaskState | null;
   toState: RepoTaskState | null;
+  previousTask?: TaskRevisionSnapshot;
   refs: string[];
 };
 
 type ChangedTaskPath = {
   oldPath: string | null;
   newPath: string | null;
+  oldTask?: TaskRevisionSnapshot;
+  newTask?: TaskRevisionSnapshot;
 };
 
 function taskState(path: string): RepoTaskState | null {
-  const match = path.match(
-    /^data\/tasks\/(backlog|ready|doing|blocked|done|dropped)\/(task-[^/]+)\.md$/,
-  );
-  return (match?.[1] as RepoTaskState | undefined) ?? null;
+  if (/^data\/tasks\/archive\/task-[^/]+\.md$/.test(path)) return "done";
+  if (/^data\/tasks\/task-[^/]+\.md$/.test(path)) return "open";
+  return null;
 }
 
 function taskId(path: string): string | null {
-  return path.match(/^data\/tasks\/[^/]+\/(task-[^/]+)\.md$/)?.[1] ?? null;
+  return path.match(/^data\/tasks\/(?:archive\/)?(task-[^/]+)\.md$/)?.[1] ?? null;
 }
 
 export function parseChangedTaskPaths(output: string): ChangedTaskPath[] {
@@ -70,9 +80,55 @@ export async function changedTaskPaths(
       outputLimitBytes: 20 * 1024 * 1024,
       captureLimitBytesPerStream: 20 * 1024 * 1024,
     });
-    return parseChangedTaskPaths(result.stdout.text);
+    const changes = parseChangedTaskPaths(result.stdout.text);
+    return await Promise.all(
+      changes.map(async (change) => ({
+        ...change,
+        ...(change.oldPath
+          ? { oldTask: await readTaskAtRevision(runCommand, workspaceRoot, fromHead, change.oldPath) }
+          : {}),
+        ...(change.newPath
+          ? { newTask: await readTaskAtRevision(runCommand, workspaceRoot, toHead, change.newPath) }
+          : {}),
+      })),
+    );
   } catch {
     return null;
+  }
+}
+
+async function readTaskAtRevision(
+  runCommand: WorkflowCommandRunner,
+  workspaceRoot: string,
+  revision: string,
+  path: string,
+): Promise<TaskRevisionSnapshot | undefined> {
+  try {
+    const result = await runCommand({
+      command: "git",
+      args: ["show", `${revision}:${path}`],
+      cwd: workspaceRoot,
+      timeoutMs: 30_000,
+      outputLimitBytes: 2 * 1024 * 1024,
+      captureLimitBytesPerStream: 2 * 1024 * 1024,
+    });
+    const { attrs, body } = parseFlatFrontMatter(result.stdout.text);
+    const state = attrs.status;
+    if (
+      typeof state !== "string" ||
+      !(["open", "blocked", "done", "dropped"] as const).includes(
+        state as RepoTaskState,
+      )
+    ) {
+      return undefined;
+    }
+    const rawPriority = attrs.priority;
+    const priority = typeof rawPriority === "string" && /^(p0|p1|p2|p3)$/.test(rawPriority)
+      ? rawPriority as RepoTaskPriority
+      : null;
+    return { state: state as RepoTaskState, priority, body };
+  } catch {
+    return undefined;
   }
 }
 
@@ -81,7 +137,12 @@ export function taskTransitions(
 ): SemanticTaskTransition[] {
   const byId = new Map<
     string,
-    { fromState: RepoTaskState | null; toState: RepoTaskState | null; refs: Set<string> }
+    {
+      fromState: RepoTaskState | null;
+      toState: RepoTaskState | null;
+      previousTask?: TaskRevisionSnapshot;
+      refs: Set<string>;
+    }
   >();
   for (const change of paths) {
     for (const path of [change.oldPath, change.newPath]) {
@@ -94,8 +155,13 @@ export function taskTransitions(
         refs: new Set<string>(),
       };
       current.refs.add(path);
-      if (change.oldPath === path) current.fromState = taskState(path);
-      if (change.newPath === path) current.toState = taskState(path);
+      if (change.oldPath === path) {
+        current.fromState = change.oldTask?.state ?? taskState(path);
+        if (change.oldTask) current.previousTask = change.oldTask;
+      }
+      if (change.newPath === path) {
+        current.toState = change.newTask?.state ?? taskState(path);
+      }
       byId.set(id, current);
     }
   }
@@ -103,6 +169,7 @@ export function taskTransitions(
     id,
     fromState: transition.fromState,
     toState: transition.toState,
+    ...(transition.previousTask ? { previousTask: transition.previousTask } : {}),
     refs: [...transition.refs].sort((a, b) => a.localeCompare(b)),
   }));
 }
@@ -111,13 +178,16 @@ export function isStrategicCompletion(args: {
   toState: RepoTaskState | null;
   fromState: RepoTaskState | null;
   task: ReturnType<typeof listFullRepoTasks>[number] | undefined;
+  previousTask?: TaskRevisionSnapshot;
 }): boolean {
-  if (args.toState !== "done" || args.fromState === "done" || !args.task) {
+  if (args.toState !== "done" || args.fromState === "done") {
     return false;
   }
+  const priority = args.task?.priority ?? args.previousTask?.priority;
+  const body = args.task?.body ?? args.previousTask?.body;
   return (
-    args.task.anchor ||
-    ((args.task.priority === "p0" || args.task.priority === "p1") &&
-      /^## (?:Initiative|Milestone)$/m.test(args.task.body))
+    (priority === "p0" || priority === "p1") &&
+      typeof body === "string" &&
+      /^## (?:Initiative|Milestone)$/m.test(body)
   );
 }

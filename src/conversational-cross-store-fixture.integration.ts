@@ -110,8 +110,7 @@ export function makeCrossStoreScopeRoot(prefix: string): string {
     scopeDir,
     "conversational-cross-store",
   ).workspaceRoot;
-  mkdirSync(join(dir, "data", "tasks", "backlog"), { recursive: true });
-  mkdirSync(join(dir, "data", "tasks", "dropped"), { recursive: true });
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   mkdirSync(join(dir, ".kota"), { recursive: true });
   return dir;

@@ -72,7 +72,7 @@ const continuitySource: UiSurfaceSource = {
       memory,
       knowledge,
     ] = await Promise.all([
-      context.read("tasks", () => context.client.tasks.list(["doing", "ready", "blocked"])),
+      context.read("tasks", () => context.client.tasks.list(["open", "blocked"])),
       context.read("workflow status", () => context.client.workflow.status()),
       context.read("workflow runs", () => context.client.workflow.listRuns({ limit: 20 })),
       context.read("workflow definitions", () => context.client.workflow.listDefinitions()),

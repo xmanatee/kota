@@ -14,7 +14,7 @@ export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget>({
   exposedOutputTrust: "untrusted",
   validate: (raw) =>
     expectStructuredOutput<BuilderTaskTarget>(raw, [
-      "ready",
+      "actionable",
       "taskId",
       "taskPath",
       "taskState",
@@ -31,7 +31,7 @@ export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget>({
 export const builderHarnessPreflightStep = {
   id: "preflight-builder-harness",
   type: "code" as const,
-  when: (ctx: WorkflowStepContext) => inspectTargetTaskStep.outputRequired(ctx).ready,
+  when: (ctx: WorkflowStepContext) => inspectTargetTaskStep.outputRequired(ctx).actionable,
   run: (ctx: WorkflowStepContext) =>
     runBuilderHarnessPreflight({
       agentRuntime: ctx.agentRuntime,

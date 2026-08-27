@@ -58,8 +58,8 @@ describe("retract tool — runner success arms", () => {
           record: {
             target: "tasks",
             recordId: "task-x",
-            previousPath: "data/tasks/backlog/task-x.md",
-            path: "data/tasks/dropped/task-x.md",
+            previousPath: "data/tasks/task-x.md",
+            path: "data/tasks/archive/task-x.md",
             toState: "dropped",
           },
         };
@@ -69,7 +69,7 @@ describe("retract tool — runner success arms", () => {
     const result = await runner({ target: "tasks", id: "task-x" });
     expect(result.is_error).toBeUndefined();
     expect(result.content).toBe(
-      "Retracted: tasks  task-x  data/tasks/backlog/task-x.md -> data/tasks/dropped/task-x.md (dropped)",
+      "Retracted: tasks  task-x  data/tasks/task-x.md -> data/tasks/archive/task-x.md (dropped)",
     );
   });
 });

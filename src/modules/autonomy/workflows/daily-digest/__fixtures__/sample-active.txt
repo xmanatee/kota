@@ -13,8 +13,8 @@ Decomposer splits (1) ----------------------------------------------------------
 - task-rewrite-the-large-monolith → 4 child tasks
 
 Blocked-promoter moves (2 tasks promoted across 1 run) -------------------------
-- task-x: blocked → ready
-- task-y: blocked → backlog
+- task-x: blocked → open
+- task-y: blocked → open
 
 Failed/interrupted monitored runs (1) — see attention-digest -------------------
 - improver: failed (2026-04-25T19-00-00-000Z-improver-xxx)
@@ -26,7 +26,5 @@ Aging operator-capture preconditions (1) ---------------------------------------
 - task-needs-screenshot (21d, awaits .kota/captures/screenshot.png)
 
 Queue state --------------------------------------------------------------------
-- ready: 1 (=)
-- backlog: 0 (-2)
-- doing: 0 (-1)
+- open: 1 (-3)
 - blocked: 8 (-1)

@@ -1,0 +1,111 @@
+---
+status: done
+---
+
+# Add agentic resource discovery over KOTA capabilities
+
+## Problem
+
+KOTA has many discoverable capability surfaces: module manifests, tools,
+skills, named agents, workflows, channels, MCP registry imports, setup
+requirements, knowledge entries, and recall. They are individually inspectable,
+but an agent with a new goal still has to know which surface to query first.
+
+The ARD article describes the general problem: agents need to identify, locate,
+evaluate, and access resources dynamically instead of relying on preloaded or
+hardcoded resource lists. Eve's connection model points at a related production
+concern: resource readiness, auth, and access should be explicit and brokered
+without exposing credentials.
+
+KOTA should not add a marketplace or second catalog, but it does need a single
+resource-discovery seam over the metadata it already owns.
+
+## Desired Outcome
+
+A module-owned resource-discovery surface ranks KOTA capabilities for a natural
+language task or structured requirement. Results should explain:
+
+- what kind of resource matched: tool, skill, agent, workflow, module, channel,
+  MCP server/config, setup requirement, or knowledge entry;
+- why it matched the request;
+- whether it is ready, blocked by setup/auth, unavailable, or read-only;
+- the risk/effect metadata for actions that can mutate external state;
+- the owning module and canonical inspect path; and
+- how an agent or operator should access it without bypassing existing
+  guardrails.
+
+This should be usable from at least one operator surface and one agent-callable
+tool, both backed by the same provider.
+
+## Constraints
+
+- Do not create a separate resource catalog. Discover from live module
+  summaries, tool definitions, skill metadata, `agent-ops`, `mcp-registry`
+  config output, setup requirements, and existing knowledge/recall providers.
+- Do not install, execute, probe, or trust external MCP packages during
+  discovery. The `mcp-registry` module remains a config import surface.
+- Do not expose secret values, OAuth tokens, connector URLs that are meant to be
+  hidden, or private raw setup payloads.
+- Resource selection is advisory. It may suggest a tool or setup requirement,
+  but it must not automatically run mutating tools or satisfy auth.
+- Ranking should be deterministic for identical inputs and metadata. If
+  semantic search is optional, keep a keyword fallback with explicit
+  degradation.
+- Keep ownership out of core unless a narrow provider contract is needed for
+  modules to register searchable resources.
+
+## Done When
+
+- A typed `ResourceDiscoveryProvider` or equivalent module-owned provider can
+  query and rank first-party capabilities by task description.
+- CLI/daemon/API and an agent-callable tool share the same result shape.
+- Results include readiness/setup blockers, risk/effect metadata, owner module,
+  and canonical inspect/access hints.
+- Existing resource sources join through their owning surfaces; there is no
+  hand-maintained registry file.
+- Tests cover matching, deterministic ranking, setup-blocked resources,
+  unavailable resources, mutating-tool risk rendering, secret redaction, and no
+  accidental MCP install/probe behavior.
+
+## Source / Intent
+
+Owner asked on 2026-06-24 to turn recent agent-system resources into KOTA tasks
+that improve the project, with references left for future agents to research.
+
+Source resources to reread:
+
+- https://aiagentsdirectory.com/blog/solving-the-ard-problem-in-ai-agentic-resource-discovery
+- https://vercel.com/blog/introducing-eve
+- https://vercel.com/docs/eve
+
+Local mapping:
+
+- `src/modules/mcp-registry/` imports MCP Registry metadata into strict KOTA
+  config, but intentionally does not execute or probe registry packages.
+- `src/modules/agent-ops/` owns reflective `kota agent` inspection.
+- `src/modules/module-manager/` owns `kota module` inspection and scaffolding.
+- `src/modules/recall/` already ranks knowledge, memory, history, tasks, and
+  answer-history content, but not capability metadata.
+- Tool risk/effect metadata already exists through `ToolDef` and guardrails.
+
+## Initiative
+
+Capability discoverability: agents should be able to find the right KOTA
+resource without bypassing module ownership, setup, auth, or guardrails.
+
+## Acceptance Evidence
+
+- Required source resources were reread and mapped back to the implementation
+  in `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/source-reread.md`.
+- Focused tests passed and transcript saved at
+  `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/resource-discovery-focused-tests.txt`:
+  `pnpm test src/modules/resource-discovery/provider.test.ts src/modules/resource-discovery/snapshot.test.ts src/modules/resource-discovery/tool.test.ts src/modules/resource-discovery/routes.test.ts src/modules/resource-discovery/cli.test.ts src/core/server/kota-client-guard.test.ts src/core/agent-harness/no-module-imports-in-core.test.ts src/core/modules/module-deps.test.ts src/module-cli.integration.test.ts src/core/server/project-scoped-kota-client.test.ts`.
+- Type/lint checks passed: `pnpm typecheck` and `pnpm lint`.
+- CLI transcript:
+  `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/resource-discovery-cli-transcript.txt`
+  shows "send a Slack approval" returning Slack module/channel/setup
+  candidates plus the approval tool with readiness and risk details.
+- Agent-tool fixture:
+  `.kota/runs/2026-06-24T22-45-17-701Z-builder-q982rr/resource-discovery-agent-tool-fixture.json`
+  shows the `resource_discovery` tool returning the same structured provider
+  envelope for Slack resources without running a mutating action.

@@ -4,7 +4,7 @@ import { renderReport } from "./render-test-helpers.js";
 import { emptyAutonomyReportData as empty } from "./report-test-fixtures.js";
 
 describe("renderAutonomyReport with populated data", () => {
-  it("includes priority/area mix and explorer additions when populated", () => {
+  it("includes priority mix and explorer additions when populated", () => {
     const populated: AutonomyReportData = {
       ...empty,
       openQueue: {
@@ -13,24 +13,15 @@ describe("renderAutonomyReport with populated data", () => {
           { priority: "p1", count: 2 },
           { priority: "p2", count: 1 },
         ],
-        byArea: [
-          { area: "architecture", count: 2 },
-          { area: "client", count: 1 },
-        ],
         byState: [
-          { state: "backlog", count: 2 },
-          { state: "ready", count: 1 },
-        ],
-        byTaskClass: [
-          { taskClass: "Product", count: 1 },
-          { taskClass: "Platform", count: 1 },
-          { taskClass: "Meta", count: 1 },
+          { state: "open", count: 2 },
+          { state: "open", count: 1 },
         ],
         waitingOnTasks: [
           {
             taskId: "task-waiting",
             title: "Waiting task",
-            state: "ready",
+            state: "open",
             waitingOn: ["task-enabler"],
           },
         ],
@@ -39,45 +30,27 @@ describe("renderAutonomyReport with populated data", () => {
         totalRuns: 1,
         totalTaskAdditions: 2,
         unresolvedTaskAdditions: 0,
-        byClassification: [
-          { classification: "strategic", tasks: 1 },
-          { classification: "fan-out", tasks: 1 },
-          { classification: "other", tasks: 0 },
-        ],
         taskAdditions: [
           {
             runId: "r1",
             taskId: "task-arch",
             title: "Strategic refactor",
-            area: "architecture",
             priority: "p1",
-            classification: "strategic",
           },
           {
             runId: "r1",
             taskId: "task-client-fan",
             title: "Client surface",
-            area: "client",
             priority: "p2",
-            classification: "fan-out",
           },
         ],
       },
       builder: {
         totalCommittedRuns: 2,
         unresolvedClosures: 1,
-        byArea: [
-          { area: "architecture", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
-          { area: "client", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
-        ],
         byPriority: [
           { priority: "p1", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
           { priority: "p2", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
-        ],
-        byClassification: [
-          { classification: "strategic", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.4 },
-          { classification: "fan-out", commits: 1, measuredCostRuns: 1, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: 0.1 },
-          { classification: "other", commits: 0, measuredCostRuns: 0, unavailableCostRuns: 0, unknownCostRuns: 0, totalCostUsd: null },
         ],
         closures: [],
       },
@@ -152,7 +125,7 @@ describe("renderAutonomyReport with populated data", () => {
             completedTaskTitle: "Review parent",
             activeFollowUpTaskId: "task-review-follow-up",
             activeFollowUpTitle: "Repair review-scrutiny pattern",
-            activeFollowUpState: "ready",
+            activeFollowUpState: "open",
             reasons: ["review-scrutiny"],
             matchedRefs: ["task:task-review-parent"],
             sourceRunIds: [],
@@ -228,14 +201,8 @@ describe("renderAutonomyReport with populated data", () => {
       unknownRuns: 1,
     });
     expect(text).toContain("Total: 3");
-    expect(text).toContain("architecture");
-    expect(text).toContain("client");
     expect(text).toContain("Strategic refactor");
     expect(text).toContain("Client surface");
-    expect(text).toContain("By task_class");
-    expect(text).toContain("Product");
-    expect(text).toContain("Platform");
-    expect(text).toContain("Meta");
     expect(text).toContain("$0.40");
     expect(text).toContain("$0.10");
     expect(text).toContain("missing_final_verification_after_edit");

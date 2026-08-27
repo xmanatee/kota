@@ -35,20 +35,23 @@ function makeGitProject(): string {
 
 function writeTask(
   workspaceRoot: string,
-  state: "backlog" | "blocked" | "done" | "doing" | "ready",
+  state: "open" | "blocked" | "done" | "dropped",
   id: string,
   title: string,
 ): void {
-  const taskDir = join(workspaceRoot, "data/tasks", state);
+  const taskDir = state === "done" || state === "dropped"
+    ? join(workspaceRoot, "data/tasks/archive")
+    : join(workspaceRoot, "data/tasks");
   mkdirSync(taskDir, { recursive: true });
   writeFileSync(
     join(taskDir, `${id}.md`),
     [
       "---",
-      `id: ${id}`,
-      `title: ${title}`,
       `status: ${state}`,
+      ...(state === "open" || state === "blocked" ? ["priority: p2"] : []),
       "---",
+      "",
+      `# ${title}`,
       "",
       "## Done When",
       "",
@@ -78,28 +81,28 @@ describe("findTaskReviewTarget", () => {
     const workspaceRoot = makeGitProject();
     writeTask(workspaceRoot, "blocked", "task-collateral-blocker", "Collateral blocker");
     writeTask(workspaceRoot, "done", "task-implemented-work", "Implemented work");
-    execFileSync("git", ["add", "data/tasks/blocked", "data/tasks/done"], {
+    execFileSync("git", ["add", "data/tasks", "data/tasks/archive"], {
       cwd: workspaceRoot,
       stdio: "ignore",
     });
 
     expect(await findReviewTarget(workspaceRoot)).toMatchObject({
-      path: "data/tasks/done/task-implemented-work.md",
+      path: "data/tasks/archive/task-implemented-work.md",
       state: "done",
     });
   });
 
-  it("reviews a staged ready-to-done move before collateral blocked edits", async () => {
+  it("reviews a staged open-to-done move before collateral blocked edits", async () => {
     const workspaceRoot = makeGitProject();
-    writeTask(workspaceRoot, "ready", "task-implemented-work", "Implemented work");
+    writeTask(workspaceRoot, "open", "task-implemented-work", "Implemented work");
     writeTask(workspaceRoot, "blocked", "task-collateral-blocker", "Collateral blocker");
     execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot, stdio: "ignore" });
     execFileSync("git", ["commit", "-m", "initial"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    mkdirSync(join(workspaceRoot, "data/tasks/done"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data/tasks/archive"), { recursive: true });
     renameSync(
-      join(workspaceRoot, "data/tasks/ready/task-implemented-work.md"),
-      join(workspaceRoot, "data/tasks/done/task-implemented-work.md"),
+      join(workspaceRoot, "data/tasks/task-implemented-work.md"),
+      join(workspaceRoot, "data/tasks/archive/task-implemented-work.md"),
     );
     writeTask(workspaceRoot, "done", "task-implemented-work", "Implemented work");
     writeTask(
@@ -111,7 +114,7 @@ describe("findTaskReviewTarget", () => {
     execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot, stdio: "ignore" });
 
     expect(await findReviewTarget(workspaceRoot)).toMatchObject({
-      path: "data/tasks/done/task-implemented-work.md",
+      path: "data/tasks/archive/task-implemented-work.md",
       state: "done",
     });
   });
@@ -119,89 +122,89 @@ describe("findTaskReviewTarget", () => {
   it("reviews a staged blocked task when there is no staged done task", async () => {
     const workspaceRoot = makeGitProject();
     writeTask(workspaceRoot, "blocked", "task-real-blocker", "Real blocker");
-    execFileSync("git", ["add", "data/tasks/blocked"], { cwd: workspaceRoot, stdio: "ignore" });
+    execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot, stdio: "ignore" });
 
     expect(await findReviewTarget(workspaceRoot)).toMatchObject({
-      path: "data/tasks/blocked/task-real-blocker.md",
+      path: "data/tasks/task-real-blocker.md",
       state: "blocked",
     });
   });
 
-  it("reviews an active doing task before staged terminal-state tasks", async () => {
+  it("reviews an active open task before staged terminal-state tasks", async () => {
     const workspaceRoot = makeGitProject();
-    writeTask(workspaceRoot, "doing", "task-active", "Active work");
+    writeTask(workspaceRoot, "open", "task-active", "Active work");
     writeTask(workspaceRoot, "done", "task-implemented-work", "Implemented work");
-    execFileSync("git", ["add", "data/tasks/done"], { cwd: workspaceRoot, stdio: "ignore" });
+    execFileSync("git", ["add", "data/tasks/archive"], { cwd: workspaceRoot, stdio: "ignore" });
 
     expect(await findReviewTarget(workspaceRoot)).toMatchObject({
-      path: "data/tasks/doing/task-active.md",
-      state: "doing",
+      path: "data/tasks/task-active.md",
+      state: "open",
     });
   });
 
-  it("finds the expected task after an unstaged doing-to-done move", () => {
+  it("finds the expected task after an unstaged open-to-done move", () => {
     const workspaceRoot = makeGitProject();
-    writeTask(workspaceRoot, "doing", "task-alpha", "Concurrent alpha work");
-    writeTask(workspaceRoot, "doing", "task-target", "Target work");
-    execFileSync("git", ["add", "data/tasks/doing"], { cwd: workspaceRoot, stdio: "ignore" });
+    writeTask(workspaceRoot, "open", "task-alpha", "Concurrent alpha work");
+    writeTask(workspaceRoot, "open", "task-target", "Target work");
+    execFileSync("git", ["add", "data/tasks"], { cwd: workspaceRoot, stdio: "ignore" });
     execFileSync("git", ["commit", "-m", "initial"], { cwd: workspaceRoot, stdio: "ignore" });
 
-    mkdirSync(join(workspaceRoot, "data/tasks/done"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data/tasks/archive"), { recursive: true });
     renameSync(
-      join(workspaceRoot, "data/tasks/doing/task-target.md"),
-      join(workspaceRoot, "data/tasks/done/task-target.md"),
+      join(workspaceRoot, "data/tasks/task-target.md"),
+      join(workspaceRoot, "data/tasks/archive/task-target.md"),
     );
     writeTask(workspaceRoot, "done", "task-target", "Target work");
 
     expect(
       findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
-        taskPath: "data/tasks/doing/task-target.md",
+        taskPath: "data/tasks/task-target.md",
       }),
     ).toMatchObject({
-      path: "data/tasks/done/task-target.md",
+      path: "data/tasks/archive/task-target.md",
       state: "done",
     });
   });
 
   it("rejects ambiguous copies of the expected task", () => {
     const workspaceRoot = makeGitProject();
-    writeTask(workspaceRoot, "doing", "task-target", "Doing target");
+    writeTask(workspaceRoot, "open", "task-target", "Doing target");
     writeTask(workspaceRoot, "done", "task-target", "Done target");
 
     expect(() =>
       findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
-        taskPath: "data/tasks/doing/task-target.md",
+        taskPath: "data/tasks/task-target.md",
       })
     ).toThrow(/expected task task-target.*ambiguous/i);
   });
 
-  it("rejects an expected basename whose task identity changed", () => {
+  it("rejects an expected task with an invalid persisted status", () => {
     const workspaceRoot = makeGitProject();
-    const taskDir = join(workspaceRoot, "data/tasks/doing");
+    const taskDir = join(workspaceRoot, "data/tasks");
     mkdirSync(taskDir, { recursive: true });
     writeFileSync(
       join(taskDir, "task-target.md"),
-      "---\nid: task-unrelated\ntitle: Unrelated\nstatus: doing\n---\n",
+      "---\nstatus: invalid\npriority: p2\n---\n\n# Target\n",
     );
 
     expect(() =>
       findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
-        taskPath: "data/tasks/doing/task-target.md",
+        taskPath: "data/tasks/task-target.md",
       })
-    ).toThrow(/expected task task-target.*contains task-unrelated/i);
+    ).toThrow(/expected task task-target.*invalid status/i);
   });
 
   it("fails closed when the expected task is missing", () => {
     const workspaceRoot = makeGitProject();
-    writeTask(workspaceRoot, "doing", "task-alpha", "Concurrent alpha work");
+    writeTask(workspaceRoot, "open", "task-alpha", "Concurrent alpha work");
 
     expect(() =>
       findExpectedTaskReviewTarget(workspaceRoot, {
         taskId: "task-target",
-        taskPath: "data/tasks/doing/task-target.md",
+        taskPath: "data/tasks/task-target.md",
       })
     ).toThrow(/expected task task-target.*not found/i);
   });
@@ -212,7 +215,7 @@ describe("findTaskReviewTarget", () => {
     runCommand.mockResolvedValueOnce({
       ...(await successfulWorkflowCommandRun({ command: "git" })),
       stdout: {
-        text: "M\tdata/tasks/done/task-target.md\n",
+        text: "M\tdata/tasks/archive/task-target.md\n",
         totalBytes: 39,
         truncated: false,
       },
@@ -220,7 +223,7 @@ describe("findTaskReviewTarget", () => {
 
     await expect(
       readTaskReviewMutationStatus(workspaceRoot, runCommand),
-    ).resolves.toBe("M\tdata/tasks/done/task-target.md\n");
+    ).resolves.toBe("M\tdata/tasks/archive/task-target.md\n");
     expect(runCommand).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "git",
@@ -229,8 +232,7 @@ describe("findTaskReviewTarget", () => {
           "HEAD",
           "--name-status",
           "--",
-          "data/tasks/done/",
-          "data/tasks/blocked/",
+          "data/tasks/",
         ],
         cwd: workspaceRoot,
       }),

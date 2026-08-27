@@ -11,9 +11,7 @@
     "candidateCount": 1,
     "attemptableCount": 1,
     "counts": {
-      "backlog": 0,
-      "ready": 0,
-      "doing": 0,
+      "open": 0,
       "blocked": 1,
       "done": 0,
       "dropped": 0
@@ -22,16 +20,16 @@
   "predicates": [
     {
       "kind": "file-exists",
-      "path": "data/tasks/blocked/task-fixture-research-blocker.md"
+      "path": "data/tasks/task-fixture-research-blocker.md"
     },
     {
       "kind": "file-contains",
-      "path": "data/tasks/blocked/task-fixture-research-blocker.md",
+      "path": "data/tasks/task-fixture-research-blocker.md",
       "needle": "<!-- research-retry-attempt: fingerprint="
     },
     {
       "kind": "file-exists",
-      "path": "data/tasks/blocked/task-review-inaccessible-research-resources-when-access.md"
+      "path": "data/tasks/task-review-inaccessible-research-resources-when-access.md"
     },
     {
       "kind": "file-exists",
@@ -60,7 +58,7 @@
     {
       "predicate": {
         "kind": "file-contains",
-        "path": "data/tasks/blocked/task-fixture-research-blocker.md",
+        "path": "data/tasks/task-fixture-research-blocker.md",
         "needle": "<!-- research-retry-attempt: fingerprint="
       },
       "expected": "fail"
@@ -68,7 +66,7 @@
     {
       "predicate": {
         "kind": "file-exists",
-        "path": "data/tasks/blocked/task-fixture-research-blocker.md"
+        "path": "data/tasks/task-fixture-research-blocker.md"
       },
       "expected": "pass"
     }

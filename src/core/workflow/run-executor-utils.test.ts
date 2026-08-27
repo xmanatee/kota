@@ -82,7 +82,7 @@ describe("enqueueMatchingWorkflows", () => {
         definitionPath: "src/modules/autonomy/workflows/explorer/workflow.ts",
         runDir: ".kota/runs/run-1",
         tags: ["monitored"],
-        nested: { paths: ["data/tasks/ready/task.md"] },
+        nested: { paths: ["data/tasks/task.md"] },
       },
     };
 
@@ -99,8 +99,8 @@ describe("enqueueMatchingWorkflows", () => {
 
     const firstNested = enqueued[0]?.payload.nested as { paths: string[] };
     const secondNested = enqueued[1]?.payload.nested as { paths: string[] };
-    expect(firstNested.paths).toEqual(["data/tasks/ready/task.md"]);
-    expect(secondNested.paths).toEqual(["data/tasks/ready/task.md"]);
+    expect(firstNested.paths).toEqual(["data/tasks/task.md"]);
+    expect(secondNested.paths).toEqual(["data/tasks/task.md"]);
     expect(firstNested.paths).not.toBe(secondNested.paths);
 
     const serialized = safeJsonStringify({ pendingRuns: enqueued }, 2);

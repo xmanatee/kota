@@ -34,9 +34,9 @@ describe("GET /api/attention", () => {
     mkdirSync(runsDir, { recursive: true });
     // Seed enough state that detector returns at least one attention item so
     // we can compare a non-trivial body and prove items[] is populated.
-    makeTaskDir(workspaceRoot, "doing", 2);
-    makeTaskDir(workspaceRoot, "ready", 1);
-    makeTaskDir(workspaceRoot, "backlog", 1);
+    makeTaskDir(workspaceRoot, "open", 2);
+    makeTaskDir(workspaceRoot, "open", 1);
+    makeTaskDir(workspaceRoot, "open", 1);
 
     observed.length = 0;
     const bus = initEventBus();

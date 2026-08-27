@@ -1,0 +1,38 @@
+---
+status: done
+---
+
+# Add Slack bot as a two-way ChannelDef for interactive KOTA conversations via Slack
+
+## Problem
+
+The current `slack` module is one-way: KOTA posts notifications to Slack but cannot receive messages or approvals from operators there. Operators must switch to the CLI or web UI to respond to pending approvals or send commands to KOTA. Teams that live in Slack need to context-switch for every KOTA interaction.
+
+The `channel` protocol and `ChannelDef` type were introduced precisely for this use case — a two-way interaction surface. Telegram already has a full bidirectional channel; Slack should have the same capability.
+
+## Desired Outcome
+
+A new `slack-channel` module (separate from the existing notification `slack` module) that contributes a `ChannelDef` using Slack's Socket Mode API:
+
+- Operators can message the KOTA Slack bot and receive responses.
+- Pending approval requests are posted as interactive Slack messages with Approve/Reject buttons (Block Kit actions).
+- The channel routes inbound messages to a dedicated `ChannelSession` per Slack user.
+- Bot token and app credentials are configured under the module key in `config.modules`.
+
+The existing `slack` notification module is unchanged.
+
+## Constraints
+
+- Requires a Slack App with Socket Mode enabled, Bot Token (`xoxb-`), and App-Level Token (`xapp-`). Local guidance must cover setup at a high level.
+- Use `ChannelDef` and `ChannelAdapter` from `src/core/channels/channel.ts` — do not hardcode channel logic into the daemon.
+- Approval button interactions go through Slack's interactivity endpoint; Socket Mode can handle this without a public URL.
+- This module is opt-in; operators who only want notifications keep using the existing `slack` module.
+- Keep setup guidance scoped to the module.
+
+## Done When
+
+- A `slack-channel` module is loadable from `config.modules`.
+- Operators can send a message to the KOTA Slack bot and receive a reply.
+- Pending approvals are posted as interactive messages; clicking Approve or Reject calls the daemon approval endpoint.
+- The channel has scoped setup guidance.
+- The existing `slack` notification module behavior is unaffected.

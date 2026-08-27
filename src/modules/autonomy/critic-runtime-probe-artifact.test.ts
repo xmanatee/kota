@@ -15,10 +15,9 @@ import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js"
 import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import { writeAnchoredRuntimeProbeArtifact } from "./critic-runtime-probe-artifact-writer.js";
 import {
-  commitReadyTask,
+  commitOpenTask,
   makeRunDir,
   makeTmpDir,
-  moveReadyTaskToDoing,
   writePackageJson,
 } from "./critic-test-fixture.integration.js";
 
@@ -47,24 +46,27 @@ function makeArtifactFixture(program: (fixture: ArtifactFixture) => string): Art
     runDir,
     taskContent: [
       "---",
-      "title: Artifact link probe",
+      "status: open",
+      "priority: p2",
       "---",
+      "",
+      "# Artifact link probe",
+      "",
       "## Runtime Probe",
       "command: pnpm run probe:mutate",
       "timeoutMs: 5000",
     ].join("\n"),
-    taskPath: join(workspaceRoot, "data/tasks/doing/task-artifact-link.md"),
+    taskPath: join(workspaceRoot, "data/tasks/task-artifact-link.md"),
   };
   writeFileSync(fixture.externalTarget, "ORIGINAL");
   writePackageJson(workspaceRoot, {
     "probe:mutate": `node -e ${JSON.stringify(program(fixture))}`,
   });
-  commitReadyTask(
+  commitOpenTask(
     workspaceRoot,
     "task-artifact-link.md",
     fixture.taskContent,
   );
-  moveReadyTaskToDoing(workspaceRoot, "task-artifact-link.md");
   return fixture;
 }
 

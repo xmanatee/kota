@@ -105,7 +105,7 @@ describe("daily-digest build-digest step", () => {
   beforeEach(async () => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "daily-digest-"));
     mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
     runDirPath = mkdtempSync(join(tmpdir(), "daily-digest-run-"));
     runDir = ".kota/runs/test-run";
     emitted = [];
@@ -230,12 +230,12 @@ describe("daily-digest build-digest step", () => {
       emit: () => {},
     });
 
-    // Add a ready task between snapshots so the second run sees a +1 delta.
-    mkdirSync(join(workspaceRoot, "data", "tasks", "ready"), { recursive: true });
+    // Add an open task between snapshots so the second run sees a +1 delta.
+    mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
     const fs = await import("node:fs");
     fs.writeFileSync(
-      join(workspaceRoot, "data", "tasks", "ready", "task-newcomer.md"),
-      "---\nid: task-newcomer\n---\n",
+      join(workspaceRoot, "data", "tasks", "task-newcomer.md"),
+      "---\nstatus: open\npriority: p2\n---\n\n# task-newcomer\n",
     );
 
     const secondRunDirPath = mkdtempSync(join(tmpdir(), "daily-digest-second-"));
@@ -256,12 +256,10 @@ describe("daily-digest build-digest step", () => {
       readFileSync(join(secondRunDirPath, DAILY_DIGEST_DIGEST_JSON), "utf-8"),
     );
     expect(secondJson.queueDelta.previous).toEqual({
-      backlog: 0,
-      ready: 0,
-      doing: 0,
+      open: 0,
       blocked: 0,
     });
-    expect(secondJson.queueDelta.delta.ready).toBe(1);
+    expect(secondJson.queueDelta.delta.open).toBe(1);
     rmSync(secondRunDirPath, { recursive: true, force: true });
   });
 });

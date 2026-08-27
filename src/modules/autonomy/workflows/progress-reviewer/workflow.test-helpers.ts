@@ -87,10 +87,7 @@ export function makeProgressReviewScopeRoot(label = "progress-reviewer"): string
       "",
     ].join("\n"),
   );
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(dir, "data", "tasks", state), { recursive: true });
-    writeFileSync(join(dir, "data", "tasks", state, "AGENTS.md"), `# ${state}\n`);
-  }
+  mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   execFileSync("git", ["init", "--quiet"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
   execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
@@ -195,7 +192,6 @@ export function writeProgressReviewTask(
   state: string,
   id: string,
 ): void {
-  const timestamp = NOW.toISOString();
   const body = renderRepoTaskIntent({
     problem: "Review fixture problem.",
     desiredOutcome: "Review fixture outcome.",
@@ -204,17 +200,19 @@ export function writeProgressReviewTask(
     context: "Progress reviewer test fixture.",
   });
   writeFileSync(
-    join(workspaceRoot, "data", "tasks", state, `${id}.md`),
+    join(
+      workspaceRoot,
+      "data",
+      "tasks",
+      ...(state === "done" || state === "dropped" ? ["archive"] : []),
+      `${id}.md`,
+    ),
     `---
-id: ${id}
-title: ${id}
 status: ${state}
-priority: p2
-area: autonomy
-summary: ${id} summary
-created_at: ${timestamp}
-updated_at: ${timestamp}
+${state === "done" || state === "dropped" ? "" : "priority: p2\n"}
 ---
+# ${id}
+
 ${body}
 `,
   );

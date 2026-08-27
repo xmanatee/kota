@@ -50,10 +50,8 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
     expectStructuredOutput<ExplorerAssessment>(raw, [
       "counts",
       "inboxCount",
-      "openCount",
-      "pullableCount",
+      "activeCount",
       "actionableCount",
-      "promotableBacklogCount",
       "dispatchableCount",
       "hasDispatchableWork",
       "dirty",

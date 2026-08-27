@@ -30,7 +30,6 @@ function makeArtifact(): ProgressReviewArtifact {
     deadLetters: 0,
     state: 0,
     evidence: 0,
-    taskClasses: [],
   };
   return {
     generatedAt: GENERATED_AT,
@@ -59,8 +58,6 @@ function makeArtifact(): ProgressReviewArtifact {
       deadLetterCounts: [],
       deadLetters: [],
       canonicalState: [],
-      taskClassDistribution: [],
-      operatorJourneyRisks: [],
       evidence: [],
       excluded: [],
     },
@@ -81,7 +78,6 @@ function makeArtifact(): ProgressReviewArtifact {
       scopes: [],
       counts,
       deadLetterCounts: [],
-      operatorJourneyRisks: [],
       evidence: [],
       excluded: [],
     },

@@ -75,11 +75,11 @@ describe("critic harness tool-control preflight", () => {
       `kota-critic-harness-preflight-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     );
     runDir = join(workspaceRoot, ".kota/runs/run-critic-preflight");
-    mkdirSync(join(workspaceRoot, "data/tasks/doing"), { recursive: true });
+    mkdirSync(join(workspaceRoot, "data/tasks"), { recursive: true });
     mkdirSync(runDir, { recursive: true });
     writeFileSync(
-      join(workspaceRoot, "data/tasks/doing/task-preflight.md"),
-      "---\nid: task-preflight\ntitle: Preflight\nstatus: doing\npriority: p1\narea: architecture\nsummary: Exercise critic preflight.\n---\n\n## Done When\n\n- The critic runs.\n",
+      join(workspaceRoot, "data/tasks/task-preflight.md"),
+      "---\nstatus: open\npriority: p1\n---\n\n# Preflight\n\n## Done When\n\n- The critic runs.\n",
     );
     execFileSync("git", ["init"], { cwd: workspaceRoot, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "test@example.com"], {

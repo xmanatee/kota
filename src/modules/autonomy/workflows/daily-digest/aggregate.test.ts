@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -62,9 +62,8 @@ function builderTrigger(taskId: string, title: string): Record<string, unknown> 
     schemaRef: null,
     payload: {
       taskId,
-      taskPath: `data/tasks/ready/${taskId}.md`,
-      taskState: "ready",
-      taskUpdatedAt: "2026-04-25T07:00:00.000Z",
+      taskPath: `data/tasks/${taskId}.md`,
+      taskState: "open",
       taskDigest,
       idempotencyKey: `builder:${taskId}:${taskDigest}`,
       title,
@@ -78,11 +77,14 @@ function writeBlockedTask(
   body: string,
   daysAgo = 20,
 ): void {
-  const dir = join(workspaceRoot, "data", "tasks", "blocked");
+  const dir = join(workspaceRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
   const updatedAt = new Date(NOW - daysAgo * 24 * 60 * 60 * 1000).toISOString();
-  const content = `---\nid: ${id}\ntitle: ${id}\nstatus: blocked\npriority: p2\narea: autonomy\nsummary: t\ncreated_at: ${updatedAt}\nupdated_at: ${updatedAt}\n---\n\n## Problem\n\nTest.\n\n${body}`;
-  writeFileSync(join(dir, `${id}.md`), content, "utf-8");
+  const path = join(dir, `${id}.md`);
+  const content = `---\nstatus: blocked\npriority: p2\n---\n\n# ${id}\n\n## Problem\n\nTest.\n\n${body}`;
+  writeFileSync(path, content, "utf-8");
+  const changedAt = new Date(updatedAt);
+  utimesSync(path, changedAt, changedAt);
 }
 
 const NOW = Date.parse("2026-04-26T08:00:00.000Z");
@@ -108,14 +110,14 @@ describe("aggregateDailyDigest", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
-  function aggregate(opts?: { previous?: { backlog: number; ready: number; doing: number; blocked: number } }) {
+  function aggregate(opts?: { previous?: { open: number; blocked: number } }) {
     return aggregateDailyDigest({
       runsDir,
       workspaceRoot,
       ownerQuestions,
       windowEndMs: NOW,
       previousQueueCounts: opts?.previous ?? null,
-      currentQueueCounts: { backlog: 5, ready: 2, doing: 1, blocked: 3 },
+      currentQueueCounts: { open: 8, blocked: 3 },
     });
   }
 
@@ -124,15 +126,11 @@ describe("aggregateDailyDigest", () => {
     expect(data.quiet).toBe(true);
     expect(data.builderCommits).toEqual([]);
     expect(data.queueDelta.current).toEqual({
-      backlog: 5,
-      ready: 2,
-      doing: 1,
+      open: 8,
       blocked: 3,
     });
     expect(data.queueDelta.delta).toEqual({
-      backlog: null,
-      ready: null,
-      doing: null,
+      open: null,
       blocked: null,
     });
   });
@@ -181,7 +179,7 @@ describe("aggregateDailyDigest", () => {
     expect(data.quiet).toBe(true);
   });
 
-  it("collects blocked-promoter moves with toReady / toBacklog split", () => {
+  it("collects blocked-promoter moves into open", () => {
     const id = "2026-04-25-promoter-a";
     writeRunMetadata(runsDir, id, {
       workflow: "blocked-promoter",
@@ -199,8 +197,8 @@ describe("aggregateDailyDigest", () => {
           durationMs: 0,
           output: {
             promotions: [
-              { id: "task-a", toState: "ready" },
-              { id: "task-b", toState: "backlog" },
+              { id: "task-a", toState: "open" },
+              { id: "task-b", toState: "open" },
             ],
           },
         },
@@ -219,8 +217,7 @@ describe("aggregateDailyDigest", () => {
     expect(data.blockedPromoterMoves[0]).toMatchObject({
       runId: id,
       promotedTaskIds: ["task-a", "task-b"],
-      toReady: ["task-a"],
-      toBacklog: ["task-b"],
+      toOpen: ["task-a", "task-b"],
     });
   });
 
@@ -306,7 +303,7 @@ describe("aggregateDailyDigest", () => {
       workspaceRoot,
       "task-needs-screenshot",
       [
-        "## Unblock Precondition",
+        "## Blocked on",
         "",
         "```",
         "kind: operator-capture",
@@ -330,7 +327,7 @@ describe("aggregateDailyDigest", () => {
       workspaceRoot,
       "task-recent-capture",
       [
-        "## Unblock Precondition",
+        "## Blocked on",
         "",
         "```",
         "kind: operator-capture",
@@ -347,12 +344,10 @@ describe("aggregateDailyDigest", () => {
 
   it("computes queue delta against previous snapshot", () => {
     const data = aggregate({
-      previous: { backlog: 7, ready: 0, doing: 1, blocked: 4 },
+      previous: { open: 8, blocked: 4 },
     });
     expect(data.queueDelta.delta).toEqual({
-      backlog: -2,
-      ready: 2,
-      doing: 0,
+      open: 0,
       blocked: -1,
     });
   });

@@ -27,23 +27,19 @@ function git(workspaceRoot: string, args: string[]): string {
 
 function taskFixture(args: {
   id: string;
-  state: "backlog" | "ready" | "blocked" | "done" | "dropped";
+  state: "open" | "blocked" | "done" | "dropped";
   priority?: "p0" | "p1" | "p2";
-  anchor?: boolean;
   strategic?: boolean;
 }): string {
   return [
     "---",
-    `id: ${args.id}`,
-    `title: ${args.id}`,
     `status: ${args.state}`,
-    `priority: ${args.priority ?? "p2"}`,
-    "area: autonomy",
-    `summary: ${args.id} fixture`,
-    "created_at: 2026-08-15T00:00:00.000Z",
-    "updated_at: 2026-08-15T00:00:00.000Z",
-    ...(args.anchor ? ["anchor: true"] : []),
+    ...(args.state === "open" || args.state === "blocked"
+      ? [`priority: ${args.priority ?? "p2"}`]
+      : []),
     "---",
+    "",
+    `# ${args.id}`,
     "",
     "## Problem",
     "",
@@ -61,13 +57,15 @@ function write(workspaceRoot: string, path: string, content: string): void {
 
 function writeTask(
   workspaceRoot: string,
-  state: "backlog" | "ready" | "blocked" | "done" | "dropped",
+  state: "open" | "blocked" | "done" | "dropped",
   id: string,
   options: Omit<Parameters<typeof taskFixture>[0], "id" | "state"> = {},
 ): void {
   write(
     workspaceRoot,
-    `data/tasks/${state}/${id}.md`,
+    state === "done" || state === "dropped"
+      ? `data/tasks/archive/${id}.md`
+      : `data/tasks/${id}.md`,
     taskFixture({ id, state, ...options }),
   );
 }
@@ -75,21 +73,31 @@ function writeTask(
 function moveTask(
   workspaceRoot: string,
   id: string,
-  from: "backlog" | "ready" | "blocked" | "done" | "dropped",
-  to: "backlog" | "ready" | "blocked" | "done" | "dropped",
+  from: "open" | "blocked" | "done" | "dropped",
+  to: "open" | "blocked" | "done" | "dropped",
   options: Omit<Parameters<typeof taskFixture>[0], "id" | "state"> = {},
 ): void {
-  const fromPath = join(workspaceRoot, "data", "tasks", from, `${id}.md`);
-  const toPath = join(workspaceRoot, "data", "tasks", to, `${id}.md`);
-  renameSync(fromPath, toPath);
+  const fromPath = join(
+    workspaceRoot,
+    "data",
+    "tasks",
+    ...(from === "done" || from === "dropped" ? ["archive"] : []),
+    `${id}.md`,
+  );
+  const toPath = join(
+    workspaceRoot,
+    "data",
+    "tasks",
+    ...(to === "done" || to === "dropped" ? ["archive"] : []),
+    `${id}.md`,
+  );
+  if (fromPath !== toPath) renameSync(fromPath, toPath);
   writeFileSync(toPath, taskFixture({ id, state: to, ...options }), "utf8");
 }
 
 function makeProject(label: string): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-semantic-reflection-${label}-`));
-  for (const state of ["backlog", "ready", "doing", "blocked", "done", "dropped"]) {
-    mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
-  }
+  mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
   write(workspaceRoot, ".gitignore", ".kota/\n");
   git(workspaceRoot, ["init", "--quiet"]);
@@ -157,12 +165,12 @@ describe("semantic progress reflection", () => {
 
   it("emits one parked-queue review and ignores five later build commits", async () => {
     const workspaceRoot = track("parked-build-restraint");
-    writeTask(workspaceRoot, "ready", "task-delivery");
-    writeTask(workspaceRoot, "backlog", "task-strategic-anchor", { anchor: true });
+    writeTask(workspaceRoot, "open", "task-delivery");
+    writeTask(workspaceRoot, "blocked", "task-strategic-anchor");
     commit(workspaceRoot, "seed actionable queue");
     expect((await inspect(workspaceRoot)).shouldEmit).toBe(false);
 
-    moveTask(workspaceRoot, "task-delivery", "ready", "done");
+    moveTask(workspaceRoot, "task-delivery", "open", "done");
     commit(workspaceRoot, "complete delivery task");
     const parked = await inspect(workspaceRoot);
     expect(parked).toMatchObject({
@@ -182,11 +190,11 @@ describe("semantic progress reflection", () => {
 
   it("emits a task-disposition boundary when a task becomes blocked", async () => {
     const workspaceRoot = track("blocked");
-    writeTask(workspaceRoot, "ready", "task-needs-input");
-    commit(workspaceRoot, "seed ready task");
+    writeTask(workspaceRoot, "open", "task-needs-input");
+    commit(workspaceRoot, "seed open task");
     await inspect(workspaceRoot);
 
-    moveTask(workspaceRoot, "task-needs-input", "ready", "blocked");
+    moveTask(workspaceRoot, "task-needs-input", "open", "blocked");
     commit(workspaceRoot, "block task");
     expect(await inspect(workspaceRoot)).toMatchObject({
       shouldEmit: true,
@@ -194,7 +202,7 @@ describe("semantic progress reflection", () => {
         boundary: "task-disposition",
         inputRevision: 1,
         evidenceRefs: expect.arrayContaining([
-          "data/tasks/blocked/task-needs-input.md",
+          "data/tasks/task-needs-input.md",
         ]),
       },
     });
@@ -231,14 +239,14 @@ describe("semantic progress reflection", () => {
 
   it("emits a strategic-completion boundary for a completed P1 initiative", async () => {
     const workspaceRoot = track("strategic-completion");
-    writeTask(workspaceRoot, "ready", "task-milestone", {
+    writeTask(workspaceRoot, "open", "task-milestone", {
       priority: "p1",
       strategic: true,
     });
     commit(workspaceRoot, "seed strategic task");
     await inspect(workspaceRoot);
 
-    moveTask(workspaceRoot, "task-milestone", "ready", "done", {
+    moveTask(workspaceRoot, "task-milestone", "open", "done", {
       priority: "p1",
       strategic: true,
     });

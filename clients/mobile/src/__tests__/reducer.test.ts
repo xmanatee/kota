@@ -278,9 +278,9 @@ describe('reducer', () => {
         pendingOwnerQuestions: [],
         agingOperatorCaptures: [],
         queueDelta: {
-          current: { backlog: 0, ready: 0, doing: 0, blocked: 0 },
+          current: { open: 0, blocked: 0 },
           previous: null,
-          delta: { backlog: null, ready: null, doing: null, blocked: null },
+          delta: { open: null, blocked: null },
         },
         quiet: true,
       },

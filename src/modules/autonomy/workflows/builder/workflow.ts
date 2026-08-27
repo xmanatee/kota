@@ -43,7 +43,6 @@ const builderWorkflow: WorkflowDefinitionInput = {
       "taskId",
       "taskPath",
       "taskState",
-      "taskUpdatedAt",
       "taskDigest",
       "idempotencyKey",
     ],
@@ -53,8 +52,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
         pattern: "^task-[a-z0-9][a-z0-9-]*$",
       },
       taskPath: { type: "string", minLength: 1 },
-      taskState: { enum: ["ready", "doing"] },
-      taskUpdatedAt: { type: "string", minLength: 1 },
+      taskState: { enum: ["open"] },
       taskDigest: { type: "string", pattern: "^[a-f0-9]{64}$" },
       idempotencyKey: { type: "string", minLength: 1 },
     },
@@ -73,7 +71,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       timeoutMs: null,
       idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
       when: (ctx) =>
-        inspectTargetTaskStep.outputRequired(ctx).ready &&
+        inspectTargetTaskStep.outputRequired(ctx).actionable &&
         stepSucceeded("preflight-builder-harness")(ctx),
       repairLoop: { checks: builderRepairChecks() },
     },

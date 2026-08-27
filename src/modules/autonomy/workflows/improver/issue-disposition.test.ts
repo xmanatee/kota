@@ -6,8 +6,6 @@ const base = {
   taskTitle: "",
   taskSummary: "",
   taskPriority: "p2",
-  taskArea: "autonomy",
-  taskClass: "Meta",
   taskHowWeWillKnow: "",
   ownerQuestion: "",
   ownerReason: "",

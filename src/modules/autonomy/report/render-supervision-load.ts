@@ -9,7 +9,7 @@ import {
 } from "#modules/rendering/primitives.js";
 import { safeTerminalLineText } from "#modules/rendering/safe-terminal-text.js";
 import type { SupervisionLoadReport } from "./aggregate.js";
-import { priorityLabel, priorityRole, taskClassRole } from "./render-common.js";
+import { priorityLabel, priorityRole } from "./render-common.js";
 
 export function renderSupervisionLoad(
   report: SupervisionLoadReport,
@@ -37,15 +37,12 @@ export function renderSupervisionLoad(
     lines.push(line(span("Workstreams", "muted", true)));
     for (const group of report.workstreams.slice(0, 8)) {
       const workflow = safeTerminalLineText(group.workflow);
-      const taskClass = safeTerminalLineText(group.taskClass);
       const scope = group.scopeId
         ? ` scope=${safeTerminalLineText(group.scopeId)}`
         : "";
       lines.push(line(
         plain("  "),
         span(workflow.padEnd(22), "info"),
-        plain(" "),
-        span(taskClass, taskClassRole(group.taskClass)),
         plain(" "),
         span(priorityLabel(group.priority), priorityRole(group.priority)),
         plain(` runs=${group.activeRuns}`),

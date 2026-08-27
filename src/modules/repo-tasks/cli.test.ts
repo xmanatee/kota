@@ -10,7 +10,6 @@ import { renderToString } from "#modules/rendering/transport.js";
 import { buildTaskListNode, listTasksForStates, registerTaskCommands } from "./cli.js";
 import type {
   RepoTaskCreateOptions,
-  RepoTaskGcOptions,
   RepoTaskReindexResult,
   RepoTaskSearchFilter,
   RepoTaskSearchResult,
@@ -20,12 +19,11 @@ import { getRepoTasksDir, moveTaskById } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,
   createNormalizedTask,
-  gcTerminalTasks,
   showTask,
 } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 
-const OPEN_STATES: RepoTaskState[] = ["backlog", "ready", "doing", "blocked"];
+const OPEN_STATES: RepoTaskState[] = ["open", "blocked"];
 
 type SearchOverride = (
   query: string,
@@ -81,9 +79,6 @@ function stubCtx(
         async capture(title: string) {
           return captureInboxTask(repoRoot, title);
         },
-        async gc(options?: RepoTaskGcOptions) {
-          return gcTerminalTasks(repoRoot, options ?? {});
-        },
         async search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult> {
           if (overrides?.search) return overrides.search(query, filter);
           const opts: { topK: number; states?: RepoTaskState[] } = {
@@ -126,23 +121,23 @@ function writeTaskFile(
   id: string,
   extra: Record<string, string> = {},
 ): void {
-  const dir = join(repoRoot, "data", "tasks", state);
+  const dir = state === "done" || state === "dropped"
+    ? join(repoRoot, "data", "tasks", "archive")
+    : join(repoRoot, "data", "tasks");
   mkdirSync(dir, { recursive: true });
+  const status = extra.status ?? state;
+  const title = extra.title ?? `Title for ${id}`;
   const fm = {
-    id,
-    title: `Title for ${id}`,
-    status: state,
-    priority: "p2",
-    area: "test",
-    summary: "A test task.",
-    created_at: "2026-03-20",
-    updated_at: "2026-03-20",
-    ...extra,
+    status,
+    ...(status === "open" || status === "blocked"
+      ? { priority: extra.priority ?? "p2" }
+      : {}),
+    ...(extra.depends_on ? { depends_on: extra.depends_on } : {}),
   };
   const frontmatter = Object.entries(fm)
     .map(([k, v]) => `${k}: ${v}`)
     .join("\n");
-  const content = `---\n${frontmatter}\n---\n\n## Problem\n\nTest.\n\n## Desired Outcome\n\nWorks.\n\n## Constraints\n\nNone.\n\n## Done When\n\n- Done.\n`;
+  const content = `---\n${frontmatter}\n---\n\n# ${title}\n\n## Problem\n\nTest.\n\n## Desired Outcome\n\nWorks.\n\n## Constraints\n\nNone.\n\n## Done When\n\n- Done.\n`;
   writeFileSync(join(dir, `${id}.md`), content);
 }
 
@@ -189,25 +184,25 @@ describe("listTasksForStates", () => {
   });
 
   it("returns empty array when no tasks exist", () => {
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
     expect(result).toEqual([]);
   });
 
   it("returns tasks from requested states", () => {
-    writeTaskFile(repoRoot, "ready", "task-a");
-    writeTaskFile(repoRoot, "backlog", "task-b");
+    writeTaskFile(repoRoot, "open", "task-a");
+    writeTaskFile(repoRoot, "blocked", "task-b");
 
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("task-a");
-    expect(result[0].state).toBe("ready");
+    expect(result[0].state).toBe("open");
   });
 
   it("returns tasks across multiple states", () => {
-    writeTaskFile(repoRoot, "ready", "task-a");
-    writeTaskFile(repoRoot, "doing", "task-b");
+    writeTaskFile(repoRoot, "open", "task-a");
+    writeTaskFile(repoRoot, "blocked", "task-b");
 
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready", "doing"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open", "blocked"]);
     expect(result).toHaveLength(2);
     const ids = result.map((t) => t.id);
     expect(ids).toContain("task-a");
@@ -215,30 +210,30 @@ describe("listTasksForStates", () => {
   });
 
   it("skips AGENTS.md files", () => {
-    const dir = join(repoRoot, "data", "tasks", "ready");
+    const dir = join(repoRoot, "data", "tasks");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "AGENTS.md"), "# Agents");
-    writeTaskFile(repoRoot, "ready", "task-real");
+    writeTaskFile(repoRoot, "open", "task-real");
 
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("task-real");
   });
 
   it("returns id and priority from frontmatter", () => {
-    writeTaskFile(repoRoot, "ready", "task-x", { priority: "p1", title: "My Task" });
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
+    writeTaskFile(repoRoot, "open", "task-x", { priority: "p1", title: "My Task" });
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
     expect(result[0].priority).toBe("p1");
     expect(result[0].title).toBe("My Task");
   });
 
   it("returns unfinished hard dependency ids for task list output", () => {
-    writeTaskFile(repoRoot, "ready", "task-dependent", {
+    writeTaskFile(repoRoot, "open", "task-dependent", {
       depends_on: "[task-enabler]",
     });
-    writeTaskFile(repoRoot, "backlog", "task-enabler");
+    writeTaskFile(repoRoot, "open", "task-enabler");
 
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["ready"]);
+    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
 
     expect(result[0].waitingOnTasks).toEqual(["task-enabler"]);
   });
@@ -268,8 +263,8 @@ describe("kota task list", () => {
   });
 
   it("lists tasks from open states by default", async () => {
-    writeTaskFile(repoRoot, "ready", "task-alpha", { title: "Alpha task", priority: "p1" });
-    writeTaskFile(repoRoot, "doing", "task-beta", { title: "Beta task", priority: "p2" });
+    writeTaskFile(repoRoot, "open", "task-alpha", { title: "Alpha task", priority: "p1" });
+    writeTaskFile(repoRoot, "open", "task-beta", { title: "Beta task", priority: "p2" });
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
@@ -281,15 +276,15 @@ describe("kota task list", () => {
   });
 
   it("filters to specific state with --state", async () => {
-    writeTaskFile(repoRoot, "ready", "task-ready-one");
-    writeTaskFile(repoRoot, "backlog", "task-backlog-one");
+    writeTaskFile(repoRoot, "open", "task-open-one");
+    writeTaskFile(repoRoot, "blocked", "task-blocked-one");
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
-      await program.parseAsync(["node", "kota", "task", "list", "--state", "ready"]);
+      await program.parseAsync(["node", "kota", "task", "list", "--state", "open"]);
     });
-    expect(output).toContain("task-ready-one");
-    expect(output).not.toContain("task-backlog-one");
+    expect(output).toContain("task-open-one");
+    expect(output).not.toContain("task-blocked-one");
   });
 });
 
@@ -309,12 +304,12 @@ describe("kota task show", () => {
   });
 
   it("prints full task content", async () => {
-    writeTaskFile(repoRoot, "doing", "task-show-me");
+    writeTaskFile(repoRoot, "open", "task-show-me");
     const program = makeProgram();
     const output = await captureOutput(async () => {
       await program.parseAsync(["node", "kota", "task", "show", "task-show-me"]);
     });
-    expect(output).toContain("id: task-show-me");
+    expect(output).toContain("# Title for task-show-me");
     expect(output).toContain("## Problem");
   });
 
@@ -351,8 +346,7 @@ describe("kota task move", () => {
   });
 
   it("moves task file and updates status frontmatter", async () => {
-    writeTaskFile(repoRoot, "ready", "task-mover", { status: "ready" });
-    mkdirSync(join(repoRoot, "data", "tasks", "doing"), { recursive: true });
+    writeTaskFile(repoRoot, "open", "task-mover", { status: "open" });
 
     const { execFileSync: mockExecFile } = await import("node:child_process");
     vi.mocked(mockExecFile).mockImplementation(
@@ -371,23 +365,22 @@ describe("kota task move", () => {
     const program = makeProgram();
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     try {
-      await program.parseAsync(["node", "kota", "task", "move", "task-mover", "doing"]);
+      await program.parseAsync(["node", "kota", "task", "move", "task-mover", "blocked"]);
     } finally {
       logSpy.mockRestore();
     }
 
-    expect(existsSync(join(repoRoot, "data", "tasks", "ready", "task-mover.md"))).toBe(false);
-    expect(existsSync(join(repoRoot, "data", "tasks", "doing", "task-mover.md"))).toBe(true);
-    const content = readFileSync(join(repoRoot, "data", "tasks", "doing", "task-mover.md"), "utf-8");
-    expect(content).toMatch(/^status: doing$/m);
+    expect(existsSync(join(repoRoot, "data", "tasks", "task-mover.md"))).toBe(true);
+    const content = readFileSync(join(repoRoot, "data", "tasks", "task-mover.md"), "utf-8");
+    expect(content).toMatch(/^status: blocked$/m);
   });
 
   it("prints message when task is already in target state", async () => {
-    writeTaskFile(repoRoot, "ready", "task-already");
+    writeTaskFile(repoRoot, "open", "task-already");
 
     const program = makeProgram();
     const output = await captureOutput(async () => {
-      await program.parseAsync(["node", "kota", "task", "move", "task-already", "ready"]);
+      await program.parseAsync(["node", "kota", "task", "move", "task-already", "open"]);
     });
     expect(output).toContain("already in");
   });
@@ -470,7 +463,7 @@ describe("kota task search", () => {
   });
 
   it("falls back to keyword path with --keyword and prints matched ids", async () => {
-    writeTaskFile(repoRoot, "ready", "task-cost-tracker", {
+    writeTaskFile(repoRoot, "open", "task-cost-tracker", {
       title: "Track spend anomaly alerts",
     });
     writeTaskFile(repoRoot, "done", "task-bread", { title: "Bake bread" });
@@ -518,11 +511,8 @@ describe("kota task search", () => {
           {
             id: "task-x",
             title: "T",
-            state: "ready",
+            state: "open",
             priority: "p2",
-            area: "a",
-            summary: "",
-            updatedAt: "2026-04-27T00:00:00.000Z",
             score: 0.5,
           },
         ],
@@ -576,7 +566,7 @@ describe("kota task search", () => {
   });
 
   it("filters by --state", async () => {
-    writeTaskFile(repoRoot, "ready", "task-open-spend", {
+    writeTaskFile(repoRoot, "open", "task-open-spend", {
       title: "Track spend in open work",
     });
     writeTaskFile(repoRoot, "done", "task-closed-spend", {
@@ -593,7 +583,7 @@ describe("kota task search", () => {
         "spend",
         "--keyword",
         "--state",
-        "ready",
+        "open",
       ]);
     });
     expect(output).toContain("task-open-spend");
@@ -657,14 +647,14 @@ describe("buildTaskListNode", () => {
     {
       id: "task-alpha",
       priority: "p0",
-      state: "ready" as const,
+      state: "open" as const,
       title: "Stabilize the dispatcher loop after the merge",
       waitingOnTasks: [],
     },
     {
       id: "task-beta-with-an-extremely-long-title",
       priority: "p2",
-      state: "doing" as const,
+      state: "open" as const,
       title:
         "A very long task title that should wrap or truncate cleanly under a narrow terminal width without overflowing into the next column or tearing the alignment of the table.",
       waitingOnTasks: ["task-alpha"],
@@ -676,7 +666,7 @@ describe("buildTaskListNode", () => {
       title: "Awaiting operator capture",
       waitingOnTasks: [],
     },
-  ];
+  ] satisfies Parameters<typeof buildTaskListNode>[0];
 
   for (const { name, theme } of [
     { name: "default", theme: DEFAULT_THEME },
@@ -691,7 +681,7 @@ describe("buildTaskListNode", () => {
       expect(out).toContain("task-alpha");
       expect(out).toContain("Stabilize the dispatcher loop");
       expect(out).toContain("p0");
-      expect(out).toContain("ready");
+      expect(out).toContain("open");
       expect(out).toContain("task-alpha");
     });
 
