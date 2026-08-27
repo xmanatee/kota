@@ -1,13 +1,13 @@
 ---
 id: task-migrate-historical-run-metadata-safely
 title: Migrate and diagnose historical workflow metadata
-status: backlog
+status: ready
 priority: p0
 area: workflow-runtime
 summary: Replace silent historical-run omission with one versioned metadata reader that migrates recoverable terminal history, diagnoses quarantine, and keeps active authority strict.
 task_class: Platform
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-27T00:45:00.000Z
+updated_at: 2026-08-27T00:50:06.314Z
 ---
 ## Problem
 
