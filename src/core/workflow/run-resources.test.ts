@@ -124,6 +124,7 @@ describe("RunResourceAllocator", () => {
     });
     expect(profile.env).toMatchObject({
       TMPDIR: fixture.sandbox.tempDir,
+      KOTA_SCOPE_ROOT: fixture.sandbox.workspaceDir,
       KOTA_WORKSPACE_DIR: fixture.sandbox.workspaceDir,
       KOTA_RUN_DIR: join(fixture.sandbox.rootDir, "agent"),
       KOTA_RUN_ARTIFACT_DIR: fixture.sandbox.artifactDir,

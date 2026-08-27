@@ -77,6 +77,7 @@ function immutableProfile(input: {
     TMPDIR: sandbox.tempDir,
     TMP: sandbox.tempDir,
     TEMP: sandbox.tempDir,
+    KOTA_SCOPE_ROOT: sandbox.workspaceDir,
     KOTA_WORKSPACE_DIR: sandbox.workspaceDir,
     KOTA_RUN_DIR: agentDir,
     KOTA_RUN_TEMP_DIR: sandbox.tempDir,
