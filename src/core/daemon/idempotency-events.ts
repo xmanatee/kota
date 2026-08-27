@@ -85,20 +85,24 @@ export function installEventIdempotency(
       next();
       return;
     }
-    const result = options.resolveStore(input.scopeId).record({
-      ...input,
-      result: {
-        event: envelope.type,
-        acceptedAt: new Date().toISOString(),
-      },
-    });
-    envelope.payload.idempotencyStatus = result.status;
-    if (result.status === "accepted") {
-      next();
+    const store = options.resolveStore(input.scopeId);
+    const claim = store.claim(input);
+    envelope.payload.idempotencyStatus = claim.status;
+    if (claim.status === "accepted") {
+      try {
+        next();
+        store.complete(claim.reservation, {
+          event: envelope.type,
+          acceptedAt: new Date().toISOString(),
+        });
+      } catch (error) {
+        store.abandon(claim.reservation);
+        throw error;
+      }
       return;
     }
     options.log?.(
-      `Suppressed duplicate event "${envelope.type}" for idempotency key ${input.key} (${result.status})`,
+      `Suppressed duplicate event "${envelope.type}" for idempotency key ${input.key} (${claim.status})`,
     );
   });
 }

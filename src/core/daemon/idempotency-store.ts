@@ -1,5 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 
 export type IdempotencyJsonPrimitive = string | number | boolean | null;
@@ -241,6 +248,32 @@ export class IdempotencyStore {
     };
     this.write(updated);
     return updated;
+  }
+
+  abandon(reservation: IdempotencyReservation): boolean {
+    const existing = this.get(
+      reservation.scopeId,
+      reservation.operation,
+      reservation.key,
+    );
+    if (
+      existing?.status !== "in_progress" ||
+      existing.id !== reservation.entryId ||
+      existing.parameterFingerprint !== reservation.parameterFingerprint
+    ) {
+      return false;
+    }
+    unlinkSync(
+      join(
+        this.dir,
+        idempotencyFileName(
+          reservation.scopeId,
+          reservation.operation,
+          reservation.key,
+        ),
+      ),
+    );
+    return true;
   }
 
   record(input: IdempotencyRecordInput): IdempotencyRecordResult {
