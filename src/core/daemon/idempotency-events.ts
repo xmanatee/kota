@@ -92,7 +92,6 @@ export function installEventIdempotency(
         acceptedAt: new Date().toISOString(),
       },
     });
-    envelope.payload.idempotencyKey = input.key;
     envelope.payload.idempotencyStatus = result.status;
     if (result.status === "accepted") {
       next();
