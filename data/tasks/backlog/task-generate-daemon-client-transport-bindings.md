@@ -4,31 +4,41 @@ title: Generate routine daemon client transport bindings
 status: backlog
 priority: p1
 area: daemon-contracts
-summary: Extend the canonical operation graph so routine daemon requests, decoders, namespace assembly, and freshness are generated instead of handwritten and repeatedly tested.
+summary: Make module operation descriptors the single source for routine routes, requests, decoders, daemon clients, and namespace assembly.
 task_class: Platform
 depends_on: [task-align-verification-ownership-and-cadences]
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-26T23:54:21.238Z
+updated_at: 2026-08-27T00:45:00.000Z
 ---
-## Problem
+## Scope / Starting Points
 
-Many modules independently declare local clients, daemon clients, route mappings, request DTOs, scope threading, decoders, and namespace assembly. Thousands of test lines only prove that these handwritten copies agree, while production drift remains representable.
+Inventory `src/core/modules/module-definition.ts`, module loader/client assembly, daemon transport, every module `client.ts`, `routes.ts`, `*-operations.ts`, `index.ts` `daemonClient(link)` contribution, aggregate client namespace, and associated mapping tests.
 
-## Desired Outcome
+Classify every operation as routine mapping or an exception requiring authored authentication, redaction, retry, streaming, protocol-limit, or semantic-transform behavior.
 
-Module-owned operation descriptors are the canonical source for routine transport bindings and aggregate client assembly. Generation makes path, method, body, query, response decoder, capability, and scope rules consistent by construction; handwritten code remains only where an adapter adds semantic transformation or security-sensitive behavior.
+## Required Changes
 
-## Constraints
+- Add one module-owned operation descriptor authority for method, path, scope, capability, request mapping, response decoder, and client namespace.
+- Generate routine route/client binding and aggregate namespace assembly from that authority with deterministic output and one freshness observation.
+- Normalize routine wire DTOs at domain boundaries; keep authored adapters only for classified exceptions.
+- Migrate every routine operation in the inventory and delete its handwritten factory, route mapping, missing-registration branch, compatibility export, and duplicated mapping/source-absence tests.
+- Do not introduce a second registry beside module definition/loader ownership or freeze generated catalogs in snapshots.
 
-- Extend the existing contract graph rather than introduce a parallel descriptor language or second client registry.
-- Normalize routine wire DTOs at domain boundaries so client-only reshaping is exceptional and explicit.
-- Generate deterministic output and provide one freshness observation without freezing generated catalogs in ordinary tests.
-- Delete superseded handwritten wiring, compatibility exports, missing-registration branches, and routine daemon-client tests in the same slices.
-- Retain focused proof for authored semantic transforms, authentication, redaction, retries, streaming, or protocol limits.
+## Must Not Complete While
 
-## How We Will Know
+Any operation is unclassified, any routine operation still needs edits in multiple transport layers, any generated output can be stale undetected, or deleted mapping checks have moved into snapshots.
 
-- Adding a routine module operation changes one canonical descriptor and regenerated output, not route, daemon-client, aggregate, and catalog implementations by hand.
-- Representative generated requests interoperate with the daemon and stale generated output is detected once.
-- Routine transport mapping tests and source-absence tests are gone, while exceptional adapter behavior remains owned.
-- The change removes an estimated 7k-10k test LOC plus duplicated production wiring without shifting it into snapshots.
+## Done When
+
+- The inventory has zero unresolved operations.
+- Adding a representative routine operation changes one canonical descriptor and regenerated output only.
+- A representative generated request interoperates with the daemon.
+- Every remaining handwritten binding names its exceptional semantic or security responsibility.
+
+## Acceptance Evidence
+
+Provide the operation/classification/disposition matrix, generated-freshness observation, representative interoperability evidence, and before/after production, executable-test, and authored-support LOC.
+
+## Initiative
+
+Lean behavioral verification: make routine transport consistency true by construction.

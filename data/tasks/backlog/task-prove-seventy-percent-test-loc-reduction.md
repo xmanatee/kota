@@ -1,33 +1,43 @@
 ---
 id: task-prove-seventy-percent-test-loc-reduction
-title: Audit and prove seventy percent test LOC reduction
+title: Prove and close the seventy-percent verification reduction
 status: backlog
 priority: p1
 area: architecture
-summary: Reconcile the final verification portfolio, prove at least 70 percent executable test LOC reduction without support displacement, and remove temporary migration tracking.
+summary: Reconcile the final portfolio, prove at least 70 percent executable-test LOC reduction without displacement, remove temporary tracking, and close the initiative anchor.
 task_class: Meta
 depends_on: [task-collapse-root-integration-and-test-support]
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-26T23:54:21.238Z
+updated_at: 2026-08-27T00:45:00.000Z
 ---
-## Problem
+## Scope / Starting Points
 
-A large deletion can hit a line target while retaining duplicated production mechanisms, moving code into helpers or fixtures, weakening critical behavior, or leaving stale instructions that recreate the problem. Completion therefore needs a portfolio and architecture audit, not only a count.
+Use the exact baseline command, exclusions, and inventory frozen by `task-align-verification-ownership-and-cadences`. Reconcile every program child, retained test, authored helper/fixture, generated exclusion, and implicated production mechanism.
 
-## Desired Outcome
+## Required Changes
 
-The final repository has a reconciled owner and cadence inventory, at most 30 percent of the frozen executable-test baseline, materially lower authored test-support LOC, no hidden displacement, and explicit retained confidence for protocol, security, durability, recovery, destructive action, and operator journeys. Temporary tracking artifacts are removed after the anchor is closed.
+- Report baseline and final executable-test LOC, reduction percentage, authored test-support/fixture delta, generated/vendor exclusions, and implicated production-glue delta.
+- Audit for renamed or moved test code, fixture/eval displacement, generated snapshots, shadow implementations, compatibility aliases, ambient state, and overengineering.
+- For protocol, security, durability, recovery, destructive action, and operator journeys, sample meaningful counterfactual failures or equivalent observations showing the intended owner catches them.
+- Record an explicit exceptional reason for any retained test that lacks the standard consumer/owner/stimulus/oracle/distinct-failure/cadence admission.
+- Resolve or remove every obsolete child, report, inventory, compatibility path, and misleading instruction; update all anchor checkboxes and move the program anchor to done as the final initiative action.
 
-## Constraints
+## Must Not Complete While
 
-- Use the baseline and accounting rules established by the standards slice; explain any corrected baseline transparently.
-- Sample meaningful mutations or equivalent counterfactual failures at high-risk owners rather than chasing a universal mutation score.
-- Audit production LOC and mechanisms for duplicate owners, compatibility aliases, shadow paths, ambient state, and overengineering.
-- Do not turn the initiative's LOC target into a permanent CI or autonomy gate.
+Executable-test LOC exceeds 30 percent of the frozen baseline, authored support absorbed deletion, any retained test or program task is unresolved, any duplicate production owner remains, or any temporary tracking artifact remains after its evidence is recorded.
 
-## How We Will Know
+## Done When
 
-- Executable test LOC is reduced by at least 70 percent and target margin is reported; authored support and fixture LOC did not absorb the deleted code.
-- All retained tests satisfy consumer, owner, public stimulus, observable oracle, distinct failure, and cadence admission or have a documented exceptional reason.
-- Sampled high-risk defects are caught by their intended mechanisms, and intentionally untested risks are explicit decisions.
-- No obsolete stage tasks, temporary reports, inventories, compatibility paths, or misleading automation instructions remain.
+- The exact reduction is at least 70 percent.
+- Every retained test is admitted or explicitly exceptional.
+- Sampled high-risk counterfactuals are caught by their intended mechanisms.
+- No obsolete task, report, inventory, alias, shadow path, migration-only path, or misleading automation instruction remains.
+- This task and `task-lean-behavioral-verification-program` are moved to done in the final workflow integration.
+
+## Acceptance Evidence
+
+Provide the reproducible baseline/final calculation, retained-test disposition, authored-support and production-glue deltas, sampled counterfactual results, cleanup diff, and final anchor state.
+
+## Initiative
+
+Closure task for the lean behavioral verification program; the 70 percent target is a migration outcome, not a permanent gate.

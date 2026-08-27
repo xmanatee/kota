@@ -4,30 +4,25 @@ title: Centralize approval and owner decision state
 status: backlog
 priority: p1
 area: decisions
-summary: Create small durable approval and owner-decision state owners so workflows, routes, CLI, channels, and MCP become thin adapters instead of rebuilding lifecycle fixtures.
+summary: Track separate approval and owner-decision lifecycle ownership migrations.
 task_class: Safety
-depends_on: [task-align-verification-ownership-and-cadences]
+anchor: true
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-26T23:54:21.238Z
+updated_at: 2026-08-27T00:45:00.000Z
 ---
-## Problem
+## Outcome
 
-Approval and owner-decision tests repeatedly construct workflows, stores, runs, clocks, routes, MCP execution, Telegram or Slack delivery, and recovery state to exercise one transition. The concentration signals that enqueue, review, expiry, authorization, execution receipt, digest, resume, and recovery do not have sufficiently small production owners.
+`approval-queue` and `owner-decisions` each own their durable transition semantics. Workflows, routes, CLI, MCP, and channels are thin identity, wire, rendering, or delivery adapters.
 
-## Desired Outcome
+## Tracked Slices
 
-A durable approval service or state machine owns approval transitions and execution receipts, and a durable owner-decision service owns choices and resume authorization. External surfaces map identities and messages to those owners without reimplementing lifecycle semantics.
+- [ ] task-centralize-approval-lifecycle-state
+- [ ] task-centralize-owner-decision-lifecycle-state
 
-## Constraints
+## Done When
 
-- Preserve authorization, revision binding, expiry, replay resistance, destructive-action confirmation, recovery, and audit provenance.
-- Separate decision semantics from persistence, delivery, rendering, and workflow orchestration through narrow ports.
-- Avoid ambient singletons, broad aggregate contexts, reset APIs, and backward-compatible shadow stores.
-- Use model or property observations for transition invariants only where they catch distinct state-machine defects.
+Both slices are complete with authorization, expiry, replay resistance, revision binding, receipts, recovery, resume authority, and provenance preserved.
 
-## How We Will Know
+## Initiative
 
-- Transition behavior is observable through small public owners without booting a workflow host or channel stack.
-- Each route, CLI, channel, and MCP adapter has at most its distinct identity, parsing, rendering, or wire mapping proof.
-- Security-sensitive replay, expiry, authorization, persistence, and recovery guarantees remain explicit.
-- The affected suites show a material net reduction within the non-additive 12k-18k opportunity band and reset-style setup declines.
+Lean behavioral verification: one security-sensitive state owner per lifecycle.

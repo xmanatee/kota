@@ -1,33 +1,29 @@
 ---
 id: task-simplify-workflow-and-autonomy-tests
-title: Simplify workflow and autonomy behavior tests
+title: Simplify workflow and autonomy behavior verification
 status: backlog
 priority: p1
 area: autonomy
-summary: Extract small queue, review, disposition, resource, and publication owners so autonomy tests observe decisions and outcomes rather than private workflow phases and production-shaped fixtures.
+summary: Track core runtime ownership, autonomy decision extraction, and per-workflow migration separately.
 task_class: Meta
-depends_on: [task-align-verification-ownership-and-cadences, task-centralize-approval-and-owner-decision-state]
+anchor: true
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-26T23:54:21.238Z
+updated_at: 2026-08-27T00:45:00.000Z
 ---
-## Problem
+## Outcome
 
-Autonomy and core workflow suites repeatedly rebuild runtimes, run stores, task queues, agent outputs, prompts, phases, command calls, evidence packets, and histories. Workflow tests often pin step identifiers, helper order, prompt strings, source-specific fixtures, and internal call counts while core runtime behavior is retested by each automation.
+Core workflow runtime behavior is proved once; autonomy workflows own semantic decisions and published outcomes without pinning private phases, prompt strings, helper order, command calls, or production-shaped fixtures.
 
-## Desired Outcome
+## Tracked Slices
 
-Core workflow tests own runtime lifecycle, admission, resources, waiting, integration, recovery, and publication. Autonomy modules expose small decision functions or state machines for queue selection, review projection, disposition, and issue lifecycle. Workflow-level checks retain semantic routing, declared resource ownership, authorization, and published outcomes only.
+- [ ] task-consolidate-core-workflow-runtime-verification
+- [ ] task-extract-autonomy-decision-owners
+- [ ] task-migrate-autonomy-workflow-families
 
-## Constraints
+## Done When
 
-- Do not create a shadow workflow runtime or universal mega-fixture to make existing tests shorter.
-- Treat prompt quality as an agent evaluation when exact wording is the concern; deterministic checks own output schemas and safety boundaries.
-- Remove private phase, step-order, command-call, source-absence, and evidence-filename assertions unless externally observable.
-- Correct automation prompts and reviewer incentives that reward test volume, artifact count, or implementation preservation.
+All three slices are complete and no autonomy workflow copies core lifecycle matrices or depends on a shadow runtime or universal mega-fixture.
 
-## How We Will Know
+## Initiative
 
-- Private workflow refactors do not require test rewrites when routing, resources, authorization, and published outcomes stay the same.
-- Core lifecycle failures are proved once and not copied into every autonomy workflow.
-- Agent-language quality lives in a small intentional eval portfolio rather than literal prompt assertions.
-- Autonomy and workflow test LOC falls materially within the non-additive 35k-45k opportunity band without weakening recovery or integration evidence.
+Lean behavioral verification and trustworthy self-improving automation.

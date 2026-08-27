@@ -1,33 +1,39 @@
 ---
 id: task-prune-deterministic-eval-harness-tests
-title: Prune deterministic eval harness duplication
+title: Remove deterministic duplication from the eval harness
 status: backlog
 priority: p1
 area: eval-harness
-summary: Keep eval fixtures only for agent capability, realistic multi-step behavior, and historical failures that deterministic owners cannot represent.
+summary: Retain eval assets only for model-dependent capability, realistic trajectories, and historical agent failures that deterministic owners cannot represent.
 task_class: Meta
-depends_on: [task-align-verification-ownership-and-cadences, task-simplify-workflow-and-autonomy-tests]
+depends_on: [task-align-verification-ownership-and-cadences, task-migrate-autonomy-workflow-families]
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-26T23:54:21.238Z
+updated_at: 2026-08-27T00:45:00.000Z
 ---
-## Problem
+## Scope / Starting Points
 
-The eval harness increasingly duplicates deterministic product validation, workflow lifecycle, fixture repository construction, scorer mechanics, and ordinary integration behavior. Copied repositories and replay fixtures can make a second executable specification whose maintenance is counted separately but whose failure value is unclear.
+Inventory every fixture, recording, copied repository, scorer, calibration case, replay format, compatibility reader, smoke gate, and test under `src/modules/eval-harness` plus eval cadence wiring.
 
-## Desired Outcome
+## Required Changes
 
-Every retained eval states the model-dependent capability or realistic trajectory it measures and why deterministic proof is insufficient. Deterministic application and protocol behavior moves to its owning mechanism; obsolete fixtures, copied repos, scorers, and compatibility replay formats are deleted.
+- For each asset record the model-dependent failure or realistic trajectory, historical regression if any, decision informed, cadence, cost, and deterministic-owner alternative.
+- Retain agent capability for weak-model behavior, planning, research, tool use, and multi-step coding only when deterministic proof is insufficient.
+- Move deterministic product, runtime, workflow, and protocol behavior to its production owner.
+- Delete obsolete copied repositories, recordings, scorers, compatibility replay readers, and support code rather than archiving them indefinitely.
+- Keep scorers outcome-oriented and independent of hidden reasoning or exact implementation paths.
 
-## Constraints
+## Must Not Complete While
 
-- Preserve high-value regressions for past agent failures, weak-model behavior, research, planning, tool use, and multi-step coding outcomes.
-- Do not relabel deterministic tests as evals or move support into fixture data to satisfy LOC accounting.
-- Keep scorer contracts small, outcome-oriented, and independent of hidden reasoning or exact implementation paths.
-- Align eval cadence and cost with the verification standard rather than the default owner suite.
+Any eval asset is unclassified, any retained asset lacks a decision and model-dependent failure, deterministic checks have merely moved into fixture data, or an obsolete format remains supported without a current fixture.
 
-## How We Will Know
+## Done When
 
-- Each fixture has a named model-dependent failure and a decision it informs.
-- Deterministic product, protocol, and runtime behaviors have one owner outside the eval harness.
-- Obsolete replay formats, duplicated fixture repositories, and scorer-only scaffolding are removed rather than archived indefinitely.
-- Eval test and authored fixture/support LOC falls within the non-additive 12k-14k opportunity band while meaningful capability coverage remains.
+The asset inventory has zero unresolved rows; every retained eval names why deterministic proof is insufficient; all deleted assets and their final support consumers are removed; cadence membership and cost match the verification standard.
+
+## Acceptance Evidence
+
+Provide the asset/capability/decision/cadence/disposition matrix and before/after executable-eval, authored-fixture, scorer, and support LOC.
+
+## Initiative
+
+Lean behavioral verification: evals measure agent capability, not a second deterministic product specification.

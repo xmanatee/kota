@@ -4,32 +4,57 @@ title: Align verification ownership and validation cadences
 status: backlog
 priority: p1
 area: autonomy-quality
-summary: Establish one behavior-ownership standard, truthful validation cadences, and automation guidance that asks for proportionate proof instead of reflexively multiplying tests.
+summary: Establish the current baseline, one behavior-ownership standard, truthful validation portfolios, and automation guidance that asks for proportionate proof.
 task_class: Meta
 depends_on: [task-make-task-authoring-atomic-and-complete]
 created_at: 2026-08-26T23:54:21.238Z
-updated_at: 2026-08-26T23:54:21.238Z
+updated_at: 2026-08-27T00:45:00.000Z
 ---
 ## Problem
 
-KOTA's standards, scripts, directory guidance, prompts, reviewer language, task templates, and default suite topology do not yet express one consistent verification model. Some instructions still bias agents toward missing tests, literal protocol catalogs, per-layer assertions, source-absence checks, and broad default execution. Documented protocol and resilience cadences are not fully implemented.
+Repository standards, scoped instructions, package scripts, Vitest projects, and autonomy prompts still express competing verification incentives. They can reward missing-test speculation, literal catalogs, per-layer assertions, source-absence checks, artifact counts, or broad default execution instead of selecting the strongest proof for a distinct consumer-visible failure.
 
-## Desired Outcome
+## Scope / Starting Points
 
-A single repository standard makes every maintained check identify its consumer, production owner, public stimulus, observable oracle, distinct failure, and cadence. Types, schemas, generators, registries, static inspection, runtime probes, focused behavior checks, protocol checks, resilience checks, vertical journeys, and agent evals are treated as alternative proof mechanisms selected by risk.
+- `docs/STANDARDS.md`, `docs/ARCHITECTURE.md`, root and scoped `AGENTS.md` files
+- package scripts, Vitest projects, client validation commands, and release checks
+- builder, critic, PR reviewer, decomposer, progress reviewer, security reviewer, improver, and task-generation prompts under `src/modules/autonomy/workflows`
+- every executable test family and authored fixture/support file, including files over 500 LOC
 
-## Constraints
+## Required Changes
 
-- Correct misleading incentives in docs, scoped AGENTS files, builder, critic, PR reviewer, decomposer, progress-reviewer, security-review, task generation, and completion language; trust agent judgment instead of adding brittle prose gates.
-- Implement owner, protocol, resilience, integration, eval, CLI, and broad or release cadences so documented names select real non-overlapping portfolios.
-- Make the fast default proportionate and avoid copying specialized checks into it.
-- Do not add permanent LOC, coverage, test-count, artifact-presence, or source-scan gates.
-- Freeze an inclusive executable-test and authored-support baseline with a temporary reproducible inventory, then assign every large family and file over 500 LOC to an owner and disposition.
+- Define one admission model: consumer, production owner, public stimulus, observable oracle, distinct failure, and cadence.
+- Treat types, schemas, generators, registries, static inspection, runtime probes, behavior checks, protocol checks, resilience checks, journeys, and evals as alternative proof mechanisms.
+- Remove instructions that mechanically demand tests, coverage, artifacts, source scans, or preserved implementations; retain judgment and explicit risk.
+- Make owner, protocol, resilience, integration, eval, CLI, and broad/release commands select real, documented, non-overlapping portfolios.
+- Freeze a temporary inclusive baseline with one reproducible counting recipe. Classify every test family and every test/support file over 500 LOC by production owner, cadence, and `KEEP`, `CONSOLIDATE`, `REPLACE`, or `DELETE` disposition.
 
-## How We Will Know
+## Counting Contract
 
-- An engineer or automation can credibly choose no new test when an architectural mechanism proves the requirement.
-- A proposed test without a distinct consumer-visible failure is rejected or removed by normal review judgment.
-- Docs, package scripts, Vitest projects, client suites, and automation prompts agree on the actual cadence model.
-- The baseline reconciles mutually exclusive areas and does not treat moved support or fixtures as deletion.
-- Future generated tasks describe outcomes and risk, not mandatory test filenames or assertion categories.
+Separately report executable test LOC, authored test-support/fixture LOC, generated or vendored exclusions, and production glue implicated by duplicated verification. Renaming or moving code does not count as reduction. Record the exact command and exclusions in the program anchor and reuse them unchanged by the final audit unless a correction is explained.
+
+## Must Not Complete While
+
+- Any named instruction or command surface still contradicts the ownership model.
+- A documented cadence name does not map to a real portfolio.
+- Any large family or file over 500 LOC lacks an owner and disposition.
+- A permanent LOC, coverage, test-count, artifact-presence, or source-scan gate has been added.
+
+## Done When
+
+- The baseline and exhaustive disposition manifest are attached to the initiative.
+- Fast default, owner, protocol, resilience, integration, eval, CLI, and release portfolios have explicit membership and no accidental exhaustive overlap.
+- All named automation prompts describe outcomes and risk without requiring test filenames or assertion categories.
+- Review guidance explicitly permits no new test when an architectural mechanism already proves the behavior.
+
+## Acceptance Evidence
+
+Provide the baseline command and output, portfolio membership diff, disposition manifest, and instruction/prompt diff grouped by removed bias.
+
+## Source / Intent
+
+Derived from the repository-wide testing concentration investigation and the requirement to prevent self-improving automation from recreating it.
+
+## Initiative
+
+This is the shared verification contract for the lean behavioral verification program.
