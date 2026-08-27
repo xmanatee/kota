@@ -65,7 +65,6 @@ describe("AGY autonomy model/effort readiness", () => {
         antigravityCliReadiness(
           request,
           unavailableHighEffortDeps(),
-          { platform: "linux" },
         ),
       run,
     });

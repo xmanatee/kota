@@ -1,6 +1,6 @@
 import { NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV } from "#core/agent-harness/native-cli-egress-proxy.js";
 import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
-import { ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV } from "./runtime-home.js";
+import { ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV } from "./runtime-home.js";
 
 export const ANTIGRAVITY_CLI_PROVIDER_AUTH_ENV_KEYS = [
   "GEMINI_API_KEY",
@@ -22,7 +22,7 @@ export const ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS = [
 export function buildAntigravityCliEnvironment(input: {
   inheritedEnv: NodeJS.ProcessEnv;
   overrides: Readonly<Record<string, string>> | undefined;
-  keychainDirectory: string | undefined;
+  keychainPath: string | undefined;
 }): NodeJS.ProcessEnv {
   const upstreamProxyUrl = input.inheritedEnv[
     NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV
@@ -31,7 +31,7 @@ export function buildAntigravityCliEnvironment(input: {
   return buildNativeCliEnvironment({
     inheritedEnv: input.inheritedEnv,
     projectedEnvKeys: [
-      ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV,
+      ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV,
       ...(providerEgressActive
         ? [NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]
         : []),
@@ -47,9 +47,9 @@ export function buildAntigravityCliEnvironment(input: {
       ...(upstreamProxyUrl === undefined
         ? {}
         : { [NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV]: upstreamProxyUrl }),
-      ...(input.keychainDirectory === undefined
+      ...(input.keychainPath === undefined
         ? {}
-        : { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: input.keychainDirectory }),
+        : { [ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV]: input.keychainPath }),
       NO_COLOR: "1",
     },
   });

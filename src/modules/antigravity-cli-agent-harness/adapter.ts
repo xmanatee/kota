@@ -1,9 +1,8 @@
 /** `antigravity-cli` agent harness around AGY's headless event stream. */
 
-import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
+import { join } from "node:path";
 import type {
   AgentHarness,
-  AgentHarnessAuthProbe,
   AgentHarnessReadiness,
   AgentHarnessReadinessRequest,
   AgentHarnessResult,
@@ -16,10 +15,7 @@ import {
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
-import {
-  type AntigravityCliAuthReadinessOptions,
-  antigravityCliAuthReadiness,
-} from "./auth-readiness.js";
+import { antigravityCliAuthReadiness } from "./auth-readiness.js";
 import { abortedAntigravityCliResult } from "./cli-result.js";
 import {
   ANTIGRAVITY_CLI_BINARY_NAME,
@@ -28,8 +24,8 @@ import {
 } from "./cli-runner.js";
 import { resolveAntigravityCliModelEffortReadiness } from "./model-readiness.js";
 import {
-  ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV,
-  resolveAntigravityCliKeychainDirectory,
+  ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV,
+  resolveAntigravityCliKeychainPath,
 } from "./runtime-home.js";
 
 export const ANTIGRAVITY_CLI_AGENT_HARNESS_NAME = "antigravity-cli";
@@ -37,10 +33,10 @@ export const ANTIGRAVITY_CLI_AGENT_HARNESS_NAME = "antigravity-cli";
 export function resolveAntigravityCliIsolatedHostAuthEnv(
   env: NodeJS.ProcessEnv,
 ): Readonly<Record<string, string>> {
-  const keychainDirectory = resolveAntigravityCliKeychainDirectory(env);
-  return keychainDirectory === undefined
+  const keychainPath = resolveAntigravityCliKeychainPath(env);
+  return keychainPath === undefined
     ? {}
-    : { [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: keychainDirectory };
+    : { [ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV]: keychainPath };
 }
 
 const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
@@ -107,23 +103,8 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
 export function antigravityCliReadiness(
   request?: AgentHarnessReadinessRequest,
   deps?: AgentHarnessRuntimeProbeDeps,
-  authOptions?: AntigravityCliAuthReadinessOptions,
 ): AgentHarnessReadiness {
-  const observedAuth = antigravityCliAuthReadiness(deps, authOptions);
-  const localAuth: AgentHarnessAuthProbe =
-    request?.unattended === true &&
-      (observedAuth.status === "ready" || observedAuth.status === "expiring")
-      ? {
-          kind: "harness-managed-login",
-          status: "unverifiable",
-          required: true,
-          command: observedAuth.command,
-          detail:
-            "`agy models` proves current model access but does not report credential lifetime or unattended renewal capability.",
-          summary:
-            "Antigravity CLI unattended credential renewal cannot be verified",
-        }
-      : observedAuth;
+  const localAuth = antigravityCliAuthReadiness(deps);
   return {
     adapterKind: "native-cli",
     localRuntime: probeNativeCliRuntime({
@@ -139,7 +120,7 @@ export function antigravityCliReadiness(
       ? {
           modelEffort: resolveAntigravityCliModelEffortReadiness(
             request,
-            observedAuth,
+            localAuth,
           ),
         }
       : {}),
@@ -256,21 +237,24 @@ export const antigravityCliAgentHarness: AgentHarness = {
     if (options.abortController?.signal.aborted) {
       return abortedAntigravityCliResult();
     }
+    const cwd = options.cwd ?? process.cwd();
+    const scopeRoot = options.scopeRoot ?? cwd;
     const scope = projectNativeCliScope({
-      cwd: options.cwd ?? process.cwd(),
+      cwd,
       autonomyMode: options.autonomyMode,
       scopePolicy: options.scopePolicy,
       agentWriteScope: options.agentWriteScope,
       agentOutputDir: options.agentOutputDir,
     });
-    const runtimeWritableRoots = resolveAgentFilesystemWriteRoots(
-      options.cwd ?? process.cwd(),
-      options.agentWriteScope,
+    const runtimeWritableRoots = [
       options.agentOutputDir,
-    ) === undefined ? [] : scope.writableRoots;
+      options.env?.KOTA_RUN_TEMP_DIR,
+      options.env?.KOTA_RUN_ARTIFACT_DIR,
+    ].filter((path): path is string => path !== undefined);
     const execution = collectTextFromAntigravityCli({
       prompt: buildAntigravityPrompt(options),
-      cwd: options.cwd ?? process.cwd(),
+      cwd,
+      runtimeStateRoot: join(scopeRoot, ".kota"),
       model: options.model,
       effort: options.effort,
       outputSchema: options.outputSchema,

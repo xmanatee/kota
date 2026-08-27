@@ -14,9 +14,9 @@ that process boundary.
 
 Each run creates an invocation-local AGY project bound to the requested working
 directory and consumes `stream-json`. KOTA's machine-authority sandbox is the
-single filesystem, process, and egress boundary. Because headless AGY cannot
+outer filesystem, process, and egress boundary. Because headless AGY cannot
 service permission prompts, the adapter auto-approves AGY-native tools inside
-that boundary instead of nesting AGY's terminal sandbox. Edit-capable runs use
+that boundary and also enables AGY's terminal sandbox. Edit-capable runs use
 `accept-edits`; read-only projections use `plan` with no writable scope.
 Translate native events into
 `KotaAgentMessage` frames here; preserve unknown frames as `raw` messages. KOTA
@@ -52,13 +52,14 @@ failure.
 ## Isolation
 
 Daemon runs use an invocation-local home and ordinarily inherit no provider,
-GitHub, notification, or cloud credentials. Never expose the host's macOS
-Keychains directory to AGY's auto-approved native tool tree. Keychain-backed
-AGY login fails closed before process launch until KOTA can broker provider
-authentication or provision a verifiable invocation-local AGY-only credential
-store. Provider-egress eval containers explicitly project only this adapter's
-declared Google auth variables while the eval-owned upstream proxy marker is
-active. Never copy or inspect the token itself.
+GitHub, notification, or cloud credentials. On macOS, project only the host's
+encrypted `login.keychain-db` file read-only at the standard path inside that
+home; never expose the whole Keychains directory or inspect the token. AGY owns
+credential lookup and refresh. Its nested terminal sandbox prevents
+auto-approved terminal tools from querying the host credential service, while
+KOTA's outer sandbox remains authoritative for filesystem and egress access.
+Provider-egress eval containers explicitly project only this adapter's declared
+Google auth variables while the eval-owned upstream proxy marker is active.
 
 The OS sandbox permits AGY's internal loopback listener, but outbound traffic
 still goes only through KOTA's host-owned allowlisted proxy. In provider-egress
@@ -70,13 +71,10 @@ Git metadata and machine authority remain protected.
 
 ## Model Routing
 
-The shipped preset selects current AGY model ids and always passes an explicit
-model and effort. Keychain-backed macOS readiness reports the provider-broker
-failure instead of treating a host `agy models` result as launchable auth. On
-non-Keychain runtimes, the required local auth probe uses `agy models` to
-verify current model access without reading credentials; it does not prove
-credential lifetime or renewal. Long-running builder preflight asks for
-unattended readiness and fails closed while AGY exposes only current access.
-Do not infer support from older Gemini CLI model catalogs. Catalog entries are
+The shipped preset selects the strongest current AGY model and always passes an
+explicit model and effort. The required local auth probe uses `agy models` to
+verify that AGY can acquire credentials and access the requested catalog without
+KOTA reading them. AGY owns credential lifetime and renewal. Do not infer
+support from older Gemini CLI model catalogs. Catalog entries are
 effort-qualified, so availability checks must match the requested model and
 mapped AGY effort together.

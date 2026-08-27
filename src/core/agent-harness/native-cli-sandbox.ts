@@ -26,6 +26,7 @@ export type NativeCliSandboxProcess = {
 export type NativeCliMachineAuthorityOwner = "kota" | "native-cli";
 type NativeCliSandboxOptions = {
   cwd: string;
+  runtimeStateRoot?: string;
   machineAuthorityOwner: NativeCliMachineAuthorityOwner;
   authorityConfigPath?: string;
   writableRoots: readonly string[];
@@ -230,7 +231,11 @@ export async function withNativeCliSandbox<T>(
       protectedRuntimeRoot,
     ])];
     const runtimeWriteBoundary = options.machineAuthorityOwner === "kota"
-      ? nativeCliRuntimeWriteBoundary(options.cwd, options.env, options.runtimeWritableRoots)
+      ? nativeCliRuntimeWriteBoundary(
+          options.runtimeStateRoot ?? join(options.cwd, ".kota"),
+          options.env,
+          options.runtimeWritableRoots,
+        )
       : undefined;
     const launch = options.machineAuthorityOwner === "native-cli"
       ? {

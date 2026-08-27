@@ -4,7 +4,10 @@ import { redactSensitiveText } from "#core/evidence/policy.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
 import { projectWorkflowRunMetadataForStorage } from "./run-evidence.js";
 import { ensureDir, writeStrictJsonFile } from "./run-io.js";
-import { readWorkflowRunMetadataFile } from "./run-metadata.js";
+import {
+  readWorkflowRunMetadataFile,
+  readWorkflowRunMetadataForEnumeration,
+} from "./run-metadata.js";
 import { createWorkflowRun } from "./run-store-creation.js";
 import { pruneWorkflowRuns } from "./run-store-retention.js";
 import type {
@@ -51,7 +54,9 @@ export class WorkflowRunStore {
     const dirs = readdirSync(this.runsDir).sort().reverse();
     const runs: WorkflowRunMetadata[] = [];
     for (const dir of dirs) {
-      const meta = readWorkflowRunMetadataFile(join(this.runsDir, dir, "metadata.json"));
+      const meta = readWorkflowRunMetadataForEnumeration(
+        join(this.runsDir, dir, "metadata.json"),
+      );
       if (!meta) continue;
       if (opts?.workflow && meta.workflow !== opts.workflow) continue;
       if (opts?.tag && !(meta.tags ?? []).includes(opts.tag)) continue;

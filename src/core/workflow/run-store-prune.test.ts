@@ -294,6 +294,22 @@ describe("WorkflowRunStore tags", () => {
     expect(allRuns).toHaveLength(3);
   });
 
+  it("lists valid runs when an unrelated historical artifact is malformed", () => {
+    const malformedDir = join(store.runsDir, "historical-fixture");
+    mkdirSync(malformedDir, { recursive: true });
+    writeFileSync(join(malformedDir, "metadata.json"), JSON.stringify({ id: "old" }));
+    const handle = store.createRun(minimalWorkflow, {
+      event: "manual",
+      schemaRef: null,
+      payload: { triggeredAt: new Date().toISOString() },
+    });
+
+    expect(store.listRuns({ limit: 10 }).map((run) => run.id)).toEqual([
+      handle.metadata.id,
+    ]);
+    expect(() => store.getRun("historical-fixture")).toThrow();
+  });
+
   it("scopes durable run trigger, metadata, agent inputs, messages, and step artifacts", () => {
     const secret = "storage-secret-token";
     const trigger = {

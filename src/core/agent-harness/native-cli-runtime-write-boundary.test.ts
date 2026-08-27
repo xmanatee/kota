@@ -61,12 +61,12 @@ describe("native CLI runtime write boundary", () => {
     roots.push(scopeRoot);
     mkdirSync(join(scopeRoot, ".kota"));
 
-    expect(() => nativeCliRuntimeWriteBoundary(scopeRoot, {
+    expect(() => nativeCliRuntimeWriteBoundary(join(scopeRoot, ".kota"), {
       KOTA_RUN_DIR: join(scopeRoot, ".kota", "builder-evidence"),
-    })).toThrow(/KOTA_RUN_DIR outside its invocation-scoped runtime directory/);
-    expect(() => nativeCliRuntimeWriteBoundary(scopeRoot, {
+    })).toThrow(/KOTA_RUN_DIR outside its run-owned runtime directories/);
+    expect(() => nativeCliRuntimeWriteBoundary(join(scopeRoot, ".kota"), {
       KOTA_RUN_TEMP_DIR: join(scopeRoot, ".kota"),
-    })).toThrow(/KOTA_RUN_TEMP_DIR outside its invocation-scoped runtime directory/);
+    })).toThrow(/KOTA_RUN_TEMP_DIR outside its run-owned runtime directories/);
   });
 
   it("overlays Linux runtime state read-only before reopening assigned roots", () => {
@@ -77,10 +77,14 @@ describe("native CLI runtime write boundary", () => {
     const tempRoot = join(runtimeRoot, "tmp", "run-1");
     mkdirSync(agentRunDir, { recursive: true });
     mkdirSync(tempRoot, { recursive: true });
-    const boundary = nativeCliRuntimeWriteBoundary(scopeRoot, {
-      KOTA_RUN_DIR: agentRunDir,
-      KOTA_RUN_TEMP_DIR: tempRoot,
-    });
+    const boundary = nativeCliRuntimeWriteBoundary(
+      runtimeRoot,
+      {
+        KOTA_RUN_DIR: agentRunDir,
+        KOTA_RUN_TEMP_DIR: tempRoot,
+      },
+      [agentRunDir, tempRoot],
+    );
     expect(boundary).toBeDefined();
 
     const launch = buildMachineAuthoritySandboxLaunch("/bin/sh", [], {
@@ -112,7 +116,7 @@ describe("native CLI runtime write boundary", () => {
     mkdirSync(reviewerOutput, { recursive: true });
 
     const boundary = nativeCliRuntimeWriteBoundary(
-      scopeRoot,
+      runtimeRoot,
       {},
       [reviewerOutput],
     );
@@ -162,8 +166,10 @@ describe("native CLI runtime write boundary", () => {
         ].join("; ")],
         {
           cwd: scopeRoot,
+          runtimeStateRoot: runtimeRoot,
           machineAuthorityOwner: "kota",
           writableRoots: [scopeRoot],
+          runtimeWritableRoots: [agentRunDir, artifactRoot, tempRoot],
           env: buildNativeCliEnvironment({
             overrides: {
               KOTA_RUN_DIR: agentRunDir,

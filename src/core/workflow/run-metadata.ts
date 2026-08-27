@@ -195,3 +195,14 @@ export function readWorkflowRunMetadataFile(path: string): WorkflowRunMetadata |
     );
   }
 }
+
+/** Best-effort read for collection views; direct run lookup remains strict. */
+export function readWorkflowRunMetadataForEnumeration(
+  path: string,
+): WorkflowRunMetadata | null {
+  try {
+    return readWorkflowRunMetadataFile(path);
+  } catch {
+    return null;
+  }
+}

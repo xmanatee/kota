@@ -1,6 +1,5 @@
 import "./adapter-test-support.js";
 import { describe, expect, it, vi } from "vitest";
-import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 import { antigravityCliAgentHarness } from "./adapter.js";
 import {
   adapterTestMocks,
@@ -8,7 +7,7 @@ import {
   successfulAgyOutput,
   successfulStructuredAgyOutput,
 } from "./adapter-test-support.js";
-import { ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV } from "./runtime-home.js";
+import { ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV } from "./runtime-home.js";
 
 const { sandboxLaunchMock, spawnMock } = adapterTestMocks();
 
@@ -21,7 +20,7 @@ describe("antigravityCliAgentHarness execution", () => {
     const result = await antigravityCliAgentHarness.run(
       {
         prompt: "please echo",
-        model: "gemini-3.6-flash",
+        model: "gemini-3.7-flash",
         effort: "xhigh",
         systemPrompt: "be brief",
         cwd: "/repo",
@@ -41,7 +40,7 @@ describe("antigravityCliAgentHarness execution", () => {
         "--print",
         expect.stringContaining("## Task\n\nplease echo"),
         "--model",
-        "gemini-3.6-flash",
+        "gemini-3.7-flash",
         "--effort",
         "high",
         "--mode",
@@ -66,11 +65,12 @@ describe("antigravityCliAgentHarness execution", () => {
           "/repo/.kota/runs/run-1/agent-output",
         ],
         runtimeWritableRoots: [
-          "/repo/data/tasks",
           "/repo/.kota/runs/run-1/agent-output",
         ],
         env: expect.any(Object),
-        readOnlyHostRoots: [],
+        readOnlyHostRoots: [
+          expect.stringMatching(/Library\/Keychains\/login\.keychain-db$/),
+        ],
         allowedEgressHosts: [
           "accounts.google.com",
           "aiplatform.googleapis.com",
@@ -87,7 +87,7 @@ describe("antigravityCliAgentHarness execution", () => {
       expect.any(Function),
     );
     const commandArgs = spawnMock.mock.calls[0][1] as string[];
-    expect(commandArgs).not.toContain("--sandbox");
+    expect(commandArgs).toContain("--sandbox");
     const promptArg = commandArgs[commandArgs.indexOf("--print") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
     expect(promptArg).toContain("Do not run `git commit`");
@@ -110,48 +110,23 @@ describe("antigravityCliAgentHarness execution", () => {
     });
   });
 
-  it("rejects host Keychains before AGY starts and grants no host auth root", async () => {
-    sandboxLaunchMock.mockImplementationOnce(
-      (
-        _executable: string,
-        _args: readonly string[],
-        options: {
-          env: NodeJS.ProcessEnv;
-          prepareEnvironment: (
-            context: NativeCliRuntimeContext,
-            env: NodeJS.ProcessEnv,
-          ) => NodeJS.ProcessEnv;
-        },
-      ) => options.prepareEnvironment({
-        invocationRoot: "/invocation",
-        toolRuntimeRoot: "/invocation/tool-runtime",
-        readableRoots: ["/repo"],
-        writableRoots: ["/repo"],
-        readProtectedPaths: [],
-        writeProtectedPaths: ["/repo/.git"],
-        readProtectedRoots: [],
-        protectedRuntimeRoot: "/invocation/protected-runtime",
-      }, options.env),
-    );
-
-    await expect(antigravityCliAgentHarness.run({
+  it("grants only the declared login keychain as a host auth root", async () => {
+    const keychainPath = "/operator/Library/Keychains/login.keychain-db";
+    mockAgyProcess({ stdout: successfulAgyOutput("ok") });
+    await antigravityCliAgentHarness.run({
       prompt: "inspect untrusted repository content",
-      model: "gemini-3.6-flash",
+      model: "gemini-3.7-flash",
       effort: "xhigh",
       cwd: "/repo",
-      env: {
-        [ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]: "/operator/Library/Keychains",
-      },
-    })).rejects.toThrow(
-      /Keychains directory.*auto-approved native tool process tree.*refusing to launch/i,
-    );
-    expect(spawnMock).not.toHaveBeenCalled();
+      env: { [ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV]: keychainPath },
+    });
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
-      expect.any(Array),
-      expect.objectContaining({ readOnlyHostRoots: [] }),
+      expect.arrayContaining(["--sandbox"]),
+      expect.objectContaining({ readOnlyHostRoots: [keychainPath] }),
       expect.any(Function),
     );
+    expect(spawnMock).toHaveBeenCalled();
   });
 
   it("uses AGY native structured output and normalizes its result for core validation", async () => {

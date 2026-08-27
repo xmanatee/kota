@@ -52,8 +52,7 @@ describe("antigravityCliAgentHarness readiness", () => {
   });
 
   it("accepts a successful AGY model catalog as authenticated readiness", () => {
-    const readiness = antigravityCliAuthReadiness(
-      {
+    const readiness = antigravityCliAuthReadiness({
         resolveBinary: () => ({
           status: "ready",
           executablePath: "/opt/bin/agy",
@@ -61,12 +60,10 @@ describe("antigravityCliAgentHarness readiness", () => {
         readCommandVersion: () => ({ status: "error", detail: "not used" }),
         readCommandOutput: () => ({
           status: "ready",
-          output: "gemini-3.6-flash-high\ngemini-3.1-pro-high",
+          output: "gemini-3.7-flash-high\ngemini-3.1-pro-high",
         }),
         readPackageVersion: () => ({ status: "error", detail: "not used" }),
-      },
-      { platform: "linux" },
-    );
+      });
 
     expect(readiness).toMatchObject({
       status: "ready",
@@ -76,10 +73,10 @@ describe("antigravityCliAgentHarness readiness", () => {
     expect(readiness.detail).toContain("gemini-3.1-pro-high");
   });
 
-  it("does not treat current AGY access as verified unattended renewal", () => {
+  it("accepts AGY-managed unattended auth when the requested model is accessible", () => {
     const readiness = antigravityCliReadiness(
       {
-        model: "gemini-3.6-flash",
+        model: "gemini-3.7-flash",
         effort: "xhigh",
         unattended: true,
       },
@@ -91,18 +88,16 @@ describe("antigravityCliAgentHarness readiness", () => {
         readCommandVersion: () => ({ status: "ready", version: "1.1.12" }),
         readCommandOutput: () => ({
           status: "ready",
-          output: "gemini-3.6-flash-high",
+          output: "gemini-3.7-flash-high",
         }),
         readPackageVersion: () => ({ status: "error", detail: "not used" }),
       },
-      { platform: "linux" },
     );
 
     expect(readiness.localAuth).toMatchObject({
-      status: "unverifiable",
+      status: "ready",
       required: true,
-      summary:
-        "Antigravity CLI unattended credential renewal cannot be verified",
+      summary: "Antigravity CLI login and model access ready",
     });
     expect(readiness.modelEffort).toMatchObject({ status: "ready" });
   });

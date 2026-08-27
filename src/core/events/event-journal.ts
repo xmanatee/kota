@@ -10,7 +10,11 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { EvidencePrunedReference } from "#core/evidence/policy.js";
-import type { BusEnvelope, EventBus } from "./event-bus.js";
+import {
+  AuthoritativeOutboxConflictError,
+  type BusEnvelope,
+  type EventBus,
+} from "./event-bus.js";
 import { assertEventEnvelope } from "./event-journal-codec.js";
 import { buildEventEnvelope } from "./event-journal-envelope.js";
 import {
@@ -280,7 +284,7 @@ function assertEquivalentOutboxDelivery(
   ) {
     return;
   }
-  throw new Error(
+  throw new AuthoritativeOutboxConflictError(
     `Authoritative outbox event "${eventId}" was redelivered with different content`,
   );
 }

@@ -61,6 +61,7 @@ function formatStderr(stderr: string[]): string {
 type CollectTextFromGeminiCliArgs = {
   prompt: string;
   cwd: string;
+  runtimeStateRoot: string;
   model: string;
   approvalMode: GeminiCliApprovalMode;
   writableRoots: readonly string[];
@@ -230,6 +231,7 @@ export async function collectTextFromGeminiCli(
     cliArgs,
     {
       cwd: args.cwd,
+      runtimeStateRoot: args.runtimeStateRoot,
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,

@@ -11,7 +11,7 @@ import {
 } from "#core/evidence/policy.js";
 import { validateEvidencePrunedReference } from "#core/evidence/pruned-reference.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { readWorkflowRunMetadataFile } from "./run-metadata.js";
+import { readWorkflowRunMetadataForEnumeration } from "./run-metadata.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 
 export const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
@@ -138,7 +138,7 @@ function readRunEntries(runsDir: string): RunEntry[] {
   const runs: RunEntry[] = [];
   for (const dir of dirs) {
     const metaPath = join(runsDir, dir, "metadata.json");
-    const meta = readWorkflowRunMetadataFile(metaPath);
+    const meta = readWorkflowRunMetadataForEnumeration(metaPath);
     if (meta?.id && meta.workflow && meta.startedAt) {
       runs.push({
         id: meta.id,

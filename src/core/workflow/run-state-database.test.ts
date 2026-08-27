@@ -137,6 +137,85 @@ describe("RunStateDatabase", () => {
     expect(() => new RunStateDatabase(root)).toThrow(/schema version 999/);
   });
 
+  test("repairs the retired project identity without losing durable run state", () => {
+    const store = createStore();
+    store.compareAndSetScopeStateValue({
+      scopeId: "scope-a",
+      key: "runtime/backoff",
+      expectedRevision: 0,
+      value: { provider: "agy" },
+      updatedAt: "2026-08-25T10:00:00.000Z",
+    });
+    store.admitRun({
+      id: "run-legacy",
+      scopeId: "scope-a",
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "task.ready", schemaRef: null, payload: {} },
+      resources: ["task:legacy"],
+      admittedAt: "2026-08-25T10:00:01.000Z",
+    });
+    const path = store.path;
+    store.close();
+
+    const legacy = new Database(path);
+    legacy.exec(`
+      ALTER TABLE scopes RENAME TO projects;
+      ALTER TABLE runs RENAME COLUMN scope_id TO project_id;
+      ALTER TABLE run_publications RENAME COLUMN scope_id TO project_id;
+      ALTER TABLE run_emit_intents RENAME COLUMN scope_id TO project_id;
+      ALTER TABLE scope_state_values RENAME TO project_state_values;
+      ALTER TABLE project_state_values RENAME COLUMN scope_id TO project_id;
+      ALTER TABLE run_state_mutations RENAME COLUMN scope_id TO project_id;
+      UPDATE run_resources
+      SET resource_key = 'project:' || substr(resource_key, length('scope:') + 1);
+      UPDATE run_resource_requests
+      SET resource_key = 'project:' || substr(resource_key, length('scope:') + 1);
+      CREATE TABLE scopes (
+        id TEXT PRIMARY KEY,
+        root_path TEXT NOT NULL UNIQUE,
+        display_name TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE TABLE scope_state_values (
+        scope_id TEXT NOT NULL REFERENCES scopes(id) ON DELETE CASCADE,
+        state_key TEXT NOT NULL,
+        revision INTEGER NOT NULL CHECK (revision > 0),
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (scope_id, state_key)
+      );
+      INSERT INTO scopes (id, root_path, display_name, created_at)
+      SELECT id, root_path, display_name, created_at FROM projects;
+      PRAGMA user_version = 3;
+    `);
+    legacy.close();
+
+    const migrated = new RunStateDatabase(dirname(path));
+    expect(migrated.getRun("run-legacy")).toMatchObject({
+      scopeId: "scope-a",
+      resources: ["task:legacy"],
+    });
+    expect(migrated.readScopeStateValue("scope-a", "runtime/backoff")).toEqual({
+      revision: 1,
+      value: { provider: "agy" },
+    });
+    migrated.close();
+
+    const verified = new Database(path, { readonly: true });
+    expect(verified.pragma("user_version", { simple: true })).toBe(4);
+    const legacyObjects = verified.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE name IN ('projects', 'project_state_values')
+        OR sql LIKE '%project_id%'
+    `).all();
+    expect(legacyObjects).toEqual([]);
+    expect(
+      verified.prepare("SELECT resource_key FROM run_resource_requests").pluck().all(),
+    ).toEqual(["scope:scope-a:task:legacy"]);
+    verified.close();
+  });
+
   test("refuses to migrate through an offline database handle", () => {
     const store = createStore();
     const stateDir = dirname(store.path);

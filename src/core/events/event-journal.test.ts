@@ -349,13 +349,16 @@ describe("EventJournal", () => {
   it("rejects changed content for an authoritative outbox event id", () => {
     const journal = new EventJournal(trackTempDir());
     const bus = new EventBus();
+    const failures: string[] = [];
+    bus.addEmitFailureHandler(({ error }) => failures.push(error.message));
     installEventJournal(bus, journal);
     const eventId = "workflow:run-a:emit:announce";
 
     bus.deliverOutbox("publication.retry", { attempt: 1 }, eventId);
-    expect(() =>
-      bus.deliverOutbox("publication.retry", { attempt: 2 }, eventId),
-    ).toThrow(/redelivered with different content/);
+    bus.deliverOutbox("publication.retry", { attempt: 2 }, eventId);
+    expect(failures).toEqual([
+      expect.stringMatching(/redelivered with different content/),
+    ]);
     expect(journal.query({ type: "publication.retry" })).toHaveLength(1);
   });
 

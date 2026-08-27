@@ -55,6 +55,9 @@ export type EventEmitFailure = {
 
 export type EventEmitFailureHandler = (failure: EventEmitFailure) => void;
 
+/** A durable outbox identity already exists with different immutable content. */
+export class AuthoritativeOutboxConflictError extends Error {}
+
 export function resolveEventSchemaReference(
   event: string | ModuleEventDef,
 ): EventSchemaReference | null {
@@ -238,6 +241,9 @@ export class EventBus {
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       this.notifyEmitFailure({ event: name, schemaRef: envelope.schemaRef, envelope, payload, error: err, stage: failureStage });
+      if (delivery === "outbox" && err instanceof AuthoritativeOutboxConflictError) {
+        return;
+      }
       throw err;
     }
   }

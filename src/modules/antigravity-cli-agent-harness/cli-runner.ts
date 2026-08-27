@@ -31,7 +31,7 @@ import {
 } from "./provider-egress.js";
 import {
   prepareAntigravityCliRuntimeEnvironment,
-  resolveAntigravityCliKeychainDirectory,
+  resolveAntigravityCliKeychainPath,
 } from "./runtime-home.js";
 
 export const ANTIGRAVITY_CLI_BINARY_NAME = "agy";
@@ -68,6 +68,7 @@ function terminalToolFailure(
 type CollectTextFromAntigravityCliArgs = {
   prompt: string;
   cwd: string;
+  runtimeStateRoot: string;
   model: string;
   effort: AgentEffort;
   outputSchema?: AgentOutputSchema;
@@ -247,7 +248,7 @@ async function runAntigravityCliProcess(
 export async function collectTextFromAntigravityCli(
   args: CollectTextFromAntigravityCliArgs,
 ): Promise<AgentHarnessResult> {
-  const keychainDirectory = resolveAntigravityCliKeychainDirectory({
+  const keychainPath = resolveAntigravityCliKeychainPath({
     ...process.env,
     ...(args.env ?? {}),
   });
@@ -267,6 +268,7 @@ export async function collectTextFromAntigravityCli(
     "--mode",
     args.readOnly ? "plan" : "accept-edits",
     "--dangerously-skip-permissions",
+    "--sandbox",
     "--output-format",
     "stream-json",
     "--print-timeout",
@@ -277,6 +279,7 @@ export async function collectTextFromAntigravityCli(
     cliArgs,
     {
       cwd: args.cwd,
+      runtimeStateRoot: args.runtimeStateRoot,
       machineAuthorityOwner: "kota",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
@@ -284,9 +287,9 @@ export async function collectTextFromAntigravityCli(
       env: buildAntigravityCliEnvironment({
         inheritedEnv: process.env,
         overrides: args.env,
-        keychainDirectory,
+        keychainPath,
       }),
-      readOnlyHostRoots: [],
+      readOnlyHostRoots: keychainPath === undefined ? [] : [keychainPath],
       allowedEgressHosts: ANTIGRAVITY_CLI_PROVIDER_EGRESS_HOSTS,
       prepareEnvironment: prepareAntigravityCliRuntimeEnvironment,
     },

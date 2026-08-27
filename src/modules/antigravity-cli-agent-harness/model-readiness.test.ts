@@ -19,7 +19,6 @@ describe("Antigravity CLI model readiness", () => {
     const readiness = antigravityCliReadiness(
       { model: "gemini-readiness-candidate", effort: "max" },
       readinessDeps("gemini-readiness-candidate-high"),
-      { platform: "linux" },
     );
 
     expect(readiness.modelEffort).toMatchObject({
@@ -35,7 +34,6 @@ describe("Antigravity CLI model readiness", () => {
     const readiness = antigravityCliReadiness(
       { model: "gemini-readiness-candidate", effort: "xhigh" },
       readinessDeps("gemini-readiness-candidate-medium"),
-      { platform: "linux" },
     );
 
     expect(readiness.modelEffort).toMatchObject({

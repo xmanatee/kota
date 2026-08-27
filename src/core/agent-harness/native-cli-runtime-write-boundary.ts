@@ -1,71 +1,70 @@
 import { existsSync } from "node:fs";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { MachineAuthorityWriteBoundary } from "./machine-authority-sandbox.js";
 
-function assertedRuntimeDescendant(
+function pathIsWithin(root: string, candidate: string): boolean {
+  const child = relative(resolve(root), resolve(candidate));
+  return child === "" || (
+    child !== ".." &&
+    !child.startsWith(`..${sep}`) &&
+    !isAbsolute(child)
+  );
+}
+
+function assertedRuntimePath(
   value: string | undefined,
-  expectedParent: string,
+  runtimeRoot: string,
+  writableRoots: readonly string[],
   name: string,
 ): string | undefined {
   if (value === undefined) return undefined;
   const candidate = resolve(value);
-  const child = relative(expectedParent, candidate);
   if (
-    child.length === 0 ||
-    child.includes(sep) ||
-    child === ".." ||
-    isAbsolute(child)
+    !pathIsWithin(runtimeRoot, candidate) ||
+    !writableRoots.some((root) => pathIsWithin(root, candidate))
   ) {
     throw new Error(
-      `native CLI sandbox rejected ${name} outside its invocation-scoped runtime directory`,
+      `native CLI sandbox rejected ${name} outside its run-owned runtime directories`,
     );
   }
   return candidate;
 }
 
 export function nativeCliRuntimeWriteBoundary(
-  cwd: string,
+  runtimeStateRoot: string,
   env: NodeJS.ProcessEnv,
   writableRoots: readonly string[] = [],
 ): MachineAuthorityWriteBoundary | undefined {
-  const runtimeRoot = join(resolve(cwd), ".kota");
+  const runtimeRoot = resolve(runtimeStateRoot);
   if (!existsSync(runtimeRoot)) return undefined;
-  const agentRunDir = assertedRuntimeDescendant(
+  const approvedRoots = [...new Set(writableRoots.map((path) => resolve(path)))];
+  for (const root of approvedRoots) {
+    if (root === runtimeRoot || !pathIsWithin(runtimeRoot, root)) {
+      throw new Error(
+        "native CLI sandbox rejected a writable root outside run-owned runtime state",
+      );
+    }
+  }
+  assertedRuntimePath(
     env.KOTA_RUN_DIR,
-    join(runtimeRoot, "builder-evidence"),
+    runtimeRoot,
+    approvedRoots,
     "KOTA_RUN_DIR",
   );
-  const tempRoot = assertedRuntimeDescendant(
+  assertedRuntimePath(
     env.KOTA_RUN_TEMP_DIR,
-    join(runtimeRoot, "tmp"),
+    runtimeRoot,
+    approvedRoots,
     "KOTA_RUN_TEMP_DIR",
   );
-  const artifactRoot = env.KOTA_RUN_ARTIFACT_DIR;
-  if (
-    artifactRoot !== undefined &&
-    (agentRunDir === undefined || resolve(artifactRoot) !== join(agentRunDir, "artifacts"))
-  ) {
-    throw new Error(
-      "native CLI sandbox rejected KOTA_RUN_ARTIFACT_DIR outside the invocation evidence directory",
-    );
-  }
+  assertedRuntimePath(
+    env.KOTA_RUN_ARTIFACT_DIR,
+    runtimeRoot,
+    approvedRoots,
+    "KOTA_RUN_ARTIFACT_DIR",
+  );
   return {
     root: runtimeRoot,
-    writableDescendants: [
-      agentRunDir,
-      tempRoot,
-      ...writableRoots
-        .map((path) => resolve(cwd, path))
-        .filter((path) => {
-          const child = relative(runtimeRoot, path);
-          return child === "" || (
-            child !== ".." &&
-            !child.startsWith(`..${sep}`) &&
-            !isAbsolute(child)
-          );
-        }),
-    ].filter(
-      (path): path is string => path !== undefined,
-    ),
+    writableDescendants: approvedRoots,
   };
 }

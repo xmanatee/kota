@@ -13,7 +13,7 @@ describe("Antigravity CLI provider egress environment", () => {
           "http://provider-proxy:8080",
       },
       overrides: undefined,
-      keychainDirectory: undefined,
+      keychainPath: undefined,
     });
 
     expect(active).toMatchObject({
@@ -29,7 +29,7 @@ describe("Antigravity CLI provider egress environment", () => {
         GOOGLE_API_KEY: "must-not-cross",
       },
       overrides: undefined,
-      keychainDirectory: undefined,
+      keychainPath: undefined,
     });
     expect(ordinary.GOOGLE_API_KEY).toBeUndefined();
     expect(

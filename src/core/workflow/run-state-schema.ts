@@ -1,6 +1,104 @@
 import type Database from "better-sqlite3";
 
-export const RUN_STATE_SCHEMA_VERSION = 3;
+export const RUN_STATE_SCHEMA_VERSION = 4;
+
+function tableExists(database: Database.Database, table: string): boolean {
+  return database
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
+    .get(table) !== undefined;
+}
+
+function columnExists(
+  database: Database.Database,
+  table: string,
+  column: string,
+): boolean {
+  if (!tableExists(database, table)) return false;
+  const columns = database.pragma(`table_info(${table})`) as Array<{ name: string }>;
+  return columns.some((entry) => entry.name === column);
+}
+
+function renameColumnIfPresent(
+  database: Database.Database,
+  table: string,
+): void {
+  if (!columnExists(database, table, "project_id")) return;
+  database.exec(`ALTER TABLE ${table} RENAME COLUMN project_id TO scope_id`);
+}
+
+/** Converts the retired project identity atomically, preserving durable run data. */
+function migrateLegacyScopeIdentity(database: Database.Database): void {
+  if (!tableExists(database, "projects")) return;
+
+  if (tableExists(database, "scope_state_values")) {
+    const conflict = database.prepare(`
+      SELECT 1
+      FROM scope_state_values AS canonical
+      JOIN project_state_values AS legacy
+        ON legacy.project_id = canonical.scope_id
+       AND legacy.state_key = canonical.state_key
+      WHERE legacy.revision != canonical.revision
+         OR legacy.value_json != canonical.value_json
+         OR legacy.updated_at != canonical.updated_at
+      LIMIT 1
+    `).get();
+    if (conflict !== undefined) {
+      throw new Error(
+        "Cannot migrate mixed run-state schema: scope state conflicts with legacy project state",
+      );
+    }
+    database.exec(`
+      INSERT OR IGNORE INTO project_state_values
+        (project_id, state_key, revision, value_json, updated_at)
+      SELECT scope_id, state_key, revision, value_json, updated_at
+      FROM scope_state_values;
+    `);
+    database.exec("DROP TABLE scope_state_values");
+  }
+  if (tableExists(database, "scopes")) {
+    const conflict = database.prepare(`
+      SELECT 1
+      FROM scopes AS canonical
+      LEFT JOIN projects AS legacy_id ON legacy_id.id = canonical.id
+      LEFT JOIN projects AS legacy_root ON legacy_root.root_path = canonical.root_path
+      WHERE (legacy_id.id IS NOT NULL AND legacy_id.root_path != canonical.root_path)
+         OR (legacy_root.id IS NOT NULL AND legacy_root.id != canonical.id)
+      LIMIT 1
+    `).get();
+    if (conflict !== undefined) {
+      throw new Error(
+        "Cannot migrate mixed run-state schema: scope identity conflicts with legacy project identity",
+      );
+    }
+    database.exec(`
+      INSERT OR IGNORE INTO projects (id, root_path, display_name, created_at)
+      SELECT id, root_path, display_name, created_at FROM scopes;
+    `);
+    database.exec("DROP TABLE scopes");
+  }
+
+  database.exec("ALTER TABLE projects RENAME TO scopes");
+  if (tableExists(database, "project_state_values")) {
+    database.exec("ALTER TABLE project_state_values RENAME TO scope_state_values");
+  }
+  for (const table of [
+    "runs",
+    "run_publications",
+    "run_emit_intents",
+    "scope_state_values",
+    "run_state_mutations",
+  ]) {
+    renameColumnIfPresent(database, table);
+  }
+  for (const table of ["run_resources", "run_resource_requests"]) {
+    if (!tableExists(database, table)) continue;
+    database.prepare(`
+      UPDATE ${table}
+      SET resource_key = 'scope:' || substr(resource_key, length('project:') + 1)
+      WHERE resource_key LIKE 'project:%'
+    `).run();
+  }
+}
 
 function createRunPublicationsTable(database: Database.Database): void {
   database.exec(`
@@ -23,9 +121,6 @@ function migrateRunPublications(database: Database.Database): void {
     name: string;
   }>;
   if (columns.some((column) => column.name === "publication_sequence")) return;
-  const scopeColumn = columns.some((column) => column.name === "scope_id")
-    ? "scope_id"
-    : "project_id";
 
   database.exec(`
     DROP INDEX IF EXISTS run_publications_pending_idx;
@@ -36,7 +131,7 @@ function migrateRunPublications(database: Database.Database): void {
     INSERT INTO run_publications
       (publication_id, run_id, scope_id, event_name, payload_json,
        publication_sequence, created_at, delivered_at)
-    SELECT publication_id, run_id, ${scopeColumn}, event_name, payload_json,
+    SELECT publication_id, run_id, scope_id, event_name, payload_json,
            0, created_at, delivered_at
     FROM run_publications_legacy;
     DROP TABLE run_publications_legacy;
@@ -44,6 +139,7 @@ function migrateRunPublications(database: Database.Database): void {
 }
 
 function createInitialSchema(database: Database.Database): void {
+  migrateLegacyScopeIdentity(database);
   const hadResourceRequests = database
     .prepare(
       "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'run_resource_requests'",
@@ -252,6 +348,7 @@ const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   { version: 1, apply: createInitialSchema },
   { version: 2, apply: addDurableResultStatus },
   { version: 3, apply: enforceTerminalResultStatus },
+  { version: 4, apply: migrateLegacyScopeIdentity },
 ];
 
 export function initializeRunStateSchema(database: Database.Database): void {

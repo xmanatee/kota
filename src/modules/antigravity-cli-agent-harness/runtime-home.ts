@@ -1,34 +1,45 @@
+import { existsSync, mkdirSync, symlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 
-export const ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV =
-  "KOTA_ANTIGRAVITY_CLI_KEYCHAIN_DIR";
+export const ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV =
+  "KOTA_ANTIGRAVITY_CLI_KEYCHAIN_PATH";
 
-export function resolveAntigravityCliKeychainDirectory(
+export function resolveAntigravityCliKeychainPath(
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform = process.platform,
 ): string | undefined {
   if (platform !== "darwin") return undefined;
-  const explicit = env[ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV]?.trim();
+  const explicit = env[ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV]?.trim();
   if (explicit) return explicit;
-  return join(env.HOME?.trim() || homedir(), "Library", "Keychains");
+  return join(
+    env.HOME?.trim() || homedir(),
+    "Library",
+    "Keychains",
+    "login.keychain-db",
+  );
 }
 
 export function prepareAntigravityCliRuntimeEnvironment(
-  _context: NativeCliRuntimeContext,
+  context: NativeCliRuntimeContext,
   env: NodeJS.ProcessEnv,
 ): NodeJS.ProcessEnv {
-  const keychainDirectory = resolveAntigravityCliKeychainDirectory(env);
+  const keychainPath = resolveAntigravityCliKeychainPath(env);
   const prepared = { ...env };
-  delete prepared[ANTIGRAVITY_CLI_KEYCHAIN_DIR_ENV];
-  if (keychainDirectory === undefined) return prepared;
+  delete prepared[ANTIGRAVITY_CLI_KEYCHAIN_PATH_ENV];
+  if (keychainPath === undefined) return prepared;
+  if (!existsSync(keychainPath)) {
+    throw new Error(`Antigravity CLI login keychain does not exist: ${keychainPath}`);
+  }
 
-  throw new Error(
-    'The "antigravity-cli" agent harness cannot safely project the macOS ' +
-      "Keychains directory into AGY's auto-approved native tool process tree. " +
-      "A provider-only authentication broker or an invocation-local AGY-only " +
-      "credential store is required; refusing to launch before AGY or " +
-      "repository-controlled content can start.",
+  const keychainDirectory = join(
+    context.toolRuntimeRoot,
+    "home",
+    "Library",
+    "Keychains",
   );
+  mkdirSync(keychainDirectory, { recursive: true, mode: 0o700 });
+  symlinkSync(keychainPath, join(keychainDirectory, "login.keychain-db"), "file");
+  return prepared;
 }

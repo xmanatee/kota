@@ -8,7 +8,7 @@
  * sandbox.
  */
 
-import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
+import { join } from "node:path";
 import type {
   AgentHarness,
   AgentHarnessReadiness,
@@ -225,25 +225,28 @@ export const geminiCliAgentHarness: AgentHarness = {
         'The "gemini-cli" agent harness requires an explicit model on the step or config.',
       );
     }
+    const cwd = options.cwd ?? process.cwd();
+    const scopeRoot = options.scopeRoot ?? cwd;
     const scope = projectNativeCliScope({
-      cwd: options.cwd ?? process.cwd(),
+      cwd,
       autonomyMode: options.autonomyMode,
       scopePolicy: options.scopePolicy,
       agentWriteScope: options.agentWriteScope,
       agentOutputDir: options.agentOutputDir,
     });
-    const runtimeWritableRoots = resolveAgentFilesystemWriteRoots(
-      options.cwd ?? process.cwd(),
-      options.agentWriteScope,
+    const runtimeWritableRoots = [
       options.agentOutputDir,
-    ) === undefined ? undefined : scope.writableRoots;
+      options.env?.KOTA_RUN_TEMP_DIR,
+      options.env?.KOTA_RUN_ARTIFACT_DIR,
+    ].filter((path): path is string => path !== undefined);
     const execution = collectTextFromGeminiCli({
       prompt: buildGeminiCliPrompt(options),
-      cwd: options.cwd ?? process.cwd(),
+      cwd,
+      runtimeStateRoot: join(scopeRoot, ".kota"),
       model: options.model,
       approvalMode: geminiApprovalMode(scope.executionMode),
       writableRoots: scope.writableRoots,
-      ...(runtimeWritableRoots === undefined ? {} : { runtimeWritableRoots }),
+      runtimeWritableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
       abortController: options.abortController,

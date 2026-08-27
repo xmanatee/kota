@@ -1,7 +1,7 @@
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
-import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
+import { readWorkflowRunMetadataForEnumeration } from "#core/workflow/run-metadata.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 
 declare const storedWorkflowRunDirectoryId: unique symbol;
@@ -107,7 +107,7 @@ export function listStoredWorkflowRuns(
   for (const dir of dirs) {
     const metadataPath = join(runsDir, dir, "metadata.json");
     const metadata = storedWorkflowRunForDirectory(
-      readWorkflowRunMetadataFile(metadataPath),
+      readWorkflowRunMetadataForEnumeration(metadataPath),
       dir,
     );
     if (!metadata) continue;
