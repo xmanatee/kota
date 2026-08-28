@@ -676,11 +676,12 @@ describe("scenario loader", () => {
 });
 
 describe("shipped scenarios", () => {
-  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, the frontend preview probe, package upgrade, investigation answer, and repository exploration probes", () => {
+  it("covers the arithmetic-fix smoke, the multi-file workload, the failure-and-revise probe, the discovery probe, the cross-file rename probe, the frontend preview probe, package upgrade, investigation answer, repository exploration, and builder scoped-fix probes", () => {
     const all = loadAllScenarios(SHIPPED_SCENARIOS_ROOT);
     const ids = all.map((s) => s.spec.id);
     expect(ids).toEqual(
       expect.arrayContaining([
+        "builder-scoped-fix",
         "codebase-investigation-answer",
         "fix-arithmetic-bug",
         "extract-shared-helper",
@@ -694,7 +695,7 @@ describe("shipped scenarios", () => {
     );
     // Guard against regressions that accidentally drop coverage back to a
     // single fixture. If a new scenario is added, bump this bound deliberately.
-    expect(all.length).toBeGreaterThanOrEqual(9);
+    expect(all.length).toBeGreaterThanOrEqual(10);
   });
 
   it("codebase-investigation-answer loads with an answer-only prompt and context targets", () => {
@@ -1336,6 +1337,114 @@ describe("shipped scenarios", () => {
       });
       expect(afterFix.status).toBe(0);
       expect(afterFix.stdout).toContain("ok");
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+
+  it("builder-scoped-fix loads with a prompt declaring the task, scope constraints, and commit-message artifact requirement", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "builder-scoped-fix");
+    expect(loaded.spec.id).toBe("builder-scoped-fix");
+    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.verification.command).toBe("node verify.js");
+    expect(loaded.spec.prompt).toMatch(/src\/calc\.js/);
+    expect(loaded.spec.prompt).toMatch(/multiply/);
+    expect(loaded.spec.prompt).toMatch(/divide/);
+    expect(loaded.spec.prompt).toMatch(/commit-message\.txt/);
+    expect(loaded.spec.prompt).toMatch(/Do NOT modify `test\.js`, `src\/format\.js`, or `src\/constants\.js`/);
+    expect(existsSync(loaded.initialStateDir)).toBe(true);
+    expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
+  });
+
+  it("builder-scoped-fix verifier enforces functional correctness, scope boundaries, commit artifact, and rejects invalid fixes", () => {
+    const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "builder-scoped-fix");
+
+    const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-builder-"));
+    try {
+      cpSync(loaded.initialStateDir, workDir, { recursive: true });
+
+      // 1. Initial tree fails: multiply bug + missing commit-message.txt
+      const beforeFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(beforeFix.status).not.toBe(0);
+
+      // 2. Functional fix only, but missing commit-message.txt -> fails
+      writeFileSync(
+        join(workDir, "src/calc.js"),
+        "function multiply(a, b) {\n  return a * b;\n}\nfunction divide(a, b) {\n  if (b === 0) throw new Error(\"Cannot divide by zero\");\n  return a / b;\n}\nmodule.exports = { multiply, divide };\n",
+      );
+      const fixWithoutCommit = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(fixWithoutCommit.status).not.toBe(0);
+      expect(`${fixWithoutCommit.stdout}\n${fixWithoutCommit.stderr}`).toContain(
+        "commit-message.txt is required but was not written",
+      );
+
+      // 3. Functional fix with placeholder/empty commit-message.txt -> fails
+      writeFileSync(join(workDir, "commit-message.txt"), "ok\n");
+      const fixWithShortCommit = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(fixWithShortCommit.status).not.toBe(0);
+      expect(`${fixWithShortCommit.stdout}\n${fixWithShortCommit.stderr}`).toContain(
+        "looks like a placeholder",
+      );
+
+      // 4. Valid commit message but modified protected file (test.js) -> fails
+      writeFileSync(join(workDir, "commit-message.txt"), "fix: fix multiply function in calc.js\n");
+      writeFileSync(join(workDir, "test.js"), "// modified\n");
+      const modifiedProtected = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(modifiedProtected.status).not.toBe(0);
+      expect(`${modifiedProtected.stdout}\n${modifiedProtected.stderr}`).toContain(
+        "protected file test.js was modified",
+      );
+
+      // Restore test.js
+      cpSync(join(loaded.initialStateDir, "test.js"), join(workDir, "test.js"));
+
+      // 5. Unexpected file created -> fails
+      writeFileSync(join(workDir, "src/extra.js"), "// extra\n");
+      const withExtraFile = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(withExtraFile.status).not.toBe(0);
+      expect(`${withExtraFile.stdout}\n${withExtraFile.stderr}`).toContain(
+        "unexpected file created: src/extra.js",
+      );
+
+      // Remove extra file
+      rmSync(join(workDir, "src/extra.js"));
+
+      // 6. Clean fix + valid commit-message.txt -> passes
+      const afterCleanFix = spawnSync(loaded.spec.verification.command, {
+        shell: true,
+        cwd: workDir,
+        timeout: loaded.spec.verification.timeoutMs,
+        encoding: "utf-8",
+      });
+      expect(afterCleanFix.status).toBe(0);
+      expect(afterCleanFix.stdout).toContain(
+        "ok — functional fix correct, scope respected, commit message written",
+      );
     } finally {
       rmSync(workDir, { recursive: true, force: true });
     }

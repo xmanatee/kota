@@ -66,27 +66,27 @@ function buildPreviewHtml(html, css) {
 async function loadViaLoopback() {
   try {
     await listen();
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("preview server did not expose a loopback port");
+    }
+
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+    const [htmlResponse, cssResponse] = await Promise.all([
+      fetch(`${baseUrl}/`),
+      fetch(`${baseUrl}/styles.css`),
+    ]);
+    return {
+      html: await htmlResponse.text(),
+      css: await cssResponse.text(),
+      url: `${baseUrl}/`,
+      transport: "loopback",
+      htmlServed: htmlResponse.ok,
+      cssServed: cssResponse.ok,
+    };
   } catch (err) {
     return loadViaFilesystemFallback(err);
   }
-  const address = server.address();
-  if (!address || typeof address === "string") {
-    throw new Error("preview server did not expose a loopback port");
-  }
-
-  const baseUrl = `http://127.0.0.1:${address.port}`;
-  const [htmlResponse, cssResponse] = await Promise.all([
-    fetch(`${baseUrl}/`),
-    fetch(`${baseUrl}/styles.css`),
-  ]);
-  return {
-    html: await htmlResponse.text(),
-    css: await cssResponse.text(),
-    url: `${baseUrl}/`,
-    transport: "loopback",
-    htmlServed: htmlResponse.ok,
-    cssServed: cssResponse.ok,
-  };
 }
 
 function loadViaFilesystemFallback(err) {

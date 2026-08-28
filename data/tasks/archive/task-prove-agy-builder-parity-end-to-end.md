@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Prove AGY builder parity end to end

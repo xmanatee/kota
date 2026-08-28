@@ -351,6 +351,9 @@ program
       );
       if (!result.streamedText && result.text) writeStdout(result.text);
       stdout().write(blank());
+      if (result.isError) {
+        process.exitCode = 1;
+      }
       return;
     }
 
@@ -483,6 +486,9 @@ async function checkPipeMode() {
         );
         if (!result.streamedText && result.text) writeStdout(result.text);
         stdout().write(blank());
+        if (result.isError) {
+          process.exitCode = 1;
+        }
         return true;
       }
 
