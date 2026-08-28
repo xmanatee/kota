@@ -316,13 +316,13 @@ describe("channel opportunity reference workflow", () => {
   async function answerPendingQuestion(answer: "accept" | "decline"): Promise<void> {
     for (let attempt = 0; attempt < 100; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 10));
-      const pending = questionQueue.list("pending");
+      const pending = decisionStore.list("pending");
       if (pending.length === 1) {
-        questionQueue.answer(pending[0].id, answer, "test");
+        decisionStore.answer(pending[0].id, { kind: "single-choice", optionId: answer }, "test");
         return;
       }
     }
-    throw new Error("owner question was not enqueued");
+    throw new Error("owner decision was not enqueued");
   }
 
   async function runReference(

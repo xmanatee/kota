@@ -4,10 +4,6 @@ import {
   type OwnerDecisionSelectedValue,
   type OwnerDecisionStore,
 } from "#core/daemon/owner-decision-store.js";
-import {
-  getOwnerQuestionQueue,
-  type OwnerQuestionQueue,
-} from "#core/daemon/owner-question-queue.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
@@ -52,32 +48,21 @@ export {
 
 const RESOLUTION_SOURCE = "cli";
 
-type OwnerDecisionQueues = {
-  decisionStore: OwnerDecisionStore;
-  questionQueue: OwnerQuestionQueue;
-};
-
 type OwnerDecisionRouteError = {
   error?: string;
   reason?: string;
   scopeId?: string;
 };
 
-function resolveLocalQueues(selector?: ScopeSelector): OwnerDecisionQueues {
+function resolveLocalDecisionStore(selector?: ScopeSelector): OwnerDecisionStore {
   const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
   if (!scopeProvider) {
-    return {
-      decisionStore: getOwnerDecisionStore(),
-      questionQueue: getOwnerQuestionQueue(),
-    };
+    return getOwnerDecisionStore();
   }
   const scopeId = selectedScopeSelectorId(selector);
   const resolved = scopeProvider.resolveScopeRuntime(scopeId);
   if (!resolved.ok) throw new Error(`Unknown scope: ${resolved.error.scopeId}`);
-  return {
-    decisionStore: resolved.runtime.ownerDecisionStore,
-    questionQueue: resolved.runtime.ownerQuestionQueue,
-  };
+  return resolved.runtime.ownerDecisionStore;
 }
 
 function listPath(filter?: OwnerDecisionListFilter): string {
@@ -157,19 +142,18 @@ function buildDaemonHandler(link: DaemonTransport): OwnerDecisionsClient {
 function localHandler(): OwnerDecisionsClient {
   return {
     async list(filter) {
-      const queues = resolveLocalQueues(filter);
-      return listOwnerDecisionsLocal(queues.decisionStore, filter?.status);
+      const store = resolveLocalDecisionStore(filter);
+      return listOwnerDecisionsLocal(store, filter?.status);
     },
     async show(id, scopeSelector) {
-      const queues = resolveLocalQueues(scopeSelector);
-      const decision = showOwnerDecisionLocal(queues.decisionStore, id);
+      const store = resolveLocalDecisionStore(scopeSelector);
+      const decision = showOwnerDecisionLocal(store, id);
       return decision ? { found: true, decision } : { found: false };
     },
     async answer(id, selectedValue: OwnerDecisionSelectedValue, scopeSelector) {
-      const queues = resolveLocalQueues(scopeSelector);
+      const store = resolveLocalDecisionStore(scopeSelector);
       const decision = answerOwnerDecisionLocal(
-        queues.decisionStore,
-        queues.questionQueue,
+        store,
         id,
         selectedValue,
         RESOLUTION_SOURCE,
@@ -177,10 +161,9 @@ function localHandler(): OwnerDecisionsClient {
       return decision ? { ok: true, decision } : { ok: false, reason: "not_found" };
     },
     async cancel(id, reason, scopeSelector) {
-      const queues = resolveLocalQueues(scopeSelector);
+      const store = resolveLocalDecisionStore(scopeSelector);
       const decision = cancelOwnerDecisionLocal(
-        queues.decisionStore,
-        queues.questionQueue,
+        store,
         id,
         reason,
         RESOLUTION_SOURCE,

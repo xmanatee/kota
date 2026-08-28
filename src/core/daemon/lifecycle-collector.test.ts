@@ -175,7 +175,8 @@ describe("LifecycleCollector", () => {
     const runId = "2026-08-28T00-00-00-000Z-builder-dirty";
     const allocation = allocationName(runId);
 
-    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+    // Create a writer run in terminal state (succeeded)
+    const { epoch } = runState.beginDaemonSession(new Date(Date.now() - 3000).toISOString());
     runState.admitRun({
       id: runId,
       scopeId: scopeA.scopeId,
@@ -235,7 +236,7 @@ describe("LifecycleCollector", () => {
     const allocation = allocationName(runId);
 
     // Register terminal run in database
-    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+    const { epoch } = runState.beginDaemonSession(new Date(Date.now() - 6000).toISOString());
     runState.admitRun({
       id: runId,
       scopeId: scopeA.scopeId,

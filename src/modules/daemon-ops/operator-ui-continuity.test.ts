@@ -145,6 +145,7 @@ describe("operator continuity UI surface", () => {
         decisions: [{
           id: "decision-1",
           seq: 1,
+          revision: 1,
           scopeId: "p-kota-fixture-default",
           status: "pending",
           request: { kind: "free-text", prompt: "Pick the provider." },

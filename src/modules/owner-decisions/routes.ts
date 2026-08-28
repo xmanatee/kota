@@ -6,10 +6,6 @@ import {
   type OwnerDecisionStore,
 } from "#core/daemon/owner-decision-store.js";
 import {
-  getOwnerQuestionQueue,
-  type OwnerQuestionQueue,
-} from "#core/daemon/owner-question-queue.js";
-import {
   DAEMON_SCOPE_PROVIDER_TYPE,
   type DaemonScopeProvider,
 } from "#core/daemon/scope-provider.js";
@@ -41,11 +37,6 @@ const VALID_STATUSES: readonly (OwnerDecisionStatus | "all")[] = [
   "consumed",
 ];
 
-type OwnerDecisionQueues = {
-  decisionStore: OwnerDecisionStore;
-  questionQueue: OwnerQuestionQueue;
-};
-
 export type OwnerDecisionScopeProviderResolver = () => DaemonScopeProvider | null;
 
 function resolveLegacyScopeProvider(): DaemonScopeProvider | null {
@@ -67,27 +58,21 @@ function readStatusFilter(req: IncomingMessage): OwnerDecisionStatus | "all" | u
   return undefined;
 }
 
-function resolveQueues(
+function resolveDecisionStore(
   res: ServerResponse,
   selector?: NormalizedScopeSelector,
   getScopeProvider: OwnerDecisionScopeProviderResolver = resolveLegacyScopeProvider,
-): OwnerDecisionQueues | null {
+): OwnerDecisionStore | null {
   const scopeProvider = getScopeProvider();
   if (!scopeProvider) {
-    return {
-      decisionStore: getOwnerDecisionStore(),
-      questionQueue: getOwnerQuestionQueue(),
-    };
+    return getOwnerDecisionStore();
   }
   const resolved = scopeProvider.resolveScopeRuntime(selectedScopeSelectorId(selector));
   if (!resolved.ok) {
     jsonResponse(res, 404, resolved.error);
     return null;
   }
-  return {
-    decisionStore: resolved.runtime.ownerDecisionStore,
-    questionQueue: resolved.runtime.ownerQuestionQueue,
-  };
+  return resolved.runtime.ownerDecisionStore;
 }
 
 async function readSelectedValue(req: IncomingMessage): Promise<OwnerDecisionSelectedValue | null> {
@@ -115,9 +100,9 @@ export async function handleListOwnerDecisions(
 ): Promise<void> {
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector, getScopeProvider);
-  if (!queues) return;
-  jsonResponse(res, 200, listOwnerDecisionsLocal(queues.decisionStore, readStatusFilter(req)));
+  const store = resolveDecisionStore(res, selector, getScopeProvider);
+  if (!store) return;
+  jsonResponse(res, 200, listOwnerDecisionsLocal(store, readStatusFilter(req)));
 }
 
 export async function handleShowOwnerDecision(
@@ -128,9 +113,9 @@ export async function handleShowOwnerDecision(
 ): Promise<void> {
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector, getScopeProvider);
-  if (!queues) return;
-  const decision = showOwnerDecisionLocal(queues.decisionStore, id);
+  const store = resolveDecisionStore(res, selector, getScopeProvider);
+  if (!store) return;
+  const decision = showOwnerDecisionLocal(store, id);
   if (!decision) {
     jsonResponse(res, 404, { error: "Owner decision not found" });
     return;
@@ -151,12 +136,11 @@ export async function handleAnswerOwnerDecision(
   }
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector, getScopeProvider);
-  if (!queues) return;
+  const store = resolveDecisionStore(res, selector, getScopeProvider);
+  if (!store) return;
   try {
     const decision = answerOwnerDecisionLocal(
-      queues.decisionStore,
-      queues.questionQueue,
+      store,
       id,
       selectedValue,
       RESOLUTION_SOURCE,
@@ -180,11 +164,10 @@ export async function handleCancelOwnerDecision(
   const reason = await readCancelReason(req);
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector, getScopeProvider);
-  if (!queues) return;
+  const store = resolveDecisionStore(res, selector, getScopeProvider);
+  if (!store) return;
   const decision = cancelOwnerDecisionLocal(
-    queues.decisionStore,
-    queues.questionQueue,
+    store,
     id,
     reason,
     RESOLUTION_SOURCE,

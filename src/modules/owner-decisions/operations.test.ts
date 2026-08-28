@@ -3,25 +3,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
-import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import { answerOwnerDecisionLocal, showOwnerDecisionLocal } from "./operations.js";
+import {
+  answerOwnerDecisionLocal,
+  cancelOwnerDecisionLocal,
+  listOwnerDecisionsLocal,
+  showOwnerDecisionLocal,
+} from "./operations.js";
 
 describe("owner-decisions operations", () => {
   let dir: string;
   let decisionStore: OwnerDecisionStore;
-  let questionQueue: OwnerQuestionQueue;
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "owner-decisions-operations-"));
     decisionStore = new OwnerDecisionStore(join(dir, "decisions"), "scope-a");
-    questionQueue = new OwnerQuestionQueue(join(dir, "questions"));
   });
 
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("answering a decision resolves its linked owner question", () => {
+  it("answers a pending decision and projects the client outcome", () => {
     const decision = decisionStore.create({
       request: {
         kind: "single-choice",
@@ -34,30 +36,48 @@ describe("owner-decisions operations", () => {
       requester: { kind: "manual", source: "test" },
       evidence: [{ summary: "Channel opportunity confirmation." }],
     });
-    const question = questionQueue.enqueue({
-      context: "Decision id attached.",
-      question: "Book the 7pm slot?",
-      reason: "External side effect.",
-      source: "test",
-      answerBehavior: "workflow-resume",
-      origin: { kind: "manual", source: "test" },
-    });
-    decisionStore.linkOwnerQuestion(decision.id, question.id);
 
     const answered = answerOwnerDecisionLocal(
       decisionStore,
-      questionQueue,
       decision.id,
       { kind: "single-choice", optionId: "yes" },
       "test",
     );
 
     expect(answered?.status).toBe("answered");
-    expect(questionQueue.get(question.id)?.status).toBe("answered");
-    expect(questionQueue.get(question.id)?.answer).toBe("yes");
+    expect(answered?.selectedValue).toEqual({ kind: "single-choice", optionId: "yes" });
+
+    const listed = listOwnerDecisionsLocal(decisionStore, "answered");
+    expect(listed.decisions).toHaveLength(1);
+    expect(listed.decisions[0].id).toBe(decision.id);
   });
 
-  it("resolves linked owner questions with the persisted redacted selection", () => {
+  it("cancels a pending decision with reason and projects the client outcome", () => {
+    const decision = decisionStore.create({
+      request: {
+        kind: "single-choice",
+        prompt: "Proceed with deployment?",
+        options: [
+          { id: "yes", label: "Deploy" },
+          { id: "no", label: "Cancel" },
+        ],
+      },
+      requester: { kind: "manual", source: "test" },
+      evidence: [{ summary: "Deployment gate." }],
+    });
+
+    const canceled = cancelOwnerDecisionLocal(
+      decisionStore,
+      decision.id,
+      "operator dismissed",
+      "test",
+    );
+
+    expect(canceled?.status).toBe("canceled");
+    expect(canceled?.canceledReason).toBe("operator dismissed");
+  });
+
+  it("redacts sensitive form fields in answered decisions", () => {
     const decision = decisionStore.create({
       request: {
         kind: "form",
@@ -68,29 +88,20 @@ describe("owner-decisions operations", () => {
         ],
       },
       requester: { kind: "manual", source: "test" },
-      evidence: [{ summary: "Linked owner question should not receive raw credentials." }],
+      evidence: [{ summary: "Owner decision with credentials." }],
     });
-    const question = questionQueue.enqueue({
-      context: "Decision id attached.",
-      question: "Confirm provider reference.",
-      reason: "Persisted decision answer.",
-      source: "test",
-      answerBehavior: "workflow-resume",
-      origin: { kind: "manual", source: "test" },
-    });
-    decisionStore.linkOwnerQuestion(decision.id, question.id);
 
-    answerOwnerDecisionLocal(
+    const answered = answerOwnerDecisionLocal(
       decisionStore,
-      questionQueue,
       decision.id,
       { kind: "form", fields: { apiToken: "secret-value", destination: "calendar" } },
       "test",
     );
 
-    const answer = questionQueue.get(question.id)?.answer ?? "";
-    expect(answer).toContain("[redacted]");
-    expect(answer).not.toContain("secret-value");
+    expect(answered?.selectedValue).toEqual({
+      kind: "form",
+      fields: { apiToken: "[redacted]", destination: "calendar" },
+    });
   });
 
   it("does not project files outside the owner-decision store for traversal ids", () => {

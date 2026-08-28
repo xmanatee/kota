@@ -68,6 +68,7 @@ export type OwnerDecisionConsumption = {
 export type OwnerDecisionRecord = {
   id: string;
   seq: number;
+  revision: number;
   scopeId: string;
   status: OwnerDecisionStatus;
   request: OwnerDecisionRequest;

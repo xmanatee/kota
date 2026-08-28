@@ -5,6 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import {
+  OwnerDecisionResolutionIntegrityError,
+} from "./owner-decision-resolution-integrity.js";
+import {
   type OwnerDecisionRecord,
   OwnerDecisionStore,
   projectOwnerDecisionForClient,
@@ -53,10 +56,11 @@ describe("OwnerDecisionStore", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("creates, validates, answers, and lists typed persisted decisions", () => {
+  it("creates, validates, answers, and lists typed persisted decisions with revision binding", () => {
     const decision = store.create(baseDecision());
     expect(decision.status).toBe("pending");
     expect(decision.scopeId).toBe("scope-a");
+    expect(decision.revision).toBe(1);
 
     expect(() =>
       store.answer(decision.id, { kind: "single-choice", optionId: "missing" }, "test"),
@@ -64,11 +68,13 @@ describe("OwnerDecisionStore", () => {
 
     const answered = store.answer(decision.id, { kind: "single-choice", optionId: "b" }, "test");
     expect(answered?.status).toBe("answered");
+    expect(answered?.revision).toBe(2);
+    expect(answered?.resolutionSource).toBe("test");
     expect(store.list("answered").map((item) => item.id)).toEqual([decision.id]);
     expect(events).toEqual([{ id: decision.id, status: "answered" }]);
   });
 
-  it("expires and cancels pending decisions", () => {
+  it("expires and cancels pending decisions with provenance and updated revision", () => {
     const stale = store.create({
       ...baseDecision(),
       expiresAt: "2020-01-01T00:00:00.000Z",
@@ -76,11 +82,16 @@ describe("OwnerDecisionStore", () => {
     const cancelable = store.create(baseDecision());
 
     expect(store.expireStale(Date.parse("2026-01-01T00:00:00.000Z")).map((item) => item.id)).toEqual([stale.id]);
-    expect(store.get(stale.id)?.status).toBe("expired");
+    const expiredRecord = store.get(stale.id);
+    expect(expiredRecord?.status).toBe("expired");
+    expect(expiredRecord?.revision).toBe(2);
+    expect(expiredRecord?.canceledReason).toBe("expired");
 
-    const canceled = store.cancel(cancelable.id, "scope changed", "test");
+    const canceled = store.cancel(cancelable.id, "scope changed", "cli-test");
     expect(canceled?.status).toBe("canceled");
+    expect(canceled?.revision).toBe(2);
     expect(canceled?.canceledReason).toBe("scope changed");
+    expect(canceled?.resolutionSource).toBe("cli-test");
   });
 
   it("rejects path traversal ids before reading persisted records", () => {
@@ -99,7 +110,7 @@ describe("OwnerDecisionStore", () => {
     })).toEqual({ ok: false, reason: "not_found" });
   });
 
-  it("rejects duplicate confirmed-action consumption", () => {
+  it("authorizes confirmed-action consumption exactly-once with replay resistance", () => {
     const decision = store.create({
       ...baseDecision(),
       action: {
@@ -123,11 +134,28 @@ describe("OwnerDecisionStore", () => {
       approvalId: "approval-1",
     });
     expect(first.ok).toBe(true);
+    if (first.ok) {
+      expect(first.decision.status).toBe("consumed");
+      expect(first.decision.revision).toBe(3);
+      expect(first.decision.consumption?.actionId).toBe("book-slot");
+    }
 
-    const second = store.consumeForAction(decision.id, {
+    // Replaying with the same consumption parameters succeeds (replay resistance)
+    const replay = store.consumeForAction(decision.id, {
       workflowName: "builder",
       runId: "run-1",
-      stepId: "book-again",
+      stepId: "book",
+      actionId: "book-slot",
+      adapterName: "calendar",
+      approvalId: "approval-1",
+    });
+    expect(replay.ok).toBe(true);
+
+    // Consuming with mismatched runId or stepId fails
+    const second = store.consumeForAction(decision.id, {
+      workflowName: "builder",
+      runId: "run-2",
+      stepId: "book-different",
       actionId: "book-slot",
       adapterName: "calendar",
       approvalId: "approval-1",
@@ -150,6 +178,31 @@ describe("OwnerDecisionStore", () => {
         },
       }),
     ).toThrow(/unrecognized option id/);
+  });
+
+  it("detects tampered on-disk records and rejects them with resolution integrity error", () => {
+    const decision = store.create(baseDecision());
+    const filePath = join(dir, `${decision.id}.json`);
+
+    // Tamper with pending record on disk
+    const stored = JSON.parse(readFileSync(filePath, "utf-8"));
+    writeFileSync(filePath, JSON.stringify({ ...stored, prompt: "forged prompt" }));
+
+    expect(() =>
+      store.answer(decision.id, { kind: "single-choice", optionId: "b" }, "test"),
+    ).toThrow(OwnerDecisionResolutionIntegrityError);
+  });
+
+  it("recovers in-flight pending decisions across store restarts", () => {
+    const decision = store.create(baseDecision());
+
+    // Create a new store instance pointing to the same directory (simulating daemon restart)
+    const restoredStore = new OwnerDecisionStore(dir, "scope-a");
+    const answered = restoredStore.answer(decision.id, { kind: "single-choice", optionId: "b" }, "restored-test");
+
+    expect(answered?.status).toBe("answered");
+    expect(answered?.selectedValue).toEqual({ kind: "single-choice", optionId: "b" });
+    expect(restoredStore.get(decision.id)?.status).toBe("answered");
   });
 
   it("redacts pending request and evidence text before persistence and client projection", () => {

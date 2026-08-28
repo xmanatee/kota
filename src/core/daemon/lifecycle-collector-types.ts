@@ -54,13 +54,15 @@ export type LifecycleSweepReport = {
   completedAt: string;
 };
 
+export type LifecycleStatusSummary = {
+  totalCandidates: number;
+  byDecision: Record<LifecycleCandidateDecision, number>;
+  estimatedReclaimableBytes: number;
+};
+
 export type LifecycleStatusReport = {
   candidates: LifecycleCandidate[];
-  summary: {
-    totalCandidates: number;
-    byDecision: Record<LifecycleCandidateDecision, number>;
-    estimatedReclaimableBytes: number;
-  };
+  summary: LifecycleStatusSummary;
   completedAt: string;
 };
 
