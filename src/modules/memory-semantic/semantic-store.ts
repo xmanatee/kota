@@ -22,6 +22,7 @@ import {
 	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
+	type SemanticStoreCapabilities,
 } from "#modules/semantic-index/semantic-index-manager.js";
 
 export type SemanticMemoryStoreOptions = {
@@ -46,6 +47,12 @@ function fingerprintMemory(entry: Memory): string {
 function buildAdapter(base: MemoryStore): SemanticStoreAdapter<Memory> {
 	const dir = base.getStorageDir();
 	return {
+		capabilities: {
+			mutation: true,
+			deletion: true,
+			reindex: true,
+			search: true,
+		},
 		id: (entry) => entry.id,
 		fingerprint: fingerprintMemory,
 		indexableText: (entry) => {
@@ -53,12 +60,14 @@ function buildAdapter(base: MemoryStore): SemanticStoreAdapter<Memory> {
 			return `${entry.content}\n${tags}`.trim();
 		},
 		readEntry: (id) => base.list().find((m) => m.id === id) ?? null,
+		listEntries: () => base.list(),
 		resolveStorageDir: () => dir,
 		listStorageDirs: () => [dir],
 	};
 }
 
 export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearchCapability {
+	readonly capabilities: SemanticStoreCapabilities;
 	readonly semanticSearchCapability: MemorySemanticSearchCapability = this;
 	private base: MemoryStore;
 	private manager: SemanticIndexManager<Memory>;
@@ -78,6 +87,7 @@ export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearch
 			provider: options.provider,
 			onError,
 		});
+		this.capabilities = this.manager.capabilities;
 	}
 
 	save(
@@ -109,7 +119,7 @@ export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearch
 
 	delete(id: string): boolean {
 		const ok = this.base.delete(id);
-		if (ok) this.manager.removeFromIndex(this.base.getStorageDir(), id);
+		if (ok) this.manager.removeFromIndex(id);
 		return ok;
 	}
 
@@ -128,6 +138,6 @@ export class SemanticMemoryStore implements MemoryProvider, MemorySemanticSearch
 	}
 
 	async reindex(): Promise<ReindexResult> {
-		return this.manager.rebuildIndex(this.base.list());
+		return this.manager.reindex();
 	}
 }

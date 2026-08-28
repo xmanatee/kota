@@ -13,7 +13,6 @@ import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import type {
-	ReindexResult,
 	RepoTaskSearchHit,
 	RepoTasksProvider,
 	RepoTasksSearchOptions,
@@ -28,8 +27,10 @@ import {
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
+	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
+	type SemanticStoreCapabilities,
 } from "#modules/semantic-index/semantic-index-manager.js";
 
 export const TASKS_SIDECAR_DIRNAME = "tasks-semantic";
@@ -59,18 +60,26 @@ function buildAdapter(
 		return all.find((entry) => entry.id === id) ?? null;
 	};
 	return {
+		capabilities: {
+			mutation: false,
+			deletion: false,
+			reindex: true,
+			search: true,
+		},
 		id: (entry) => entry.id,
 		fingerprint: (entry) => createHash("sha256")
 			.update(JSON.stringify({ state: entry.state, priority: entry.priority, body: entry.body, dependsOn: entry.dependsOn }))
 			.digest("hex"),
 		indexableText: (entry) => buildIndexableTaskText(entry),
 		readEntry: (id) => findById(id),
+		listEntries: () => listFullRepoTasks(scopeRoot),
 		resolveStorageDir: () => sidecarDir,
 		listStorageDirs: () => [sidecarDir],
 	};
 }
 
 export class SemanticTasksStore implements RepoTasksProvider, RepoTasksSemanticSearchCapability {
+	readonly capabilities: SemanticStoreCapabilities;
 	readonly semanticSearchCapability: RepoTasksSemanticSearchCapability = this;
 	private scopeRoot: string;
 	private sidecarDir: string;
@@ -79,20 +88,21 @@ export class SemanticTasksStore implements RepoTasksProvider, RepoTasksSemanticS
 	constructor(options: SemanticTasksStoreOptions) {
 		this.scopeRoot = options.scopeRoot;
 		this.sidecarDir = tasksSidecarDir(options.scopeRoot);
-			mkdirSync(this.sidecarDir, { recursive: true });
-			const onError =
-				options.onBackgroundError ??
-				((err) =>
-					printTerminalDiagnostic(
-						"[tasks-semantic] background embed failed:",
-						"error",
-						err instanceof Error ? err.message : String(err),
-					));
-			this.manager = new SemanticIndexManager({
+		mkdirSync(this.sidecarDir, { recursive: true });
+		const onError =
+			options.onBackgroundError ??
+			((err) =>
+				printTerminalDiagnostic(
+					"[tasks-semantic] background embed failed:",
+					"error",
+					err instanceof Error ? err.message : String(err),
+				));
+		this.manager = new SemanticIndexManager({
 			adapter: buildAdapter(this.scopeRoot, this.sidecarDir),
 			provider: options.provider,
 			onError,
 		});
+		this.capabilities = this.manager.capabilities;
 	}
 
 	async searchTasks(
@@ -122,8 +132,7 @@ export class SemanticTasksStore implements RepoTasksProvider, RepoTasksSemanticS
 	}
 
 	async reindex(): Promise<ReindexResult> {
-		const records = listFullRepoTasks(this.scopeRoot);
-		return this.manager.rebuildIndex(records);
+		return this.manager.reindex();
 	}
 
 	/** Wait for all pending background embeds to settle. (Test helper.) */

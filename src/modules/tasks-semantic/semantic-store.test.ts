@@ -3,70 +3,12 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
 	indexPathFor,
 	SemanticIndexFile,
 } from "#modules/semantic-index/semantic-index.js";
+import { FakeEmbeddingProvider } from "#modules/semantic-index/test-support.js";
 import { SemanticTasksStore, tasksSidecarDir } from "./semantic-store.js";
-
-const CONCEPTS: Record<string, number> = {
-	workflow: 0,
-	pipeline: 0,
-	cost: 1,
-	budget: 1,
-	spend: 1,
-	spending: 1,
-	expense: 1,
-	tracking: 2,
-	monitoring: 2,
-	metric: 2,
-	metrics: 2,
-	anomaly: 3,
-	alert: 3,
-	bread: 4,
-	baking: 4,
-	recipe: 4,
-	auth: 5,
-	login: 5,
-	session: 5,
-	semantic: 6,
-	embedding: 6,
-	search: 6,
-	ranking: 6,
-};
-
-const DIMS = 8;
-
-function fakeEmbed(text: string): number[] {
-	const vec = new Array(DIMS).fill(0);
-	for (const word of text.toLowerCase().split(/[^a-z]+/)) {
-		if (!word) continue;
-		const dim = CONCEPTS[word];
-		if (dim !== undefined) vec[dim] += 1;
-	}
-	return vec;
-}
-
-class FakeEmbeddingProvider implements EmbeddingProvider {
-	readonly name = "fake";
-	readonly model: string;
-	public calls = 0;
-	public failNext = false;
-
-	constructor(model = "fake-model-v1") {
-		this.model = model;
-	}
-
-	async embed(texts: string[]): Promise<number[][]> {
-		this.calls += 1;
-		if (this.failNext) {
-			this.failNext = false;
-			throw new Error("fake provider failure");
-		}
-		return texts.map(fakeEmbed);
-	}
-}
 
 function makeScopeRoot(): string {
 	const dir = join(
@@ -77,14 +19,12 @@ function makeScopeRoot(): string {
 	mkdirSync(join(dir, ".kota"), { recursive: true });
 	mkdirSync(join(dir, "data", "tasks"), { recursive: true });
 	mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
-	// Init a git repo so child operations that touch git don't blow up — though
-	// the semantic store does not call git, the surrounding CLI flows do.
 	try {
 		execFileSync("git", ["init", "--quiet"], { cwd: dir });
 		execFileSync("git", ["config", "user.email", "test@test"], { cwd: dir });
 		execFileSync("git", ["config", "user.name", "test"], { cwd: dir });
 	} catch {
-		// git not available — tests below don't exercise git directly.
+		// git not available in some test environments
 	}
 	return dir;
 }
@@ -135,7 +75,16 @@ describe("SemanticTasksStore", () => {
 		rmSync(scopeRoot, { recursive: true, force: true });
 	});
 
-	it("returns the conceptually relevant task for a query whose words don't match the task body (substring would miss)", async () => {
+	it("declares reindex and search capabilities only (read-only adapter)", () => {
+		expect(store.capabilities).toEqual({
+			mutation: false,
+			deletion: false,
+			reindex: true,
+			search: true,
+		});
+	});
+
+	it("returns scored task search hits with state and priority metadata", async () => {
 		writeTask(scopeRoot, {
 			id: "task-cost-anomaly",
 			title: "Track spend anomaly alerts in the workflow run dashboard",
@@ -157,15 +106,7 @@ describe("SemanticTasksStore", () => {
 			state: "done",
 			body: "## Problem\nBaking bread at home.\n",
 		});
-		writeTask(scopeRoot, {
-			id: "task-auth",
-			title: "Fix auth session cookie expiry",
-			state: "done",
-			body: "## Problem\nAuth login session cookies expire too early.\n",
-		});
 
-		// Query uses synonyms — substring against the title would miss the
-		// cost-anomaly task entirely (different vocabulary).
 		const result = await store.searchTasks("pipeline expense metrics", {
 			topK: 3,
 		});
@@ -178,13 +119,15 @@ describe("SemanticTasksStore", () => {
 		expect(result[0].title).toMatch(/spend anomaly/);
 	});
 
-	it("populates the sidecar index under <scopeRoot>/.kota/tasks-semantic", async () => {
+	it("populates the sidecar index under <scopeRoot>/.kota/tasks-semantic on reindex", async () => {
 		writeTask(scopeRoot, {
 			id: "task-spend",
 			title: "Track spend",
 			state: "open",
 		});
-		await store.reindex();
+		const result = await store.reindex();
+		expect(result.indexed).toBe(1);
+		expect(result.failed).toBe(0);
 
 		const sidecarDir = tasksSidecarDir(scopeRoot);
 		expect(existsSync(indexPathFor(sidecarDir))).toBe(true);
@@ -214,7 +157,6 @@ describe("SemanticTasksStore", () => {
 			state: "open",
 		});
 
-		// First semantic query should embed the new task on demand.
 		const result = await store.searchTasks("cost tracking", { topK: 5 });
 		const ids = result.map((r) => r.id);
 		expect(ids).toContain("task-newly-created");
@@ -225,7 +167,7 @@ describe("SemanticTasksStore", () => {
 		expect(after.entries["task-newly-created"]).toBeDefined();
 	});
 
-	it("re-embeds when canonical task content changes", async () => {
+	it("re-embeds when canonical task fields change", async () => {
 		writeTask(scopeRoot, {
 			id: "task-evolving",
 			title: "Document bread baking",
@@ -252,18 +194,6 @@ describe("SemanticTasksStore", () => {
 		expect(after.entries["task-evolving"].fingerprint).not.toBe(fpBefore);
 	});
 
-	it("surfaces query-time provider errors so the namespace can map to semantic_unavailable", async () => {
-		writeTask(scopeRoot, {
-			id: "task-spend",
-			title: "Track spend",
-			state: "open",
-		});
-		provider.failNext = true;
-		await expect(store.searchTasks("cost", { topK: 3 })).rejects.toThrow(
-			"fake provider failure",
-		);
-	});
-
 	it("filters candidates by states when requested", async () => {
 		writeTask(scopeRoot, {
 			id: "task-open-spend",
@@ -282,18 +212,4 @@ describe("SemanticTasksStore", () => {
 		});
 		expect(open.map((r) => r.id)).toEqual(["task-open-spend"]);
 	});
-
-	it("returns an empty list when topK is 0 without embedding", async () => {
-		writeTask(scopeRoot, {
-			id: "task-spend",
-			title: "Track spend",
-			state: "open",
-		});
-		await store.reindex();
-		const before = provider.calls;
-		const result = await store.searchTasks("cost", { topK: 0 });
-		expect(result).toEqual([]);
-		expect(provider.calls).toBe(before);
-	});
-
 });

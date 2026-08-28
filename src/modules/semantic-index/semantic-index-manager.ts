@@ -23,18 +23,34 @@ export const EMBED_TEXT_LIMIT = 4000;
 
 export type { ReindexResult };
 
+export type SemanticStoreCapabilities = {
+	readonly mutation: boolean;
+	readonly deletion: boolean;
+	readonly reindex: boolean;
+	readonly search: boolean;
+};
+
+export const DEFAULT_SEMANTIC_CAPABILITIES: SemanticStoreCapabilities = {
+	mutation: true,
+	deletion: true,
+	reindex: true,
+	search: true,
+};
+
 /**
  * Adapter the manager calls to reach into the concrete entry type (memory,
  * knowledge, …). Implementations are thin — the heavy lifting lives in the
  * manager.
  */
 export interface SemanticStoreAdapter<TEntry> {
+	readonly capabilities?: Partial<SemanticStoreCapabilities>;
 	id(entry: TEntry): string;
 	/** Opaque string that changes whenever the entry's embedded text changes. */
 	fingerprint(entry: TEntry): string;
 	/** Text payload to embed (truncated to EMBED_TEXT_LIMIT by the manager). */
 	indexableText(entry: TEntry): string;
 	readEntry(id: string): TEntry | null;
+	listEntries?(): TEntry[];
 	/** Directory whose sidecar index holds this entry's embedding. */
 	resolveStorageDir(id: string): string | null;
 	/** All storage directories — the manager merges indexes across them. */
@@ -47,6 +63,7 @@ type EmbedTarget<TEntry> = {
 };
 
 export class SemanticIndexManager<TEntry> {
+	readonly capabilities: SemanticStoreCapabilities;
 	private adapter: SemanticStoreAdapter<TEntry>;
 	private provider: EmbeddingProvider;
 	private onError: (err: unknown) => void;
@@ -57,19 +74,46 @@ export class SemanticIndexManager<TEntry> {
 		adapter: SemanticStoreAdapter<TEntry>;
 		provider: EmbeddingProvider;
 		onError: (err: unknown) => void;
+		capabilities?: Partial<SemanticStoreCapabilities>;
 	}) {
 		this.adapter = options.adapter;
 		this.provider = options.provider;
 		this.onError = options.onError;
+		this.capabilities = {
+			...DEFAULT_SEMANTIC_CAPABILITIES,
+			...options.adapter.capabilities,
+			...options.capabilities,
+		};
 	}
 
 	/** Schedule a background embed for the given entry id. */
 	enqueueEmbed(id: string): void {
+		if (!this.capabilities.mutation) return;
 		this.pending = this.pending.then(() => this.embedOne(id));
 	}
 
-	/** Remove an entry's embedding from the sidecar in the given directory. */
-	removeFromIndex(dir: string, id: string): void {
+	/**
+	 * Remove an entry's embedding from the sidecar index.
+	 * If directory is omitted, resolves it via the adapter or sweeps across all storage dirs.
+	 */
+	removeFromIndex(dirOrId: string, maybeId?: string): void {
+		if (!this.capabilities.deletion) return;
+		if (maybeId !== undefined) {
+			this.removeFromDir(dirOrId, maybeId);
+			return;
+		}
+		const id = dirOrId;
+		const dir = this.adapter.resolveStorageDir(id);
+		if (dir) {
+			this.removeFromDir(dir, id);
+			return;
+		}
+		for (const storageDir of this.adapter.listStorageDirs()) {
+			this.removeFromDir(storageDir, id);
+		}
+	}
+
+	private removeFromDir(dir: string, id: string): void {
 		const index = this.readIndex(dir);
 		if (index.entries[id]) {
 			delete index.entries[id];
@@ -80,6 +124,15 @@ export class SemanticIndexManager<TEntry> {
 	/** Wait for all scheduled background embeds to finish. */
 	async flush(): Promise<void> {
 		await this.pending;
+	}
+
+	/** Invalidate the in-memory sidecar index cache. */
+	clearCache(dir?: string): void {
+		if (dir) {
+			this.indexCache.delete(dir);
+		} else {
+			this.indexCache.clear();
+		}
 	}
 
 	/**
@@ -106,6 +159,7 @@ export class SemanticIndexManager<TEntry> {
 		entries: TEntry[],
 		topK: number,
 	): Promise<Array<{ entry: TEntry; score: number }>> {
+		if (!this.capabilities.search) return [];
 		const limit = Math.max(0, topK);
 		if (limit === 0) return [];
 		if (entries.length === 0) return [];
@@ -131,8 +185,16 @@ export class SemanticIndexManager<TEntry> {
 		}
 	}
 
+	/** Rebuild the full embedding index from the given entries or all entries from the adapter. */
+	async reindex(entries?: TEntry[]): Promise<ReindexResult> {
+		if (!this.capabilities.reindex) return { indexed: 0, failed: 0 };
+		const targets = entries ?? this.adapter.listEntries?.() ?? [];
+		return this.rebuildIndex(targets);
+	}
+
 	/** Rebuild the full embedding index from the given entries. */
 	async rebuildIndex(entries: TEntry[]): Promise<ReindexResult> {
+		if (!this.capabilities.reindex) return { indexed: 0, failed: 0 };
 		await this.flush();
 		if (entries.length === 0) return { indexed: 0, failed: 0 };
 

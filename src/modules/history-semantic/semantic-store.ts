@@ -17,14 +17,15 @@ import type {
 	HistoryProvider,
 	HistorySemanticOptions,
 	HistorySemanticSearchCapability,
-	ReindexResult,
 } from "#core/modules/provider-types.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { ConversationHistory } from "#modules/history/history.js";
 import type { EmbeddingProvider } from "#modules/semantic-index/embedding-provider.js";
 import {
+	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
+	type SemanticStoreCapabilities,
 } from "#modules/semantic-index/semantic-index-manager.js";
 
 export type SemanticHistoryStoreOptions = {
@@ -70,6 +71,12 @@ function buildAdapter(
 ): SemanticStoreAdapter<ConversationRecord> {
 	const dir = base.getStorageDir();
 	return {
+		capabilities: {
+			mutation: true,
+			deletion: true,
+			reindex: true,
+			search: true,
+		},
 		id: (record) => record.id,
 		fingerprint: (record) => record.updatedAt,
 		indexableText: (record) => buildIndexableText(record, base.load(record.id)),
@@ -80,12 +87,14 @@ function buildAdapter(
 				return null;
 			}
 		},
+		listEntries: () => base.list({ limit: SEMANTIC_CANDIDATE_LIMIT }),
 		resolveStorageDir: () => dir,
 		listStorageDirs: () => [dir],
 	};
 }
 
 export class SemanticHistoryStore implements HistoryProvider, HistorySemanticSearchCapability {
+	readonly capabilities: SemanticStoreCapabilities;
 	readonly semanticSearchCapability: HistorySemanticSearchCapability = this;
 	private base: ConversationHistory;
 	private manager: SemanticIndexManager<ConversationRecord>;
@@ -105,6 +114,7 @@ export class SemanticHistoryStore implements HistoryProvider, HistorySemanticSea
 			provider: options.provider,
 			onError,
 		});
+		this.capabilities = this.manager.capabilities;
 	}
 
 	create(model: string, cwd: string, source?: "user" | "action"): string {
@@ -144,7 +154,7 @@ export class SemanticHistoryStore implements HistoryProvider, HistorySemanticSea
 
 	remove(id: string): boolean {
 		const ok = this.base.remove(id);
-		if (ok) this.manager.removeFromIndex(this.base.getStorageDir(), id);
+		if (ok) this.manager.removeFromIndex(id);
 		return ok;
 	}
 
@@ -171,7 +181,6 @@ export class SemanticHistoryStore implements HistoryProvider, HistorySemanticSea
 	}
 
 	async reindex(): Promise<ReindexResult> {
-		const all = this.base.list({ limit: SEMANTIC_CANDIDATE_LIMIT });
-		return this.manager.rebuildIndex(all);
+		return this.manager.reindex();
 	}
 }

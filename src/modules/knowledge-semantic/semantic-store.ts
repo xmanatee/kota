@@ -21,6 +21,7 @@ import {
 	type ReindexResult,
 	SemanticIndexManager,
 	type SemanticStoreAdapter,
+	type SemanticStoreCapabilities,
 } from "#modules/semantic-index/semantic-index-manager.js";
 
 export type SemanticKnowledgeStoreOptions = {
@@ -35,6 +36,12 @@ export type SemanticKnowledgeStoreOptions = {
 
 function buildAdapter(base: KnowledgeStore): SemanticStoreAdapter<KnowledgeEntry> {
 	return {
+		capabilities: {
+			mutation: true,
+			deletion: true,
+			reindex: true,
+			search: true,
+		},
 		id: (entry) => entry.id,
 		fingerprint: (entry) => entry.updated,
 		indexableText: (entry) => {
@@ -43,6 +50,7 @@ function buildAdapter(base: KnowledgeStore): SemanticStoreAdapter<KnowledgeEntry
 			return `${head}\n${entry.content}`.trim();
 		},
 		readEntry: (id) => base.read(id),
+		listEntries: () => base.list(),
 		resolveStorageDir: (id) => base.entryDir(id),
 		listStorageDirs: () => {
 			const dirs: string[] = [];
@@ -55,6 +63,7 @@ function buildAdapter(base: KnowledgeStore): SemanticStoreAdapter<KnowledgeEntry
 }
 
 export class SemanticKnowledgeStore implements KnowledgeProvider, KnowledgeSemanticSearchCapability {
+	readonly capabilities: SemanticStoreCapabilities;
 	readonly semanticSearchCapability: KnowledgeSemanticSearchCapability = this;
 	private base: KnowledgeStore;
 	private manager: SemanticIndexManager<KnowledgeEntry>;
@@ -74,6 +83,7 @@ export class SemanticKnowledgeStore implements KnowledgeProvider, KnowledgeSeman
 			provider: options.provider,
 			onError,
 		});
+		this.capabilities = this.manager.capabilities;
 	}
 
 	create(opts: Parameters<KnowledgeStore["create"]>[0]): string {
@@ -96,9 +106,8 @@ export class SemanticKnowledgeStore implements KnowledgeProvider, KnowledgeSeman
 	}
 
 	delete(id: string): boolean {
-		const dir = this.base.entryDir(id);
 		const ok = this.base.delete(id);
-		if (ok && dir) this.manager.removeFromIndex(dir, id);
+		if (ok) this.manager.removeFromIndex(id);
 		return ok;
 	}
 
@@ -129,6 +138,6 @@ export class SemanticKnowledgeStore implements KnowledgeProvider, KnowledgeSeman
 	}
 
 	async reindex(): Promise<ReindexResult> {
-		return this.manager.rebuildIndex(this.base.list());
+		return this.manager.reindex();
 	}
 }
