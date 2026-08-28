@@ -2,6 +2,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
+import { deriveWorkflowRunDelivery } from "./run-delivery.js";
 import { projectWorkflowRunMetadataForStorage } from "./run-evidence.js";
 import {
   ensureDir,
@@ -211,7 +212,11 @@ export class WorkflowRunStore {
     if (metadata.status === "running") {
       throw new Error(`Cannot reconcile terminal status for workflow run "${id}"`);
     }
-    const reconciled = { ...metadata, status };
+    const delivery = deriveWorkflowRunDelivery(
+      { ...metadata, status },
+      { runsDir: this.runsDir, scopeRoot: this.scopeRoot },
+    );
+    const reconciled = { ...metadata, status, delivery };
     writeStrictJsonFile(
       join(this.runsDir, id, "metadata.json"),
       projectWorkflowRunMetadataForStorage(reconciled),

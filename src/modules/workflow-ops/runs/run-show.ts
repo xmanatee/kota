@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Command } from "commander";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import {
   parseWorkflowRunMetadata,
   WORKFLOW_RUN_METADATA_VERSION,
@@ -10,6 +11,7 @@ import {
 import type { RepairSummary } from "#core/workflow/run-store-snapshot.js";
 import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import type {
+  WorkflowDeliveryDisposition,
   WorkflowRunMetadata,
   WorkflowStepResult,
   WorkflowStepSkipReason,
@@ -176,7 +178,33 @@ export function printChainTree(node: ChainNode, currentId: string): void {
   print(buildChainNode(node, currentId));
 }
 
+function formatDeliveryDisposition(delivery: WorkflowDeliveryDisposition): { text: string; role: SemanticRole } {
+  switch (delivery.kind) {
+    case "completed":
+      return { text: `✓ completed (${delivery.taskId ?? "task"})`, role: "success" };
+    case "blocked":
+      return {
+        text: `⊘ blocked (${delivery.taskId ?? "task"}${delivery.blocker ? `: ${delivery.blocker}` : ""})`,
+        role: "warn",
+      };
+    case "dropped":
+      return { text: `✕ dropped (${delivery.taskId ?? "task"})`, role: "muted" };
+    case "failed":
+      return { text: `✕ failed${delivery.reason ? `: ${delivery.reason}` : ""}`, role: "error" };
+    case "needs_attention":
+      return { text: `! needs_attention${delivery.reason ? `: ${delivery.reason}` : ""}`, role: "warn" };
+    case "cancelled":
+      return { text: "— cancelled", role: "warn" };
+    case "unresolved":
+      return { text: `? unresolved${delivery.reason ? `: ${delivery.reason}` : ""}`, role: "warn" };
+    case "not_applicable":
+      return { text: "— not-applicable", role: "muted" };
+  }
+}
+
 function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): RenderNode {
+  const delivery = metadata.delivery ?? deriveWorkflowRunDelivery(metadata);
+  const deliveryInfo = formatDeliveryDisposition(delivery);
   const entries: KVEntry[] = [
     { label: "Run", value: metadata.id, role: "accent" },
     { label: "Workflow", value: metadata.workflow },
@@ -184,6 +212,11 @@ function buildRunHeader(metadata: WorkflowRunMetadata, showPayload: boolean): Re
       label: "Status",
       value: `${statusIcon(metadata.status)} ${metadata.status}`,
       role: chainNodeRole(metadata.status),
+    },
+    {
+      label: "Delivery",
+      value: deliveryInfo.text,
+      role: deliveryInfo.role,
     },
   ];
   if (metadata.retryOf) entries.push({ label: "Retry of", value: metadata.retryOf, role: "muted" });
@@ -310,6 +343,7 @@ function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
     },
     startedAt: run.startedAt,
     status: run.status,
+    delivery: run.delivery,
     runDir: "",
     steps: run.steps.map((s) => ({
       id: s.id,

@@ -15,6 +15,7 @@ import {
 } from "./control-monitor-coverage-readers.js";
 import type { ReviewerLinks } from "./control-monitor-coverage-reviewers.js";
 import { ASYNC_REVIEW_ARTIFACTS } from "./control-monitor-coverage-types.js";
+import { deriveWorkflowRunDelivery } from "./run-delivery.js";
 import {
   formatProjectedEvidenceText,
   projectKotaAgentMessageForStorage,
@@ -217,9 +218,14 @@ export function createActiveRunHandle(opts: {
       for (const step of agentSteps) {
         usageAccumulator.observe(step.usage);
       }
+      const delivery = deriveWorkflowRunDelivery(
+        { ...metadata, status: update.status },
+        { runsDir: runsDirPath, scopeRoot },
+      );
       const completed: WorkflowRunMetadata = {
         ...metadata,
         status: update.status,
+        delivery,
         completedAt: new Date().toISOString(),
         durationMs: update.durationMs,
         ...(update.activeDurationMs !== undefined

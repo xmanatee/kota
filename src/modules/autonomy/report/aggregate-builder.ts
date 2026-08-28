@@ -25,6 +25,12 @@ export function buildBuilderBreakdown(
       unresolvedClosures += 1;
       continue;
     }
+    if (delivery.disposition !== "completed") {
+      if (delivery.disposition === "unresolved") {
+        unresolvedClosures += 1;
+      }
+      continue;
+    }
     const task = taskById.get(delivery.taskId);
     if (!task) {
       unresolvedClosures += 1;

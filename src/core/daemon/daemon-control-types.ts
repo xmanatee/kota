@@ -17,6 +17,8 @@ import type { WorkflowDispatchPauseStatus } from "#core/workflow/dispatch-pause-
 import type {
   ToolCallSummaryEntry,
   WorkflowActiveRun,
+  WorkflowDeliveryDisposition,
+  WorkflowDeliveryDispositionKind,
   WorkflowQueuedRun,
   WorkflowRuntimeSummary,
   WorkflowStepSkipReason,
@@ -191,10 +193,16 @@ export type DaemonLiveStatus = DaemonState & {
   channels: ChannelStatus[];
 };
 
+export type {
+  WorkflowDeliveryDisposition,
+  WorkflowDeliveryDispositionKind,
+};
+
 export type WorkflowRunSummary = {
   id: string;
   workflow: string;
   status: string;
+  delivery?: WorkflowDeliveryDisposition;
   triggerEvent: string;
   triggerSchemaRef: EventSchemaReference | null;
   startedAt: string;

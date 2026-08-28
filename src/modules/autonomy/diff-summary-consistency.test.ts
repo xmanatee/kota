@@ -32,6 +32,9 @@ function delivery(
     taskTitle: "Fix eval-harness recorder guard",
     cost: { state: "unknown" },
     durationMs: null,
+    disposition: "completed",
+    blockerReason: null,
+    delivery: { kind: "completed", taskId: "task-eval-harness", taskTitle: "Fix eval-harness recorder guard" },
     ...overrides,
   };
 }

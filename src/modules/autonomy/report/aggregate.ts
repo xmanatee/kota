@@ -107,7 +107,9 @@ export function aggregateAutonomyReport(
         return [];
       }
       const delivery = readAutonomyRunDeliveryEvidence(input.runsDir, run);
-      return delivery?.taskId ? [delivery.taskId] : [];
+      return delivery?.disposition === "completed" && delivery?.taskId
+        ? [delivery.taskId]
+        : [];
     }),
   );
   const doneInWindow = buildQueueBalance(

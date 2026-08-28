@@ -13,8 +13,13 @@ import {
 } from "#core/evidence/policy.js";
 import { jsonResponse, SseTransport, setCors } from "#core/server/session-pool.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
+import type {
+  WorkflowDeliveryDisposition,
+  WorkflowRunMetadata,
+  WorkflowStepResult,
+} from "#core/workflow/run-types.js";
 import {
   WRITER_INTEGRATION_EVIDENCE,
   type WriterIntegrationEvidence,
@@ -29,6 +34,7 @@ type RunSummary = {
   id: string;
   workflow: string;
   status: string;
+  delivery?: WorkflowDeliveryDisposition;
   startedAt: string;
   completedAt?: string;
   durationMs?: number;
@@ -38,11 +44,12 @@ type RunSummary = {
   provenance: EvidenceProvenance;
 };
 
-function toSummary(meta: WorkflowRunMetadata): RunSummary {
+function toSummary(meta: WorkflowRunMetadata, runsDir?: string): RunSummary {
   return {
     id: meta.id,
     workflow: meta.workflow,
     status: meta.status,
+    delivery: meta.delivery ?? deriveWorkflowRunDelivery(meta, { runsDir }),
     startedAt: meta.startedAt,
     ...(meta.completedAt !== undefined && { completedAt: meta.completedAt }),
     ...(meta.durationMs !== undefined && { durationMs: meta.durationMs }),
@@ -144,7 +151,7 @@ export function handleWorkflowRuns(
 
   if (since !== undefined) {
     const runs = listRunMetadata(store, 0, 0, since, undefined, workflow, tag);
-    jsonResponse(res, 200, { runs: runs.map(toSummary), since });
+    jsonResponse(res, 200, { runs: runs.map((r) => toSummary(r, store.runsDir)), since });
     return;
   }
 
@@ -159,7 +166,7 @@ export function handleWorkflowRuns(
   const causedByRunId = url.searchParams.get("causedByRunId") ?? undefined;
 
   const runs = listRunMetadata(store, limit, offset, undefined, causedByRunId, workflow, tag);
-  jsonResponse(res, 200, { runs: runs.map(toSummary), limit, offset });
+  jsonResponse(res, 200, { runs: runs.map((r) => toSummary(r, store.runsDir)), limit, offset });
 }
 
 export function handleWorkflowRunDetail(

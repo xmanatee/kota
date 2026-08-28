@@ -245,6 +245,8 @@ describe("formatCsv", () => {
         id: "run-abc",
         workflow: "builder",
         status: "success",
+        deliveryKind: "completed",
+        deliveryTaskId: "task-1",
         triggerEvent: "manual",
         startedAt: "2024-01-01T00:00:00.000Z",
         durationMs: 60000,
@@ -258,8 +260,8 @@ describe("formatCsv", () => {
     ];
     const csv = formatCsv(summaries);
     const lines = csv.trim().split("\n");
-    expect(lines[0]).toBe("id,workflow,status,triggerEvent,startedAt,durationMs,stepCount,tokenState,inputTokens,outputTokens,costState,costUsd");
-    expect(lines[1]).toBe("run-abc,builder,success,manual,2024-01-01T00:00:00.000Z,60000,2,complete,10,2,complete,0.1");
+    expect(lines[0]).toBe("id,workflow,status,deliveryKind,deliveryTaskId,triggerEvent,startedAt,durationMs,stepCount,tokenState,inputTokens,outputTokens,costState,costUsd");
+    expect(lines[1]).toBe("run-abc,builder,success,completed,task-1,manual,2024-01-01T00:00:00.000Z,60000,2,complete,10,2,complete,0.1");
   });
 
   it("outputs only header row for empty summaries", () => {
@@ -275,6 +277,8 @@ describe("formatCsv", () => {
         id: "run-x",
         workflow: "builder",
         status: "failed",
+        deliveryKind: null,
+        deliveryTaskId: null,
         triggerEvent: "cron",
         startedAt: "2024-06-01T10:00:00.000Z",
         durationMs: null,
@@ -288,7 +292,7 @@ describe("formatCsv", () => {
     ];
     const csv = formatCsv(summaries);
     const dataLine = csv.trim().split("\n")[1];
-    expect(dataLine).toBe("run-x,builder,failed,cron,2024-06-01T10:00:00.000Z,,0,,,,,");
+    expect(dataLine).toBe("run-x,builder,failed,,,cron,2024-06-01T10:00:00.000Z,,0,,,,,");
   });
 
   it("escapes commas in values with double quotes", () => {
@@ -297,6 +301,8 @@ describe("formatCsv", () => {
         id: "run-y",
         workflow: "has,comma",
         status: "success",
+        deliveryKind: null,
+        deliveryTaskId: null,
         triggerEvent: "manual",
         startedAt: "2024-01-01T00:00:00.000Z",
         durationMs: 1000,
@@ -314,6 +320,6 @@ describe("formatCsv", () => {
 
   it("produces stable column order", () => {
     const csv = formatCsv([]);
-    expect(csv.startsWith("id,workflow,status,triggerEvent,startedAt,durationMs,stepCount,tokenState,inputTokens,outputTokens,costState,costUsd")).toBe(true);
+    expect(csv.startsWith("id,workflow,status,deliveryKind,deliveryTaskId,triggerEvent,startedAt,durationMs,stepCount,tokenState,inputTokens,outputTokens,costState,costUsd")).toBe(true);
   });
 });

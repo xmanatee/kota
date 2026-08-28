@@ -20,6 +20,8 @@ export type RunSummary = {
   id: string;
   workflow: string;
   status: string;
+  deliveryKind: string | null;
+  deliveryTaskId: string | null;
   triggerEvent: string;
   startedAt: string;
   durationMs: number | null;
@@ -35,6 +37,8 @@ const CSV_HEADERS: (keyof RunSummary)[] = [
   "id",
   "workflow",
   "status",
+  "deliveryKind",
+  "deliveryTaskId",
   "triggerEvent",
   "startedAt",
   "durationMs",
@@ -82,6 +86,8 @@ export function loadRunSummaries(
       id: meta.id,
       workflow: meta.workflow,
       status: meta.status,
+      deliveryKind: meta.delivery?.kind ?? null,
+      deliveryTaskId: meta.delivery?.taskId ?? null,
       triggerEvent: meta.trigger?.event ?? "",
       startedAt: meta.startedAt,
       durationMs: meta.durationMs ?? null,

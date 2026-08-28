@@ -6,7 +6,10 @@ import {
   resolveTierModel,
   SHIPPED_DEFAULT_PRESET_ID,
 } from "#core/model/preset.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import type {
+  WorkflowDeliveryDisposition,
+  WorkflowDeliveryDispositionKind,
   WorkflowPredicate,
   WorkflowRunMetadata,
   WorkflowRunWarning,
@@ -15,6 +18,11 @@ import {
   loadRunsInWindow,
   type WorkflowRunDurableAuthority,
 } from "#modules/workflow-ops/runs/workflow-history.js";
+
+export type {
+  WorkflowDeliveryDisposition,
+  WorkflowDeliveryDispositionKind,
+};
 
 export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
@@ -48,6 +56,7 @@ export type RunSummary = {
   id: string;
   workflow: string;
   status: string;
+  delivery?: WorkflowDeliveryDisposition;
   durationMs?: number;
   usage?: AgentUsage;
   warnings?: WorkflowRunWarning[];
@@ -58,6 +67,7 @@ export function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
     id: metadata.id,
     workflow: metadata.workflow,
     status: metadata.status,
+    delivery: metadata.delivery ?? deriveWorkflowRunDelivery(metadata),
     ...(metadata.durationMs != null ? { durationMs: metadata.durationMs } : {}),
     ...(metadata.usage !== undefined ? { usage: metadata.usage } : {}),
     ...(metadata.warnings != null ? { warnings: metadata.warnings } : {}),

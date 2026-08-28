@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import { enumerateWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
 import {
   type ReadWorkflowOperationalState,
@@ -39,6 +40,11 @@ function summarizeRun(
   metadata: WorkflowRunMetadata,
 ): ProgressReviewRunEvidence {
   const trigger = readRunTrigger(source.stateDir, runDirName);
+  const delivery = metadata.delivery ?? deriveWorkflowRunDelivery(metadata, {
+    runsDir: join(source.stateDir, "runs"),
+    scopeRoot: source.scopeRoot,
+  });
+  const deliverySuffix = delivery ? ` [delivery: ${delivery.kind}]` : "";
   return {
     id: sourceEvidenceId(source, `run:${runDirName}`),
     kind: "run",
@@ -48,10 +54,11 @@ function summarizeRun(
     ...(metadata.completedAt ? { completedAt: metadata.completedAt } : {}),
     ...(metadata.durationMs !== undefined ? { durationMs: metadata.durationMs } : {}),
     ...(trigger ? { triggerEvent: trigger.event } : {}),
+    delivery,
     path: join(".kota", "runs", runDirName, "metadata.json"),
     summary: sourceSummary(
       source,
-      `${metadata.workflow} ${metadata.status} (${runDirName})`,
+      `${metadata.workflow} ${metadata.status}${deliverySuffix} (${runDirName})`,
     ),
   };
 }

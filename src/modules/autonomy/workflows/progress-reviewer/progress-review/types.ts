@@ -9,6 +9,7 @@ import type {
   EvidenceProvenance,
 } from "#core/evidence/policy.js";
 import type { EvidencePrunedReasonCode } from "#core/evidence/pruned-reference.js";
+import type { WorkflowDeliveryDisposition } from "#core/workflow/run-types.js";
 import type {
   RepoTaskPriority,
   RepoTaskState,
@@ -64,6 +65,7 @@ export type ProgressReviewRunEvidence = ProgressReviewEvidenceRef & {
   completedAt?: string;
   durationMs?: number;
   triggerEvent?: string;
+  delivery?: WorkflowDeliveryDisposition;
 };
 
 export type ProgressReviewTaskEvidence = ProgressReviewEvidenceRef & {

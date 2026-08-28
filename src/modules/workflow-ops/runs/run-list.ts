@@ -2,6 +2,7 @@ import type { Command } from "commander";
 import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowDeliveryDisposition } from "#core/workflow/run-types.js";
 import {
   blank,
   type ColumnsNode,
@@ -26,6 +27,7 @@ type RunRow = {
   id: string;
   workflow: string;
   status: string;
+  delivery?: WorkflowDeliveryDisposition;
   durationMs?: number;
   usage?: AgentUsage;
   startedAt: string;
@@ -67,6 +69,7 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
         id: r.id,
         workflow: r.workflow,
         status: r.status,
+        delivery: r.delivery,
         durationMs: r.durationMs,
         usage: r.usage,
         startedAt: r.startedAt,
@@ -150,12 +153,35 @@ function runStatusRole(status: string): SemanticRole {
   }
 }
 
+function formatDeliveryShort(delivery?: WorkflowDeliveryDisposition): { text: string; role: SemanticRole } {
+  if (!delivery) return { text: "—", role: "muted" };
+  switch (delivery.kind) {
+    case "completed":
+      return { text: "✓ done", role: "success" };
+    case "blocked":
+      return { text: "⊘ blocked", role: "warn" };
+    case "dropped":
+      return { text: "✕ dropped", role: "muted" };
+    case "failed":
+      return { text: "✕ failed", role: "error" };
+    case "needs_attention":
+      return { text: "! attention", role: "warn" };
+    case "cancelled":
+      return { text: "— cancelled", role: "warn" };
+    case "unresolved":
+      return { text: "? unresolved", role: "warn" };
+    case "not_applicable":
+      return { text: "—", role: "muted" };
+  }
+}
+
 export function buildRunListNode(page: RunRow[]): ColumnsNode {
   return columns(
     [
       { header: "ID", role: "accent", maxWidth: 42 },
       { header: "Workflow", maxWidth: 18 },
       { header: "St", minWidth: 2 },
+      { header: "Delivery", minWidth: 10 },
       { header: "Duration", align: "right", minWidth: 6 },
       { header: "Cost", align: "right", minWidth: 6 },
       { header: "Started" },
@@ -172,11 +198,13 @@ export function buildRunListNode(page: RunRow[]): ColumnsNode {
           ? `${r.trigger.event} ← ${r.triggeredByRunId}`
           : r.trigger.event;
       const tagSuffix = r.tags && r.tags.length > 0 ? ` [${r.tags.join(",")}]` : "";
+      const deliveryShort = formatDeliveryShort(r.delivery);
       return {
         cells: [
           { spans: [{ text: r.id, role: "accent" }] },
           { spans: [{ text: r.workflow }] },
           { spans: [{ text: statusIcon(r.status), role: runStatusRole(r.status) }] },
+          { spans: [{ text: deliveryShort.text, role: deliveryShort.role }] },
           { spans: [{ text: dur }] },
           { spans: [{ text: cost, role: "muted" }] },
           { spans: [{ text: formatDate(r.startedAt), role: "muted" }] },
@@ -190,6 +218,8 @@ export function buildRunListNode(page: RunRow[]): ColumnsNode {
 export type HistoryTotals = {
   total: number;
   successes: number;
+  deliveries: number;
+  blocked: number;
   failures: number;
   interrupted: number;
   totalCostUsd: number | null;
@@ -197,6 +227,7 @@ export type HistoryTotals = {
   unavailableCostRuns: number;
   unknownCostRuns: number;
   successRate: number;
+  deliveryRate: number;
   avgCostUsd: number | null;
   avgDurationMs: number | null;
   p95DurationMs: number | null;
@@ -210,6 +241,8 @@ export function computeHistoryTotals(
     HistoryTotals,
     | "total"
     | "successes"
+    | "deliveries"
+    | "blocked"
     | "failures"
     | "interrupted"
     | "totalCostUsd"
@@ -220,6 +253,8 @@ export function computeHistoryTotals(
     (a, s) => ({
       total: a.total + s.total,
       successes: a.successes + s.successes,
+      deliveries: a.deliveries + s.deliveries,
+      blocked: a.blocked + s.blocked,
       failures: a.failures + s.failures,
       interrupted: a.interrupted + s.interrupted,
       totalCostUsd: a.totalCostUsd === null
@@ -234,6 +269,8 @@ export function computeHistoryTotals(
     {
       total: 0,
       successes: 0,
+      deliveries: 0,
+      blocked: 0,
       failures: 0,
       interrupted: 0,
       totalCostUsd: null,
@@ -243,6 +280,7 @@ export function computeHistoryTotals(
     },
   );
   const successRate = acc.total > 0 ? (acc.successes / acc.total) * 100 : 0;
+  const deliveryRate = acc.total > 0 ? (acc.deliveries / acc.total) * 100 : 0;
   const avgCostUsd = acc.totalCostUsd === null || acc.measuredCostRuns === 0
     ? null
     : acc.totalCostUsd / acc.measuredCostRuns;
@@ -256,7 +294,7 @@ export function computeHistoryTotals(
   const p95DurationMs = durations.length > 0
     ? durations[Math.ceil(0.95 * durations.length) - 1]
     : null;
-  return { ...acc, successRate, avgCostUsd, avgDurationMs, p95DurationMs };
+  return { ...acc, successRate, deliveryRate, avgCostUsd, avgDurationMs, p95DurationMs };
 }
 
 export function buildHistoryNode(
@@ -269,6 +307,8 @@ export function buildHistoryNode(
     { header: "Workflow", role: "accent" as const, minWidth: 8 },
     { header: "Runs", align: "right" as const, minWidth: 4 },
     { header: "OK", align: "right" as const, minWidth: 3 },
+    { header: "Delivered", align: "right" as const, minWidth: 9 },
+    { header: "Blocked", align: "right" as const, minWidth: 7 },
     { header: "Fail", align: "right" as const, minWidth: 4 },
     { header: "Int", align: "right" as const, minWidth: 3 },
     { header: "Rate", align: "right" as const, minWidth: 5 },
@@ -286,6 +326,12 @@ export function buildHistoryNode(
         { spans: [{ text: name, role: "accent" as SemanticRole }] },
         { spans: [{ text: String(s.total) }] },
         { spans: [{ text: String(s.successes), role: "success" as SemanticRole }] },
+        { spans: [{ text: String(s.deliveries), role: "success" as SemanticRole }] },
+        {
+          spans: [
+            { text: String(s.blocked), role: (s.blocked > 0 ? "warn" : "muted") as SemanticRole },
+          ],
+        },
         {
           spans: [
             { text: String(s.failures), role: (s.failures > 0 ? "error" : "muted") as SemanticRole },
@@ -310,6 +356,15 @@ export function buildHistoryNode(
         { spans: [{ text: "TOTAL", role: "accent" as SemanticRole }] },
         { spans: [{ text: String(totals.total) }] },
         { spans: [{ text: String(totals.successes), role: "success" as SemanticRole }] },
+        { spans: [{ text: String(totals.deliveries), role: "success" as SemanticRole }] },
+        {
+          spans: [
+            {
+              text: String(totals.blocked),
+              role: (totals.blocked > 0 ? "warn" : "muted") as SemanticRole,
+            },
+          ],
+        },
         {
           spans: [
             {

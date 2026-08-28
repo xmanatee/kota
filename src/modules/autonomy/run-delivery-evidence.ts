@@ -2,7 +2,12 @@ import {
   type AgentUsageCost,
   UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/usage.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
+import type {
+  WorkflowDeliveryDisposition,
+  WorkflowDeliveryDispositionKind,
+  WorkflowRunMetadata,
+} from "#core/workflow/run-types.js";
 import {
   readWriterIntegrationEvidence,
   type WriterIntegrationEvidence,
@@ -15,6 +20,9 @@ export type AutonomyRunDeliveryEvidence = WriterIntegrationEvidence &
     taskTitle: string | null;
     cost: AgentUsageCost;
     durationMs: number | null;
+    disposition: WorkflowDeliveryDispositionKind;
+    blockerReason: string | null;
+    delivery: WorkflowDeliveryDisposition;
   }>;
 
 export function reportRunTriggerPayload(
@@ -51,10 +59,14 @@ export function readAutonomyRunDeliveryEvidence(
   const integration = readWriterIntegrationEvidence(runsDir, run.id);
   if (integration === null) return null;
   const task = taskIdentityFromRunTrigger(run);
+  const delivery = run.delivery ?? deriveWorkflowRunDelivery(run, { runsDir });
   return {
     ...integration,
     ...task,
     cost: run.usage?.cost ?? UNKNOWN_AGENT_USAGE.cost,
     durationMs: run.durationMs ?? null,
+    disposition: delivery.kind,
+    blockerReason: delivery.blocker ?? delivery.reason ?? null,
+    delivery,
   };
 }

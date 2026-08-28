@@ -1,4 +1,5 @@
 import { projectEvidenceObject, redactSensitiveText } from "#core/evidence/policy.js";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import {
   isWorkflowRunMetadataAuthorityCriticalState,
   workflowRunMetadataAuthorityCriticalIds,
@@ -60,6 +61,7 @@ export function buildDaemonRunHandle(
         id: run.id,
         workflow: run.workflow,
         status: run.status,
+        delivery: run.delivery ?? deriveWorkflowRunDelivery(run, { runsDir: runtime.runStore.runsDir }),
         triggerEvent: run.trigger.event,
         triggerSchemaRef: run.trigger.schemaRef,
         startedAt: run.startedAt,
@@ -95,6 +97,7 @@ export function buildDaemonRunHandle(
         id: run.id,
         workflow: run.workflow,
         status: run.status,
+        delivery: run.delivery ?? deriveWorkflowRunDelivery(run, { runsDir: runtime.runStore.runsDir }),
         triggerEvent: run.trigger.event,
         triggerSchemaRef: run.trigger.schemaRef,
         startedAt: run.startedAt,

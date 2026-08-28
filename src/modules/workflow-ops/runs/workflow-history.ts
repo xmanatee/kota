@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import {
   enumerateWorkflowRunMetadata,
   type StoredWorkflowRunDirectoryId,
@@ -17,9 +18,12 @@ export type StoredWorkflowRun = StoredWorkflowRunMetadata;
 export type HistoryStats = {
   total: number;
   successes: number;
+  deliveries: number;
+  blocked: number;
   failures: number;
   interrupted: number;
   successRate: number;
+  deliveryRate: number;
   totalCostUsd: number | null;
   avgCostUsd: number | null;
   measuredCostRuns: number;
@@ -141,10 +145,19 @@ export function listStoredWorkflowRuns(
 export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {
   const finished = runs.filter((r) => r.status !== "running");
   const total = finished.length;
-  const successes = finished.filter((r) => r.status === "success").length;
+  const successes = finished.filter(
+    (r) => r.status === "success" || r.status === "completed-with-warnings",
+  ).length;
+  const deliveries = finished.filter(
+    (r) => (r.delivery?.kind ?? deriveWorkflowRunDelivery(r).kind) === "completed",
+  ).length;
+  const blocked = finished.filter(
+    (r) => (r.delivery?.kind ?? deriveWorkflowRunDelivery(r).kind) === "blocked",
+  ).length;
   const failures = finished.filter((r) => r.status === "failed").length;
   const interrupted = finished.filter((r) => r.status === "interrupted").length;
   const successRate = total > 0 ? (successes / total) * 100 : 0;
+  const deliveryRate = total > 0 ? (deliveries / total) * 100 : 0;
   const measuredCosts = finished.flatMap((run) =>
     run.usage?.cost.state === "complete" ? [run.usage.cost.usd] : []
   );
@@ -175,9 +188,12 @@ export function computeHistoryStats(runs: WorkflowRunMetadata[]): HistoryStats {
   return {
     total,
     successes,
+    deliveries,
+    blocked,
     failures,
     interrupted,
     successRate,
+    deliveryRate,
     totalCostUsd,
     avgCostUsd,
     measuredCostRuns: measuredCosts.length,

@@ -48,7 +48,11 @@ export function evidenceRefs(args: {
 }
 
 export function cloneEvidenceItem<T extends ProgressReviewEvidenceRef>(item: T): T {
-  return { ...item };
+  const cloned = { ...item };
+  if ("delivery" in cloned && typeof (cloned as { delivery?: unknown }).delivery === "object" && (cloned as { delivery?: unknown }).delivery !== null) {
+    (cloned as { delivery?: unknown }).delivery = { ...(cloned as { delivery: object }).delivery };
+  }
+  return cloned;
 }
 
 export function cloneDeadLetterEvidence(

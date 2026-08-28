@@ -258,6 +258,23 @@ const workflowRunTrigger = z.strictObject({
 	payload: z.record(z.string(), z.unknown()),
 });
 
+const workflowDeliveryDisposition = z.strictObject({
+	kind: z.enum([
+		"completed",
+		"blocked",
+		"dropped",
+		"failed",
+		"needs_attention",
+		"cancelled",
+		"unresolved",
+		"not_applicable",
+	]),
+	taskId: z.string().nullable().optional(),
+	taskTitle: z.string().nullable().optional(),
+	blocker: z.string().nullable().optional(),
+	reason: z.string().nullable().optional(),
+});
+
 const workflowRunMetadata = z.strictObject({
 	metadataVersion: z.literal(WORKFLOW_RUN_METADATA_VERSION),
 	id: z.string(),
@@ -289,6 +306,7 @@ const workflowRunMetadata = z.strictObject({
 		"interrupted",
 		"completed-with-warnings",
 	]),
+	delivery: workflowDeliveryDisposition.optional(),
 	durationMs: duration.optional(),
 	activeDurationMs: duration.optional(),
 	hostSuspendedMs: duration.optional(),

@@ -310,6 +310,24 @@ export type WorkflowRunMetadataAuthorityRepairEvidence = {
   originalSha256: string;
 };
 
+export type WorkflowDeliveryDispositionKind =
+  | "completed"
+  | "blocked"
+  | "dropped"
+  | "failed"
+  | "needs_attention"
+  | "cancelled"
+  | "unresolved"
+  | "not_applicable";
+
+export type WorkflowDeliveryDisposition = Readonly<{
+  kind: WorkflowDeliveryDispositionKind;
+  taskId?: string | null;
+  taskTitle?: string | null;
+  blocker?: string | null;
+  reason?: string | null;
+}>;
+
 export type WorkflowRunMetadata = {
   /** Present on persisted metadata; in-memory workflow fixtures need not model storage framing. */
   metadataVersion?: 1;
@@ -327,6 +345,7 @@ export type WorkflowRunMetadata = {
   startedAt: string;
   completedAt?: string;
   status: WorkflowRunStatus | "running";
+  delivery?: WorkflowDeliveryDisposition;
   durationMs?: number;
   activeDurationMs?: number;
   hostSuspendedMs?: number;
