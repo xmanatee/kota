@@ -21,6 +21,7 @@ import { buildDaemonWorkflowHandle } from "./daemon-handle-workflows.js";
 import { buildDaemonHealthStatus } from "./daemon-health.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { EventLoopLatencySnapshot } from "./event-loop-latency.js";
+import type { LifecycleCollector } from "./lifecycle-collector.js";
 import type {
   ScopeAuthorityOperatorAction,
   ScopeAuthorityOperatorRequest,
@@ -28,7 +29,6 @@ import type {
 } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeAuthorityMutation } from "./scope-authority-types.js";
-import type { LifecycleCollector } from "./lifecycle-collector.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import {
   defaultScopePolicyDecisionExamples,

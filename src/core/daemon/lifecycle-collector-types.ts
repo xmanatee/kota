@@ -87,7 +87,7 @@ export type LifecycleScopeStores = {
 export type LifecycleCollectorDeps = {
   stateDir: string;
   scopeRegistry: {
-    list(): readonly Array<{ scopeId: string; scopeRoot: string; displayName?: string }>;
+    list(): readonly { scopeId: string; scopeRoot: string; displayName?: string }[];
     getDefaultScopeId(): string;
   };
   runState: RunStateDatabase;

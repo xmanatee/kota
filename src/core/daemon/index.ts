@@ -10,6 +10,21 @@ export {
 	RESTART_EXIT_CODE,
 } from "./daemon.js";
 export {
+	LifecycleCollector,
+} from "./lifecycle-collector.js";
+export type {
+	LifecycleCandidate,
+	LifecycleCandidateDecision,
+	LifecycleCollectorDeps,
+	LifecycleScopeStores,
+	LifecycleStatusOptions,
+	LifecycleStatusReport,
+	LifecycleStoreName,
+	LifecycleSweepOptions,
+	LifecycleSweepReport,
+	StoreReclamationSummary,
+} from "./lifecycle-collector-types.js";
+export {
 	formatRelative,
 	matchesFilter,
 	scopeHash,
@@ -66,19 +81,4 @@ export {
 	type TaskStatus,
 	TaskStore,
 } from "./task-store.js";
-export {
-	LifecycleCollector,
-} from "./lifecycle-collector.js";
-export type {
-	LifecycleCandidate,
-	LifecycleCandidateDecision,
-	LifecycleCollectorDeps,
-	LifecycleScopeStores,
-	LifecycleStatusOptions,
-	LifecycleStatusReport,
-	LifecycleStoreName,
-	LifecycleSweepOptions,
-	LifecycleSweepReport,
-	StoreReclamationSummary,
-} from "./lifecycle-collector-types.js";
 

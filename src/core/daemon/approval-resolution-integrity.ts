@@ -4,8 +4,7 @@ import {
 	timingSafeEqual,
 } from "node:crypto";
 import { projectApprovalForStorage } from "./approval-queue-projection.js";
-import type { PendingApproval } from "./approval-queue-types.js";
-import type { ApprovalRecordRepository } from "./approval-record-repository.js";
+import type { ApprovalPersistencePort, PendingApproval } from "./approval-queue-types.js";
 import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 
 const KEY_ID_PATTERN = /^[0-9a-f]{32}$/;
@@ -112,7 +111,7 @@ export class ApprovalResolutionAuthenticator {
 	}
 
 	read(
-		records: ApprovalRecordRepository,
+		records: ApprovalPersistencePort,
 		id: string,
 	): PendingApproval | null {
 		const stored = records.read(id);
@@ -126,7 +125,7 @@ export class ApprovalResolutionAuthenticator {
 	}
 
 	write(
-		records: ApprovalRecordRepository,
+		records: ApprovalPersistencePort,
 		item: PendingApproval,
 		expectedIdentity: ApprovalFileIdentity,
 	): PendingApproval {

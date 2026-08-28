@@ -32,6 +32,12 @@ import type {
 import type { DaemonState } from "./daemon-state.js";
 import type { DeadLetterRedriveTarget } from "./dead-letter-queue.js";
 import type {
+  LifecycleStatusOptions,
+  LifecycleStatusReport,
+  LifecycleSweepOptions,
+  LifecycleSweepReport,
+} from "./lifecycle-collector-types.js";
+import type {
   ScopeAuthorityOperatorAction,
   ScopeAuthorityOperatorRequest,
 } from "./scope-authority-operator-token.js";
@@ -48,12 +54,6 @@ import type {
   ScopeId,
   ScopeRegistryProjection,
 } from "./scope-registry.js";
-import type {
-  LifecycleStatusOptions,
-  LifecycleStatusReport,
-  LifecycleSweepOptions,
-  LifecycleSweepReport,
-} from "./lifecycle-collector-types.js";
 
 /** Operations exposed by the daemon control plane. */
 export type DaemonControlHandle = {

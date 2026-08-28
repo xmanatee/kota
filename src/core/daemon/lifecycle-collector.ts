@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import {
   appendFileSync,
   existsSync,
-  mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -19,9 +18,9 @@ import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { readWorkflowRunMetadataForEnumeration } from "#core/workflow/run-metadata.js";
 import { allocationName } from "#core/workflow/run-sandbox.js";
+import type { StoredRun } from "#core/workflow/run-state-types.js";
 import { PRUNED_RUN_REFERENCES_FILE } from "#core/workflow/run-store-retention.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import type { StoredRun } from "#core/workflow/run-state-types.js";
 import type {
   LifecycleCandidate,
   LifecycleCandidateDecision,
@@ -354,7 +353,7 @@ export class LifecycleCollector {
   }
 
   private collectSandboxes(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     targetRunId?: string;
     dryRun: boolean;
@@ -540,7 +539,7 @@ export class LifecycleCollector {
   }
 
   private collectGitBranches(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     dryRun: boolean;
     candidates: LifecycleCandidate[];
@@ -733,7 +732,7 @@ export class LifecycleCollector {
   }
 
   private collectOwnerRecords(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     dryRun: boolean;
     candidates: LifecycleCandidate[];
@@ -886,7 +885,7 @@ export class LifecycleCollector {
   }
 
   private collectIdempotency(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     dryRun: boolean;
     candidates: LifecycleCandidate[];
@@ -965,7 +964,7 @@ export class LifecycleCollector {
   }
 
   private collectTemporaryPayloads(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     dryRun: boolean;
     candidates: LifecycleCandidate[];
@@ -1007,7 +1006,7 @@ export class LifecycleCollector {
   }
 
   private collectRunArtifacts(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     targetRunId?: string;
     dryRun: boolean;
@@ -1154,6 +1153,7 @@ export class LifecycleCollector {
                   workflowName: run.metadata.workflow,
                   runId: run.metadata.id,
                   sourceEventIds: run.metadata.trigger.eventId ? [run.metadata.trigger.eventId] : [],
+                  transformedFrom: [],
                 },
               });
               appendFileSync(
@@ -1253,7 +1253,7 @@ export class LifecycleCollector {
   }
 
   private collectDeadLetters(ctx: {
-    scopes: readonly Array<{ scopeId: string; scopeRoot: string }>;
+    scopes: readonly { scopeId: string; scopeRoot: string }[];
     nowMs: number;
     dryRun: boolean;
     candidates: LifecycleCandidate[];

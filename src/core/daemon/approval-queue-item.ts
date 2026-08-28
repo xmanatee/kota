@@ -22,6 +22,7 @@ type PendingApprovalInputBase = {
 	sessionId?: string;
 	mcpPromptDeclaration?: ApprovalMcpPromptDeclaration;
 	localToolDeclaration?: ApprovalLocalToolDeclaration;
+	createdAt?: string;
 };
 
 export type PendingToolApprovalInput = PendingApprovalInputBase & {
@@ -58,7 +59,7 @@ export function createPendingApproval(input: PendingApprovalInput): PendingAppro
 		...(input.localToolDeclaration !== undefined && {
 			localToolDeclaration: input.localToolDeclaration,
 		}),
-		createdAt: new Date().toISOString(),
+		createdAt: input.createdAt ?? new Date().toISOString(),
 		status: "pending",
 		...(input.timeoutMs !== undefined && { timeoutMs: input.timeoutMs }),
 		...(input.defaultResolution !== undefined && { defaultResolution: input.defaultResolution }),

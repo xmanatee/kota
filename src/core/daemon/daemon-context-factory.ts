@@ -22,12 +22,12 @@ import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk } from "./daemon-state-persistence.js";
 import { prepareDaemonStateRoot } from "./daemon-state-root.js";
 import { installEventIdempotency } from "./idempotency-events.js";
+import { LifecycleCollector } from "./lifecycle-collector.js";
 import { createScopeAuthorityOperatorTokenVerifier } from "./scope-authority-operator-token.js";
 import { ScopeAuthorityService } from "./scope-authority-service.js";
 import { ScopeAuthorityStore } from "./scope-authority-store.js";
 import { resolveConfiguredScopes, ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeRegistry } from "./scope-runtime.js";
-import { LifecycleCollector } from "./lifecycle-collector.js";
 
 export type DaemonRuntimeContextHooks = {
   onScopeTrustRevoked?: (scopeId: string) => void;

@@ -16,13 +16,13 @@ import type { DaemonLogger } from "./daemon-logger.js";
 import type { DaemonState } from "./daemon-state.js";
 import type { DaemonStateRoot } from "./daemon-state-root.js";
 import type { DaemonEventLoopLatencyMonitor } from "./event-loop-latency.js";
+import type { LifecycleCollector } from "./lifecycle-collector.js";
 import type { ScopeAuthorityOperatorTokenVerifier } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeLifecycleService } from "./scope-lifecycle.js";
 import type { ScopeRegistry } from "./scope-registry.js";
 import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
-import type { LifecycleCollector } from "./lifecycle-collector.js";
 
 /** Mutable and immutable lifecycle state for one daemon instance. */
 export type DaemonRuntimeContext = {

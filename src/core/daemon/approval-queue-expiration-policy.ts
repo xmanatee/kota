@@ -11,10 +11,14 @@ export function defaultApprovalPendingTtlMs(): number {
 	return DEFAULT_APPROVAL_PENDING_TTL_MS;
 }
 
-export function expireApproval(item: PendingApproval): "deny" | "approve" {
+export function expireApproval(
+	item: PendingApproval,
+	resolvedAt?: string,
+	resolutionSource = "timeout",
+): "deny" | "approve" {
 	const resolution = item.defaultResolution ?? "deny";
-	item.resolvedAt = new Date().toISOString();
-	item.resolutionSource = "timeout";
+	item.resolvedAt = resolvedAt ?? new Date().toISOString();
+	item.resolutionSource = resolutionSource;
 	if (resolution === "approve") {
 		item.status = "approved";
 	} else {

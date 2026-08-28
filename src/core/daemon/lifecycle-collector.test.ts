@@ -3,23 +3,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventBus } from "#core/events/event-bus.js";
 import { EventJournal } from "#core/events/event-journal.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { RunCoordinator } from "#core/workflow/run-coordinator.js";
-import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { allocationName } from "#core/workflow/run-sandbox.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
-import { ApprovalQueue } from "./approval-queue.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { InteractiveSession } from "./daemon-control-types.js";
-import { EventedDeadLetterQueueStore } from "./dead-letter-queue-events.js";
-import { IdempotencyStore } from "./idempotency-store.js";
 import { LifecycleCollector } from "./lifecycle-collector.js";
-import { OwnerDecisionStore } from "./owner-decision-store.js";
-import { OwnerQuestionQueue } from "./owner-question-queue.js";
-import { buildDirectoryScope, type DirectoryScope, ScopeRegistry } from "./scope-registry.js";
-import { ScopeRuntimeRegistry } from "./scope-runtime.js";
+import { buildDirectoryScope, ScopeRegistry } from "./scope-registry.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -62,7 +53,7 @@ describe("LifecycleCollector", () => {
   let eventJournal: EventJournal;
   let sessions: Map<string, InteractiveSession>;
   let chatBindings: DaemonChatBindingStore;
-  let openStates: RunStateDatabase[] = [];
+  const openStates: RunStateDatabase[] = [];
 
   beforeEach(() => {
     rootDir = mkdtempSync(join(tmpdir(), "kota-lifecycle-test-"));
@@ -180,24 +171,18 @@ describe("LifecycleCollector", () => {
     const runId = "2026-08-28T00-00-00-000Z-builder-dirty";
     const allocation = allocationName(runId);
 
-    // Create a writer run in terminal state (succeeded)
+    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
     runState.admitRun({
       id: runId,
       scopeId: scopeA.scopeId,
-      workflowName: "builder",
-      workflowRevision: "rev-1",
-      triggerKind: "event",
-      triggerEvent: "test",
-      targetBranch: "main",
+      workflow: "builder",
       repository: "write",
-      concurrencyLimit: 1,
-      costLimitUsd: 1,
-      admissionKey: "adm-dirty",
-      parameterFingerprint: "fp-dirty",
+      trigger: { event: "test", schemaRef: null, payload: {} },
+      resources: [],
       admittedAt: new Date(Date.now() - 2000).toISOString(),
     });
-    runState.startAttempt(runId, 1, 1, new Date(Date.now() - 1500).toISOString());
-    runState.recordTerminalState(runId, 1, "succeeded", new Date(Date.now() - 1000).toISOString());
+    runState.startRun(runId, epoch, new Date(Date.now() - 1500).toISOString());
+    runState.finishRun(runId, epoch, "succeeded", new Date(Date.now() - 1000).toISOString());
 
     // Create worktree with uncommitted dirty change
     const worktreesDir = join(scopeRootA, ".kota", "runtime", "worktrees");
@@ -246,23 +231,18 @@ describe("LifecycleCollector", () => {
     const allocation = allocationName(runId);
 
     // Register terminal run in database
+    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
     runState.admitRun({
       id: runId,
       scopeId: scopeA.scopeId,
-      workflowName: "builder",
-      workflowRevision: "rev-1",
-      triggerKind: "event",
-      triggerEvent: "test",
-      targetBranch: "main",
+      workflow: "builder",
       repository: "write",
-      concurrencyLimit: 1,
-      costLimitUsd: 1,
-      admissionKey: "adm-clean",
-      parameterFingerprint: "fp-clean",
+      trigger: { event: "test", schemaRef: null, payload: {} },
+      resources: [],
       admittedAt: new Date(Date.now() - 5000).toISOString(),
     });
-    runState.startAttempt(runId, 1, 1, new Date(Date.now() - 4000).toISOString());
-    runState.recordTerminalState(runId, 1, "succeeded", new Date(Date.now() - 3000).toISOString());
+    runState.startRun(runId, epoch, new Date(Date.now() - 4000).toISOString());
+    runState.finishRun(runId, epoch, "succeeded", new Date(Date.now() - 3000).toISOString());
 
     const worktreesDir = join(scopeRootA, ".kota", "runtime", "worktrees");
     const runtimeDir = join(scopeRootA, ".kota", "runtime", allocation);
@@ -341,7 +321,7 @@ describe("LifecycleCollector", () => {
   });
 
   it("compacts dead letter queue snapshots and event journal payloads while preserving active records", async () => {
-    const scopeA = scopeRegistry.list()[0]!;
+    const _scopeA = scopeRegistry.list()[0]!;
 
     // Dead letter queue
     const dlqDir = join(scopeRootA, ".kota", "dead-letter-queue");
@@ -467,7 +447,7 @@ describe("LifecycleCollector", () => {
       chatBindings,
     });
 
-    const firstSweep = await collector.sweep();
+    const _firstSweep = await collector.sweep();
     const secondSweep = await collector.sweep();
 
     expect(secondSweep.reclaimedCount).toBe(0);

@@ -1,10 +1,30 @@
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
 import type { ApprovalExecutionDescriptor } from "./approval-execution-descriptor.js";
+import type { StoredApproval } from "./approval-record-repository.js";
+import type { ApprovalFileIdentity } from "./approval-record-storage.js";
+import type { ApprovalResolutionIntegrity } from "./approval-resolution-integrity.js";
 import type {
 	ApprovalReviewDescriptor,
 	ApprovalReviewUnavailable,
 } from "./approval-review-descriptor.js";
+
+export type { StoredApproval } from "./approval-record-repository.js";
+
+export type ApprovalClockPort = {
+	now(): Date;
+};
+
+export type ApprovalPersistencePort = {
+	read(id: string): StoredApproval | null;
+	list(status?: ApprovalStatus): StoredApproval[];
+	write(
+		item: PendingApproval,
+		expectedIdentity: ApprovalFileIdentity | null,
+		resolutionIntegrity?: ApprovalResolutionIntegrity,
+	): PendingApproval;
+	clear(): void;
+};
 
 export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
 

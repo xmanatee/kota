@@ -367,4 +367,50 @@ describe("ApprovalQueue", () => {
 		expect(stored.status).toBe("approved");
 		expect(stored.input).toMatchObject({ redacted: true, reason: "tool-io" });
 		expect(JSON.stringify(stored)).not.toContain("raw-token");
-	});});
+	});
+
+	it("uses injected clock port for deterministic timestamps and expiration", () => {
+		let currentTime = new Date("2026-08-01T12:00:00.000Z");
+		const customClock = { now: () => currentTime };
+		const customDir = mkdtempSync(join(tmpdir(), "approval-clock-test-"));
+		try {
+			const clockQueue = new ApprovalQueue(customDir, null, { clock: customClock, defaultTtlMs: 10_000 });
+			expect(clockQueue.getClock()).toBe(customClock);
+
+			const item = clockQueue.enqueue("shell", { command: "uptime" }, "safe", "check uptime");
+			expect(item.createdAt).toBe("2026-08-01T12:00:00.000Z");
+
+			// Advance clock past TTL
+			currentTime = new Date("2026-08-01T12:00:15.000Z");
+			const sweep = clockQueue.expireStale();
+			expect(sweep.expired).toHaveLength(1);
+			expect(sweep.expired[0].id).toBe(item.id);
+			expect(sweep.expired[0].status).toBe("expired");
+			expect(sweep.expired[0].resolvedAt).toBe("2026-08-01T12:00:15.000Z");
+		} finally {
+			rmSync(customDir, { recursive: true, force: true });
+		}
+	});
+
+	it("supports single-item verified expiration through expire()", () => {
+		const item = queue.enqueue("shell", { command: "test" }, "moderate", "run test");
+		expect(item.status).toBe("pending");
+
+		const expired = queue.expire(item.id, "operator-timeout");
+		expect(expired).not.toBeNull();
+		expect(expired!.status).toBe("expired");
+		expect(expired!.rejectionReason).toBe("expired");
+		expect(expired!.resolutionSource).toBe("operator-timeout");
+		expect(queue.get(item.id)!.status).toBe("expired");
+
+		// Cannot re-expire or reject an already expired item
+		expect(queue.expire(item.id)).toBeNull();
+		expect(queue.reject(item.id)).toBeNull();
+	});
+
+	it("exposes public persistence port and accessors", () => {
+		expect(queue.getPersistence()).toBeDefined();
+		expect(queue.getClock()).toBeDefined();
+		expect(queue.getScopeId()).toBeDefined();
+	});
+});
