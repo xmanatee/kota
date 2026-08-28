@@ -8,9 +8,9 @@ and SwiftUI views are written once for both platforms:
   `AppState` view-model, platform protocols, and the SwiftUI views
   shared by both shells.
 - `KotaMenuBar` : macOS executable — `MenuBarExtra` shell, AppKit-
-  backed `MacOSPlatform`, and macOS notification surface.
+  backed `MacOSPlatform`.
 - `KotaiOS`     : iOS executable — `WindowGroup` + `TabView` shell,
-  UIKit-backed `iOSPlatform`, and iOS notification surface.
+  and UIKit-backed `iOSPlatform`.
 
 ## Conventions
 
@@ -32,17 +32,12 @@ and SwiftUI views are written once for both platforms:
 
 The shared module never imports `AppKit` or `UIKit`. Platform-
 specific affordances (NSOpenPanel, NSWorkspace, UIApplication,
-notification authorization, terminate) are routed through the
-`PlatformAffordances` protocol declared in
-`Sources/KotaShared/PlatformAffordances.swift` and the
-`NotificationManaging` protocol declared in
-`Sources/KotaShared/NotificationSurface.swift`. Each shell wires its
-own concrete implementation:
+terminate) are routed through the `PlatformAffordances` protocol declared in
+`Sources/KotaShared/PlatformAffordances.swift`. Each shell wires its own
+concrete implementation:
 
-- macOS — `MacOSPlatform` + `MacOSNotificationManager` (in
-  `Sources/KotaMenuBar/`).
-- iOS — `iOSPlatform` + `iOSNotificationManager` (in
-  `Sources/KotaiOS/`).
+- macOS — `MacOSPlatform` in `Sources/KotaMenuBar/`.
+- iOS — `iOSPlatform` in `Sources/KotaiOS/`.
 
 Each shell file is wrapped in `#if os(macOS)` / `#if os(iOS)` so the
 opposite platform's executable target still compiles cleanly when
@@ -54,20 +49,20 @@ message if invoked on the wrong platform.
 
 `DaemonClient.swift` owns connection state, the error envelope, and shared
 request helpers. `Sources/KotaShared/Daemon/` contains only wire contracts for
-native responsibilities: health and notification polling, shared UI/SSE,
+native responsibilities: identity and health, shared UI/SSE,
 chat/voice, slash commands, and session termination. Operator capabilities
 such as setup, workflows, knowledge, memory, and task control are rendered and
 executed exclusively through `ui.surface.v1`; do not add direct Apple routes
 for them.
 
-- `ContractTypes.swift` keeps authored cross-client decoders such as identity,
-  scope registry, and diagnostics. `ui.surface.v1` lives under `Generated/`
-  and is regenerated from the daemon TypeScript contract with `pnpm
+- Identity and scope registry use the generated daemon contract.
+  `ui.surface.v1` lives under `Generated/` and is regenerated from the daemon
+  TypeScript contract with `pnpm
   build:ui-bindings`; never mirror that protocol by hand.
 
 ## Build & Test
 
-- macOS app bundle: `./build-macos.sh` (was `build-app.sh`) — wraps
+- macOS app bundle: `./build-macos.sh` — wraps
   `swift build -c release` into a runnable `KotaMenuBar.app` with
   `LSUIElement=true`.
 - iOS Simulator app: `./build-ios.sh` — wraps `xcodebuild` against

@@ -9,16 +9,14 @@ import PackageDescription
 //                     agnostic SwiftUI views, and the platform
 //                     affordance protocols injected by the shells.
 //   - `KotaMenuBar` : macOS menu-bar executable. Owns `MenuBarExtra`,
-//                     the AppKit-backed `MacOSPlatform`, and the
-//                     macOS notification surface.
+//                     and the AppKit-backed `MacOSPlatform`.
 //   - `KotaiOS`     : iOS executable. Owns the `WindowGroup` /
 //                     `TabView` shell and the UIKit-backed
-//                     `iOSPlatform` / iOS notification surface.
+//                     `iOSPlatform`.
 //
 // Tests split the same way: `KotaSharedTests` exercises the shared
-// view-model and shared renderer behavior with focused fixtures and a
-// recording notification stub; `KotaMenuBarTests` keeps the
-// macOS-specific rendered-IA snapshot.
+// view-model and shared renderer behavior with focused fixtures;
+// `KotaMenuBarTests` keeps the macOS-specific rendered-IA snapshot.
 let package = Package(
     name: "KotaApple",
     platforms: [.macOS(.v13), .iOS(.v16)],

@@ -11,14 +11,12 @@ import {
 } from '@testing-library/react-native';
 import App from '../../App';
 import type { UiSurfaceBundle } from '../daemon/ui-surface.generated';
-import { writeBuilderEvidence } from './builderEvidence';
 import {
   callsForPath,
   contractBundle,
   createDaemonRequestHandler,
   DAEMON_TOKEN,
   DAEMON_URL,
-  evidenceBundleSource,
   findLaunchAction,
   type FetchCall,
   loadJourneyBundle,
@@ -163,53 +161,6 @@ describe('Android shared UI production journey', () => {
       surfaceId: action.surfaceId,
       actionId: action.actionId,
     });
-
-    writeBuilderEvidence('android-interaction-trace.json', {
-      schemaVersion: 1,
-      protocolVersion: activeBundle.protocolVersion,
-      sourceBundle: evidenceBundleSource(),
-      environment:
-        'React Native Jest Android preset mounting the package-registered production App',
-      productionComponents: [
-        'App',
-        'AppNavigator',
-        'DaemonProvider',
-        'useSSE',
-        'DaemonClient',
-        'SharedUiSurface',
-      ],
-      steps: [
-        {
-          kind: 'deep-link',
-          ingress: 'notification response listener',
-          target: {
-            surfaceId: surface.surfaceId,
-            actionId: action.actionId,
-          },
-          observed: `navigationRef rendered ui-surface-${surface.surfaceId} and highlighted ui-action-${action.actionId}`,
-        },
-        {
-          kind: 'live-refresh',
-          ingress: 'authenticated daemon SSE XMLHttpRequest',
-          eventType: refreshEvent,
-          scopeId: surface.scopeId,
-          observed: `${uiFetchesBeforeEvent} -> ${uiFetchesAfterEvent} authenticated /ui/surfaces requests`,
-        },
-        {
-          kind: 'form-submit',
-          actionId: action.actionId,
-          endpoint: '/ui/actions/execute',
-          authenticatedRequest: actionRequest.authorization !== null,
-          parameters: JSON.parse(actionRequest.body ?? '{}').parameters,
-        },
-        {
-          kind: 'confirmation',
-          actionId: action.actionId,
-          confirmLabel: confirmation.confirmLabel,
-          observed: 'production DaemonClient returned Action completed.',
-        },
-      ],
-    });
   });
 
   test('opens daemon-route links through the authenticated native stack', async () => {
@@ -249,21 +200,6 @@ describe('Android shared UI production journey', () => {
     expect(request).toMatchObject({
       method: 'GET',
       authorization: `Bearer ${DAEMON_TOKEN}`,
-    });
-
-    writeBuilderEvidence('android-authenticated-daemon-route-trace.json', {
-      schemaVersion: 1,
-      protocolVersion: activeBundle.protocolVersion,
-      sourceBundle:
-        'scripts/ui-behavior-vectors.mjs#operatorBundle',
-      target: { kind: 'daemon-route', path: '/ui/surfaces' },
-      presentation: 'native DaemonRouteScreen',
-      request: {
-        method: request?.method,
-        path: request ? new URL(request.url).pathname : undefined,
-        authenticatedRequest: request?.authorization !== null,
-      },
-      observed: 'decoded daemon JSON rendered in ui-daemon-route-screen',
     });
   });
 });

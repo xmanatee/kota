@@ -1,6 +1,5 @@
 import { api } from "@/api/client";
 import { queryKeys } from "@/api/queries";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useScopeId } from "@/lib/scope-context";
 import { cn } from "@/lib/utils";
@@ -12,16 +11,7 @@ import type {
   UiJsonValue,
 } from "../../../../conformance/ui-surface.generated";
 import { ActionField, readParameters } from "./SharedUiActionFields";
-import {
-  describeReadiness,
-  effectLabel,
-  requiresConfirmation,
-} from "./ui-action-state";
-import {
-  conditionLabel,
-  operationLabel,
-  permissionLabel,
-} from "./ui-render-utils";
+import { describeReadiness, requiresConfirmation } from "./ui-action-state";
 
 type Parameters = Readonly<Record<string, UiJsonValue>>;
 
@@ -154,30 +144,6 @@ function ActionForm({
         </div>
       ) : null}
 
-      {action.conditions?.length || action.permissions?.length ? (
-        <div
-          className="flex flex-wrap gap-1.5"
-          aria-label={`${action.label} requirements`}
-        >
-          {action.conditions?.map((condition, index) => (
-            <Badge
-              key={`${conditionLabel(condition)}-${index}`}
-              variant="secondary"
-            >
-              {conditionLabel(condition)}
-            </Badge>
-          ))}
-          {action.permissions?.map((permission, index) => (
-            <Badge
-              key={`${permissionLabel(permission)}-${index}`}
-              variant="outline"
-            >
-              {permissionLabel(permission)}
-            </Badge>
-          ))}
-        </div>
-      ) : null}
-
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="submit"
@@ -188,9 +154,6 @@ function ActionForm({
         >
           {mutation.isPending ? "Working…" : action.label}
         </Button>
-        <span className="text-xs text-muted-foreground">
-          {operationLabel(action)} · {effectLabel(action.effect)}
-        </span>
       </div>
 
       {readiness.message ? (

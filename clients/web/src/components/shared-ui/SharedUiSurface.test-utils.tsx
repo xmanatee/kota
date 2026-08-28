@@ -1,4 +1,4 @@
-import { TestScopeProvider } from "@/lib/scope-context";
+import { TestScopeProvider } from "@/lib/scope-context.test-utils";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";

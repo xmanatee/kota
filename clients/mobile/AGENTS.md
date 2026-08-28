@@ -8,7 +8,8 @@ explicitly changed.
   do not parse `.kota/`, build route payloads, or contain domain policy.
 - Connection setup, authentication, decoding, and error normalization have one
   owner. Secrets use the OS secure store.
-- Consume generated daemon bindings and group operations by domain capability.
+- Consume the generated shared-UI binding and keep native extension operations
+  behind the daemon client.
   Do not copy conformance decoders, fixture catalogs, or source files into the
   mobile tree.
 - Maintain one connection-level event stream and scope events into view

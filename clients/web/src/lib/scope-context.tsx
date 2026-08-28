@@ -11,7 +11,7 @@ import {
   useState,
 } from "react";
 
-type ScopeContextValue = {
+export type ScopeContextValue = {
   scopeId: string;
   scopeRegistry: ScopeRegistryProjection | undefined;
   loading: boolean;
@@ -21,6 +21,18 @@ type ScopeContextValue = {
 };
 
 const ScopeContext = createContext<ScopeContextValue | null>(null);
+
+export function ScopeContextProvider({
+  children,
+  value,
+}: {
+  children: ReactNode;
+  value: ScopeContextValue;
+}) {
+  return (
+    <ScopeContext.Provider value={value}>{children}</ScopeContext.Provider>
+  );
+}
 
 const SCOPE_HASH_PREFIX = "s/";
 
@@ -130,9 +142,7 @@ export function ScopeProvider({ children }: { children: ReactNode }) {
     getSubRoute,
   ]);
 
-  return (
-    <ScopeContext.Provider value={value}>{children}</ScopeContext.Provider>
-  );
+  return <ScopeContextProvider value={value}>{children}</ScopeContextProvider>;
 }
 
 export function useScopeContext(): ScopeContextValue {
@@ -150,45 +160,4 @@ export function useScopeContext(): ScopeContextValue {
  */
 export function useScopeId(): string {
   return useScopeContext().scopeId;
-}
-
-/**
- * Test-only provider. Bypasses the daemon `/identity` round-trip so unit
- * tests can render scope-bound components in isolation. Production code
- * always uses {@link ScopeProvider}.
- */
-export function TestScopeProvider({
-  children,
-  scopeId = "test",
-  scopeRegistry = {
-    rootScopeId: "global",
-    defaultScopeId: "test",
-    scopes: [
-      { scopeId: "global", displayName: "Global" },
-      {
-        scopeId: "test",
-        parentScopeId: "global",
-        directoryRoot: "/tmp/test",
-        displayName: "Test",
-      },
-    ],
-  },
-}: {
-  children: ReactNode;
-  scopeId?: string;
-  scopeRegistry?: ScopeRegistryProjection;
-}) {
-  const value = useMemo<ScopeContextValue>(() => {
-    return {
-      scopeId,
-      scopeRegistry,
-      loading: false,
-      setScopeId: () => {},
-      buildHash: (sub: string) => buildScopeHash(scopeId, sub),
-      getSubRoute: () => parseScopeHash(window.location.hash).subRoute,
-    };
-  }, [scopeId, scopeRegistry]);
-  return (
-    <ScopeContext.Provider value={value}>{children}</ScopeContext.Provider>
-  );
 }

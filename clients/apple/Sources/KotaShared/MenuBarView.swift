@@ -11,7 +11,5 @@ public struct MenuBarView: View {
     public var body: some View {
         SharedOperatorRootView(presentation: .menuBar)
             .frame(width: 380, height: 620)
-            .onAppear { appState.isPopoverOpen = true }
-            .onDisappear { appState.isPopoverOpen = false }
     }
 }

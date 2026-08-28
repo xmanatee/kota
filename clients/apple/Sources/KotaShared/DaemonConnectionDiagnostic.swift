@@ -32,18 +32,8 @@ enum DaemonIdentityProbe: Equatable {
     case unreachable
 }
 
-/// Typed, operator-facing summary of which daemon a thin client is
-/// talking to and why a given connection attempt is in the state it is.
-/// The purpose is to replace the historical "Daemon offline" string —
-/// which collapsed missing control file, stale control file, wrong
-/// scope, token rejected, and remote-mode failures into one line —
-/// with a discriminated state the UI can render unambiguously.
-///
-/// Every arm carries the inputs the operator needs to diagnose the
-/// mismatch (selected scope path, daemon base URL when known, daemon
-/// scope path when the daemon answered `/identity`), and never the
-/// bearer token. The enum is pure data so it can be derived in a unit
-/// test without spinning up `URLSession` or instantiating `AppState`.
+/// Operator-facing connection diagnosis. It carries useful endpoint and scope
+/// context but never the bearer token.
 enum DaemonConnectionDiagnostic: Equatable {
     /// No scope directory has been chosen and no remote URL is set.
     /// The operator must pick a scope before the menu bar can show
@@ -55,8 +45,8 @@ enum DaemonConnectionDiagnostic: Equatable {
     /// or this is the wrong scope for the running daemon.
     case noControlFile(scopeRoot: String)
 
-    /// The control file is present but cannot be parsed in the documented
-    /// shape (legacy / partial write / wrong file). This is rare but
+    /// The control file is present but cannot be parsed in the current
+    /// shape (partial write or wrong file). This is rare but
     /// distinct from `noControlFile` so the operator does not get a
     /// generic "missing" message when the file actually exists.
     case unreadableControlFile(scopeRoot: String)
@@ -270,10 +260,7 @@ func classifyDaemonControlFile(
 /// Pure derivation of the operator-facing diagnostic from inputs the
 /// `AppState` already has. Splitting this out keeps the thin client's
 /// connection-identity rules unit-testable without instantiating
-/// `AppState`. (`AppState.init` now accepts a notification stub and a
-/// `startPollingOnInit: false` flag so the state container is also
-/// test-constructible — see `AppStateTests` — but a pure helper still
-/// keeps the menu bar header classification reusable.)
+/// `AppState` and keeps the menu bar header classification reusable.
 ///
 /// `selectedScopeDir` is the operator's chosen scope (UserDefaults
 /// `scopeDirectory`). `controlFileState` is the result of

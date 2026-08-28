@@ -4,7 +4,8 @@ import { ExternalLink } from "lucide-react";
 import type { UiNode } from "../../../../conformance/ui-surface.generated";
 import { SharedUiAction } from "./SharedUiAction";
 import { SharedUiNodeSection } from "./SharedUiNodeSection";
-import { assertNever, roleClass, rowActionDefaults } from "./ui-render-utils";
+import { SharedUiTable } from "./SharedUiTable";
+import { assertNever, roleClass } from "./ui-render-utils";
 
 type DataNode = Extract<
   UiNode,
@@ -201,64 +202,7 @@ export function SharedUiDataNode({
     case "table":
       return (
         <SharedUiNodeSection kind={node.kind} title={node.title}>
-          <div className="overflow-x-auto rounded-md border border-border">
-            <table className="w-full min-w-[34rem] border-collapse text-left text-sm">
-              <caption className="sr-only">{node.title}</caption>
-              <thead className="bg-muted/60 text-xs text-muted-foreground">
-                <tr>
-                  {node.columns.map((column) => (
-                    <th
-                      key={column.id}
-                      scope="col"
-                      className="px-3 py-2 font-medium"
-                    >
-                      {column.label}
-                    </th>
-                  ))}
-                  {node.rows.some((row) => row.action) ? (
-                    <th scope="col" className="px-3 py-2 font-medium">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {node.rows.map((row) => (
-                  <tr key={row.id}>
-                    {node.columns.map((column) => {
-                      const cell = row.cells.find(
-                        (candidate) => candidate.columnId === column.id,
-                      );
-                      return (
-                        <td
-                          key={column.id}
-                          className={cn(
-                            "max-w-[32rem] break-words px-3 py-2 align-top",
-                            roleClass(cell?.role ?? column.role),
-                          )}
-                        >
-                          {cell?.value ?? ""}
-                        </td>
-                      );
-                    })}
-                    {node.rows.some((candidate) => candidate.action) ? (
-                      <td className="px-3 py-2 align-top">
-                        {row.action ? (
-                          <SharedUiAction
-                            action={row.action}
-                            initialParameters={rowActionDefaults(
-                              row.action,
-                              row.id,
-                            )}
-                          />
-                        ) : null}
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <SharedUiTable key={node.title} node={node} />
         </SharedUiNodeSection>
       );
     default:

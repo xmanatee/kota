@@ -1014,6 +1014,9 @@
               },
               "type": "array"
             },
+            "searchable": {
+              "type": "boolean"
+            },
             "title": {
               "type": "string"
             }
@@ -1490,6 +1493,9 @@
     "UiTableColumn": {
       "additionalProperties": false,
       "properties": {
+        "filterable": {
+          "type": "boolean"
+        },
         "id": {
           "type": "string"
         },

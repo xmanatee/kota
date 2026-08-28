@@ -20,12 +20,6 @@ private func keychainSave(token: String) {
     SecItemAdd(query as CFDictionary, nil)
 }
 
-private extension Array {
-    func appending(_ element: Element) -> [Element] {
-        self + [element]
-    }
-}
-
 private func keychainRead() -> String? {
     let query: [CFString: Any] = [
         kSecClass: kSecClassGenericPassword,
@@ -66,10 +60,6 @@ private struct DaemonRequestToken: Equatable {
 @MainActor
 public final class AppState: ObservableObject {
     @Published var health: DaemonHealth = .unknown
-    @Published var activeRuns: [ActiveRun] = []
-    @Published var pendingApprovals: [ApprovalRequest] = []
-    @Published var pendingOwnerQuestions: [OwnerQuestion] = []
-    @Published var recentRuns: [RunSummary] = []
     @Published var identity: ClientIdentity?
 
     // Canonical daemon-owned operator UI rendered by both Apple shells.
@@ -79,20 +69,11 @@ public final class AppState: ObservableObject {
     @Published var uiSurfaceEventsConnected = false
     @Published var liveUiLogEntries: [String: [UiLogEntry]] = [:]
 
-    /// Active scope id used to scope every scope-scoped daemon route
-    /// (`/status`, `/workflow/runs`, `/workflow/trigger`, `/sessions`,
-    /// …). `nil` until the first identity refresh resolves the registry's
-    /// default. Reseeds to `identity.scopeRegistry.defaultScopeId` if the
-    /// current selection is no longer in the registry, matching the web
-    /// `ScopeProvider` behavior. Operator-driven switches go through
-    /// `setActiveScopeId(_:)`.
+    /// Active scope for shared UI and session requests. Identity refreshes
+    /// seed it from the registry default when the current selection is absent.
     @Published public private(set) var activeScopeId: String?
 
-    /// Operator-facing classification of the current connection. Replaces
-    /// the historical "Daemon offline" collapse with a discriminated state
-    /// that names which scope, base URL, pid, and failure mode the menu
-    /// bar should render. Updated on every refresh — see
-    /// `deriveLocalDaemonDiagnostic` / `deriveRemoteDaemonDiagnostic`.
+    /// Operator-facing classification of the current connection.
     @Published var diagnostic: DaemonConnectionDiagnostic = .noScope
 
     @Published var scopeRoot: URL? {
@@ -110,18 +91,11 @@ public final class AppState: ObservableObject {
         didSet { UserDefaults.standard.set(remoteURL, forKey: "remoteDaemonURL") }
     }
 
-    @Published var notificationsEnabled: Bool = UserDefaults.standard.object(forKey: "notificationsEnabled") as? Bool ?? true {
-        didSet { UserDefaults.standard.set(notificationsEnabled, forKey: "notificationsEnabled") }
-    }
-
-    var isPopoverOpen: Bool = false
-
     var connectionMode: DaemonConnectionMode {
         remoteURL.isEmpty ? .local : .remote
     }
 
     public let client: DaemonClient
-    public let notifications: NotificationManaging
     public let platform: PlatformAffordances
     private var pollTask: Task<Void, Never>?
     private var uiSurfaceEventTask: Task<Void, Never>?
@@ -132,48 +106,23 @@ public final class AppState: ObservableObject {
     private var requestSourceGeneration = 0
     private var uiSurfaceRefreshTask: Task<Result<UiSurfaceBundle, Error>, Never>?
     private var uiSurfaceRefreshToken: DaemonRequestToken?
-    private let liveUiUpdatesEnabled: Bool
-
-    private var knownFailedRunIDs: Set<String> = []
-    private var knownApprovalIDs: Set<String> = []
-    private var knownOwnerQuestionIDs: Set<String> = []
-    private var notificationStateInitialized = false
+    private var started = false
     private var lastIdentityProbe: DaemonIdentityProbe?
 
-    /// Production callers (macOS shell, iOS shell) inject the platform
-    /// affordances + notification surface they ship with and let polling
-    /// start immediately. Tests pass `InertPlatformAffordances` /
-    /// `InertNotificationManager` (or a recording stub) and
-    /// `startPollingOnInit: false` so `AppState` can be constructed
-    /// without touching `UNUserNotificationCenter.current()` (which
-    /// crashes when the Swift test runner is launched outside a `.app`
-    /// bundle) and without spawning a background `Task` that the test
-    /// harness cannot observe.
     public init(
         client: DaemonClient? = nil,
-        notifications: NotificationManaging = InertNotificationManager(),
-        platform: PlatformAffordances = InertPlatformAffordances(),
-        startPollingOnInit: Bool = true
+        platform: PlatformAffordances = InertPlatformAffordances()
     ) {
         self.client = client ?? DaemonClient()
-        self.notifications = notifications
         self.platform = platform
-        self.liveUiUpdatesEnabled = startPollingOnInit
         if let stored = UserDefaults.standard.string(forKey: "scopeDirectory") {
             scopeRoot = URL(fileURLWithPath: stored)
         }
         remoteURL = UserDefaults.standard.string(forKey: "remoteDaemonURL") ?? ""
-        if startPollingOnInit {
-            notifications.requestAuthorization()
-            startPolling()
-        }
     }
 
-    var isWorkflowDispatchPaused: Bool {
-        health.isDispatchPaused
-    }
-
-    func startPolling() {
+    public func start() {
+        started = true
         pollTask?.cancel()
         pollTask = Task {
             while !Task.isCancelled {
@@ -191,14 +140,14 @@ public final class AppState: ObservableObject {
         } else {
             keychainSave(token: token)
         }
-        startPolling()
+        start()
     }
 
     func clearRemoteConfig() {
         resetOfflineDaemonState()
         remoteURL = ""
         keychainDelete()
-        startPolling()
+        start()
     }
 
     func loadRemoteToken() -> String {
@@ -281,10 +230,6 @@ public final class AppState: ObservableObject {
 
     private func resetOfflineDaemonState() {
         invalidateRequestSource()
-        activeRuns = []
-        pendingApprovals = []
-        pendingOwnerQuestions = []
-        recentRuns = []
         identity = nil
         uiSurfaceBundle = nil
         uiSurfaceError = nil
@@ -309,10 +254,6 @@ public final class AppState: ObservableObject {
         guard scopeId != activeScopeId else { return }
         activeScopeId = scopeId
         invalidateRequestSource()
-        activeRuns = []
-        pendingApprovals = []
-        pendingOwnerQuestions = []
-        recentRuns = []
         uiSurfaceBundle = nil
         uiSurfaceError = nil
         liveUiLogEntries = [:]
@@ -321,11 +262,7 @@ public final class AppState: ObservableObject {
     }
 
     private func fetchAll() async -> Bool {
-        // Resolve identity and scopes first so the active
-        // scope id is up to date before the scope-scoped fetches
-        // fan out. Without this, the very first poll after launch would
-        // send `?scopeId=` empty (default scope) while the operator
-        // had previously selected a non-default one.
+        // Resolve identity before the scoped surface request.
         guard let identityToken = synchronizeRequestSource() else { return false }
         let identityResult: Result<ClientIdentity, Error>
         do { identityResult = .success(try await client.fetchIdentity()) }
@@ -344,82 +281,18 @@ public final class AppState: ObservableObject {
         }
 
         guard let scopedToken = synchronizeRequestSource() else { return false }
-        let scopedId = scopedToken.source.scopeId
-
-        async let statusResult: Result<DaemonStatusResponse, Error> = {
-            do { return .success(try await client.fetchStatus(scopeId: scopedId)) }
-            catch { return .failure(error) }
-        }()
-        async let approvalsResult: Result<ApprovalsResponse, Error> = {
-            do { return .success(try await client.fetchApprovals()) }
-            catch { return .failure(error) }
-        }()
-        async let ownerQuestionsResult: Result<OwnerQuestionsResponse, Error> = {
-            do { return .success(try await client.fetchOwnerQuestions()) }
-            catch { return .failure(error) }
-        }()
-        async let recentRunsResult: Result<RunHistoryResponse, Error> = {
-            do { return .success(try await client.fetchRecentRuns(scopeId: scopedId)) }
-            catch { return .failure(error) }
-        }()
-        async let surfacesResult: Result<UiSurfaceBundle, Error> = {
-            await self.requestUiSurfaceBundle(scopedToken)
-        }()
-
-        let (sr, ar, oqr, rrr, uisr) = await (
-            statusResult,
-            approvalsResult,
-            ownerQuestionsResult,
-            recentRunsResult,
-            surfacesResult
-        )
+        let surfacesResult = await requestUiSurfaceBundle(scopedToken)
         guard isCurrent(scopedToken) else { return false }
-        switch uisr {
+        switch surfacesResult {
         case .success(let bundle):
             applyUiSurfaceBundle(bundle, token: scopedToken)
+            health = .connected
         case .failure(let error):
             uiSurfaceBundle = nil
             uiSurfaceError = DaemonErrorPresenter.message(for: error)
             stopUiSurfaceEventStream()
-        }
-
-        switch sr {
-        case .success(let status):
-            let workflow = status.workflow
-            let runs = status.workflow?.activeRuns ?? []
-            activeRuns = runs
-            if workflow?.paused == true {
-                health = .paused(workflow?.queuedRunCount ?? 0)
-            } else {
-                health = runs.isEmpty ? .idle : .running(runs.count)
-            }
-        case .failure(let error):
             health = .error(DaemonErrorPresenter.message(for: error))
-            activeRuns = []
         }
-
-        switch ar {
-        case .success(let resp):
-            pendingApprovals = resp.approvals.filter { $0.status == "pending" }
-        case .failure:
-            pendingApprovals = []
-        }
-
-        switch oqr {
-        case .success(let resp):
-            pendingOwnerQuestions = resp.questions.filter { $0.status == "pending" }
-        case .failure:
-            pendingOwnerQuestions = []
-        }
-
-        switch rrr {
-        case .success(let resp):
-            recentRuns = resp.runs
-        case .failure:
-            recentRuns = []
-        }
-
-        checkForNotifications()
         return true
     }
 
@@ -526,7 +399,7 @@ public final class AppState: ObservableObject {
     }
 
     private func reconcileUiSurfaceEventStream(bundle: UiSurfaceBundle, token: DaemonRequestToken) {
-        guard liveUiUpdatesEnabled, isCurrent(token) else { return }
+        guard started, isCurrent(token) else { return }
         guard let subscription = UiSurfaceEventSubscription(
             bundle: bundle,
             source: token.source
@@ -589,7 +462,7 @@ public final class AppState: ObservableObject {
                 timestamp: event.timestamp
             )
             liveUiLogEntries[streamId] = Array(
-                (liveUiLogEntries[streamId] ?? []).appending(entry).suffix(100)
+                ((liveUiLogEntries[streamId] ?? []) + [entry]).suffix(100)
             )
         }
         await refreshUiSurfaceBundle(token: token)
@@ -675,65 +548,11 @@ public final class AppState: ObservableObject {
         isLoadingUiSurfaces = false
     }
 
-    func checkForNotifications() {
-        guard notificationsEnabled && !isPopoverOpen else {
-            // Seed known state so we don't fire stale notifications when re-enabled
-            if !notificationStateInitialized {
-                knownFailedRunIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
-                knownApprovalIDs = Set(pendingApprovals.map { $0.id })
-                knownOwnerQuestionIDs = Set(pendingOwnerQuestions.map { $0.id })
-                notificationStateInitialized = true
-            }
-            return
-        }
-
-        let currentFailedIDs = Set(recentRuns.filter { $0.status == "failed" }.map { $0.id })
-        let currentApprovalIDs = Set(pendingApprovals.map { $0.id })
-        let currentOwnerQuestionIDs = Set(pendingOwnerQuestions.map { $0.id })
-
-        if notificationStateInitialized {
-            for id in currentFailedIDs.subtracting(knownFailedRunIDs) {
-                if let run = recentRuns.first(where: { $0.id == id }) {
-                    notifications.notify(
-                        title: "Workflow failed",
-                        body: run.workflow,
-                        identifier: "workflow-failure-\(id)"
-                    )
-                }
-            }
-            for id in currentApprovalIDs.subtracting(knownApprovalIDs) {
-                if let approval = pendingApprovals.first(where: { $0.id == id }) {
-                    let excerpt = approval.reason.flatMap { $0.isEmpty ? nil : String($0.prefix(100)) }
-                    let body = excerpt.map { "\(approval.tool): \($0)" } ?? approval.tool
-                    notifications.notify(
-                        title: "Approval needed",
-                        body: body,
-                        identifier: "approval-\(id)"
-                    )
-                }
-            }
-            for id in currentOwnerQuestionIDs.subtracting(knownOwnerQuestionIDs) {
-                if let question = pendingOwnerQuestions.first(where: { $0.id == id }) {
-                    notifications.notify(
-                        title: "Owner question",
-                        body: "\(question.source): \(String(question.question.prefix(100)))",
-                        identifier: "owner-question-\(id)"
-                    )
-                }
-            }
-        }
-
-        knownFailedRunIDs = currentFailedIDs
-        knownApprovalIDs = currentApprovalIDs
-        knownOwnerQuestionIDs = currentOwnerQuestionIDs
-        notificationStateInitialized = true
-    }
-
     func endSession(_ id: String) async {
         guard let token = synchronizeRequestSource() else { return }
         try? await client.deleteSession(id: id, scopeId: activeScopeId)
         guard isCurrent(token) else { return }
-        _ = await fetchAll()
+        await refreshUiSurfaceBundle(token: token)
     }
 
     /// Reseed `activeScopeId` from the latest registry projection.
@@ -750,7 +569,7 @@ public final class AppState: ObservableObject {
     public func promptForScopeDirectory() async {
         if let url = await platform.pickScopeDirectory() {
             scopeRoot = url
-            startPolling()
+            start()
         }
     }
 }

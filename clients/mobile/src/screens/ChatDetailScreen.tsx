@@ -183,7 +183,7 @@ export function ChatDetailScreen({
     setClosing(true);
     abortRef.current?.();
     try {
-      await client.deleteSession(sessionId, state.scope.activeScopeId ?? undefined);
+      await client.deleteSession(sessionId);
     } catch (e) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Failed to close session.');
     } finally {

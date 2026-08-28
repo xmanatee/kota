@@ -36,16 +36,3 @@ export function describeReadiness(readiness: UiActionReadiness): {
       return assertNever(readiness);
   }
 }
-
-export function effectLabel(effect: UiAction["effect"]): string {
-  switch (effect) {
-    case "read":
-      return "read";
-    case "write":
-      return "write";
-    case "external":
-      return "external";
-    default:
-      return assertNever(effect);
-  }
-}

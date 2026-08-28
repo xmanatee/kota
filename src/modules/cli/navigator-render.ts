@@ -1,6 +1,5 @@
 import {
   renderUiSurface,
-  type UiAction,
   type UiSurface,
 } from "#modules/daemon-ops/operator-ui.js";
 import {
@@ -98,11 +97,6 @@ function renderSurfaceList(state: NavigatorState, surfaces = surfacesForCurrentV
   );
 }
 
-function operationLabel(action: UiAction): string {
-  if (action.operation.kind === "daemon-route") return `${action.operation.method} ${action.operation.path}`;
-  return `${action.operation.namespace}.${action.operation.method}`;
-}
-
 function renderSurfaceActions(surface: UiSurface, selectedActionId: string | null): RenderNode {
   if (surface.actions.length === 0) {
     return stack(sectionRule("Actions"), line(span("No actions exposed by this surface.", "muted")));
@@ -120,8 +114,6 @@ function renderSurfaceActions(surface: UiSurface, selectedActionId: string | nul
         span(action.effect, action.effect === "read" ? "muted" : "warn"),
         plain("  "),
         span(action.readiness.state, action.readiness.state === "ready" ? "success" : "warn"),
-        plain("  "),
-        span(operationLabel(action), "muted"),
       ],
     }))),
   );

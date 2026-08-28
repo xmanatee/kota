@@ -1,113 +1,24 @@
-// Interactive session shapes (creation, autonomy mode, chat stream).
+import { daemonResponse, type DaemonHttp } from './http';
 
-import { daemonRequest, daemonResponse, withScope, type DaemonHttp } from './http';
-
-export type AutonomyMode = 'passive' | 'supervised' | 'autonomous';
-
-export interface InteractiveSession {
-  id: string;
-  scopeId: string;
-  createdAt: string;
-  lastActive: number;
-  autonomyMode: AutonomyMode;
-  source?: 'daemon' | 'serve';
-  busy?: boolean;
-}
-
-export interface SetAutonomyModeResponse {
-  session_id: string;
-  autonomy_mode: AutonomyMode;
-  source?: string;
-  serveOwned?: boolean;
-}
-
-export type ChatStreamEventType =
-  | 'session'
-  | 'text'
-  | 'thinking'
-  | 'thinking_start'
-  | 'progress'
-  | 'status'
-  | 'cost'
-  | 'error'
-  | 'notification'
-  | 'guardrail'
-  | 'tool_metric'
-  | 'state_change'
-  | 'done';
-
-export interface ChatStreamEvent {
-  type: ChatStreamEventType;
-  payload: Record<string, unknown>;
-}
-
-export function getSessions(
-  http: DaemonHttp,
-  scopeId?: string,
-): Promise<{ sessions: InteractiveSession[] }> {
-  return daemonRequest<{ sessions: InteractiveSession[] }>(
-    http,
-    withScope('/sessions', scopeId),
-  );
-}
-
-export function createSession(
-  http: DaemonHttp,
-  autonomyMode?: AutonomyMode,
-  scopeId?: string,
-): Promise<{ session_id: string; autonomy_mode?: AutonomyMode }> {
-  return daemonRequest<{ session_id: string; autonomy_mode?: AutonomyMode }>(
-    http,
-    withScope('/sessions', scopeId),
-    {
-      method: 'POST',
-      body: JSON.stringify(autonomyMode ? { autonomy_mode: autonomyMode } : {}),
-    },
-  );
-}
-
-export function setSessionAutonomyMode(
-  http: DaemonHttp,
-  id: string,
-  mode: AutonomyMode,
-  scopeId?: string,
-): Promise<SetAutonomyModeResponse> {
-  return daemonRequest<SetAutonomyModeResponse>(
-    http,
-    withScope(`/sessions/${encodeURIComponent(id)}`, scopeId),
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ autonomy_mode: mode }),
-    },
-  );
-}
-
-// `DELETE /sessions/:id` tolerates 404 — a missing session is the same
-// outcome as a successful deletion. Any other non-2xx surface throws.
 export async function deleteSession(
   http: DaemonHttp,
   id: string,
-  scopeId?: string,
 ): Promise<void> {
-  const res = await daemonResponse(
+  const response = await daemonResponse(
     http,
-    withScope(`/sessions/${encodeURIComponent(id)}`, scopeId),
-    {
-    method: 'DELETE',
-    },
+    `/sessions/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
   );
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`${res.status} ${res.statusText}`);
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`${response.status} ${response.statusText}`);
   }
 }
 
-// Returns the chat streaming URL for `POST /sessions/:id/chat`.
 export function chatUrl(http: DaemonHttp, sessionId: string): string {
   return `${http.baseUrl}/sessions/${encodeURIComponent(sessionId)}/chat`;
 }
 
-// Returns the SSE endpoint URL.
 export function sseUrl(http: DaemonHttp, since?: string): string {
-  const params = since ? `?since=${encodeURIComponent(since)}` : '';
-  return `${http.baseUrl}/events${params}`;
+  const query = since ? `?since=${encodeURIComponent(since)}` : '';
+  return `${http.baseUrl}/events${query}`;
 }

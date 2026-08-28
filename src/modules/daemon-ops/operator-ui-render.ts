@@ -29,13 +29,6 @@ function terminalPlain(text: string) {
   return plain(safeTerminalLineText(text));
 }
 
-function operationLabel(action: UiAction): string {
-  if (action.operation.kind === "daemon-route") {
-    return `${action.operation.method} ${action.operation.path}`;
-  }
-  return `${action.operation.namespace}.${action.operation.method}`;
-}
-
 function actionLine(action: UiAction): RenderNode {
   return line(
     terminalSpan(action.label, "accent"),
@@ -45,8 +38,6 @@ function actionLine(action: UiAction): RenderNode {
     terminalSpan(action.confirmation.mode, action.confirmation.mode === "required" ? "warn" : "muted"),
     plain("  "),
     terminalSpan(action.readiness.state, action.readiness.state === "ready" ? "success" : "warn"),
-    plain("  "),
-    terminalSpan(operationLabel(action), "muted"),
   );
 }
 
@@ -122,7 +113,7 @@ function renderNode(node: UiNode): RenderNode {
             plain("  "),
             terminalSpan(item.detail, "muted"),
           ],
-          children: item.action ? [line(terminalSpan(operationLabel(item.action), "muted"))] : undefined,
+          children: item.action ? [line(terminalSpan(item.action.label, "accent"))] : undefined,
         }))),
       );
     case "table":
@@ -140,7 +131,7 @@ function renderNode(node: UiNode): RenderNode {
             cells: node.columns.map((column) => {
               const cell = row.cells.find((candidate) => candidate.columnId === column.id);
               const rowAction = row.action && column.id === node.columns[node.columns.length - 1]?.id
-                ? `  ${row.action.label}: ${operationLabel(row.action)}`
+                ? `  ${row.action.label}`
                 : "";
               return {
                 spans: [terminalSpan(`${cell?.value ?? ""}${rowAction}`, cell?.role ?? column.role)],
@@ -215,7 +206,7 @@ function renderNode(node: UiNode): RenderNode {
       return statusBanner(
         "error",
         safeTerminalLineText(node.title),
-        safeTerminalLineText(`${node.detail} (${operationLabel(node.action)})`),
+        safeTerminalLineText(node.detail),
       );
   }
 }

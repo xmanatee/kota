@@ -114,8 +114,7 @@ func decodeDaemonErrorBody(from data: Data) -> DaemonErrorBody? {
     )
 }
 
-/// Daemon control HTTP client for native status, notifications, shared UI,
-/// chat, and voice responsibilities. Operator capabilities use ui.surface.v1.
+/// Daemon control HTTP client for shared UI, chat, and voice responsibilities.
 @MainActor
 public final class DaemonClient {
     public init() {}
@@ -161,20 +160,12 @@ public final class DaemonClient {
         connection = DaemonConnection(baseURL: url, token: token)
     }
 
-    func fetchStatus(scopeId: String? = nil) async throws -> DaemonStatusResponse {
-        try await get(Self.withScope("/status", scopeId: scopeId))
-    }
-
     /// `GET /identity` — typed thin-client identity payload. Returns the
     /// scope the daemon is bound to, the daemon version, and the
     /// dashboard availability discriminator. Mirrors the TypeScript
     /// `ClientIdentity` contract one-to-one.
     func fetchIdentity() async throws -> ClientIdentity {
         try await get("/identity")
-    }
-
-    func fetchRecentRuns(limit: Int = 10, scopeId: String? = nil) async throws -> RunHistoryResponse {
-        try await get(Self.withScope("/workflow/runs?limit=\(limit)", scopeId: scopeId))
     }
 
     func fetchSlashCommands() async throws -> SlashCommandsResponse {

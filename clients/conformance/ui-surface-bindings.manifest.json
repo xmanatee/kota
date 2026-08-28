@@ -4,7 +4,7 @@
   "canonicalInput": {
     "path": "src/core/daemon/ui-surface.ts",
     "rootType": "UiSurfaceBundle",
-    "sha256": "e3ad7bc514e89a2e6dee5f8a61669d5f5f7f3038363fa20c0721dea61a525b19"
+    "sha256": "5ea010873de0f2f08ab1accc965e7255166aefb34e576391a4b7fdeb08447d6c"
   },
   "semanticInput": {
     "path": "scripts/ui-behavior-vectors.mjs",
@@ -13,19 +13,19 @@
   "outputs": [
     {
       "path": "schema/ui-surface.schema.json",
-      "sha256": "8bc6475653fa8321d302e5845c730afb438e9ded1d367e4873e60876313d60d7"
+      "sha256": "3c7b38715c3de7ffa64982c5f09b643fc37a0540fafc324da2644a8bf7d2b20a"
     },
     {
       "path": "clients/conformance/ui-surface.generated.ts",
-      "sha256": "0c5ba13f5db0aa1830d7ac17e1d6233bc19a71ca297c52bfbe79a5e481bafefb"
+      "sha256": "7de37a1e5b6bc1b65bcec4bc920007ace4f7bf901962495361a1e5f3669216fc"
     },
     {
       "path": "clients/mobile/src/daemon/ui-surface.generated.ts",
-      "sha256": "0c5ba13f5db0aa1830d7ac17e1d6233bc19a71ca297c52bfbe79a5e481bafefb"
+      "sha256": "7de37a1e5b6bc1b65bcec4bc920007ace4f7bf901962495361a1e5f3669216fc"
     },
     {
       "path": "clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift",
-      "sha256": "37147312405908d5a939ec21b87ad41a96f3d3cb227751c32d16fb8c2daa3916"
+      "sha256": "3ca8579fc7e521a99b50e7f2137f9a6cc8cd794f79a95c706c9ecff51369bbaf"
     },
     {
       "path": "clients/conformance/ui-behavior-vectors.generated.json",

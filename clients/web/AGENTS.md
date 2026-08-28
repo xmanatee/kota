@@ -23,7 +23,7 @@ every scoped daemon request.
   The live dashboard uses `surface/<surfaceId>` for daemon-graph navigation.
   Hash-based routing is the convention here — no client-side router library.
 - Every directory-scope TanStack Query key starts with the scopeId
-  (`["sessions", scopeId]`, `["workflowRuns", scopeId, params]`, …) so
+  (`["sessions", scopeId]`, `["ui-surfaces", scopeId]`) so
   the cache cannot leak rows across scopes by construction. Keys are
   produced by the factories in `src/api/queries.ts`; mirror that shape when
   adding a new query rather than inventing a parallel key form.
@@ -39,5 +39,5 @@ every scoped daemon request.
   subscriptions, so switching scopes re-fetches every scoped
   surface and never bleeds rows or stream entries from the prior selection.
 - Tests render directory-scoped components inside `<TestScopeProvider>`
-  (also in `src/lib/scope-context.tsx`) instead of stubbing a fake
+  (in `src/lib/scope-context.test-utils.tsx`) instead of stubbing a fake
   identity payload through `fetch`.

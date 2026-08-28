@@ -126,6 +126,7 @@ export function SharedUiNode({
       const visibleActions = node.actions.filter(
         (action) => !hiddenActionIds.has(action.actionId),
       );
+      if (visibleActions.length === 0 && node.actions.length > 0) return null;
       return (
         <Section title={node.title} kind={node.kind}>
           {visibleActions.length > 0 ? (
@@ -139,11 +140,7 @@ export function SharedUiNode({
               ))}
             </View>
           ) : (
-            <Text style={styles.muted}>
-              {node.actions.length > 0
-                ? 'Actions are shown with their related content.'
-                : 'No actions available.'}
-            </Text>
+            <Text style={styles.muted}>No actions available.</Text>
           )}
         </Section>
       );

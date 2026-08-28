@@ -6,16 +6,11 @@
  *   clients to register their Expo push token.
  * - Bus subscriptions that fan each event out to every registered token
  *   through the Expo Push API as a best-effort wake-up hint:
- *     - `approval.requested` → deep-links into the approval detail.
- *     - `workflow.daily.digest` → wakes the mobile DigestScreen
- *       (`data.screen = "digest"`) for the 08:00 cadence rollup.
- *     - `workflow.attention.digest` → wakes the mobile AttentionScreen
- *       (`data.screen = "attention"`) with an attention-posture title
- *       when something needs the operator. The two surfaces stay
- *       distinct so the on-demand attention rollup never co-mingles
- *       with the daily-digest body.
+ *     - `approval.requested` → deep-links into the shared approval action.
+ *     - `workflow.daily.digest` → opens the shared daily-digest surface.
+ *     - `workflow.attention.digest` → opens the shared inbox surface.
  *   SSE remains the authoritative real-time path; the push payload's
- *   `data.screen` field deep-links the tap target.
+ *   stable surface and action ids identify the tap target.
  *
  * The Expo HTTP call is fire-and-forget. We deliberately do not depend on
  * `notification.postWithRetry` because Expo deliveries here sit below the

@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
 import type * as Notifications from 'expo-notifications';
 import fixture from './__fixtures__/ui-behavior-vectors.generated.json';
 import {
@@ -25,37 +23,9 @@ export const DAEMON_TOKEN = 'production-journey-token';
 export const contractBundle = parseUiSurfaceBundle(
   fixture.operatorBundle,
 );
-const identity = {
-  scopeName: 'kota',
-  scopeRoot: '/workspace/kota',
-  scopeRegistry: {
-    rootScopeId: 'global',
-    defaultScopeId: 'scope-fixture',
-    scopes: [
-      { scopeId: 'global', displayName: 'Global' },
-      {
-        scopeId: 'scope-fixture',
-        displayName: 'kota',
-        parentScopeId: 'global',
-        directoryRoot: '/workspace/kota',
-      },
-    ],
-  },
-  daemonVersion: '0.1.0',
-  pid: 12345,
-  startedAt: '2026-04-29T01:00:00.000Z',
-  dashboard: { available: true, path: '/' },
-};
 export const sseRequests: MockSseRequest[] = [];
 
-const capturedBundlePath = process.env.KOTA_UI_SURFACE_EVIDENCE_BUNDLE;
-
 export function loadJourneyBundle(): UiSurfaceBundle {
-  if (capturedBundlePath) {
-    return parseUiSurfaceBundle(
-      JSON.parse(readFileSync(capturedBundlePath, 'utf8')),
-    );
-  }
   return {
     ...contractBundle,
     surfaces: contractBundle.surfaces.map((surface) =>
@@ -98,24 +68,10 @@ export function createDaemonRequestHandler(
     });
 
     switch (parsed.pathname) {
-      case '/health':
-        return jsonResponse({ ok: true });
-      case '/identity':
-        return jsonResponse(identity);
       case '/ui/surfaces':
         return jsonResponse(getBundle());
       case '/ui/actions/execute':
         return jsonResponse({ ok: true, message: 'Action completed.' });
-      case '/status':
-        return jsonResponse({ online: true, paused: false });
-      case '/workflow/runs':
-        return jsonResponse({ runs: [] });
-      case '/approvals':
-        return jsonResponse({ approvals: [] });
-      case '/tasks':
-        return jsonResponse({ counts: {}, tasks: {} });
-      case '/owner-questions':
-        return jsonResponse({ questions: [] });
       default:
         throw new Error(`Unexpected production journey request: ${url}`);
     }
@@ -135,13 +91,6 @@ export function callsForPath(
   path: string,
 ): FetchCall[] {
   return fetchCalls.filter((call) => new URL(call.url).pathname === path);
-}
-
-export function evidenceBundleSource(): string {
-  if (!capturedBundlePath) {
-    return 'scripts/ui-behavior-vectors.mjs#operatorBundle';
-  }
-  return relative(join(process.cwd(), '..', '..'), capturedBundlePath);
 }
 
 function jsonResponse(body: unknown): Promise<Response> {

@@ -1,4 +1,4 @@
-import { TestScopeProvider } from "@/lib/scope-context";
+import { TestScopeProvider } from "@/lib/scope-context.test-utils";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import fixture from "../../../../conformance/ui-behavior-vectors.generated.json";
@@ -47,9 +47,10 @@ describe("Sidebar shared UI navigation", () => {
     expect(screen.queryByText("Knowledge")).not.toBeInTheDocument();
     expect(screen.queryByText("Recall")).not.toBeInTheDocument();
 
-    expect(
-      within(nav).getByRole("button", { name: /Status core\.status/ }),
-    ).toHaveAttribute("data-surface-id", "status");
+    expect(within(nav).getByRole("button", { name: "Status" })).toHaveAttribute(
+      "data-surface-id",
+      "status",
+    );
     expect(
       within(nav).getByRole("button", { name: /Operator Control/ }),
     ).toHaveAttribute("data-surface-id", "operator-control");
@@ -59,7 +60,7 @@ describe("Sidebar shared UI navigation", () => {
     const onSurfaceSelect = vi.fn();
     renderSidebar({ onSurfaceSelect });
 
-    fireEvent.click(screen.getByRole("button", { name: /Inbox core\.inbox/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Inbox" }));
     expect(onSurfaceSelect).toHaveBeenCalledWith("inbox");
   });
 

@@ -6,14 +6,10 @@ import SwiftUI
 /// `MenuBarExtra` (macOS-only Scene type) and wires the shared
 /// `Settings` form into the system Settings scene. Platform-specific
 /// concerns (NSOpenPanel, NSWorkspace, NSApp.sendAction, terminate)
-/// live in `MacOSPlatform`; notifications live in
-/// `MacOSNotificationManager`.
+/// live in `MacOSPlatform`.
 @main
 struct KotaMenuBarApp: App {
-    @StateObject private var appState = AppState(
-        notifications: MacOSNotificationManager.shared,
-        platform: MacOSPlatform()
-    )
+    @StateObject private var appState = AppState(platform: MacOSPlatform())
 
     var body: some Scene {
         MenuBarExtra {

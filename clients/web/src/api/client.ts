@@ -1,38 +1,16 @@
 import {
-  parseScopePolicyRouteResponse,
-  parseScopeRegistryProjection,
+  type ClientIdentity,
+  parseClientIdentity,
 } from "../../../conformance/daemon-contract.generated";
-import { knowledgeApi } from "./client-knowledge";
-import { operatorApi } from "./client-operator";
-import { apiDecoded, apiJson } from "./client-runtime";
+import { chatApi } from "./client-chat";
+import { apiDecoded } from "./client-runtime";
 import { uiApi } from "./client-ui";
 import { voiceApi } from "./client-voice";
-import { workflowApi } from "./client-workflows";
-import type {
-  CapabilityReadinessResponse,
-  ClientIdentity,
-  HealthStatus,
-  ScopePolicyRouteResponse,
-  ScopeRegistryProjection,
-} from "./types";
 
 export const api = {
-  getHealth: () => apiJson<HealthStatus>("/api/health"),
-  getCapabilities: () => apiJson<CapabilityReadinessResponse>("/capabilities"),
-  getIdentity: () => apiJson<ClientIdentity>("/identity"),
-  getScopes: () =>
-    apiDecoded<ScopeRegistryProjection>(
-      "/scopes",
-      parseScopeRegistryProjection,
-    ),
-  getScopePolicy: (scopeId: string) =>
-    apiDecoded<ScopePolicyRouteResponse>(
-      `/scopes/${encodeURIComponent(scopeId)}/policy`,
-      parseScopePolicyRouteResponse,
-    ),
-  ...workflowApi,
-  ...operatorApi,
-  ...knowledgeApi,
+  getIdentity: (): Promise<ClientIdentity> =>
+    apiDecoded("/identity", parseClientIdentity),
+  ...chatApi,
   ...voiceApi,
   ...uiApi,
 };

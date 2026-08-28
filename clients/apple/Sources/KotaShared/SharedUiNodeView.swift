@@ -79,8 +79,13 @@ struct SharedUiNodeView: View {
                         }
                     }
                 }
-            case .table(let columns, let rows, let title):
-                SharedUiTableView(title: title, columns: columns, rows: rows)
+            case .table(let columns, let rows, let searchable, let title):
+                SharedUiTableView(
+                    title: title,
+                    columns: columns,
+                    rows: rows,
+                    searchable: searchable == true
+                )
             case .detail(let body, let title):
                 SharedUiNodeSection(title: title) {
                     Text(body).textSelection(.enabled)
@@ -121,13 +126,17 @@ struct SharedUiNodeView: View {
                     SharedUiActionView(action: submit, fields: fields, expanded: true)
                 }
             case .actionList(let actions, let title):
-                SharedUiNodeSection(title: title) {
-                    let visible = actions.filter { !hiddenActionIds.contains($0.actionId) }
-                    if visible.isEmpty {
-                        Text(actions.isEmpty ? "No actions available." : "Actions are shown with their related content.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    } else {
+                let visible = actions.filter { !hiddenActionIds.contains($0.actionId) }
+                if visible.isEmpty {
+                    if actions.isEmpty {
+                        SharedUiNodeSection(title: title) {
+                            Text("No actions available.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    SharedUiNodeSection(title: title) {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(visible, id: \.actionId) { action in
                                 SharedUiActionView(action: action)
@@ -282,34 +291,87 @@ private struct SharedUiTableView: View {
     let title: String
     let columns: [UiTableColumn]
     let rows: [UiTableRow]
+    let searchable: Bool
+    @State private var query = ""
+    @State private var filters: [String: String] = [:]
+
+    private var filterableColumns: [UiTableColumn] {
+        columns.filter { $0.filterable == true }
+    }
+
+    private var hasActions: Bool {
+        rows.contains { $0.action != nil }
+    }
+
+    private var visibleRows: [UiTableRow] {
+        let normalized = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return rows.filter { row in
+            let matchesQuery = normalized.isEmpty || row.cells.contains {
+                $0.value.lowercased().contains(normalized)
+            }
+            return matchesQuery && filterableColumns.allSatisfy { column in
+                let selected = filters[column.id] ?? ""
+                return selected.isEmpty || cellValue(row, column.id) == selected
+            }
+        }
+    }
 
     var body: some View {
         SharedUiNodeSection(title: title) {
-            ScrollView(.horizontal) {
-                Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 7) {
-                    GridRow {
-                        ForEach(columns, id: \.id) { column in
-                            Text(column.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            if searchable || !filterableColumns.isEmpty {
+                if searchable {
+                    TextField("Search \(title.lowercased())", text: $query)
+                        .textFieldStyle(.roundedBorder)
+                }
+                HStack(spacing: 8) {
+                    ForEach(filterableColumns, id: \.id) { column in
+                        Picker(column.label, selection: filterBinding(column.id)) {
+                            Text("All \(column.label.lowercased())").tag("")
+                            ForEach(columnOptions(column.id), id: \.self) { option in
+                                Text(option).tag(option)
+                            }
                         }
-                        if rows.contains(where: { $0.action != nil }) { Text("Action").font(.caption.weight(.semibold)) }
+                        .pickerStyle(.menu)
                     }
-                    Divider()
-                    ForEach(rows, id: \.id) { row in
+                    Spacer()
+                    Text("\(visibleRows.count)/\(rows.count)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if visibleRows.isEmpty {
+                Text(rows.isEmpty ? "No records." : "No matching records.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            } else {
+                ScrollView(.horizontal) {
+                    Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 7) {
                         GridRow {
                             ForEach(columns, id: \.id) { column in
-                                let cell = row.cells.first { $0.columnId == column.id }
-                                Text(cell?.value ?? "")
-                                    .font(.caption)
-                                    .foregroundStyle((cell?.role ?? column.role ?? .neutral).color)
+                                Text(column.label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
                             }
-                            if rows.contains(where: { $0.action != nil }) {
-                                if let action = row.action {
-                                    SharedUiActionView(
-                                        action: action,
-                                        initialParameters: rowActionDefaults(action: action, rowId: row.id)
-                                    )
-                                } else {
-                                    Color.clear.frame(width: 1, height: 1)
+                            if hasActions { Text("Action").font(.caption.weight(.semibold)) }
+                        }
+                        Divider()
+                        ForEach(visibleRows, id: \.id) { row in
+                            GridRow {
+                                ForEach(columns, id: \.id) { column in
+                                    let cell = row.cells.first { $0.columnId == column.id }
+                                    Text(cell?.value ?? "")
+                                        .font(.caption)
+                                        .foregroundStyle((cell?.role ?? column.role ?? .neutral).color)
+                                }
+                                if hasActions {
+                                    if let action = row.action {
+                                        SharedUiActionView(
+                                            action: action,
+                                            initialParameters: rowActionDefaults(action: action, rowId: row.id)
+                                        )
+                                    } else {
+                                        Color.clear.frame(width: 1, height: 1)
+                                    }
                                 }
                             }
                         }
@@ -317,6 +379,21 @@ private struct SharedUiTableView: View {
                 }
             }
         }
+    }
+
+    private func cellValue(_ row: UiTableRow, _ columnId: String) -> String {
+        row.cells.first { $0.columnId == columnId }?.value ?? ""
+    }
+
+    private func columnOptions(_ columnId: String) -> [String] {
+        Array(Set(rows.map { cellValue($0, columnId) }.filter { !$0.isEmpty })).sorted()
+    }
+
+    private func filterBinding(_ columnId: String) -> Binding<String> {
+        Binding(
+            get: { filters[columnId] ?? "" },
+            set: { filters[columnId] = $0 }
+        )
     }
 }
 

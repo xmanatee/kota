@@ -63,6 +63,7 @@ public struct SharedOperatorRootView: View {
             }
         }
         .accessibilityIdentifier("shared-operator-root")
+        .task { appState.start() }
     }
 
     private func menuBarContent(_ inventory: SharedUiInventory) -> some View {

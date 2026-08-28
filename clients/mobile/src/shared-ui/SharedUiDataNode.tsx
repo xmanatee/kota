@@ -10,8 +10,9 @@ import type {
   UiNode,
 } from '../daemon/ui-surface.generated';
 import { SharedUiAction } from './SharedUiAction';
+import { SharedUiTable } from './SharedUiTable';
 import { assertNever } from './graph';
-import { roleColors, rowActionDefaults } from './presentation';
+import { roleColors } from './presentation';
 
 type DataNode = Extract<
   UiNode,
@@ -156,42 +157,11 @@ export function SharedUiDataNode({
     case 'table':
       return (
         <Section title={node.title} kind={node.kind}>
-          {node.rows.length === 0 ? (
-            <Text style={styles.muted}>No rows.</Text>
-          ) : (
-            <View style={styles.list}>
-              {node.rows.map((row) => (
-                <View key={row.id} style={styles.tableRow}>
-                  {node.columns.map((column) => {
-                    const cell = row.cells.find(
-                      (candidate) => candidate.columnId === column.id,
-                    );
-                    return (
-                      <View key={column.id} style={styles.tableCell}>
-                        <Text style={styles.summaryLabel}>{column.label}</Text>
-                        <Text
-                          style={{
-                            color: roleColors[
-                              cell?.role ?? column.role ?? 'neutral'
-                            ],
-                          }}
-                        >
-                          {cell?.value ?? ''}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                  {row.action ? (
-                    <SharedUiAction
-                      action={row.action}
-                      initialParameters={rowActionDefaults(row.action, row.id)}
-                      highlighted={row.action.actionId === highlightedActionId}
-                    />
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          )}
+          <SharedUiTable
+            key={`${node.title}:${node.columns.map((column) => column.id).join(',')}`}
+            node={node}
+            highlightedActionId={highlightedActionId}
+          />
         </Section>
       );
     default:
@@ -285,12 +255,5 @@ const styles = StyleSheet.create({
   },
   itemTitle: { fontSize: 15, fontWeight: '700' },
   itemDetail: { color: '#6c6c70', fontSize: 13, lineHeight: 19 },
-  tableRow: {
-    gap: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e5e5ea',
-    padding: 14,
-  },
-  tableCell: { gap: 3 },
   muted: { color: '#6c6c70', fontSize: 13 },
 });

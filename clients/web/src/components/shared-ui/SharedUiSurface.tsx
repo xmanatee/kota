@@ -1,14 +1,8 @@
-import { Badge } from "@/components/ui/badge";
 import type { UiSurface } from "../../../../conformance/ui-surface.generated";
 import type { LiveUiLogEntries } from "../../hooks/use-daemon-events";
 import { SharedUiAction } from "./SharedUiAction";
 import { SharedUiNode } from "./SharedUiNode";
-import {
-  conditionLabel,
-  embeddedActionIds,
-  permissionLabel,
-  referencedActionIds,
-} from "./ui-render-utils";
+import { embeddedActionIds, referencedActionIds } from "./ui-render-utils";
 
 export function SharedUiSurface({
   surface,
@@ -29,50 +23,16 @@ export function SharedUiSurface({
 
   return (
     <article
-      className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-10"
+      className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 pb-6 pt-16 sm:px-6 sm:pt-6 lg:px-8"
       data-surface-id={surface.surfaceId}
       data-extension-id={surface.extensionId}
       data-intent={surface.intent}
       data-attachment-kind={surface.attachmentPoint.kind}
     >
-      <header className="flex flex-col gap-4 border-b border-border pb-6">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <Badge variant="outline">{surface.intent}</Badge>
-          <span>{surface.extensionId}</span>
-          <span aria-hidden="true">·</span>
-          <span>{surface.scopeId}</span>
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            {surface.title}
-          </h1>
-          <p className="mt-2 max-w-[72ch] text-sm text-muted-foreground">
-            Shared operator surface rendered from {surface.protocolVersion}.
-          </p>
-        </div>
-        {surface.conditions?.length || surface.permissions?.length ? (
-          <div
-            className="flex flex-wrap gap-2"
-            aria-label="Surface requirements"
-          >
-            {surface.conditions?.map((condition, index) => (
-              <Badge
-                key={`${conditionLabel(condition)}-${index}`}
-                variant="secondary"
-              >
-                {conditionLabel(condition)}
-              </Badge>
-            ))}
-            {surface.permissions?.map((permission, index) => (
-              <Badge
-                key={`${permissionLabel(permission)}-${index}`}
-                variant="outline"
-              >
-                {permissionLabel(permission)}
-              </Badge>
-            ))}
-          </div>
-        ) : null}
+      <header className="border-b border-border pb-4">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {surface.title}
+        </h1>
       </header>
 
       {surface.nodes.map((node, index) => (

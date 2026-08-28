@@ -4,14 +4,10 @@ import SwiftUI
 #if os(iOS)
 /// iOS entry point. Mounts the shared `IOSRootView` inside a single
 /// `WindowGroup`. Platform-specific concerns (UIApplication,
-/// UNUserNotificationCenter, sandboxed file access) live in
-/// `iOSPlatform` and `iOSNotificationManager`.
+/// sandboxed file access) live in `iOSPlatform`.
 @main
 struct KotaiOSApp: App {
-    @StateObject private var appState = AppState(
-        notifications: iOSNotificationManager.shared,
-        platform: iOSPlatform()
-    )
+    @StateObject private var appState = AppState(platform: iOSPlatform())
 
     var body: some Scene {
         WindowGroup {

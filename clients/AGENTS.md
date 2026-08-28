@@ -37,9 +37,9 @@ Clients must:
 - normalize typed errors consistently without exposing credentials; and
 - own one reconnecting event transport per connection rather than per screen.
 
-Compatibility with an older public wire shape is an adapter at the daemon
-boundary. New client code consumes the canonical scope and capability model and
-does not extend the compatibility vocabulary.
+Clients consume only the current canonical scope and capability model. Replace
+obsolete public wire shapes at the daemon boundary instead of preserving
+client-side compatibility paths.
 
 ## Platform ownership
 

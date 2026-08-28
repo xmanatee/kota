@@ -1,19 +1,4 @@
-/**
- * Verifies the push-notification module's bus subscriptions wire each
- * supported event to an Expo Push API fan-out:
- *
- * - `approval.requested` → `data.screen = "approvals"` (existing behavior).
- * - `workflow.daily.digest` → `data.screen = "digest"`, cadence-posture title.
- * - `workflow.attention.digest` → `data.screen = "attention"`, attention-posture
- *   title, so a tap deep-links into the mobile AttentionScreen instead of the
- *   daily-digest screen.
- *
- * The module is exercised through its real `onLoad` against a stub
- * `ModuleRuntimeContext` whose event proxy is backed by a real `EventBus`. Each
- * test emits the corresponding event and asserts the resulting `fetch`
- * payload. The activation disposer is also exercised: after disposal, the bus has no
- * listeners for the three events, proving every subscription is released.
- */
+/** Verifies that supported events fan out to their shared-UI deep links. */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -37,7 +22,7 @@ function makeStubCtx(cwd: string, bus: EventBus): ModuleRuntimeContext {
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
+    getContributedUiSurfaces: () => [],
     getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     getModuleConfig: () => undefined,

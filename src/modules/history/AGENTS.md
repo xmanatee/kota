@@ -17,7 +17,9 @@ This directory owns conversation history — the persistent record of past sessi
   the DELETE under `control`. Detail reads share the `history-detail.ts`
   helper and return an explicit metadata, bounded-window, or full-state
   view; malformed detail query parameters fail at the route/client boundary.
-- Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/history/search`) and one shared line shape (`renderHistorySearchPlain`): Telegram `/history`, terminal `kota history search`, the Apple clients' shared `SharedUiSurfaceView`, and the mobile `HistoryScreen`.
+- Telegram and terminal search consume the shared HTTP route and line renderer.
+  Visual clients render the module's shared-UI contribution instead of owning
+  history-specific screens or routes.
 - The module contributes its own live history-store shared-UI surface rather
   than entering a daemon-owned store catalog.
 

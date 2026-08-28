@@ -11,31 +11,9 @@ struct SharedUiSurfaceView: View {
         let additionalActions = surface.actions.filter { !referenced.contains($0.actionId) }
 
         VStack(alignment: .leading, spacing: 18) {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(spacing: 6) {
-                    Label(surface.intent.rawValue, systemImage: surface.intent.systemImage)
-                    Text(surface.extensionId)
-                    Text("·")
-                    Text(surface.scopeId)
-                }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-                Text(surface.title)
-                    .font(.title2.weight(.semibold))
-                    .accessibilityAddTraits(.isHeader)
-                Text("Shared operator surface · \(surface.protocolVersion.rawValue)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if !(surface.conditions ?? []).isEmpty || !(surface.permissions ?? []).isEmpty {
-                    SharedUiRequirementsView(
-                        conditions: surface.conditions ?? [],
-                        permissions: surface.permissions ?? []
-                    )
-                }
-            }
+            Text(surface.title)
+                .font(.title2.weight(.semibold))
+                .accessibilityAddTraits(.isHeader)
 
             Divider()
 

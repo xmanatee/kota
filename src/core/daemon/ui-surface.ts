@@ -141,6 +141,7 @@ export type UiTableColumn = {
   id: string;
   label: string;
   role?: UiRole;
+  filterable?: boolean;
 };
 
 export type UiTableRow = {
@@ -196,7 +197,13 @@ export type UiNode =
   | { kind: "link"; label: string; target: UiLinkTarget; role?: UiRole }
   | { kind: "tabs"; title: string; activeTabId: string; tabs: readonly UiTab[] }
   | { kind: "list"; title: string; items: readonly UiListItem[] }
-  | { kind: "table"; title: string; columns: readonly UiTableColumn[]; rows: readonly UiTableRow[] }
+  | {
+      kind: "table";
+      title: string;
+      columns: readonly UiTableColumn[];
+      rows: readonly UiTableRow[];
+      searchable?: boolean;
+    }
   | { kind: "detail"; title: string; body: string }
   | { kind: "progress"; label: string; value: number; max: number; role: UiRole }
   | { kind: "log"; title: string; entries: readonly UiLogEntry[] }

@@ -580,7 +580,7 @@ indirect enum UiNode: Codable, Equatable {
     case link(label: String, role: UiRole?, target: UiLinkTarget)
     case tabs(activeTabId: String, tabs: [UiTab], title: String)
     case list(items: [UiListItem], title: String)
-    case table(columns: [UiTableColumn], rows: [UiTableRow], title: String)
+    case table(columns: [UiTableColumn], rows: [UiTableRow], searchable: Bool?, title: String)
     case detail(body: String, title: String)
     case progress(label: String, max: Double, role: UiRole, value: Double)
     case log(entries: [UiLogEntry], title: String)
@@ -607,6 +607,7 @@ indirect enum UiNode: Codable, Equatable {
         case metrics
         case role
         case rows
+        case searchable
         case source
         case streamId
         case submit
@@ -673,6 +674,7 @@ indirect enum UiNode: Codable, Equatable {
             self = .table(
                 columns: try container.decode([UiTableColumn].self, forKey: .columns),
                 rows: try container.decode([UiTableRow].self, forKey: .rows),
+                searchable: try container.decodeIfPresent(Bool.self, forKey: .searchable),
                 title: try container.decode(String.self, forKey: .title)
             )
             return
@@ -782,10 +784,11 @@ indirect enum UiNode: Codable, Equatable {
             try container.encode("list", forKey: .kind)
             try container.encode(items, forKey: .items)
             try container.encode(title, forKey: .title)
-        case .table(let columns, let rows, let title):
+        case .table(let columns, let rows, let searchable, let title):
             try container.encode("table", forKey: .kind)
             try container.encode(columns, forKey: .columns)
             try container.encode(rows, forKey: .rows)
+            try container.encodeIfPresent(searchable, forKey: .searchable)
             try container.encode(title, forKey: .title)
         case .detail(let body, let title):
             try container.encode("detail", forKey: .kind)
@@ -939,6 +942,7 @@ struct UiTab: Codable, Equatable, Identifiable {
 }
 
 struct UiTableColumn: Codable, Equatable, Identifiable {
+    let filterable: Bool?
     let id: String
     let label: String
     let role: UiRole?

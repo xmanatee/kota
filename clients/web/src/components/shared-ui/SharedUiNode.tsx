@@ -115,6 +115,11 @@ export function SharedUiNode({
         </SharedUiNodeSection>
       );
     case "action-list":
+      if (
+        node.actions.every((action) => hiddenActionIds.has(action.actionId))
+      ) {
+        return null;
+      }
       return (
         <SharedUiNodeSection kind={node.kind} title={node.title}>
           <div className="grid gap-2 lg:grid-cols-2">
@@ -123,14 +128,7 @@ export function SharedUiNode({
               .map((action) => (
                 <SharedUiAction key={action.actionId} action={action} />
               ))}
-            {node.actions.length > 0 &&
-            node.actions.every((action) =>
-              hiddenActionIds.has(action.actionId),
-            ) ? (
-              <p className="text-sm text-muted-foreground">
-                Actions are shown with their related content.
-              </p>
-            ) : node.actions.length === 0 ? (
+            {node.actions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No actions available.
               </p>

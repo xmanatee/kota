@@ -245,9 +245,7 @@ final class SharedUiRendererTests: XCTestCase {
         let platform = RecordingPlatform()
         let state = AppState(
             client: client,
-            notifications: InertNotificationManager(),
-            platform: platform,
-            startPollingOnInit: false
+            platform: platform
         )
         state.reconcileActiveScopeId(with: scopeRegistry(
             defaultScopeId: scopeId,
@@ -291,9 +289,7 @@ final class SharedUiRendererTests: XCTestCase {
         platform.opensURLs = false
         let state = AppState(
             client: client,
-            notifications: InertNotificationManager(),
-            platform: platform,
-            startPollingOnInit: false
+            platform: platform
         )
         state.reconcileActiveScopeId(with: scopeRegistry(
             defaultScopeId: action.scopeId,
@@ -337,9 +333,7 @@ final class SharedUiRendererTests: XCTestCase {
         let platform = RecordingPlatform()
         let state = AppState(
             client: client,
-            notifications: InertNotificationManager(),
-            platform: platform,
-            startPollingOnInit: false
+            platform: platform
         )
         state.reconcileActiveScopeId(with: scopeRegistry(
             defaultScopeId: originalScope,

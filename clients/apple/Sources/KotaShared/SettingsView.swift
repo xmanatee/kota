@@ -1,12 +1,6 @@
 import SwiftUI
 
-/// Status icon + pending-approvals badge rendered inside the macOS
-/// `MenuBarExtra` label. Lives in the shared module so the iOS shell
-/// can render the same visual identifier (e.g. as a navigation-bar
-/// status icon) without duplicating the icon/color logic. Takes the
-/// shared `AppState` directly so callers in the platform shells do
-/// not have to thread `DaemonHealth` / `pendingApprovals.count`
-/// through public accessors.
+/// Connection status rendered in the macOS menu-bar label.
 public struct MenuBarLabel: View {
     @ObservedObject var appState: AppState
 
@@ -15,22 +9,14 @@ public struct MenuBarLabel: View {
     }
 
     public var body: some View {
-        HStack(spacing: 3) {
-            Image(systemName: appState.health.systemImageName)
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(iconColor)
-            if appState.pendingApprovals.count > 0 {
-                Text("\(appState.pendingApprovals.count)")
-                    .font(.caption2.bold())
-                    .foregroundStyle(.red)
-            }
-        }
+        Image(systemName: appState.health.systemImageName)
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(iconColor)
     }
 
     var iconColor: Color {
         switch appState.health {
-        case .idle: return .green
-        case .running, .paused: return .orange
+        case .connected: return .green
         case .error: return .red
         default: return .secondary
         }
@@ -83,7 +69,7 @@ public struct SettingsView: View {
                             let trimmed = manualScopePath.trimmingCharacters(in: .whitespacesAndNewlines)
                             if !trimmed.isEmpty {
                                 appState.scopeRoot = URL(fileURLWithPath: trimmed)
-                                appState.startPolling()
+                                appState.start()
                             }
                         }
                         .disabled(manualScopePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

@@ -24,12 +24,7 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const GENERATOR = resolve(ROOT, "scripts/generate-daemon-contract-bindings.mjs");
-const GENERATED_CLIENT_OUTPUTS = [
-  "schema/daemon-contract.schema.json",
-  "clients/conformance/daemon-contract.generated.ts",
-  "clients/mobile/src/daemon/daemon-contract.generated.ts",
-  "clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift",
-] as const;
+const MANIFEST_PATH = "clients/conformance/daemon-contract-bindings.manifest.json";
 
 function hashFile(root: string, path: string): string {
   return createHash("sha256").update(readFileSync(resolve(root, path))).digest("hex");
@@ -40,6 +35,13 @@ function runGenerator(root: string, ...args: string[]): ReturnType<typeof spawnS
     cwd: ROOT,
     encoding: "utf8",
   });
+}
+
+function generatedOutputs(root: string): string[] {
+  const manifest = JSON.parse(readFileSync(resolve(root, MANIFEST_PATH), "utf8")) as {
+    outputs: { path: string }[];
+  };
+  return manifest.outputs.map((output) => output.path);
 }
 
 function prepareRoot(): string {
@@ -79,12 +81,13 @@ describe("generated daemon contract bindings", () => {
     const root = prepareRoot();
     try {
       expect(runGenerator(root).status).toBe(0);
-      const first = GENERATED_CLIENT_OUTPUTS.map((path) => hashFile(root, path));
+      const outputs = generatedOutputs(root);
+      const first = outputs.map((path) => hashFile(root, path));
       expect(runGenerator(root).status).toBe(0);
-      expect(GENERATED_CLIENT_OUTPUTS.map((path) => hashFile(root, path))).toEqual(first);
+      expect(outputs.map((path) => hashFile(root, path))).toEqual(first);
       expect(runGenerator(root, "--check").status).toBe(0);
 
-      for (const path of GENERATED_CLIENT_OUTPUTS) {
+      for (const path of outputs) {
         appendFileSync(resolve(root, path), "\n// stale\n");
         const stale = runGenerator(root, "--check");
         expect(stale.status).not.toBe(0);
@@ -99,8 +102,9 @@ describe("generated daemon contract bindings", () => {
         source.replace("  scopeId: string;\n};", "  scopeId: string;\n  requestId?: string;\n};"),
       );
       expect(runGenerator(root).status).toBe(0);
-      const changed = GENERATED_CLIENT_OUTPUTS.map((path) => hashFile(root, path));
-      expect(changed.every((value, index) => value !== first[index])).toBe(true);
+      const changed = outputs.map((path) => hashFile(root, path));
+      expect(changed.some((value, index) => value !== first[index])).toBe(true);
+      expect(outputs.some((path) => readFileSync(resolve(root, path), "utf8").includes("requestId"))).toBe(true);
     } finally {
       if (existsSync(root)) rmSync(root, { recursive: true });
     }

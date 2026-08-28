@@ -18,9 +18,6 @@ import {
 } from './action-parameters';
 import { assertNever } from './graph';
 import {
-  conditionLabel,
-  operationLabel,
-  permissionLabel,
   readinessMessage,
 } from './presentation';
 import { actionStyles as styles } from './action-styles';
@@ -137,53 +134,20 @@ export function SharedUiAction({
             />
           ))}
 
-          {action.conditions?.length || action.permissions?.length ? (
-            <View
-              style={styles.requirements}
-              accessibilityLabel={`${action.label} requirements`}
-            >
-              {action.conditions?.map((condition, index) => (
-                <View
-                  key={`${conditionLabel(condition)}-${index}`}
-                  style={styles.requirement}
-                >
-                  <Text style={styles.requirementLabel}>
-                    {conditionLabel(condition)}
-                  </Text>
-                </View>
-              ))}
-              {action.permissions?.map((permission, index) => (
-                <View
-                  key={`${permissionLabel(permission)}-${index}`}
-                  style={styles.requirement}
-                >
-                  <Text style={styles.requirementLabel}>
-                    {permissionLabel(permission)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={[styles.button, disabled && styles.buttonDisabled]}
-              accessibilityRole="button"
-              accessibilityState={{ disabled }}
-              accessibilityLabel={action.label}
-              disabled={disabled}
-              onPress={submit}
-            >
-              {working ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.buttonLabel}>{action.label}</Text>
-              )}
-            </TouchableOpacity>
-            <Text style={styles.operation}>
-              {operationLabel(action)} · {action.effect}
-            </Text>
-          </View>
+          <TouchableOpacity
+            style={[styles.button, disabled && styles.buttonDisabled]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled }}
+            accessibilityLabel={action.label}
+            disabled={disabled}
+            onPress={submit}
+          >
+            {working ? (
+              <ActivityIndicator color="#ffffff" />
+            ) : (
+              <Text style={styles.buttonLabel}>{action.label}</Text>
+            )}
+          </TouchableOpacity>
 
           {availability ? (
             <Text

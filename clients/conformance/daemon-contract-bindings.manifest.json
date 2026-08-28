@@ -164,10 +164,6 @@
       "sha256": "455988299780bcce7a8b5042adc11938207ad7f2079c8dbcfa5d4e380109d7ab"
     },
     {
-      "path": "clients/mobile/src/daemon/daemon-contract.generated.ts",
-      "sha256": "455988299780bcce7a8b5042adc11938207ad7f2079c8dbcfa5d4e380109d7ab"
-    },
-    {
       "path": "src/client/daemon-contract.generated.ts",
       "sha256": "455988299780bcce7a8b5042adc11938207ad7f2079c8dbcfa5d4e380109d7ab"
     },

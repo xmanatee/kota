@@ -17,7 +17,9 @@ This directory owns persistent, searchable agent notes that survive across sessi
   responses with the generated daemon-contract decoder rather than asserting
   a handwritten transport type.
 - Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
-- Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/memory/search`) and one shared line shape (`renderMemorySearchPlain`): Telegram `/memory`, terminal `kota memory search`, the Apple clients' shared `SharedUiSurfaceView`, and the mobile `MemoryScreen`.
+- Telegram and terminal search consume the shared HTTP route and line renderer.
+  Visual clients render the module's shared-UI contribution instead of owning
+  memory-specific screens or routes.
 - The `stores` shared-UI surface is the memory module's live contribution;
   knowledge and history add their own independently owned surfaces.
 

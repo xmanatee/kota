@@ -18,7 +18,9 @@ This directory owns the `knowledge` management tool — a structured, file-based
   `unknown_scope` route error.
 - Registers `knowledge` in the `management` tool group.
 - Contributes the `knowledge` skill (prompt guidance for storing and querying structured entries).
-- Operator pull-surfaces consume the search seam through one shared HTTP route (`GET /api/knowledge/search`) and one shared line shape (`renderKnowledgeSearchPlain`): Telegram `/knowledge`, terminal `kota knowledge search`, mobile `KnowledgeScreen`, and the Apple clients' shared `SharedUiSurfaceView`. The web client renders this module's shared-UI graph through `KotaClient.knowledge` instead of owning a second knowledge panel.
+- Telegram and terminal search consume the shared HTTP route and line renderer.
+  Visual clients render the module's shared-UI contribution instead of owning
+  knowledge-specific screens or routes.
 - The module contributes its own live knowledge-store shared-UI surface rather
   than entering a daemon-owned store catalog.
 

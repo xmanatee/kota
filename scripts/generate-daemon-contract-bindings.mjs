@@ -43,7 +43,6 @@ function expectedArtifacts(root) {
   const artifacts = new Map([
     ["schema/daemon-contract.schema.json", `${JSON.stringify(schema, null, 2)}\n`],
     ["clients/conformance/daemon-contract.generated.ts", typeScript],
-    ["clients/mobile/src/daemon/daemon-contract.generated.ts", typeScript],
     ["src/client/daemon-contract.generated.ts", typeScript],
     ["clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift", generateSwiftBinding(schema, {
       command: "pnpm build:client-bindings",

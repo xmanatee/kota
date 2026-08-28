@@ -15,7 +15,6 @@ import type {
 import { SharedUiAction } from './SharedUiAction';
 import { SharedUiNode } from './SharedUiNode';
 import { embeddedActionIds, referencedActionIds } from './graph';
-import { conditionLabel, permissionLabel } from './presentation';
 
 export function SharedUiSurface({
   surface,
@@ -52,41 +51,15 @@ export function SharedUiSurface({
       testID={`ui-surface-${surface.surfaceId}`}
     >
       <View style={styles.header}>
-        <View style={styles.headerTop}>
-          <View style={styles.intentBadge}>
-            <Text style={styles.intentLabel}>{surface.intent}</Text>
-          </View>
-          <Text style={styles.extension}>{surface.extensionId}</Text>
-          <TouchableOpacity
-            style={styles.connectionButton}
-            accessibilityRole="button"
-            accessibilityLabel="Daemon connection settings"
-            onPress={onOpenConnection}
-          >
-            <Text style={styles.connectionLabel}>Connection</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.connectionButton}
+          accessibilityRole="button"
+          accessibilityLabel="Daemon connection settings"
+          onPress={onOpenConnection}
+        >
+          <Text style={styles.connectionLabel}>Connection</Text>
+        </TouchableOpacity>
         <Text style={styles.title}>{surface.title}</Text>
-        <Text style={styles.protocol}>
-          Shared operator surface · {surface.protocolVersion}
-        </Text>
-        <Text style={styles.scope} numberOfLines={1}>
-          {surface.scopeId}
-        </Text>
-        {surface.conditions?.length || surface.permissions?.length ? (
-          <View style={styles.requirements} accessibilityLabel="Surface requirements">
-            {surface.conditions?.map((condition, index) => (
-              <View key={`${conditionLabel(condition)}-${index}`} style={styles.requirement}>
-                <Text style={styles.requirementLabel}>{conditionLabel(condition)}</Text>
-              </View>
-            ))}
-            {surface.permissions?.map((permission, index) => (
-              <View key={`${permissionLabel(permission)}-${index}`} style={styles.requirement}>
-                <Text style={styles.requirementLabel}>{permissionLabel(permission)}</Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
       </View>
 
       {surface.nodes.map((node, index) => (
@@ -126,18 +99,9 @@ const styles = StyleSheet.create({
     borderBottomColor: '#c7c7cc',
     paddingBottom: 16,
   },
-  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  intentBadge: { borderRadius: 12, backgroundColor: '#eaf3fc', paddingHorizontal: 9, paddingVertical: 4 },
-  intentLabel: { color: '#0a67c7', fontSize: 11, fontWeight: '700' },
-  extension: { flex: 1, color: '#6c6c70', fontSize: 11 },
-  connectionButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 6 },
+  connectionButton: { minHeight: 48, alignSelf: 'flex-end', justifyContent: 'center', paddingHorizontal: 6 },
   connectionLabel: { color: '#0a67c7', fontSize: 12, fontWeight: '600' },
   title: { color: '#1c1c1e', fontSize: 28, fontWeight: '800', letterSpacing: -0.4 },
-  protocol: { color: '#6c6c70', fontSize: 13 },
-  scope: { color: '#8e8e93', fontSize: 11 },
-  requirements: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
-  requirement: { borderRadius: 10, backgroundColor: '#e5e5ea', paddingHorizontal: 8, paddingVertical: 4 },
-  requirementLabel: { color: '#3a3a3c', fontSize: 10, fontWeight: '600' },
   additionalActions: { gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#c7c7cc', paddingTop: 18 },
   sectionTitle: { color: '#1c1c1e', fontSize: 16, fontWeight: '700' },
 });

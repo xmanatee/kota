@@ -56,58 +56,13 @@ export function useDaemonEvents(bundle?: UiSurfaceBundle): DaemonEventState {
       });
     };
 
-    const invalidateWorkflows = () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowStatus(scopeId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workflowRuns", scopeId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.workflowDefinitions(scopeId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.schedules(scopeId),
-      });
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.daemonStatus(scopeId),
-      });
-    };
-
-    source.on("workflow.started", invalidateWorkflows);
-    source.on("workflow.completed", invalidateWorkflows);
-    source.on("workflow.step.completed", invalidateWorkflows);
-    source.on("queue.changed", invalidateWorkflows);
-    source.on("approval.changed", () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.approvals(scopeId),
-      });
-    });
-    const invalidateOwnerQuestions = () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.ownerQuestions(scopeId),
-      });
-    };
-    source.on("owner.question.asked", invalidateOwnerQuestions);
-    source.on("owner.question.changed", invalidateOwnerQuestions);
-    source.on("owner.question.resolved", invalidateOwnerQuestions);
-    source.on("owner.question.dismissed", invalidateOwnerQuestions);
-    source.on("owner.question.expired", invalidateOwnerQuestions);
-    source.on("task.changed", () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.tasks(scopeId),
-      });
-    });
-    source.on("session.registered", () => {
+    const invalidateSessions = () => {
       void queryClient.invalidateQueries({
         queryKey: queryKeys.sessions(scopeId),
       });
-    });
-    source.on("session.unregistered", () => {
-      void queryClient.invalidateQueries({
-        queryKey: queryKeys.sessions(scopeId),
-      });
-    });
+    };
+    source.on("session.registered", invalidateSessions);
+    source.on("session.unregistered", invalidateSessions);
 
     for (const eventType of uiSubscriptions.eventTypes) {
       source.on(eventType, (payload) => {

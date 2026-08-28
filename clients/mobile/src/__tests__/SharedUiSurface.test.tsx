@@ -13,7 +13,6 @@ import {
   parseUiSurfaceBundle,
   type UiNode,
 } from '../daemon/ui-surface.generated';
-import { writeBuilderEvidence } from './builderEvidence';
 import { SharedUiNode } from '../shared-ui/SharedUiNode';
 import { SharedUiSurface } from '../shared-ui/SharedUiSurface';
 
@@ -45,16 +44,6 @@ describe('Android shared UI surface renderer', () => {
     expect(view.getByText('Live daemon events')).toBeTruthy();
     expect(view.getByText('Action unavailable')).toBeTruthy();
     expect(view.getByLabelText('Configure launch defaults')).toBeDisabled();
-
-    writeBuilderEvidence('android-rendered-native-tree.json', {
-      protocolVersion: bundle.protocolVersion,
-      platform: 'android-react-native',
-      sourceBundle:
-        'scripts/ui-behavior-vectors.mjs#operatorBundle',
-      surfaceId: surface.surfaceId,
-      nodeKinds: [...nodeKinds].sort(),
-      tree: view.toJSON(),
-    });
   });
 
   test('renders every generated node arm contributed by the canonical fixture', () => {

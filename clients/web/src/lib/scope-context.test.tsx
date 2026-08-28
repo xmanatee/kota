@@ -1,5 +1,3 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
 import { uiSurfacesQuery } from "@/api/queries";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { ScopeProvider, useScopeId } from "@/lib/scope-context";
@@ -11,27 +9,6 @@ import {
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-function emitEvidence(name: string, html: string): void {
-  const target = process.env.KOTA_RUN_DIR;
-  if (!target) return;
-  const out = resolve(target, name);
-  mkdirSync(dirname(out), { recursive: true });
-  writeFileSync(
-    out,
-    [
-      "<!doctype html>",
-      `<html lang="en"><head><meta charset="utf-8"><title>${name}</title>`,
-      "<style>body{font-family:system-ui,sans-serif;padding:1rem;background:#fafafa;color:#111}",
-      "[data-testid='scope-selector']{padding:8px;border:1px solid #ccc;background:#fff}",
-      "select{margin-left:8px;padding:2px 6px;font-size:12px}",
-      ".panel{margin-top:1rem;padding:8px;border:1px solid #eee;background:#fff}",
-      "</style></head><body>",
-      html,
-      "</body></html>",
-    ].join("\n"),
-  );
-}
 
 const SCOPES = {
   rootScopeId: "global",
@@ -66,18 +43,6 @@ function readScopeId(url: string): string | null {
   if (qIndex === -1) return null;
   const params = new URLSearchParams(url.slice(qIndex + 1));
   return params.get("scopeId");
-}
-
-function emptyWorkflowStatus(): unknown {
-  return {
-    activeRuns: [],
-    pendingRuns: [],
-    queueLength: 0,
-    completedRuns: 0,
-    paused: false,
-    concurrency: 4,
-    workflows: {},
-  };
 }
 
 function makeFetchMock(): {
@@ -126,34 +91,6 @@ function makeFetchMock(): {
                 actions: [],
               },
             ],
-          }),
-      } as Response;
-    }
-    if (path === "/api/workflow/status") {
-      return {
-        ok: true,
-        json: () => Promise.resolve(emptyWorkflowStatus()),
-      } as Response;
-    }
-    if (path === "/api/workflow/definitions") {
-      return {
-        ok: true,
-        json: () => Promise.resolve({ definitions: [] }),
-      } as Response;
-    }
-    if (path === "/api/workflow/runs") {
-      return {
-        ok: true,
-        json: () => Promise.resolve({ runs: [] }),
-      } as Response;
-    }
-    if (path === "/api/tasks") {
-      return {
-        ok: true,
-        json: () =>
-          Promise.resolve({
-            counts: { inbox: 0, open: 0, blocked: 0 },
-            tasks: { open: [], blocked: [] },
           }),
       } as Response;
     }
@@ -231,7 +168,7 @@ describe("scope selector + scope-scoped routing", () => {
     globalThis.fetch = mock as unknown as typeof fetch;
 
     const Wrapper = makeWrapper();
-    const { container } = render(
+    render(
       <Wrapper>
         <ScopedSidebar />
       </Wrapper>,
@@ -260,11 +197,6 @@ describe("scope selector + scope-scoped routing", () => {
       false,
     );
 
-    emitEvidence(
-      "web-scope-selector-alpha.html",
-      `<div class="panel">${container.innerHTML}</div>`,
-    );
-
     // Switch to Beta.
     fireEvent.change(selector, { target: { value: "beta" } });
 
@@ -280,10 +212,5 @@ describe("scope selector + scope-scoped routing", () => {
       .filter((c) => c.scopeId === "beta")
       .map((c) => c.path);
     expect(betaCalls).toContain("/ui/surfaces");
-
-    emitEvidence(
-      "web-scope-selector-beta.html",
-      `<div class="panel">${container.innerHTML}</div>`,
-    );
   });
 });

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { SseEvent, SseEventType } from '../types';
+import type { SseEvent, SseEventType } from '../daemon/sse';
 
 type EventHandler = (event: SseEvent) => void;
 type MalformedEventHandler = (raw: string, error: Error) => void;

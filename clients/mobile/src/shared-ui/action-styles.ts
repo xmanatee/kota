@@ -38,14 +38,6 @@ export const actionStyles = StyleSheet.create({
   },
   multiline: { minHeight: 100, textAlignVertical: 'top' },
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  requirements: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  requirement: {
-    borderRadius: 10,
-    backgroundColor: '#e5e5ea',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  requirementLabel: { color: '#3a3a3c', fontSize: 10, fontWeight: '600' },
   option: {
     minHeight: 48,
     justifyContent: 'center',
@@ -57,7 +49,6 @@ export const actionStyles = StyleSheet.create({
   optionSelected: { borderColor: '#0a67c7', backgroundColor: '#eaf3fc' },
   optionLabel: { color: '#3a3a3c', fontWeight: '500' },
   optionLabelSelected: { color: '#0a67c7' },
-  actionRow: { gap: 8 },
   button: {
     minHeight: 48,
     alignItems: 'center',
@@ -79,7 +70,6 @@ export const actionStyles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   secondaryLabel: { color: '#1c1c1e', fontSize: 15, fontWeight: '600' },
-  operation: { color: '#6c6c70', fontSize: 11 },
   hint: { color: '#6c6c70', fontSize: 12, lineHeight: 17 },
   unavailable: { color: '#995c00', fontSize: 12, lineHeight: 17 },
   confirmation: {

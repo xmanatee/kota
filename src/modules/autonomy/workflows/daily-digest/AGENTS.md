@@ -37,10 +37,9 @@ per-category rendering short so chat surfaces stay readable.
 - The two events flow through the same notification module subscriptions
   (Telegram, Slack, email, webhook, push-notification), so operators do not
   configure separate delivery for them. `push-notification` ships an Expo
-  push with `data.screen = "digest"` for `workflow.daily.digest` and
-  `data.screen = "attention"` for `workflow.attention.digest` so the
-  mobile DigestScreen and AttentionScreen wake on the same cadence as
-  every other channel.
+  push targeting the shared `daily-digest` surface for
+  `workflow.daily.digest` and the shared `inbox` surface for
+  `workflow.attention.digest`.
 
 ## Outputs
 

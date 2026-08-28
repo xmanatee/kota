@@ -28,9 +28,9 @@ describe('routeNotificationResponse', () => {
     });
   });
 
-  test('fails closed for legacy screens and malformed ids', () => {
+  test('fails closed for malformed targets', () => {
     const router = makeRouter();
-    routeNotificationResponse({ screen: 'approvals', approvalId: 'a-1' }, router);
+    routeNotificationResponse({}, router);
     routeNotificationResponse({ surfaceId: '' }, router);
     routeNotificationResponse({ surfaceId: 'approvals', actionId: 42 }, router);
     routeNotificationResponse(undefined, router);

@@ -1,5 +1,4 @@
 import { getAuthToken } from "./client";
-import type { DaemonSseEventType } from "./types";
 
 type SseHandler = (data: Record<string, unknown>) => void;
 type MalformedSseHandler = (details: {
@@ -28,7 +27,7 @@ export class DaemonEventSource {
     this.onMalformedEvent = opts?.onMalformedEvent;
   }
 
-  on(event: DaemonSseEventType | string, handler: SseHandler): () => void {
+  on(event: string, handler: SseHandler): () => void {
     let set = this.handlers.get(event);
     if (!set) {
       set = new Set();

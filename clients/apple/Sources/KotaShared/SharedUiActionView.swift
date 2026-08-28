@@ -64,24 +64,11 @@ struct SharedUiActionView: View {
                 }
             }
 
-            if !(action.conditions ?? []).isEmpty || !(action.permissions ?? []).isEmpty {
-                SharedUiRequirementsView(
-                    conditions: action.conditions ?? [],
-                    permissions: action.permissions ?? []
-                )
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Button(isExecuting ? "Working…" : action.label) { submit() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(action.effect.tint)
-                    .disabled(!action.isReady || isExecuting)
-                    .controlSize(.small)
-                Text("\(action.operationLabel) · \(action.effect.rawValue)")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
+            Button(isExecuting ? "Working…" : action.label) { submit() }
+                .buttonStyle(.borderedProminent)
+                .tint(action.effect.tint)
+                .disabled(!action.isReady || isExecuting)
+                .controlSize(.small)
 
             if let message = action.readinessMessage {
                 Text(message)
@@ -198,36 +185,6 @@ struct SharedUiConfirmationView: View {
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(risk.tint.opacity(0.35)))
             .accessibilityIdentifier("ui-confirmation-\(action.actionId)")
         }
-    }
-}
-
-struct SharedUiRequirementsView: View {
-    let conditions: [UiCondition]
-    let permissions: [UiPermission]
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                ForEach(Array(conditions.enumerated()), id: \.offset) { _, condition in
-                    requirement(condition.label, filled: true)
-                }
-                ForEach(Array(permissions.enumerated()), id: \.offset) { _, permission in
-                    requirement(permission.label, filled: false)
-                }
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Action requirements")
-    }
-
-    private func requirement(_ label: String, filled: Bool) -> some View {
-        Text(label)
-            .font(.caption2)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 3)
-            .background(filled ? Color.secondary.opacity(0.12) : Color.clear)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Color.secondary.opacity(0.25)))
     }
 }
 

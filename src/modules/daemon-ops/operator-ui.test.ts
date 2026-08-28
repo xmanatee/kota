@@ -169,7 +169,7 @@ describe("operator shared UI surfaces", () => {
     });
     expect(rendered).toContain("Inbox");
     expect(rendered).toContain("Daemon is offline");
-    expect(rendered).toContain("GET /approvals?status=pending");
+    expect(rendered).toContain("Approval required: shell.exec");
   });
 
   it("executes typed daemon-route UI actions through an injected route executor", async () => {

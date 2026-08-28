@@ -105,36 +105,7 @@ extension UiLogLevel {
     }
 }
 
-extension UiCondition {
-    var label: String {
-        switch self {
-        case .capability(let capabilityId, let status):
-            return "\(capabilityId): \(status.rawValue)"
-        case .setup(let moduleName, let requirementId, let state):
-            return "\(moduleName)/\(requirementId): \(state.rawValue)"
-        case .scope(let scopeId):
-            return "Scope \(scopeId)"
-        }
-    }
-}
-
-extension UiPermission {
-    var label: String {
-        switch self {
-        case .capabilityScope(let scope): return "\(scope.rawValue) access"
-        case .effect(let effect): return "\(effect.rawValue) effect"
-        }
-    }
-}
-
 extension UiAction {
-    var operationLabel: String {
-        switch operation {
-        case .daemonRoute(let method, let path): return "\(method.rawValue) \(path)"
-        case .clientNamespace(let method, let namespace): return "\(namespace).\(method)"
-        }
-    }
-
     var readinessMessage: String? {
         switch readiness {
         case .ready(let message): return message
@@ -170,7 +141,7 @@ private func collectUiActionIds(
             }
         case .list(let items, _):
             result.formUnion(items.compactMap { $0.action?.actionId })
-        case .table(_, let rows, _):
+        case .table(_, let rows, _, _):
             result.formUnion(rows.compactMap { $0.action?.actionId })
         case .form(_, let submit, _), .command(let submit),
              .empty(let submit, _, _), .error(let submit, _, _):
