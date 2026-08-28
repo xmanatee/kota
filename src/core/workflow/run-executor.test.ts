@@ -82,7 +82,7 @@ function registerWorkflowScenarioDriver(
   });
 }
 
-function makeRunContext(workspaceRoot: string): RunContext {
+function makeRunContext(workspaceRoot: string, attempt = 1): RunContext {
   const runId = "test-run";
   const rootDir = join(workspaceRoot, ".kota", "runtime", runId);
   const workspaceDir = join(rootDir, "workspace");
@@ -95,7 +95,7 @@ function makeRunContext(workspaceRoot: string): RunContext {
   }
 
   return {
-    run: { id: runId, attempt: 1, daemonEpoch: 1 },
+    run: { id: runId, attempt, daemonEpoch: 1 },
     scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
     trigger: TRIGGER,
@@ -109,7 +109,7 @@ function makeRunContext(workspaceRoot: string): RunContext {
     },
     resources: {
       runId,
-      attempt: 1,
+      attempt,
       daemonEpoch: 1,
       workspaceDir,
       runDir: rootDir,
@@ -553,6 +553,52 @@ describe("step timeout", () => {
     expect(result.metadata.status).toBe("success");
     expect(result.metadata.steps[0]?.harness).toBe(harness);
   }, 10_000);
+
+  it("resumes a provider session when the same durable run is attempted again", async () => {
+    const harness = "workflow-durable-session";
+    const resumeSessionIds: Array<string | undefined> = [];
+    registerWorkflowScenarioDriver(harness, async (options: AgentHarnessRunOptions) => {
+      resumeSessionIds.push(options.resumeSessionId);
+      if (resumeSessionIds.length === 1) {
+        return {
+          ...AGENT_OK_RESULT,
+          text: "Individual quota reached. Resets in 1m.",
+          streamedText: "",
+          sessionId: "provider-session-1",
+          subtype: "ERROR",
+          isError: true,
+        };
+      }
+      return { ...AGENT_OK_RESULT, sessionId: "provider-session-1" };
+    });
+    const definition = makeDefinition({
+      moduleRoot: workspaceRoot,
+      steps: [makeAgentStep(workspaceRoot, harness)],
+    });
+
+    const first = await executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      runContext: makeRunContext(workspaceRoot, 1),
+      bus,
+      store,
+      log,
+    }).promise;
+    expect(first.metadata.steps[0]).toMatchObject({
+      status: "failed",
+      output: { sessionId: "provider-session-1" },
+    });
+
+    const second = await executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      runContext: makeRunContext(workspaceRoot, 2),
+      bus,
+      store,
+      log,
+    }).promise;
+
+    expect(second.metadata.status).toBe("success");
+    expect(resumeSessionIds).toEqual([undefined, "provider-session-1"]);
+  });
 
   it("governs an unbounded agent step only by trusted idle progress", async () => {
     const harness = "workflow-idle-governed";

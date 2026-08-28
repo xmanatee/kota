@@ -51,6 +51,7 @@ export async function runAgentAttempt(input: {
   tokenBudget?: AgentTokenBudgetLedger;
   onSuccessfulAttemptMessages: (messages: KotaAgentMessage[]) => void;
   onJsonOutputFeedback: (feedback: string) => void;
+  onSessionId: (sessionId: string) => void;
   outputValidationContext: WorkflowAgentStepOutputValidationContext;
 }): Promise<WorkflowStepOutput> {
   const {
@@ -185,6 +186,7 @@ export async function runAgentAttempt(input: {
       : runHarness();
     idleMonitor = createAgentStepIdleMonitor(step, attemptAbortController);
     const result = await waitForAgentHarnessWithIdleMonitor(harnessRun, idleMonitor);
+    if (result.sessionId !== undefined) input.onSessionId(result.sessionId);
     if (result.isError) {
       const reason = result.subtype ?? "error";
       const detail = result.text.trim() || "Agent step returned an error result";
@@ -195,6 +197,7 @@ export async function runAgentAttempt(input: {
           classified.kind,
           false,
           classified.retryAt,
+          result.sessionId,
         );
       }
       throw new Error(`Agent step "${step.id}" failed (${reason}): ${detail}`);

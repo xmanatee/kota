@@ -142,6 +142,8 @@ export function recordWorkflowStepFailure(args: {
       ? {
           output: repairFailureOutput?.output,
         }
+      : agentRuntimeFailure?.sessionId !== undefined
+        ? { output: { sessionId: agentRuntimeFailure.sessionId } }
       : {}),
     error: err.message,
     ...(idleTimeoutError !== undefined

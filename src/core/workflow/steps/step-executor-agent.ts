@@ -155,11 +155,21 @@ export async function executeAgentStep(
     agentConfig.config,
   );
 
-  const runAttempt = (): Promise<WorkflowStepOutput> =>
-    runAgentAttempt({
+  let resumeSessionId = agentConfig.resumeSessionIds?.[step.id];
+  const runAttempt = (): Promise<WorkflowStepOutput> => {
+    const attemptConfig = resumeSessionId === undefined
+      ? agentConfig
+      : {
+          ...agentConfig,
+          resumeSessionIds: {
+            ...agentConfig.resumeSessionIds,
+            [step.id]: resumeSessionId,
+          },
+        };
+    return runAgentAttempt({
       step,
       metadata,
-      agentConfig,
+      agentConfig: attemptConfig,
       resolvedHarness,
       resolvedModel,
       prompt: agentPrompt.prompt,
@@ -176,11 +186,15 @@ export async function executeAgentStep(
       onJsonOutputFeedback: (feedback) => {
         lastJsonOutputFeedback = feedback;
       },
+      onSessionId: (sessionId) => {
+        resumeSessionId = sessionId;
+      },
       outputValidationContext: {
         workspaceRoot: agentConfig.workspaceRoot ?? agentConfig.scopeRoot,
         stepOutputs: priorStepOutputs,
       },
     });
+  };
 
   const retry = step.retry ?? DEFAULT_AGENT_STEP_RETRY;
   const runWithRetry = () => withRetry(runAttempt, retry, {

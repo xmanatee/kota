@@ -70,4 +70,6 @@ export type AgentStepConfig = {
   scopePolicyAuthority?: ScopePolicyAuthority;
   scopePolicySnapshot?: ScopePolicySnapshot;
   scopePolicy?: ResolvedScopePolicy;
+  /** Native provider sessions retained by step id across durable run attempts. */
+  resumeSessionIds?: Readonly<Record<string, string>>;
 };

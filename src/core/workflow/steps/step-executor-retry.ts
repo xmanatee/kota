@@ -22,6 +22,7 @@ export class AgentStepRuntimeError extends Error {
     readonly kind: WorkflowAgentBackoffKind,
     readonly retryable: boolean,
     readonly retryAt?: string,
+    readonly sessionId?: string,
   ) {
     super(message);
     this.name = "AgentStepRuntimeError";

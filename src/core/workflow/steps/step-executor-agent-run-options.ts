@@ -7,6 +7,7 @@ import {
   type AgentTokenBudgetLedger,
   composeCanUseTools,
   createWorkflowAgentGuards,
+  harnessSupportsRunOption,
   type KotaAgentMessage,
 } from "#core/agent-harness/index.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
@@ -111,10 +112,15 @@ export function buildAgentHarnessRunOptions(input: {
   });
   const askOwner = contract.askOwner;
   const modelProvider = modelProviderSelection(agentConfig.config);
+  const resumeSessionId = agentConfig.resumeSessionIds?.[step.id];
 
   return {
     options: {
       ...contract.options,
+      ...(resumeSessionId !== undefined &&
+          harnessSupportsRunOption(resolvedHarness, "resumeSessionId")
+        ? { resumeSessionId }
+        : {}),
       scopeRoot: agentConfig.scopeRoot,
       cwd: workspaceDir,
       ...(agentWriteScope !== undefined ? { agentWriteScope } : {}),

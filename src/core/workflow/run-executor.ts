@@ -22,6 +22,7 @@ import type {
   WorkflowRunStatus,
   WorkflowRuntimeResources,
   WorkflowRunWarning,
+  WorkflowStepResult,
 } from "./run-types.js";
 import { createStepContext } from "./steps/step-context.js";
 import {
@@ -36,6 +37,37 @@ import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export type { RunExecutorDeps } from "./run-executor-deps.js";
+
+function collectAgentSessionIds(
+  steps: readonly WorkflowStepResult[],
+): Record<string, string> {
+  const sessions: Record<string, string> = {};
+  const visit = (result: WorkflowStepResult): void => {
+    if (
+      result.type === "agent" &&
+      result.output !== null &&
+      typeof result.output === "object" &&
+      typeof (result.output as { sessionId?: unknown }).sessionId === "string"
+    ) {
+      sessions[result.id] = (result.output as { sessionId: string }).sessionId;
+    }
+    if (
+      result.type !== "parallel" &&
+      result.type !== "branch" &&
+      result.type !== "foreach"
+    ) return;
+    if (result.output === null || typeof result.output !== "object") return;
+    const children = (result.output as { steps?: unknown }).steps;
+    if (!Array.isArray(children)) return;
+    for (const child of children) {
+      if (child !== null && typeof child === "object") {
+        visit(child as WorkflowStepResult);
+      }
+    }
+  };
+  for (const step of steps) visit(step);
+  return sessions;
+}
 
 export function executeWorkflowRun(
   definition: WorkflowDefinition,
@@ -89,6 +121,10 @@ export function executeWorkflowRun(
     approvalQueue,
     resolveAgentHarness: inputDeps.resolveAgentHarness ?? resolveAgentHarness,
   };
+  const previousAttempt = runContext.run.attempt > 1
+    ? deps.store.getRun(runContext.run.id)
+    : null;
+  const resumeSessionIds = collectAgentSessionIds(previousAttempt?.steps ?? []);
   const run = deps.store.createRun(
     definition,
     trigger,
@@ -186,6 +222,9 @@ export function executeWorkflowRun(
           scopePolicyAuthority: deps.scopePolicyAuthority,
           scopePolicySnapshot,
           scopePolicy: scopePolicySnapshot?.policy,
+          ...(Object.keys(resumeSessionIds).length > 0
+            ? { resumeSessionIds }
+            : {}),
         };
 
         const runDecision = await evaluateStepRunDecision(step, context);
