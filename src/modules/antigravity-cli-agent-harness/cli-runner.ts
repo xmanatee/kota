@@ -265,7 +265,6 @@ export async function collectTextFromAntigravityCli(
     "--mode",
     args.readOnly ? "plan" : "accept-edits",
     "--dangerously-skip-permissions",
-    "--sandbox",
     "--output-format",
     "stream-json",
     "--print-timeout",

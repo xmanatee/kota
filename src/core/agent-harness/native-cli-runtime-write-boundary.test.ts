@@ -147,6 +147,7 @@ describe("native CLI runtime write boundary", () => {
       roots.push(scopeRoot);
       const runtimeRoot = join(scopeRoot, ".kota");
       const workspaceRoot = join(runtimeRoot, "runtime", "worktrees", "run-1");
+      const dependencyPath = join(scopeRoot, "node_modules", "fixture", "index.js");
       const agentRunDir = join(runtimeRoot, "builder-evidence", "run-1");
       const artifactRoot = join(agentRunDir, "artifacts");
       const tempRoot = join(runtimeRoot, "tmp", "run-1");
@@ -155,9 +156,11 @@ describe("native CLI runtime write boundary", () => {
       const tempPath = join(tempRoot, "scratch.txt");
       const workspacePath = join(workspaceRoot, "change.txt");
       mkdirSync(workspaceRoot, { recursive: true });
+      mkdirSync(join(scopeRoot, "node_modules", "fixture"), { recursive: true });
       mkdirSync(artifactRoot, { recursive: true });
       mkdirSync(tempRoot, { recursive: true });
       writeFileSync(statePath, "preserve\n");
+      writeFileSync(dependencyPath, "dependency\n");
 
       const result = await withNativeCliSandbox(
         "/bin/sh",
@@ -165,6 +168,8 @@ describe("native CLI runtime write boundary", () => {
           'printf "artifact\\n" > "$ARTIFACT" || exit 20',
           'printf "scratch\\n" > "$SCRATCH" || exit 21',
           'printf "change\\n" > "$WORKSPACE_FILE" || exit 24',
+          'test "$(cat "$ARTIFACT")" = artifact || exit 25',
+          'test "$(cat "$DEPENDENCY")" = dependency || exit 26',
           'if printf "corrupt\\n" > "$STATE"; then exit 22; fi',
           'if mv "$RUNTIME_ROOT" "$RUNTIME_ROOT.bak"; then exit 23; fi',
         ].join("; ")],
@@ -182,6 +187,7 @@ describe("native CLI runtime write boundary", () => {
               ARTIFACT: artifactPath,
               SCRATCH: tempPath,
               WORKSPACE_FILE: workspacePath,
+              DEPENDENCY: dependencyPath,
               STATE: statePath,
               RUNTIME_ROOT: runtimeRoot,
             },

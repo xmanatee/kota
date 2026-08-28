@@ -87,7 +87,7 @@ describe("antigravityCliAgentHarness execution", () => {
       expect.any(Function),
     );
     const commandArgs = spawnMock.mock.calls[0][1] as string[];
-    expect(commandArgs).toContain("--sandbox");
+    expect(commandArgs).not.toContain("--sandbox");
     const promptArg = commandArgs[commandArgs.indexOf("--print") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
     expect(promptArg).toContain("Do not run `git commit`");
@@ -122,7 +122,7 @@ describe("antigravityCliAgentHarness execution", () => {
     });
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "agy",
-      expect.arrayContaining(["--sandbox"]),
+      expect.arrayContaining(["--dangerously-skip-permissions"]),
       expect.objectContaining({ readOnlyHostRoots: [keychainPath] }),
       expect.any(Function),
     );

@@ -104,6 +104,17 @@ function safeExecutableDirectory(path: string, cwd: string): boolean {
   return normalized === join(homedir(), "Library", "pnpm");
 }
 
+function nearestDependencyRoot(cwd: string): string | undefined {
+  let directory = resolve(cwd);
+  while (true) {
+    const dependencyRoot = join(directory, "node_modules");
+    if (existsSync(dependencyRoot)) return realpathSync.native(dependencyRoot);
+    const parent = dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+}
+
 export function nativeCliGitMetadataRoots(cwd: string): string[] {
   const result = spawnSync(
     "git",
@@ -138,7 +149,7 @@ export function nativeCliReadableRoots(
     .split(delimiter)
     .filter(Boolean)
     .filter((path) => safeExecutableDirectory(path, cwd));
-  const dependencyRoot = join(cwd, "node_modules");
+  const dependencyRoot = nearestDependencyRoot(cwd);
   const executablePackageRoot = nodePackageRoot(executablePath);
   const executableInstallationRoot = trustedPathInstallationRoot(executablePath);
   return [...new Set([
@@ -146,7 +157,7 @@ export function nativeCliReadableRoots(
     cwd,
     invocationRoot,
     ...nativeCliGitMetadataRoots(cwd),
-    ...(existsSync(dependencyRoot) ? [dependencyRoot] : []),
+    ...(dependencyRoot === undefined ? [] : [dependencyRoot]),
     ...pathDirectories.filter(existsSync),
     ...pathDirectories.flatMap((path) => {
       const root = trustedPathInstallationRoot(path);

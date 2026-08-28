@@ -173,6 +173,10 @@ export async function withNativeCliSandbox<T>(
       temporaryDirectory,
       options.env,
     );
+    const explicitRuntimeWritableRoots = absoluteRoots(
+      options.runtimeWritableRoots ?? [],
+      options.cwd,
+    );
     const executablePath = resolveNativeCliExecutable(
       executable,
       packageManager.env,
@@ -216,6 +220,7 @@ export async function withNativeCliSandbox<T>(
           )),
       ...(options.readOnlyHostRoots ?? []),
       ...packageManager.readOnlyHostRoots,
+      ...explicitRuntimeWritableRoots,
     ];
     const readProtectedPaths = [...new Set([
       ...existingProtectedScopePaths(options.cwd),
@@ -234,7 +239,7 @@ export async function withNativeCliSandbox<T>(
       options.runtimeStateRoot ?? join(options.cwd, ".kota"),
     );
     const runtimeWritableRoots = absoluteRoots([
-      ...(options.runtimeWritableRoots ?? []),
+      ...explicitRuntimeWritableRoots,
       ...options.writableRoots,
     ], options.cwd).filter((root) =>
       root !== runtimeStateRoot && pathIsWithin(runtimeStateRoot, root)
