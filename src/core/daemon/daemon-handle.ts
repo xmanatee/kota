@@ -28,6 +28,7 @@ import type {
 } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeAuthorityMutation } from "./scope-authority-types.js";
+import type { LifecycleCollector } from "./lifecycle-collector.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
 import {
   defaultScopePolicyDecisionExamples,
@@ -64,6 +65,7 @@ export type DaemonHandleContext = {
   getEventLoopLatency?: () => EventLoopLatencySnapshot;
   probeCapabilityReadiness: () => Promise<CapabilityReadinessResponse>;
   getChannelStatuses: () => readonly ChannelStatus[];
+  collector?: LifecycleCollector;
 };
 
 export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle {
@@ -291,5 +293,13 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       session.autonomyMode = mode;
       return { ok: true, serveOwned: session.source !== "daemon" };
     },
+    getLifecycleStatus: (options) =>
+      ctx.collector
+        ? ctx.collector.status(options)
+        : Promise.reject(new Error("Lifecycle collector is unavailable")),
+    runLifecycleSweep: (options) =>
+      ctx.collector
+        ? ctx.collector.sweep(options)
+        : Promise.reject(new Error("Lifecycle collector is unavailable")),
   };
 }

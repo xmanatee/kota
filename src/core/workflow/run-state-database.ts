@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import Database from "better-sqlite3";
@@ -1683,4 +1683,59 @@ export class RunStateDatabase {
     return `scope:${scopeId}:${logicalKey}`;
   }
 
+  pruneDeliveredPublications(deliveredBefore: string): { count: number } {
+    const result = this.database
+      .prepare(
+        `DELETE FROM run_publications
+         WHERE delivered_at IS NOT NULL AND delivered_at <= ?`,
+      )
+      .run(deliveredBefore);
+    return { count: result.changes };
+  }
+
+  pruneTerminalRuns(input: {
+    finishedBefore: string;
+    excludedRunIds?: readonly string[];
+  }): { count: number; runIds: string[] } {
+    const excluded = new Set(input.excludedRunIds ?? []);
+    const candidateRuns = this.database
+      .prepare(
+        `SELECT id FROM runs
+         WHERE state IN ('succeeded', 'failed', 'cancelled')
+           AND finished_at IS NOT NULL
+           AND finished_at <= ?`,
+      )
+      .all(input.finishedBefore) as Array<{ id: string }>;
+    const runIds = candidateRuns.map((r) => r.id).filter((id) => !excluded.has(id));
+    if (runIds.length === 0) return { count: 0, runIds: [] };
+
+    const deleteTx = this.database.transaction((ids: string[]) => {
+      const stmt = this.database.prepare("DELETE FROM runs WHERE id = ?");
+      for (const id of ids) {
+        stmt.run(id);
+      }
+    });
+    deleteTx(runIds);
+    return { count: runIds.length, runIds };
+  }
+
+  cleanStaleProcesses(): { count: number } {
+    const result = this.database
+      .prepare(
+        `DELETE FROM run_processes
+         WHERE run_id NOT IN (
+           SELECT id FROM runs WHERE state IN ('running', 'integrating')
+         )`,
+      )
+      .run();
+    return { count: result.changes };
+  }
+
+  compact(): { bytesReclaimed: number } {
+    const sizeBefore = existsSync(this.path) ? statSync(this.path).size : 0;
+    this.database.pragma("wal_checkpoint(TRUNCATE)");
+    this.database.pragma("incremental_vacuum");
+    const sizeAfter = existsSync(this.path) ? statSync(this.path).size : 0;
+    return { bytesReclaimed: Math.max(0, sizeBefore - sizeAfter) };
+  }
 }

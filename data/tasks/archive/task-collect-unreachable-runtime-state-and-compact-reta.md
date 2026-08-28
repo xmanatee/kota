@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Collect unreachable runtime state and compact retained evidence

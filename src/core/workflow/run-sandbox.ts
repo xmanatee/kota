@@ -79,7 +79,7 @@ function assertRunId(runId: string): void {
   }
 }
 
-function allocationName(runId: string): string {
+export function allocationName(runId: string): string {
   const slug = runId
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")

@@ -48,6 +48,12 @@ import type {
   ScopeId,
   ScopeRegistryProjection,
 } from "./scope-registry.js";
+import type {
+  LifecycleStatusOptions,
+  LifecycleStatusReport,
+  LifecycleSweepOptions,
+  LifecycleSweepReport,
+} from "./lifecycle-collector-types.js";
 
 /** Operations exposed by the daemon control plane. */
 export type DaemonControlHandle = {
@@ -185,4 +191,6 @@ export type DaemonControlHandle = {
     notFound?: boolean;
     serveOwned?: boolean;
   };
+  getLifecycleStatus?(options?: LifecycleStatusOptions): Promise<LifecycleStatusReport>;
+  runLifecycleSweep?(options?: LifecycleSweepOptions): Promise<LifecycleSweepReport>;
 };

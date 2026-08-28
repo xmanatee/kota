@@ -22,6 +22,7 @@ import type { ScopeLifecycleService } from "./scope-lifecycle.js";
 import type { ScopeRegistry } from "./scope-registry.js";
 import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
+import type { LifecycleCollector } from "./lifecycle-collector.js";
 
 /** Mutable and immutable lifecycle state for one daemon instance. */
 export type DaemonRuntimeContext = {
@@ -48,6 +49,7 @@ export type DaemonRuntimeContext = {
   readonly scopeRuntimes: ScopeRuntimeRegistry;
   readonly scopeLifecycle: ScopeLifecycleService;
   readonly scopeRuntimeHost: ScopeRuntimeHost;
+  readonly collector: LifecycleCollector;
   readonly eventLoopLatency: DaemonEventLoopLatencyMonitor;
   readonly startupDispatchPaused: boolean;
   unsubscribe: (() => void) | null;
@@ -81,5 +83,6 @@ export type BuildDaemonInitParams = {
   scopeAuthority: ScopeAuthorityService;
   scopeAuthorityOperatorVerifier: ScopeAuthorityOperatorTokenVerifier;
   scopeRuntimes: ScopeRuntimeRegistry;
+  collector: LifecycleCollector;
   startupDispatchPaused: boolean;
 };

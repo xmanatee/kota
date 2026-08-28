@@ -287,5 +287,51 @@ export function buildDaemonCoreControlRoutes(
       handler: (_req, res) => h.getClientIdentity()
         .then((identity) => jsonResponse(res, 200, identity)),
     },
+    {
+      method: "GET",
+      path: "/lifecycle/status",
+      capabilityScope: "read",
+      handler: async (req, res) => {
+        if (!h.getLifecycleStatus) {
+          jsonResponse(res, 501, { error: "Lifecycle collector is unavailable" });
+          return;
+        }
+        const url = new URL(req.url ?? "/", "http://127.0.0.1");
+        const scopeId = url.searchParams.get("scopeId") ?? undefined;
+        try {
+          const report = await h.getLifecycleStatus({ scopeId });
+          jsonResponse(res, 200, report);
+        } catch (error) {
+          jsonResponse(res, 500, { error: error instanceof Error ? error.message : String(error) });
+        }
+      },
+    },
+    {
+      method: "POST",
+      path: "/lifecycle/sweep",
+      capabilityScope: "control",
+      handler: async (req, res) => {
+        if (!h.runLifecycleSweep) {
+          jsonResponse(res, 501, { error: "Lifecycle collector is unavailable" });
+          return;
+        }
+        const rawBody = await readBody(req);
+        let body: { dryRun?: boolean; scopeId?: string; targetRunId?: string } = {};
+        if (rawBody.length > 0) {
+          try {
+            body = JSON.parse(rawBody.toString("utf8"));
+          } catch {
+            jsonResponse(res, 400, { error: "Request body must be valid JSON" });
+            return;
+          }
+        }
+        try {
+          const report = await h.runLifecycleSweep(body);
+          jsonResponse(res, 200, report);
+        } catch (error) {
+          jsonResponse(res, 500, { error: error instanceof Error ? error.message : String(error) });
+        }
+      },
+    },
   ];
 }

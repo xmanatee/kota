@@ -27,6 +27,7 @@ import { ScopeAuthorityService } from "./scope-authority-service.js";
 import { ScopeAuthorityStore } from "./scope-authority-store.js";
 import { resolveConfiguredScopes, ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeRegistry } from "./scope-runtime.js";
+import { LifecycleCollector } from "./lifecycle-collector.js";
 
 export type DaemonRuntimeContextHooks = {
   onScopeTrustRevoked?: (scopeId: string) => void;
@@ -174,6 +175,27 @@ export async function createDaemonRuntimeContext(
     uninstallEventIdempotency();
   };
 
+  const collector = new LifecycleCollector({
+    stateDir,
+    scopeRegistry,
+    runState,
+    eventJournal,
+    scopeRuntimes,
+    resolveScopeStores: (scopeId) => {
+      const runtime = scopeRuntimes.get(scopeId);
+      return {
+        idempotencyStore: runtime.idempotencyStore,
+        deadLetterQueue: runtime.deadLetterQueue,
+        runStore: runtime.runStore,
+        ownerDecisionStore: runtime.ownerDecisionStore,
+        ownerQuestionQueue: runtime.ownerQuestionQueue,
+      };
+    },
+    sessionIdleTtlMs: config.sessionIdleTtlMs ?? config.config?.daemon?.sessionIdleTtlMs ?? 5 * 60_000,
+    log,
+  });
+  await collector.sweep({ dryRun: false });
+
   return buildDaemonInit({
     config,
     scopeRoot: scopeRoot,
@@ -192,6 +214,7 @@ export async function createDaemonRuntimeContext(
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
     scopeRuntimes,
+    collector,
     startupDispatchPaused: blockedRecovery.length > 0,
   });
   } catch (error) {

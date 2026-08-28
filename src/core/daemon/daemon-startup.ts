@@ -82,6 +82,9 @@ export async function runDaemonStartup(
         .get(session.scopeId)
         .pbus.emit("session.unregistered", { id: session.id });
     }
+    void ctx.collector.sweep({ dryRun: false }).catch((error) => {
+      ctx.log(`Lifecycle sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
   }, sweepMs);
 
   if (ctx.config.probeModuleHealthChecks) {
@@ -108,7 +111,10 @@ export async function runDaemonStartup(
     pollIntervalMs: pollMs,
     approvalTtlMs: ctx.config.config?.approvalTtlMs,
     moduleCrashAlertOpts: ctx.config.config?.moduleMonitoring,
-    onWorkflowCompleted: () => hooks.maybeRestart(),
+    onWorkflowCompleted: (payload) => {
+      void ctx.collector.sweep({ targetRunId: payload.runId }).catch(() => {});
+      hooks.maybeRestart();
+    },
     onRestartRequested: (reason) => hooks.requestRestart(reason),
     onLog: ctx.log,
   });

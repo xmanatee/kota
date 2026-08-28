@@ -66,3 +66,19 @@ export {
 	type TaskStatus,
 	TaskStore,
 } from "./task-store.js";
+export {
+	LifecycleCollector,
+} from "./lifecycle-collector.js";
+export type {
+	LifecycleCandidate,
+	LifecycleCandidateDecision,
+	LifecycleCollectorDeps,
+	LifecycleScopeStores,
+	LifecycleStatusOptions,
+	LifecycleStatusReport,
+	LifecycleStoreName,
+	LifecycleSweepOptions,
+	LifecycleSweepReport,
+	StoreReclamationSummary,
+} from "./lifecycle-collector-types.js";
+

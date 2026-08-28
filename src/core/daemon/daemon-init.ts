@@ -71,6 +71,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
     scopeRuntimes,
+    collector,
     startupDispatchPaused,
   } = params;
   const sessions = new Map<string, InteractiveSession>();
@@ -170,6 +171,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     probeCapabilityReadiness: () =>
       probeCapabilityReadinessWithTrigger(getDefaultWorkflows(), providerRegistry),
     getChannelStatuses: () => ctx.channelStatuses,
+    collector,
   });
 
   // Register the workflow-dispatcher / metrics-source / definitions seams so
@@ -291,6 +293,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     scopeRuntimes,
     scopeLifecycle,
     scopeRuntimeHost,
+    collector,
     eventLoopLatency,
     startupDispatchPaused,
     unsubscribe: null,
