@@ -1,4 +1,4 @@
-import { appendFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { AgentUsageAccumulator } from "#core/agent-harness/usage.js";
@@ -9,7 +9,12 @@ import {
   type ControlMonitorCoverageArtifact,
   writeControlMonitorCoverageArtifactBestEffort,
 } from "./control-monitor-coverage.js";
-import { triggerPayloadLinkedRunIds } from "./control-monitor-coverage-readers.js";
+import {
+  artifactRef,
+  triggerPayloadLinkedRunIds,
+} from "./control-monitor-coverage-readers.js";
+import type { ReviewerLinks } from "./control-monitor-coverage-reviewers.js";
+import { ASYNC_REVIEW_ARTIFACTS } from "./control-monitor-coverage-types.js";
 import {
   formatProjectedEvidenceText,
   projectKotaAgentMessageForStorage,
@@ -91,6 +96,7 @@ export function createActiveRunHandle(opts: {
     completed: WorkflowRunMetadata,
     errorArtifact: string,
     targetHeadSha: string | null,
+    linkedReviewers?: ReviewerLinks,
   ): void => {
     writeControlMonitorCoverageArtifactBestEffort({
       scopeRoot,
@@ -99,6 +105,7 @@ export function createActiveRunHandle(opts: {
       headSha: targetHeadSha,
       errorArtifact,
       errorRunDirPath: runDirPath,
+      ...(linkedReviewers === undefined ? {} : { linkedReviewers }),
     });
   };
 
@@ -138,6 +145,19 @@ export function createActiveRunHandle(opts: {
         join(sourceRunDirPath, "metadata.json"),
       );
       if (!sourceMetadata) continue;
+      const reviewArtifact = ASYNC_REVIEW_ARTIFACTS.find((artifact) =>
+        existsSync(join(runDirPath, artifact))
+      );
+      if (reviewArtifact === undefined) continue;
+      const sourceCompletedAt = sourceMetadata.completedAt === undefined
+        ? Number.NaN
+        : Date.parse(sourceMetadata.completedAt);
+      const reviewerStartedAt = Date.parse(completed.startedAt);
+      const responseTime = Number.isFinite(sourceCompletedAt) &&
+          Number.isFinite(reviewerStartedAt) &&
+          reviewerStartedAt >= sourceCompletedAt
+        ? [reviewerStartedAt - sourceCompletedAt]
+        : [];
       persistControlCoverage(
         sourceRunDirPath,
         sourceMetadata,
@@ -145,6 +165,10 @@ export function createActiveRunHandle(opts: {
         readOptionalJsonFile<ControlMonitorCoverageArtifact>(
           join(sourceRunDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT),
         )?.run.headSha ?? null,
+        {
+          evidenceRefs: [artifactRef(scopeRoot, join(runDirPath, reviewArtifact))],
+          responseTimes: responseTime,
+        },
       );
     }
   };

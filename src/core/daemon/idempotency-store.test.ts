@@ -78,7 +78,7 @@ describe("IdempotencyStore", () => {
   it("persists retention, exposes expiry, then accepts the next request as fresh work", () => {
     const first = store.record({
       scopeId: "scope-a",
-      operation: "workflow-dispatch",
+      operation: "event-ingestion",
       key: "workflow:abc",
       parameterFingerprint: "fp-1",
       result: { runId: "run-1" },
@@ -93,7 +93,7 @@ describe("IdempotencyStore", () => {
     nowMs += 11;
     const expired = store.record({
       scopeId: "scope-a",
-      operation: "workflow-dispatch",
+      operation: "event-ingestion",
       key: "workflow:abc",
       parameterFingerprint: "fp-2",
       result: { runId: "run-2" },
@@ -111,7 +111,7 @@ describe("IdempotencyStore", () => {
 
     const fresh = store.record({
       scopeId: "scope-a",
-      operation: "workflow-dispatch",
+      operation: "event-ingestion",
       key: "workflow:abc",
       parameterFingerprint: "fp-2",
       result: { runId: "run-2" },
@@ -175,6 +175,24 @@ describe("IdempotencyStore", () => {
       parameterFingerprint: "fp",
     });
     expect(replayed.status).toBe("replayed");
+  });
+
+  it("preserves an ambiguous expired reservation across restart until expiry is observed", () => {
+    const input = {
+      scopeId: "scope-a",
+      operation: "provider-write" as const,
+      key: "tool:ambiguous",
+      parameterFingerprint: "fp",
+      retention: { kind: "expire-after-ms" as const, durationMs: 10 },
+    };
+    expect(store.claim(input).status).toBe("accepted");
+
+    nowMs += 11;
+    store = new IdempotencyStore(join(root, "scope-a"), "scope-a", () => new Date(nowMs));
+    expect(store.claim(input).status).toBe("expired");
+
+    store = new IdempotencyStore(join(root, "scope-a"), "scope-a", () => new Date(nowMs));
+    expect(store.claim(input).status).toBe("accepted");
   });
 
   it("suppresses duplicate provider events through bus middleware", () => {

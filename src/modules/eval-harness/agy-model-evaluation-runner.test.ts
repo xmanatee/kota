@@ -16,6 +16,7 @@ import {
 } from "./agy-model-evaluation.js";
 import {
   AGY_EXECUTION_PROFILE,
+  AGY_OPTIONS,
   cleanupAgyModelEvaluationTestEnvironment,
   configureFakeCandidateContainer,
   executeVerifierOnTestHost,
@@ -137,22 +138,23 @@ describe("AGY model evaluation runner", () => {
         'container image "kota-eval:latest"',
       );
       expect(requests).toHaveLength(3);
+      const candidate = AGY_OPTIONS.candidates[0];
       expect(
         requests.map((request) => request.agentExecutionOverride),
       ).toEqual([
         {
           harness: "antigravity-cli",
-          model: "gemini-3.6-flash",
+          model: candidate,
           effort: "max",
         },
         {
           harness: "antigravity-cli",
-          model: "gemini-3.6-flash",
+          model: candidate,
           effort: "max",
         },
         {
           harness: "antigravity-cli",
-          model: "gemini-3.6-flash",
+          model: candidate,
           effort: "max",
         },
       ]);
@@ -160,7 +162,7 @@ describe("AGY model evaluation runner", () => {
         requests.every((request) => request.replayRecordingsRoot === undefined),
       ).toBe(true);
       expect(result.report.candidates[0]).toMatchObject({
-        model: "gemini-3.6-flash",
+        model: candidate,
         harness: "antigravity-cli",
         effort: "max",
         nativeEffort: "high",

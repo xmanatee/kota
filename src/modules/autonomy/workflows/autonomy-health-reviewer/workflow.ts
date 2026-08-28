@@ -74,16 +74,17 @@ const publishReview = typedCodeStep<PublishedReview>({
       review,
       plannedActions: planActions.outputRequired(ctx).actions,
     });
+    const { projection, ...actions } = finalized;
     stageAutonomyIssueProjection({
       state: ctx.state,
       key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
       revision: snapshot.revision,
       current: currentProjection,
-      next: finalized.projection,
+      next: projection,
       emit: ctx.emit,
       stepId: "publish-review:materialize",
     });
-    return { actions: finalized };
+    return { actions };
   },
 });
 

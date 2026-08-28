@@ -1,5 +1,4 @@
 const SENSITIVE_HEADER = /(?:authorization|cookie|token|api[-_]?key|secret|signature|credential)/i;
-const SENSITIVE_QUERY = /(?:token|api[-_]?key|secret|signature|credential|password|code)/i;
 const JSON_STRING_VALUE = /("((?:\\.|[^"\\])*)"\s*:\s*)"(?:\\.|[^"\\])*"/g;
 const SENSITIVE_FIELD_SEGMENT =
   /(?:^|[-_])(?:authorization|cookie|token|api[-_]?key|secret|signature|credential|password|code)(?:$|[-_])/i;
@@ -23,9 +22,8 @@ export function redactOutboundHttpUrl(rawUrl: string): string {
   }
   if (url.username) url.username = "[redacted]";
   if (url.password) url.password = "[redacted]";
-  for (const key of [...url.searchParams.keys()]) {
-    if (SENSITIVE_QUERY.test(key)) url.searchParams.set(key, "[redacted]");
-  }
+  url.pathname = url.pathname === "/" ? "/" : "/[redacted]";
+  url.search = "";
   url.hash = "";
   return url.toString();
 }

@@ -7,7 +7,6 @@ import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope
 import {
   emitHealth,
   stableToken,
-  WORKFLOW_FAILURE_HEALTH_LABELS,
   workflowFailureHealthSource,
   workflowFailureIssueKey,
 } from "./autonomy-issue-source-shared.js";
@@ -66,10 +65,12 @@ export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
       source: workflowFailureName !== undefined
         ? workflowFailureHealthSource(workflowFailureName)
         : { kind: "dead-letter", id: payload.id },
-      severity: workflowFailureName !== undefined ? "critical" : classification.severity,
-      labels: workflowFailureName !== undefined
-        ? WORKFLOW_FAILURE_HEALTH_LABELS
-        : classification.labels,
+      severity:
+        workflowFailureName !== undefined &&
+        classification.actionability === "local-code"
+          ? "critical"
+          : classification.severity,
+      labels: classification.labels,
       summary:
         `Dead-letter ${payload.id} is ${payload.status}; ` +
         (payload.resolutionReason
@@ -79,10 +80,7 @@ export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
         kind: "dead-letter" as const,
         ref: `.kota/dead-letter-queue/items.json#${item.id}`,
       })),
-      actionability:
-        workflowFailureName !== undefined
-          ? "local-code"
-          : classification.actionability,
+      actionability: classification.actionability,
       dedupeKey,
       observationCount: 1,
       createdAt: payload.updatedAt,

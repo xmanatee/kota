@@ -9,10 +9,11 @@ import {
   listVerifiedFullRepoTasks,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { securityReviewSurfacesForChangedPath } from "./security-review-file-scan.js";
 import {
+  SECURITY_REVIEW_MAX_DUE_PATHS,
   type SecurityReviewSurface,
-  securityReviewSurfacesForChangedPath,
-} from "./security-review.js";
+} from "./security-review-scan-model.js";
 
 export const SECURITY_REVIEW_DUE_EVENT = "autonomy.security-review.due";
 export const SECURITY_REVIEW_ROUTINE_COOLDOWN_MS = 60 * 60 * 1000;
@@ -88,6 +89,21 @@ export type SecurityReviewDueDecision = {
   changedPathCount: number;
   highRiskChangedPaths: string[];
   openSecurityTasks: SecurityReviewOpenTask[];
+  cooldownMs: number;
+  cooldown: SecurityReviewCooldown;
+};
+
+export type SecurityReviewDuePayload = {
+  due: boolean;
+  reason: SecurityReviewDueReason;
+  currentHead: SecurityReviewGitHead;
+  lastReview: SecurityReviewLastEvidence;
+  comparison: SecurityReviewComparison;
+  changedPaths: string[];
+  changedPathCount: number;
+  changedSurfaceCounts: Array<{ surface: SecurityReviewSurface; pathCount: number }>;
+  highRiskChangedPathCount: number;
+  openSecurityTaskCount: number;
   cooldownMs: number;
   cooldown: SecurityReviewCooldown;
 };
@@ -466,5 +482,31 @@ export function inspectSecurityReviewDue(
     openSecurityTasks,
     cooldownMs,
     cooldown,
+  };
+}
+
+export function buildSecurityReviewDuePayload(
+  decision: SecurityReviewDueDecision,
+): SecurityReviewDuePayload {
+  const orderedPaths = [
+    ...decision.highRiskChangedPaths,
+    ...decision.changedSurfaces.flatMap((surface) => surface.paths),
+  ];
+  return {
+    due: decision.due,
+    reason: decision.reason,
+    currentHead: decision.currentHead,
+    lastReview: decision.lastReview,
+    comparison: decision.comparison,
+    changedPaths: [...new Set(orderedPaths)].slice(0, SECURITY_REVIEW_MAX_DUE_PATHS),
+    changedPathCount: decision.changedPathCount,
+    changedSurfaceCounts: decision.changedSurfaces.map((surface) => ({
+      surface: surface.surface,
+      pathCount: surface.paths.length,
+    })),
+    highRiskChangedPathCount: decision.highRiskChangedPaths.length,
+    openSecurityTaskCount: decision.openSecurityTasks.length,
+    cooldownMs: decision.cooldownMs,
+    cooldown: decision.cooldown,
   };
 }

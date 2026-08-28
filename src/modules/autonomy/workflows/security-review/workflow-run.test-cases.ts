@@ -81,14 +81,9 @@ export function describeSecurityReviewRunTests(
         trigger: {
           event: SECURITY_REVIEW_DUE_EVENT,
           payload: {
-            changedSurfaces: [
-              {
-                surface: "external-fetch",
-                paths: [
-                  "src/modules/web-access/z-due.ts",
-                  "notes/no-matcher.md",
-                ],
-              },
+            changedPaths: [
+              "src/modules/web-access/z-due.ts",
+              "notes/no-matcher.md",
             ],
           },
         },
@@ -136,23 +131,10 @@ export function describeSecurityReviewRunTests(
       expect(artifact.candidates[0]?.path).toBe("src/modules/web-access/z-due.ts");
       expect(artifact.candidates[0]?.excerpt).toBe("await fetch(url, { headers });");
       expect(artifact.dueTargets).toMatchObject({
-        total: 2,
+        total: 1,
         matched: 1,
-        missed: 1,
+        missed: 0,
       });
-      expect(artifact.dueTargets.diagnostics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            path: "src/modules/web-access/z-due.ts",
-            status: "matched",
-          }),
-          expect.objectContaining({
-            path: "notes/no-matcher.md",
-            status: "missed",
-            reason: "no-matcher",
-          }),
-        ]),
-      );
     });
 
   });

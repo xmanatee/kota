@@ -148,7 +148,7 @@ describe("createScopeRuntime", () => {
 
     bundle.idempotencyStore.record({
       scopeId: scope.scopeId,
-      operation: "workflow-dispatch",
+      operation: "event-ingestion",
       key: "manual:test",
       parameterFingerprint: "fp",
       result: { runId: "run-1" },

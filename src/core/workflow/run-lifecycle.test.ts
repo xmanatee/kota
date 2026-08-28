@@ -188,10 +188,11 @@ describe("RunLifecycle", () => {
     expect(coverage.run.headSha).toBe(git(value.root, "rev-parse", "HEAD"));
   });
 
-  test("records an empty writer without attributing the existing head commit", async () => {
+  test("finishes an empty writer without entering integration or touching canonical work", async () => {
     const value = fixture("empty-writer", "write");
     let validations = 0;
     let invariants = 0;
+    write(value.root, "owner.txt", "owner work\n");
 
     const outcome = await new RunLifecycle({
       store: value.store,
@@ -212,8 +213,9 @@ describe("RunLifecycle", () => {
     }).execute(value.run, new AbortController().signal);
 
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
-    expect(validations).toBe(1);
+    expect(validations).toBe(0);
     expect(invariants).toBe(1);
+    expect(readFileSync(join(value.root, "owner.txt"), "utf8")).toBe("owner work\n");
     const evidence = readWriterIntegrationEvidence(
       join(value.root, ".kota", "runs"),
       value.run.id,

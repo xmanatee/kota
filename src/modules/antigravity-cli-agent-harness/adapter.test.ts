@@ -25,9 +25,11 @@ describe("antigravityCliAgentHarness readiness", () => {
         "canUseTool",
         "askOwner",
         "mcpServers",
-        "resumeSessionId",
       ]),
     );
+    expect(
+      antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
+    ).not.toContain("resumeSessionId");
     expect(
       antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
     ).not.toContain("scopePolicy");

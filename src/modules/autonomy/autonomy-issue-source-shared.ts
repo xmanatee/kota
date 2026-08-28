@@ -5,11 +5,6 @@ import {
   normalizeHealthSignal,
 } from "./health-signal.js";
 
-export const WORKFLOW_FAILURE_HEALTH_LABELS = [
-  "runtime",
-  "workflow-failure",
-] as const;
-
 export function workflowFailureHealthSource(workflowName: string) {
   return {
     kind: "workflow",

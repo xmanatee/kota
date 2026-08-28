@@ -368,6 +368,8 @@ export function inspectAsyncReviewers(args: {
   runDirPath: string;
   metadata: WorkflowRunMetadata;
   family: FamilyAccessor;
+  linkedReviewers?: ReviewerLinks;
+  discoverLinkedReviewers?: boolean;
 }): ReviewerLinks {
   const asyncReview = args.family("async-reviewers");
   const links = reviewerLinks(args);

@@ -2,6 +2,7 @@ import { existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventJournal } from "#core/events/event-journal.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
+import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   activeAgentStepIds,
   daemonHostControlDenialCount,
@@ -29,7 +30,7 @@ import {
   snapshotStepsFrom,
   telemetryCalls,
 } from "./control-monitor-coverage-readers.js";
-import { average } from "./control-monitor-coverage-reviewers.js";
+import type { ReviewerLinks } from "./control-monitor-coverage-reviewers.js";
 import { inspectTokenBudget } from "./control-monitor-coverage-token-budget.js";
 import {
   CONTENT_INGEST_TOOL_NAMES,
@@ -62,6 +63,8 @@ export type BuildControlMonitorCoverageOptions = {
   eventJournal?: EventJournal;
   nowIso?: string;
   headSha: string | null;
+  linkedReviewers?: ReviewerLinks;
+  discoverLinkedReviewers?: boolean;
 };
 
 export type WriteControlMonitorCoverageBestEffortOptions =
@@ -219,7 +222,18 @@ export function buildControlMonitorCoverageArtifact(
     addUnknown,
   });
   const runtimeProbeCount = inspectRuntimeProbe({ scopeRoot, runDirPath, family });
-  const links = inspectAsyncReviewers({ scopeRoot, runDirPath, metadata, family });
+  const links = inspectAsyncReviewers({
+    scopeRoot,
+    runDirPath,
+    metadata,
+    family,
+    ...(options.linkedReviewers === undefined
+      ? {}
+      : { linkedReviewers: options.linkedReviewers }),
+    ...(options.discoverLinkedReviewers === undefined
+      ? {}
+      : { discoverLinkedReviewers: options.discoverLinkedReviewers }),
+  });
 
   const completedFamilies = finishControlCoverageFamilies(families);
   const denominator = completedFamilies.reduce((sum, item) => sum + item.denominator, 0);
@@ -268,11 +282,59 @@ export function buildControlMonitorCoverageArtifact(
     families: completedFamilies,
     gaps,
     unknowns,
-    asyncReviewResponseMs: {
-      observations: links.responseTimes.length,
-      min: links.responseTimes.length > 0 ? Math.min(...links.responseTimes) : null,
-      max: links.responseTimes.length > 0 ? Math.max(...links.responseTimes) : null,
-      average: average(links.responseTimes),
+    asyncReviewResponseMs: combineReviewerResponse(links),
+  };
+}
+
+function combineReviewerResponse(
+  links: ReviewerLinks,
+): ControlMonitorCoverageArtifact["asyncReviewResponseMs"] {
+  const prior = links.priorResponse;
+  const observations = (prior?.observations ?? 0) + links.responseTimes.length;
+  const samples = [
+    ...(prior?.min === null || prior?.min === undefined ? [] : [prior.min]),
+    ...(prior?.max === null || prior?.max === undefined ? [] : [prior.max]),
+    ...links.responseTimes,
+  ];
+  if (observations === 0) {
+    return { observations: 0, min: null, max: null, average: null };
+  }
+  const total = (prior?.average ?? 0) * (prior?.observations ?? 0) +
+    links.responseTimes.reduce((sum, value) => sum + value, 0);
+  return {
+    observations,
+    min: Math.min(...samples),
+    max: Math.max(...samples),
+    average: Math.round(total / observations),
+  };
+}
+
+function accumulatedReviewerLinks(
+  options: BuildControlMonitorCoverageOptions,
+): Pick<BuildControlMonitorCoverageOptions, "linkedReviewers" | "discoverLinkedReviewers"> {
+  const prior = readOptionalJsonFile<ControlMonitorCoverageArtifact>(
+    join(options.runDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT),
+  );
+  if (prior === null) {
+    return options.linkedReviewers === undefined
+      ? {}
+      : { linkedReviewers: options.linkedReviewers };
+  }
+  const priorRefs = prior.families.find((family) => family.family === "async-reviewers")
+    ?.evidenceRefs ?? [];
+  if (priorRefs.length === 0) {
+    return { discoverLinkedReviewers: true };
+  }
+  const newEvidence = options.linkedReviewers?.evidenceRefs.filter(
+    (ref) => !priorRefs.includes(ref),
+  ) ?? [];
+  return {
+    linkedReviewers: {
+      evidenceRefs: [...priorRefs, ...newEvidence],
+      responseTimes: newEvidence.length > 0
+        ? [...(options.linkedReviewers?.responseTimes ?? [])]
+        : [],
+      priorResponse: prior.asyncReviewResponseMs,
     },
   };
 }
@@ -280,7 +342,11 @@ export function buildControlMonitorCoverageArtifact(
 export function writeControlMonitorCoverageArtifact(
   options: BuildControlMonitorCoverageOptions,
 ): ControlMonitorCoverageArtifact {
-  const artifact = buildControlMonitorCoverageArtifact(options);
+  const reviewerOptions = accumulatedReviewerLinks(options);
+  const artifact = buildControlMonitorCoverageArtifact({
+    ...options,
+    ...reviewerOptions,
+  });
   writeJsonFile(join(options.runDirPath, CONTROL_MONITOR_COVERAGE_ARTIFACT), artifact);
   return artifact;
 }
@@ -297,6 +363,9 @@ export function writeControlMonitorCoverageArtifactBestEffort(
       ...(eventJournal !== undefined ? { eventJournal } : {}),
       ...(options.nowIso !== undefined ? { nowIso: options.nowIso } : {}),
       headSha: options.headSha,
+      ...(options.linkedReviewers === undefined
+        ? {}
+        : { linkedReviewers: options.linkedReviewers }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

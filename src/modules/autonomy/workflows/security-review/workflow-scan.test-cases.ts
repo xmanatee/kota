@@ -10,7 +10,7 @@ function externalFetchDueTargets(
   paths: readonly string[],
 ) {
   return securityReviewDueTargetsFromPayload(fixture.workspaceRoot, {
-    changedSurfaces: [{ surface: "external-fetch", paths: [...paths] }],
+    changedPaths: [...paths],
   });
 }
 
@@ -132,7 +132,7 @@ export function describeSecurityReviewScanTests(): void {
       );
     });
 
-    it("prioritizes due targets before lower-priority full-tree candidates and reports misses", () => {
+    it("prioritizes bounded security-sensitive due paths", () => {
       fixture.writeProjectFile(
         "src/modules/web-access/a-full-tree.ts",
         "await fetch('https://noise.example');\n",
@@ -158,31 +158,10 @@ export function describeSecurityReviewScanTests(): void {
         "src/modules/web-access/z-due.ts",
       ]);
       expect(result.dueTargets).toMatchObject({
-        total: 3,
+        total: 1,
         matched: 1,
-        missed: 2,
+        missed: 0,
       });
-      expect(result.dueTargets.diagnostics).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            surface: "external-fetch",
-            path: "src/modules/web-access/z-due.ts",
-            status: "matched",
-          }),
-          expect.objectContaining({
-            surface: "external-fetch",
-            path: "notes/no-matcher.md",
-            status: "missed",
-            reason: "no-matcher",
-          }),
-          expect.objectContaining({
-            surface: "external-fetch",
-            path: "node_modules/generated.ts",
-            status: "missed",
-            reason: "skipped-directory",
-          }),
-        ]),
-      );
     });
 
     it("selects one representative per due target before enforcing per-surface caps", () => {

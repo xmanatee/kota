@@ -208,13 +208,15 @@ export async function executeAdmittedWorkflowRun(
     if (appliedBackoff !== undefined) {
       state.wfQueue.deferAgentRunsUntil(appliedBackoff.until);
     }
-    recordFailedWorkflowDispatchDeadLetter(
-      state,
-      definition,
-      admitted.trigger,
-      result.metadata,
-      result.agentBackoff?.kind,
-    );
+    if (appliedBackoff === undefined) {
+      recordFailedWorkflowDispatchDeadLetter(
+        state,
+        definition,
+        admitted.trigger,
+        result.metadata,
+        result.agentBackoff?.kind,
+      );
+    }
     if (
       definition.repository !== "write" &&
       state.deadLetterQueue !== undefined &&

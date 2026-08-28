@@ -118,7 +118,7 @@ function recordWorkflowDispatch(args: {
   if (!identity) throw new Error("expected workflow dispatch idempotency");
   store.record({
     ...identity,
-    operation: "workflow-dispatch",
+    operation: "event-ingestion",
     result: {
       workflowName: args.workflowName,
       runId: args.runId,
@@ -621,7 +621,7 @@ describe("workflow automation simulation engine", () => {
     expect(preview.inputs[0]?.explain.graph.automation.workflows).toContainEqual(
       expect.objectContaining({ name: "booking-workflow" }),
     );
-    expect(store.list({ operation: "workflow-dispatch" })).toMatchObject([
+    expect(store.list({ operation: "event-ingestion" })).toMatchObject([
       {
         status: "accepted",
         duplicateCount: 0,

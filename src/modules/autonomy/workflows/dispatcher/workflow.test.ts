@@ -351,15 +351,10 @@ describe("dispatcher workflow", () => {
     expect(dueEvent?.payload).toMatchObject({
       due: true,
       reason: "high-risk-security-sensitive-change",
-      changedSurfaces: [
-        {
-          surface: "external-fetch",
-          paths: ["src/core/modules/registry-installers.ts"],
-        },
-        {
-          surface: "tool-execution",
-          paths: ["src/core/modules/registry-installers.ts"],
-        },
+      changedPaths: ["src/core/modules/registry-installers.ts"],
+      changedSurfaceCounts: [
+        { surface: "external-fetch", pathCount: 1 },
+        { surface: "tool-execution", pathCount: 1 },
       ],
     });
     const output = result.steps["assess-and-dispatch"].output as {

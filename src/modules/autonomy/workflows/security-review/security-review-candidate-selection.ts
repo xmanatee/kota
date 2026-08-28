@@ -8,7 +8,6 @@ import {
 } from "./security-review-file-scan.js";
 import {
   isSafeRepoRelativePath,
-  isSecurityReviewSurface,
   MAX_SCANNED_FILE_BYTES,
   normalizeRepoPath,
   pathHasSkippedSecurityReviewSegment,
@@ -27,12 +26,8 @@ import {
   shouldScanSecurityReviewFile,
 } from "./security-review-scan-model.js";
 
-const duePayloadChangedSurfaceSchema = z.object({
-  surface: z.string().min(1),
-  paths: z.array(z.string().min(1)),
-}).passthrough();
 const duePayloadSchema = z.object({
-  changedSurfaces: z.array(duePayloadChangedSurfaceSchema).optional(),
+  changedPaths: z.array(z.string().min(1)).optional(),
 }).passthrough();
 
 function compareDueTargets(a: SecurityReviewDueTarget, b: SecurityReviewDueTarget): number {
@@ -52,16 +47,11 @@ export function securityReviewDueTargetsFromPayload(
   if (!parsed.success) return [];
 
   const targets = new Map<string, SecurityReviewDueTarget>();
-  for (const changedSurface of parsed.data.changedSurfaces ?? []) {
-    for (const rawPath of changedSurface.paths) {
-      const path = normalizeRepoPath(rawPath);
-      if (!isSafeRepoRelativePath(path)) continue;
-      const surfaces = isSecurityReviewSurface(changedSurface.surface)
-        ? [changedSurface.surface]
-        : securityReviewSurfacesForChangedPath(workspaceRoot, path);
-      for (const surface of surfaces) {
-        targets.set(`${surface}\0${path}`, { surface, path });
-      }
+  for (const rawPath of parsed.data.changedPaths ?? []) {
+    const path = normalizeRepoPath(rawPath);
+    if (!isSafeRepoRelativePath(path)) continue;
+    for (const surface of securityReviewSurfacesForChangedPath(workspaceRoot, path)) {
+      targets.set(`${surface}\0${path}`, { surface, path });
     }
   }
 

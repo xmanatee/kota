@@ -12,6 +12,7 @@ import {
 } from "../scope-improver/scope-improvement-state.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
 import {
+  buildSecurityReviewDuePayload,
   collectSecurityReviewGitEvidence,
   SECURITY_REVIEW_DUE_EVENT,
 } from "../security-review/due-check.js";
@@ -111,6 +112,9 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const queueActionable = builderTasks.length > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
+        const securityReviewPayload = buildSecurityReviewDuePayload(
+          securityReviewDue,
+        );
         const queueThin =
           queue.inboxCount === 0 &&
           queue.actionableCount > 0 &&
@@ -136,7 +140,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           });
         }
         if (securityReviewDue.due) {
-          emit(SECURITY_REVIEW_DUE_EVENT, securityReviewDue);
+          emit(SECURITY_REVIEW_DUE_EVENT, securityReviewPayload);
         }
         if (progressBoundary.shouldEmit && progressBoundary.payload) {
           emit(automaticProgressReviewRequested.name, progressBoundary.payload, {
@@ -186,7 +190,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           builderTaskIds: builderTasks.map((task) => task.taskId),
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
-          securityReviewDue,
+          securityReviewDue: securityReviewPayload,
           progressBoundary: {
             shouldEmit: progressBoundary.shouldEmit,
             reason: progressBoundary.reason,

@@ -113,7 +113,7 @@ describe("runHttpRequest", () => {
 
     expect(result).toEqual({
       content:
-        "target-denied: public-untrusted access to loopback/private-network targets is blocked: 127.0.0.1 (http://127.0.0.1:8765/status)",
+        "target-denied: public-untrusted access to loopback/private-network targets is blocked: 127.0.0.1 (http://127.0.0.1:8765/[redacted])",
       is_error: true,
     });
     expect(result.content).not.toContain(fragmentSecret);

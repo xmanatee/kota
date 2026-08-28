@@ -330,6 +330,28 @@ describe("control monitor coverage executor persistence", () => {
       ]),
     );
     expect(refreshed?.asyncReviewResponseMs.observations).toBe(1);
+
+    await executeWorkflowRun(
+      reviewerDefinition,
+      reviewerTrigger,
+      {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        runContext: makeRunContext(
+          workspaceRoot,
+          reviewerTrigger,
+          "review-run-2",
+          workspaceRoot,
+          "reviewer-head-2",
+        ),
+        bus,
+        store,
+        log: vi.fn(),
+      },
+    ).promise;
+    const accumulated =
+      readOptionalJsonFile<ControlMonitorCoverageArtifact>(sourceCoveragePath);
+    expect(accumulated?.monitoredSurfaceCounts.postRunReviewLinks).toBe(2);
+    expect(accumulated?.asyncReviewResponseMs.observations).toBe(2);
   });
 
   it("does not refresh linked coverage outside the runs directory for traversal-shaped ids", async () => {

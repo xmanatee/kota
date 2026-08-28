@@ -174,6 +174,23 @@ describe("antigravityCliAgentHarness execution", () => {
     expect(commandArgs).not.toContain("--effort");
   });
 
+  it("resumes the native AGY conversation supplied by core", async () => {
+    mockAgyProcess({ stdout: successfulAgyOutput("continued") });
+
+    await antigravityCliAgentHarness.run({
+      prompt: "continue the repair",
+      model: "claude-opus-4-6-thinking",
+      effort: "xhigh",
+      resumeSessionId: "conversation-previous",
+    });
+
+    const commandArgs = spawnMock.mock.calls[0][1] as string[];
+    expect(commandArgs).toEqual(
+      expect.arrayContaining(["--conversation", "conversation-previous"]),
+    );
+    expect(commandArgs).not.toContain("--new-project");
+  });
+
   it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
     mockAgyProcess({ stdout: successfulAgyOutput("ok") });
     const secrets = {

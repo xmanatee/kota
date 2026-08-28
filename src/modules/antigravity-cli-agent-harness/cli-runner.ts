@@ -80,6 +80,7 @@ type CollectTextFromAntigravityCliArgs = {
   runtimeStateRoot: string;
   model: string;
   effort: AgentEffort;
+  resumeSessionId?: string;
   outputSchema?: AgentOutputSchema;
   readOnly: boolean;
   writableRoots: readonly string[];
@@ -261,7 +262,9 @@ export async function collectTextFromAntigravityCli(
     ...(args.env ?? {}),
   });
   const cliArgs = [
-    "--new-project",
+    ...(args.resumeSessionId === undefined
+      ? ["--new-project"]
+      : ["--conversation", args.resumeSessionId]),
     "--print",
     args.prompt,
     "--model",

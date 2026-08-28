@@ -5,9 +5,9 @@ import {
   readdirSync,
   readFileSync,
   unlinkSync,
-  writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import { writeJsonFileAtomic } from "#core/util/json-file.js";
 
 export type IdempotencyJsonPrimitive = string | number | boolean | null;
 export type IdempotencyJsonValue =
@@ -20,7 +20,6 @@ export type IdempotencyJsonObject = {
 
 export type IdempotencyOperationType =
   | "event-ingestion"
-  | "workflow-dispatch"
   | "owner-confirmed-action"
   | "provider-write";
 
@@ -154,6 +153,7 @@ export class IdempotencyStore {
     private readonly now: () => Date = () => new Date(),
   ) {
     mkdirSync(dir, { recursive: true });
+    this.pruneExpiredTombstones();
   }
 
   getDefaultScopeId(): string {
@@ -308,6 +308,20 @@ export class IdempotencyStore {
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
   }
 
+  private pruneExpiredTombstones(): number {
+    if (!existsSync(this.dir)) return 0;
+    let removed = 0;
+    for (const file of readdirSync(this.dir)) {
+      if (!file.endsWith(".json")) continue;
+      const path = join(this.dir, file);
+      const entry = JSON.parse(readFileSync(path, "utf-8")) as IdempotencyEntry;
+      if (entry.status !== "expired") continue;
+      unlinkSync(path);
+      removed += 1;
+    }
+    return removed;
+  }
+
   private resolveExisting(
     existing: IdempotencyEntry,
     input: IdempotencyClaimInput,
@@ -350,9 +364,9 @@ export class IdempotencyStore {
   }
 
   private write(entry: IdempotencyEntry): void {
-    writeFileSync(
+    writeJsonFileAtomic(
       join(this.dir, idempotencyFileName(entry.scopeId, entry.operation, entry.key)),
-      JSON.stringify(entry, null, 2),
+      entry,
     );
   }
 }

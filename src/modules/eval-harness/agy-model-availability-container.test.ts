@@ -5,6 +5,7 @@ import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import "#modules/antigravity-cli-agent-harness/index.js";
 import { runAgyModelsCommand } from "./agy-model-availability.js";
 import {
+  AGY_OPTIONS,
   cleanupAgyModelEvaluationTestEnvironment,
   configureFakeCandidateContainer,
   tempDir,
@@ -25,7 +26,7 @@ describe("AGY model availability container", () => {
 
     expect(runAgyModelsCommand(execution)).toMatchObject({
       status: 0,
-      stdout: expect.stringContaining("gemini-3.6-flash-high"),
+      stdout: expect.stringContaining(`${AGY_OPTIONS.candidates[0]}-high`),
     });
     expect(execution.isolationBackend).toEqual(options.isolationBackend);
     expect(

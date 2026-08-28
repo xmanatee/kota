@@ -78,7 +78,7 @@ describe("OutboundHttpTransport errors and telemetry", () => {
     expect(result.url).toContain("api_key=secret");
     expect(events[0]).toMatchObject({
       type: "request-started",
-      url: expect.stringContaining("api_key=%5Bredacted%5D"),
+      url: "https://provider.example/[redacted]",
       headers: { authorization: "[redacted]", "x-trace": "visible" },
     });
     expect(JSON.stringify(events)).not.toContain("Bearer secret");
@@ -105,12 +105,12 @@ describe("OutboundHttpTransport errors and telemetry", () => {
     }
 
     expect(events).toMatchObject([
-      { type: "request-started", url: "https://api.example/failure" },
-      { type: "request-failed", url: "https://api.example/failure" },
+      { type: "request-started", url: "https://api.example/[redacted]" },
+      { type: "request-failed", url: "https://api.example/[redacted]" },
     ]);
     expect(error?.failure).toMatchObject({
       code: "target-denied",
-      url: "https://api.example/failure",
+      url: "https://api.example/[redacted]",
     });
     expect(`${JSON.stringify(events)}\n${error?.message}\n${JSON.stringify(error?.failure)}`).not.toContain(fragmentSecret);
   });
@@ -199,5 +199,10 @@ describe("OutboundHttpTransport errors and telemetry", () => {
       reason: "method-not-idempotent",
     });
     expect(redactOutboundHttpText("token=secret")).toBe("token=[redacted]");
+    expect(
+      redactOutboundHttpText(
+        "request failed at https://api.telegram.org/bot123456:secret/sendMessage?chat_id=42",
+      ),
+    ).toBe("request failed at https://api.telegram.org/[redacted]");
   });
 });

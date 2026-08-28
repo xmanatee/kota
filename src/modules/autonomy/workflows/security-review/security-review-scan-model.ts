@@ -2,6 +2,7 @@ import { extname } from "node:path";
 
 export const SECURITY_REVIEW_MAX_CANDIDATES = 35;
 export const SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE = 5;
+export const SECURITY_REVIEW_MAX_DUE_PATHS = 100;
 
 export const SECURITY_REVIEW_SURFACES = [
   "auth-approval-boundary",

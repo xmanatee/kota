@@ -354,6 +354,36 @@ export class RunLifecycle {
       this.persist(context, journal);
     }
 
+    if (
+      !isRebaseActive(sandbox.workspaceDir) &&
+      runGit(sandbox.workspaceDir, [
+        "diff",
+        "--quiet",
+        `${sandbox.baseCommit}..HEAD`,
+        "--",
+      ]).ok
+    ) {
+      const canonicalHead = git(context.scope.root, ["rev-parse", "HEAD"]);
+      const invariant = this.options.verifyPostReconcile?.(context, {
+        workspaceDir: sandbox.workspaceDir,
+        head: git(sandbox.workspaceDir, ["rev-parse", "HEAD"]),
+        canonicalHead,
+        signal: context.signal,
+      });
+      if (invariant?.satisfied === false) {
+        return this.attention("integration-invariant-failed", [invariant.reason]);
+      }
+      journal = this.completeIntegrationJournal(
+        journal,
+        sandbox,
+        canonicalHead,
+        canonicalHead,
+        [],
+      );
+      this.persist(context, journal);
+      return this.cleanupMerged(context, manager, sandbox);
+    }
+
     if (isRebaseActive(sandbox.workspaceDir)) {
       const resolution = await this.resolveConflicts(context, journal);
       if (resolution.kind === "suspended") return resolution;

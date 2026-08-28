@@ -27,11 +27,11 @@ adherence checks; raw command parameters remain provider tool I/O and must not
 be persisted as trace text.
 
 Interactive clients remain multi-turn through KOTA's transcript composition.
-The adapter starts one isolated AGY process per turn. KOTA gives every native
-invocation a fresh isolated home, so AGY conversation state is intentionally
-not resumed across invocations. Repair iterations use fresh AGY projects and
-receive prior results, critic findings, and the current worktree through
-KOTA's durable handoff.
+The adapter starts one isolated AGY process per turn and resumes a durable AGY
+conversation by its native conversation id when core supplies one. Each
+invocation still receives a fresh isolated home; provider conversation state
+never becomes local runtime authority. Repair iterations retain KOTA's durable
+artifacts and current worktree as the recovery handoff.
 
 The CLI's own print timeout is only a final process cap. KOTA cancellation and
 workflow idle supervision remain the normal lifecycle controls. Cancellation

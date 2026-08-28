@@ -1,4 +1,3 @@
-import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
@@ -104,30 +103,18 @@ describe("control monitor coverage artifacts", () => {
       },
     ]);
 
-    const reviewerDir = join(scopeRoot, ".kota", "runs", "review-run");
-    mkdirSync(reviewerDir, { recursive: true });
-    writeJson(join(reviewerDir, "metadata.json"), {
-      ...baseMetadata({
-        id: "review-run",
-        workflow: "progress-reviewer",
-        startedAt: "2026-06-22T10:02:00.000Z",
-        completedAt: "2026-06-22T10:02:05.000Z",
-        runDir: ".kota/runs/review-run",
-      }),
-      trigger: {
-        event: "workflow.completed",
-        schemaRef: null,
-        payload: { runId: "run-control" },
-      },
-    });
-    writeJson(join(reviewerDir, "progress-review.json"), { verdict: "pass" });
-
     const artifact = buildControlMonitorCoverageArtifact({
       scopeRoot,
       runDirPath,
       metadata,
       nowIso: "2026-06-22T10:03:00.000Z",
       headSha: "abc123",
+      linkedReviewers: {
+        evidenceRefs: [
+          ".kota/runs/review-run/progress-review.json",
+        ],
+        responseTimes: [60_000],
+      },
     });
 
     expect(artifact.summary.gapCount).toBe(0);
