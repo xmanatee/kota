@@ -82,6 +82,12 @@ const ANTIGRAVITY_CLI_UNSUPPORTED_OPTIONS = [
     reason: "KOTA-managed session persistence is not exposed by this adapter.",
   },
   {
+    runOption: "resumeSessionId",
+    option: "resumeSessionId",
+    reason:
+      "AGY conversation state lives in its native home, while KOTA gives every invocation a fresh isolated home. Repairs use fresh sessions with durable artifact handoffs.",
+  },
+  {
     runOption: "harnessOverrides",
     option: "harnessOverrides",
     reason:
@@ -170,6 +176,12 @@ function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
     throw new Error(
       'The "antigravity-cli" agent harness does not expose KOTA-managed session persistence. ' +
         "Drop persistSession.",
+    );
+  }
+  if (options.resumeSessionId !== undefined) {
+    throw new Error(
+      'The "antigravity-cli" agent harness cannot resume a conversation across isolated invocations. ' +
+        "Start a fresh session and hand off durable run artifacts.",
     );
   }
   if (options.harnessOverrides !== undefined) {
@@ -263,7 +275,6 @@ export const antigravityCliAgentHarness: AgentHarness = {
       runtimeWritableRoots,
       authorityConfigPath: options.authorityConfigPath,
       env: options.env,
-      resumeSessionId: options.resumeSessionId,
       abortController: options.abortController,
       writer,
       onMessage: options.onMessage,

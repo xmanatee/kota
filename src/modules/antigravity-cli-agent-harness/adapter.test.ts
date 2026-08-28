@@ -25,6 +25,7 @@ describe("antigravityCliAgentHarness readiness", () => {
         "canUseTool",
         "askOwner",
         "mcpServers",
+        "resumeSessionId",
       ]),
     );
     expect(

@@ -230,11 +230,20 @@ export async function withNativeCliSandbox<T>(
       readProtectedRootMask,
       protectedRuntimeRoot,
     ])];
+    const runtimeStateRoot = resolve(
+      options.runtimeStateRoot ?? join(options.cwd, ".kota"),
+    );
+    const runtimeWritableRoots = absoluteRoots([
+      ...(options.runtimeWritableRoots ?? []),
+      ...options.writableRoots,
+    ], options.cwd).filter((root) =>
+      root !== runtimeStateRoot && pathIsWithin(runtimeStateRoot, root)
+    );
     const runtimeWriteBoundary = options.machineAuthorityOwner === "kota"
       ? nativeCliRuntimeWriteBoundary(
-          options.runtimeStateRoot ?? join(options.cwd, ".kota"),
+          runtimeStateRoot,
           options.env,
-          options.runtimeWritableRoots,
+          runtimeWritableRoots,
         )
       : undefined;
     const launch = options.machineAuthorityOwner === "native-cli"
@@ -247,7 +256,11 @@ export async function withNativeCliSandbox<T>(
           cwd: options.cwd,
           authorityConfigPath: options.authorityConfigPath,
           readableRoots,
-          writableRoots: [...options.writableRoots, temporaryDirectory],
+          writableRoots: [
+            ...options.writableRoots,
+            ...runtimeWritableRoots,
+            temporaryDirectory,
+          ],
           readProtectedPaths,
           readProtectedRoots,
           readProtectedRootMask,

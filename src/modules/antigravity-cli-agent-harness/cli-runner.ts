@@ -77,7 +77,6 @@ type CollectTextFromAntigravityCliArgs = {
   runtimeWritableRoots?: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
-  resumeSessionId?: string;
   abortController?: AbortController;
   writer?: AgentHarnessWriter;
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
@@ -253,9 +252,7 @@ export async function collectTextFromAntigravityCli(
     ...(args.env ?? {}),
   });
   const cliArgs = [
-    ...(args.resumeSessionId === undefined
-      ? ["--new-project"]
-      : ["--conversation", args.resumeSessionId]),
+    "--new-project",
     "--print",
     args.prompt,
     "--model",

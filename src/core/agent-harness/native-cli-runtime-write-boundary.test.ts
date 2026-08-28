@@ -146,12 +146,15 @@ describe("native CLI runtime write boundary", () => {
       const scopeRoot = mkdtempSync(join(tmpdir(), "kota-native-state-sandbox-"));
       roots.push(scopeRoot);
       const runtimeRoot = join(scopeRoot, ".kota");
+      const workspaceRoot = join(runtimeRoot, "runtime", "worktrees", "run-1");
       const agentRunDir = join(runtimeRoot, "builder-evidence", "run-1");
       const artifactRoot = join(agentRunDir, "artifacts");
       const tempRoot = join(runtimeRoot, "tmp", "run-1");
       const statePath = join(runtimeRoot, "runtime-owned.json");
       const artifactPath = join(artifactRoot, "proof.txt");
       const tempPath = join(tempRoot, "scratch.txt");
+      const workspacePath = join(workspaceRoot, "change.txt");
+      mkdirSync(workspaceRoot, { recursive: true });
       mkdirSync(artifactRoot, { recursive: true });
       mkdirSync(tempRoot, { recursive: true });
       writeFileSync(statePath, "preserve\n");
@@ -161,14 +164,15 @@ describe("native CLI runtime write boundary", () => {
         ["-c", [
           'printf "artifact\\n" > "$ARTIFACT" || exit 20',
           'printf "scratch\\n" > "$SCRATCH" || exit 21',
+          'printf "change\\n" > "$WORKSPACE_FILE" || exit 24',
           'if printf "corrupt\\n" > "$STATE"; then exit 22; fi',
           'if mv "$RUNTIME_ROOT" "$RUNTIME_ROOT.bak"; then exit 23; fi',
         ].join("; ")],
         {
-          cwd: scopeRoot,
+          cwd: workspaceRoot,
           runtimeStateRoot: runtimeRoot,
           machineAuthorityOwner: "kota",
-          writableRoots: [scopeRoot],
+          writableRoots: [workspaceRoot],
           runtimeWritableRoots: [agentRunDir, artifactRoot, tempRoot],
           env: buildNativeCliEnvironment({
             overrides: {
@@ -177,18 +181,20 @@ describe("native CLI runtime write boundary", () => {
               KOTA_RUN_TEMP_DIR: tempRoot,
               ARTIFACT: artifactPath,
               SCRATCH: tempPath,
+              WORKSPACE_FILE: workspacePath,
               STATE: statePath,
               RUNTIME_ROOT: runtimeRoot,
             },
           }),
         },
-        (sandboxedProcess) => runNativeProcess(scopeRoot, sandboxedProcess),
+        (sandboxedProcess) => runNativeProcess(workspaceRoot, sandboxedProcess),
       );
 
       expect(result.status, result.stderr).toBe(0);
       expect(readFileSync(statePath, "utf8")).toBe("preserve\n");
       expect(readFileSync(artifactPath, "utf8")).toBe("artifact\n");
       expect(readFileSync(tempPath, "utf8")).toBe("scratch\n");
+      expect(readFileSync(workspacePath, "utf8")).toBe("change\n");
       expect(existsSync(`${runtimeRoot}.bak`)).toBe(false);
     },
   );

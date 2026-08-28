@@ -158,24 +158,6 @@ describe("antigravityCliAgentHarness execution", () => {
     });
   });
 
-  it("resumes a named AGY conversation without creating overlapping remote work", async () => {
-    mockAgyProcess({ stdout: successfulAgyOutput("continued") });
-
-    await antigravityCliAgentHarness.run({
-      prompt: "repair",
-      model: "gemini-3.6-flash",
-      effort: "xhigh",
-      resumeSessionId: "conversation-existing",
-    });
-
-    const commandArgs = spawnMock.mock.calls[0][1] as string[];
-    expect(commandArgs).toEqual(expect.arrayContaining([
-      "--conversation",
-      "conversation-existing",
-    ]));
-    expect(commandArgs).not.toContain("--new-project");
-  });
-
   it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
     mockAgyProcess({ stdout: successfulAgyOutput("ok") });
     const secrets = {
