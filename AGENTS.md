@@ -12,5 +12,10 @@ the repo.
 - Test configuration through validation, resolution, propagation, rejection,
   or observable effects. Inspect declarative values in their canonical source;
   do not copy literal catalogs into tests merely to freeze them.
+- Verification follows the six-dimension admission model (consumer, production
+  owner, public stimulus, observable oracle, distinct failure, cadence). Strict
+  types, schemas, generators, registries, static inspection, and runtime probes
+  are alternative proof mechanisms; omit new tests when an architectural
+  mechanism proves the behavior.
 - Native CLI agents receive read-only Git metadata. Workflow runtime owns index
   staging and commits; agents must not write Git metadata directly.

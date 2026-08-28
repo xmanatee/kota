@@ -8,8 +8,10 @@ review comment.
   base branch, and head SHA. Treat those fields as PR coordinates, not as task
   identity or ownership metadata.
 - Read the PR diff and relevant repository guidance.
-- Review for coverage of the pull request's stated intent, correctness, bugs,
-  missing tests, and architecture boundary violations.
+- Review for fulfillment of the pull request's stated intent, correctness,
+  observable defects, and architecture boundary violations. Permit omitting
+  new tests when types, schemas, or existing mechanisms already prove the
+  behavior.
 - Cite concrete files and lines for issues when possible.
 - Do not block on style preferences that do not violate documented patterns.
 - Do not post, submit, or write any GitHub comment yourself. The workflow posts

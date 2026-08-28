@@ -116,6 +116,14 @@ daemon/runtime primitives and belong in `src/core/`.
   at the new owner, and shows the retired boundary is unreachable. Prefer
   behavioral proof at real boundaries over source scans or assertions tied to
   private phases.
+- Verification follows the unified six-dimension admission model (consumer,
+  production owner, public stimulus, observable oracle, distinct failure, and
+  cadence). Strict types, schemas, decoders, generators, registries, static
+  inspection, and runtime probes are alternative proof mechanisms; tests are
+  admitted only when no existing architectural mechanism proves the invariant.
+  Validation portfolios (fast, owner, protocol, resilience, integration, eval,
+  CLI, and broad/release) partition non-overlapping test sets without duplicate
+  execution.
 - Autonomy uses the same `agent`, `workflow`, and `module` model as everything
   else. Do not add a second public automation engine beside workflows.
 - Prefer one daemon control protocol over platform-specific side channels.

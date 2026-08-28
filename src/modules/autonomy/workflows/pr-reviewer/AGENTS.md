@@ -12,7 +12,10 @@ This directory owns automated semantic review for trusted GitHub pull requests.
   ownership evidence.
 - Skip forks, irrelevant webhook actions, incomplete payloads, and events whose
   normalized actor integrity is missing, blocked, or below the trust threshold.
-- The review is advisory — it does not gate or auto-merge the PR.
+- The review is advisory — it does not gate or auto-merge the PR. Review
+  assesses intent fulfillment, correctness, and architecture boundaries;
+  guidance permits omitting new tests when types, schemas, or existing
+  mechanisms already prove the behavior.
 - Keep the review agent passive: it drafts structured output only. The workflow
   validates/bounds the body, gates approval, and posts through `github_comment`.
 - Requires the GitHub module to be configured with a token that has PR comment permissions.

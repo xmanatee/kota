@@ -81,4 +81,6 @@ must depend on the typed result, not on the raw boundary value.
 
 Use strict TypeScript and Biome as the mechanical guard. Tests cover decoder
 acceptance/rejection and typed propagation; do not count source tokens or keep
-per-file exception catalogs.
+per-file exception catalogs. Strict types serve as an authoritative proof
+mechanism; do not add redundant tests for invariants already guaranteed by
+the type system.

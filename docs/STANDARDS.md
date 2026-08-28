@@ -146,20 +146,48 @@
   runtime probe, or equivalent artifact. Passing unit tests alone does not
   prove that a CLI, Mac, Web, channel, setup, or daemon-control path improved.
 
+## Verification Admission Model
+
+Every verification mechanism admitted or retained in KOTA must satisfy the
+six-dimension admission model:
+
+1. **Consumer**: Who relies on the behavior (human operator, API client, protocol peer, autonomous agent, runtime kernel).
+2. **Production Owner**: The single cohesive subsystem or module that owns the domain behavior.
+3. **Public Stimulus**: The public API call, CLI command, wire message, or typed event that invokes the behavior.
+4. **Observable Oracle**: The observable return value, persisted state mutation, emitted event, wire response, or process effect that proves success.
+5. **Distinct Failure**: The concrete, distinct defect or regression caught that no existing structural mechanism catches.
+6. **Cadence**: The dedicated, non-overlapping validation portfolio that executes the check.
+
+### Alternative Proof Mechanisms
+
+Tests are not the sole proof mechanism. Treat the following architectural mechanisms as primary alternative proofs:
+
+- **Strict Types**: Eliminates null, undefined, invalid variant, and missing field errors at compile time.
+- **Schemas & Decoders**: Validates and normalizes untrusted boundary inputs with explicit rejection.
+- **Generators**: Structural cross-language bindings eliminate manual wire parsing and model sync boilerplate.
+- **Registries & Immutability**: Single-point capability and tool registration prevents duplicate or mismatched runtime handlers.
+- **Static Inspection**: Biome linting and project references catch architectural violations and module cycle risks.
+- **Runtime Probes & Journeys**: Proves real operator experiences and CLI/UI workflows without artificial test mocks.
+
+Review guidance explicitly permits **omitting new tests when an architectural mechanism already proves the behavior**. Remove mechanical demands for coverage percentages, test counts, artifact presence, or source scans.
+
+The repository baseline and exhaustive disposition manifest for all 115 test families and large files are cataloged in [`docs/VERIFICATION_BASELINE.md`](file:///Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-08-27t05-01-18-980z-builder-b39a4dd099ca9593a779273d5c0fd5c2a7d3b7a3e56dfdcddf9471cb05d88ce0/docs/VERIFICATION_BASELINE.md).
+
 ## Validation Cadence
 
 Validation is selected from the behavior and owner affected by a change. These
-commands are discovery surfaces, not a checklist that every edit must run.
+portfolios have explicit membership and no accidental overlap.
 
-| Cadence | Command | Use |
-| --- | --- | --- |
-| deterministic | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. |
-| owner behavior | `pnpm test <owner paths>` or `pnpm test:changed` | Exercise the decisions and observable behavior owned by the changed component. |
-| protocol | `pnpm test:protocol` | Exercise wire compatibility, framing, redirect, OAuth, and interoperability behavior. |
-| resilience | `pnpm test:resilience` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
-| component integration | `pnpm test:integration` | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
-| evaluation | `pnpm test:eval` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
-| broad confidence | `pnpm check` | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
+| Cadence | Command | Scope & Membership | Purpose |
+| --- | --- | --- | --- |
+| deterministic fast | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. | Fast deterministic static gate. |
+| owner behavior | `pnpm test:owner` | `src/**/*.test.ts` (excluding CLI, eval, integration, protocol, resilience) | Exercise the decisions and observable behavior owned by the changed component. |
+| protocol | `pnpm test:protocol` | MCP client/server protocol, OAuth endpoint/redirect policy, ACP wire formats | Exercise wire compatibility, framing, redirect, OAuth, and interoperability behavior. |
+| resilience | `pnpm test:resilience` | `foreign-module-resilient.test.ts`, `module-error-resilience.integration.test.ts` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
+| component integration | `pnpm test:integration` | `src/**/*.integration.test.ts` (excluding CLI, resilience) | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
+| evaluation | `pnpm test:eval` | `src/modules/eval-harness/**/*.test.ts` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
+| CLI | `pnpm test:cli` | `src/cli.test.ts`, `src/module-cli-commands.integration.test.ts` | Exercise CLI subcommands, argument parsing, and terminal interface commands. |
+| broad confidence | `pnpm check` | Full build + all non-overlapping test partitions | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
 
 Tests without an explicit cadence stay with their behavior owner. Security and
 restart scenarios stay beside that owner; protocol and resilience scenarios

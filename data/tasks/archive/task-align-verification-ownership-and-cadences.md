@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-make-task-authoring-atomic-and-complete]
+status: done
 ---
 
 # Align verification ownership and validation cadences

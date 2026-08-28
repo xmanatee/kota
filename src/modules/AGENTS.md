@@ -46,6 +46,11 @@ This directory contains the scope-owned modules.
   to escalate the invocation. Keep the static effect aligned with the tool's
   broad discovery/MCP scope; runtime classification never accepts a lower
   invocation risk than the static or manifest declaration.
+- Module verification follows the six-dimension admission model (consumer,
+  production owner, public stimulus, observable oracle, distinct failure,
+  cadence). Module tests belong to dedicated, non-overlapping portfolios
+  (`owner`, `protocol`, `resilience`); omit new tests when types, schemas, or
+  core invariants already guarantee the behavior.
 
 ## Workflow contribution precedence
 

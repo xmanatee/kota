@@ -50,6 +50,10 @@ satisfied task back to `open` before dispatcher can emit a builder event.
 
 - Repair checks validate without editing or staging. Use typed code checks for
   objective invariants and agent judgment for architecture or intent.
+- Verification follows the six-dimension admission model (consumer, owner,
+  stimulus, oracle, failure, cadence). Valid proof includes types, schemas,
+  generators, registries, static inspection, runtime probes, or behavior tests;
+  omit new tests when an architectural mechanism already proves the behavior.
 - Give each decision one owning test layer. Workflow tests cover semantic
   routing, predicates, resource binding, and outcomes; shared runtime tests own
   durable admission, capacity, sandbox, process/effect recovery, integration,

@@ -38,7 +38,10 @@ typed builder or semantic scenario over a root-level data catalog.
 Every other unit test lives next to the code it exercises under
 `src/core/<area>/` or `src/modules/<module>/`. If a test legitimately spans
 multiple subsystems, name it `*.integration.test.ts`; otherwise move it to
-the owning subsystem.
+the owning subsystem. Verification adheres to the six-dimension admission
+model (consumer, owner, stimulus, oracle, failure, cadence) and runs across
+non-overlapping portfolios (`owner`, `protocol`, `resilience`, `integration`,
+`eval`, `cli`).
 
 Core tests may not use `#modules/*` imports. A test that genuinely needs to
 load or reference product modules belongs at the root integration tier, not
