@@ -152,7 +152,8 @@ export type WorkflowDisableResult = WorkflowEnableResult;
 export type WorkflowCancelRunResult =
   | { ok: true }
   | { ok: false; reason: "not_found" }
-  | { ok: false; reason: "active" };
+  | { ok: false; reason: "active" }
+  | { ok: false; reason: "sandbox_preserved" };
 
 /** Result of `workflow.abortRun(id)` for a single active run. */
 export type WorkflowAbortRunResult =

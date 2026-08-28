@@ -124,11 +124,14 @@ describe("durable workflow queue restoration", () => {
     }
 
     const refill = vi.fn();
+    const cancel = vi.fn((runId: string) => ({
+      cancelled: runState.cancelQueuedRun(runId, "2026-08-25T10:00:02.000Z"),
+    }));
     const logs: string[] = [];
     const queue = new WorkflowQueueManager({
       store: new WorkflowRunStore(scopeRoot),
       runState,
-      coordinator: { refill } as unknown as RunCoordinator,
+      coordinator: { cancel, refill } as unknown as RunCoordinator,
       scopeId: SCOPE_ID,
       scopeRoot,
       getScopeId: () => SCOPE_ID,

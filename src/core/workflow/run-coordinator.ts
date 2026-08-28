@@ -40,7 +40,15 @@ export type RunCoordinatorOptions = {
   deliverPublication?: (publication: PendingRunPublication) => void | Promise<void>;
   onPublicationError?: (error: unknown, publication: PendingRunPublication) => void;
   publicationRetryMs?: number;
+  prepareCancellation?: (
+    run: StoredRun,
+  ) => { ready: true } | { ready: false; blockers: string[] };
 };
+
+export type RunCancellationResult =
+  | { cancelled: true }
+  | { cancelled: false; reason: "not-found" }
+  | { cancelled: false; reason: "sandbox-preserved"; blockers: string[] };
 
 type ActiveRun = {
   run: StoredRun;
@@ -86,6 +94,7 @@ export class RunCoordinator {
   private readonly deliverPublication?: RunCoordinatorOptions["deliverPublication"];
   private readonly onPublicationError: NonNullable<RunCoordinatorOptions["onPublicationError"]>;
   private readonly publicationRetryMs: number;
+  private readonly prepareCancellation: NonNullable<RunCoordinatorOptions["prepareCancellation"]>;
   private readonly active = new Map<string, ActiveRun>();
   private readonly idleWaiters = new Set<() => void>();
   private readonly scopeIdleWaiters = new Map<string, Set<() => void>>();
@@ -114,6 +123,12 @@ export class RunCoordinator {
     this.deliverPublication = options.deliverPublication;
     this.onPublicationError = options.onPublicationError ?? (() => undefined);
     this.publicationRetryMs = options.publicationRetryMs ?? 1_000;
+    this.prepareCancellation =
+      options.prepareCancellation ??
+      ((run) =>
+        run.sandbox
+          ? { ready: false, blockers: ["sandbox-cleanup-owner-unavailable"] }
+          : { ready: true });
     if (
       !Number.isSafeInteger(this.publicationRetryMs) ||
       this.publicationRetryMs < 1 ||
@@ -218,32 +233,54 @@ export class RunCoordinator {
    * Cancels queued work without executing it, or durably cancels and aborts an
    * active attempt. Active capacity is released only after execute() settles.
    */
-  cancel(runId: string): boolean {
-    if (this.phase === "disposed") return false;
+  cancel(runId: string): RunCancellationResult {
+    if (this.phase === "disposed") return { cancelled: false, reason: "not-found" };
     const active = this.active.get(runId);
     if (active) {
       const run = this.store.getRun(runId);
       if (!run || (run.state !== "running" && run.state !== "integrating")) {
-        return false;
+        return { cancelled: false, reason: "not-found" };
       }
       active.cancelled = true;
       active.controller.abort(new Error(`Run "${runId}" was cancelled`));
-      return true;
+      return { cancelled: true };
     }
 
-    if (!this.store.cancelQueuedRun(runId, this.now())) return false;
+    const run = this.store.getRun(runId);
+    if (
+      !run ||
+      (run.state !== "queued" && run.state !== "waiting" && run.state !== "needs_attention")
+    ) {
+      return { cancelled: false, reason: "not-found" };
+    }
+    const prepared = this.prepareCancellation(run);
+    if (!prepared.ready) {
+      this.store.requireRunAttention(
+        run.id,
+        "sandbox-cleanup-blocked",
+        prepared.blockers,
+      );
+      return {
+        cancelled: false,
+        reason: "sandbox-preserved",
+        blockers: prepared.blockers,
+      };
+    }
+    if (!this.store.cancelQueuedRun(runId, this.now())) {
+      return { cancelled: false, reason: "not-found" };
+    }
     if (this.notifyTerminal(runId)) {
       queueMicrotask(() => this.refill());
     } else {
       this.refill();
     }
-    return true;
+    return { cancelled: true };
   }
 
   cancelScope(scopeId: string): number {
     let cancelled = 0;
     for (const runId of this.activeRunIdsForScope(scopeId)) {
-      if (this.cancel(runId)) cancelled += 1;
+      if (this.cancel(runId).cancelled) cancelled += 1;
     }
     return cancelled;
   }
@@ -429,6 +466,15 @@ export class RunCoordinator {
       await this.drainPublications();
       return;
     }
+    if (outcome.state === "waiting" && outcome.resumeAt !== undefined) {
+      this.store.deferRun({
+        runId: run.id,
+        epoch: this.daemonEpoch,
+        deferredAt: transitionedAt,
+        resumeAt: outcome.resumeAt,
+      });
+      return;
+    }
     this.store.suspendRun({
       runId: run.id,
       epoch: this.daemonEpoch,
@@ -437,9 +483,6 @@ export class RunCoordinator {
       ...(outcome.wait === undefined ? {} : { wait: outcome.wait }),
       ...(outcome.error === undefined ? {} : { error: outcome.error }),
     });
-    if (outcome.state === "waiting" && outcome.resumeAt !== undefined) {
-      this.store.resumeRun(run.id, outcome.resumeAt);
-    }
   }
 
   private async runPublicationDrain(): Promise<void> {

@@ -10,6 +10,14 @@ import type { WebhookRunPayload } from "./workflow-dispatcher-provider.js";
 
 export type WorkflowRuntimeRunsControlState = WorkflowRuntimeDispatchState;
 
+export type QueuedRunCancellation = {
+  ok: boolean;
+  notFound?: boolean;
+  active?: boolean;
+  preserved?: boolean;
+  blockers?: string[];
+};
+
 export function abortActiveRuns(state: WorkflowRuntimeRunsControlState): { aborted: number } {
   return {
     aborted: state.runCoordinator.cancelScope(state.runtimeConfig.scopeId),
@@ -25,7 +33,9 @@ export function abortActiveRun(
       .activeRunIdsForScope(state.runtimeConfig.scopeId)
       .includes(runId)
   ) {
-    return state.runCoordinator.cancel(runId) ? { ok: true } : { ok: false, notFound: true };
+    return state.runCoordinator.cancel(runId).cancelled
+      ? { ok: true }
+      : { ok: false, notFound: true };
   }
   const isQueued = state.wfQueue.getRuns().some((r) => r.runId === runId);
   if (isQueued) return { ok: false, queued: true };
@@ -102,9 +112,13 @@ export function enqueueWebhookRun(
 export function cancelQueuedRun(
   state: WorkflowRuntimeRunsControlState,
   runId: string,
-): { ok: boolean; notFound?: boolean; active?: boolean } {
-  const { cancelled } = state.wfQueue.cancel(runId);
+): QueuedRunCancellation {
+  const result = state.wfQueue.cancel(runId);
+  const { cancelled } = result;
   if (cancelled) return { ok: true };
+  if (result.reason === "sandbox-preserved") {
+    return { ok: false, preserved: true, blockers: result.blockers };
+  }
   const isActive = state.runCoordinator
     .activeRunIdsForScope(state.runtimeConfig.scopeId)
     .includes(runId);

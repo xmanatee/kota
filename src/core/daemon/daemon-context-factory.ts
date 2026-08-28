@@ -103,6 +103,8 @@ export async function createDaemonRuntimeContext(
     store: runState,
     daemonEpoch,
     concurrency: resolveWorkflowConcurrency(config.config?.scheduler),
+    prepareCancellation: (run) =>
+      scopeRuntimes.get(run.scopeId).workflowRuntime.prepareCancellation(run),
     execute: (run, signal) =>
       scopeRuntimes.get(run.scopeId).workflowRuntime.executeAdmittedRun(run, signal),
     deliverPublication: (publication) =>

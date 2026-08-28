@@ -243,7 +243,7 @@ describe("StandaloneRunHost", () => {
       });
       await started;
 
-      expect(host.coordinator.cancel("cancelled-parent-test")).toBe(true);
+      expect(host.coordinator.cancel("cancelled-parent-test")).toEqual({ cancelled: true });
       releaseChild();
 
       const parent = await parentPromise;

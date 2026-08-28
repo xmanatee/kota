@@ -352,8 +352,18 @@ export class WorkflowRuntime {
     return this.ctx.eventBatches.dispatchToWorkflowBatch(input);
   }
 
-  cancelQueuedRun(runId: string): { ok: boolean; notFound?: boolean; active?: boolean } {
+  cancelQueuedRun(runId: string): {
+    ok: boolean;
+    notFound?: boolean;
+    active?: boolean;
+    preserved?: boolean;
+    blockers?: string[];
+  } {
     return cancelQueuedRun(this.ctx, runId);
+  }
+
+  prepareCancellation(run: StoredRun): { ready: true } | { ready: false; blockers: string[] } {
+    return this.lifecycle.prepareCancellation(run);
   }
 
   redriveDeadLetter(

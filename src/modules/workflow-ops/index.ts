@@ -536,7 +536,13 @@ export function buildWorkflowDaemonHandler(
         throw new Error(`Daemon unreachable while cancelling run "${id}"`);
       }
       if (resp.status === 404) return { ok: false, reason: "not_found" };
-      if (resp.status === 409) return { ok: false, reason: "active" };
+      if (resp.status === 409) {
+        const body = (await resp.json()) as { blockers?: unknown };
+        return {
+          ok: false,
+          reason: Array.isArray(body.blockers) ? "sandbox_preserved" : "active",
+        };
+      }
       if (!resp.ok) {
         throw new Error(`Daemon unreachable while cancelling run "${id}"`);
       }

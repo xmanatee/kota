@@ -376,14 +376,14 @@ describe("RunCoordinator", () => {
 
     coordinator.refill();
     await started.promise;
-    expect(coordinator.cancel("run-b")).toBe(true);
-    expect(coordinator.cancel("run-a")).toBe(true);
+    expect(coordinator.cancel("run-b")).toEqual({ cancelled: true });
+    expect(coordinator.cancel("run-a")).toEqual({ cancelled: true });
     await aborted.promise;
     await coordinator.whenIdle();
 
     expect(store.getRun("run-a")?.state).toBe("cancelled");
     expect(store.getRun("run-b")?.state).toBe("cancelled");
-    expect(coordinator.cancel("run-a")).toBe(false);
+    expect(coordinator.cancel("run-a")).toEqual({ cancelled: false, reason: "not-found" });
   });
 
   test("preserves lifecycle attention after cancellation when cleanup is not safe", async () => {
@@ -412,7 +412,7 @@ describe("RunCoordinator", () => {
 
     coordinator.refill();
     await started.promise;
-    expect(coordinator.cancel("run-a")).toBe(true);
+    expect(coordinator.cancel("run-a")).toEqual({ cancelled: true });
     await coordinator.whenIdle();
 
     expect(store.getRun("run-a")).toMatchObject({

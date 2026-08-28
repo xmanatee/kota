@@ -139,7 +139,13 @@ export type DaemonControlHandle = {
   cancelQueuedRun(
     runId: string,
     scopeId?: ScopeId,
-  ): { ok: boolean; notFound?: boolean; active?: boolean };
+  ): {
+    ok: boolean;
+    notFound?: boolean;
+    active?: boolean;
+    preserved?: boolean;
+    blockers?: string[];
+  };
   subscribeToEvents(handler: (event: DaemonSseEvent) => void): () => void;
   listWorkflowRuns(opts?: {
     workflow?: string;

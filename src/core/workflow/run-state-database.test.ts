@@ -456,6 +456,42 @@ describe("RunStateDatabase", () => {
     },
   );
 
+  test("atomically defers an active attempt while preserving run ownership", () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    store.admitRun({
+      id: "run-a",
+      scopeId: "scope-a",
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "task.ready", schemaRef: null, payload: { taskId: "task-a" } },
+      resources: ["task:task-a"],
+      admittedAt: "2026-08-25T10:00:01.000Z",
+    });
+    store.startRun("run-a", epoch, "2026-08-25T10:00:02.000Z");
+    expect(store.tryAcquireResource({
+      runId: "run-a",
+      resourceKey: "runtime:attempt",
+      lifetime: "attempt",
+      epoch,
+      acquiredAt: "2026-08-25T10:00:03.000Z",
+    })).toBe(true);
+
+    store.deferRun({
+      runId: "run-a",
+      epoch,
+      deferredAt: "2026-08-25T10:00:04.000Z",
+      resumeAt: "2026-08-25T10:01:00.000Z",
+    });
+
+    expect(store.getRun("run-a")).toMatchObject({
+      state: "queued",
+      notBeforeAt: "2026-08-25T10:01:00.000Z",
+      resources: ["task:task-a"],
+      processes: [],
+    });
+  });
+
   test("keeps terminal redelivery queued while its logical resource is owned", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");

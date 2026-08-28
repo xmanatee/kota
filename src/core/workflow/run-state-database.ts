@@ -611,6 +611,30 @@ export class RunStateDatabase {
     })();
   }
 
+  deferRun(input: {
+    runId: string;
+    epoch: number;
+    deferredAt: string;
+    resumeAt: string;
+  }): void {
+    this.database.transaction(() => {
+      this.assertCurrentEpoch(input.epoch);
+      const updated = this.database
+        .prepare(
+          `UPDATE runs
+           SET state = 'queued', daemon_epoch = NULL, not_before_at = ?,
+               wait_json = NULL, last_error = NULL
+           WHERE id = ? AND state IN ('running', 'integrating') AND daemon_epoch = ?`,
+        )
+        .run(input.resumeAt, input.runId, input.epoch);
+      if (updated.changes !== 1) {
+        throw new Error(`Run "${input.runId}" is not active in daemon epoch ${input.epoch}`);
+      }
+      this.finishAttempt(input.runId, input.epoch, "waiting", input.deferredAt);
+      this.releaseAttemptResources(input.runId);
+    })();
+  }
+
   resumeRun(runId: string, resumedAt: string): void {
     const updated = this.database
       .prepare(
@@ -621,6 +645,20 @@ export class RunStateDatabase {
       )
       .run(resumedAt, runId);
     if (updated.changes !== 1) throw new Error(`Run "${runId}" is not suspended`);
+  }
+
+  requireRunAttention(runId: string, reason: string, evidence: readonly string[]): void {
+    const updated = this.database
+      .prepare(
+        `UPDATE runs
+         SET state = 'needs_attention', daemon_epoch = NULL, not_before_at = NULL,
+             wait_json = ?, last_error = ?
+         WHERE id = ? AND state IN ('queued', 'waiting', 'needs_attention')`,
+      )
+      .run(JSON.stringify({ reason, evidence: [...evidence] }), reason, runId);
+    if (updated.changes !== 1) {
+      throw new Error(`Run "${runId}" cannot move to attention from its current state`);
+    }
   }
 
   setSandbox(runId: string, epoch: number, sandbox: RunSandbox): void {
@@ -1271,7 +1309,8 @@ export class RunStateDatabase {
       const updated = this.database
         .prepare(
           `UPDATE runs
-           SET state = 'cancelled', finished_at = ?, result_status = 'interrupted'
+           SET state = 'cancelled', finished_at = ?, result_status = 'interrupted',
+               sandbox_json = NULL
            WHERE id = ? AND state IN ('queued', 'waiting', 'needs_attention')`,
         )
         .run(cancelledAt, runId);

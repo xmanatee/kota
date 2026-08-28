@@ -380,15 +380,15 @@ export class WorkflowQueueManager {
     this.appendRun({ ...queued, notBeforeMs });
   }
 
-  cancel(runId: string): { cancelled: boolean } {
-    return { cancelled: this.config.coordinator.cancel(runId) };
+  cancel(runId: string): ReturnType<RunCoordinator["cancel"]> {
+    return this.config.coordinator.cancel(runId);
   }
 
   cancelByWorkflow(workflowName: string): number {
     let cancelled = 0;
     for (const run of this.config.runState.listRuns(this.config.scopeId)) {
       if (run.workflow !== workflowName) continue;
-      if (this.config.coordinator.cancel(run.id)) cancelled += 1;
+      if (this.config.coordinator.cancel(run.id).cancelled) cancelled += 1;
     }
     return cancelled;
   }
@@ -409,9 +409,11 @@ export class WorkflowQueueManager {
   }
 
   private cancelRestoredRun(run: StoredRun, reason: string): void {
-    this.config.runState.cancelQueuedRun(run.id, new Date().toISOString());
+    const cancellation = this.config.coordinator.cancel(run.id);
     this.config.log(
-      `Cancelled durable queued workflow "${run.workflow}" (${run.id}): ${reason}`,
+      cancellation.cancelled
+        ? `Cancelled durable queued workflow "${run.workflow}" (${run.id}): ${reason}`
+        : `Preserved durable workflow "${run.workflow}" (${run.id}) for attention: ${reason}`,
     );
   }
 

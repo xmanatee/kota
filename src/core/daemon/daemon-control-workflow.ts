@@ -171,6 +171,13 @@ export function handleCancelWorkflowRun(
     jsonResponse(res, 409, { error: "Run is active; use POST /workflow/abort to cancel active runs" });
     return;
   }
+  if (result.preserved) {
+    jsonResponse(res, 409, {
+      error: "Run sandbox contains unintegrated or unverifiable work and was preserved",
+      blockers: result.blockers ?? [],
+    });
+    return;
+  }
   jsonResponse(res, 200, { ok: true });
 }
 

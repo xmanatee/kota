@@ -189,6 +189,34 @@ export class RunLifecycle {
       });
   }
 
+  prepareCancellation(run: StoredRun): { ready: true } | { ready: false; blockers: string[] } {
+    if (!run.sandbox) return { ready: true };
+    const repoRoot = this.options.store.getScopeRoot(run.scopeId);
+    if (!repoRoot) return { ready: false, blockers: [`unknown-scope:${run.scopeId}`] };
+    const manager = this.sandboxManager(repoRoot);
+    let sandbox: RunSandbox;
+    try {
+      sandbox = manager.adopt(run.sandbox);
+    } catch (adoptionError) {
+      try {
+        const reconciled = manager.reconcile(run.id, run.repository);
+        if (reconciled.status === "absent" || reconciled.status === "removed") {
+          return { ready: true };
+        }
+        sandbox = reconciled.sandbox;
+      } catch (reconciliationError) {
+        return {
+          ready: false,
+          blockers: [errorMessage(adoptionError), errorMessage(reconciliationError)],
+        };
+      }
+    }
+    const cleanup = manager.cleanup(sandbox);
+    return cleanup.cleaned
+      ? { ready: true }
+      : { ready: false, blockers: cleanup.blockers };
+  }
+
   async execute(run: StoredRun, signal: AbortSignal): Promise<RunExecutionOutcome> {
     const repoRoot = this.options.store.getScopeRoot(run.scopeId);
     if (!repoRoot) {
@@ -200,13 +228,26 @@ export class RunLifecycle {
       if (run.sandbox) {
         try {
           sandbox = manager.adopt(run.sandbox);
-        } catch {
-          const reconciled = manager.reconcile(run.id, run.repository);
+        } catch (adoptionError) {
+          let reconciled: ReturnType<RunSandboxManager["reconcile"]>;
+          try {
+            reconciled = manager.reconcile(run.id, run.repository);
+          } catch (reconciliationError) {
+            return this.attention("sandbox-recovery-ambiguous", [
+              errorMessage(adoptionError),
+              errorMessage(reconciliationError),
+            ]);
+          }
           if (reconciled.status === "removed" || reconciled.status === "absent") {
             const recovered = this.finishIntegratedWithoutSandbox(run, repoRoot);
             if (recovered) return recovered;
+            this.options.store.clearSandbox(run.id, this.options.daemonEpoch);
+            return {
+              kind: "terminal",
+              state: "failed",
+              error: `Run "${run.id}" sandbox disappeared before integration completed`,
+            };
           }
-          if (reconciled.status !== "active") throw new Error(`Run "${run.id}" sandbox is not recoverable`);
           sandbox = reconciled.sandbox;
         }
       } else {
@@ -432,14 +473,15 @@ export class RunLifecycle {
         return this.cleanupMerged(context, manager, sandbox);
       }
       if (outcome.status === "busy" || outcome.status === "stale") {
-        journal = { ...journal, phase: "waiting" };
-        this.persist(context, journal);
-        return {
-          kind: "suspended",
-          state: "waiting",
-          wait: { reason: `integration-${outcome.status}` },
-          resumeAt: new Date(Date.parse(this.now()) + 1_000).toISOString(),
-        };
+        return this.waitForIntegration(context, journal, `integration-${outcome.status}`);
+      }
+      if (outcome.status === "validation-failed" && outcome.reason === "canonical-dirty") {
+        return this.waitForIntegration(
+          context,
+          journal,
+          "integration-canonical-dirty",
+          30_000,
+        );
       }
       if (outcome.status === "conflicted") {
         const resolution = await this.resolveConflicts(context, journal);
@@ -525,6 +567,21 @@ export class RunLifecycle {
     return git(workspaceDir, ["rev-parse", "HEAD"]);
   }
 
+  private waitForIntegration(
+    context: RunContext,
+    journal: IntegrationJournal,
+    reason: string,
+    delayMs = 1_000,
+  ): Extract<RunExecutionOutcome, { kind: "suspended" }> {
+    this.persist(context, { ...journal, phase: "waiting" });
+    return {
+      kind: "suspended",
+      state: "waiting",
+      wait: { reason },
+      resumeAt: new Date(Date.parse(this.now()) + delayMs).toISOString(),
+    };
+  }
+
   private cleanupMerged(
     context: RunContext,
     manager: RunSandboxManager,
@@ -569,11 +626,20 @@ export class RunLifecycle {
       const canonicalHead = git(repoRoot, ["rev-parse", "HEAD"]);
       if (isCommitAncestor(repoRoot, journal.publishedHead, canonicalHead)) {
         journal = { ...journal, phase: "merged" };
-        this.options.store.updateIntegration(
-          run.id,
-          this.options.daemonEpoch,
-          serializable(journal),
-        );
+        const current = this.options.store.getRun(run.id);
+        if (current?.state === "running") {
+          this.options.store.beginIntegration(
+            run.id,
+            this.options.daemonEpoch,
+            serializable(journal),
+          );
+        } else {
+          this.options.store.updateIntegration(
+            run.id,
+            this.options.daemonEpoch,
+            serializable(journal),
+          );
+        }
       } else {
         return this.attention(
           canonicalHead === journal.integratedFromHead

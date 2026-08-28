@@ -52,6 +52,12 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
         printWorkflowError(`Run "${runId}" is active. Use \`kota workflow abort\` to cancel active runs.`);
         process.exit(1);
       }
+      if (result.reason === "sandbox_preserved") {
+        printWorkflowError(
+          `Run "${runId}" has unintegrated or unverifiable sandbox work and was preserved.`,
+        );
+        process.exit(1);
+      }
     });
 
   wfCmd

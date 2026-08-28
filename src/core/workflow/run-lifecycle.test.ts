@@ -300,8 +300,22 @@ describe("RunLifecycle", () => {
     commit(value.root, "later canonical publication");
     expect(manager.cleanup(sandbox)).toEqual({ cleaned: true, blockers: [] });
 
-    const outcome = await lifecycle(value, async () => {
-      throw new Error("published writer must not execute again");
+    const session = value.store.beginDaemonSession("2026-08-25T10:10:00.000Z");
+    value.store.completeRestartRecovery(
+      value.run.id,
+      session.epoch,
+      "2026-08-25T10:10:00.500Z",
+    );
+    value.store.startRun(value.run.id, session.epoch, "2026-08-25T10:10:01.000Z");
+
+    const outcome = await new RunLifecycle({
+      store: value.store,
+      daemonEpoch: session.epoch,
+      executeWorkflow: async () => {
+        throw new Error("published writer must not execute again");
+      },
+      continueIntegration: async () => undefined,
+      validate: async () => ({ status: "passed", evidence: [] }),
     }).execute(value.store.getRun(value.run.id)!, new AbortController().signal);
 
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
@@ -338,6 +352,49 @@ describe("RunLifecycle", () => {
       "canonical advance",
       "base",
     ]);
+  });
+
+  test("retries integration after transient canonical edits without losing the sandbox", async () => {
+    const value = fixture("canonical-dirty", "write");
+    let workspace = "";
+
+    const outcome = await lifecycle(value, async (context) => {
+      workspace = context.sandbox.workspaceDir;
+      write(workspace, "writer.txt", "writer\n");
+      write(value.root, "owner.txt", "not committed\n");
+      return { kind: "completed", commitMessage: "writer change" };
+    }).execute(value.run, new AbortController().signal);
+
+    expect(outcome).toMatchObject({
+      kind: "suspended",
+      state: "waiting",
+      wait: { reason: "integration-canonical-dirty" },
+    });
+    expect(outcome.kind === "suspended" && outcome.resumeAt).toBeDefined();
+    expect(existsSync(workspace)).toBe(true);
+    expect(git(value.root, "status", "--porcelain")).toContain("owner.txt");
+
+    if (outcome.kind !== "suspended" || outcome.resumeAt === undefined) {
+      throw new Error("expected a delayed integration retry");
+    }
+    value.store.deferRun({
+      runId: value.run.id,
+      epoch: value.epoch,
+      deferredAt: "2026-08-25T10:00:03.000Z",
+      resumeAt: outcome.resumeAt,
+    });
+    rmSync(join(value.root, "owner.txt"));
+    value.store.startRun(value.run.id, value.epoch, outcome.resumeAt);
+    let workflowReexecuted = false;
+    const recovered = await lifecycle(value, async () => {
+      workflowReexecuted = true;
+      return { kind: "completed" };
+    }).execute(value.store.getRun(value.run.id)!, new AbortController().signal);
+
+    expect(recovered).toEqual({ kind: "terminal", state: "succeeded" });
+    expect(workflowReexecuted).toBe(false);
+    expect(existsSync(workspace)).toBe(false);
+    expect(readFileSync(join(value.root, "writer.txt"), "utf8")).toBe("writer\n");
   });
 
   test("moves a rejected post-reconcile invariant to attention without discarding work", async () => {
