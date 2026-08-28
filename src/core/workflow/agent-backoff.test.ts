@@ -93,6 +93,37 @@ describe("AgentBackoffManager", () => {
     expect(second?.until).toBe("2026-05-12T13:31:00.000Z");
   });
 
+  it("coalesces concurrent failures into the active backoff window", () => {
+    const manager = makeManager();
+
+    const first = manager.apply({
+      kind: "rate_limit",
+      reason: "first concurrent quota failure",
+    });
+    const second = manager.apply({
+      kind: "rate_limit",
+      reason: "second concurrent quota failure",
+    });
+
+    expect(second.failureCount).toBe(1);
+    expect(second.until).toBe(first.until);
+  });
+
+  it("does not shorten an active backoff when another failure kind arrives", () => {
+    const manager = makeManager();
+
+    const rateLimit = manager.apply({
+      kind: "rate_limit",
+      reason: "quota exhausted",
+    });
+    const provider = manager.apply({
+      kind: "provider",
+      reason: "provider disconnected",
+    });
+
+    expect(provider).toEqual(rateLimit);
+  });
+
   it("clears an expired stored backoff after a successful agent run", () => {
     const manager = makeManager();
 
@@ -132,10 +163,15 @@ describe("AgentBackoffManager", () => {
       "gemini-cli:gemini-cli",
     );
 
+    expect(manager.getSupersededRuntime()).toMatchObject({
+      runtimeId: "codex:codex",
+    });
     expect(manager.getActive()).toBeNull();
+    expect(scopeState.getAgentBackoff()).not.toBeNull();
+    manager.clear("after runtime changed from codex:codex");
     expect(scopeState.getAgentBackoff()).toBeNull();
     expect(logs).toContain(
-      "Cleared agent dispatch backoff from runtime codex:codex; active runtime is gemini-cli:gemini-cli",
+      "Cleared agent dispatch backoff after runtime changed from codex:codex (rate_limit)",
     );
   });
 
@@ -201,5 +237,40 @@ describe("AgentBackoffManager", () => {
     await coordinator.whenIdle();
     expect(execute).toHaveBeenCalledTimes(1);
     expect(runState.getRun(queuedRunId)?.state).toBe("succeeded");
+  });
+
+  it("defers agent work that was queued before backoff, including after restart", () => {
+    const definition: WorkflowDefinition = {
+      name: "builder",
+      enabled: true,
+      moduleRoot: scopeRoot,
+      repository: "none",
+      tags: [],
+      definitionPath: "builder.test.ts",
+      triggers: [{ event: "autonomy.builder.requested", cooldownMs: 0 }],
+      steps: [],
+    };
+    const manager = makeManager();
+    const queue = makeQueue(manager, definition);
+    coordinator.pauseGlobalAdmission();
+    queue.enqueue(definition, definition.triggers[0]!, {
+      event: "autonomy.builder.requested",
+      schemaRef: null,
+      payload: { idempotencyKey: "already-queued-builder" },
+    });
+
+    const backoff = manager.apply({
+      kind: "rate_limit",
+      reason: "provider quota exhausted",
+    });
+    const restored = makeQueue(manager, definition);
+    restored.restorePending();
+
+    expect(restored.getRuns()).toHaveLength(1);
+    expect(restored.getRuns()[0]?.notBeforeMs).toBe(Date.parse(backoff.until));
+    expect(execute).not.toHaveBeenCalled();
+
+    expect(restored.releaseAgentRunsDeferredUntil(backoff.until)).toBe(1);
+    expect(restored.getRuns()[0]?.notBeforeMs).toBe(Date.now());
   });
 });

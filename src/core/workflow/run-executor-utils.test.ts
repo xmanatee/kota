@@ -63,6 +63,32 @@ function eventWorkflow(name: string, event: string): WorkflowDefinition {
   )[0]!;
 }
 
+const TEST_AGENT_STEP = {
+  id: "agent",
+  type: "agent",
+  promptPath: "prompt.md",
+  moduleRoot: process.cwd(),
+  harness: "test-harness",
+  model: "test-model",
+  effort: "low",
+  autonomyMode: "autonomous",
+} satisfies WorkflowDefinition["steps"][number];
+
+function definitionWithSteps(
+  ...steps: WorkflowDefinition["steps"]
+): WorkflowDefinition {
+  return {
+    name: "test",
+    enabled: true,
+    repository: "none",
+    definitionPath: "test.ts",
+    moduleRoot: process.cwd(),
+    triggers: [],
+    steps,
+    tags: [],
+  };
+}
+
 afterEach(() => {
   resetModuleEventRegistry();
 });
@@ -238,39 +264,15 @@ describe("matchesFilter", () => {
 });
 
 describe("workflowUsesAgent", () => {
-  function definitionWithStep(step: WorkflowDefinition["steps"][number]): WorkflowDefinition {
-    return {
-      name: "test",
-      enabled: true,
-      repository: "none",
-      definitionPath: "test.ts",
-      moduleRoot: process.cwd(),
-      triggers: [],
-      steps: [step],
-      tags: [],
-    };
-  }
-
-  const agentStep = {
-    id: "agent",
-    type: "agent",
-    promptPath: "prompt.md",
-    moduleRoot: process.cwd(),
-    harness: "test-harness",
-    model: "test-model",
-    effort: "low",
-    autonomyMode: "autonomous",
-  } satisfies WorkflowDefinition["steps"][number];
-
   it("detects agent steps nested in foreach", () => {
     expect(
       workflowUsesAgent(
-        definitionWithStep({
+        definitionWithSteps({
           id: "loop",
           type: "foreach",
           items: () => [],
           as: "item",
-          steps: [agentStep],
+          steps: [TEST_AGENT_STEP],
         }),
       ),
     ).toBe(true);
@@ -279,12 +281,12 @@ describe("workflowUsesAgent", () => {
   it("detects agent steps nested in branch arms", () => {
     expect(
       workflowUsesAgent(
-        definitionWithStep({
+        definitionWithSteps({
           id: "branch",
           type: "branch",
           condition: () => true,
           ifTrue: [],
-          ifFalse: [agentStep],
+          ifFalse: [TEST_AGENT_STEP],
         }),
       ),
     ).toBe(true);
@@ -293,7 +295,7 @@ describe("workflowUsesAgent", () => {
   it("leaves code-only nested steps classified as code workflows", () => {
     expect(
       workflowUsesAgent(
-        definitionWithStep({
+        definitionWithSteps({
           id: "loop",
           type: "foreach",
           items: () => [],
@@ -302,6 +304,19 @@ describe("workflowUsesAgent", () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  it("detects code steps that declare an agent run contract", () => {
+    expect(
+      workflowUsesAgent(
+        definitionWithSteps({
+          id: "semantic-review",
+          type: "code",
+          run: () => "ok",
+          resolveAgentContract: () => TEST_AGENT_STEP,
+        }),
+      ),
+    ).toBe(true);
   });
 });
 
@@ -336,22 +351,45 @@ describe("runHasSuccessfulAgentExecution", () => {
     return { ...resultTiming, type: "code", status: "success" };
   }
 
+  const agentDefinition = definitionWithSteps({
+    ...TEST_AGENT_STEP,
+    id: "step",
+  });
+
   it("requires a fresh successful agent result", () => {
     expect(
-      runHasSuccessfulAgentExecution([
+      runHasSuccessfulAgentExecution(agentDefinition, [
         skippedAgentResult(),
         successfulCodeResult(),
       ]),
     ).toBe(false);
     expect(
-      runHasSuccessfulAgentExecution([
+      runHasSuccessfulAgentExecution(agentDefinition, [
         successfulAgentResult(true),
       ]),
     ).toBe(false);
     expect(
-      runHasSuccessfulAgentExecution([
+      runHasSuccessfulAgentExecution(agentDefinition, [
         successfulAgentResult(),
       ]),
+    ).toBe(true);
+  });
+
+  it("recognizes successful code steps with a declared agent contract", () => {
+    const definition = definitionWithSteps({
+      id: "step",
+      type: "code",
+      run: () => "ok",
+      resolveAgentContract: () => ({
+        harness: "test-harness",
+        model: "test-model",
+        effort: "low",
+        autonomyMode: "autonomous",
+      }),
+    });
+
+    expect(
+      runHasSuccessfulAgentExecution(definition, [successfulCodeResult()]),
     ).toBe(true);
   });
 });

@@ -470,6 +470,36 @@ export class RunStateDatabase {
     })();
   }
 
+  deferQueuedRuns(runIds: readonly string[], notBeforeAt: string): number {
+    const ids = [...new Set(runIds)];
+    if (ids.length === 0) return 0;
+    return this.database.transaction(() => {
+      const update = this.database.prepare(
+        `UPDATE runs SET not_before_at = ?
+         WHERE id = ? AND state = 'queued'
+           AND (not_before_at IS NULL OR not_before_at < ?)`,
+      );
+      let deferred = 0;
+      for (const runId of ids) {
+        deferred += update.run(notBeforeAt, runId, notBeforeAt).changes;
+      }
+      return deferred;
+    })();
+  }
+
+  releaseQueuedRunsDeferredUntil(
+    scopeId: string,
+    deferredUntil: string,
+    releasedAt: string,
+  ): number {
+    return this.database
+      .prepare(
+        `UPDATE runs SET not_before_at = ?
+         WHERE scope_id = ? AND state = 'queued' AND not_before_at = ?`,
+      )
+      .run(releasedAt, scopeId, deferredUntil).changes;
+  }
+
   startRun(runId: string, epoch: number, startedAt: string): number | null {
     const start = this.database.transaction(() => {
       this.assertCurrentEpoch(epoch);

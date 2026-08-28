@@ -188,7 +188,56 @@ export class WorkflowQueueManager {
     if (restored > 0) {
       this.config.log(`Recovered ${restored} durable queued workflow run(s)`);
     }
+    const backoff = this.config.getActiveBackoff();
+    if (backoff !== null) this.deferAgentRunsUntil(backoff.until);
     this.config.coordinator.refill();
+  }
+
+  /** Applies provider backoff to agent work that was queued before the failure. */
+  deferAgentRunsUntil(until: string): number {
+    const untilMs = Date.parse(until);
+    if (!Number.isFinite(untilMs)) {
+      throw new Error(`Invalid agent backoff timestamp: ${until}`);
+    }
+    const definitions = new Map(
+      this.config
+        .getDefinitions()
+        .filter((definition) => definition.enabled)
+        .map((definition) => [definition.name, definition]),
+    );
+    const runIds: string[] = [];
+    for (const run of this.config.runState.listRuns(this.config.scopeId, ["queued"])) {
+      const definition = definitions.get(run.workflow);
+      if (
+        definition === undefined ||
+        !this.config.workflowUsesAgent(definition) ||
+        (run.notBeforeAt !== undefined && Date.parse(run.notBeforeAt) >= untilMs)
+      ) {
+        continue;
+      }
+      runIds.push(run.id);
+    }
+    const deferred = this.config.runState.deferQueuedRuns(runIds, until);
+    if (deferred > 0) {
+      this.config.log(
+        `Deferred ${deferred} queued agent workflow run(s) until ${until}`,
+      );
+    }
+    return deferred;
+  }
+
+  releaseAgentRunsDeferredUntil(until: string): number {
+    const released = this.config.runState.releaseQueuedRunsDeferredUntil(
+      this.config.scopeId,
+      until,
+      new Date().toISOString(),
+    );
+    if (released > 0) {
+      this.config.log(
+        `Released ${released} queued agent workflow run(s) from backoff`,
+      );
+    }
+    return released;
   }
 
   enqueue(
@@ -216,16 +265,13 @@ export class WorkflowQueueManager {
     ) return;
 
     const now = Date.now();
-    const backoff = this.config.workflowUsesAgent(definition)
-      ? this.config.getActiveBackoff()
-      : null;
-    const eligibleAt = Math.max(
+    const eligibleAt = this.applyAgentBackoffEligibility(
+      definition,
       getEligibleAtMs(
         definition.name,
         triggerConfig.cooldownMs,
         this.config.runState.readWorkflowSummary(this.config.scopeId),
       ),
-      backoff ? Date.parse(backoff.until) : now,
     );
     const providedRunId = workflowRunIdFromPayload(
       typeof trigger.payload._runId === "string" ? trigger.payload._runId : undefined,
@@ -313,7 +359,7 @@ export class WorkflowQueueManager {
       queued.trigger,
       queued.runId ?? formatRunId(queued.workflowName),
       queued.enqueuedAtMs,
-      queued.notBeforeMs,
+      this.applyAgentBackoffEligibility(definition, queued.notBeforeMs),
     );
     this.config.coordinator.refill();
     return disposition;
@@ -321,13 +367,17 @@ export class WorkflowQueueManager {
 
   appendResumeRun(queued: WorkflowQueuedRun): void {
     const runId = queued.runId ?? formatRunId(queued.workflowName);
+    const definition = this.definition(queued.workflowName);
+    const notBeforeMs = definition?.enabled
+      ? this.applyAgentBackoffEligibility(definition, queued.notBeforeMs)
+      : queued.notBeforeMs;
     const current = this.config.runState.getRun(runId);
     if (current?.state === "waiting" || current?.state === "needs_attention") {
-      this.config.runState.resumeRun(runId, new Date(queued.notBeforeMs).toISOString());
+      this.config.runState.resumeRun(runId, new Date(notBeforeMs).toISOString());
       this.config.coordinator.refill();
       return;
     }
-    this.appendRun(queued);
+    this.appendRun({ ...queued, notBeforeMs });
   }
 
   cancel(runId: string): { cancelled: boolean } {
@@ -345,6 +395,17 @@ export class WorkflowQueueManager {
 
   private definition(name: string): WorkflowDefinition | undefined {
     return this.config.getDefinitions().find((candidate) => candidate.name === name);
+  }
+
+  private applyAgentBackoffEligibility(
+    definition: WorkflowDefinition,
+    requestedAtMs: number,
+  ): number {
+    if (!this.config.workflowUsesAgent(definition)) return requestedAtMs;
+    const backoff = this.config.getActiveBackoff();
+    return backoff === null
+      ? requestedAtMs
+      : Math.max(requestedAtMs, Date.parse(backoff.until));
   }
 
   private cancelRestoredRun(run: StoredRun, reason: string): void {

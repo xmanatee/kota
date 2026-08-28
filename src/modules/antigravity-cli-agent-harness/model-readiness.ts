@@ -68,6 +68,7 @@ export function resolveAntigravityCliModelEffortReadiness(
   return {
     ...base,
     status: "ready",
-    summary: `AGY model/effort ${adapterModel} is available`,
+    summary:
+      `AGY model/effort ${adapterModel} is listed; execution quota is not exposed by AGY`,
   };
 }

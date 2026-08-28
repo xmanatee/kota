@@ -206,7 +206,15 @@ export class WorkflowRuntime {
   }
 
   clearAgentBackoff(reason: string): boolean {
-    return this.ctx.backoff.clear(reason);
+    const active = this.ctx.backoff.getActive();
+    if (active !== null) {
+      this.ctx.wfQueue.releaseAgentRunsDeferredUntil(active.until);
+    }
+    const cleared = this.ctx.backoff.clear(reason);
+    if (cleared) {
+      this.ctx.runCoordinator.refill();
+    }
+    return cleared;
   }
 
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {

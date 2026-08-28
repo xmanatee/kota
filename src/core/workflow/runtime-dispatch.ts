@@ -205,6 +205,9 @@ export async function executeAdmittedWorkflowRun(
     const appliedBackoff = result.agentBackoff
       ? state.backoff.apply(result.agentBackoff)
       : undefined;
+    if (appliedBackoff !== undefined) {
+      state.wfQueue.deferAgentRunsUntil(appliedBackoff.until);
+    }
     recordFailedWorkflowDispatchDeadLetter(
       state,
       definition,
@@ -227,7 +230,8 @@ export async function executeAdmittedWorkflowRun(
     }
     if (
       !result.agentBackoff &&
-      runHasSuccessfulAgentExecution(result.metadata.steps)
+      state.backoff.getActive() === null &&
+      runHasSuccessfulAgentExecution(definition, result.metadata.steps)
     ) {
       state.backoff.clear();
     }

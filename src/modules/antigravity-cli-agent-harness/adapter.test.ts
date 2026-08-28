@@ -68,7 +68,7 @@ describe("antigravityCliAgentHarness readiness", () => {
     expect(readiness).toMatchObject({
       status: "ready",
       command: "agy models",
-      summary: "Antigravity CLI login and model access ready",
+      summary: "Antigravity CLI login active and model catalog readable",
     });
     expect(readiness.detail).toContain("gemini-3.1-pro-high");
   });
@@ -97,7 +97,7 @@ describe("antigravityCliAgentHarness readiness", () => {
     expect(readiness.localAuth).toMatchObject({
       status: "ready",
       required: true,
-      summary: "Antigravity CLI login and model access ready",
+      summary: "Antigravity CLI login active and model catalog readable",
     });
     expect(readiness.modelEffort).toMatchObject({ status: "ready" });
   });

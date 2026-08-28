@@ -20,7 +20,7 @@ describe("Antigravity CLI auth readiness", () => {
     expect(readiness).toMatchObject({
       status: "ready",
       required: true,
-      summary: "Antigravity CLI login and model access ready",
+      summary: "Antigravity CLI login active and model catalog readable",
     });
     expect(readCommandOutput).toHaveBeenCalledWith("/opt/bin/agy", ["models"]);
   });

@@ -15,7 +15,7 @@ export function antigravityCliAuthReadiness(
     stalePattern: /(?:expired|refresh token)/i,
     missingPattern:
       /(?:log in|login|authentication required|unauthenticated|unauthorized|credentials)/i,
-    readySummary: "Antigravity CLI login and model access ready",
+    readySummary: "Antigravity CLI login active and model catalog readable",
     staleSummary: "Antigravity CLI login is stale",
     missingSummary: "Antigravity CLI login not active; run `agy` and sign in",
     renewalSummary: "run `agy` and sign in again before unattended runs",

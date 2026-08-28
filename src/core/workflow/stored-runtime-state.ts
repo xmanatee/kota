@@ -79,7 +79,13 @@ export function clearStoredAgentBackoff(
 ): boolean {
   return withStoredScope(scopeRoot, stateDir, "write", (database, scopeId) => {
     const state = new ScopeRuntimeStateStore(database, scopeId);
-    if (state.getAgentBackoff() === null) return false;
+    const backoff = state.getAgentBackoff();
+    if (backoff === null) return false;
+    database.releaseQueuedRunsDeferredUntil(
+      scopeId,
+      backoff.until,
+      new Date().toISOString(),
+    );
     state.setAgentBackoff(null);
     return true;
   }) ?? false;

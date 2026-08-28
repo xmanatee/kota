@@ -68,6 +68,13 @@ export function startRuntime(
   }
 
   state.definitions = loadDefinitionsViaDispatch(state);
+  const supersededBackoff = state.backoff.getSupersededRuntime();
+  if (supersededBackoff !== null) {
+    state.wfQueue.releaseAgentRunsDeferredUntil(supersededBackoff.until);
+    state.backoff.clear(
+      `after runtime changed from ${supersededBackoff.runtimeId}`,
+    );
+  }
   if (state.deadLetterQueue !== undefined) {
     dismissSupersededWorkflowDeadLetters({
       deadLetterQueue: state.deadLetterQueue,
