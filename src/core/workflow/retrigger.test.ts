@@ -6,6 +6,7 @@ const original = {
   schemaRef: { name: "builder-recovery", version: 1 },
   payload: {
     taskId: "task-ui",
+    idempotencyKey: "original-delivery",
     _runId: "old-run",
     triggeredAt: "old-time",
     retryOf: "older-retry",
@@ -24,7 +25,11 @@ describe("buildRetriggerOptions", () => {
     expect(options).toMatchObject({
       event: original.event,
       schemaRef: original.schemaRef,
-      payload: { taskId: "task-ui", retryOf: "failed-run" },
+      payload: {
+        taskId: "task-ui",
+        idempotencyKey: `retry:failed-run:${options.runId}`,
+        retryOf: "failed-run",
+      },
     });
     expect(options.runId).toContain("-builder-");
     expect(options.payload).not.toHaveProperty("replayOf");
@@ -35,6 +40,10 @@ describe("buildRetriggerOptions", () => {
   it("builds a full replay without retry checkpoint state", () => {
     const options = buildRetriggerOptions("replay", "source-run", "builder", original);
 
-    expect(options.payload).toEqual({ taskId: "task-ui", replayOf: "source-run" });
+    expect(options.payload).toEqual({
+      taskId: "task-ui",
+      idempotencyKey: `replay:source-run:${options.runId}`,
+      replayOf: "source-run",
+    });
   });
 });

@@ -8,6 +8,7 @@ export function buildRetriggerOptions(
   workflowName: string,
   original: WorkflowRunTrigger,
 ): WorkflowEnqueueOptions {
+  const runId = formatRunId(workflowName);
   const {
     _runId: _discardRunId,
     triggeredAt: _discardTriggeredAt,
@@ -23,9 +24,10 @@ export function buildRetriggerOptions(
   return {
     event: original.event,
     schemaRef: original.schemaRef,
-    runId: formatRunId(workflowName),
+    runId,
     payload: {
       ...payload,
+      idempotencyKey: `${mode}:${sourceRunId}:${runId}`,
       ...(mode === "retry" ? { retryOf: sourceRunId } : { replayOf: sourceRunId }),
     },
   };
