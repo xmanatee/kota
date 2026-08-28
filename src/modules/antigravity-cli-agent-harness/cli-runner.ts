@@ -40,6 +40,15 @@ export const ANTIGRAVITY_CLI_UNCONFIRMED_STOP_SUBTYPE =
 
 const ANTIGRAVITY_CLI_PRINT_TIMEOUT = "24h";
 
+function resolveAntigravityCliEffortArgs(
+  model: string,
+  effort: AgentEffort,
+): string[] {
+  return model.startsWith("gemini-")
+    ? ["--effort", resolveAntigravityCliEffort(effort)]
+    : [];
+}
+
 function formatStderr(chunks: readonly string[]): string {
   return chunks.join("").trim();
 }
@@ -257,8 +266,7 @@ export async function collectTextFromAntigravityCli(
     args.prompt,
     "--model",
     args.model,
-    "--effort",
-    resolveAntigravityCliEffort(args.effort),
+    ...resolveAntigravityCliEffortArgs(args.model, args.effort),
     ...(args.outputSchema === undefined
       ? []
       : ["--json-schema", JSON.stringify(args.outputSchema)]),

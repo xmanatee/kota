@@ -158,6 +158,22 @@ describe("antigravityCliAgentHarness execution", () => {
     });
   });
 
+  it("uses the reasoning mode built into exact non-Gemini model ids", async () => {
+    mockAgyProcess({ stdout: successfulAgyOutput("ok") });
+
+    await antigravityCliAgentHarness.run({
+      prompt: "inspect",
+      model: "claude-opus-4-6-thinking",
+      effort: "xhigh",
+    });
+
+    const commandArgs = spawnMock.mock.calls[0][1] as string[];
+    expect(commandArgs).toEqual(
+      expect.arrayContaining(["--model", "claude-opus-4-6-thinking"]),
+    );
+    expect(commandArgs).not.toContain("--effort");
+  });
+
   it("does not inherit daemon provider, GitHub, notification, or cloud credentials", async () => {
     mockAgyProcess({ stdout: successfulAgyOutput("ok") });
     const secrets = {
