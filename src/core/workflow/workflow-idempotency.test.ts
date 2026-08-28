@@ -71,4 +71,27 @@ describe("workflowDispatchIdempotency", () => {
       workflowDispatchIdempotency("scope-a", "reviewer", trigger),
     );
   });
+
+  it("uses retry lineage without replacing the domain idempotency key", () => {
+    const source = {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: {
+        taskId: "task-a",
+        idempotencyKey: "builder:task-a:digest",
+      },
+    } as const;
+    const retry = {
+      ...source,
+      payload: { ...source.payload, retryOf: "failed-run" },
+    } as const;
+
+    const sourceIdentity = workflowDispatchIdempotency("scope-a", "builder", source)!;
+    const retryIdentity = workflowDispatchIdempotency("scope-a", "builder", retry)!;
+
+    expect(retryIdentity.key).not.toBe(sourceIdentity.key);
+    expect(retryIdentity).toEqual(
+      workflowDispatchIdempotency("scope-a", "builder", retry),
+    );
+  });
 });

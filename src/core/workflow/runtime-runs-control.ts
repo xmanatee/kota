@@ -53,9 +53,15 @@ export function enqueuePendingRun(
     return { ok: false, alreadyQueued: true };
   }
   const queuedRun = buildOperatorQueuedRun(name, options);
-  state.wfQueue.appendRun(queuedRun);
+  const disposition = state.wfQueue.appendRun(queuedRun);
+  if (disposition === null) {
+    return {
+      ok: false,
+      error: `Workflow "${name}" could not be admitted because its trigger, durable resources, or dispatch identity conflict`,
+    };
+  }
   maybeStartNext(state);
-  return { ok: true, queued: name, runId: queuedRun.runId };
+  return { ok: true, queued: name, runId: disposition.runId };
 }
 
 export function enqueueWebhookRun(

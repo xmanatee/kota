@@ -76,11 +76,17 @@ export function workflowDispatchIdempotency(
   | null {
   const scopeId = explicitScope(trigger.payload, defaultScopeId);
   const explicitKey = payloadString(trigger.payload, "idempotencyKey");
+  const retryOf = payloadString(trigger.payload, "retryOf");
+  const replayOf = payloadString(trigger.payload, "replayOf");
   const batchIds = batchEventIds(trigger.payload);
   const eventId = durableEventId(trigger);
 
   let keyMaterial: string[];
-  if (explicitKey !== undefined) {
+  if (retryOf !== undefined) {
+    keyMaterial = [workflowName, trigger.event, "retry", retryOf];
+  } else if (replayOf !== undefined) {
+    keyMaterial = [workflowName, trigger.event, "replay", replayOf];
+  } else if (explicitKey !== undefined) {
     keyMaterial = [workflowName, trigger.event, explicitKey];
   } else if (batchIds.length > 0) {
     keyMaterial = [workflowName, trigger.event, ...batchIds];

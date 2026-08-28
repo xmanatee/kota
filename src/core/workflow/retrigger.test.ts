@@ -15,6 +15,7 @@ const original = {
     resumedFromRunId: "older-resume",
     resumeFromStep: "build",
     resumeTriggeredAt: "older-resume-time",
+    idempotencyStatus: "accepted",
   },
 };
 
@@ -27,7 +28,7 @@ describe("buildRetriggerOptions", () => {
       schemaRef: original.schemaRef,
       payload: {
         taskId: "task-ui",
-        idempotencyKey: `retry:failed-run:${options.runId}`,
+        idempotencyKey: "original-delivery",
         retryOf: "failed-run",
       },
     });
@@ -35,6 +36,7 @@ describe("buildRetriggerOptions", () => {
     expect(options.payload).not.toHaveProperty("replayOf");
     expect(options.payload).not.toHaveProperty("resumedFromRunId");
     expect(options.payload).not.toHaveProperty("triggeredAt");
+    expect(options.payload).not.toHaveProperty("idempotencyStatus");
   });
 
   it("builds a full replay without retry checkpoint state", () => {
@@ -42,7 +44,7 @@ describe("buildRetriggerOptions", () => {
 
     expect(options.payload).toEqual({
       taskId: "task-ui",
-      idempotencyKey: `replay:source-run:${options.runId}`,
+      idempotencyKey: "original-delivery",
       replayOf: "source-run",
     });
   });

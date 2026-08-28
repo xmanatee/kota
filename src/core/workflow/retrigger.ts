@@ -18,6 +18,7 @@ export function buildRetriggerOptions(
     resumedFromRunId: _discardResumedFromRunId,
     resumeFromStep: _discardResumeFromStep,
     resumeTriggeredAt: _discardResumeTriggeredAt,
+    idempotencyStatus: _discardIdempotencyStatus,
     ...payload
   } = original.payload;
 
@@ -27,7 +28,6 @@ export function buildRetriggerOptions(
     runId,
     payload: {
       ...payload,
-      idempotencyKey: `${mode}:${sourceRunId}:${runId}`,
       ...(mode === "retry" ? { retryOf: sourceRunId } : { replayOf: sourceRunId }),
     },
   };
