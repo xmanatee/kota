@@ -19,9 +19,10 @@ service permission prompts, the adapter auto-approves AGY-native tools inside
 that boundary and also enables AGY's terminal sandbox. Edit-capable runs use
 `accept-edits`; read-only projections use `plan` with no writable scope.
 Translate native events into
-`KotaAgentMessage` frames here; preserve unknown frames as `raw` messages. KOTA
-effort maps to AGY's `low`, `medium`, or `high` values, with stronger KOTA
-levels capped at AGY's highest supported value.
+`KotaAgentMessage` frames here; preserve unknown frames as `raw` messages.
+Gemini models receive AGY's `low`, `medium`, or `high` effort flag, with
+stronger KOTA levels capped at AGY's highest supported value. Models with
+intrinsic reasoning, such as Claude Thinking, receive no separate effort flag.
 Command-bearing tool events carry exact and prefix fingerprints for durable
 adherence checks; raw command parameters remain provider tool I/O and must not
 be persisted as trace text.
@@ -72,9 +73,10 @@ Git metadata and machine authority remain protected.
 ## Model Routing
 
 The shipped preset selects the strongest current AGY model and always passes an
-explicit model and effort. The required local auth probe uses `agy models` to
+explicit model plus only the reasoning controls that model supports. The
+required local auth probe uses `agy models` to
 verify that AGY can acquire credentials and access the requested catalog without
 KOTA reading them. AGY owns credential lifetime and renewal. Do not infer
 support from older Gemini CLI model catalogs. Catalog entries are
-effort-qualified, so availability checks must match the requested model and
-mapped AGY effort together.
+effort-qualified for Gemini and intrinsic for models such as Claude Thinking;
+availability checks must resolve the exact catalog entry KOTA will execute.
