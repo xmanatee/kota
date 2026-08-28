@@ -30,6 +30,23 @@ describe("Antigravity CLI model readiness", () => {
     });
   });
 
+  it("accepts an exact non-Gemini catalog model without inventing an effort suffix", () => {
+    const readiness = antigravityCliReadiness(
+      { model: "claude-opus-4-6-thinking", effort: "max" },
+      readinessDeps(
+        "claude-opus-4-6-thinking\tClaude Opus 4.6 (Thinking)\n" +
+          "gpt-oss-120b-medium\tGPT-OSS 120B (Medium)",
+      ),
+    );
+
+    expect(readiness.modelEffort).toMatchObject({
+      status: "ready",
+      model: "claude-opus-4-6-thinking",
+      effort: "max",
+      adapterModel: "claude-opus-4-6-thinking",
+    });
+  });
+
   it("rejects an absent effort-qualified catalog entry", () => {
     const readiness = antigravityCliReadiness(
       { model: "gemini-readiness-candidate", effort: "xhigh" },

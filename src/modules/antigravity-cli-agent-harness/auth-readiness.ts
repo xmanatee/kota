@@ -11,7 +11,7 @@ export function antigravityCliAuthReadiness(
     binaryName: ANTIGRAVITY_CLI_BINARY_NAME,
     statusArgs: ["models"],
     required: true,
-    readyPattern: /^gemini-\S+/m,
+    readyPattern: /^[a-z0-9][a-z0-9._-]*-[a-z0-9._-]+(?:\s|$)/m,
     stalePattern: /(?:expired|refresh token)/i,
     missingPattern:
       /(?:log in|login|authentication required|unauthenticated|unauthorized|credentials)/i,

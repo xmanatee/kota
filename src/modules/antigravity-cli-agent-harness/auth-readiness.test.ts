@@ -5,7 +5,7 @@ describe("Antigravity CLI auth readiness", () => {
   it("uses AGY's model catalog as the provider-auth readiness probe", () => {
     const readCommandOutput = vi.fn().mockReturnValue({
       status: "ready",
-      output: "gemini-3.7-flash-high",
+      output: "claude-opus-4-6-thinking\tClaude Opus 4.6 (Thinking)",
     });
     const readiness = antigravityCliAuthReadiness({
       resolveBinary: () => ({

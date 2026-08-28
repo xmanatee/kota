@@ -5,7 +5,7 @@ import type {
   AgentHarnessReadinessRequest,
 } from "#core/agent-harness/index.js";
 
-const AGY_MODEL_TOKEN = /\bgemini-[A-Za-z0-9][A-Za-z0-9._-]*/g;
+const AGY_MODEL_TOKEN = /^[a-z0-9][a-z0-9._-]*-[a-z0-9._-]+$/;
 
 export type AntigravityCliEffort = "low" | "medium" | "high";
 
@@ -16,7 +16,11 @@ export function resolveAntigravityCliEffort(
 }
 
 export function parseAntigravityCliModelCatalog(output: string): string[] {
-  return [...new Set(output.match(AGY_MODEL_TOKEN) ?? [])].sort();
+  const models = output
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(/\s+/, 1)[0] ?? "")
+    .filter((token) => AGY_MODEL_TOKEN.test(token));
+  return [...new Set(models)].sort();
 }
 
 export function resolveAntigravityCliCatalogModel(
@@ -31,10 +35,16 @@ export function resolveAntigravityCliModelEffortReadiness(
   request: AgentHarnessReadinessRequest,
   auth: AgentHarnessAuthProbe,
 ): AgentHarnessModelEffortReadiness {
-  const adapterModel = resolveAntigravityCliCatalogModel(
+  const effortQualifiedModel = resolveAntigravityCliCatalogModel(
     request.model,
     request.effort,
   );
+  const availableModels = auth.status === "ready" || auth.status === "expiring"
+    ? parseAntigravityCliModelCatalog(auth.detail)
+    : [];
+  const adapterModel = availableModels.includes(request.model)
+    ? request.model
+    : effortQualifiedModel;
   const base = {
     kind: "model-effort" as const,
     required: true as const,
@@ -53,7 +63,6 @@ export function resolveAntigravityCliModelEffortReadiness(
     };
   }
 
-  const availableModels = parseAntigravityCliModelCatalog(auth.detail);
   if (!availableModels.includes(adapterModel)) {
     return {
       ...base,
