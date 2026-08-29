@@ -7,6 +7,7 @@ import type {
 import { DaemonControlClient } from "./daemon-client.js";
 import {
   completeDaemonClientHandlers,
+  completeLocalClientHandlers,
   createKotaClientTestDouble,
 } from "./daemon-client-test-support.js";
 import type { DaemonTransport } from "./daemon-transport.js";
@@ -61,7 +62,7 @@ function completeDaemonHandlers(
 function completeLocalHandlers(
   overrides: Partial<LocalClientHandlers> = {},
 ): LocalClientHandlers {
-  return completeDaemonClientHandlers(overrides);
+  return completeLocalClientHandlers(overrides);
 }
 
 describe("resourceDiscovery KotaClient wiring", () => {

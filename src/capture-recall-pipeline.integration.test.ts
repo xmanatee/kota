@@ -70,7 +70,6 @@ import {
   createMemoryContributor as createMemoryCaptureContributor,
   createTasksContributor as createTasksCaptureContributor,
 } from "#modules/capture/contributors.js";
-import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -81,7 +80,6 @@ import {
   createMemoryContributor as createMemoryRecallContributor,
   createTasksContributor as createTasksRecallContributor,
 } from "#modules/recall/contributors.js";
-import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import {
   RECALL_SOURCE_ORDER,
@@ -307,11 +305,7 @@ describe("capture↔recall pipeline (HTTP)", () => {
         startedAt: new Date().toISOString(),
         token: "",
       },
-      (link) => ({
-        ...completeDaemonClientHandlers(),
-        ...captureModule.daemonClient!(link),
-        ...recallModule.daemonClient!(link),
-      }),
+      () => completeDaemonClientHandlers(),
     );
   });
 

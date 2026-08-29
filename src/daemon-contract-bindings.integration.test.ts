@@ -52,6 +52,10 @@ function prepareRoot(): string {
     resolve(ROOT, "scripts/daemon-contract-graph.mjs"),
     resolve(root, "scripts/daemon-contract-graph.mjs"),
   );
+  cpSync(
+    resolve(ROOT, "scripts/kota-client-typescript.mjs"),
+    resolve(root, "scripts/kota-client-typescript.mjs"),
+  );
   cpSync(resolve(ROOT, "tsconfig.json"), resolve(root, "tsconfig.json"));
   return root;
 }
@@ -109,4 +113,50 @@ describe("generated daemon contract bindings", () => {
       if (existsSync(root)) rmSync(root, { recursive: true });
     }
   });
+
+  it("assembles and dispatches generated routine client handlers over transport", async () => {
+    const requests: { method: string; path: string; body?: unknown }[] = [];
+    const mockTransport = {
+      baseUrl: "http://127.0.0.1:9999",
+      request: async () => null,
+      requestStrict: async <T>(method: string, path: string, body?: unknown): Promise<T> => {
+        requests.push({ method, path, body });
+        if (path === "/agents") {
+          return { agents: [] } as unknown as T;
+        }
+        if (path === "/skills") {
+          return { skills: [] } as unknown as T;
+        }
+        if (path === "/recall") {
+          return { ok: true, hits: [] } as unknown as T;
+        }
+        if (path === "/capture") {
+          return { ok: true, target: "memory", id: "1" } as unknown as T;
+        }
+        if (path === "/doctor/run") {
+          return { checks: [] } as unknown as T;
+        }
+        return {} as unknown as T;
+      },
+    };
+
+    const { createRoutineDaemonClientHandlers } = await import("#root/client/kota-client.generated.js");
+    const routine = createRoutineDaemonClientHandlers(mockTransport as any);
+
+    await routine.agents.list();
+    expect(requests).toContainEqual({ method: "GET", path: "/agents", body: undefined });
+
+    await routine.skills.list();
+    expect(requests).toContainEqual({ method: "GET", path: "/skills", body: undefined });
+
+    await routine.recall.recall("test query");
+    expect(requests).toContainEqual({ method: "POST", path: "/recall", body: { query: "test query" } });
+
+    await routine.capture.capture("test note");
+    expect(requests).toContainEqual({ method: "POST", path: "/capture", body: { text: "test note" } });
+
+    await routine.doctor.run();
+    expect(requests).toContainEqual({ method: "GET", path: "/doctor/run", body: undefined });
+  });
 });
+

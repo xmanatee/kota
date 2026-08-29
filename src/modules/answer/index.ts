@@ -48,7 +48,6 @@ import type {
   AnswerClient,
   AnswerHistoryListFilter,
 } from "./client.js";
-import { buildAnswerDaemonHandler } from "./daemon-client.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
 import { createAnswerScopeContextResolver } from "./scope-context.js";
@@ -266,9 +265,6 @@ const answerModule: KotaModule = {
     };
     return { answer: handler };
   },
-
-  daemonClient: (link) => ({ answer: buildAnswerDaemonHandler(link) }),
-
 };
 
 export default answerModule;

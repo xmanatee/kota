@@ -21,7 +21,6 @@ import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-read
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { createCaptureReadinessSource } from "./capability-readiness.js";
 import { CaptureProviderImpl } from "./capture-provider.js";
@@ -38,8 +37,6 @@ import {
 import { registerCaptureCommand } from "./cli.js";
 import type {
   CaptureClient,
-  CaptureFilter,
-  CaptureResult,
 } from "./client.js";
 import {
   createScopeInboxContributor,
@@ -67,27 +64,6 @@ function resolveActiveProvider(): CaptureProvider {
     );
   }
   return activeProvider;
-}
-
-/**
- * Daemon-side `CaptureClient` backed by the typed `DaemonTransport`. Calls the
- * same `/capture` HTTP route the daemon registers through
- * `captureControlRoutes(resolveActiveProvider)`. The transport surface owns the
- * bearer token, base URL, and timeout policy — this factory only encodes the
- * wire shape.
- *
- * The JSON body matches the prior `captureHttp` byte-for-byte: `{ text }` when
- * no filter is supplied, `{ text, filter }` when one is. The spread pattern
- * keeps `filter: undefined` from leaking onto the wire.
- */
-function buildCaptureDaemonHandler(link: DaemonTransport): CaptureClient {
-  return {
-    capture: async (text: string, filter?: CaptureFilter): Promise<CaptureResult> =>
-      link.requestStrict<CaptureResult>("POST", "/capture", {
-        text,
-        ...(filter && { filter }),
-      }),
-  };
 }
 
 function createDefaultClassifier(ctx: ModuleContext): CaptureClassifier {
@@ -207,9 +183,6 @@ const captureModule: KotaModule = {
     };
     return { capture: handler };
   },
-
-  daemonClient: (link) => ({ capture: buildCaptureDaemonHandler(link) }),
-
 };
 
 export default captureModule;

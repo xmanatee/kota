@@ -70,7 +70,6 @@ import type {
   AnswerRecallSeam,
   Synthesizer,
 } from "#modules/answer/answer-types.js";
-import answerModule from "#modules/answer/index.js";
 import {
   createAnswerHistoryRouteHandler,
   createAnswerRouteHandler,
@@ -86,7 +85,6 @@ import {
   createMemoryContributor as createMemoryCaptureContributor,
   createTasksContributor as createTasksCaptureContributor,
 } from "#modules/capture/contributors.js";
-import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -97,7 +95,6 @@ import {
   createMemoryContributor as createMemoryRecallContributor,
   createTasksContributor as createTasksRecallContributor,
 } from "#modules/recall/contributors.js";
-import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
 import {
@@ -325,20 +322,10 @@ describe("capture → recall → answer → answer-history pipeline (HTTP)", () 
       startedAt: new Date().toISOString(),
       token: "",
     });
-    // Migrated namespaces normally land on the assembled client through their
-    // owning module's `daemonClient(link)` factory. The pipeline test does not
-    // load modules, so build the participating namespace handlers against the
-    // test transport explicitly; undeclared namespaces fail if invoked.
-    const answerDaemonHandler = answerModule.daemonClient!(transport);
-    const captureDaemonHandler = captureModule.daemonClient!(transport);
-    const recallDaemonHandler = recallModule.daemonClient!(transport);
-    client = DaemonControlClient.fromTransport(transport, {
-      ...completeDaemonClientHandlers({
-        ...answerDaemonHandler,
-        ...captureDaemonHandler,
-        ...recallDaemonHandler,
-      }),
-    });
+    client = DaemonControlClient.fromTransport(
+      transport,
+      completeDaemonClientHandlers(),
+    );
     recallSeam = {
       async recall(query, filter) {
         return client.recall.recall(query, filter);

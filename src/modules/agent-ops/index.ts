@@ -8,7 +8,6 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
   type ColumnsNode,
   columns,
@@ -21,11 +20,9 @@ import {
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import { inspectAgent, listAgents } from "./agent-ops-operations.js";
 import type {
-  AgentInspectResult,
   AgentSetupRequirementSummary,
   AgentSummary,
   AgentsClient,
-  AgentsListResult,
   AgentToolPolicySummary,
 } from "./client.js";
 import { agentControlRoutes } from "./routes.js";
@@ -222,29 +219,6 @@ const agentsModule: KotaModule = {
     };
     return { agents };
   },
-
-  daemonClient: (link: DaemonTransport) => ({
-    agents: buildAgentsDaemonHandler(link),
-  }),
 };
-
-/**
- * Daemon-side `AgentsClient` backed by the typed `DaemonTransport`. Both
- * methods issue a single strict GET against the routes the agent-ops module
- * registers through `controlRoutes` and decode the canonical envelope the
- * daemon emits — no special-cased status translation, matching every other
- * migrated namespace's strict-transport posture.
- */
-function buildAgentsDaemonHandler(link: DaemonTransport): AgentsClient {
-  return {
-    list: async (): Promise<AgentsListResult> =>
-      link.requestStrict<AgentsListResult>("GET", "/agents"),
-    inspect: async (name): Promise<AgentInspectResult> =>
-      link.requestStrict<AgentInspectResult>(
-        "GET",
-        `/agents/${encodeURIComponent(name)}`,
-      ),
-  };
-}
 
 export default agentsModule;

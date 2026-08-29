@@ -21,14 +21,13 @@ import {
   MEMORY_PROVIDER_TOKEN,
   REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { createHistoryScopeStores } from "#modules/history/scope.js";
 import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { createMemoryScopeStores } from "#modules/memory/scope.js";
 import { createRepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import { createRecallReadinessSource } from "./capability-readiness.js";
 import { registerRecallCommand } from "./cli.js";
-import type { RecallClient, RecallFilter, RecallResult } from "./client.js";
+import type { RecallClient, } from "./client.js";
 import {
   createScopeHistoryContributor,
   createScopeKnowledgeContributor,
@@ -55,27 +54,6 @@ function resolveActiveProvider(): RecallProvider {
     );
   }
   return activeProvider;
-}
-
-/**
- * Daemon-side `RecallClient` backed by the typed `DaemonTransport`. Calls the
- * same `/recall` HTTP route the daemon registers through
- * `recallControlRoutes(resolveActiveProvider)`. The transport surface owns the
- * bearer token, base URL, and timeout policy — this factory only encodes the
- * wire shape.
- *
- * The JSON body matches the prior `recallHttp` byte-for-byte: `{ query }` when
- * no filter is supplied, `{ query, filter }` when one is. The spread pattern
- * keeps `filter: undefined` from leaking onto the wire.
- */
-function buildRecallDaemonHandler(link: DaemonTransport): RecallClient {
-  return {
-    recall: async (query: string, filter?: RecallFilter): Promise<RecallResult> =>
-      link.requestStrict<RecallResult>("POST", "/recall", {
-        query,
-        ...(filter && { filter }),
-      }),
-  };
 }
 
 const recallModule: KotaModule = {
@@ -181,9 +159,6 @@ const recallModule: KotaModule = {
     };
     return { recall: handler };
   },
-
-  daemonClient: (link) => ({ recall: buildRecallDaemonHandler(link) }),
-
 };
 
 export default recallModule;

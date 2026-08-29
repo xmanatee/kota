@@ -2,6 +2,7 @@ import type { DaemonControlAddress, DaemonLiveStatus, DaemonSseStreamEvent } fro
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
+  createRoutineDaemonClientHandlers,
   type DaemonClientHandlers,
   KOTA_CLIENT_NAMESPACES,
   type KotaClientNamespace,
@@ -13,20 +14,15 @@ import { normalizeScopeSelectorClientHandlers } from "./scope-selector.js";
 import { createScopedKotaClient } from "./scoped-kota-client.js";
 
 // ---------------------------------------------------------------------------
-// Core stub: empty after every namespace migrated to its owning module's
-// `daemonClient(link)` factory. The function exists so the assembly path
-// keeps a single, named integration point — module contributions overlay
-// against this empty stub, and `assembleDaemonClientHandlers` validates
-// full namespace coverage. If a future capability lands as a core-only
-// namespace (no module ownership), it can be added back here.
+// Core stub: empty after routine namespaces are generated and exception
+// namespaces are contributed by their owning module's `daemonClient(link)`
+// factory. The function exists so the assembly path keeps a single, named
+// integration point — module contributions overlay against routine bindings
+// and this stub, and `assembleDaemonClientHandlers` validates full coverage.
 // ---------------------------------------------------------------------------
 
 /**
- * Build the core-side stub partial `DaemonClientHandlers` map. Every
- * namespace currently migrates through its owning module's
- * `daemonClient(link)` factory; the stub is empty. Missing handlers at
- * assembly time are a load-time error in `assembleDaemonClientHandlers`,
- * not a silent fallback.
+ * Build the core-side stub partial `DaemonClientHandlers` map.
  */
 export function buildCoreStubDaemonClientHandlers(
   _transport: DaemonTransport,
@@ -35,18 +31,21 @@ export function buildCoreStubDaemonClientHandlers(
 }
 
 /**
- * Assemble a complete `DaemonClientHandlers` map by overlaying contributed
- * module handlers on top of the core stub. Validates full coverage and
- * throws loudly when a namespace lacks a handler — there is no silent
- * fallback. Symmetric to the validation `LocalKotaClient` performs for
- * `LocalClientHandlers`.
+ * Assemble a complete `DaemonClientHandlers` map by merging generated
+ * routine handlers, the core stub, and contributed module exception handlers.
+ * Validates full coverage and throws loudly when a namespace lacks a handler.
  */
 export function assembleDaemonClientHandlers(
   transport: DaemonTransport,
   contributed?: Partial<DaemonClientHandlers>,
 ): DaemonClientHandlers {
+  const routine = createRoutineDaemonClientHandlers(transport);
   const stub = buildCoreStubDaemonClientHandlers(transport);
-  const merged: Partial<DaemonClientHandlers> = { ...stub, ...(contributed ?? {}) };
+  const merged: Partial<DaemonClientHandlers> = {
+    ...routine,
+    ...stub,
+    ...(contributed ?? {}),
+  };
   const missing: KotaClientNamespace[] = [];
   for (const name of KOTA_CLIENT_NAMESPACES) {
     if (!merged[name]) missing.push(name);
@@ -54,7 +53,7 @@ export function assembleDaemonClientHandlers(
   if (missing.length > 0) {
     throw new Error(
       `DaemonControlClient is missing daemon handler(s) for: ${missing.join(", ")}. ` +
-        `Each KotaClient namespace must be exposed by the core stub or by its owning ` +
+        `Each KotaClient namespace must be exposed by routine bindings, core stub, or by its owning ` +
         `module's daemonClient(link) factory at module load time.`,
     );
   }

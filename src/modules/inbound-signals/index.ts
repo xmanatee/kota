@@ -4,7 +4,6 @@ import { WORKFLOW_EVENT_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow
 import { triggerInboundSignalAgent } from "./agent-trigger.js";
 import { buildInboundSignalsCommand } from "./cli.js";
 import {
-  buildInboundSignalsDaemonClient,
   buildInboundSignalsLocalClient,
 } from "./clients.js";
 import { inboundSignalsConfigSchema } from "./config-schema.js";
@@ -46,9 +45,6 @@ const inboundSignalsModule: KotaModule = {
   ),
   localClient: (ctx) => ({
     inboundSignals: buildInboundSignalsLocalClient(ctx),
-  }),
-  daemonClient: (link) => ({
-    inboundSignals: buildInboundSignalsDaemonClient(link),
   }),
   onLoad: (ctx) => {
     const unsubscribe = ctx.events.subscribe(

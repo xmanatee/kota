@@ -52,9 +52,9 @@ describe("assembleDaemonClientHandlers", () => {
     expect(Object.keys(stub)).toEqual([]);
   });
 
-  it("throws naming each migrated namespace when no module contributes it", () => {
+  it("throws naming missing exception namespaces when no module contributes them", () => {
     expect(() => assembleDaemonClientHandlers(transport)).toThrow(
-      `missing daemon handler(s) for: ${KOTA_CLIENT_NAMESPACES.join(", ")}`,
+      "DaemonControlClient is missing daemon handler(s) for:",
     );
   });
 });

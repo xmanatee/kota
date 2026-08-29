@@ -16,7 +16,6 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
   blank,
   type ColumnRow,
@@ -33,10 +32,7 @@ import { print, writeJson } from "#modules/rendering/transport.js";
 import type {
   DoctorCheckResult,
   DoctorClient,
-  DoctorFixResult,
   DoctorRepairResult,
-  DoctorRunOptions,
-  DoctorRunResult,
 } from "./client.js";
 import {
   runDoctorFixes,
@@ -177,27 +173,6 @@ function buildDoctorCommand(ctx: ModuleContext): Command {
   return cmd;
 }
 
-/**
- * Daemon-side `DoctorClient` backed by the typed `DaemonTransport`. Calls
- * the same `/doctor/run` and `/doctor/fix` HTTP routes the daemon registers
- * through `doctorControlRoutes(ctx)`. The transport surface owns the bearer
- * token, base URL, and timeout policy — this factory only encodes the wire
- * shape.
- */
-function buildDoctorDaemonHandler(link: DaemonTransport): DoctorClient {
-  return {
-    run: async (options?: DoctorRunOptions): Promise<DoctorRunResult> => {
-      const params = new URLSearchParams();
-      if (options?.skipConnectivity) params.set("skipConnectivity", "true");
-      if (options?.preset) params.set("preset", options.preset);
-      const query = params.toString() ? `?${params.toString()}` : "";
-      return link.requestStrict<DoctorRunResult>("GET", `/doctor/run${query}`);
-    },
-    fix: async (): Promise<DoctorFixResult> =>
-      link.requestStrict<DoctorFixResult>("POST", "/doctor/fix"),
-  };
-}
-
 const doctorModule: KotaModule = {
   name: "doctor",
   version: "1.0.0",
@@ -219,7 +194,6 @@ const doctorModule: KotaModule = {
     };
     return { doctor };
   },
-  daemonClient: (link) => ({ doctor: buildDoctorDaemonHandler(link) }),
 };
 
 export default doctorModule;

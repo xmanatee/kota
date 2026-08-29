@@ -84,6 +84,7 @@ function expectedArtifacts(root) {
   const canonicalSources = [
     DAEMON_WIRE_SOURCE,
     "scripts/daemon-contract-graph.mjs",
+    "scripts/kota-client-typescript.mjs",
   ].map((path) => ({ path, sha256: sha256(readFileSync(resolve(root, path), "utf8")) }));
   const manifest = {
     version: 1,

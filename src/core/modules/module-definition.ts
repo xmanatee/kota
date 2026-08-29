@@ -15,6 +15,7 @@ import type {
   ModuleCapabilityManifestInput,
   ModuleManifestEffectDeclaration,
 } from "./module-manifest.js";
+import type { ModuleOperationDef } from "./module-operations.js";
 import type {
   ControlRouteRegistration,
   HealthCheckResult,
@@ -40,6 +41,7 @@ export type KotaModule = {
   configSlices?: readonly ModuleConfigSlice[];
   configSchema?: ModuleBoundaryRecord;
   events?: ReadonlyArray<ModuleEventDef>;
+  operations?: ReadonlyArray<ModuleOperationDef>;
   tools?: ToolDef[] | ((ctx: ModuleContext) => ToolDef[]);
   commands?: (ctx: ModuleContext) => Command[];
   routes?: (ctx: ModuleContext) => RouteRegistration[];
@@ -128,6 +130,12 @@ export function resolveModuleEffects(
   ctx: ModuleContext,
 ): Promise<readonly ModuleManifestEffectDeclaration[]> {
   return resolveContribution(mod.effects, ctx);
+}
+
+export function resolveModuleOperations(
+  mod: KotaModule,
+): readonly ModuleOperationDef[] {
+  return mod.operations ?? [];
 }
 
 export function resolveModuleSetupRequirements(

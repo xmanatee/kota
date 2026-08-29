@@ -4,6 +4,11 @@ import type {
   InboundSignalRoutingStatus,
 } from "./routing.js";
 
+export type {
+  InboundSignalRouteValidationResult,
+  InboundSignalRoutingStatus,
+};
+
 export type InboundSignalScopeSelection = ScopeSelector;
 
 export type InboundSignalRouteListResult = InboundSignalRoutingStatus;

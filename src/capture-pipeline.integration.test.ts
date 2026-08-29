@@ -54,7 +54,6 @@ import {
   createMemoryContributor,
   createTasksContributor,
 } from "#modules/capture/contributors.js";
-import captureModule from "#modules/capture/index.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -227,10 +226,7 @@ describe("cross-store capture pipeline (HTTP)", () => {
         startedAt: new Date().toISOString(),
         token: "",
       },
-      (link) => ({
-        ...completeDaemonClientHandlers(),
-        ...captureModule.daemonClient!(link),
-      }),
+      () => completeDaemonClientHandlers(),
     );
   });
 
@@ -458,10 +454,7 @@ describe("cross-store capture pipeline — contributor failure isolation", () =>
         startedAt: new Date().toISOString(),
         token: "",
       },
-      (link) => ({
-        ...completeDaemonClientHandlers(),
-        ...captureModule.daemonClient!(link),
-      }),
+      () => completeDaemonClientHandlers(),
     );
   });
 

@@ -8,7 +8,6 @@
 
 import { Command } from "commander";
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
   type ColumnsNode,
   columns,
@@ -19,11 +18,8 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type {
-  SkillImportOptions,
-  SkillImportResult,
   SkillSummary,
   SkillsClient,
-  SkillsListResult,
 } from "./client.js";
 import { skillControlRoutes } from "./routes.js";
 import { importSkill, listSkills } from "./skill-ops-operations.js";
@@ -134,37 +130,6 @@ const skillsModule: KotaModule = {
     };
     return { skills };
   },
-
-  daemonClient: (link: DaemonTransport) => ({
-    skills: buildSkillsDaemonHandler(link),
-  }),
 };
-
-/**
- * Daemon-side `SkillsClient` backed by the typed `DaemonTransport`. Both
- * methods issue a single strict request against the routes the skill-ops
- * module registers through `controlRoutes` and decode the canonical
- * envelope the daemon emits — no special-cased status translation,
- * matching every other migrated namespace's strict-transport posture.
- * The `import` not-ok arms (`fetch_failed`, `missing_name`) ride a
- * uniform 200 response carrying the `SkillImportResult` discriminated
- * union; the daemon route is the source of truth for the `ok` flag.
- */
-function buildSkillsDaemonHandler(link: DaemonTransport): SkillsClient {
-  return {
-    list: async (): Promise<SkillsListResult> =>
-      link.requestStrict<SkillsListResult>("GET", "/skills"),
-    import: async (
-      source: string,
-      options?: SkillImportOptions,
-    ): Promise<SkillImportResult> =>
-      link.requestStrict<SkillImportResult>("POST", "/skills/import", {
-        source,
-        ...(options?.name !== undefined && { name: options.name }),
-        ...(options?.skill !== undefined && { skill: options.skill }),
-        ...(options?.all !== undefined && { all: options.all }),
-      }),
-  };
-}
 
 export default skillsModule;

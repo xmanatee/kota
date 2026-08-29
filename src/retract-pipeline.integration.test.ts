@@ -58,7 +58,6 @@ import {
   createMemoryContributor,
   createTasksContributor,
 } from "#modules/retract/contributors.js";
-import retractModule from "#modules/retract/index.js";
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import { createRetractRouteHandler } from "#modules/retract/routes.js";
 
@@ -176,9 +175,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
         startedAt: new Date().toISOString(),
         token: "",
       },
-      (transport) => completeDaemonClientHandlers(
-        retractModule.daemonClient!(transport),
-      ),
+      () => completeDaemonClientHandlers(),
     );
   });
 
@@ -305,7 +302,7 @@ describe("cross-store retract pipeline (HTTP)", () => {
     });
     const isolatedClient = DaemonControlClient.fromTransport(
       transport,
-      completeDaemonClientHandlers(retractModule.daemonClient!(transport)),
+      completeDaemonClientHandlers(),
     );
     try {
       const result = await isolatedClient.retract.retract({

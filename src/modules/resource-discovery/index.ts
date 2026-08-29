@@ -4,12 +4,10 @@ import type {
   ModuleContext,
   ModuleRuntimeContext,
 } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { registerResourceDiscoveryCommand } from "./cli.js";
 import type {
   ResourceDiscoveryClient,
   ResourceDiscoveryProvider,
-  ResourceDiscoveryResult,
 } from "./client.js";
 import { RESOURCE_DISCOVERY_PROVIDER_TOKEN } from "./client.js";
 import { ResourceDiscoveryProviderImpl } from "./provider.js";
@@ -35,18 +33,6 @@ function resolveActiveProvider(): ResourceDiscoveryProvider {
     );
   }
   return activeProvider;
-}
-
-function buildResourceDiscoveryDaemonHandler(
-  link: DaemonTransport,
-): ResourceDiscoveryClient {
-  return {
-    discover: async (query, filter): Promise<ResourceDiscoveryResult> =>
-      link.requestStrict<ResourceDiscoveryResult>("POST", "/resource-discovery", {
-        query,
-        ...(filter ? { filter } : {}),
-      }),
-  };
 }
 
 const resourceDiscoveryModule: KotaModule = {
@@ -85,11 +71,6 @@ const resourceDiscoveryModule: KotaModule = {
         resolveActiveProvider().discover(query, filter),
     } satisfies ResourceDiscoveryClient,
   }),
-
-  daemonClient: (link) => ({
-    resourceDiscovery: buildResourceDiscoveryDaemonHandler(link),
-  }),
-
 };
 
 export default resourceDiscoveryModule;

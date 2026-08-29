@@ -9,7 +9,11 @@
     },
     {
       "path": "scripts/daemon-contract-graph.mjs",
-      "sha256": "18bb57568bdef26a7e650cb91ce7e6e13214bcdf6ff999232f856e8b2ce2cd45"
+      "sha256": "5b30a9492656814af78dd001309152bfd93c2b5922b27e3a3009a557a9927a28"
+    },
+    {
+      "path": "scripts/kota-client-typescript.mjs",
+      "sha256": "f967678b1cecf6adff34dd1693428f0029cf168f60b7d6087b30e3c3bfff56cb"
     }
   ],
   "routes": [
@@ -173,7 +177,7 @@
     },
     {
       "path": "src/client/kota-client.generated.ts",
-      "sha256": "dad52d09b201656cf2c0e4f679105bfe2bfad932619cec07f72f8db12a02d1b8"
+      "sha256": "98546925cd9bd7a07fda671d0770285c3b89728a99cc479826e5015a3294963a"
     }
   ]
 }
