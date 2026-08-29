@@ -7,7 +7,7 @@ import {
   getHistoryProvider,
   getKnowledgeProvider,
   getMemoryProvider,
-  getTaskProvider,
+  getTaskCollection,
 } from "./core/modules/provider-registry.js";
 
 const GIT_TIMEOUT = 5000;
@@ -104,8 +104,8 @@ function recallMemories(cwd: string): string | null {
 /** Recall active tasks from persistent task store. */
 function recallTasks(): string | null {
   try {
-    const store = getTaskProvider();
-    return store.getActiveSummary();
+    const tasks = getTaskCollection();
+    return tasks.getActiveSummary();
   } catch {
     return null;
   }

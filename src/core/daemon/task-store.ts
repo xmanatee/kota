@@ -2,14 +2,16 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join } from "node:path";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import { scopeHash } from "./schedule-parser.js";
+import { TaskCollection } from "./task-collection.js";
 import type { Task, TaskFileData, TaskPriority, TaskStatus } from "./task-store-types.js";
 
+export { TaskCollection } from "./task-collection.js";
 export type { Task, TaskPriority, TaskStatus } from "./task-store-types.js";
 
 const MAX_COMPLETED = 15;
 
 export class TaskStore {
-  private tasks: Task[] = [];
+  readonly collection = new TaskCollection();
   private nextId = 1;
   private filePath: string | null;
   private scope: string;
@@ -44,8 +46,9 @@ export class TaskStore {
     const data = this.tryReadFile(this.filePath) ?? this.tryReadFile(`${this.filePath}.tmp`);
     if (!data) return;
     if (data.scope === this.scope) {
-      this.tasks = Array.isArray(data.tasks) ? data.tasks : [];
-      this.nextId = this.deriveNextId(data.nextId, this.tasks);
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      this.collection.replace(tasks);
+      this.nextId = this.deriveNextId(data.nextId, tasks);
     }
   }
 
@@ -70,16 +73,18 @@ export class TaskStore {
 
   private emitChanged(): void {
     if (!this.pbus) return;
-    const pending = this.tasks.filter(t => t.status === "pending").length;
-    const in_progress = this.tasks.filter(t => t.status === "in_progress").length;
-    const done = this.tasks.filter(t => t.status === "done").length;
+    const tasks = this.collection.list();
+    const pending = tasks.filter(t => t.status === "pending").length;
+    const in_progress = tasks.filter(t => t.status === "in_progress").length;
+    const done = tasks.filter(t => t.status === "done").length;
     this.pbus.emit("task.changed", { counts: { pending, in_progress, done } });
   }
 
   private persist(): void {
     if (!this.filePath) return;
     // Prune old completed tasks
-    const completed = this.tasks.filter(t => t.status === "done");
+    const tasks = this.collection.list();
+    const completed = tasks.filter(t => t.status === "done");
     if (completed.length > MAX_COMPLETED) {
       const sorted = [...completed].sort((a, b) =>
         (a.completed || a.created).localeCompare(b.completed || b.created),
@@ -91,20 +96,20 @@ export class TaskStore {
       let changed = true;
       while (changed) {
         changed = false;
-        for (const t of this.tasks) {
+        for (const t of tasks) {
           if (t.parent_id !== undefined && removeIds.has(t.parent_id) && !removeIds.has(t.id)) {
             removeIds.add(t.id);
             changed = true;
           }
         }
       }
-      this.tasks = this.tasks.filter(t => !removeIds.has(t.id));
+      this.collection.replace(tasks.filter(t => !removeIds.has(t.id)));
     }
     const dir = dirname(this.filePath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     const data: TaskFileData = {
       scope: this.scope,
-      tasks: this.tasks,
+      tasks: this.collection.list(),
       nextId: this.nextId,
     };
     const tmpPath = `${this.filePath}.tmp`;
@@ -122,12 +127,12 @@ export class TaskStore {
     },
   ): Task {
     this.ensureLoaded();
-    if (opts?.parent_id !== undefined && !this.tasks.find(t => t.id === opts.parent_id)) {
+    if (opts?.parent_id !== undefined && !this.collection.get(opts.parent_id)) {
       throw new Error(`parent task #${opts.parent_id} not found`);
     }
     if (opts?.blocked_by) {
       for (const depId of opts.blocked_by) {
-        if (!this.tasks.find(t => t.id === depId)) {
+        if (!this.collection.get(depId)) {
           throw new Error(`dependency task #${depId} not found`);
         }
       }
@@ -142,7 +147,7 @@ export class TaskStore {
     if (opts?.priority) item.priority = opts.priority;
     if (opts?.blocked_by?.length) item.blocked_by = opts.blocked_by;
     if (opts?.notes) item.notes = opts.notes;
-    this.tasks.push(item);
+    this.collection.add(item);
     this.persist();
     this.emitChanged();
     return item;
@@ -158,53 +163,52 @@ export class TaskStore {
     },
   ): Task {
     this.ensureLoaded();
-    const item = this.tasks.find(t => t.id === id);
+    const item = this.collection.get(id);
     if (!item) throw new Error(`Task #${id} not found`);
     if (changes.blocked_by) {
       for (const depId of changes.blocked_by) {
-        if (!this.tasks.find(t => t.id === depId))
+        if (!this.collection.get(depId))
           throw new Error(`Dependency task #${depId} not found`);
         if (depId === id)
           throw new Error(`Task #${id} cannot depend on itself`);
       }
-      item.blocked_by = changes.blocked_by.length > 0 ? changes.blocked_by : undefined;
     }
     if (changes.status) {
-      if (changes.status === "in_progress" && item.blocked_by) {
-        const pending = item.blocked_by.filter(d => {
-          const dep = this.tasks.find(t => t.id === d);
-          return dep && dep.status !== "done";
-        });
-        if (pending.length > 0)
-          throw new Error(`task #${id} is blocked by incomplete tasks: #${pending.join(", #")}`);
+      if (changes.status === "in_progress") {
+        const blockedBy = changes.blocked_by ?? item.blocked_by;
+        if (blockedBy) {
+          const pending = blockedBy.filter(d => {
+            const dep = this.collection.get(d);
+            return dep && dep.status !== "done";
+          });
+          if (pending.length > 0)
+            throw new Error(`task #${id} is blocked by incomplete tasks: #${pending.join(", #")}`);
+        }
       }
-      item.status = changes.status;
-      if (changes.status === "done") item.completed = new Date().toISOString();
     }
-    if (changes.priority) item.priority = changes.priority;
-    if (changes.notes !== undefined) item.notes = changes.notes;
+    const updated = this.collection.update(id, changes);
     this.persist();
     this.emitChanged();
-    return item;
+    return updated;
   }
 
   list(): Task[] {
     this.ensureLoaded();
-    return [...this.tasks];
+    return this.collection.list();
   }
 
   active(): Task[] {
     this.ensureLoaded();
-    return this.tasks.filter(t => t.status !== "done");
+    return this.collection.active();
   }
 
   get(id: number): Task | undefined {
     this.ensureLoaded();
-    return this.tasks.find(t => t.id === id);
+    return this.collection.get(id);
   }
 
   clear(): void {
-    this.tasks = [];
+    this.collection.clear();
     this.nextId = 1;
     this.loaded = true;
     if (this.filePath && existsSync(this.filePath)) {
@@ -216,9 +220,7 @@ export class TaskStore {
 
   archiveCompleted(): number {
     this.ensureLoaded();
-    const before = this.tasks.length;
-    this.tasks = this.tasks.filter(t => t.status !== "done");
-    const removed = before - this.tasks.length;
+    const removed = this.collection.archiveCompleted();
     if (removed > 0) {
       this.persist();
       this.emitChanged();
@@ -229,34 +231,19 @@ export class TaskStore {
   /** Summary of active tasks for session warmup. */
   getActiveSummary(): string | null {
     this.ensureLoaded();
-    const active = this.tasks.filter(t => t.status !== "done");
-    if (active.length === 0) return null;
-    const inProgress = active.filter(t => t.status === "in_progress");
-    const pending = active.filter(t => t.status === "pending");
-    const parts: string[] = [];
-    if (inProgress.length > 0) {
-      parts.push(
-        `${inProgress.length} in progress: ${inProgress.map(t => `"${t.task}"`).join(", ")}`,
-      );
-    }
-    if (pending.length > 0) {
-      const preview = pending.slice(0, 3).map(t => `"${t.task}"`).join(", ");
-      const more = pending.length > 3 ? ` (+${pending.length - 3} more)` : "";
-      parts.push(`${pending.length} pending: ${preview}${more}`);
-    }
-    return parts.join("; ");
+    return this.collection.getActiveSummary();
   }
 
   /** Whether the store has any tasks at all. */
   isEmpty(): boolean {
     this.ensureLoaded();
-    return this.tasks.length === 0;
+    return this.collection.isEmpty();
   }
 
   /** Count of all tasks. */
   count(): number {
     this.ensureLoaded();
-    return this.tasks.length;
+    return this.collection.count();
   }
 }
 

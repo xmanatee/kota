@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-align-verification-ownership-and-cadences]
+status: done
 ---
 
 # Consolidate repository task collection semantics

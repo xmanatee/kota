@@ -2,16 +2,15 @@
  * LinearTaskProvider — unit tests with mocked fetch.
  *
  * Covers:
- *   - init() loads issues with label filter
+ *   - init() loads issues with label filter and populates collection
  *   - init() throws when team not found
  *   - init() throws when Linear API returns errors
- *   - list() returns cached tasks mapped from issues
  *   - priority mapping from Linear priority field (0–4)
  *   - update() in_progress → transitions issue state on Linear
+ *   - update() keeps collection unchanged when Linear does not acknowledge mutation
  *   - update() done → transitions issue to done state
- *   - add() creates a Linear issue and updates cache with real ID
- *   - getActiveSummary() returns correct summary
- *   - not-found task throws
+ *   - add() creates a Linear issue and updates collection with real ID
+ *   - update() throws when task ID not found
  *   - onLoad integration: provider registered when enabled
  *   - onLoad integration: provider not registered when disabled
  */
@@ -82,7 +81,7 @@ function makeProvider(
 
 describe("LinearTaskProvider", () => {
   describe("init()", () => {
-    it("fetches team and issues, filters by label, and populates cache", async () => {
+    it("fetches team and issues, filters by label, and populates collection", async () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
         .mockResolvedValueOnce({
@@ -101,8 +100,8 @@ describe("LinearTaskProvider", () => {
       await provider.init();
 
       // lin-3 has no "kota-task" label, so filtered out
-      expect(provider.count()).toBe(2);
-      const tasks = provider.list();
+      expect(provider.collection.count()).toBe(2);
+      const tasks = provider.collection.list();
       expect(tasks[0]).toMatchObject({ task: "Fix bug", status: "pending" });
       expect(tasks[1]).toMatchObject({ task: "Add feature", status: "pending", priority: "high" });
     });
@@ -127,7 +126,7 @@ describe("LinearTaskProvider", () => {
       );
       await provider.init();
 
-      expect(provider.count()).toBe(2);
+      expect(provider.collection.count()).toBe(2);
     });
 
     it("throws when team not found", async () => {
@@ -175,7 +174,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(provider.list()[0]?.notes).toBe("Some details here");
+      expect(provider.collection.list()[0]?.notes).toBe("Some details here");
     });
   });
 
@@ -200,44 +199,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      expect(provider.list()[0]?.priority).toBe(kotaPriority);
-    });
-  });
-
-  describe("list() / active() / isEmpty() / count()", () => {
-    it("active() excludes done tasks", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
-        .mockResolvedValueOnce({
-          data: {
-            issues: {
-              nodes: [
-                makeIssue("lin-1", "Task A", 0, ["kota-task"]),
-                makeIssue("lin-2", "Task B", 0, ["kota-task"]),
-              ],
-            },
-          },
-        })
-        .mockResolvedValue({ data: { issueUpdate: { success: true } } });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      await provider.update(provider.list()[0]!.id, { status: "done" });
-      expect(provider.active()).toHaveLength(1);
-      expect(provider.active().map((task) => task.task)).toEqual(["Task B"]);
-    });
-
-    it("isEmpty() returns true when no issues loaded", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
-        .mockResolvedValueOnce({ data: { issues: { nodes: [] } } });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      expect(provider.isEmpty()).toBe(true);
-      expect(provider.count()).toBe(0);
+      expect(provider.collection.list()[0]?.priority).toBe(kotaPriority);
     });
   });
 
@@ -255,7 +217,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = await provider.update(provider.list()[0]!.id, { status: "in_progress" });
+      const task = await provider.update(provider.collection.list()[0]!.id, { status: "in_progress" });
       expect(task.status).toBe("in_progress");
 
       const mutationCall = fetch.mock.calls.find(
@@ -268,7 +230,7 @@ describe("LinearTaskProvider", () => {
       expect(mutationCall).toBeDefined();
     });
 
-    it("keeps the cached status unchanged when Linear does not acknowledge the mutation", async () => {
+    it("keeps the collection status unchanged when Linear does not acknowledge the mutation", async () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
         .mockResolvedValueOnce({
@@ -279,12 +241,12 @@ describe("LinearTaskProvider", () => {
         .mockResolvedValueOnce({ data: { issueUpdate: { success: false } } });
       const provider = makeProvider(fetch);
       await provider.init();
-      const taskId = provider.list()[0]!.id;
+      const taskId = provider.collection.list()[0]!.id;
 
       await expect(provider.update(taskId, { status: "in_progress" })).rejects.toThrow(
         "not acknowledged",
       );
-      expect(provider.get(taskId)?.status).toBe("pending");
+      expect(provider.collection.get(taskId)?.status).toBe("pending");
     });
   });
 
@@ -302,7 +264,7 @@ describe("LinearTaskProvider", () => {
       const provider = makeProvider(fetch);
       await provider.init();
 
-      const task = await provider.update(provider.list()[0]!.id, { status: "done" });
+      const task = await provider.update(provider.collection.list()[0]!.id, { status: "done" });
       expect(task.status).toBe("done");
       expect(task.completed).toBeDefined();
 
@@ -320,7 +282,7 @@ describe("LinearTaskProvider", () => {
   });
 
   describe("add()", () => {
-    it("creates a Linear issue and updates cache with the real ID", async () => {
+    it("creates a Linear issue and updates collection with the real ID", async () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
         .mockResolvedValueOnce({ data: { issues: { nodes: [] } } })
@@ -345,51 +307,12 @@ describe("LinearTaskProvider", () => {
       expect(createCall).toBeDefined();
       expect(createCall?.[1]?.labelIds).toEqual(["label-kota-task"]);
 
-      expect(provider.get(task.id)?.task).toBe("New task");
-    });
-  });
-
-  describe("getActiveSummary()", () => {
-    it("returns null when no active tasks", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
-        .mockResolvedValueOnce({ data: { issues: { nodes: [] } } });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      expect(provider.getActiveSummary()).toBeNull();
-    });
-
-    it("returns summary with in-progress and pending counts", async () => {
-      const fetch = vi.fn()
-        .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
-        .mockResolvedValueOnce({
-          data: {
-            issues: {
-              nodes: [
-                makeIssue("lin-1", "Task A", 0, ["kota-task"]),
-                makeIssue("lin-2", "Task B", 0, ["kota-task"]),
-                makeIssue("lin-3", "Task C", 0, ["kota-task"]),
-              ],
-            },
-          },
-        })
-        .mockResolvedValue({ data: { issueUpdate: { success: true } } });
-
-      const provider = makeProvider(fetch);
-      await provider.init();
-
-      await provider.update(provider.list()[0]!.id, { status: "in_progress" });
-
-      const summary = provider.getActiveSummary();
-      expect(summary).toContain("1 in progress");
-      expect(summary).toContain("2 pending");
+      expect(provider.collection.get(task.id)?.task).toBe("New task");
     });
   });
 
   describe("update() — not found", () => {
-    it("throws when task ID not in cache", async () => {
+    it("throws when task ID not in collection", async () => {
       const fetch = vi.fn()
         .mockResolvedValueOnce(DEFAULT_TEAM_RESPONSE)
         .mockResolvedValueOnce({ data: { issues: { nodes: [] } } });
@@ -402,7 +325,6 @@ describe("LinearTaskProvider", () => {
       );
     });
   });
-
 });
 
 describe("LinearTaskProvider — onLoad integration in linear module", () => {

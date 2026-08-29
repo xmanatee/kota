@@ -1,7 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { Task, TaskPriority } from "#core/daemon/task-store.js";
 import {
-  getTaskProvider,
+  getTaskCollection,
   getTaskProviderRegistration,
 } from "#core/modules/provider-registry.js";
 import { sessionWriteEffect } from "./effect.js";
@@ -71,7 +71,7 @@ export async function runTodo(
 ): Promise<ToolResult> {
   const action = input.action as string;
   const registration = getTaskProviderRegistration();
-  const store = registration.provider;
+  const collection = registration.collection;
 
   switch (action) {
     case "add": {
@@ -122,7 +122,7 @@ export async function runTodo(
       }
     }
     case "list": {
-      return { content: formatTodos(store.list()) };
+      return { content: formatTodos(collection.list()) };
     }
     case "clear": {
       if (!registration.maintenance) {
@@ -183,8 +183,8 @@ function formatTodos(tasks: Task[]): string {
 }
 
 export function getTodoState(): string {
-  const store = getTaskProvider();
-  const tasks = store.list();
+  const collection = getTaskCollection();
+  const tasks = collection.list();
   if (tasks.length === 0) return "";
   // Show active tasks + up to 5 recent completed for context
   const active = tasks.filter(t => t.status !== "done");

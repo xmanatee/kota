@@ -66,7 +66,7 @@ export function createTestSession(
 	const registry = session.moduleLoader.getProviderRegistry();
 	const taskStore = new TaskStore(process.cwd(), null);
 	registry.register(TASK_PROVIDER_TOKEN, "composition-test", {
-		provider: taskStore,
+		collection: taskStore.collection,
 		mutations: {
 			add: async (task, options) => taskStore.add(task, options),
 			update: async (id, changes) => taskStore.update(id, changes),

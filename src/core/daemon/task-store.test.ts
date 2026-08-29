@@ -384,12 +384,16 @@ describe("singleton management", () => {
 
   it("initTaskStore creates persistent store", () => {
     const dir = mkdtempSync(join(tmpdir(), "kota-singleton-test-"));
-    initTaskStore("/test/project", dir);
-    const store = getTaskStore();
-    store.add("Persistent");
-    expect(existsSync(join(dir, `tasks-${hashProject("/test/project")}.json`))).toBe(true);
-    store.clear();
-    rmSync(dir, { recursive: true, force: true });
+    try {
+      initTaskStore("/test/project", dir);
+      const store = getTaskStore();
+      store.add("Persistent");
+      expect(existsSync(join(dir, `tasks-${scopeHash("/test/project")}.json`))).toBe(true);
+      store.clear();
+    } finally {
+      resetTaskStore();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("initTaskStore defaults persistence to the scope runtime directory", () => {
@@ -399,7 +403,7 @@ describe("singleton management", () => {
       const store = getTaskStore();
       store.add("Scope-local task");
       expect(
-        existsSync(join(scopeRoot, ".kota", `tasks-${hashProject(scopeRoot)}.json`)),
+        existsSync(join(scopeRoot, ".kota", `tasks-${scopeHash(scopeRoot)}.json`)),
       ).toBe(true);
     } finally {
       resetTaskStore();
@@ -474,12 +478,3 @@ describe("task.changed events", () => {
     expect(calls).toHaveLength(0);
   });
 });
-
-// Helper to verify file naming
-function hashProject(path: string): string {
-  let h = 5381;
-  for (let i = 0; i < path.length; i++) {
-    h = ((h << 5) + h + path.charCodeAt(i)) >>> 0;
-  }
-  return h.toString(36);
-}

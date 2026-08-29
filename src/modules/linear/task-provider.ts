@@ -1,18 +1,19 @@
 /**
- * LinearTaskProvider — TaskProvider backed by Linear Issues.
+ * LinearTaskProvider — TaskMutationProvider backed by Linear Issues.
  *
- * Implements the TaskProvider interface using Linear's GraphQL API as the
- * authoritative source. Issues are fetched at init() and cached in memory.
- * Mutations update the cache only after Linear acknowledges the durable write.
+ * Implements the TaskMutationProvider interface using Linear's GraphQL API as
+ * the authoritative source. Issues are fetched at init() and populated into a
+ * normalized TaskCollection. Workflow states are cached by name during init().
+ * Mutations update the collection only after Linear acknowledges the durable write.
  *
- * - list()   → open issues matching label filter, excluding started/completed/cancelled states
- * - claim    → update(id, {status:"in_progress"}) → transitions issue to inProgressState
- * - complete → update(id, {status:"done"}) → transitions issue to doneState + adds comment
- * - add()    → awaits Linear issue creation, then caches the acknowledged issue id
+ * - claim    → update(id, {status:"in_progress"}) → sets Linear state to "In Progress"
+ * - complete → update(id, {status:"done"}) → sets Linear state to "Done"
+ * - add()    → awaits Linear issue creation, then adds the acknowledged issue to collection
  */
 
+import { TaskCollection } from "#core/daemon/task-store.js";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store-types.js";
-import type { TaskMutationProvider, TaskProvider } from "#core/modules/provider-types.js";
+import type { TaskMutationProvider } from "#core/modules/provider-types.js";
 import { RemoteTaskIdentity } from "#core/modules/remote-task-identity.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -22,11 +23,11 @@ export type LinearTaskProviderConfig = {
   enabled: boolean;
   /** Linear team key (e.g. "ENG"). Required. */
   teamKey: string;
-  /** Label that issues must have to be included in list(). Default: no filter. */
+  /** Label name that issues must have to be included. Default: no label filter. */
   labelFilter?: string;
-  /** Workflow state name for "in progress". Default: "In Progress". */
+  /** Name of the workflow state for "in progress". Default: "In Progress". */
   inProgressState?: string;
-  /** Workflow state name for "done". Default: "Done". */
+  /** Name of the workflow state for "done". Default: "Done". */
   doneState?: string;
 };
 
@@ -38,7 +39,7 @@ type LinearIssue = {
   id: string;
   title: string;
   description: string | null;
-  priority: number;
+  priority: number; // 0=No priority, 1=Urgent, 2=High, 3=Medium, 4=Low
   state: LinearState;
   labels: { nodes: Array<{ name: string }> };
 };
@@ -48,19 +49,18 @@ export type LinearFetchFn = (
   variables?: Record<string, unknown>,
 ) => Promise<{ data: Record<string, unknown>; errors?: Array<{ message: string }> }>;
 
-// Linear priority field: 0=no priority, 1=urgent, 2=high, 3=medium, 4=low
+// Linear priority integer → KOTA priority
 const LINEAR_PRIORITY_MAP: Record<number, TaskPriority | undefined> = {
-  0: undefined,
-  1: "high",
-  2: "high",
-  3: "medium",
-  4: "low",
+  1: "high", // Urgent
+  2: "high", // High
+  3: "medium", // Medium
+  4: "low", // Low
 };
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
-  private cache: Task[] = [];
+export class LinearTaskProvider implements TaskMutationProvider {
+  readonly collection = new TaskCollection();
   private readonly taskIdentity = new RemoteTaskIdentity("Linear");
   private stateIds = new Map<string, string>(); // state name → Linear UUID
   private labelIds = new Map<string, string>(); // label name → Linear UUID
@@ -133,29 +133,7 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
       issues = issues.filter((i) => i.labels.nodes.some((l) => l.name === filter));
     }
 
-    this.cache = issues.map((i) => this.issueToTask(i));
-  }
-
-  // ─── TaskProvider interface ───────────────────────────────────────────────
-
-  list(): Task[] {
-    return [...this.cache];
-  }
-
-  active(): Task[] {
-    return this.cache.filter((t) => t.status !== "done");
-  }
-
-  get(id: number): Task | undefined {
-    return this.cache.find((t) => t.id === id);
-  }
-
-  isEmpty(): boolean {
-    return this.cache.length === 0;
-  }
-
-  count(): number {
-    return this.cache.length;
+    this.collection.replace(issues.map((i) => this.issueToTask(i)));
   }
 
   async add(
@@ -207,7 +185,7 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
       created: new Date().toISOString(),
     };
     if (opts?.notes) newTask.notes = opts.notes;
-    this.cache.push(newTask);
+    this.collection.add(newTask);
     return newTask;
   }
 
@@ -220,7 +198,7 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
       notes?: string;
     },
   ): Promise<Task> {
-    const task = this.cache.find((t) => t.id === id);
+    const task = this.collection.get(id);
     if (!task) throw new Error(`Task #${id} not found`);
     if (
       changes.priority !== undefined ||
@@ -254,38 +232,18 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
       if (result.success !== true) {
         throw new Error("Linear task provider: state update was not acknowledged");
       }
-      task.status = changes.status;
-      if (changes.status === "done") task.completed = new Date().toISOString();
+      return this.collection.update(id, { status: changes.status });
     }
 
     return task;
-  }
-
-  getActiveSummary(): string | null {
-    const active = this.cache.filter((t) => t.status !== "done");
-    if (active.length === 0) return null;
-    const inProgress = active.filter((t) => t.status === "in_progress");
-    const pending = active.filter((t) => t.status === "pending");
-    const parts: string[] = [];
-    if (inProgress.length > 0) {
-      parts.push(
-        `${inProgress.length} in progress: ${inProgress.map((t) => `"${t.task}"`).join(", ")}`,
-      );
-    }
-    if (pending.length > 0) {
-      const preview = pending.slice(0, 3).map((t) => `"${t.task}"`).join(", ");
-      const more = pending.length > 3 ? ` (+${pending.length - 3} more)` : "";
-      parts.push(`${pending.length} pending: ${preview}${more}`);
-    }
-    return parts.join("; ");
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
   private issueToTask(issue: LinearIssue): Task {
     const numericId = this.taskIdentity.localId(issue.id);
-
     const priority = LINEAR_PRIORITY_MAP[issue.priority];
+
     const task: Task = {
       id: numericId,
       task: issue.title,
@@ -294,17 +252,17 @@ export class LinearTaskProvider implements TaskProvider, TaskMutationProvider {
     };
     if (priority) task.priority = priority;
     if (issue.description) task.notes = issue.description;
+
     return task;
   }
 
   private checkErrors(
-    res: { errors?: Array<{ message: string }> },
-    action: string,
+    res: { data: Record<string, unknown>; errors?: Array<{ message: string }> },
+    operation: string,
   ): void {
     if (res.errors?.length) {
-      throw new Error(
-        `Linear task provider: failed to ${action} — ${res.errors.map((e) => e.message).join(", ")}`,
-      );
+      const msg = res.errors.map((e) => e.message).join(", ");
+      throw new Error(`Linear task provider: failed to ${operation} — ${msg}`);
     }
   }
 }

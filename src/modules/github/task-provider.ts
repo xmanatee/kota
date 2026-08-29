@@ -1,18 +1,19 @@
 /**
- * GitHubTaskProvider — TaskProvider backed by GitHub Issues.
+ * GitHubTaskProvider — TaskMutationProvider backed by GitHub Issues.
  *
- * Implements the TaskProvider interface using GitHub Issues as the authoritative
- * source. Issues are fetched at init() and cached in memory. Mutations update
- * the cache only after GitHub acknowledges the durable write.
+ * Implements the TaskMutationProvider interface using GitHub Issues as the
+ * authoritative source. Issues are fetched at init() and populated into a
+ * normalized TaskCollection. Mutations update the collection only after GitHub
+ * acknowledges the durable write.
  *
- * - list()   → open issues matching the configured label filter
  * - claim    → update(id, {status:"in_progress"}) → adds in-progress label
  * - complete → update(id, {status:"done"}) → closes issue + adds done label
- * - add()    → awaits GitHub issue creation, then caches the acknowledged issue number
+ * - add()    → awaits GitHub issue creation, then adds the acknowledged issue to collection
  */
 
+import { TaskCollection } from "#core/daemon/task-store.js";
 import type { Task, TaskPriority, TaskStatus } from "#core/daemon/task-store-types.js";
-import type { TaskMutationProvider, TaskProvider } from "#core/modules/provider-types.js";
+import type { TaskMutationProvider } from "#core/modules/provider-types.js";
 import type { OutboundHttpMethod } from "#core/outbound-http/index.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -20,7 +21,7 @@ import type { OutboundHttpMethod } from "#core/outbound-http/index.js";
 export type GitHubTaskProviderConfig = {
   /** Enable this provider. Must be explicitly true to activate. */
   enabled: boolean;
-  /** Label that issues must have to be included in list(). Default: no filter. */
+  /** Label that issues must have to be included in collection. Default: no filter. */
   labelFilter?: string;
   /** Label added when a task is claimed (set to in_progress). Default: "in-progress". */
   inProgressLabel?: string;
@@ -106,8 +107,8 @@ function decodeGitHubIssueNumber(data: unknown): number | null {
 
 // ─── Provider ────────────────────────────────────────────────────────────────
 
-export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
-  private cache: Task[] = [];
+export class GitHubTaskProvider implements TaskMutationProvider {
+  readonly collection = new TaskCollection();
 
   constructor(
     private readonly repo: string,
@@ -115,7 +116,7 @@ export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
     private readonly fetch: FetchFn,
   ) {}
 
-  /** Fetch open issues from GitHub and populate the cache. Call once at startup. */
+  /** Fetch open issues from GitHub and populate the collection. Call once at startup. */
   async init(): Promise<void> {
     const params = new URLSearchParams();
     params.set("state", "open");
@@ -130,29 +131,7 @@ export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
     }
 
     const issues = decodeGitHubIssueList(res.data).filter((i) => !i.pullRequest);
-    this.cache = issues.map((i) => this.issueToTask(i));
-  }
-
-  // ─── TaskProvider interface ───────────────────────────────────────────────
-
-  list(): Task[] {
-    return [...this.cache];
-  }
-
-  active(): Task[] {
-    return this.cache.filter((t) => t.status !== "done");
-  }
-
-  get(id: number): Task | undefined {
-    return this.cache.find((t) => t.id === id);
-  }
-
-  isEmpty(): boolean {
-    return this.cache.length === 0;
-  }
-
-  count(): number {
-    return this.cache.length;
+    this.collection.replace(issues.map((i) => this.issueToTask(i)));
   }
 
   async add(
@@ -196,7 +175,7 @@ export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
     };
     if (opts?.priority) newTask.priority = opts.priority;
     if (opts?.notes) newTask.notes = opts.notes;
-    this.cache.push(newTask);
+    this.collection.add(newTask);
     return newTask;
   }
 
@@ -209,7 +188,7 @@ export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
       notes?: string;
     },
   ): Promise<Task> {
-    const task = this.cache.find((t) => t.id === id);
+    const task = this.collection.get(id);
     if (!task) throw new Error(`Task #${id} not found`);
     if (
       changes.priority !== undefined ||
@@ -253,33 +232,10 @@ export class GitHubTaskProvider implements TaskProvider, TaskMutationProvider {
       } else if (changes.status === "pending") {
         throw new Error("GitHub task provider cannot reopen a completed issue as pending");
       }
-      task.status = changes.status;
-      if (changes.status === "done") task.completed = new Date().toISOString();
+      return this.collection.update(id, { status: changes.status });
     }
 
     return task;
-  }
-
-  getActiveSummary(): string | null {
-    const active = this.cache.filter((t) => t.status !== "done");
-    if (active.length === 0) return null;
-    const inProgress = active.filter((t) => t.status === "in_progress");
-    const pending = active.filter((t) => t.status === "pending");
-    const parts: string[] = [];
-    if (inProgress.length > 0) {
-      parts.push(
-        `${inProgress.length} in progress: ${inProgress.map((t) => `"${t.task}"`).join(", ")}`,
-      );
-    }
-    if (pending.length > 0) {
-      const preview = pending
-        .slice(0, 3)
-        .map((t) => `"${t.task}"`)
-        .join(", ");
-      const more = pending.length > 3 ? ` (+${pending.length - 3} more)` : "";
-      parts.push(`${pending.length} pending: ${preview}${more}`);
-    }
-    return parts.join("; ");
   }
 
   // ─── Helpers ──────────────────────────────────────────────────────────────

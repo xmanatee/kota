@@ -144,7 +144,7 @@ const linearModule: KotaModule = {
     try {
       await provider.init();
       ctx.registerProvider(TASK_PROVIDER_TOKEN, {
-        provider,
+        collection: provider.collection,
         mutations: provider,
       });
       ctx.log.info("Linear Issues task provider registered");

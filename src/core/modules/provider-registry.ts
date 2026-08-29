@@ -12,7 +12,7 @@ import type {
 	ModelPricingProvider,
 	RenderingProvider,
 	RepoTasksProvider,
-	TaskProvider,
+	TaskCollection,
 	TaskProviderRegistration,
 } from "./provider-types.js";
 
@@ -40,8 +40,8 @@ export type {
 	ModelPricingRates,
 	RenderingProvider,
 	RepoTasksProvider,
-	TaskProvider,
 } from "./provider-types.js";
+export { TaskCollection } from "./provider-types.js";
 
 /**
  * Tokens for the cross-cutting providers core itself looks up. Module-
@@ -209,7 +209,7 @@ export function registerDefaultProviders(target: ProviderRegistry | null = regis
 	if (!target) return;
 	const store = getTaskStore();
 	target.register(TASK_PROVIDER_TOKEN, "default", {
-		provider: store,
+		collection: store.collection,
 		mutations: {
 			add: async (task, options) => store.add(task, options),
 			update: async (id, changes) => store.update(id, changes),
@@ -251,12 +251,12 @@ export function getKnowledgeProvider(target: ProviderRegistry | null = registry)
 	);
 }
 
-/** Get the active task provider, or the default TaskStore when no registry provider is active. */
-export function getTaskProvider(target: ProviderRegistry | null = registry): TaskProvider {
-	return getTaskProviderRegistration(target).provider;
+/** Get the active task collection, or the default TaskStore collection when no registry provider is active. */
+export function getTaskCollection(target: ProviderRegistry | null = registry): TaskCollection {
+	return getTaskProviderRegistration(target).collection;
 }
 
-/** Resolve the active task reader and only the mutation capabilities it declares. */
+/** Resolve the active task collection and only the mutation capabilities it declares. */
 export function getTaskProviderRegistration(
 	target: ProviderRegistry | null = registry,
 ): TaskProviderRegistration {
@@ -264,7 +264,7 @@ export function getTaskProviderRegistration(
 	if (registered) return registered;
 	const store = getTaskStore();
 	return {
-		provider: store,
+		collection: store.collection ?? (store as unknown as TaskCollection),
 		mutations: {
 			add: async (task, options) => store.add(task, options),
 			update: async (id, changes) => store.update(id, changes),

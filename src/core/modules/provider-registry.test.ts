@@ -4,7 +4,7 @@ import {
 	getKnowledgeProvider,
 	getMemoryProvider,
 	getProviderRegistry,
-	getTaskProvider,
+	getTaskCollection,
 	getTaskProviderRegistration,
 	HISTORY_PROVIDER_TOKEN,
 	type HistoryProvider,
@@ -17,7 +17,7 @@ import {
 	registerDefaultProviders,
 	resetProviderRegistry,
 	TASK_PROVIDER_TOKEN,
-	type TaskProvider,
+	TaskCollection,
 } from "./provider-registry.js";
 import { defineProviderToken } from "./provider-token.js";
 
@@ -211,34 +211,27 @@ describe("convenience getters", () => {
 		expect(provider.count()).toBe(42);
 	});
 
-	it("getTaskProvider returns TaskStore when no registry", () => {
+	it("getTaskCollection returns TaskStore collection when no registry", () => {
 		resetProviderRegistry();
-		const provider = getTaskProvider();
-		expect(provider).toBe(getTaskProviderRegistration().provider);
+		const collection = getTaskCollection();
+		expect(collection).toBe(getTaskProviderRegistration().collection);
 	});
 
-	it("getTaskProvider returns custom provider when registered", () => {
+	it("getTaskCollection returns custom collection when registered", () => {
 		const reg = initProviderRegistry();
-		const custom: TaskProvider = {
-			list: () => [],
-			active: () => [],
-			get: () => undefined,
-			getActiveSummary: () => null,
-			isEmpty: () => true,
-			count: () => 0,
-		};
-		reg.register(TASK_PROVIDER_TOKEN, "custom", { provider: custom });
+		const custom = new TaskCollection();
+		reg.register(TASK_PROVIDER_TOKEN, "custom", { collection: custom });
 		reg.setActive(TASK_PROVIDER_TOKEN, "custom");
 
-		const provider = getTaskProvider();
-		expect(provider).toBe(custom);
-		expect(provider.count()).toBe(0);
+		const collection = getTaskCollection();
+		expect(collection).toBe(custom);
+		expect(collection.count()).toBe(0);
 	});
 
-	it("getTaskProvider returns default when registry exists but has no task provider", () => {
+	it("getTaskCollection returns default when registry exists but has no task provider", () => {
 		initProviderRegistry();
-		const provider = getTaskProvider();
-		expect(provider).toBe(getTaskProviderRegistration().provider);
+		const collection = getTaskCollection();
+		expect(collection).toBe(getTaskProviderRegistration().collection);
 	});
 
 	it("getHistoryProvider throws when no provider registered", () => {

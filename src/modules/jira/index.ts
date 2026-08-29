@@ -124,7 +124,7 @@ const jiraModule: KotaModule = {
     try {
       await provider.init();
       ctx.registerProvider(TASK_PROVIDER_TOKEN, {
-        provider,
+        collection: provider.collection,
         mutations: provider,
       });
       ctx.log.info("Jira Cloud task provider registered");

@@ -1,5 +1,7 @@
-import type { Task, TaskPriority, TaskStatus } from '#core/daemon/task-store.js';
+import type { Task, TaskCollection, TaskPriority, TaskStatus } from '#core/daemon/task-store.js';
 import type { ReindexResult } from './work-provider-types.js';
+
+export { TaskCollection } from '#core/daemon/task-store.js';
 
 export interface TaskMutationProvider {
 	add(
@@ -27,17 +29,8 @@ export interface TaskMaintenanceProvider {
 	archiveCompleted(): Promise<number>;
 }
 
-export interface TaskProvider {
-	list(): Task[];
-	active(): Task[];
-	get(id: number): Task | undefined;
-	getActiveSummary(): string | null;
-	isEmpty(): boolean;
-	count(): number;
-}
-
 export type TaskProviderRegistration = {
-	provider: TaskProvider;
+	collection: TaskCollection;
 	mutations?: TaskMutationProvider;
 	maintenance?: TaskMaintenanceProvider;
 };
