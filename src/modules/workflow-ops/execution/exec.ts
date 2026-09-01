@@ -346,6 +346,7 @@ export function registerExecCommand(
         const runtime = resolveAgentRuntime(runtimeConfig);
         const validationOptions = {
           defaultAgentHarness: runtime.harness,
+          defaultAgentEffort: runtime.effort,
           preset: runtime.preset,
           modelTiers: runtime.tiers,
           agentModels: runtimeConfig.agentModels,

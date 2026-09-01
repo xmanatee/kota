@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { AgentEffort } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ModelTiers } from "#core/model/model-router.js";
 import { type Preset, resolveAgentRuntime } from "#core/model/preset.js";
@@ -19,6 +20,7 @@ type ValidateDefinitionsOptions = {
   workflow?: string;
   workspaceRoot?: string;
   defaultAgentHarness?: string;
+  defaultAgentEffort?: AgentEffort;
   preset?: Preset;
   modelTiers?: ModelTiers;
   agentModels?: Readonly<Record<string, string>>;
@@ -46,6 +48,7 @@ export function validateDefinitions(
         options.workspaceRoot,
         {
           defaultAgentHarness: options.defaultAgentHarness,
+          defaultAgentEffort: options.defaultAgentEffort,
           preset: options.preset,
           modelTiers: options.modelTiers,
           agentModels: options.agentModels,
@@ -72,6 +75,7 @@ export function validateDefinitions(
         options.workspaceRoot,
         {
           defaultAgentHarness: options.defaultAgentHarness,
+          defaultAgentEffort: options.defaultAgentEffort,
           preset: options.preset,
           modelTiers: options.modelTiers,
           agentModels: options.agentModels,
@@ -111,6 +115,7 @@ export function registerValidateCommand(
           workflow: opts.workflow,
           workspaceRoot: ctx.cwd,
           defaultAgentHarness: runtime.harness,
+          defaultAgentEffort: runtime.effort,
           preset: runtime.preset,
           modelTiers: runtime.tiers,
           agentModels: ctx.config.agentModels,

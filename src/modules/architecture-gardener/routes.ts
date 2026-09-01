@@ -2,7 +2,6 @@ import { join } from "node:path";
 import type {
   ControlRouteRegistration,
   ModuleContext,
-  RouteRegistration,
 } from "#core/modules/module-types.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
 import { collectAstArchitectureObservations } from "./ast-provider.js";
@@ -61,28 +60,6 @@ export function buildGardenerControlRoutes(
           targetScope,
           reason,
         });
-      },
-    },
-  ];
-}
-
-export function buildGardenerPublicRoutes(
-  ctx: ModuleContext,
-): RouteRegistration[] {
-  return [
-    {
-      method: "GET",
-      path: "/api/architecture/status",
-      handler: async (_req, res) => {
-        const repoRoot = ctx.cwd;
-        const stateDir = join(ctx.cwd, ".kota");
-        const observations = collectAstArchitectureObservations(repoRoot);
-        const status = buildArchitectureGardenerStatus({
-          repoRoot,
-          stateDir,
-          currentObservations: observations,
-        });
-        jsonResponse(res, 200, status);
       },
     },
   ];

@@ -16,6 +16,7 @@ export function getValidatedWorkflowDefinitions(
   const runtime = resolveAgentRuntime(ctx.config);
   return validateWorkflowDefinitions(getWorkflowDefinitions(ctx), workspaceRoot, {
     defaultAgentHarness: runtime.harness,
+    defaultAgentEffort: runtime.effort,
     preset: runtime.preset,
     modelTiers: runtime.tiers,
     agentModels: ctx.config.agentModels,

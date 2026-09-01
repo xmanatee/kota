@@ -3,7 +3,6 @@ import { buildArchitectureGardenerCommand } from "./cli-command.js";
 import { architectureChanged, architectureReviewRequested } from "./events.js";
 import {
   buildGardenerControlRoutes,
-  buildGardenerPublicRoutes,
 } from "./routes.js";
 import { architectureGardenerUiSurfaceSource } from "./ui-source.js";
 import architectureGardenerWorkflow from "./workflow.js";
@@ -24,7 +23,6 @@ const architectureGardenerModule: KotaModule = {
   ],
   workflows: [architectureGardenerWorkflow],
   commands: (ctx) => [buildArchitectureGardenerCommand(ctx)],
-  routes: (ctx) => buildGardenerPublicRoutes(ctx),
   controlRoutes: (ctx) => buildGardenerControlRoutes(ctx),
   uiSurfaces: [architectureGardenerUiSurfaceSource],
 };

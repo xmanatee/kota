@@ -143,6 +143,7 @@ async function checkWorkflowDefinitions(scopeRoot: string): Promise<CheckResult>
     const runtime = resolveAgentRuntime(config);
     const validated = validateWorkflowDefinitions(defs, scopeRoot, {
       defaultAgentHarness: runtime.harness,
+      defaultAgentEffort: runtime.effort,
       preset: runtime.preset,
       modelTiers: runtime.tiers,
       agentModels: config.agentModels,
