@@ -257,7 +257,10 @@ final class SharedUiRendererTests: XCTestCase {
         ))
 
         await state.refreshUiSurfaceBundle()
-        let loadedAction = try XCTUnwrap(state.uiSurfaceBundle?.surfaces.flatMap(\.actions).first {
+        guard case .loaded = state.uiSurfaces.state else {
+            return XCTFail("Expected a loaded shared UI resource")
+        }
+        let loadedAction = try XCTUnwrap(state.uiSurfaces.value?.surfaces.flatMap(\.actions).first {
             $0.actionId == action.actionId
         })
         let result = await state.executeUiAction(loadedAction)
@@ -355,7 +358,10 @@ final class SharedUiRendererTests: XCTestCase {
             )]
         ))
         await surfaceRefresh.value
-        XCTAssertNil(state.uiSurfaceBundle)
+        XCTAssertNil(state.uiSurfaces.value)
+        guard case .idle = state.uiSurfaces.state else {
+            return XCTFail("A source change should cancel and clear the prior resource")
+        }
 
         state.reconcileActiveScopeId(with: scopeRegistry(
             defaultScopeId: originalScope,
@@ -381,6 +387,417 @@ final class SharedUiRendererTests: XCTestCase {
         XCTAssertTrue(platform.openedURLs.isEmpty)
     }
 
+    func testAppStateClassifiesEmptyAndUnavailableSurfaceResponses() async throws {
+        let bundle = try Self.bundle()
+        let bundleData = try Self.bundleData()
+        let scopeId = try XCTUnwrap(bundle.surfaces.first?.scopeId)
+        let emptyData = try JSONEncoder().encode(UiSurfaceBundle(
+            protocolVersion: .uiSurfaceV1,
+            surfaces: []
+        ))
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, emptyData)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "token")
+        let state = AppState(client: client)
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: scopeId,
+            scopes: [directoryScope(
+                scopeId: scopeId,
+                scopeRoot: "/tmp/kota",
+                displayName: "KOTA"
+            )]
+        ))
+
+        await state.refreshUiSurfaceBundle()
+        guard case .empty = state.uiSurfaces.state else {
+            return XCTFail("Expected an empty shared UI resource")
+        }
+
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil
+            )!
+            return (response, Data(#"{"error":"UI module unavailable"}"#.utf8))
+        }
+        await state.refreshUiSurfaceBundle()
+        guard case .unavailable(let issue) = state.uiSurfaces.state else {
+            return XCTFail("Expected an unavailable shared UI resource")
+        }
+        XCTAssertEqual(issue.title, "Shared UI unavailable")
+        XCTAssertTrue(issue.detail.contains("UI module unavailable"))
+
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, bundleData)
+        }
+        await state.refreshUiSurfaceBundle()
+        guard case .loaded = state.uiSurfaces.state else {
+            return XCTFail("Retry should replace unavailability with loaded content")
+        }
+    }
+
+    func testDaemonSourceChangeDoesNotRetainThePreviousSurfaceOnFailure() async throws {
+        let bundleData = try Self.bundleData()
+        let scopeId = try XCTUnwrap(Self.bundle().surfaces.first?.scopeId)
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        SharedUiMockURLProtocol.handler = { request in
+            if request.url?.host == "new-daemon.example" {
+                let response = HTTPURLResponse(
+                    url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil
+                )!
+                return (response, Data(#"{"error":"new daemon is starting"}"#.utf8))
+            }
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, bundleData)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "https://old-daemon.example")!, token: "old")
+        let state = AppState(client: client)
+        state.reconcileActiveScopeId(with: scopeRegistry(
+            defaultScopeId: scopeId,
+            scopes: [directoryScope(
+                scopeId: scopeId,
+                scopeRoot: "/tmp/kota",
+                displayName: "KOTA"
+            )]
+        ))
+
+        await state.refreshUiSurfaceBundle()
+        XCTAssertNotNil(state.uiSurfaces.value)
+
+        client.setRemoteConnection(url: URL(string: "https://new-daemon.example")!, token: "new")
+        await state.refreshUiSurfaceBundle()
+
+        XCTAssertNil(state.uiSurfaces.value)
+        guard case .unavailable(let issue) = state.uiSurfaces.state else {
+            return XCTFail("A new daemon failure must not retain the old daemon's resource")
+        }
+        XCTAssertTrue(issue.detail.contains("new daemon is starting"))
+    }
+
+    func testInvalidAndOfflineSourcesDisconnectBeforeResourceRetry() async throws {
+        let bundleData = try Self.bundleData()
+        let commandsData = Data(#"{"commands":[{"name":"builder","label":"/builder","source":"workflow","module":"autonomy"}]}"#.utf8)
+        let requestLock = NSLock()
+        var requestCount = 0
+        let readRequestCount = {
+            requestLock.lock()
+            defer { requestLock.unlock() }
+            return requestCount
+        }
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        SharedUiMockURLProtocol.handler = { request in
+            requestLock.lock()
+            requestCount += 1
+            requestLock.unlock()
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            switch request.url?.path {
+            case "/ui/surfaces": return (response, bundleData)
+            case "/commands": return (response, commandsData)
+            default:
+                throw NSError(
+                    domain: "SharedUiRendererTests.UnexpectedRetryRoute",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: request.url?.path ?? "nil"]
+                )
+            }
+        }
+
+        let defaults = UserDefaults.standard
+        let priorRemoteURL = defaults.object(forKey: "remoteDaemonURL")
+        let priorScopeDirectory = defaults.object(forKey: "scopeDirectory")
+        defaults.removeObject(forKey: "remoteDaemonURL")
+        defaults.removeObject(forKey: "scopeDirectory")
+        defer {
+            if let priorRemoteURL {
+                defaults.set(priorRemoteURL, forKey: "remoteDaemonURL")
+            } else {
+                defaults.removeObject(forKey: "remoteDaemonURL")
+            }
+            if let priorScopeDirectory {
+                defaults.set(priorScopeDirectory, forKey: "scopeDirectory")
+            } else {
+                defaults.removeObject(forKey: "scopeDirectory")
+            }
+        }
+
+        let oldURL = URL(string: "https://old-daemon.example")!
+        let client = DaemonClient()
+        client.setRemoteConnection(url: oldURL, token: "old")
+        let state = AppState(client: client)
+        await state.refreshUiSurfaceBundle()
+        await state.refreshSlashCommands()
+        XCTAssertNotNil(state.uiSurfaces.value)
+        XCTAssertNotNil(state.slashCommands.value)
+
+        state.remoteURL = "not a URL"
+        await state.refresh()
+
+        XCTAssertNil(client.connection)
+        XCTAssertNil(state.uiSurfaces.value)
+        XCTAssertNil(state.slashCommands.value)
+        guard case .failed = state.uiSurfaces.state else {
+            return XCTFail("An invalid URL must replace the prior surface resource")
+        }
+        guard case .failed = state.slashCommands.state else {
+            return XCTFail("An invalid URL must replace the prior command resource")
+        }
+        let requestsBeforeInvalidRetry = readRequestCount()
+        await state.refreshUiSurfaceBundle()
+        await state.refreshSlashCommands()
+        XCTAssertEqual(readRequestCount(), requestsBeforeInvalidRetry)
+
+        client.setRemoteConnection(url: oldURL, token: "old")
+        await state.refreshUiSurfaceBundle()
+        await state.refreshSlashCommands()
+        XCTAssertNotNil(state.uiSurfaces.value)
+        XCTAssertNotNil(state.slashCommands.value)
+
+        state.remoteURL = ""
+        state.scopeRoot = nil
+        await state.refresh()
+
+        XCTAssertNil(client.connection)
+        XCTAssertNil(state.uiSurfaces.value)
+        XCTAssertNil(state.slashCommands.value)
+        guard case .offline = state.uiSurfaces.state else {
+            return XCTFail("A missing local source must replace the prior surface resource")
+        }
+        guard case .offline = state.slashCommands.state else {
+            return XCTFail("A missing local source must replace the prior command resource")
+        }
+        let requestsBeforeOfflineRetry = readRequestCount()
+        await state.refreshUiSurfaceBundle()
+        await state.refreshSlashCommands()
+        XCTAssertEqual(readRequestCount(), requestsBeforeOfflineRetry)
+    }
+
+    func testSlashCommandResourceUsesSharedEmptyFailureAndRetryTransitions() async throws {
+        let commands = Data(#"{"commands":[{"name":"builder","label":"/builder","description":"Build the next task","source":"workflow","module":"autonomy"}]}"#.utf8)
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, commands)
+        }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "token")
+        let state = AppState(client: client)
+
+        await state.refreshSlashCommands()
+        guard case .loaded(let loaded) = state.slashCommands.state else {
+            return XCTFail("Expected loaded slash commands")
+        }
+        XCTAssertEqual(loaded.map(\.name), ["builder"])
+
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, Data(#"{"commands":[]}"#.utf8))
+        }
+        await state.refreshSlashCommands()
+        guard case .empty = state.slashCommands.state else {
+            return XCTFail("Expected an empty slash-command resource")
+        }
+
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil
+            )!
+            return (response, Data(#"{"error":"commands module unavailable"}"#.utf8))
+        }
+        await state.refreshSlashCommands()
+        guard case .unavailable(let issue) = state.slashCommands.state else {
+            return XCTFail("Expected an unavailable slash-command resource")
+        }
+        XCTAssertEqual(issue.title, "Commands unavailable")
+
+        SharedUiMockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (response, commands)
+        }
+        await state.refreshSlashCommands()
+        guard case .loaded = state.slashCommands.state else {
+            return XCTFail("Retry should restore slash commands")
+        }
+    }
+
+    func testSlashCommandRefreshCancellationRestoresPreviousAndNewestRequestWins() async throws {
+        let originalCommands = Data(#"{"commands":[{"name":"original","label":"/original","source":"workflow","module":"autonomy"}]}"#.utf8)
+        let canceledCommands = Data(#"{"commands":[{"name":"canceled","label":"/canceled","source":"workflow","module":"autonomy"}]}"#.utf8)
+        let staleCommands = Data(#"{"commands":[{"name":"stale","label":"/stale","source":"workflow","module":"autonomy"}]}"#.utf8)
+        let newestCommands = Data(#"{"commands":[{"name":"newest","label":"/newest","source":"workflow","module":"autonomy"}]}"#.utf8)
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        let response: (URLRequest, Data) -> (HTTPURLResponse, Data) = { request, data in
+            let http = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            return (http, data)
+        }
+        SharedUiMockURLProtocol.handler = { request in response(request, originalCommands) }
+
+        let client = DaemonClient()
+        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "token")
+        let state = AppState(client: client)
+        await state.refreshSlashCommands()
+
+        let canceledRequestStarted = expectation(description: "canceled request started")
+        SharedUiMockURLProtocol.handler = { request in
+            canceledRequestStarted.fulfill()
+            Thread.sleep(forTimeInterval: 0.08)
+            return response(request, canceledCommands)
+        }
+        let canceledRefresh = Task { await state.refreshSlashCommands() }
+        await fulfillment(of: [canceledRequestStarted], timeout: 1)
+        canceledRefresh.cancel()
+        await canceledRefresh.value
+        guard case .loaded(let afterCancellation) = state.slashCommands.state else {
+            return XCTFail("Cancellation should restore the previously loaded commands")
+        }
+        XCTAssertEqual(afterCancellation.map(\.name), ["original"])
+
+        let requestLock = NSLock()
+        var requestCount = 0
+        let staleRequestStarted = expectation(description: "stale request started")
+        SharedUiMockURLProtocol.handler = { request in
+            requestLock.lock()
+            requestCount += 1
+            let currentRequest = requestCount
+            requestLock.unlock()
+            if currentRequest == 1 {
+                staleRequestStarted.fulfill()
+                Thread.sleep(forTimeInterval: 0.08)
+                return response(request, staleCommands)
+            }
+            return response(request, newestCommands)
+        }
+        let staleRefresh = Task { await state.refreshSlashCommands() }
+        await fulfillment(of: [staleRequestStarted], timeout: 1)
+        let newestRefresh = Task { await state.refreshSlashCommands() }
+        await newestRefresh.value
+        await staleRefresh.value
+
+        guard case .loaded(let latest) = state.slashCommands.state else {
+            return XCTFail("The newest same-source request should own slash-command state")
+        }
+        XCTAssertEqual(latest.map(\.name), ["newest"])
+    }
+
+    func testDaemonPollingRefreshesSlashCommandsAcrossTransportLossAndReplacement() async throws {
+        let bundleData = try Self.bundleData()
+        let scopeId = try XCTUnwrap(Self.bundle().surfaces.first?.scopeId)
+        let originalIdentity = try Self.identityData(
+            scopeId: scopeId,
+            pid: 101,
+            startedAt: "2026-09-01T10:00:00Z"
+        )
+        let replacementIdentity = try Self.identityData(
+            scopeId: scopeId,
+            pid: 202,
+            startedAt: "2026-09-01T11:00:00Z"
+        )
+        let originalCommands = Data(#"{"commands":[{"name":"builder","label":"/builder","description":"Build the next task","source":"workflow","module":"autonomy"}]}"#.utf8)
+        let replacementCommands = Data(#"{"commands":[{"name":"explorer","label":"/explorer","description":"Explore opportunities","source":"workflow","module":"autonomy"}]}"#.utf8)
+        enum DaemonPhase: Equatable { case original, offline, replacement }
+        var phase = DaemonPhase.original
+        let offlineCommandStarted = expectation(description: "offline command refresh started")
+        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
+        SharedUiMockURLProtocol.handler = { request in
+            if phase == .offline {
+                if request.url?.path == "/commands" {
+                    offlineCommandStarted.fulfill()
+                    Thread.sleep(forTimeInterval: 0.08)
+                    throw URLError(.timedOut)
+                }
+                if request.url?.path != "/identity" { throw URLError(.timedOut) }
+            }
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            switch request.url?.path {
+            case "/identity":
+                return (response, phase == .replacement ? replacementIdentity : originalIdentity)
+            case "/ui/surfaces":
+                return (response, bundleData)
+            case "/commands":
+                return (response, phase == .replacement ? replacementCommands : originalCommands)
+            default:
+                throw NSError(
+                    domain: "SharedUiRendererTests.UnexpectedPollingRoute",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: request.url?.path ?? "nil"]
+                )
+            }
+        }
+
+        let client = DaemonClient()
+        let state = AppState(client: client)
+        let priorRemoteURL = UserDefaults.standard.object(forKey: "remoteDaemonURL")
+        defer {
+            if let priorRemoteURL {
+                UserDefaults.standard.set(priorRemoteURL, forKey: "remoteDaemonURL")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "remoteDaemonURL")
+            }
+        }
+        state.remoteURL = "http://127.0.0.1:8765"
+
+        await state.refresh()
+        XCTAssertNotNil(state.uiSurfaces.value)
+        guard case .loaded(let original) = state.slashCommands.state else {
+            return XCTFail("Polling must load slash commands with the other daemon resources")
+        }
+        XCTAssertEqual(original.map(\.name), ["builder"])
+
+        phase = .offline
+        let offlineRefresh = Task { await state.refresh() }
+        await fulfillment(of: [offlineCommandStarted], timeout: 1)
+        XCTAssertNil(
+            state.slashCommands.value,
+            "A surface transport failure must clear stale commands before command retry finishes"
+        )
+        await offlineRefresh.value
+
+        XCTAssertNil(state.uiSurfaces.value)
+        XCTAssertNil(state.slashCommands.value)
+        guard case .offline(let surfaceIssue) = state.uiSurfaces.state else {
+            return XCTFail("Transport loss must render shared UI offline")
+        }
+        guard case .offline(let commandIssue) = state.slashCommands.state else {
+            return XCTFail("Transport loss must render slash commands offline")
+        }
+        XCTAssertEqual(surfaceIssue.title, "Daemon offline")
+        XCTAssertEqual(commandIssue.title, "Daemon offline")
+
+        phase = .replacement
+        await state.refresh()
+
+        guard case .loaded(let replacement) = state.slashCommands.state else {
+            return XCTFail("A replacement daemon poll must reload slash commands")
+        }
+        XCTAssertEqual(replacement.map(\.name), ["explorer"])
+        XCTAssertEqual(state.identity?.pid, 202)
+    }
+
     private static func bundleData() throws -> Data {
         guard let url = Bundle.module.url(forResource: "ui-behavior-vectors.generated", withExtension: "json"),
               let tree = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any],
@@ -391,6 +808,29 @@ final class SharedUiRendererTests: XCTestCase {
 
     private static func bundle() throws -> UiSurfaceBundle {
         try JSONDecoder().decode(UiSurfaceBundle.self, from: bundleData())
+    }
+
+    private static func identityData(
+        scopeId: String,
+        pid: Double,
+        startedAt: String
+    ) throws -> Data {
+        try JSONEncoder().encode(ClientIdentity(
+            scopeName: "KOTA",
+            scopeRoot: "/tmp/kota",
+            scopeRegistry: scopeRegistry(
+                defaultScopeId: scopeId,
+                scopes: [directoryScope(
+                    scopeId: scopeId,
+                    scopeRoot: "/tmp/kota",
+                    displayName: "KOTA"
+                )]
+            ),
+            daemonVersion: "1.0.0",
+            pid: pid,
+            startedAt: startedAt,
+            dashboard: .unavailable(reason: "module_disabled", message: nil)
+        ))
     }
 
     private static func surface(
@@ -439,7 +879,7 @@ private extension URLRequest {
 }
 
 private final class SharedUiMockURLProtocol: URLProtocol {
-    nonisolated(unsafe) static var handler: ((URLRequest) -> (HTTPURLResponse, Data))?
+    nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
@@ -449,10 +889,14 @@ private final class SharedUiMockURLProtocol: URLProtocol {
             client?.urlProtocol(self, didFailWithError: NSError(domain: "SharedUiMock", code: 1))
             return
         }
-        let (response, data) = handler(request)
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data)
-        client?.urlProtocolDidFinishLoading(self)
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
     }
 
     override func stopLoading() {}

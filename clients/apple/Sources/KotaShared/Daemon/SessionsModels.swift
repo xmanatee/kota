@@ -1,7 +1,8 @@
 import Foundation
 
-// Chat slash commands remain native because ChatView owns the local text and
-// voice interaction surface.
+// Chat slash-command transport remains native because it composes with the
+// local text and voice interaction surface. Its fetch lifecycle uses the
+// shared Swift resource owner in AppState.
 
 struct SlashCommandsResponse: Codable {
     let commands: [SlashCommand]

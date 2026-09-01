@@ -160,6 +160,10 @@ public final class DaemonClient {
         connection = DaemonConnection(baseURL: url, token: token)
     }
 
+    func clearConnection() {
+        connection = nil
+    }
+
     /// `GET /identity` — typed thin-client identity payload. Returns the
     /// scope the daemon is bound to, the daemon version, and the
     /// dashboard availability discriminator. Mirrors the TypeScript

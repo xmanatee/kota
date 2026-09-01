@@ -20,40 +20,22 @@ public struct SharedOperatorRootView: View {
     }
 
     public var body: some View {
-        Group {
-            if let bundle = appState.uiSurfaceBundle {
-                let inventory = SharedUiInventory(bundle: bundle)
-                if inventory.surfaces.isEmpty {
-                    SharedOperatorEmptyState(
-                        title: "No operator surfaces",
-                        detail: "No modules contribute ui.surface.v1 content for this scope."
-                    )
-                } else {
-                    switch presentation {
-                    case .menuBar:
-                        menuBarContent(inventory)
-                    case .tabs:
-                        tabContent(inventory)
-                    }
-                }
-            } else if appState.isLoadingUiSurfaces {
-                VStack(spacing: 10) {
-                    ProgressView()
-                    Text("Loading shared operator surfaces…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
+        ResourceStateShell(
+            state: appState.uiSurfaces.state,
+            loadingLabel: "Loading shared operator surfaces…",
+            retry: { Task { await appState.refreshUiSurfaceBundle() } },
+            content: { bundle in
+                operatorContent(SharedUiInventory(bundle: bundle))
+            },
+            emptyContent: {
                 SharedOperatorEmptyState(
-                    title: appState.uiSurfaceError == nil ? "Daemon offline" : "Shared UI unavailable",
-                    detail: appState.uiSurfaceError ?? appState.diagnostic.detail,
-                    action: { Task { await appState.refreshUiSurfaceBundle() } }
+                    title: "No operator surfaces",
+                    detail: "No modules contribute ui.surface.v1 content for this scope."
                 )
             }
-        }
+        )
         .onAppear { reconcileSelection() }
-        .onChange(of: appState.uiSurfaceBundle) { _ in reconcileSelection() }
+        .onChange(of: appState.uiSurfaces.value) { _ in reconcileSelection() }
         .sheet(isPresented: Binding(
             get: { chatSessionId != nil },
             set: { if !$0 { chatSessionId = nil } }
@@ -64,6 +46,16 @@ public struct SharedOperatorRootView: View {
         }
         .accessibilityIdentifier("shared-operator-root")
         .task { appState.start() }
+    }
+
+    @ViewBuilder
+    private func operatorContent(_ inventory: SharedUiInventory) -> some View {
+        switch presentation {
+        case .menuBar:
+            menuBarContent(inventory)
+        case .tabs:
+            tabContent(inventory)
+        }
     }
 
     private func menuBarContent(_ inventory: SharedUiInventory) -> some View {
@@ -159,7 +151,7 @@ public struct SharedOperatorRootView: View {
     }
 
     private func selectSurface(_ surfaceId: String) {
-        guard let bundle = appState.uiSurfaceBundle,
+        guard let bundle = appState.uiSurfaces.value,
               let surface = bundle.surfaces.first(where: { $0.surfaceId == surfaceId })
         else { return }
         selectedSurfaceId = surfaceId
@@ -167,7 +159,7 @@ public struct SharedOperatorRootView: View {
     }
 
     private func reconcileSelection() {
-        guard let bundle = appState.uiSurfaceBundle else {
+        guard let bundle = appState.uiSurfaces.value else {
             selectedSurfaceId = nil
             selectedIntentRaw = ""
             return
@@ -250,7 +242,7 @@ private struct SharedOperatorConnectionBar: View {
                 Image(systemName: "arrow.clockwise")
             }
             .buttonStyle(.plain)
-            .disabled(appState.isLoadingUiSurfaces)
+            .disabled(appState.uiSurfaces.isLoading)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

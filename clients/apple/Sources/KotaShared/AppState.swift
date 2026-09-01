@@ -63,9 +63,8 @@ public final class AppState: ObservableObject {
     @Published var identity: ClientIdentity?
 
     // Canonical daemon-owned operator UI rendered by both Apple shells.
-    @Published var uiSurfaceBundle: UiSurfaceBundle?
-    @Published var uiSurfaceError: String?
-    @Published var isLoadingUiSurfaces = false
+    @Published private(set) var uiSurfaces = ResourceStateOwner<UiSurfaceBundle>()
+    @Published private(set) var slashCommands = ResourceStateOwner<[SlashCommand]>()
     @Published var uiSurfaceEventsConnected = false
     @Published var liveUiLogEntries: [String: [UiLogEntry]] = [:]
 
@@ -106,6 +105,8 @@ public final class AppState: ObservableObject {
     private var requestSourceGeneration = 0
     private var uiSurfaceRefreshTask: Task<Result<UiSurfaceBundle, Error>, Never>?
     private var uiSurfaceRefreshToken: DaemonRequestToken?
+    private var slashCommandRefreshTask: Task<Result<SlashCommandsResponse, Error>, Never>?
+    private var slashCommandRefreshID: UUID?
     private var started = false
     private var lastIdentityProbe: DaemonIdentityProbe?
 
@@ -164,13 +165,20 @@ public final class AppState: ObservableObject {
 
     private func refreshRemote() async {
         guard let url = URL(string: remoteURL), url.scheme != nil, url.host != nil else {
-            invalidateRequestSource()
             health = .error("Invalid remote URL")
             diagnostic = .remoteInvalidURL(input: remoteURL)
-            identity = nil
-            uiSurfaceBundle = nil
-            uiSurfaceError = "Invalid remote URL"
-            stopUiSurfaceEventStream()
+            let uiFailure = ResourceFailure.failed(ResourceIssue(
+                title: "Shared UI unavailable",
+                detail: "Invalid remote URL"
+            ))
+            let commandFailure = ResourceFailure.failed(ResourceIssue(
+                title: "Commands unavailable",
+                detail: "Invalid remote URL"
+            ))
+            resetOfflineDaemonState(
+                uiFailure: uiFailure,
+                commandFailure: commandFailure
+            )
             return
         }
         let token = keychainRead() ?? ""
@@ -186,7 +194,10 @@ public final class AppState: ObservableObject {
         guard let dir = scopeRoot else {
             health = .offline
             diagnostic = .noScope
-            resetOfflineDaemonState()
+            resetOfflineDaemonState(issue: ResourceIssue(
+                title: "Daemon offline",
+                detail: diagnostic.detail
+            ))
             return
         }
 
@@ -199,7 +210,10 @@ public final class AppState: ObservableObject {
                 controlFileState: controlFileState,
                 identityProbe: nil
             )
-            resetOfflineDaemonState()
+            resetOfflineDaemonState(issue: ResourceIssue(
+                title: "Daemon offline",
+                detail: diagnostic.detail
+            ))
             return
         case .fresh:
             break
@@ -216,7 +230,10 @@ public final class AppState: ObservableObject {
                 controlFileState: classifyDaemonControlFile(scopeRoot: dir),
                 identityProbe: nil
             )
-            resetOfflineDaemonState()
+            resetOfflineDaemonState(issue: ResourceIssue(
+                title: "Daemon offline",
+                detail: diagnostic.detail
+            ))
             return
         }
 
@@ -228,12 +245,26 @@ public final class AppState: ObservableObject {
         )
     }
 
-    private func resetOfflineDaemonState() {
+    private func resetOfflineDaemonState(
+        issue: ResourceIssue? = nil,
+        uiFailure: ResourceFailure? = nil,
+        commandFailure: ResourceFailure? = nil
+    ) {
+        client.clearConnection()
         invalidateRequestSource()
         identity = nil
-        uiSurfaceBundle = nil
-        uiSurfaceError = nil
-        isLoadingUiSurfaces = false
+        uiSurfaces.reset()
+        slashCommands.reset()
+        if let uiFailure {
+            uiSurfaces.reject(uiFailure)
+        } else if let issue {
+            uiSurfaces.reject(.offline(issue))
+        }
+        if let commandFailure {
+            slashCommands.reject(commandFailure)
+        } else if let issue {
+            slashCommands.reject(.offline(issue))
+        }
         liveUiLogEntries = [:]
         stopUiSurfaceEventStream()
         activeScopeId = nil
@@ -254,8 +285,8 @@ public final class AppState: ObservableObject {
         guard scopeId != activeScopeId else { return }
         activeScopeId = scopeId
         invalidateRequestSource()
-        uiSurfaceBundle = nil
-        uiSurfaceError = nil
+        uiSurfaces.reset()
+        slashCommands.reset()
         liveUiLogEntries = [:]
         stopUiSurfaceEventStream()
         Task { await refresh() }
@@ -288,30 +319,79 @@ public final class AppState: ObservableObject {
             applyUiSurfaceBundle(bundle, token: scopedToken)
             health = .connected
         case .failure(let error):
-            uiSurfaceBundle = nil
-            uiSurfaceError = DaemonErrorPresenter.message(for: error)
+            let failure = resourceFailure(for: error)
+            uiSurfaces.reject(failure)
+            if case .offline(let issue) = failure {
+                slashCommands.reject(.offline(issue))
+            }
             stopUiSurfaceEventStream()
             health = .error(DaemonErrorPresenter.message(for: error))
         }
+        await refreshSlashCommands(token: scopedToken)
         return true
     }
 
     // MARK: - Shared UI surface runtime
 
     func refreshUiSurfaceBundle() async {
-        guard let token = synchronizeRequestSource() else { return }
+        guard let token = synchronizeRequestSource() else {
+            await refresh()
+            return
+        }
         await refreshUiSurfaceBundle(token: token)
+    }
+
+    func refreshSlashCommands() async {
+        guard let token = synchronizeRequestSource() else {
+            await refresh()
+            return
+        }
+        await refreshSlashCommands(token: token)
+    }
+
+    private func refreshSlashCommands(token: DaemonRequestToken) async {
+        guard isCurrent(token) else { return }
+        cancelSlashCommandRefresh()
+        slashCommands.beginLoading()
+        let requestID = UUID()
+        let task = Task<Result<SlashCommandsResponse, Error>, Never> { [client] in
+            do {
+                return .success(try await client.fetchSlashCommands())
+            } catch {
+                return .failure(error)
+            }
+        }
+        slashCommandRefreshID = requestID
+        slashCommandRefreshTask = task
+        let result = await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+        guard slashCommandRefreshID == requestID, isCurrent(token) else { return }
+        slashCommandRefreshID = nil
+        slashCommandRefreshTask = nil
+        guard !Task.isCancelled else {
+            slashCommands.cancelLoading()
+            return
+        }
+        switch result {
+        case .success(let response):
+            slashCommands.resolve(response.commands, isEmpty: \.isEmpty)
+        case .failure(let error) where isRequestCancellation(error):
+            slashCommands.cancelLoading()
+        case .failure(let error):
+            slashCommands.reject(resourceFailure(for: error, title: "Commands unavailable"))
+        }
     }
 
     private func refreshUiSurfaceBundle(token: DaemonRequestToken) async {
         guard isCurrent(token) else { return }
-        isLoadingUiSurfaces = true
         switch await requestUiSurfaceBundle(token) {
         case .success(let bundle) where isCurrent(token):
             applyUiSurfaceBundle(bundle, token: token)
         case .failure(let error) where isCurrent(token):
-            uiSurfaceError = DaemonErrorPresenter.message(for: error)
-            isLoadingUiSurfaces = false
+            uiSurfaces.reject(resourceFailure(for: error))
         case .success, .failure:
             break
         }
@@ -392,9 +472,7 @@ public final class AppState: ObservableObject {
 
     private func applyUiSurfaceBundle(_ bundle: UiSurfaceBundle, token: DaemonRequestToken) {
         guard isCurrent(token) else { return }
-        uiSurfaceBundle = bundle
-        uiSurfaceError = nil
-        isLoadingUiSurfaces = false
+        uiSurfaces.resolve(bundle) { $0.surfaces.isEmpty }
         reconcileUiSurfaceEventStream(bundle: bundle, token: token)
     }
 
@@ -450,7 +528,7 @@ public final class AppState: ObservableObject {
         streamID: UUID
     ) async {
         guard isCurrent(token), uiSurfaceEventStreamID == streamID else { return }
-        guard let bundle = uiSurfaceBundle else { return }
+        guard let bundle = uiSurfaces.value else { return }
         if let eventId = event.id { uiSurfaceLastEventId = eventId }
         let match = matchUiSurfaceEvent(bundle: bundle, event: event)
         guard match.refresh else { return }
@@ -489,6 +567,10 @@ public final class AppState: ObservableObject {
             requestSourceGeneration += 1
             requestSource = source
             cancelUiSurfaceRefresh()
+            cancelSlashCommandRefresh()
+            uiSurfaces.reset()
+            slashCommands.reset()
+            liveUiLogEntries = [:]
             stopUiSurfaceEventStream()
         }
         return DaemonRequestToken(generation: requestSourceGeneration, source: source)
@@ -510,6 +592,7 @@ public final class AppState: ObservableObject {
         requestSourceGeneration += 1
         requestSource = nil
         cancelUiSurfaceRefresh()
+        cancelSlashCommandRefresh()
         stopUiSurfaceEventStream()
     }
 
@@ -519,6 +602,7 @@ public final class AppState: ObservableObject {
         guard isCurrent(token) else {
             return .failure(CancellationError())
         }
+        uiSurfaces.beginLoading()
         if uiSurfaceRefreshToken == token, let task = uiSurfaceRefreshTask {
             return await task.value
         }
@@ -545,7 +629,56 @@ public final class AppState: ObservableObject {
         uiSurfaceRefreshTask?.cancel()
         uiSurfaceRefreshTask = nil
         uiSurfaceRefreshToken = nil
-        isLoadingUiSurfaces = false
+    }
+
+    private func cancelSlashCommandRefresh() {
+        slashCommandRefreshTask?.cancel()
+        slashCommandRefreshTask = nil
+        slashCommandRefreshID = nil
+    }
+
+    private func isRequestCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
+    }
+
+    private func resourceFailure(
+        for error: Error,
+        title: String = "Shared UI unavailable"
+    ) -> ResourceFailure {
+        let detail = DaemonErrorPresenter.message(for: error)
+        if isDaemonTransportLoss(error) {
+            return .offline(ResourceIssue(title: "Daemon offline", detail: detail))
+        }
+        guard let daemonError = error as? DaemonClientError else {
+            return .failed(ResourceIssue(title: title, detail: detail))
+        }
+        switch daemonError {
+        case .notConnected:
+            return .offline(ResourceIssue(title: "Daemon offline", detail: detail))
+        case .httpError(let status, _) where status == 503:
+            return .unavailable(ResourceIssue(title: title, detail: detail))
+        case .httpError, .decodingError:
+            return .failed(ResourceIssue(title: title, detail: detail))
+        }
+    }
+
+    private func isDaemonTransportLoss(_ error: Error) -> Bool {
+        guard let code = (error as? URLError)?.code else { return false }
+        switch code {
+        case .timedOut,
+             .cannotFindHost,
+             .cannotConnectToHost,
+             .networkConnectionLost,
+             .dnsLookupFailed,
+             .notConnectedToInternet,
+             .internationalRoamingOff,
+             .callIsActive,
+             .dataNotAllowed,
+             .backgroundSessionWasDisconnected:
+            return true
+        default:
+            return false
+        }
     }
 
     func endSession(_ id: String) async {
@@ -563,7 +696,12 @@ public final class AppState: ObservableObject {
     func reconcileActiveScopeId(with projection: ScopeRegistryProjection) {
         let knownIds = Set(projection.scopes.map { $0.scopeId })
         if let current = activeScopeId, knownIds.contains(current) { return }
+        guard activeScopeId != projection.defaultScopeId else { return }
         activeScopeId = projection.defaultScopeId
+        uiSurfaces.reset()
+        slashCommands.reset()
+        liveUiLogEntries = [:]
+        stopUiSurfaceEventStream()
     }
 
     public func promptForScopeDirectory() async {

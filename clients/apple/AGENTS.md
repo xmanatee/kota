@@ -21,6 +21,9 @@ and SwiftUI views are written once for both platforms:
   Secrets belong in Keychain, not view state or committed files.
 - If the daemon is unreachable, clear live data and show an offline
   state instead of preserving stale runtime state.
+- Daemon-backed screens use the Swift-native `ResourceStateOwner` and
+  `ResourceStateShell`; keep interaction state such as chat streaming, form
+  editing, action confirmation, and voice capture in its domain owner.
 - Do not add Swift Package dependencies without a strong reason. The
   apps are intentionally minimal.
 - Voice goes through the daemon's `/voice/transcribe` and

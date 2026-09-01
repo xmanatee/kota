@@ -21,7 +21,6 @@ struct ChatView: View {
     @State private var streamingContent = ""
     @State private var errorMessage: String?
     @State private var voiceErrorCode: String?
-    @State private var slashCommands: [SlashCommand] = []
     @State private var paletteDismissed = false
     @StateObject private var voiceState = VoiceState()
 
@@ -58,18 +57,23 @@ struct ChatView: View {
         return String(rest)
     }
 
-    private var filteredCommands: [SlashCommand] {
+    private func filteredCommands(_ commands: [SlashCommand]) -> [SlashCommand] {
         guard let q = paletteQuery else { return [] }
-        if q.isEmpty { return slashCommands }
+        if q.isEmpty { return commands }
         let lower = q.lowercased()
-        return slashCommands.filter {
+        return commands.filter {
             $0.name.lowercased().contains(lower)
                 || ($0.description ?? "").lowercased().contains(lower)
         }
     }
 
     private var showPalette: Bool {
-        !paletteDismissed && paletteQuery != nil && !filteredCommands.isEmpty
+        guard !paletteDismissed, paletteQuery != nil else { return false }
+        if case .empty = appState.slashCommands.state { return false }
+        if case .loaded(let commands) = appState.slashCommands.state {
+            return !filteredCommands(commands).isEmpty
+        }
+        return true
     }
 
     private var headerView: some View {
@@ -296,9 +300,22 @@ struct ChatView: View {
     }
 
     private var slashCommandPalette: some View {
+        ResourceStateShell(
+            state: appState.slashCommands.state,
+            loadingLabel: "Loading commands…",
+            retry: { Task { await appState.refreshSlashCommands() } },
+            content: { commands in
+                slashCommandList(filteredCommands(commands))
+            },
+            emptyContent: { EmptyView() }
+        )
+        .frame(maxHeight: 180)
+    }
+
+    private func slashCommandList(_ commands: [SlashCommand]) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(filteredCommands) { cmd in
+                ForEach(commands) { cmd in
                     Button(action: { invokeSlashCommand(cmd) }) {
                         VStack(alignment: .leading, spacing: 2) {
                             HStack {
@@ -325,7 +342,6 @@ struct ChatView: View {
                 }
             }
         }
-        .frame(maxHeight: 180)
     }
 
     private var canSend: Bool {
@@ -373,13 +389,7 @@ struct ChatView: View {
     }
 
     private func loadSlashCommands() async {
-        do {
-            let resp = try await appState.client.fetchSlashCommands()
-            slashCommands = resp.commands
-        } catch {
-            // Palette is best-effort; keep chat usable even without commands.
-            slashCommands = []
-        }
+        await appState.refreshSlashCommands()
     }
 
     private func invokeSlashCommand(_ cmd: SlashCommand) {
