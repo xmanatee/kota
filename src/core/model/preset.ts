@@ -249,6 +249,7 @@ export type PresetResolution = {
 export type AgentRuntimeConfig = {
   readonly defaultPreset?: string;
   readonly defaultAgentHarness?: string;
+  readonly defaultAgentEffort?: AgentEffort;
   readonly modelTiers?: ModelTiers;
 };
 
@@ -311,7 +312,7 @@ export function resolveAgentRuntime(
     preset,
     harness: config?.defaultAgentHarness ?? preset.harness,
     tiers: mergePresetTiers(preset, config?.modelTiers),
-    effort: preset.defaultEffort,
+    effort: config?.defaultAgentEffort ?? preset.defaultEffort,
   };
 }
 

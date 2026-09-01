@@ -64,6 +64,17 @@
       },
       "type": "object"
     },
+    "defaultAgentEffort": {
+      "description": "KOTA's portable agent-effort enum. Adapters map these literals onto their provider's native reasoning/effort wire shape (see `src/modules/model-clients/reasoning.ts`). Five literals, ordered low-to-max.",
+      "enum": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "type": "string"
+    },
     "defaultAgentHarness": {
       "description": "Default agent harness adapter name. Must match a harness registered by a loaded module. No implicit default — KOTA does not silently pick one.\n\nOperators that ship a preset rarely need to set this directly: the active preset (`defaultPreset` / `--preset` / `KOTA_PRESET`) carries its own harness. This field stays for the rare case where a workflow or operator needs to pin a harness independently of the preset's harness.",
       "type": "string"

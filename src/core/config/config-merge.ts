@@ -36,6 +36,7 @@ const CORE_KEYS: ReadonlySet<string> = new Set<keyof CoreKotaConfig>([
   "modelOutputTokenLimits",
   "agentModels",
   "defaultAgentHarness",
+  "defaultAgentEffort",
   "defaultPreset",
   "approvalTtlMs",
   "runsGc",

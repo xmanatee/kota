@@ -50,6 +50,15 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
   if (typeof raw.defaultAgentHarness === "string" && raw.defaultAgentHarness) {
     out.defaultAgentHarness = raw.defaultAgentHarness;
   }
+  if (
+    raw.defaultAgentEffort === "low" ||
+    raw.defaultAgentEffort === "medium" ||
+    raw.defaultAgentEffort === "high" ||
+    raw.defaultAgentEffort === "xhigh" ||
+    raw.defaultAgentEffort === "max"
+  ) {
+    out.defaultAgentEffort = raw.defaultAgentEffort;
+  }
   if (typeof raw.defaultPreset === "string" && raw.defaultPreset) {
     out.defaultPreset = raw.defaultPreset;
   }

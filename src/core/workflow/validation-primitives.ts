@@ -1,4 +1,5 @@
 import { isAbsolute } from "node:path";
+import type { AgentEffort } from "#core/agent-harness/types.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ModelTiers } from "../model/model-router.js";
 import type { Preset } from "../model/preset.js";
@@ -19,6 +20,8 @@ export type WorkflowValidationOptions = {
    * is no implicit default harness in code.
    */
   defaultAgentHarness?: string;
+  /** Resolved default effort for portable tier-based agent steps. */
+  defaultAgentEffort?: AgentEffort;
   /**
    * Active preset bundle. Supplies the per-tier baseline that operator
    * `modelTiers` overrides extend. When unset, the validator falls back to

@@ -12,6 +12,7 @@ export function compileDefinitions(
   const runtime = resolveAgentRuntime(state.config);
   return validateWorkflowDefinitions(state.workflowInputs ?? [], state.scopeRoot, {
     defaultAgentHarness: runtime.harness,
+    defaultAgentEffort: runtime.effort,
     preset: runtime.preset,
     modelTiers: runtime.tiers,
     agentModels: state.config?.agentModels,

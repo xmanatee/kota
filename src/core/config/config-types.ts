@@ -1,4 +1,5 @@
 import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js";
+import type { AgentEffort } from "#core/agent-harness/types.js";
 import type { QuietHoursConfig } from "#core/daemon/notification-gate.js";
 import type { ScopeAuthorityMetadata } from "#core/daemon/scope-authority-types.js";
 import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
@@ -84,6 +85,9 @@ export type CoreKotaConfig = {
    * needs to pin a harness independently of the preset's harness.
    */
   defaultAgentHarness?: string;
+
+  /** Operator override for the active preset's default agent effort. */
+  defaultAgentEffort?: AgentEffort;
 
   /**
    * Default preset id for this scope. Selects harness + default model +

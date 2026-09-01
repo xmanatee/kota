@@ -35,6 +35,7 @@ export const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set<keyof KotaConfig>(
   "modelOutputTokenLimits",
   "agentModels",
   "defaultAgentHarness",
+  "defaultAgentEffort",
   "defaultPreset",
   "approvalTtlMs",
   "runsGc",

@@ -11,6 +11,6 @@ export function resolveWorkflowValidationAgentRuntime(
     preset,
     harness: options.defaultAgentHarness ?? preset.harness,
     tiers: mergePresetTiers(preset, options.modelTiers),
-    effort: preset.defaultEffort,
+    effort: options.defaultAgentEffort ?? preset.defaultEffort,
   };
 }

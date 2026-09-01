@@ -63,6 +63,7 @@ const AUTHORITY_KEY_CLASSES: ReadonlyMap<string, string> = new Map([
   ["guardrails", "guardrail policy"],
   ["skipConfirmations", "confirmation policy"],
   ["defaultAgentHarness", "harness/preset selection"],
+  ["defaultAgentEffort", "harness/preset selection"],
   ["defaultPreset", "harness/preset selection"],
   ["model", "model/provider routing"],
   ["editorModel", "model/provider routing"],
