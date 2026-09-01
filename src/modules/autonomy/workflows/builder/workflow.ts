@@ -32,7 +32,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
   defaultAutonomyMode: "autonomous",
   repository: "write",
   integration: {
-    validationCommand: ["pnpm", "validate-tasks"],
+    validationCommand: ["pnpm", "check:fast"],
     postReconcile: verifyBuilderTaskContractAfterReconcile,
   },
   resources: builderTaskResources,

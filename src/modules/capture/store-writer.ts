@@ -3,8 +3,8 @@ import {
   type RepoTaskMutationTarget,
 } from "#modules/repo-tasks/repo-task-mutation-boundary.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
-import type { CaptureResult } from "./client.js";
 import type { CaptureScopeContext, CaptureTarget } from "./capture-types.js";
+import type { CaptureResult } from "./client.js";
 
 const KNOWLEDGE_TITLE_MAX = 80;
 const REPO_TITLE_MAX = 120;

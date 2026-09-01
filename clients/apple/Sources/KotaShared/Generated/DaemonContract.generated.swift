@@ -870,10 +870,10 @@ indirect enum RetractResult: Codable, Equatable {
     case memoryNotFound(identifier: String)
     case knowledgeSuccess(identifier: String)
     case knowledgeNotFound(identifier: String)
-    case tasksDropped(identifier: String, id: String, fromState: RetractResultTasksDroppedFromState, path: String, previousPath: String)
+    case tasksDropped(identifier: String, id: String, fromState: RepoTaskState, path: String, previousPath: String)
     case tasksInvalidId(identifier: String)
     case tasksNotFound(identifier: String)
-    case tasksAlreadyInState(identifier: String, state: RetractResultTasksAlreadyInStateState)
+    case tasksAlreadyInState(identifier: String, state: RepoTaskState)
     case inboxSuccess(identifier: String, path: String, recordId: String)
     case inboxNotFound(identifier: String)
     case retractFailed(target: RetractTarget, identifier: String, message: String)
@@ -919,11 +919,11 @@ indirect enum RetractResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == true && (try? container.decode(String.self, forKey: .toState)) == "dropped" && (try? container.decode(RetractResultTasksDroppedFromState.self, forKey: .fromState)) != nil {
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == true && (try? container.decode(String.self, forKey: .toState)) == "dropped" && (try? container.decode(RepoTaskState.self, forKey: .fromState)) != nil {
             self = .tasksDropped(
                 identifier: try container.decode(String.self, forKey: .identifier),
                 id: try container.decode(String.self, forKey: .id),
-                fromState: try container.decode(RetractResultTasksDroppedFromState.self, forKey: .fromState),
+                fromState: try container.decode(RepoTaskState.self, forKey: .fromState),
                 path: try container.decode(String.self, forKey: .path),
                 previousPath: try container.decode(String.self, forKey: .previousPath)
             )
@@ -941,10 +941,10 @@ indirect enum RetractResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "already_in_state" && (try? container.decode(RetractResultTasksAlreadyInStateState.self, forKey: .state)) != nil {
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "already_in_state" && (try? container.decode(RepoTaskState.self, forKey: .state)) != nil {
             self = .tasksAlreadyInState(
                 identifier: try container.decode(String.self, forKey: .identifier),
-                state: try container.decode(RetractResultTasksAlreadyInStateState.self, forKey: .state)
+                state: try container.decode(RepoTaskState.self, forKey: .state)
             )
             return
         }
@@ -1038,6 +1038,13 @@ indirect enum RetractResult: Codable, Equatable {
             try container.encode(message, forKey: .message)
         }
     }
+}
+
+enum RepoTaskState: String, Codable, Equatable, CaseIterable {
+    case `open`
+    case blocked
+    case done
+    case dropped
 }
 
 enum RetractTarget: String, Codable, Equatable, CaseIterable {
@@ -1239,13 +1246,6 @@ struct RepoTaskSearchHit: Codable, Equatable, Identifiable {
     let state: RepoTaskState
     let priority: String?
     let score: Double
-}
-
-enum RepoTaskState: String, Codable, Equatable, CaseIterable {
-    case `open`
-    case blocked
-    case done
-    case dropped
 }
 
 struct RenderedAttention: Codable, Equatable {
@@ -1851,20 +1851,6 @@ enum CaptureMemoryResultTarget: String, Codable, Equatable, CaseIterable {
 
 enum CaptureKnowledgeResultTarget: String, Codable, Equatable, CaseIterable {
     case knowledge
-}
-
-enum RetractResultTasksDroppedFromState: String, Codable, Equatable, CaseIterable {
-    case `open`
-    case blocked
-    case done
-    case dropped
-}
-
-enum RetractResultTasksAlreadyInStateState: String, Codable, Equatable, CaseIterable {
-    case `open`
-    case blocked
-    case done
-    case dropped
 }
 
 enum ConversationRecordSource: String, Codable, Equatable, CaseIterable {

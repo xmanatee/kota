@@ -13,15 +13,11 @@
 import type {
   ReindexOperationResult,
   RepoTaskSearchHit,
+  RepoTaskState,
 } from "#core/modules/provider-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 
-/** A repo-task lifecycle state. Active tasks live directly in `data/tasks/`. */
-export type RepoTaskState =
-  | "open"
-  | "blocked"
-  | "done"
-  | "dropped";
+export type { RepoTaskState } from "#core/modules/provider-types.js";
 
 /** A single normalized repo-task entry as the CLI surfaces it. */
 export type RepoTaskListEntry = {
@@ -57,12 +53,14 @@ export type RepoTaskShowResult =
  * Result of `tasks.move(id, toState)`. `previousPath` and `path` are
  * repo-relative so callers can render or stage either side of the move.
  */
-export type RepoTaskMoveResult =
+export type RepoTaskMoveResult<
+  TToState extends RepoTaskState = RepoTaskState,
+> =
   | {
       ok: true;
       id: string;
       fromState: RepoTaskState;
-      toState: RepoTaskState;
+      toState: TToState;
       path: string;
       previousPath: string;
     }

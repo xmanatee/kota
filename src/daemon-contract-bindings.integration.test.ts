@@ -14,7 +14,6 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { ContractDecodeError as ClientContractDecodeError } from "./client/daemon-contract.generated.js";
 import {
   ContractDecodeError,
   parseAnswerResult,
@@ -23,6 +22,7 @@ import {
   parseRecallResult,
   parseRetractResult,
 } from "../clients/conformance/daemon-contract.generated.js";
+import { ContractDecodeError as ClientContractDecodeError } from "./client/daemon-contract.generated.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const GENERATOR = resolve(ROOT, "scripts/generate-daemon-contract-bindings.mjs");

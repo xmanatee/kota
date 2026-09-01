@@ -45,7 +45,7 @@
     "typecheck:production": "tsc --noEmit -p tsconfig.build.json",
     "typecheck:tests": "tsc -p tsconfig.test.json",
     "check": "pnpm check:fast && pnpm build && pnpm test",
-    "check:fast": "pnpm typecheck && pnpm lint && pnpm validate-tasks",
+    "check:fast": "pnpm typecheck && pnpm lint && pnpm validate-tasks && pnpm check:client-bindings",
     "test": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true",
     "test:owner": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=owner",
     "test:protocol": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=protocol",

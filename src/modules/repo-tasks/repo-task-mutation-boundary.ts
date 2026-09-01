@@ -328,7 +328,7 @@ export function mutateRepoTask(
 export function mutateRepoTask(
   target: RepoTaskMutationTarget,
   request: DropRequest,
-): Promise<RepoTaskMoveResult>;
+): Promise<RepoTaskMoveResult<"dropped">>;
 export function mutateRepoTask(
   target: RepoTaskMutationTarget,
   request: MoveRequest,

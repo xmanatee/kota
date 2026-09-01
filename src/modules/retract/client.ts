@@ -41,7 +41,7 @@ export type RetractKnowledgeResult =
 
 type RetractTasksSuccess = TaggedRetractResult<
   "tasks",
-  Extract<RepoTaskMoveResult, { ok: true }> & { toState: "dropped" }
+  Extract<RepoTaskMoveResult<"dropped">, { ok: true }>
 >;
 type RetractTasksInvalidId = TaggedRetractResult<
   "tasks",

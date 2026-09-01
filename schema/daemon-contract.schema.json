@@ -2231,13 +2231,7 @@
               "type": "string"
             },
             "fromState": {
-              "type": "string",
-              "enum": [
-                "open",
-                "blocked",
-                "done",
-                "dropped"
-              ]
+              "$ref": "#/definitions/RepoTaskState"
             },
             "toState": {
               "type": "string",
@@ -2335,13 +2329,7 @@
               "const": "already_in_state"
             },
             "state": {
-              "type": "string",
-              "enum": [
-                "open",
-                "blocked",
-                "done",
-                "dropped"
-              ]
+              "$ref": "#/definitions/RepoTaskState"
             }
           },
           "required": [
@@ -2440,6 +2428,15 @@
           ],
           "additionalProperties": false
         }
+      ]
+    },
+    "RepoTaskState": {
+      "type": "string",
+      "enum": [
+        "open",
+        "blocked",
+        "done",
+        "dropped"
       ]
     },
     "RetractTarget": {
@@ -2787,15 +2784,6 @@
       ],
       "additionalProperties": false,
       "description": "A single semantic-or-keyword search hit over the repo task queue. Mirrors the metadata operator surfaces want without requiring a follow-up file read. `score` is the cosine similarity for embedding-backed providers and a deterministic keyword score for the substring/grep default."
-    },
-    "RepoTaskState": {
-      "type": "string",
-      "enum": [
-        "open",
-        "blocked",
-        "done",
-        "dropped"
-      ]
     },
     "RenderedAttention": {
       "type": "object",
