@@ -68,22 +68,10 @@ export const navigationStyles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   routePath: { color: '#1c1c1e', fontSize: 18, fontWeight: '800' },
-  routeLoading: {
-    minHeight: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  },
   routeDocument: {
     color: '#1c1c1e',
     fontFamily: 'monospace',
     fontSize: 13,
     lineHeight: 19,
-  },
-  routeError: {
-    color: '#b42318',
-    fontSize: 14,
-    fontWeight: '600',
-    lineHeight: 20,
   },
 });

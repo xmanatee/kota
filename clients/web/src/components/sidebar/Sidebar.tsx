@@ -4,6 +4,7 @@ import type { ConnectionStatus } from "@/hooks/use-daemon-events";
 import { cn } from "@/lib/utils";
 import { Moon, PanelLeftClose, Plus, Sun } from "lucide-react";
 import type { UiSurfaceBundle } from "../../../../conformance/ui-surface.generated";
+import type { ResourceState } from "../../../../shared/resource-state";
 import { ScopeSelector } from "./ScopeSelector";
 
 export function Sidebar({
@@ -13,9 +14,8 @@ export function Sidebar({
   connectionStatus,
   darkMode,
   onToggleTheme,
-  uiBundle,
-  uiLoading,
-  uiError,
+  uiResource,
+  onUiRetry,
   selectedSurfaceId,
   onSurfaceSelect,
 }: {
@@ -25,9 +25,8 @@ export function Sidebar({
   connectionStatus: ConnectionStatus;
   darkMode: boolean;
   onToggleTheme: () => void;
-  uiBundle: UiSurfaceBundle | undefined;
-  uiLoading: boolean;
-  uiError: Error | null;
+  uiResource: ResourceState<UiSurfaceBundle, Error>;
+  onUiRetry: () => void;
   selectedSurfaceId: string | null;
   onSurfaceSelect: (surfaceId: string) => void;
 }) {
@@ -70,9 +69,8 @@ export function Sidebar({
         <ScopeSelector />
 
         <SharedUiNavigation
-          bundle={uiBundle}
-          loading={uiLoading}
-          error={uiError}
+          resource={uiResource}
+          onRetry={onUiRetry}
           selectedSurfaceId={selectedSurfaceId}
           onSelect={onSurfaceSelect}
         />

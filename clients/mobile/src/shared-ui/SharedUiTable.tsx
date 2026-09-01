@@ -8,6 +8,10 @@ import {
   View,
 } from 'react-native';
 import type { UiNode } from '../daemon/ui-surface.generated';
+import {
+  searchItems,
+  searchItemsValue,
+} from '../../../shared/search-state';
 import { SharedUiAction } from './SharedUiAction';
 import { roleColors, rowActionDefaults } from './presentation';
 
@@ -24,18 +28,16 @@ export function SharedUiTable({
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<Record<string, string>>({});
   const filterableColumns = node.columns.filter((column) => column.filterable);
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleRows = node.rows.filter((row) => {
-    const matchesQuery =
-      normalizedQuery.length === 0 ||
-      row.cells.some((cell) =>
-        cell.value.toLowerCase().includes(normalizedQuery),
-      );
-    return matchesQuery && filterableColumns.every((column) => {
-      const selected = filters[column.id];
-      return !selected || cellValue(row, column.id) === selected;
-    });
-  });
+  const search = searchItems(
+    node.rows,
+    query,
+    (row) => row.cells.map((cell) => cell.value),
+    filterableColumns.map((column) => ({
+      value: filters[column.id] ?? '',
+      matches: (row, selected) => cellValue(row, column.id) === selected,
+    })),
+  );
+  const visibleRows = searchItemsValue(search);
   const showControls = node.searchable === true || filterableColumns.length > 0;
 
   return (
@@ -83,7 +85,7 @@ export function SharedUiTable({
         </View>
       ) : null}
 
-      {visibleRows.length === 0 ? (
+      {search.status === 'empty' || node.rows.length === 0 ? (
         <Text style={styles.empty}>
           {node.rows.length === 0 ? 'No records.' : 'No matching records.'}
         </Text>

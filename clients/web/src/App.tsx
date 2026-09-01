@@ -1,4 +1,5 @@
 import { uiSurfacesQuery } from "@/api/queries";
+import { queryResourceState } from "@/api/resource-state";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { SharedUiSurface } from "@/components/shared-ui/SharedUiSurface";
 import { Sidebar } from "@/components/sidebar/Sidebar";
@@ -16,6 +17,8 @@ import {
 } from "@tanstack/react-query";
 import { Menu } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import type { UiSurfaceBundle } from "../../conformance/ui-surface.generated";
+import { resourceValue } from "../../shared/resource-state";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,7 +51,13 @@ function AppContent() {
 
   const { scopeId, buildHash } = useScopeContext();
   const uiSurfaces = useQuery(uiSurfacesQuery(scopeId));
-  const daemonEvents = useDaemonEvents(uiSurfaces.data);
+  const uiResource = queryResourceState<UiSurfaceBundle>(
+    uiSurfaces,
+    (bundle) => bundle.surfaces.length === 0,
+    navigator.onLine,
+  );
+  const uiBundle = resourceValue(uiResource);
+  const daemonEvents = useDaemonEvents(uiBundle);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", darkMode);
@@ -81,16 +90,16 @@ function AppContent() {
   }, [scopeId]);
 
   useEffect(() => {
-    if (!selectedSurfaceId || !uiSurfaces.data) return;
+    if (!selectedSurfaceId || !uiBundle) return;
     if (
-      !uiSurfaces.data.surfaces.some(
+      !uiBundle.surfaces.some(
         (surface) => surface.surfaceId === selectedSurfaceId,
       )
     ) {
       setSelectedSurfaceId(null);
       window.location.hash = buildHash("");
     }
-  }, [buildHash, selectedSurfaceId, uiSurfaces.data]);
+  }, [buildHash, selectedSurfaceId, uiBundle]);
 
   const showChat = useCallback(() => {
     setSelectedSurfaceId(null);
@@ -122,7 +131,7 @@ function AppContent() {
     [showChat],
   );
 
-  const selectedSurface = uiSurfaces.data?.surfaces.find(
+  const selectedSurface = uiBundle?.surfaces.find(
     (surface) => surface.surfaceId === selectedSurfaceId,
   );
   const mainContent = selectedSurface ? (
@@ -156,9 +165,8 @@ function AppContent() {
         connectionStatus={daemonEvents.status}
         darkMode={darkMode}
         onToggleTheme={() => setDarkMode((d) => !d)}
-        uiBundle={uiSurfaces.data}
-        uiLoading={uiSurfaces.isPending}
-        uiError={uiSurfaces.error}
+        uiResource={uiResource}
+        onUiRetry={() => void uiSurfaces.refetch()}
         selectedSurfaceId={selectedSurfaceId}
         onSurfaceSelect={handleSurfaceSelect}
       />

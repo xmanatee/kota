@@ -29,6 +29,7 @@ describe("SharedUiSurface protocol coverage", () => {
           columns: [
             { id: "name", label: "Task" },
             { id: "state", label: "Status", filterable: true },
+            { id: "owner", label: "Owner", filterable: true },
           ],
           rows: [
             {
@@ -36,6 +37,7 @@ describe("SharedUiSurface protocol coverage", () => {
               cells: [
                 { columnId: "name", value: "Build task list" },
                 { columnId: "state", value: "Open" },
+                { columnId: "owner", value: "Ada" },
               ],
             },
             {
@@ -43,6 +45,7 @@ describe("SharedUiSurface protocol coverage", () => {
               cells: [
                 { columnId: "name", value: "Repair provider" },
                 { columnId: "state", value: "Blocked" },
+                { columnId: "owner", value: "Bob" },
               ],
             },
           ],
@@ -61,13 +64,21 @@ describe("SharedUiSurface protocol coverage", () => {
     ).not.toBeInTheDocument();
     expect(within(table).getByText("Repair provider")).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Filter by Owner"), {
+      target: { value: "Ada" },
+    });
+    expect(screen.getByText("No matching records.")).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
     fireEvent.change(screen.getByLabelText("Search Tasks"), {
       target: { value: "build" },
     });
-    expect(within(table).getByText("Build task list")).toBeInTheDocument();
+    const searchedTable = screen.getByRole("table", { name: "Tasks" });
     expect(
-      within(table).queryByText("Repair provider"),
+      within(searchedTable).getByText("Build task list"),
+    ).toBeInTheDocument();
+    expect(
+      within(searchedTable).queryByText("Repair provider"),
     ).not.toBeInTheDocument();
   });
 });

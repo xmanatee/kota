@@ -115,9 +115,8 @@ describe("scope context parsing and single-scope rendering", () => {
           connectionStatus="connected"
           darkMode={false}
           onToggleTheme={noop}
-          uiBundle={{ protocolVersion: "ui.surface.v1", surfaces: [] }}
-          uiLoading={false}
-          uiError={null}
+          uiResource={{ status: "empty" }}
+          onUiRetry={noop}
           selectedSurfaceId={null}
           onSurfaceSelect={noop}
         />

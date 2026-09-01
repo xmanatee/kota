@@ -1,4 +1,5 @@
 import { uiSurfacesQuery } from "@/api/queries";
+import { queryResourceState } from "@/api/resource-state";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { ScopeProvider, useScopeId } from "@/lib/scope-context";
 import {
@@ -9,6 +10,7 @@ import {
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { UiSurfaceBundle } from "../../../conformance/ui-surface.generated";
 
 const SCOPES = {
   rootScopeId: "global",
@@ -125,6 +127,11 @@ function noop(): void {}
 function ScopedSidebar() {
   const scopeId = useScopeId();
   const surfaces = useQuery(uiSurfacesQuery(scopeId));
+  const resource = queryResourceState<UiSurfaceBundle>(
+    surfaces,
+    (bundle) => bundle.surfaces.length === 0,
+    true,
+  );
   return (
     <Sidebar
       collapsed={false}
@@ -133,9 +140,8 @@ function ScopedSidebar() {
       connectionStatus="connected"
       darkMode={false}
       onToggleTheme={noop}
-      uiBundle={surfaces.data}
-      uiLoading={surfaces.isPending}
-      uiError={surfaces.error}
+      uiResource={resource}
+      onUiRetry={() => void surfaces.refetch()}
       selectedSurfaceId={null}
       onSurfaceSelect={noop}
     />

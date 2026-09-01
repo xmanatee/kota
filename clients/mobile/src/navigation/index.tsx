@@ -25,8 +25,13 @@ import {
 import { SharedUiSurface } from '../shared-ui/SharedUiSurface';
 import { CenteredMessage } from './CenteredMessage';
 import { DaemonRouteScreen } from './DaemonRouteScreen';
+import { ResourceScreen } from './ResourceScreen';
 import { routeNotificationResponse } from './routeNotificationResponse';
 import { navigationStyles as styles } from './styles';
+import {
+  resourceIsPending,
+  resourceValue,
+} from '../../../shared/resource-state';
 
 type SurfaceRouteParams = {
   actionId?: string;
@@ -49,9 +54,10 @@ const navigationRef = createNavigationContainerRef<IntentTabParams>();
 export function AppNavigator() {
   const { state, ui, refreshUi } = useDaemon();
   const [connectionOpen, setConnectionOpen] = useState(false);
-  const bundleRef = useRef(ui.bundle);
+  const bundle = resourceValue(ui.resource);
+  const bundleRef = useRef(bundle);
   const pendingTargetRef = useRef<UiDeepLinkTarget | null>(null);
-  bundleRef.current = ui.bundle;
+  bundleRef.current = bundle;
 
   useEffect(() => {
     Notifications.setNotificationHandler({
@@ -93,7 +99,7 @@ export function AppNavigator() {
     return () => subscription.remove();
   }, [flushPendingTarget]);
 
-  useEffect(flushPendingTarget, [flushPendingTarget, ui.bundle]);
+  useEffect(flushPendingTarget, [flushPendingTarget, bundle]);
 
   if (!state.connection.settingsLoaded) {
     return <CenteredMessage loading title="Loading device settings" />;
@@ -115,20 +121,22 @@ export function AppNavigator() {
       </View>
     );
   }
-  if (ui.loading && !ui.bundle) {
-    return <CenteredMessage loading title="Loading shared operator surfaces" />;
-  }
-  if (ui.error && !ui.bundle) {
-    return (
-      <CenteredMessage title="Shared UI unavailable" detail={ui.error}>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          accessibilityRole="button"
-          accessibilityLabel="Retry shared UI"
-          onPress={() => void refreshUi()}
-        >
-          <Text style={styles.primaryButtonLabel}>Retry</Text>
-        </TouchableOpacity>
+  return (
+    <ResourceScreen
+      resource={ui.resource}
+      copy={{
+        loading: 'Loading shared operator surfaces',
+        failure: 'Shared UI unavailable',
+        retryAccessibilityLabel: 'Retry shared UI',
+        empty: 'No operator surfaces',
+        emptyDetail:
+          'The connected scope does not contribute any shared UI surfaces.',
+        idle: 'Shared UI is not loaded',
+        cancelled: 'Shared UI loading was cancelled',
+        semanticUnavailable: 'Shared UI unavailable',
+      }}
+      onRetry={() => void refreshUi()}
+      failureActions={
         <TouchableOpacity
           style={styles.secondaryButton}
           accessibilityRole="button"
@@ -137,46 +145,37 @@ export function AppNavigator() {
         >
           <Text style={styles.secondaryButtonLabel}>Connection</Text>
         </TouchableOpacity>
-      </CenteredMessage>
-    );
-  }
-  if (!ui.bundle || ui.bundle.surfaces.length === 0) {
-    return (
-      <CenteredMessage
-        title="No operator surfaces"
-        detail="The connected scope does not contribute any shared UI surfaces."
-      />
-    );
-  }
-
-  const intents = orderedIntents(ui.bundle);
-  return (
-    <NavigationContainer ref={navigationRef} onReady={flushPendingTarget}>
-      <IntentTabs.Navigator screenOptions={{ headerShown: false }}>
-        {intents.map((intent) => (
-          <IntentTabs.Screen
-            key={intent}
-            name={intent}
-            options={{
-              tabBarLabel: intent,
-              tabBarIcon: ({ color }) => (
-                <Text style={[styles.tabGlyph, { color }]}>
-                  {intent.slice(0, 1)}
-                </Text>
-              ),
-            }}
-          >
-            {() => (
-              <IntentNavigator
-                bundle={ui.bundle!}
-                intent={intent}
-                onOpenConnection={() => setConnectionOpen(true)}
-              />
-            )}
-          </IntentTabs.Screen>
-        ))}
-      </IntentTabs.Navigator>
-    </NavigationContainer>
+      }
+    >
+      {(loadedBundle) => (
+        <NavigationContainer ref={navigationRef} onReady={flushPendingTarget}>
+          <IntentTabs.Navigator screenOptions={{ headerShown: false }}>
+            {orderedIntents(loadedBundle).map((intent) => (
+              <IntentTabs.Screen
+                key={intent}
+                name={intent}
+                options={{
+                  tabBarLabel: intent,
+                  tabBarIcon: ({ color }) => (
+                    <Text style={[styles.tabGlyph, { color }]}>
+                      {intent.slice(0, 1)}
+                    </Text>
+                  ),
+                }}
+              >
+                {() => (
+                  <IntentNavigator
+                    bundle={loadedBundle}
+                    intent={intent}
+                    onOpenConnection={() => setConnectionOpen(true)}
+                  />
+                )}
+              </IntentTabs.Screen>
+            ))}
+          </IntentTabs.Navigator>
+        </NavigationContainer>
+      )}
+    </ResourceScreen>
   );
 }
 
@@ -232,7 +231,7 @@ function IntentNavigator({
                 }
               }}
               onRefresh={() => void refreshUi()}
-              refreshing={ui.loading}
+              refreshing={resourceIsPending(ui.resource)}
               onOpenConnection={onOpenConnection}
               liveLogEntries={ui.liveLogEntries}
               highlightedActionId={route.params?.actionId}

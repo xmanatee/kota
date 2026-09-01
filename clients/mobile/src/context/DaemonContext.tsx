@@ -11,6 +11,7 @@ import React, {
 import { DaemonClient } from '../daemonClient';
 import { useSSE } from '../hooks/useSSE';
 import { registerPushTokenWithDaemon } from '../pushNotifications';
+import { classifyDaemonResourceFailure } from '../resource-state';
 import { matchUiEvent, uiLogEntry } from '../shared-ui/live-events';
 import type { SseEvent } from '../daemon/sse';
 import type {
@@ -20,6 +21,13 @@ import type {
   UiLogEntry,
   UiSurfaceBundle,
 } from '../daemon/ui';
+import {
+  resourceValue,
+  startResource,
+  succeedResource,
+  type ResourceStart,
+  type ResourceState,
+} from '../../../shared/resource-state';
 
 const URL_KEY = 'kota_daemon_url';
 const TOKEN_KEY = 'kota_daemon_token';
@@ -50,16 +58,12 @@ const initialState: DaemonState = {
 export type LiveUiLogEntries = Readonly<Record<string, readonly UiLogEntry[]>>;
 
 export type SharedUiState = {
-  bundle: UiSurfaceBundle | null;
-  loading: boolean;
-  error: string | null;
+  resource: ResourceState<UiSurfaceBundle>;
   liveLogEntries: LiveUiLogEntries;
 };
 
 const initialSharedUiState: SharedUiState = {
-  bundle: null,
-  loading: false,
-  error: null,
+  resource: { status: 'idle' },
   liveLogEntries: {},
 };
 
@@ -139,7 +143,7 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
     pushRegisteredRef.current = false;
   }, [client]);
 
-  const fetchUiSurfaces = useCallback(async () => {
+  const fetchUiSurfaces = useCallback(async (requested?: ResourceStart) => {
     const requestId = ++uiRequestRef.current;
     if (!client) {
       setState((current) => ({
@@ -152,26 +156,45 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
       setUi(initialSharedUiState);
       return;
     }
-    setUi((current) => ({ ...current, loading: true, error: null }));
+    setUi((current) => ({
+      ...current,
+      resource: startResource(
+        current.resource,
+        requested ??
+          (resourceValue(current.resource) !== undefined
+            ? 'refresh'
+            : current.resource.status === 'offline' ||
+                current.resource.status === 'recoverable-failure'
+              ? 'retry'
+              : 'load'),
+      ),
+    }));
     try {
       const bundle = await client.getUiSurfaces();
       if (requestId !== uiRequestRef.current) return;
       setState((current) => ({
         connection: { ...current.connection, online: true },
       }));
-      setUi((current) => ({ ...current, bundle, loading: false, error: null }));
+      setUi((current) => ({
+        ...current,
+        resource: succeedResource(bundle, (value) => value.surfaces.length === 0),
+      }));
     } catch (error) {
       if (requestId !== uiRequestRef.current) return;
+      const failedResource = classifyDaemonResourceFailure(error);
       setState((current) => ({
         connection: {
           ...current.connection,
-          online: false,
-          sseConnected: false,
+          online: failedResource.status !== 'offline',
+          sseConnected:
+            failedResource.status === 'offline'
+              ? false
+              : current.connection.sseConnected,
         },
       }));
       setUi({
         ...initialSharedUiState,
-        error: error instanceof Error ? error.message : String(error),
+        resource: failedResource,
       });
     }
   }, [client]);
@@ -223,7 +246,10 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
 
   const handleSseEvent = useCallback(
     (event: SseEvent) => {
-      const match = matchUiEvent(uiRef.current.bundle, event);
+      const match = matchUiEvent(
+        resourceValue(uiRef.current.resource) ?? null,
+        event,
+      );
       if (match.refresh) scheduleUiRefresh();
       if (match.streamIds.length === 0) return;
 

@@ -1,86 +1,67 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, View } from 'react-native';
+import React, { useCallback } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 import { useDaemon } from '../context/DaemonContext';
 import type { UiDaemonRouteDocument } from '../daemon/ui';
+import { useResourceRequest } from '../hooks/useResourceRequest';
+import { classifyDaemonResourceFailure } from '../resource-state';
+import { ResourceScreen } from './ResourceScreen';
 import { navigationStyles as styles } from './styles';
 
-type RouteState =
-  | { status: 'loading' }
-  | { status: 'loaded'; document: UiDaemonRouteDocument }
-  | { status: 'error'; message: string };
-
 const MAX_ROUTE_PREVIEW_CHARS = 120_000;
+const routeIsEmpty = () => false;
 
 export function DaemonRouteScreen({ path }: { path: string }) {
   const { client } = useDaemon();
-  const [routeState, setRouteState] = useState<RouteState>({
-    status: 'loading',
-  });
-
-  useEffect(() => {
-    let active = true;
-    setRouteState({ status: 'loading' });
+  const request = useCallback(() => {
     if (!client) {
-      setRouteState({
-        status: 'error',
-        message: 'Daemon connection is unavailable.',
-      });
-      return () => {
-        active = false;
-      };
+      return Promise.reject(
+        new TypeError('Daemon connection is unavailable.'),
+      );
     }
-    void client.getUiDaemonRoute(path).then(
-      (document) => {
-        if (active) setRouteState({ status: 'loaded', document });
-      },
-      (error) => {
-        if (active) {
-          setRouteState({
-            status: 'error',
-            message: error instanceof Error ? error.message : String(error),
-          });
-        }
-      },
-    );
-    return () => {
-      active = false;
-    };
+    return client.getUiDaemonRoute(path);
   }, [client, path]);
+  const { resource, retry } = useResourceRequest(
+    request,
+    routeIsEmpty,
+    classifyDaemonResourceFailure,
+  );
 
   return (
-    <ScrollView
-      style={styles.routeScreen}
-      contentContainerStyle={styles.routeContent}
-      testID="ui-daemon-route-screen"
+    <ResourceScreen
+      resource={resource}
+      copy={{
+        loading: 'Loading daemon response',
+        failure: 'Daemon response unavailable',
+        retryAccessibilityLabel: 'Retry daemon response',
+        empty: 'Daemon response is empty',
+        idle: 'Daemon response is not loaded',
+        cancelled: 'Daemon request was cancelled',
+        semanticUnavailable: 'Daemon response unavailable',
+      }}
+      onRetry={retry}
     >
-      <View style={styles.routeHeader}>
-        <Text style={styles.routeEyebrow}>Authenticated daemon route</Text>
-        <Text selectable style={styles.routePath}>
-          {path}
-        </Text>
-      </View>
-      {routeState.status === 'loading' ? (
-        <View style={styles.routeLoading}>
-          <ActivityIndicator
-            color="#0a67c7"
-            accessibilityLabel="Loading daemon response"
-          />
-          <Text style={styles.messageDetail}>Loading daemon response</Text>
-        </View>
-      ) : routeState.status === 'error' ? (
-        <Text style={styles.routeError} accessibilityRole="alert">
-          {routeState.message}
-        </Text>
-      ) : (
-        <Text
-          selectable
-          style={styles.routeDocument}
-          testID="ui-daemon-route-document"
+      {(document) => (
+        <ScrollView
+          style={styles.routeScreen}
+          contentContainerStyle={styles.routeContent}
+          testID="ui-daemon-route-screen"
         >
-          {formatRouteDocument(routeState.document)}
-        </Text>
+          <View style={styles.routeHeader}>
+            <Text style={styles.routeEyebrow}>Authenticated daemon route</Text>
+            <Text selectable style={styles.routePath}>
+              {path}
+            </Text>
+          </View>
+          <Text
+            selectable
+            style={styles.routeDocument}
+            testID="ui-daemon-route-document"
+          >
+            {formatRouteDocument(document)}
+          </Text>
+        </ScrollView>
       )}
-    </ScrollView>
+    </ResourceScreen>
   );
 }
 

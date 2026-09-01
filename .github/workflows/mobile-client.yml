@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'clients/mobile/**'
+      - 'clients/shared/**'
       - 'clients/conformance/**'
       - 'schema/ui-surface.schema.json'
       - 'scripts/generate-ui-surface-bindings.mjs'
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - 'clients/mobile/**'
+      - 'clients/shared/**'
       - 'clients/conformance/**'
       - 'schema/ui-surface.schema.json'
       - 'scripts/generate-ui-surface-bindings.mjs'
@@ -62,5 +64,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Bundle Android production app
+        run: pnpm bundle:android --output-dir "$RUNNER_TEMP/kota-mobile-export"
+
       - name: Test
-        run: pnpm test -- --ci
+        run: pnpm test --ci

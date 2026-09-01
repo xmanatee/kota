@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Search, X } from "lucide-react";
 import { useState } from "react";
 import type { UiNode } from "../../../../conformance/ui-surface.generated";
+import { searchItems, searchItemsValue } from "../../../../shared/search-state";
 import { SharedUiAction } from "./SharedUiAction";
 import { roleClass, rowActionDefaults } from "./ui-render-utils";
 
@@ -25,23 +26,17 @@ export function SharedUiTable({ node }: { node: TableNode }) {
       ].sort(),
     ]),
   );
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleRows = node.rows.filter((row) => {
-    if (
-      normalizedQuery &&
-      !row.cells.some((cell) =>
-        cell.value.toLowerCase().includes(normalizedQuery),
-      )
-    ) {
-      return false;
-    }
-    return filterableColumns.every((column) => {
-      const selected = filters[column.id];
-      return !selected || cellValue(row, column.id) === selected;
-    });
-  });
-  const hasActiveFilters =
-    normalizedQuery.length > 0 || Object.values(filters).some(Boolean);
+  const search = searchItems(
+    node.rows,
+    query,
+    (row) => row.cells.map((cell) => cell.value),
+    filterableColumns.map((column) => ({
+      value: filters[column.id] ?? "",
+      matches: (row, selected) => cellValue(row, column.id) === selected,
+    })),
+  );
+  const visibleRows = searchItemsValue(search);
+  const hasActiveFilters = search.status !== "idle";
   const showControls = node.searchable === true || filterableColumns.length > 0;
 
   const clearFilters = () => {
@@ -114,7 +109,7 @@ export function SharedUiTable({ node }: { node: TableNode }) {
         </div>
       ) : null}
 
-      {visibleRows.length === 0 ? (
+      {search.status === "empty" || node.rows.length === 0 ? (
         <div className="border-y border-border px-3 py-8 text-center text-sm text-muted-foreground">
           {node.rows.length === 0 ? "No records." : "No matching records."}
         </div>

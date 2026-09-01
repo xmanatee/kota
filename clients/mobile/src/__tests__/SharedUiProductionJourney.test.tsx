@@ -163,7 +163,7 @@ describe('Android shared UI production journey', () => {
     });
   });
 
-  test('opens daemon-route links through the authenticated native stack', async () => {
+  test('retries daemon-route failures through the authenticated native stack', async () => {
     activeBundle = contractBundle;
     const targetSurface = activeBundle.surfaces.find(
       (surface) => surface.surfaceId === 'operator-control',
@@ -186,11 +186,33 @@ describe('Android shared UI production journey', () => {
       ).toBeTruthy(),
     );
 
+    const requestHandler = createDaemonRequestHandler(
+      () => activeBundle,
+      fetchCalls,
+    );
+    let routeAttempts = 0;
+    fetchSpy.mockImplementation(async (input, init) => {
+      const url = new URL(String(input));
+      if (
+        url.pathname === '/ui/surfaces' &&
+        !url.searchParams.has('scopeId') &&
+        routeAttempts++ === 0
+      ) {
+        throw new TypeError('Temporary daemon connection failure.');
+      }
+      return requestHandler(input, init);
+    });
+
     fireEvent.press(view.getByLabelText('Open shared UI surface route'));
+    await waitFor(() => {
+      expect(view.getByText('Temporary daemon connection failure.')).toBeTruthy();
+    });
+    fireEvent.press(view.getByLabelText('Retry daemon response'));
     await waitFor(() => {
       expect(view.getByTestId('ui-daemon-route-screen')).toBeTruthy();
       expect(view.getByTestId('ui-daemon-route-document')).toBeTruthy();
     });
+    expect(routeAttempts).toBe(2);
 
     const request = fetchCalls.find(
       (call) =>

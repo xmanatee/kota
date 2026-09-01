@@ -12,22 +12,21 @@ import type {
   UiIntent,
   UiSurfaceBundle,
 } from "../../../../conformance/ui-surface.generated";
+import type { ResourceState } from "../../../../shared/resource-state";
 import { assertNever } from "./ui-render-utils";
 
 export function SharedUiNavigation({
-  bundle,
-  loading,
-  error,
+  resource,
+  onRetry,
   selectedSurfaceId,
   onSelect,
 }: {
-  bundle: UiSurfaceBundle | undefined;
-  loading: boolean;
-  error: Error | null;
+  resource: ResourceState<UiSurfaceBundle, Error>;
+  onRetry: () => void;
   selectedSurfaceId: string | null;
   onSelect: (surfaceId: string) => void;
 }) {
-  if (loading) {
+  if (resource.status === "loading" || resource.status === "retrying") {
     return (
       <output className="flex flex-col gap-3 p-3">
         <span className="block h-11 animate-pulse rounded-md bg-muted motion-reduce:animate-none" />
@@ -37,24 +36,59 @@ export function SharedUiNavigation({
       </output>
     );
   }
-  if (error) {
+  if (
+    resource.status === "offline" ||
+    resource.status === "recoverable-failure" ||
+    resource.status === "failure"
+  ) {
     return (
       <div
         className="m-3 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm"
         role="alert"
       >
         <p className="font-medium text-destructive">Shared UI unavailable</p>
-        <p className="mt-1 text-muted-foreground">{error.message}</p>
+        <p className="mt-1 text-muted-foreground">{resource.error.message}</p>
+        {resource.status !== "failure" ? (
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3"
+            onClick={onRetry}
+          >
+            Retry
+          </Button>
+        ) : null}
       </div>
     );
   }
-  if (!bundle || bundle.surfaces.length === 0) {
+  if (resource.status === "semantic-unavailable") {
+    return (
+      <p className="p-4 text-sm text-muted-foreground">{resource.reason}</p>
+    );
+  }
+  if (resource.status === "cancelled") {
+    return (
+      <p className="p-4 text-sm text-muted-foreground">
+        Loading shared operator surfaces was cancelled.
+      </p>
+    );
+  }
+  if (resource.status === "idle") {
+    return (
+      <p className="p-4 text-sm text-muted-foreground">
+        Shared operator surfaces are not loaded.
+      </p>
+    );
+  }
+  if (resource.status === "empty") {
     return (
       <p className="p-4 text-sm text-muted-foreground">
         No operator surfaces are contributed for this scope.
       </p>
     );
   }
+
+  const bundle = resource.value;
 
   const intents = bundle.surfaces.reduce<UiIntent[]>((items, surface) => {
     if (!items.includes(surface.intent)) items.push(surface.intent);

@@ -14,6 +14,9 @@ explicitly changed.
   mobile tree.
 - Maintain one connection-level event stream and scope events into view
   state. Use centralized polling only where the platform requires it.
+- Common resource requests use the shared discriminated lifecycle and one
+  native presentation owner. Screens contribute resource-specific copy,
+  navigation, and device affordances rather than reimplementing transitions.
 - Navigation and push deep links consume typed daemon payloads. Test navigation
   outcomes at the reducer/router boundary rather than freezing payload tables.
 - Platform-specific capture, playback, notifications, and secure storage stay

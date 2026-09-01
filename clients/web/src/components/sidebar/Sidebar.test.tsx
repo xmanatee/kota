@@ -18,9 +18,8 @@ function renderSidebar(
     connectionStatus: "connected",
     darkMode: false,
     onToggleTheme: noop,
-    uiBundle: bundle,
-    uiLoading: false,
-    uiError: null,
+    uiResource: { status: "success", value: bundle },
+    onUiRetry: noop,
     selectedSurfaceId: null,
     onSurfaceSelect: noop,
     ...overrides,
@@ -65,9 +64,9 @@ describe("Sidebar shared UI navigation", () => {
   });
 
   it("renders loading and unavailable states without a fallback catalog", () => {
+    const onUiRetry = vi.fn();
     const view = renderSidebar({
-      uiBundle: undefined,
-      uiLoading: true,
+      uiResource: { status: "loading" },
     });
     expect(
       screen.getByText("Loading shared operator surfaces"),
@@ -82,9 +81,11 @@ describe("Sidebar shared UI navigation", () => {
           connectionStatus="disconnected"
           darkMode={false}
           onToggleTheme={noop}
-          uiBundle={undefined}
-          uiLoading={false}
-          uiError={new Error("daemon unavailable")}
+          uiResource={{
+            status: "recoverable-failure",
+            error: new Error("daemon unavailable"),
+          }}
+          onUiRetry={onUiRetry}
           selectedSurfaceId={null}
           onSurfaceSelect={noop}
         />
@@ -92,5 +93,7 @@ describe("Sidebar shared UI navigation", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent("daemon unavailable");
     expect(screen.queryByText("Overview")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onUiRetry).toHaveBeenCalledOnce();
   });
 });

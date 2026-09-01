@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'clients/web/**'
+      - 'clients/shared/**'
       - 'clients/conformance/**'
       - 'schema/ui-surface.schema.json'
       - 'scripts/generate-ui-surface-bindings.mjs'
@@ -15,6 +16,7 @@ on:
   pull_request:
     paths:
       - 'clients/web/**'
+      - 'clients/shared/**'
       - 'clients/conformance/**'
       - 'schema/ui-surface.schema.json'
       - 'scripts/generate-ui-surface-bindings.mjs'
