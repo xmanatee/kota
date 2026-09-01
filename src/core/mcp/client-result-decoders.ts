@@ -22,6 +22,7 @@ import type {
   McpCallToolResult,
   McpCancelTaskResult,
   McpCompleteResultFields,
+  McpCompletedTaskResult,
   McpCreateTaskResult,
   McpGetPromptResult,
   McpGetTaskResult,
@@ -439,6 +440,33 @@ function decodeTaskState(object: KotaJsonObject, kind: McpResultKind): McpTaskSt
     ...(result !== undefined ? { result } : {}),
     ...(error !== undefined ? { error } : {}),
     ...(meta ? { _meta: meta } : {}),
+  } as McpTaskState;
+}
+
+function decodeCompletedTaskResult(
+  value: KotaJsonValue,
+  protocolVersion: McpProtocolVersion,
+  kind: "tools/call" | "tasks/get",
+): McpCompletedTaskResult {
+  const decoded = decodeCallToolResult(value, protocolVersion);
+  if (decoded.resultType === "task" || decoded.resultType === "input_required") {
+    throw new Error(
+      `Malformed MCP ${kind} result: completed task result must be a complete tool result`,
+    );
+  }
+  return decoded;
+}
+
+function decodeTaskResult(
+  object: KotaJsonObject,
+  protocolVersion: McpProtocolVersion,
+  kind: "tools/call" | "tasks/get",
+): McpTaskState<McpCompletedTaskResult> {
+  const task = decodeTaskState(object, kind);
+  if (task.status !== "completed") return task;
+  return {
+    ...task,
+    result: decodeCompletedTaskResult(task.result, protocolVersion, kind),
   };
 }
 
@@ -446,18 +474,20 @@ export function decodeCreateTaskResult(
   object: KotaJsonObject,
   protocolVersion: McpProtocolVersion,
 ): McpCreateTaskResult {
+  const task = decodeTaskResult(object, protocolVersion, "tools/call");
   return {
+    ...task,
     resultType: "task",
     protocolVersion,
-    ...decodeTaskState(object, "tools/call"),
   };
 }
 
 export function decodeGetTaskResult(
   value: JsonRpcResponse["result"],
+  protocolVersion: McpProtocolVersion,
 ): McpGetTaskResult {
   const object = requireJsonObject(value, "result", "tasks/get");
-  return decodeTaskState(object, "tasks/get");
+  return decodeTaskResult(object, protocolVersion, "tasks/get");
 }
 
 export function decodeEmptyTaskAckResult(

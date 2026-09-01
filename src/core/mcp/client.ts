@@ -53,6 +53,7 @@ export type {
   McpCallToolRetry,
   McpCancelTaskResult,
   McpCompleteCallToolResult,
+  McpCompletedTaskResult,
   McpCreateTaskResult,
   McpElicitationInputRequest,
   McpElicitationMode,
@@ -126,6 +127,7 @@ export {
   MCP_TASKS_EXTENSION_ID,
   mcpProtocolCapabilities,
   mcpProtocolSupports,
+  mcpToolResultContractForProtocol,
 } from "./client-protocol.js";
 export type {
   McpBoundedRemoteSkillContent,

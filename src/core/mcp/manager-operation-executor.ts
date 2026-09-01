@@ -1,7 +1,6 @@
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import type { ToolResult } from "#core/tools/index.js";
 import type {
-  McpClient,
   McpGetPromptResult,
   McpInputRequiredResult,
   McpReadResourceResult,
@@ -14,6 +13,7 @@ import {
   type McpRemoteSkillSource,
   resolveRemoteSkillRelativeUri,
 } from "./client-remote-skills.js";
+import type { McpManagerClient } from "./manager-client-port.js";
 import { isJsonObject } from "./manager-config-utils.js";
 import type { McpExecuteToolOptions } from "./manager-execution-types.js";
 import type { McpOperationCache } from "./manager-operation-cache.js";
@@ -37,21 +37,21 @@ export class McpOperationExecutor {
     }
     try {
       if (entry.kind === "resources/list") {
-        const result = await this.cache.listPages(
+        const result = await this.cache.listCatalog(
           entry,
           "resources/list",
-          (cursor) => entry.client.listResourcesPage(cursor),
+          () => entry.client.listResources(),
         );
-        return operationResult({ resources: result.pages.flatMap((page) => page.resources) }, result.meta);
+        return operationResult({ resources: result.catalog.resources }, result.meta);
       }
       if (entry.kind === "resources/templates/list") {
-        const result = await this.cache.listPages(
+        const result = await this.cache.listCatalog(
           entry,
           "resources/templates/list",
-          (cursor) => entry.client.listResourceTemplatesPage(cursor),
+          () => entry.client.listResourceTemplates(),
         );
         return operationResult(
-          { resourceTemplates: result.pages.flatMap((page) => page.resourceTemplates) },
+          { resourceTemplates: result.catalog.resourceTemplates },
           result.meta,
         );
       }
@@ -80,12 +80,12 @@ export class McpOperationExecutor {
         return this.finishSkillRead(entry, result, options, target.value);
       }
       if (entry.kind === "prompts/list") {
-        const result = await this.cache.listPages(
+        const result = await this.cache.listCatalog(
           entry,
           "prompts/list",
-          (cursor) => entry.client.listPromptsPage(cursor),
+          () => entry.client.listPrompts(),
         );
-        return operationResult({ prompts: result.pages.flatMap((page) => page.prompts) }, result.meta);
+        return operationResult({ prompts: result.catalog.prompts }, result.meta);
       }
       const name = stringInput(input, "name", entry.tool.name);
       if (!name.ok) return name.result;
@@ -219,7 +219,7 @@ export class McpOperationExecutor {
   private async retry(
     entry: McpOperationEntry,
     input: KotaJsonObject,
-    retry: Parameters<McpClient["readResource"]>[1],
+    retry: Parameters<McpManagerClient["readResource"]>[1],
   ): Promise<McpReadResourceResult | McpGetPromptResult> {
     if (entry.kind === "resources/read") {
       const uri = stringInput(input, "uri", entry.tool.name);

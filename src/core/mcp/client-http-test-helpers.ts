@@ -390,7 +390,7 @@ rl.on("line", (line) => {
       });
       return;
     }
-    if (mode === "task_stdio_e2e" || mode === "bad_task_creation") {
+    if (mode === "task_stdio_e2e" || mode === "nested_task_result" || mode === "bad_task_creation") {
       if (!msg.params?.capabilities?.extensions?.["io.modelcontextprotocol/tasks"]) {
         write({ jsonrpc: "2.0", id: msg.id, error: { code: -32602, message: "missing task capability" } });
         return;
@@ -450,6 +450,13 @@ rl.on("line", (line) => {
     }
     const tools = config.tools || defaultTools;
     write({ jsonrpc: "2.0", id: msg.id, result: { tools } });
+    if (mode === "catalog_changed_notifications") {
+      setTimeout(() => {
+        write({ jsonrpc: "2.0", method: "notifications/tools/list_changed", params: {} });
+        write({ jsonrpc: "2.0", method: "notifications/resources/list_changed", params: {} });
+        write({ jsonrpc: "2.0", method: "notifications/prompts/list_changed", params: {} });
+      }, 10);
+    }
   } else if (msg.method === "resources/list") {
     write({ jsonrpc: "2.0", id: msg.id, result: { resources: config.resources || [] } });
   } else if (msg.method === "prompts/list") {
@@ -467,21 +474,33 @@ rl.on("line", (line) => {
       return;
     }
     if (mode === "bad_task_creation") {
-      write({ jsonrpc: "2.0", id: msg.id, result: { task: { status: "not-a-valid-status" } } });
-      return;
-    }
-    if (mode === "task_stdio_e2e" || mode === "unnegotiated_task") {
       write({
         jsonrpc: "2.0",
         id: msg.id,
         result: {
-          task: {
-            taskId: "task-stdio-1",
-            status: "working",
-            createdAt: "2026-08-28T00:00:00Z",
-            lastUpdatedAt: "2026-08-28T00:00:00Z",
-            ttlMs: 60000,
-          },
+          resultType: "task",
+          protocolVersion: "DRAFT-2026-v1",
+          taskId: "bad-task",
+          status: "not-a-valid-status",
+          createdAt: "2026-08-28T00:00:00Z",
+          lastUpdatedAt: "2026-08-28T00:00:00Z",
+          ttlMs: null,
+        },
+      });
+      return;
+    }
+    if (mode === "task_stdio_e2e" || mode === "nested_task_result" || mode === "unnegotiated_task") {
+      write({
+        jsonrpc: "2.0",
+        id: msg.id,
+        result: {
+          resultType: "task",
+          protocolVersion: "DRAFT-2026-v1",
+          taskId: "task-stdio-1",
+          status: "working",
+          createdAt: "2026-08-28T00:00:00Z",
+          lastUpdatedAt: "2026-08-28T00:00:00Z",
+          ttlMs: 60000,
         },
       });
       return;
@@ -521,6 +540,20 @@ rl.on("line", (line) => {
       },
     });
   } else if (msg.method === "tasks/get") {
+    const completedResult = mode === "nested_task_result"
+      ? {
+          resultType: "task",
+          taskId: "nested-task",
+          status: "working",
+          createdAt: "2026-08-28T00:00:01Z",
+          lastUpdatedAt: "2026-08-28T00:00:01Z",
+          ttlMs: null,
+        }
+      : {
+          resultType: "complete",
+          content: [{ type: "text", text: "task complete" }],
+          structuredContent: { done: true },
+        };
     write({
       jsonrpc: "2.0",
       id: msg.id,
@@ -530,7 +563,7 @@ rl.on("line", (line) => {
         createdAt: "2026-08-28T00:00:00Z",
         lastUpdatedAt: "2026-08-28T00:00:01Z",
         ttlMs: null,
-        result: { done: true },
+        result: completedResult,
       },
     });
   } else if (msg.method === "tasks/update" || msg.method === "tasks/cancel") {
@@ -543,5 +576,3 @@ rl.on("line", (line) => {
 }
 
 export const BOUNDED_STDIO_MCP_PEER = createStdioMcpPeerScript();
-
-

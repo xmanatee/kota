@@ -1,6 +1,7 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
-import type { McpClient, McpToolSchema } from "./client.js";
+import type { McpToolSchema } from "./client.js";
+import type { McpManagerClient } from "./manager-client-port.js";
 import type { McpToolEntry } from "./remote-task-entry-resolution.js";
 import {
   changedMcpToolDeclarationFacets,
@@ -27,7 +28,7 @@ export type McpOperationKind =
 
 export type McpOperationEntry = {
   serverName: string;
-  client: McpClient;
+  client: McpManagerClient;
   kind: McpOperationKind;
   tool: KotaTool;
 };
@@ -100,7 +101,7 @@ export class McpToolRegistry {
     }));
   }
 
-  replaceServerTools(serverName: string, client: McpClient, tools: McpToolSchema[]): void {
+  replaceServerTools(serverName: string, client: McpManagerClient, tools: McpToolSchema[]): void {
     const previousByOriginalName = new Map(
       this.getServerToolEntries(serverName).map((entry) => [entry.originalName, entry]),
     );
@@ -145,7 +146,7 @@ export class McpToolRegistry {
     this.driftDiagnostics = [];
   }
 
-  private replaceServerOperations(serverName: string, client: McpClient): void {
+  private replaceServerOperations(serverName: string, client: McpManagerClient): void {
     const entries = toKotaOperations(serverName, client);
     const nextOperationMap = new Map(this.operationMap);
     for (const entry of this.serverOperations.get(serverName) ?? []) {
@@ -221,7 +222,7 @@ function operationTool(
   return { name, description, input_schema };
 }
 
-function toKotaOperations(serverName: string, client: McpClient): McpOperationEntry[] {
+function toKotaOperations(serverName: string, client: McpManagerClient): McpOperationEntry[] {
   const entries: McpOperationEntry[] = [];
   if (client.supportsResources()) {
     entries.push({ serverName, client, kind: "resources/list", tool: operationTool(

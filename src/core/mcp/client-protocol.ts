@@ -344,10 +344,9 @@ export const MCP_TASK_STATUSES = [
 
 export type McpTaskStatus = typeof MCP_TASK_STATUSES[number];
 
-export type McpTaskState = {
+type McpTaskStateFields = {
   resultType?: "task";
   taskId: string;
-  status: McpTaskStatus;
   createdAt: string;
   lastUpdatedAt: string;
   ttlMs: number | null;
@@ -355,17 +354,25 @@ export type McpTaskState = {
   statusMessage?: string;
   inputRequests?: McpToolInputRequests;
   requestState?: string;
-  result?: KotaJsonValue;
-  error?: JsonRpcError;
   _meta?: KotaJsonObject;
 };
 
-export type McpCreateTaskResult = McpTaskState & {
+export type McpCompletedTaskResult =
+  | McpLegacyCallToolResult
+  | McpCompleteCallToolResult;
+
+export type McpTaskState<TResult = KotaJsonValue> = McpTaskStateFields & (
+  | { status: "working" | "input_required" | "cancelled"; result?: never; error?: never }
+  | { status: "completed"; result: TResult; error?: never }
+  | { status: "failed"; result?: never; error: JsonRpcError }
+);
+
+export type McpCreateTaskResult = McpTaskState<McpCompletedTaskResult> & {
   resultType: "task";
   protocolVersion: McpProtocolVersion;
 };
 
-export type McpGetTaskResult = McpTaskState;
+export type McpGetTaskResult = McpTaskState<McpCompletedTaskResult>;
 
 export type McpTaskAckResult = {
   resultType: "complete";

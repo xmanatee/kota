@@ -9,11 +9,15 @@ import type { ToolResult } from "#core/tools/index.js";
 import type { ToolResultContentProvenance } from "#core/tools/tool-middleware.js";
 import {
   type McpAuthorizationResolver,
-  McpClient,
   type McpElicitationMode,
   McpToolError,
   type McpToolSchema,
 } from "./client.js";
+import {
+  createMcpManagerClient,
+  type McpManagerClient,
+  type McpManagerClientFactory,
+} from "./manager-client-port.js";
 import {
   type McpServerConfig,
   normalizeMcpServerConfig,
@@ -60,6 +64,7 @@ export type McpManagerInitializeOptions = {
 export type McpManagerOptions = {
   scopeRoot?: string;
   remoteTaskStore?: RemoteMcpTaskStore;
+  clientFactory?: McpManagerClientFactory;
 };
 
 
@@ -87,7 +92,7 @@ type McpToolInput = Record<string, unknown>;
  * Handles config loading, lifecycle, and tool routing.
  */
 export class McpManager {
-  private clients = new Map<string, McpClient>();
+  private clients = new Map<string, McpManagerClient>();
   private readonly registry = new McpToolRegistry();
   private readonly operationCache = new McpOperationCache();
   private readonly operationExecutor = new McpOperationExecutor(this.operationCache);
@@ -96,8 +101,10 @@ export class McpManager {
   private initializingServers = new Set<string>();
   private pendingServerRefreshes = new Set<string>();
   private refreshQueues = new Map<string, Promise<void>>();
+  private readonly clientFactory: McpManagerClientFactory;
 
   constructor(options: McpManagerOptions = {}) {
+    this.clientFactory = options.clientFactory ?? createMcpManagerClient;
     const remoteTaskStore = options.remoteTaskStore ??
       (options.scopeRoot
         ? new FileRemoteMcpTaskStore(options.scopeRoot)
@@ -145,14 +152,14 @@ export class McpManager {
 
     const results = await Promise.allSettled(
       entries.map(async ([name, serverConfig]) => {
-        let client: McpClient | null = null;
+        let client: McpManagerClient | null = null;
         try {
           const transport = normalizeMcpServerConfig(name, serverConfig);
           this.remoteTaskRuntime.registerServerIdentity(
             name,
             remoteMcpServerIdentity(transport),
           );
-          client = new McpClient(
+          client = this.clientFactory(
             transport,
             name,
             {
@@ -438,7 +445,7 @@ export class McpManager {
   private progressOptionsFor(
     entry: McpToolEntry,
     options: McpExecuteToolOptions,
-  ): Parameters<McpClient["callTool"]>[3] {
+  ): Parameters<McpManagerClient["callTool"]>[3] {
     if (!options.progressResolver) return {};
     return {
       progress: {

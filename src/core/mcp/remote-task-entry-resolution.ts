@@ -1,13 +1,13 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { McpToolAnnotations } from "#core/tools/effect.js";
-import type { McpClient } from "./client.js";
+import type { McpManagerClient } from "./manager-client-port.js";
 import type { PersistedRemoteMcpTaskHandle } from "./remote-task-store.js";
 import type { McpToolDeclarationFingerprint } from "./tool-declaration-fingerprint.js";
 import { namespaceTool } from "./tool-namespace.js";
 
 export type McpToolEntry = {
   serverConfigName: string;
-  client: McpClient;
+  client: McpManagerClient;
   originalName: string;
   tool: KotaTool;
   declaration: McpToolDeclarationFingerprint;
@@ -20,7 +20,7 @@ type McpPersistedRemoteTaskEntryResolution =
 
 type EntryForPersistedRemoteTaskInput = {
   handle: PersistedRemoteMcpTaskHandle;
-  client: McpClient;
+  client: McpManagerClient;
   entries: readonly McpToolEntry[] | undefined;
 };
 

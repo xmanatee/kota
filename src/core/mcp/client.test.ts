@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   AGENT_SKILLS_DISCOVERY_SCHEMA,
   MCP_CURRENT_PROTOCOL_VERSION,
@@ -10,35 +10,22 @@ import {
   MCP_SKILL_INDEX_RESOURCE_URI,
   MCP_SKILLS_EXTENSION_ID,
   MCP_SUPPORTED_PROTOCOL_VERSIONS,
-  MCP_TASKS_EXTENSION_ID,
-  McpAuthorizationError,
-  McpAuthorizationFlowError,
   McpClient,
   McpConnectionError,
   type McpProgressEvent,
   McpToolError,
-  type McpToolSchema,
-  mcpOAuthSecret,
   mcpProtocolCapabilities,
   mcpProtocolSupports,
   mcpToolResultContractForProtocol,
 } from "./client.js";
 import {
   BOUNDED_STDIO_MCP_PEER,
-  captureTerminalStderr,
   createStdioMcpPeerScript,
   expectCompletedResult,
-  fakeEnterpriseIdentityProviderMetadata,
-  fakeEnterpriseIdJagJwt,
   jsonRpcHttpResponse,
   mockClientHttpFetch,
-  type PrivateKeyJwtPayload,
-  privateKeyJwtEcPrivateKey,
   privateKeyJwtTestKeyPair,
-  type RecordedClientHttpRequest,
   sseJsonRpcHttpResponse,
-  sseMessage,
-  terminalDiagnosticLines,
   verifyPrivateKeyJwtAssertion,
   waitForAssertion,
 } from "./client-http-test-helpers.js";
@@ -334,6 +321,7 @@ describe("Notifications, Subscriptions & Logging", () => {
     const result = await client.callTool(
       "test_tool",
       {},
+      undefined,
       {
         progress: {
           onProgress: (event) => events.push(event),
@@ -369,11 +357,16 @@ describe("Notifications, Subscriptions & Logging", () => {
     let resourcesChanged = false;
     let promptsChanged = false;
 
-    client.onToolsListChanged(() => { toolsChanged = true; });
-    client.onResourcesListChanged(() => { resourcesChanged = true; });
-    client.onPromptsListChanged(() => { promptsChanged = true; });
+    client.onToolListChanged(() => { toolsChanged = true; });
+    client.onResourceListChanged(() => { resourcesChanged = true; });
+    client.onPromptListChanged(() => { promptsChanged = true; });
+    await client.listTools();
 
-    expect(client.isConnected()).toBe(true);
+    await waitForAssertion(() => {
+      expect(toolsChanged).toBe(true);
+      expect(resourcesChanged).toBe(true);
+      expect(promptsChanged).toBe(true);
+    });
   }, 10_000);
 });
 
@@ -425,7 +418,7 @@ describe("Tool Execution & Result Decoding", () => {
       ["-e", BOUNDED_STDIO_MCP_PEER],
       { MCP_TEST_MODE: "task_stdio_e2e" },
       "task-stdio",
-      { remoteTasksEnabled: true },
+      { enableRemoteTasks: true },
     );
     await client.connect();
 
@@ -438,9 +431,34 @@ describe("Tool Execution & Result Decoding", () => {
       const taskState = await client.getTask(result.taskId);
       expect(taskState.taskId).toBe("task-stdio-1");
       expect(taskState.status).toBe("completed");
+      if (taskState.status === "completed") {
+        expect(taskState.result.resultType).toBe("complete");
+        expect(taskState.result.text).toBe("task complete");
+      }
 
-      await expect(client.updateTask(result.taskId, {})).resolves.not.toThrow();
+      await expect(client.updateTask(result.taskId, {
+        inputResponses: { confirm: { action: "accept", content: {} } },
+      })).resolves.not.toThrow();
       await expect(client.cancelTask(result.taskId)).resolves.not.toThrow();
+    }
+  }, 10_000);
+
+  it("rejects nested task results while decoding tasks/get", async () => {
+    client = new McpClient(
+      "node",
+      ["-e", BOUNDED_STDIO_MCP_PEER],
+      { MCP_TEST_MODE: "nested_task_result" },
+      "nested-task-result",
+      { enableRemoteTasks: true },
+    );
+    await client.connect();
+
+    const result = await client.callTool("test_tool", {});
+    expect(result.resultType).toBe("task");
+    if (result.resultType === "task") {
+      await expect(client.getTask(result.taskId)).rejects.toThrow(
+        "completed task result must be a complete tool result",
+      );
     }
   }, 10_000);
 
@@ -454,7 +472,7 @@ describe("Tool Execution & Result Decoding", () => {
     await client.connect();
 
     await expect(client.callTool("test_tool", {})).rejects.toThrow(
-      /Tasks extension was not negotiated/,
+      /without negotiated .*tasks support/i,
     );
   }, 10_000);
 
@@ -464,7 +482,7 @@ describe("Tool Execution & Result Decoding", () => {
       ["-e", BOUNDED_STDIO_MCP_PEER],
       { MCP_TEST_MODE: "bad_task_creation" },
       "bad-task-test",
-      { remoteTasksEnabled: true },
+      { enableRemoteTasks: true },
     );
     await client.connect();
 
@@ -539,7 +557,7 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {
         return jsonRpcHttpResponse(req.body.id, {
-          protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
           capabilities: { tools: { listChanged: true } },
           serverInfo: { name: "http-server" },
         });
@@ -560,7 +578,7 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     restoreFetch = http.mockRestore;
 
     client = new McpClient(
-      { type: "streamable-http", url: "https://mcp.example.test/mcp" },
+      { type: "http", url: "https://mcp.example.test/mcp" },
       "http-client",
     );
     await client.connect();
@@ -581,7 +599,7 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {
         return jsonRpcHttpResponse(req.body.id, {
-          protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
           capabilities: { tools: {} },
         });
       }
@@ -596,19 +614,19 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     restoreFetch = http.mockRestore;
 
     client = new McpClient(
-      { type: "streamable-http", url: "https://mcp.example.test/mcp" },
+      { type: "http", url: "https://mcp.example.test/mcp" },
       "oversized-http",
     );
     await client.connect();
 
-    await expect(client.listTools()).rejects.toThrow(/exceeded maximum/i);
+    await expect(client.listTools()).rejects.toThrow(/exceeded \d+ bytes/i);
   });
 
   it("rejects oversized Streamable HTTP SSE event data before parsing JSON-RPC", async () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {
         return jsonRpcHttpResponse(req.body.id, {
-          protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
           capabilities: { tools: {} },
         });
       }
@@ -621,12 +639,12 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     restoreFetch = http.mockRestore;
 
     client = new McpClient(
-      { type: "streamable-http", url: "https://mcp.example.test/mcp" },
+      { type: "http", url: "https://mcp.example.test/mcp" },
       "oversized-sse",
     );
     await client.connect();
 
-    await expect(client.listTools()).rejects.toThrow(/exceeded maximum/i);
+    await expect(client.listTools()).rejects.toThrow(/exceeded \d+ bytes/i);
   });
 
   it("mirrors annotated tool arguments into HTTP Mcp-Param headers", async () => {
@@ -634,7 +652,7 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {
         return jsonRpcHttpResponse(req.body.id, {
-          protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
           capabilities: { tools: {} },
         });
       }
@@ -642,8 +660,12 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
         return jsonRpcHttpResponse(req.body.id, {
           tools: [{
             name: "param_tool",
-            inputSchema: { type: "object", properties: { session_token: { type: "string" } } },
-            annotations: { "x-mcp-header": "x-session-token" },
+            inputSchema: {
+              type: "object",
+              properties: {
+                session_token: { type: "string", "x-mcp-header": "x-session-token" },
+              },
+            },
           }],
         });
       }
@@ -658,14 +680,15 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
     restoreFetch = http.mockRestore;
 
     client = new McpClient(
-      { type: "streamable-http", url: "https://mcp.example.test/mcp" },
+      { type: "http", url: "https://mcp.example.test/mcp" },
       "header-param-test",
     );
     await client.connect();
     await client.listTools();
     await client.callTool("param_tool", { session_token: "secret-token-val" });
 
-    expect(capturedHeaders?.get("x-session-token")).toBe("secret-token-val");
+    expect((capturedHeaders as Headers | null)?.get("mcp-param-x-session-token"))
+      .toBe("secret-token-val");
   });
 });
 
@@ -710,12 +733,14 @@ describe("Authentication, OAuth & Security Policies", () => {
 
     client = new McpClient(
       {
-        type: "streamable-http",
+        type: "http",
         url: "https://mcp.example.test/mcp",
         authorization: {
           type: "oauth",
-          flow: "authorization_code",
-          clientId: "kota-client",
+          issuer: "https://auth.example.test",
+          redirectUri: "http://127.0.0.1:43111/callback",
+          scopes: ["read", "write"],
+          client: { kind: "registered", clientId: "kota-client" },
         },
       },
       "oauth-discovery",
@@ -739,7 +764,7 @@ describe("Authentication, OAuth & Security Policies", () => {
         }
         if (auth === "Bearer valid-access-token") {
           return jsonRpcHttpResponse(req.body.id, {
-            protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+            supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
             capabilities: { tools: {} },
           });
         }
@@ -782,16 +807,18 @@ describe("Authentication, OAuth & Security Policies", () => {
 
     client = new McpClient(
       {
-        type: "streamable-http",
+        type: "http",
         url: "https://mcp.example.test/mcp",
         authorization: {
-          type: "oauth",
-          flow: "client_credentials",
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: ["mcp:tools"],
+          tokenEndpointAuthMethod: "private_key_jwt",
           client: {
-            authMethod: "private_key_jwt",
+            kind: "registered",
             clientId: "jwt-client",
-            privateKey: mcpOAuthSecret(keyPair.privateKeyPem),
-            algorithm: "RS256",
+            privateKeyPem: keyPair.privateKeyPem,
+            signingAlgorithm: "RS256",
           },
         },
       },
@@ -807,10 +834,12 @@ describe("Authentication, OAuth & Security Policies", () => {
       if (req.url === "https://mcp.example.test/mcp") {
         return new Response("Unauthorized", {
           status: 401,
-          headers: { "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/meta"' },
+          headers: {
+            "www-authenticate": 'Bearer resource_metadata="https://mcp.example.test/.well-known/oauth-protected-resource"',
+          },
         });
       }
-      if (req.url === "https://mcp.example.test/meta") {
+      if (req.url === "https://mcp.example.test/.well-known/oauth-protected-resource") {
         return new Response(JSON.stringify({
           resource: "https://mcp.example.test/mcp",
           authorization_servers: ["https://auth.example.test"],
@@ -824,10 +853,7 @@ describe("Authentication, OAuth & Security Policies", () => {
         }), { headers: { "content-type": "application/json" } });
       }
       if (req.url === "https://auth.example.test/token") {
-        return new Response(JSON.stringify({
-          error: "invalid_client",
-          error_description: `failed with secret: ${sensitiveSecret}`,
-        }), { status: 400, headers: { "content-type": "application/json" } });
+        throw new Error(`failed with secret: ${sensitiveSecret}`);
       }
       return jsonRpcHttpResponse(1, {});
     });
@@ -835,15 +861,17 @@ describe("Authentication, OAuth & Security Policies", () => {
 
     client = new McpClient(
       {
-        type: "streamable-http",
+        type: "http",
         url: "https://mcp.example.test/mcp",
         authorization: {
-          type: "oauth",
-          flow: "client_credentials",
+          type: "oauth-client-credentials",
+          issuer: "https://auth.example.test",
+          scopes: [],
+          tokenEndpointAuthMethod: "client_secret_basic",
           client: {
-            authMethod: "client_secret_basic",
+            kind: "registered",
             clientId: "secret-client",
-            clientSecret: mcpOAuthSecret(sensitiveSecret),
+            clientSecret: sensitiveSecret,
           },
         },
       },
@@ -856,7 +884,7 @@ describe("Authentication, OAuth & Security Policies", () => {
     } catch (err) {
       thrownError = err as Error;
     }
-    expect(thrownError).toBeInstanceOf(McpAuthorizationFlowError);
+    expect(thrownError).toBeInstanceOf(McpConnectionError);
     expect(thrownError?.message).toContain("[redacted]");
     expect(thrownError?.message).not.toContain(sensitiveSecret);
   });
@@ -881,20 +909,30 @@ describe("Remote Resources, Prompts & Skills", () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {
         return jsonRpcHttpResponse(req.body.id, {
-          protocolVersion: MCP_CURRENT_PROTOCOL_VERSION,
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
           capabilities: { resources: { listChanged: true } },
         });
       }
       if (req.body.method === "resources/list") {
+        if (req.body.params?.cursor === "resources-page-2") {
+          return jsonRpcHttpResponse(req.body.id, {
+            resources: [{ uri: "file:///appendix.txt", name: "appendix" }],
+            ttlMs: 30000,
+            cacheScope: "private",
+          });
+        }
         return jsonRpcHttpResponse(req.body.id, {
           resources: [{ uri: "file:///doc.txt", name: "doc", mimeType: "text/plain" }],
-          _meta: { cache: { ttlMs: 60000, cacheScope: "public" } },
+          nextCursor: "resources-page-2",
+          ttlMs: 60000,
+          cacheScope: "public",
         });
       }
       if (req.body.method === "resources/read") {
         return jsonRpcHttpResponse(req.body.id, {
           contents: [{ uri: "file:///doc.txt", text: "hello doc", mimeType: "text/plain" }],
-          _meta: { cache: { ttlMs: 30000, cacheScope: "private" } },
+          ttlMs: 30000,
+          cacheScope: "private",
         });
       }
       return jsonRpcHttpResponse(req.body.id, {});
@@ -902,29 +940,65 @@ describe("Remote Resources, Prompts & Skills", () => {
     restoreFetch = http.mockRestore;
 
     client = new McpClient(
-      { type: "streamable-http", url: "https://mcp.example.test/mcp" },
+      { type: "http", url: "https://mcp.example.test/mcp" },
       "resources-client",
     );
     await client.connect();
 
     const resourcesPage = await client.listResources();
-    expect(resourcesPage.resources).toHaveLength(1);
-    expect(resourcesPage.resources[0].uri).toBe("file:///doc.txt");
-    expect(resourcesPage.cache.ttlMs).toBe(60000);
+    expect(resourcesPage.resources.map((resource) => resource.uri)).toEqual([
+      "file:///doc.txt",
+      "file:///appendix.txt",
+    ]);
+    expect(resourcesPage.cache).toEqual({ ttlMs: 30000, cacheScope: "private" });
+    expect(http.requests.filter((request) => request.body.method === "resources/list")
+      .map((request) => request.body.params?.cursor)).toEqual([undefined, "resources-page-2"]);
 
     const readResult = await client.readResource("file:///doc.txt");
     expect(readResult.resultType).toBe("complete");
     if (readResult.resultType === "complete") {
-      expect(readResult.contents[0].text).toBe("hello doc");
+      expect("text" in readResult.contents[0] ? readResult.contents[0].text : undefined)
+        .toBe("hello doc");
       expect(readResult.cache.cacheScope).toBe("private");
     }
+  });
+
+  it("rejects repeated pagination cursors at the client boundary", async () => {
+    const http = mockClientHttpFetch((req) => {
+      if (req.body.method === "server/discover") {
+        return jsonRpcHttpResponse(req.body.id, {
+          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
+          capabilities: { resources: {} },
+        });
+      }
+      if (req.body.method === "resources/list") {
+        return jsonRpcHttpResponse(req.body.id, {
+          resources: [],
+          nextCursor: "repeated-cursor",
+        });
+      }
+      return jsonRpcHttpResponse(req.body.id, {});
+    });
+    restoreFetch = http.mockRestore;
+
+    client = new McpClient(
+      { type: "http", url: "https://mcp.example.test/mcp" },
+      "repeated-cursor-client",
+    );
+    await client.connect();
+
+    await expect(client.listResources()).rejects.toThrow(
+      /Malformed MCP resources\/list result .*repeated nextCursor/,
+    );
+    expect(http.requests.filter((request) => request.body.method === "resources/list"))
+      .toHaveLength(2);
   });
 
   it("decodes MCP-served skill catalogs and reads direct skill URIs", async () => {
     const http = mockClientHttpFetch((req) => {
       if (req.body.method === "server/discover") {
         return jsonRpcHttpResponse(req.body.id, {
-          protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
+          supportedVersions: [MCP_DRAFT_PROTOCOL_VERSION],
           capabilities: {
             resources: {},
             extensions: { [MCP_SKILLS_EXTENSION_ID]: {} },
@@ -969,19 +1043,22 @@ describe("Remote Resources, Prompts & Skills", () => {
     restoreFetch = http.mockRestore;
 
     client = new McpClient(
-      { type: "streamable-http", url: "https://mcp.example.test/mcp" },
+      { type: "http", url: "https://mcp.example.test/mcp" },
       "skills-client",
     );
     await client.connect();
 
     const catalog = await client.listRemoteSkills();
     expect(catalog.skills).toHaveLength(1);
-    expect(catalog.skills[0].name).toBe("code-review");
+    expect(catalog.status === "enumerated" && "name" in catalog.skills[0]
+      ? catalog.skills[0].name
+      : undefined).toBe("code-review");
 
     const skillResult = await client.readRemoteSkill("skill://code-review/SKILL.md");
     expect(skillResult.resultType).toBe("complete");
     if (skillResult.resultType === "complete") {
-      expect(skillResult.contents[0].text).toContain("# Code Review");
+      expect("text" in skillResult.contents[0] ? skillResult.contents[0].text : "")
+        .toContain("# Code Review");
     }
   });
 });
@@ -1015,9 +1092,10 @@ describe("Concurrency & Fault Resilience", () => {
 
     const closePromise = client.close();
     const callPromise = client.callTool("test_tool", {});
+    const rejection = expect(callPromise).rejects.toThrow();
 
     await closePromise;
-    await expect(callPromise).rejects.toThrow();
+    await rejection;
   }, 10_000);
 
   it("double connect throws and double close is safe", async () => {

@@ -13,6 +13,13 @@ into the runtime tool list.
   JSON-RPC protocol types, transport/runtime layers, OAuth/protected-resource
   handling, and feature decoders should live in focused sibling files rather
   than re-forming a monolithic client.
+- The manager consumes the client through its narrow injected port. Keep
+  server selection, routing, refresh, whole-catalog cache coordination, task
+  resume, and multi-server composition in manager code; keep framing,
+  decoding, pagination, OAuth, and transport failures behind the client port.
+- Manager tests use typed client-port fakes and never boot protocol peers.
+  Embedded peers, HTTP recorders, and wire-shape matrices belong to the client
+  protocol portfolio.
 - JSON-RPC, HTTP/SSE, OAuth, and feature-decoder files are approved external
   boundary files for strict type ratchet purposes; keep raw `unknown` use at
   those decode seams and return typed results to the rest of core.

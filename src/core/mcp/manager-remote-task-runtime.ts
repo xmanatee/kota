@@ -1,12 +1,11 @@
 import { printTerminalDiagnostic } from "#core/modules/terminal-renderer.js";
 import type { ToolResult } from "#core/tools/index.js";
 import {
-  type McpClient,
   type McpCreateTaskResult,
   type McpGetTaskResult,
   McpToolError,
 } from "./client.js";
-import { decodeCallToolResult } from "./client-result-decoders.js";
+import type { McpManagerClient } from "./manager-client-port.js";
 import type { McpExecuteToolOptions } from "./manager-execution-types.js";
 import type { McpToolRegistry } from "./manager-tool-registry.js";
 import { toToolResult, unsupportedInputRequiredResult } from "./manager-tool-result.js";
@@ -61,7 +60,7 @@ export class McpRemoteTaskRuntime {
   constructor(
     private readonly store: RemoteMcpTaskStore,
     private readonly registry: McpToolRegistry,
-    private readonly clients: ReadonlyMap<string, McpClient>,
+    private readonly clients: ReadonlyMap<string, McpManagerClient>,
   ) {}
 
   reset(): void {
@@ -119,19 +118,9 @@ export class McpRemoteTaskRuntime {
         return await this.cancelAfterAbort(entry, current, stats);
       }
       if (current.status === "completed") {
-        const decoded = decodeCallToolResult(current.result, stats.protocolVersion);
-        if (decoded.resultType === "task") {
-          await this.clear(entry, current);
-          return remoteTaskErrorResult(
-            entry,
-            current,
-            stats,
-            "completed with a nested task result",
-          );
-        }
         await this.clear(entry, current);
         return withRemoteTaskDiagnostics(
-          toToolResult(entry, decoded),
+          toToolResult(entry, current.result),
           entry,
           current,
           stats,

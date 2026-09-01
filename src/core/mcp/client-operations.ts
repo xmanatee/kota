@@ -2,6 +2,7 @@ import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import { McpClientConnection } from "./client-connection.js";
 import type {
   JsonRpcRequest,
+  McpCacheHints,
   McpCallToolOptions,
   McpCallToolResult,
   McpCallToolRetry,
@@ -126,14 +127,16 @@ export abstract class McpClientOperations extends McpClientConnection {
   }
 
   /** List available resources from the server across all pages. */
-  async listResources(): Promise<McpResourceSchema[]> {
+  async listResources(): Promise<McpListResourcesPage> {
     const resources: McpResourceSchema[] = [];
+    const cacheHints: McpCacheHints[] = [];
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
 
     do {
       const page = await this.listResourcesPage(cursor);
       resources.push(...page.resources);
+      cacheHints.push(page.cache);
       cursor = page.nextCursor;
       if (cursor !== undefined) {
         if (seenCursors.has(cursor)) {
@@ -145,7 +148,7 @@ export abstract class McpClientOperations extends McpClientConnection {
       }
     } while (cursor !== undefined);
 
-    return resources;
+    return { resources, cache: combineListCacheHints(cacheHints) };
   }
 
   async listResourceTemplatesPage(cursor?: string): Promise<McpListResourceTemplatesPage> {
@@ -164,14 +167,16 @@ export abstract class McpClientOperations extends McpClientConnection {
   }
 
   /** List available resource templates from the server across all pages. */
-  async listResourceTemplates(): Promise<McpResourceTemplateSchema[]> {
+  async listResourceTemplates(): Promise<McpListResourceTemplatesPage> {
     const resourceTemplates: McpResourceTemplateSchema[] = [];
+    const cacheHints: McpCacheHints[] = [];
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
 
     do {
       const page = await this.listResourceTemplatesPage(cursor);
       resourceTemplates.push(...page.resourceTemplates);
+      cacheHints.push(page.cache);
       cursor = page.nextCursor;
       if (cursor !== undefined) {
         if (seenCursors.has(cursor)) {
@@ -183,7 +188,7 @@ export abstract class McpClientOperations extends McpClientConnection {
       }
     } while (cursor !== undefined);
 
-    return resourceTemplates;
+    return { resourceTemplates, cache: combineListCacheHints(cacheHints) };
   }
 
   async listPromptsPage(cursor?: string): Promise<McpListPromptsPage> {
@@ -202,14 +207,16 @@ export abstract class McpClientOperations extends McpClientConnection {
   }
 
   /** List available prompts from the server across all pages. */
-  async listPrompts(): Promise<McpPromptSchema[]> {
+  async listPrompts(): Promise<McpListPromptsPage> {
     const prompts: McpPromptSchema[] = [];
+    const cacheHints: McpCacheHints[] = [];
     const seenCursors = new Set<string>();
     let cursor: string | undefined;
 
     do {
       const page = await this.listPromptsPage(cursor);
       prompts.push(...page.prompts);
+      cacheHints.push(page.cache);
       cursor = page.nextCursor;
       if (cursor !== undefined) {
         if (seenCursors.has(cursor)) {
@@ -221,7 +228,7 @@ export abstract class McpClientOperations extends McpClientConnection {
       }
     } while (cursor !== undefined);
 
-    return prompts;
+    return { prompts, cache: combineListCacheHints(cacheHints) };
   }
 
   /** Read a resource from the server. */
@@ -314,7 +321,10 @@ export abstract class McpClientOperations extends McpClientConnection {
   async getTask(taskId: string): Promise<McpGetTaskResult> {
     this.assertTasksNegotiated("tasks/get");
     const result = await this.request("tasks/get", { taskId }, CALL_TIMEOUT);
-    return decodeGetTaskResult(result);
+    return decodeGetTaskResult(
+      result,
+      this.protocolVersion ?? MCP_CURRENT_PROTOCOL_VERSION,
+    );
   }
 
   async updateTask(
@@ -362,4 +372,11 @@ export abstract class McpClientOperations extends McpClientConnection {
     return decodeEmptyTaskAckResult(result, "tasks/cancel");
   }
 
+}
+
+function combineListCacheHints(hints: readonly McpCacheHints[]): McpCacheHints {
+  return {
+    ttlMs: hints.length === 0 ? 0 : Math.min(...hints.map((hint) => hint.ttlMs)),
+    cacheScope: hints.every((hint) => hint.cacheScope === "public") ? "public" : "private",
+  };
 }

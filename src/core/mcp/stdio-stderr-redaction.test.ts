@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { McpManager } from "./manager.js";
+import { McpClient } from "./client.js";
 
 async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promise<void> {
   const started = Date.now();
@@ -30,7 +30,6 @@ function captureTerminalStderr(): { output: () => string; restore: () => void } 
 
 describe("MCP stdio stderr diagnostics", () => {
   it("redacts configured env values echoed through stderr diagnostics", async () => {
-    const manager = new McpManager();
     const terminal = captureTerminalStderr();
     const secret = "stdio-stderr-secret-3358a37f";
     const server = `
@@ -54,17 +53,15 @@ describe("MCP stdio stderr diagnostics", () => {
         }
       });
     `;
+    const client = new McpClient({
+      type: "stdio",
+      command: "node",
+      args: ["-e", server],
+      env: { KOTA_MCP_STDIO_SECRET: secret },
+    }, "secret");
 
     try {
-      await manager.initialize({
-        mcpServers: {
-          secret: {
-            command: "node",
-            args: ["-e", server],
-            env: { KOTA_MCP_STDIO_SECRET: secret },
-          },
-        },
-      });
+      await client.connect();
 
       await waitForAssertion(() => {
         expect(terminal.output()).toContain("boot leaked [redacted]");
@@ -72,7 +69,7 @@ describe("MCP stdio stderr diagnostics", () => {
       expect(terminal.output()).not.toContain(secret);
     } finally {
       terminal.restore();
-      await manager.close();
+      await client.close();
     }
   }, 10_000);
 });
