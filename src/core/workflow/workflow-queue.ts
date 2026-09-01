@@ -132,55 +132,9 @@ export class WorkflowQueueManager {
         this.cancelRestoredRun(run, "workflow is unavailable or disabled");
         continue;
       }
-      const resolution = resolveRestoredTrigger(definition, run.trigger);
-      if (resolution === null) {
-        this.cancelRestoredRun(
-          run,
-          `event "${run.trigger.event}" is not accepted by the current definition`,
-        );
-        continue;
-      }
-      if (
-        resolution.kind === "declared" &&
-        rejectInvalidTriggerPayload({
-          definition,
-          trigger: run.trigger,
-          deadLetterQueue: this.config.deadLetterQueue,
-          scopeId: this.config.getScopeId(),
-          log: this.config.log,
-        })
-      ) {
-        this.cancelRestoredRun(run, "payload validation failed");
-        continue;
-      }
-      if (
-        rejectUnadmittedWorkflowTrigger({
-          definition,
-          scopeRoot: this.config.scopeRoot,
-          stateDir: this.config.store.rootDir,
-          scopeId: this.config.scopeId,
-          runState: this.config.runState,
-          trigger: run.trigger,
-          log: this.config.log,
-        })
-      ) {
-        this.cancelRestoredRun(run, "definition admission rejected the trigger");
-        continue;
-      }
-      const resources = definition.resources?.({
-        scopeRoot: this.config.scopeRoot,
-        stateDir: this.config.store.rootDir,
-        workflowName: definition.name,
-        trigger: run.trigger,
-      }) ?? [];
-      if (
-        run.repository !== definition.repository ||
-        !sameResources(run.resources, resources)
-      ) {
-        this.cancelRestoredRun(
-          run,
-          "definition repository or resource ownership changed",
-        );
+      const rejection = this.restoredRunRejection(run, definition);
+      if (rejection !== null) {
+        this.cancelRestoredRun(run, rejection);
         continue;
       }
       restored += 1;
@@ -385,18 +339,7 @@ export class WorkflowQueueManager {
     if (run?.state !== "needs_attention") return false;
     const definition = this.definition(run.workflow);
     if (!definition?.enabled) return false;
-    const resources = definition.resources?.({
-      scopeRoot: this.config.scopeRoot,
-      stateDir: this.config.store.rootDir,
-      workflowName: definition.name,
-      trigger: run.trigger,
-    }) ?? [];
-    if (
-      run.repository !== definition.repository ||
-      !sameResources(run.resources, resources)
-    ) {
-      return false;
-    }
+    if (this.restoredRunRejection(run, definition) !== null) return false;
     const resumedAt = this.applyAgentBackoffEligibility(definition, resumedAtMs);
     this.config.runState.resumeRun(run.id, new Date(resumedAt).toISOString());
     this.config.coordinator.refill();
@@ -418,6 +361,50 @@ export class WorkflowQueueManager {
 
   private definition(name: string): WorkflowDefinition | undefined {
     return this.config.getDefinitions().find((candidate) => candidate.name === name);
+  }
+
+  private restoredRunRejection(
+    run: StoredRun,
+    definition: WorkflowDefinition,
+  ): string | null {
+    const resolution = resolveRestoredTrigger(definition, run.trigger);
+    if (resolution === null) {
+      return `event "${run.trigger.event}" is not accepted by the current definition`;
+    }
+    if (
+      resolution.kind === "declared" &&
+      rejectInvalidTriggerPayload({
+        definition,
+        trigger: run.trigger,
+        deadLetterQueue: this.config.deadLetterQueue,
+        scopeId: this.config.getScopeId(),
+        log: this.config.log,
+      })
+    ) {
+      return "payload validation failed";
+    }
+    if (
+      rejectUnadmittedWorkflowTrigger({
+        definition,
+        scopeRoot: this.config.scopeRoot,
+        stateDir: this.config.store.rootDir,
+        scopeId: this.config.scopeId,
+        runState: this.config.runState,
+        trigger: run.trigger,
+        log: this.config.log,
+      })
+    ) {
+      return "definition admission rejected the trigger";
+    }
+    const resources = definition.resources?.({
+      scopeRoot: this.config.scopeRoot,
+      stateDir: this.config.store.rootDir,
+      workflowName: definition.name,
+      trigger: run.trigger,
+    }) ?? [];
+    return run.repository === definition.repository && sameResources(run.resources, resources)
+      ? null
+      : "definition repository or resource ownership changed";
   }
 
   private applyAgentBackoffEligibility(
