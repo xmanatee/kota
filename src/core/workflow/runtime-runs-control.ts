@@ -56,6 +56,26 @@ export function enqueuePendingRun(
   const definition = state.definitions.find((d) => d.name === name);
   if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
   if (!definition.enabled) return { ok: false, error: `Workflow "${name}" is disabled` };
+  const retryOf = options.payload?.retryOf;
+  if (typeof retryOf === "string") {
+    const source = state.runtimeConfig.runState.getRun(retryOf);
+    if (source?.state === "needs_attention") {
+      if (source.scopeId !== state.runtimeConfig.scopeId || source.workflow !== name) {
+        return {
+          ok: false,
+          error: `Workflow "${name}" cannot retry retained run "${retryOf}"`,
+        };
+      }
+      if (!state.wfQueue.resumeRetainedRun(retryOf, Date.now())) {
+        return {
+          ok: false,
+          error: `Retained run "${retryOf}" no longer matches the loaded workflow contract`,
+        };
+      }
+      maybeStartNext(state);
+      return { ok: true, queued: name, runId: retryOf };
+    }
+  }
   if (
     options.runId === undefined &&
     state.wfQueue.getRuns().some((r) => r.workflowName === name)

@@ -380,6 +380,29 @@ export class WorkflowQueueManager {
     this.appendRun({ ...queued, notBeforeMs });
   }
 
+  resumeRetainedRun(runId: string, resumedAtMs: number): boolean {
+    const run = this.config.runState.getRun(runId);
+    if (run?.state !== "needs_attention") return false;
+    const definition = this.definition(run.workflow);
+    if (!definition?.enabled) return false;
+    const resources = definition.resources?.({
+      scopeRoot: this.config.scopeRoot,
+      stateDir: this.config.store.rootDir,
+      workflowName: definition.name,
+      trigger: run.trigger,
+    }) ?? [];
+    if (
+      run.repository !== definition.repository ||
+      !sameResources(run.resources, resources)
+    ) {
+      return false;
+    }
+    const resumedAt = this.applyAgentBackoffEligibility(definition, resumedAtMs);
+    this.config.runState.resumeRun(run.id, new Date(resumedAt).toISOString());
+    this.config.coordinator.refill();
+    return true;
+  }
+
   cancel(runId: string): ReturnType<RunCoordinator["cancel"]> {
     return this.config.coordinator.cancel(runId);
   }
