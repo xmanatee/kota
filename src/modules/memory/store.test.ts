@@ -1,4 +1,10 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -225,6 +231,19 @@ describe("MemoryStore", () => {
       const mem = store2.list().find((m) => m.id === id)!;
       expect(mem.content).toBe("after");
       expect(mem.tags).toEqual(["b"]);
+    });
+
+    it("does not publish an update in memory when atomic persistence fails", () => {
+      const id = store.save("before", ["stable"]);
+      const path = join(dir, "memory.json");
+      rmSync(path);
+      mkdirSync(path);
+
+      expect(() => store.update(id, { content: "uncommitted" })).toThrow();
+      expect(store.list().find((memory) => memory.id === id)).toMatchObject({
+        content: "before",
+        tags: ["stable"],
+      });
     });
 
     it("persists correction metadata without deleting provenance", () => {

@@ -2184,7 +2184,8 @@ describe("startTelegramStatusPoll", () => {
     it("/capture <text> calls the seam without an explicit target and renders the memory success arm", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: { target: "memory", recordId: "mem-001" },
+        target: "memory",
+        id: "mem-001",
       } satisfies CaptureResult);
       const payload = await runCaptureCase(
         "/capture remember to call alice",
@@ -2202,7 +2203,8 @@ describe("startTelegramStatusPoll", () => {
     it("/capture-to-knowledge <text> dispatches with target=knowledge and renders the knowledge success arm", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: { target: "knowledge", recordId: "kn-arch-001" },
+        target: "knowledge",
+        id: "kn-arch-001",
       } satisfies CaptureResult);
       const payload = await runCaptureCase(
         "/capture-to-knowledge architecture decision",
@@ -2217,7 +2219,8 @@ describe("startTelegramStatusPoll", () => {
     it("/capture-to-memory dispatches with target=memory", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: { target: "memory", recordId: "mem-007" },
+        target: "memory",
+        id: "mem-007",
       } satisfies CaptureResult);
       const payload = await runCaptureCase(
         "/capture-to-memory owner prefers strict types",
@@ -2233,11 +2236,9 @@ describe("startTelegramStatusPoll", () => {
     it("/capture-to-tasks dispatches with target=tasks and renders the tasks success arm with path", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: {
-          target: "tasks",
-          recordId: "task-fix-login",
-          path: "data/tasks/inbox/task-fix-login.md",
-        },
+        target: "tasks",
+        id: "task-fix-login",
+        path: "data/tasks/task-fix-login.md",
       } satisfies CaptureResult);
       const payload = await runCaptureCase(
         "/capture-to-tasks fix the login redirect",
@@ -2248,18 +2249,16 @@ describe("startTelegramStatusPoll", () => {
         { target: "tasks" },
       );
       expect(payload.text).toBe(
-        "Captured to tasks: task-fix-login (data/tasks/inbox/task-fix-login.md)",
+        "Captured to tasks: task-fix-login (data/tasks/task-fix-login.md)",
       );
     });
 
     it("/capture-to-inbox dispatches with target=inbox and renders the inbox success arm with path", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: {
-          target: "inbox",
-          recordId: "thoughts-2026-04-28",
-          path: "data/inbox/thoughts-2026-04-28.md",
-        },
+        target: "inbox",
+        id: "thoughts-2026-04-28",
+        path: "data/inbox/thoughts-2026-04-28.md",
       } satisfies CaptureResult);
       const payload = await runCaptureCase(
         "/capture-to-inbox raw morning thought",
@@ -2287,24 +2286,10 @@ describe("startTelegramStatusPoll", () => {
       );
     });
 
-    it("renders the no_contributors arm with a fixed unconfigured body", async () => {
+    it("renders the write_failed arm with the target and verbatim error message", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: false,
-        reason: "no_contributors",
-      } satisfies CaptureResult);
-      const payload = await runCaptureCase(
-        "/capture-to-memory anything",
-        captureFn,
-      );
-      expect(payload.text).toBe(
-        "Cross-store capture has no registered contributors.",
-      );
-    });
-
-    it("renders the contributor_failed arm with the target and verbatim error message", async () => {
-      const captureFn = vi.fn().mockResolvedValue({
-        ok: false,
-        reason: "contributor_failed",
+        reason: "write_failed",
         target: "tasks",
         message: "ENOENT: data/tasks/inbox missing",
       } satisfies CaptureResult);
@@ -2430,10 +2415,14 @@ describe("startTelegramStatusPoll", () => {
     it("/retract-memory <id> dispatches with target=memory and renders the memory success arm", async () => {
       const retractFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: { target: "memory", recordId: "mem-001" },
+        target: "memory",
+        identifier: "mem-001",
       } satisfies RetractResult);
       const payload = await runRetractCase("/retract-memory mem-001", retractFn);
-      expect(retractFn).toHaveBeenCalledWith({ target: "memory", id: "mem-001" });
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "memory",
+        identifier: "mem-001",
+      });
       expect(payload.parse_mode).toBeUndefined();
       expect(payload.chat_id).toBe(FAKE_CHAT_ID);
       expect(payload.text).toBe("Retracted: memory  mem-001");
@@ -2442,7 +2431,8 @@ describe("startTelegramStatusPoll", () => {
     it("/retract-knowledge <slug> dispatches with target=knowledge and renders the knowledge success arm", async () => {
       const retractFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: { target: "knowledge", recordId: "discriminated-unions" },
+        target: "knowledge",
+        identifier: "discriminated-unions",
       } satisfies RetractResult);
       const payload = await runRetractCase(
         "/retract-knowledge discriminated-unions",
@@ -2450,7 +2440,7 @@ describe("startTelegramStatusPoll", () => {
       );
       expect(retractFn).toHaveBeenCalledWith({
         target: "knowledge",
-        slug: "discriminated-unions",
+        identifier: "discriminated-unions",
       });
       expect(payload.text).toBe("Retracted: knowledge  discriminated-unions");
     });
@@ -2458,16 +2448,19 @@ describe("startTelegramStatusPoll", () => {
     it("/retract-tasks <id> dispatches with target=tasks and renders the moved-to-dropped arm", async () => {
       const retractFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: {
-          target: "tasks",
-          recordId: "task-x",
-          previousPath: "data/tasks/task-x.md",
-          path: "data/tasks/archive/task-x.md",
-          toState: "dropped",
-        },
+        target: "tasks",
+        identifier: "task-x",
+        id: "task-x",
+        fromState: "open",
+        previousPath: "data/tasks/task-x.md",
+        path: "data/tasks/archive/task-x.md",
+        toState: "dropped",
       } satisfies RetractResult);
       const payload = await runRetractCase("/retract-tasks task-x", retractFn);
-      expect(retractFn).toHaveBeenCalledWith({ target: "tasks", id: "task-x" });
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "tasks",
+        identifier: "task-x",
+      });
       expect(payload.text).toBe(
         "Retracted: tasks  task-x  data/tasks/task-x.md -> data/tasks/archive/task-x.md (dropped)",
       );
@@ -2476,11 +2469,10 @@ describe("startTelegramStatusPoll", () => {
     it("/retract-inbox <path> dispatches with target=inbox and renders the inbox success arm with path", async () => {
       const retractFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: {
-          target: "inbox",
-          recordId: "note-foo",
-          path: "data/inbox/note-foo.md",
-        },
+        target: "inbox",
+        identifier: "data/inbox/note-foo.md",
+        recordId: "note-foo",
+        path: "data/inbox/note-foo.md",
       } satisfies RetractResult);
       const payload = await runRetractCase(
         "/retract-inbox data/inbox/note-foo.md",
@@ -2488,24 +2480,10 @@ describe("startTelegramStatusPoll", () => {
       );
       expect(retractFn).toHaveBeenCalledWith({
         target: "inbox",
-        path: "data/inbox/note-foo.md",
+        identifier: "data/inbox/note-foo.md",
       });
       expect(payload.text).toBe(
         "Retracted: inbox  note-foo  data/inbox/note-foo.md",
-      );
-    });
-
-    it("renders the no_contributors arm with a fixed unconfigured body", async () => {
-      const retractFn = vi.fn().mockResolvedValue({
-        ok: false,
-        reason: "no_contributors",
-      } satisfies RetractResult);
-      const payload = await runRetractCase(
-        "/retract-memory mem-001",
-        retractFn,
-      );
-      expect(payload.text).toBe(
-        "Cross-store retract has no registered contributors for the named target.",
       );
     });
 
@@ -2525,11 +2503,12 @@ describe("startTelegramStatusPoll", () => {
       );
     });
 
-    it("renders the contributor_failed arm with the target and verbatim error message", async () => {
+    it("renders the retract_failed arm with the target and verbatim error message", async () => {
       const retractFn = vi.fn().mockResolvedValue({
         ok: false,
-        reason: "contributor_failed",
+        reason: "retract_failed",
         target: "tasks",
+        identifier: "task-x",
         message: "ENOENT: data/tasks/archive missing",
       } satisfies RetractResult);
       const payload = await runRetractCase(

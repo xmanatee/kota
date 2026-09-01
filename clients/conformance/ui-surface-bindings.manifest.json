@@ -25,7 +25,7 @@
     },
     {
       "path": "clients/apple/Sources/KotaShared/Generated/UiSurface.generated.swift",
-      "sha256": "3ca8579fc7e521a99b50e7f2137f9a6cc8cd794f79a95c706c9ecff51369bbaf"
+      "sha256": "5ef5552e7f9696b5e26e1f763ffd7edf5c0d076640a75953c72cc513c899ecd3"
     },
     {
       "path": "clients/conformance/ui-behavior-vectors.generated.json",

@@ -7,7 +7,7 @@
  * focused follow-up.
  *
  * Per-target descriptions live next to the prompt so adding a new
- * contributor extends both the union and this list in one place.
+ * target extends both the union and this list in one place.
  */
 
 import type { CaptureTarget } from "./capture-types.js";

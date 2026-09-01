@@ -60,6 +60,7 @@ type CaptureInboxRequest = Readonly<{
   content: string;
 }>;
 type MoveRequest = Readonly<{ kind: "move"; id: string; state: RepoTaskState }>;
+type DropRequest = Readonly<{ kind: "move"; id: string; state: "dropped" }>;
 type UpdateBodyRequest = Readonly<{ kind: "update-body"; id: string; body: string }>;
 type RetractInboxRequest = Readonly<{ kind: "retract-inbox"; path: string }>;
 
@@ -324,6 +325,10 @@ export function mutateRepoTask(
   target: RepoTaskMutationTarget,
   request: CaptureInboxRequest,
 ): Promise<RepoTaskCaptureResult>;
+export function mutateRepoTask(
+  target: RepoTaskMutationTarget,
+  request: DropRequest,
+): Promise<RepoTaskMoveResult>;
 export function mutateRepoTask(
   target: RepoTaskMutationTarget,
   request: MoveRequest,

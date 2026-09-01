@@ -9,7 +9,9 @@ This directory owns persistent, searchable agent notes that survive across sessi
   resolves a concrete scope id before using the store. Omitted scope ids
   resolve to the daemon's active/default scope at the route or client
   boundary; explicit unknown ids return the typed `unknown_scope` route
-  error.
+  error. All in-process resolvers use one canonical `MemoryStore` per scope
+  root so capture, retract, recall, routes, and clients cannot retain
+  conflicting snapshots of the same file.
 - `persistence.ts` owns the versioned file contract and legacy migration.
   Reads decode every record before it reaches `MemoryStore`; malformed or
   future-version data is an explicit store error and is never treated as an

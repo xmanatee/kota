@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
-import { createMemoryContributor as createMemoryRetractContributor } from "#modules/retract/contributors.js";
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import {
 	createKnowledgeContributor,
@@ -76,12 +75,20 @@ describe("work-memory provenance through recall", () => {
 		);
 
 		const retract = new RetractProviderImpl();
-		retract.register(createMemoryRetractContributor(memory));
 		await expect(
-			retract.retract({ target: "memory", id: memoryId }),
+			retract.retract(
+				{ target: "memory", identifier: memoryId },
+				{
+					scopeId: "provenance-test",
+					scopeRoot: root,
+					memory,
+					knowledge,
+				},
+			),
 		).resolves.toMatchObject({
 			ok: true,
-			record: { target: "memory", recordId: memoryId },
+			target: "memory",
+			identifier: memoryId,
 		});
 
 		const after = await recall.recall("provenance recall", { topK: 10 });

@@ -430,10 +430,10 @@ describe("conversational agent tools — retract round trip", () => {
     const capture = await fixture.captureProvider.capture(RETRACTABLE_NOTE, {
       target: "memory",
     });
-    if (!capture.ok || capture.record.target !== "memory") {
+    if (!capture.ok || capture.target !== "memory") {
       throw new Error("setup: expected memory capture to succeed");
     }
-    retractedMemoryId = capture.record.recordId;
+    retractedMemoryId = capture.id;
 
     // Pre-recall sanity: the captured note is reachable before the agent
     // retracts it, so a missing post-retract hit is meaningful.
@@ -538,10 +538,10 @@ describe("conversational agent tools — post-retract answer settles", () => {
         POST_RETRACT_ANSWER_CAPTURE,
         { target: "memory" },
       );
-      if (!capture.ok || capture.record.target !== "memory") {
+      if (!capture.ok || capture.target !== "memory") {
         throw new Error("setup: expected memory capture to succeed");
       }
-      retractedMemoryId = capture.record.recordId;
+      retractedMemoryId = capture.id;
 
       preRetractHits = await fixture.recallProvider.recall(
         POST_RETRACT_ANSWER_QUERY,
@@ -654,17 +654,17 @@ describe("conversational agent tools — post-retract answer settles", () => {
         POST_RETRACT_ANSWER_CAPTURE,
         { target: "memory" },
       );
-      if (!capture.ok || capture.record.target !== "memory") {
+      if (!capture.ok || capture.target !== "memory") {
         throw new Error("setup: expected memory capture to succeed");
       }
-      retractedMemoryId = capture.record.recordId;
+      retractedMemoryId = capture.id;
 
       const queue = [
         toolUseTurn(
           "msg_retract_neg_pre_answer",
           "call_retract_neg_pre_answer",
           "retract",
-          { target: "memory", id: retractedMemoryId },
+          { target: "memory", identifier: retractedMemoryId },
         ),
         toolUseTurn(
           "msg_post_retract_answer_neg",

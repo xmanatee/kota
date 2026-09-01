@@ -32,6 +32,7 @@ import type { VoiceClient } from "#modules/voice/client.js";
 import type { WebClient } from "#modules/web/client.js";
 import type { WebhookClient, WebhookListResult, WebhookSecretGenerateResult, WebhookSecretRemoveResult } from "#modules/webhook/client.js";
 import type { WorkflowClient } from "#modules/workflow-ops/client.js";
+import { parseCaptureResult, parseRetractResult } from "#root/client/daemon-contract.generated.js";
 
 export interface KotaClient {
   forScope(scopeId: string): KotaClient;
@@ -238,10 +239,11 @@ class RoutineCaptureClient implements CaptureClient {
   constructor(private readonly transport: DaemonTransport) {}
 
   async capture(text: string, filter?: CaptureFilter): Promise<CaptureResult> {
-    return this.transport.requestStrict<CaptureResult>("POST", "/capture", {
+    const decoded = await this.transport.requestStrict<unknown>("POST", "/capture", {
       text,
       ...(filter && { filter }),
     });
+    return parseCaptureResult(decoded);
   }
 }
 
@@ -249,11 +251,12 @@ class RoutineRetractClient implements RetractClient {
   constructor(private readonly transport: DaemonTransport) {}
 
   async retract(request: RetractRequest): Promise<RetractResult> {
-    return this.transport.requestStrict<RetractResult>(
+    const decoded = await this.transport.requestStrict<unknown>(
       "POST",
       "/retract",
       request,
     );
+    return parseRetractResult(decoded);
   }
 }
 

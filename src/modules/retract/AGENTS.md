@@ -1,84 +1,46 @@
 # Retract Module
 
-Cross-store retract seam — the symmetric correction-side counterpart to
-capture. One typed identifier plus an explicit target removes one prior
-record from the right store.
+Owns explicit cross-store retraction targeting and its operator/agent surfaces.
+The selected store remains the removal owner.
 
-## What this module owns
+## Ownership
 
-- The `RetractProvider` primitive and its single in-process implementation.
-- The typed `RetractContributor` protocol every store implements — each
-  arm consumes only its target's strict identifier shape so the type
-  system rejects e.g. a memory `id` passed to the knowledge contributor.
-- One daemon-control route (`POST /retract`) plus its user-facing twin
-  (`POST /api/retract`) — both share `createRetractRouteHandler` so the
-  wire shape cannot drift between operator surfaces.
-- Both routes resolve a concrete scope id before removal execution. Scope
-  contributors receive `RetractScopeContext` and remove from that scope's
-  stores and scope root only.
-- One `KotaClient.retract` namespace and one `kota retract` CLI
-  subcommand rendered through `src/modules/rendering`.
-- One agent-callable tool (`retract`) contributed through the standard
-  `KotaModule.tools` path with a `dangerous` risk classification (the
-  seam permanently removes user data or moves a task to dropped).
-- One per-turn dynamic system-prompt contributor (entry point
-  `buildRetractDynamicStateProvider` in `system-prompt.ts`, registered
-  through `ctx.registerDynamicStateProvider` during `onLoad`). The block
-  covers when to retract an explicit contradiction of a prior capture rather
-  than append a contradicting note.
+- `RetractProviderImpl` owns dispatch by the closed `RetractTarget` union.
+- `store-retractor.ts` is the only cross-store persistence transform. It maps a
+  uniform `target` plus `identifier` request to `MemoryProvider.delete`,
+  `KnowledgeProvider.delete`, or the repo-tasks mutation boundary and returns
+  those domain outcomes directly.
+- Memory owns identity lookup, not-found, and atomic snapshot replacement; a
+  failed delete leaves both its prior in-memory and durable snapshots intact.
+  Knowledge owns identity lookup and atomic file removal, while its atomic
+  replacement and ignored temporary files make interrupted writes restart-safe.
+  Repo-tasks owns task/inbox path validation, mutation authorization,
+  logical resources, not-found, durable outcomes, and recovery.
+- Routes own untrusted JSON decoding and scope selection. The generated routine
+  transport owns daemon request/response decoding for clients.
+- The destructive tool effect and scope policy own confirmation. CLI, channels,
+  and shared UI only map input or render outcomes.
 
-## How a new store joins
+## Contract
 
-A new contributor:
-
-1. Adds a literal to the `RetractTarget` union and an arm to the
-   `RetractRecord` discriminated union plus the matching arm to
-   `RetractRequest` in this module's `client.ts`.
-2. Adds an adapter in `contributors.ts` that wraps its removal helper
-   into a `RetractContributor`.
-3. Registers the new contributor in this module's `onLoad`.
-
-Contributor discovery mirrors capture: targets register at runtime through
-the provider API, and core never hard-codes the target set.
-
-## Routing rules
-
-- `request.target` names exactly one contributor. Dispatch is verbatim.
-- An unregistered named target → `no_contributors`.
-- The contributor distinguishes "the record was not present" from
-  "removal failed mid-flight" so the seam can surface those two as the
-  separate `not_found` and `contributor_failed` arms.
-- The seam never falls back into a different target when one contributor
-  reports `not_found`; the operator (or agent) always names the store.
-
-## Strict envelope contract
-
-`RetractResult` is one of:
-
-- `{ ok: true; record: RetractRecord }` — the contributor removed the
-  record. `record` is discriminated by `target`; per-target arms carry
-  the typed identifier (memory id, knowledge slug, task id, inbox file
-  slug) plus path metadata when relevant. The tasks arm explicitly
-  names the resulting state (`"dropped"`) so a caller can render
-  "moved to dropped", not "deleted".
-- `{ ok: false; reason: "no_contributors" }` — the seam itself is
-  unconfigured for the named target.
-- `{ ok: false; reason: "not_found"; target; identifier }` — the named
-  record is not present in the named target.
-- `{ ok: false; reason: "contributor_failed"; target; message }` — the
-  chosen contributor threw mid-removal. The seam never silently retries
-  into a different store.
+- Every request has one explicit `target` and one non-empty `identifier`.
+  Store-specific names such as `id`, `slug`, and `path` do not escape the store
+  transform.
+- `RetractResult` tags direct memory, knowledge, task, and inbox domain results
+  with `target` and `identifier`. Do not add copied record envelopes or
+  compatibility result arms.
+- Store exceptions become `retract_failed` at the cross-store boundary. Typed
+  store rejections such as `not_found`, `invalid_id`, and `already_in_state`
+  remain unchanged.
+- Task retraction means a repo-task transition to `dropped`; it is not a delete.
+  Inbox removal must remain inside the verified inbox parent.
 
 ## Boundaries
 
-- No raw filesystem deletes for tasks or inbox entries. Tasks route through
-  `moveTaskById(scopeRoot, id, "dropped")`; inbox entries route through the
-  repo-tasks domain's verified remove-and-stage operation.
-- Scope contributors must use the supplied scope context; default
-  provider getters are not a valid path for multi-scope retract.
-- No second registry, no second public retract path. `register()` is
-  the single way new stores join.
-
-Cross-surface retract consumers share `createRetractRouteHandler`,
-`renderRetractResultPlain`, and generated daemon bindings. Tests cover each
-surface's observable behavior without duplicating the wire catalog.
+- Do not restore a contributor registry or target-specific public request
+  variants. The four shipped targets are one closed product capability.
+- Do not perform destructive filesystem operations above the owning store.
+- Keep dynamic prompt text conditional on the effective `retract` tool policy.
+- Test target mapping and observable store outcomes at their owning layer.
+  Channel and CLI tests cover parsing/rendering only; do not mirror every result
+  arm or manufacture runtime evidence from mocked transports.

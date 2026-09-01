@@ -10,7 +10,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import type { Memory } from "#core/modules/provider-types.js";
 import {
 	parseWorkMemoryMetadata,
@@ -26,6 +26,7 @@ import {
 } from "./persistence.js";
 
 const MAX_MEMORIES = 100;
+const storesByScopeRoot = new Map<string, MemoryStore>();
 
 export class MemoryStore {
   private memories: Memory[] = [];
@@ -66,10 +67,10 @@ export class MemoryStore {
   }
 
   /** Persist memories to disk. */
-  private persist(): void {
+  private persist(memories: readonly Memory[] = this.memories): void {
     const data: MemoryFile = {
       schemaVersion: MEMORY_FILE_SCHEMA_VERSION,
-      memories: this.memories,
+      memories: [...memories],
     };
     writeJsonFileAtomic(this.filePath, data);
   }
@@ -84,10 +85,10 @@ export class MemoryStore {
     const id = randomBytes(4).toString("hex");
     const now = new Date().toISOString();
     const normalizedMetadata = normalizeWorkMemoryMetadata(metadata);
-    this.memories.push({
+    const memory: Memory = {
       id,
       content,
-      tags,
+      tags: [...tags],
       created: now,
       updated: now,
       ...(normalizedMetadata?.provenance && {
@@ -96,12 +97,14 @@ export class MemoryStore {
       ...(normalizedMetadata?.freshness && {
         freshness: normalizedMetadata.freshness,
       }),
-    });
+    };
+    let next = [...this.memories, memory];
     // Auto-prune oldest if over limit
-    if (this.memories.length > MAX_MEMORIES) {
-      this.memories = this.memories.slice(-MAX_MEMORIES);
+    if (next.length > MAX_MEMORIES) {
+      next = next.slice(-MAX_MEMORIES);
     }
-    this.persist();
+    this.persist(next);
+    this.memories = next;
     return id;
   }
 
@@ -152,10 +155,11 @@ export class MemoryStore {
     },
   ): boolean {
     this.ensureLoaded();
-    const memory = this.memories.find((m) => m.id === id);
-    if (!memory) return false;
+    const index = this.memories.findIndex((memory) => memory.id === id);
+    if (index === -1) return false;
+    const memory: Memory = { ...this.memories[index] };
     if (updates.content !== undefined) memory.content = updates.content;
-    if (updates.tags !== undefined) memory.tags = updates.tags;
+    if (updates.tags !== undefined) memory.tags = [...updates.tags];
     if (updates.provenance !== undefined) {
       if (updates.provenance === null) delete memory.provenance;
       else memory.provenance = updates.provenance;
@@ -165,17 +169,21 @@ export class MemoryStore {
       else memory.freshness = updates.freshness;
     }
     memory.updated = new Date().toISOString();
-    this.persist();
+    const next = this.memories.map((current, currentIndex) =>
+      currentIndex === index ? memory : current,
+    );
+    this.persist(next);
+    this.memories = next;
     return true;
   }
 
   /** Delete a memory by ID. Returns true if found. */
   delete(id: string): boolean {
     this.ensureLoaded();
-    const before = this.memories.length;
-    this.memories = this.memories.filter((m) => m.id !== id);
-    if (this.memories.length < before) {
-      this.persist();
+    const next = this.memories.filter((memory) => memory.id !== id);
+    if (next.length < this.memories.length) {
+      this.persist(next);
+      this.memories = next;
       return true;
     }
     return false;
@@ -206,7 +214,13 @@ export class MemoryStoreLoadError extends Error {
 }
 
 export function getScopeMemoryStore(scopeRoot: string): MemoryStore {
-  return new MemoryStore(join(scopeRoot, ".kota"));
+  const canonicalScopeRoot = resolve(scopeRoot);
+  const existing = storesByScopeRoot.get(canonicalScopeRoot);
+  if (existing) return existing;
+
+  const store = new MemoryStore(join(canonicalScopeRoot, ".kota"));
+  storesByScopeRoot.set(canonicalScopeRoot, store);
+  return store;
 }
 
 function normalizeWorkMemoryMetadata(

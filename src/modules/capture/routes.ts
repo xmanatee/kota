@@ -1,14 +1,3 @@
-/**
- * HTTP routes for the cross-store capture seam.
- *
- * Two surfaces share one handler:
- * - `POST /capture` on the daemon-control server (capability scope
- *   `control`, since the seam mutates persisted state), consumed by
- *   other daemon clients through `KotaClient.capture.capture()`.
- * - `POST /api/capture` on the user-facing HTTP server, consumed by the
- *   web client. The same handler answers both so the wire shape cannot
- *   drift between operator surfaces.
- */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type {
   ControlRouteRegistration,
@@ -20,57 +9,84 @@ import {
   CAPTURE_TARGET_ORDER,
   type CaptureProvider,
 } from "./capture-types.js";
-import type {
-  CaptureFilter,
-  CaptureResult,
-  CaptureTarget,
-} from "./client.js";
+import type { CaptureFilter, CaptureTarget } from "./client.js";
 import type { ResolveCaptureScopeContext } from "./scope-context.js";
 
-function parseFilter(value: unknown): CaptureFilter | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const raw = value as Record<string, unknown>;
+type ParsedCaptureRequest =
+  | { ok: true; text: string; filter?: CaptureFilter }
+  | { ok: false; error: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+export function parseCaptureRequestBody(value: unknown): ParsedCaptureRequest {
+  if (!isRecord(value)) return { ok: false, error: "request body is required" };
+  if (typeof value.text !== "string" || value.text.trim() === "") {
+    return { ok: false, error: "text is required" };
+  }
+  const extras = Object.keys(value).filter(
+    (key) => key !== "text" && key !== "filter",
+  );
+  if (extras.length > 0) return { ok: false, error: `unknown field "${extras[0]}"` };
+  if (value.filter === undefined) return { ok: true, text: value.text };
+  if (!isRecord(value.filter)) return { ok: false, error: "filter must be an object" };
+  const raw = value.filter;
   const filter: CaptureFilter = {};
-  if (typeof raw.target === "string") {
-    if ((CAPTURE_TARGET_ORDER as readonly string[]).includes(raw.target)) {
-      filter.target = raw.target as CaptureTarget;
+  if (raw.target !== undefined) {
+    if (
+      typeof raw.target !== "string" ||
+      !(CAPTURE_TARGET_ORDER as readonly string[]).includes(raw.target)
+    ) {
+      return { ok: false, error: "filter.target is invalid" };
     }
+    filter.target = raw.target as CaptureTarget;
   }
-  if (typeof raw.hint === "string" && raw.hint !== "") {
-    filter.hint = raw.hint;
+  if (raw.hint !== undefined) {
+    if (typeof raw.hint !== "string") {
+      return { ok: false, error: "filter.hint must be a string" };
+    }
+    if (raw.hint !== "") filter.hint = raw.hint;
   }
-  if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
+  if (raw.scopeId !== undefined) {
+    if (typeof raw.scopeId !== "string" || raw.scopeId.trim() === "") {
+      return { ok: false, error: "filter.scopeId must be a non-empty string" };
+    }
     filter.scopeId = raw.scopeId;
   }
-  return Object.keys(filter).length > 0 ? filter : undefined;
+  const filterExtras = Object.keys(raw).filter(
+    (key) => key !== "target" && key !== "hint" && key !== "scopeId",
+  );
+  if (filterExtras.length > 0) {
+    return { ok: false, error: `unknown filter field "${filterExtras[0]}"` };
+  }
+  return Object.keys(filter).length > 0
+    ? { ok: true, text: value.text, filter }
+    : { ok: true, text: value.text };
 }
 
 export function createCaptureRouteHandler(
   resolveProvider: () => CaptureProvider,
-  resolveScopeContext?: ResolveCaptureScopeContext,
+  resolveScopeContext: ResolveCaptureScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
-  return async function handler(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<void> {
-    let body: Record<string, unknown>;
+  return async (req, res) => {
+    let body: unknown;
     try {
       body = await readBody(req);
     } catch {
       jsonResponse(res, 400, { error: "Invalid request body" });
       return;
     }
-    const text = typeof body.text === "string" ? body.text : "";
-    if (text.trim() === "") {
-      jsonResponse(res, 400, { error: "text is required" });
+    const parsed = parseCaptureRequestBody(body);
+    if (!parsed.ok) {
+      jsonResponse(res, 400, { error: parsed.error });
       return;
     }
-    const filter = parseFilter(body.filter);
     try {
-      const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
+      const selectedId = selectedScopeSelectorIdOrErrorResponse(res, parsed.filter);
       if (selectedId === null) return;
-      const scope = resolveScopeContext?.(selectedId);
-      if (scope && "error" in scope) {
+      const scope = resolveScopeContext(selectedId);
+      if ("error" in scope) {
         jsonResponse(res, 404, {
           error: "Unknown scope",
           reason: "unknown_scope",
@@ -78,39 +94,38 @@ export function createCaptureRouteHandler(
         });
         return;
       }
-      const provider = resolveProvider();
-      const result = await provider.capture(text, filter, scope);
-      jsonResponse(res, 200, result satisfies CaptureResult);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      jsonResponse(res, 500, { error: message });
+      jsonResponse(
+        res,
+        200,
+        await resolveProvider().capture(parsed.text, parsed.filter, scope),
+      );
+    } catch (error) {
+      jsonResponse(res, 500, {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   };
 }
 
 export function captureControlRoutes(
   resolveProvider: () => CaptureProvider,
-  resolveScopeContext?: ResolveCaptureScopeContext,
+  resolveScopeContext: ResolveCaptureScopeContext,
 ): ControlRouteRegistration[] {
-  return [
-    {
-      method: "POST",
-      path: "/capture",
-      capabilityScope: "control",
-      handler: createCaptureRouteHandler(resolveProvider, resolveScopeContext),
-    },
-  ];
+  return [{
+    method: "POST",
+    path: "/capture",
+    capabilityScope: "control",
+    handler: createCaptureRouteHandler(resolveProvider, resolveScopeContext),
+  }];
 }
 
 export function captureApiRoutes(
   resolveProvider: () => CaptureProvider,
-  resolveScopeContext?: ResolveCaptureScopeContext,
+  resolveScopeContext: ResolveCaptureScopeContext,
 ): RouteRegistration[] {
-  return [
-    {
-      method: "POST",
-      path: "/api/capture",
-      handler: createCaptureRouteHandler(resolveProvider, resolveScopeContext),
-    },
-  ];
+  return [{
+    method: "POST",
+    path: "/api/capture",
+    handler: createCaptureRouteHandler(resolveProvider, resolveScopeContext),
+  }];
 }

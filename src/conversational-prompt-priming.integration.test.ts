@@ -141,10 +141,10 @@ describe("conversational prompt priming (capture / recall / answer / retract)", 
       target: "memory",
     });
     expect(capture.ok).toBe(true);
-    if (!capture.ok || capture.record.target !== "memory") {
+    if (!capture.ok || capture.target !== "memory") {
       throw new Error("unreachable");
     }
-    const memoryId = capture.record.recordId;
+    const memoryId = capture.id;
 
     const before = await fixture.recallProvider.recall(RETRACT_RECALL_QUERY);
     expect(
@@ -153,11 +153,12 @@ describe("conversational prompt priming (capture / recall / answer / retract)", 
 
     const result = await fixture.retractProvider.retract({
       target: "memory",
-      id: memoryId,
+      identifier: memoryId,
     });
     expect(result).toEqual({
       ok: true,
-      record: { target: "memory", recordId: memoryId },
+      target: "memory",
+      identifier: memoryId,
     });
 
     const after = await fixture.recallProvider.recall(RETRACT_RECALL_QUERY);

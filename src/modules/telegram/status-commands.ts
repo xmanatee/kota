@@ -345,18 +345,10 @@ export async function handleResolvedTelegramStatusCommand(
       await sendPlain(retractUsageBody(command));
       return;
     }
-    const result = await (() => {
-      switch (command) {
-        case "/retract-memory":
-          return scope.retract.retract({ target: "memory", id: body });
-        case "/retract-knowledge":
-          return scope.retract.retract({ target: "knowledge", slug: body });
-        case "/retract-tasks":
-          return scope.retract.retract({ target: "tasks", id: body });
-        case "/retract-inbox":
-          return scope.retract.retract({ target: "inbox", path: body });
-      }
-    })();
+    const result = await scope.retract.retract({
+      target: command.slice("/retract-".length) as "memory" | "knowledge" | "tasks" | "inbox",
+      identifier: body,
+    });
     await sendPlain(truncateForTelegram(renderRetractResultPlain(result)));
   }
 

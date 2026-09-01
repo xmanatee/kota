@@ -3,9 +3,8 @@
  *
  * - Builds a `CaptureProviderImpl` and registers it as the `capture`
  *   provider.
- * - Wires each first-party store (memory, knowledge, tasks, inbox)
- *   as a typed contributor; adding a fifth store later means registering
- *   a fifth contributor here, not editing every consumer.
+ * - Maps each selected target to the canonical store operation and returns
+ *   that store's domain result without a copied result envelope.
  * - Exposes the seam through one daemon-control route (`POST /capture`),
  *   one user-facing HTTP route (`POST /api/capture`), one
  *   `KotaClient.capture` namespace, and one `kota capture` CLI command.
@@ -38,12 +37,6 @@ import { registerCaptureCommand } from "./cli.js";
 import type {
   CaptureClient,
 } from "./client.js";
-import {
-  createScopeInboxContributor,
-  createScopeKnowledgeContributor,
-  createScopeMemoryContributor,
-  createScopeTasksContributor,
-} from "./contributors.js";
 import { captureApiRoutes, captureControlRoutes } from "./routes.js";
 import { createCaptureScopeContextResolver } from "./scope-context.js";
 import {
@@ -55,15 +48,10 @@ import { captureUiSurfaceSource } from "./ui-surface.js";
 
 const CLASSIFIER_MAX_OUTPUT_TOKENS = 32;
 
-let activeProvider: CaptureProvider | null = null;
-
-function resolveActiveProvider(): CaptureProvider {
-  if (!activeProvider) {
-    throw new Error(
-      "Capture provider is not initialized. Ensure the capture module loaded.",
-    );
-  }
-  return activeProvider;
+function requireCaptureProvider(ctx: ModuleContext): CaptureProvider {
+  const provider = ctx.getProvider(CAPTURE_PROVIDER_TOKEN);
+  if (!provider) throw new Error("capture provider is not registered");
+  return provider;
 }
 
 function createDefaultClassifier(ctx: ModuleContext): CaptureClassifier {
@@ -117,7 +105,7 @@ const captureModule: KotaModule = {
   name: "capture",
   version: "1.0.0",
   description:
-    "Cross-store capture seam — one natural-language note routed to memory, knowledge, tasks, or inbox through typed contributors.",
+    "Cross-store capture seam — one natural-language note routed to the canonical memory, knowledge, task, or inbox writer.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
   uiSurfaces: [captureUiSurfaceSource],
 
@@ -127,28 +115,16 @@ const captureModule: KotaModule = {
       classifier: createDefaultClassifier(ctx),
       resolveScopeContext,
     });
-    provider.register(createScopeMemoryContributor());
-    provider.register(createScopeKnowledgeContributor());
-    provider.register(createScopeTasksContributor());
-    provider.register(createScopeInboxContributor());
-    activeProvider = provider;
     ctx.registerProvider(CAPTURE_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
-      createCaptureReadinessSource(provider),
+      createCaptureReadinessSource(),
     );
     ctx.registerDynamicStateProvider(
       CAPTURE_DYNAMIC_STATE_NAME,
       buildCaptureDynamicStateProvider(),
     );
-    ctx.log.info(
-      `capture: registered ${provider.contributors().length} contributor(s)`,
-    );
-    return {
-      dispose: () => {
-        if (activeProvider === provider) activeProvider = null;
-      },
-    };
+    ctx.log.info("capture: initialized cross-store writer");
   },
 
   commands: (ctx) => {
@@ -157,17 +133,17 @@ const captureModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  tools: () => [createCaptureToolDef(resolveActiveProvider)],
+  tools: (ctx) => [createCaptureToolDef(() => requireCaptureProvider(ctx))],
 
   controlRoutes: (ctx) =>
     captureControlRoutes(
-      resolveActiveProvider,
+      () => requireCaptureProvider(ctx),
       createCaptureScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     captureApiRoutes(
-      resolveActiveProvider,
+      () => requireCaptureProvider(ctx),
       createCaptureScopeContextResolver(ctx.cwd, ctx),
     ),
 
@@ -178,7 +154,7 @@ const captureModule: KotaModule = {
           selectedScopeSelectorId(filter),
         );
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-        return resolveActiveProvider().capture(text, filter, scope);
+        return requireCaptureProvider(ctx).capture(text, filter, scope);
       },
     };
     return { capture: handler };

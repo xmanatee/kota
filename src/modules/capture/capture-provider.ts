@@ -1,68 +1,31 @@
-/**
- * CaptureProviderImpl — routes one natural-language note to one
- * registered contributor.
- *
- * Routing rules:
- *
- * - Caller passes `target` → dispatch verbatim. If the named contributor
- *   is not registered, surface `no_contributors` with that one
- *   contributor's slot empty (treated the same as the seam being
- *   unconfigured for that target).
- * - No `target`, no classifier → surface `ambiguous` with the registered
- *   contributors as suggestions.
- * - No `target`, classifier present → ask the classifier; promote a
- *   confident pick to a contributor call, surface `ambiguous` otherwise.
- *
- * The seam never silently retries into a different contributor on a
- * thrown writer. A contributor that throws becomes a typed
- * `contributor_failed` arm so the operator surface can decide whether
- * to re-issue the call against a different store.
- */
-
 import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import {
   CAPTURE_TARGET_ORDER,
   type CaptureClassifier,
-  type CaptureContributor,
   type CaptureProvider,
   type CaptureScopeContext,
   type CaptureTarget,
 } from "./capture-types.js";
 import type { CaptureFilter, CaptureResult } from "./client.js";
+import { writeCaptureTarget } from "./store-writer.js";
 
 export type CaptureProviderOptions = {
-  /**
-   * Optional classifier the seam consults when no `target` is given. When
-   * absent, an unguided capture surfaces `ambiguous` immediately.
-   */
   classifier?: CaptureClassifier;
   resolveScopeContext?: (
     scopeId: string | null | undefined,
   ) => CaptureScopeContext | { error: "unknown_scope"; scopeId: string };
 };
 
+/** Owns classification and target selection; each selected store owns its write. */
 export class CaptureProviderImpl implements CaptureProvider {
-  private readonly byTarget = new Map<CaptureTarget, CaptureContributor>();
-  private readonly order: CaptureTarget[] = [];
   private readonly classifier?: CaptureClassifier;
   private readonly resolveScopeContext:
     | NonNullable<CaptureProviderOptions["resolveScopeContext"]>
     | undefined;
 
   constructor(options: CaptureProviderOptions = {}) {
-    if (options.classifier) this.classifier = options.classifier;
+    this.classifier = options.classifier;
     this.resolveScopeContext = options.resolveScopeContext;
-  }
-
-  register(contributor: CaptureContributor): void {
-    if (!this.byTarget.has(contributor.target)) {
-      this.order.push(contributor.target);
-    }
-    this.byTarget.set(contributor.target, contributor);
-  }
-
-  contributors(): ReadonlyArray<CaptureTarget> {
-    return this.order.slice();
   }
 
   async capture(
@@ -73,91 +36,49 @@ export class CaptureProviderImpl implements CaptureProvider {
     const trimmed = text.trim();
     const resolvedScope =
       scope ?? this.resolveScopeContext?.(selectedScopeSelectorId(filter));
-    if (resolvedScope && "error" in resolvedScope) {
+    if (!resolvedScope) {
+      throw new Error("Capture requires a scope context");
+    }
+    if ("error" in resolvedScope) {
       throw new Error(`Unknown scope: ${resolvedScope.scopeId}`);
     }
-    if (this.order.length === 0) {
-      return { ok: false, reason: "no_contributors" };
-    }
-    if (trimmed === "") {
-      return {
-        ok: false,
-        reason: "ambiguous",
-        suggestions: this.suggestionList(),
-      };
-    }
+    if (trimmed === "") return this.ambiguous();
 
+    let target: CaptureTarget;
     if (filter?.target) {
-      const contributor = this.byTarget.get(filter.target);
-      if (!contributor) {
-        return { ok: false, reason: "no_contributors" };
-      }
-      return this.runContributor(contributor, trimmed, filter.hint, resolvedScope);
-    }
-
-    if (!this.classifier) {
-      return {
-        ok: false,
-        reason: "ambiguous",
-        suggestions: this.suggestionList(),
-      };
-    }
-
-    const classification = await this.classifier.classify({
-      text: trimmed,
-      ...(filter?.hint !== undefined && { hint: filter.hint }),
-      available: this.suggestionList(),
-    });
-    if (classification.kind === "ambiguous") {
-      return {
-        ok: false,
-        reason: "ambiguous",
-        suggestions: this.suggestionList(),
-      };
-    }
-    const contributor = this.byTarget.get(classification.target);
-    if (!contributor) {
-      return {
-        ok: false,
-        reason: "ambiguous",
-        suggestions: this.suggestionList(),
-      };
-    }
-    return this.runContributor(contributor, trimmed, filter?.hint, resolvedScope);
-  }
-
-  private async runContributor(
-    contributor: CaptureContributor,
-    text: string,
-    hint?: string,
-    scope?: CaptureScopeContext,
-  ): Promise<CaptureResult> {
-    try {
-      const record = await contributor.capture({
-        text,
-        ...(hint !== undefined && { hint }),
-        ...(scope && { scope }),
+      target = filter.target;
+    } else {
+      if (!this.classifier) return this.ambiguous();
+      const classification = await this.classifier.classify({
+        text: trimmed,
+        ...(filter?.hint !== undefined && { hint: filter.hint }),
+        available: CAPTURE_TARGET_ORDER,
       });
-      return { ok: true, record };
-    } catch (err) {
+      if (classification.kind === "ambiguous") return this.ambiguous();
+      target = classification.target;
+    }
+
+    try {
+      return await writeCaptureTarget({
+        target,
+        text: trimmed,
+        scope: resolvedScope,
+      });
+    } catch (error) {
       return {
         ok: false,
-        reason: "contributor_failed",
-        target: contributor.target,
-        message: err instanceof Error ? err.message : String(err),
+        reason: "write_failed",
+        target,
+        message: error instanceof Error ? error.message : String(error),
       };
     }
   }
 
-  private suggestionList(): ReadonlyArray<CaptureTarget> {
-    const seen = new Set(this.order);
-    const ordered: CaptureTarget[] = [];
-    for (const target of CAPTURE_TARGET_ORDER) {
-      if (seen.has(target)) ordered.push(target);
-    }
-    for (const target of this.order) {
-      if (!ordered.includes(target)) ordered.push(target);
-    }
-    return ordered;
+  private ambiguous(): CaptureResult {
+    return {
+      ok: false,
+      reason: "ambiguous",
+      suggestions: CAPTURE_TARGET_ORDER,
+    };
   }
 }

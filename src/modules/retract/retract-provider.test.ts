@@ -1,226 +1,78 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { KnowledgeStore } from "#modules/knowledge/store.js";
+import { MemoryStore } from "#modules/memory/store.js";
 import { RetractProviderImpl } from "./retract-provider.js";
-import type {
-  RetractContributor,
-  RetractContributorResult,
-} from "./retract-types.js";
-
-function fixedContributor(args: {
-  target: "memory";
-  removeResult: RetractContributorResult;
-}): RetractContributor;
-function fixedContributor(args: {
-  target: "knowledge";
-  removeResult: RetractContributorResult;
-}): RetractContributor;
-function fixedContributor(args: {
-  target: "tasks";
-  removeResult: RetractContributorResult;
-}): RetractContributor;
-function fixedContributor(args: {
-  target: "inbox";
-  removeResult: RetractContributorResult;
-}): RetractContributor;
-function fixedContributor(args: {
-  target: "memory" | "knowledge" | "tasks" | "inbox";
-  removeResult: RetractContributorResult;
-}): RetractContributor {
-  switch (args.target) {
-    case "memory":
-      return {
-        target: "memory",
-        async retract() {
-          return args.removeResult;
-        },
-      };
-    case "knowledge":
-      return {
-        target: "knowledge",
-        async retract() {
-          return args.removeResult;
-        },
-      };
-    case "tasks":
-      return {
-        target: "tasks",
-        async retract() {
-          return args.removeResult;
-        },
-      };
-    case "inbox":
-      return {
-        target: "inbox",
-        async retract() {
-          return args.removeResult;
-        },
-      };
-  }
-}
+import type { RetractScopeContext } from "./retract-types.js";
 
 describe("RetractProviderImpl", () => {
-  it("returns no_contributors when nothing is registered", async () => {
-    const provider = new RetractProviderImpl();
-    const result = await provider.retract({ target: "memory", id: "mem-1" });
-    expect(result).toEqual({ ok: false, reason: "no_contributors" });
+  let root: string;
+  let scope: RetractScopeContext;
+
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), "kota-retract-provider-"));
+    scope = {
+      scopeId: "retract-test",
+      scopeRoot: root,
+      memory: new MemoryStore(join(root, ".kota")),
+      knowledge: new KnowledgeStore(root, join(root, "global-data")),
+    };
   });
 
-  it("returns no_contributors when the named target is unregistered", async () => {
-    const provider = new RetractProviderImpl();
-    provider.register(
-      fixedContributor({
-        target: "memory",
-        removeResult: {
-          kind: "removed",
-          record: { target: "memory", recordId: "mem-1" },
-        },
-      }),
-    );
-    const result = await provider.retract({
-      target: "knowledge",
-      slug: "k-slug",
-    });
-    expect(result).toEqual({ ok: false, reason: "no_contributors" });
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
   });
 
-  it("returns the typed success arm when the contributor reports removed", async () => {
+  it("dispatches one uniform target/identifier request to the owning store", async () => {
+    const id = scope.memory.save("remove me");
     const provider = new RetractProviderImpl();
-    provider.register(
-      fixedContributor({
-        target: "memory",
-        removeResult: {
-          kind: "removed",
-          record: { target: "memory", recordId: "mem-1" },
-        },
-      }),
-    );
-    const result = await provider.retract({ target: "memory", id: "mem-1" });
-    expect(result).toEqual({
-      ok: true,
-      record: { target: "memory", recordId: "mem-1" },
-    });
+
+    await expect(
+      provider.retract({ target: "memory", identifier: id }, scope),
+    ).resolves.toEqual({ ok: true, target: "memory", identifier: id });
+    expect(scope.memory.list()).toEqual([]);
   });
 
-  it("returns not_found with the original identifier when the contributor reports not_found", async () => {
+  it("preserves a domain-owned not-found result", async () => {
     const provider = new RetractProviderImpl();
-    provider.register(
-      fixedContributor({
-        target: "knowledge",
-        removeResult: { kind: "not_found", identifier: "missing-slug" },
-      }),
-    );
-    const result = await provider.retract({
-      target: "knowledge",
-      slug: "missing-slug",
-    });
-    expect(result).toEqual({
+
+    await expect(
+      provider.retract(
+        { target: "knowledge", identifier: "missing" },
+        scope,
+      ),
+    ).resolves.toEqual({
       ok: false,
+      target: "knowledge",
+      identifier: "missing",
       reason: "not_found",
-      target: "knowledge",
-      identifier: "missing-slug",
     });
   });
 
-  it("surfaces contributor_failed when the writer throws", async () => {
+  it("normalizes a selected store exception without cross-target retry", async () => {
+    const brokenRoot = join(root, "broken");
+    mkdirSync(join(brokenRoot, ".kota"), { recursive: true });
+    writeFileSync(join(brokenRoot, ".kota", "data"), "not a directory");
+    const brokenScope: RetractScopeContext = {
+      ...scope,
+      scopeRoot: brokenRoot,
+      knowledge: new KnowledgeStore(brokenRoot, join(root, "broken-global")),
+    };
     const provider = new RetractProviderImpl();
-    provider.register({
-      target: "inbox",
-      async retract() {
-        throw new Error("disk read-only");
-      },
-    });
-    const result = await provider.retract({
-      target: "inbox",
-      path: "data/inbox/note-x.md",
-    });
-    expect(result).toEqual({
+
+    await expect(
+      provider.retract(
+        { target: "knowledge", identifier: "missing" },
+        brokenScope,
+      ),
+    ).resolves.toMatchObject({
       ok: false,
-      reason: "contributor_failed",
-      target: "inbox",
-      message: "disk read-only",
-    });
-  });
-
-  it("does not retry into another store when one contributor reports not_found", async () => {
-    const calls: string[] = [];
-    const provider = new RetractProviderImpl();
-    provider.register({
-      target: "memory",
-      async retract() {
-        calls.push("memory");
-        return { kind: "not_found", identifier: "mem-1" };
-      },
-    });
-    provider.register({
+      reason: "retract_failed",
       target: "knowledge",
-      async retract() {
-        calls.push("knowledge");
-        return {
-          kind: "removed",
-          record: { target: "knowledge", recordId: "k" },
-        };
-      },
+      identifier: "missing",
     });
-
-    const result = await provider.retract({ target: "memory", id: "mem-1" });
-    expect(result.ok).toBe(false);
-    if (result.ok) throw new Error("unreachable");
-    expect(result.reason).toBe("not_found");
-    expect(calls).toEqual(["memory"]);
-  });
-
-  it("contributors() returns registration order", () => {
-    const provider = new RetractProviderImpl();
-    provider.register(
-      fixedContributor({
-        target: "inbox",
-        removeResult: {
-          kind: "removed",
-          record: {
-            target: "inbox",
-            recordId: "note-x",
-            path: "data/inbox/note-x.md",
-          },
-        },
-      }),
-    );
-    provider.register(
-      fixedContributor({
-        target: "memory",
-        removeResult: {
-          kind: "removed",
-          record: { target: "memory", recordId: "mem-1" },
-        },
-      }),
-    );
-    expect(provider.contributors()).toEqual(["inbox", "memory"]);
-  });
-
-  it("re-registering the same target replaces the prior contributor", async () => {
-    const provider = new RetractProviderImpl();
-    provider.register(
-      fixedContributor({
-        target: "memory",
-        removeResult: {
-          kind: "removed",
-          record: { target: "memory", recordId: "mem-old" },
-        },
-      }),
-    );
-    provider.register(
-      fixedContributor({
-        target: "memory",
-        removeResult: {
-          kind: "removed",
-          record: { target: "memory", recordId: "mem-new" },
-        },
-      }),
-    );
-
-    const result = await provider.retract({ target: "memory", id: "mem-x" });
-    expect(result).toEqual({
-      ok: true,
-      record: { target: "memory", recordId: "mem-new" },
-    });
-    expect(provider.contributors()).toEqual(["memory"]);
+    expect(scope.memory.list()).toEqual([]);
   });
 });

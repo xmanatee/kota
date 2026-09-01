@@ -146,6 +146,24 @@ class SwiftGenerator {
     return `variant${index + 1}`;
   }
 
+  refinedVariantName(schema, baseName) {
+    const constants = this.constants(schema);
+    const stringValue = constants.find((entry) =>
+      typeof entry.value === "string" && swiftIdentifier(entry.value) !== baseName
+    );
+    if (stringValue !== undefined) {
+      return `${baseName}${upperCamel(stringValue.value)}`;
+    }
+    const booleanValue = constants.find((entry) => typeof entry.value === "boolean");
+    if (booleanValue?.property === "ok") {
+      return `${baseName}${booleanValue.value ? "Success" : "Failure"}`;
+    }
+    if (booleanValue?.property === "available") {
+      return `${baseName}${booleanValue.value ? "Available" : "Unavailable"}`;
+    }
+    return baseName;
+  }
+
   unionFields(name, schema, caseName) {
     const required = new Set(schema.required ?? []);
     const constantProperties = new Set(this.constants(schema).map(({ property }) => property));
@@ -182,8 +200,15 @@ class SwiftGenerator {
   }
 
   emitUnion(name, schema) {
-    const variants = this.expandUnionVariants(schema).map((resolved, index) => {
-      const caseName = this.variantName(resolved, index);
+    const resolvedVariants = this.expandUnionVariants(schema);
+    const baseNames = resolvedVariants.map((resolved, index) =>
+      this.variantName(resolved, index)
+    );
+    const variants = resolvedVariants.map((resolved, index) => {
+      const baseName = baseNames[index];
+      const caseName = baseNames.filter((value) => value === baseName).length > 1
+        ? this.refinedVariantName(resolved, baseName)
+        : baseName;
       return {
         schema: resolved,
         caseName,
@@ -218,6 +243,11 @@ class SwiftGenerator {
         const swiftValue = typeof value === "string" ? JSON.stringify(value) : String(value);
         return `(try? container.decode(${swiftType}.self, forKey: ${swiftCaseReference(property)})) == ${swiftValue}`;
       });
+      for (const field of variant.fields) {
+        const propertySchema = variant.schema.properties?.[field.property];
+        if (field.optional || propertySchema === undefined || this.allowedStrings(propertySchema) === undefined) continue;
+        checks.push(`(try? container.decode(${field.type}.self, forKey: ${swiftCaseReference(field.property)})) != nil`);
+      }
       if (checks.length === 0) throw new Error(`Swift union ${name}.${variant.caseName} has no literal discriminator`);
       return [
         `        if ${checks.join(" && ")} {`,

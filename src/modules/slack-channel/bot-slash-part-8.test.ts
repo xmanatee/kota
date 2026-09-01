@@ -10,11 +10,10 @@ describe("SlackBot", () => {
     it("/retract-inbox <path> dispatches with target=inbox", async () => {
       const result: RetractResult = {
         ok: true,
-        record: {
-          target: "inbox",
-          recordId: "note-foo",
-          path: "data/inbox/note-foo.md",
-        },
+        target: "inbox",
+        identifier: "data/inbox/note-foo.md",
+        recordId: "note-foo",
+        path: "data/inbox/note-foo.md",
       };
       const retractFn = vi.fn().mockResolvedValue(result);
       const bot = makeBot({ retract: { retract: retractFn } });
@@ -31,7 +30,7 @@ describe("SlackBot", () => {
 
       expect(retractFn).toHaveBeenCalledWith({
         target: "inbox",
-        path: "data/inbox/note-foo.md",
+        identifier: "data/inbox/note-foo.md",
       });
       expect(post.text).toBe(renderRetractResultPlain(result));
 
@@ -106,7 +105,7 @@ describe("SlackBot", () => {
 
       expect(retractFn).toHaveBeenCalledWith({
         target: "memory",
-        id: "mem-missing",
+        identifier: "mem-missing",
       });
       expect(post.text).toBe(renderRetractResultPlain(result));
 
@@ -114,41 +113,27 @@ describe("SlackBot", () => {
       await startPromise.catch(() => {});
     });
 
-    it("/retract-<target> renders no_contributors and contributor_failed without throwing", async () => {
-      const noContributors: RetractResult = {
+    it("/retract-<target> renders store failures without throwing", async () => {
+      const retractFailed: RetractResult = {
         ok: false,
-        reason: "no_contributors",
-      };
-      const contributorFailed: RetractResult = {
-        ok: false,
-        reason: "contributor_failed",
+        reason: "retract_failed",
         target: "inbox",
+        identifier: "data/inbox/locked.md",
         message: "permission denied",
       };
-      const retractFn = vi
-        .fn()
-        .mockResolvedValueOnce(noContributors)
-        .mockResolvedValueOnce(contributorFailed);
+      const retractFn = vi.fn().mockResolvedValue(retractFailed);
       const bot = makeBot({ retract: { retract: retractFn } });
       const startPromise = bot.start();
       await vi.waitFor(() => expect(MockWebSocket.instances).toHaveLength(1));
       const ws = MockWebSocket.instances[0];
 
-      const post1 = await sendSlashAndAwait(
-        "D-RNC",
-        "/retract-knowledge ghost",
-        ws,
-        "env-rnc1",
-      );
-      expect(post1.text).toBe(renderRetractResultPlain(noContributors));
-
-      const post2 = await sendSlashAndAwait(
+      const post = await sendSlashAndAwait(
         "D-RCF",
         "/retract-inbox data/inbox/locked.md",
         ws,
         "env-rcf1",
       );
-      expect(post2.text).toBe(renderRetractResultPlain(contributorFailed));
+      expect(post.text).toBe(renderRetractResultPlain(retractFailed));
 
       bot.stop();
       await startPromise.catch(() => {});

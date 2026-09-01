@@ -8,7 +8,8 @@ describe("SlackBot", () => {
     it("/capture <text> calls capture.capture without a target and renders the success arm", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: { target: "memory", recordId: "mem-42" },
+        target: "memory",
+        id: "mem-42",
       });
       const bot = makeBot({ capture: { capture: captureFn } });
       const startPromise = bot.start();
@@ -32,11 +33,9 @@ describe("SlackBot", () => {
     it("/capture-to-tasks dispatches with target=tasks and renders the path-bearing success arm", async () => {
       const captureFn = vi.fn().mockResolvedValue({
         ok: true,
-        record: {
-          target: "tasks",
-          recordId: "task-fix-redirect",
-          path: "data/tasks/task-fix-redirect.md",
-        },
+        target: "tasks",
+        id: "task-fix-redirect",
+        path: "data/tasks/task-fix-redirect.md",
       });
       const bot = makeBot({ capture: { capture: captureFn } });
       const startPromise = bot.start();
@@ -61,7 +60,7 @@ describe("SlackBot", () => {
       await startPromise.catch(() => {});
     });
 
-    it("/capture surfaces ambiguous, no_contributors, and contributor_failed arms", async () => {
+    it("/capture surfaces ambiguous and write_failed arms", async () => {
       const captureFn = vi
         .fn()
         .mockResolvedValueOnce({
@@ -69,10 +68,9 @@ describe("SlackBot", () => {
           reason: "ambiguous",
           suggestions: ["memory", "knowledge", "tasks", "inbox"],
         })
-        .mockResolvedValueOnce({ ok: false, reason: "no_contributors" })
         .mockResolvedValueOnce({
           ok: false,
-          reason: "contributor_failed",
+          reason: "write_failed",
           target: "inbox",
           message: "permission denied",
         });
@@ -92,22 +90,12 @@ describe("SlackBot", () => {
       );
 
       const post2 = await sendSlashAndAwait(
-        "D-CAPF2",
-        "/capture another",
-        ws,
-        "env-c4",
-      );
-      expect(post2.text).toBe(
-        "Cross-store capture has no registered contributors.",
-      );
-
-      const post3 = await sendSlashAndAwait(
         "D-CAPF3",
         "/capture-to-inbox raw thought",
         ws,
         "env-c5",
       );
-      expect(post3.text).toBe("Capture into inbox failed: permission denied");
+      expect(post2.text).toBe("Capture into inbox failed: permission denied");
 
       bot.stop();
       await startPromise.catch(() => {});

@@ -12,6 +12,10 @@ This directory owns the `knowledge` management tool — a structured, file-based
   module runtime or `ensureCliProvidersFor(["knowledge"])`) before
   invoking `getKnowledgeProvider()`.
 - Storage locations: `.kota/data/` (scope-scoped) and `~/.kota/data/` (global).
+- Creates and updates install a complete markdown record with an atomic rename;
+  an interrupted temporary file is not a `.md` record and is ignored on restart.
+  Deletes use the filesystem's atomic unlink, so readers observe the record or
+  its absence rather than partial contents.
 - Daemon/API access resolves a concrete scope id before using the scope
   store. Omitted scope ids resolve to the daemon's active/default scope at
   the route or client boundary; explicit unknown ids return the typed

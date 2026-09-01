@@ -77,12 +77,12 @@ export async function executeContentCapabilityUiAction(
         reason: result.reason,
         message: result.reason === "ambiguous"
           ? `Choose a destination: ${result.suggestions.join(", ")}.`
-          : result.reason === "contributor_failed"
+          : result.reason === "write_failed"
             ? result.message
-            : "No capture contributors are available.",
+            : `Capture rejected: ${result.reason}.`,
       };
     }
-    return { ok: true, message: `Captured ${result.record.target}:${result.record.recordId}.` };
+    return { ok: true, message: `Captured ${result.target}:${result.id}.` };
   }
 
   if (operation.namespace === "retract" && operation.method === "retract") {
@@ -99,14 +99,14 @@ export async function executeContentCapabilityUiAction(
       return {
         ok: false,
         reason: result.reason,
-        message: result.reason === "contributor_failed"
+        message: result.reason === "retract_failed"
           ? result.message
           : result.reason === "not_found"
             ? `${result.target}:${result.identifier} was not found.`
-            : "No retract contributors are available.",
+            : `Retract rejected: ${result.reason}.`,
       };
     }
-    return { ok: true, message: `Retracted ${result.record.target}:${result.record.recordId}.` };
+    return { ok: true, message: `Retracted ${result.target}:${result.identifier}.` };
   }
 
   if (operation.namespace === "knowledge" && operation.method === "search") {
@@ -184,13 +184,8 @@ function captureTarget(value: string): "memory" | "knowledge" | "tasks" | "inbox
 }
 
 function retractRequest(target: string, identifier: string) {
-  switch (target) {
-    case "memory": return { target, id: identifier } as const;
-    case "knowledge": return { target, slug: identifier } as const;
-    case "tasks": return { target, id: identifier } as const;
-    case "inbox": return { target, path: identifier } as const;
-    default: return null;
-  }
+  const resolved = captureTarget(target);
+  return resolved ? { target: resolved, identifier } : null;
 }
 
 function recallHitText(hit: RecallHit): string {

@@ -14,12 +14,14 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { ContractDecodeError as ClientContractDecodeError } from "./client/daemon-contract.generated.js";
 import {
   ContractDecodeError,
   parseAnswerResult,
   parseCaptureResult,
   parseMemorySearchResponse,
   parseRecallResult,
+  parseRetractResult,
 } from "../clients/conformance/daemon-contract.generated.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -66,12 +68,22 @@ describe("generated daemon contract bindings", () => {
       ok: true,
       entries: [{ id: "m-1", content: "Operator preference", created: "2026-08-26" }],
     })).toMatchObject({ ok: true, entries: [{ id: "m-1" }] });
+    expect(parseCaptureResult({
+      ok: false,
+      target: "tasks",
+      reason: "already_exists",
+    })).toEqual({ ok: false, target: "tasks", reason: "already_exists" });
+    expect(parseRetractResult({
+      ok: true,
+      target: "memory",
+      identifier: "m-1",
+    })).toEqual({ ok: true, target: "memory", identifier: "m-1" });
 
     for (const decode of [
       () => parseAnswerResult({ ok: false, reason: "future_reason" }),
       () => parseCaptureResult({
         ok: false,
-        reason: "contributor_failed",
+        reason: "write_failed",
         target: "future_store",
         message: "failed",
       }),
@@ -116,6 +128,12 @@ describe("generated daemon contract bindings", () => {
 
   it("assembles and dispatches generated routine client handlers over transport", async () => {
     const requests: { method: string; path: string; body?: unknown }[] = [];
+    let captureResponse: unknown = { ok: true, target: "memory", id: "1" };
+    let retractResponse: unknown = {
+      ok: true,
+      target: "memory",
+      identifier: "1",
+    };
     const mockTransport = {
       baseUrl: "http://127.0.0.1:9999",
       request: async () => null,
@@ -131,7 +149,10 @@ describe("generated daemon contract bindings", () => {
           return { ok: true, hits: [] } as unknown as T;
         }
         if (path === "/capture") {
-          return { ok: true, target: "memory", id: "1" } as unknown as T;
+          return captureResponse as T;
+        }
+        if (path === "/retract") {
+          return retractResponse as T;
         }
         if (path === "/doctor/run") {
           return { checks: [] } as unknown as T;
@@ -155,8 +176,24 @@ describe("generated daemon contract bindings", () => {
     await routine.capture.capture("test note");
     expect(requests).toContainEqual({ method: "POST", path: "/capture", body: { text: "test note" } });
 
+    await routine.retract.retract({ target: "memory", identifier: "1" });
+    expect(requests).toContainEqual({
+      method: "POST",
+      path: "/retract",
+      body: { target: "memory", identifier: "1" },
+    });
+
+    captureResponse = { ok: true, target: "future_store", id: "2" };
+    await expect(routine.capture.capture("malformed capture")).rejects.toBeInstanceOf(
+      ClientContractDecodeError,
+    );
+
+    retractResponse = { ok: false, target: "memory", identifier: "1", reason: "future_reason" };
+    await expect(
+      routine.retract.retract({ target: "memory", identifier: "1" }),
+    ).rejects.toBeInstanceOf(ClientContractDecodeError);
+
     await routine.doctor.run();
     expect(requests).toContainEqual({ method: "GET", path: "/doctor/run", body: undefined });
   });
 });
-

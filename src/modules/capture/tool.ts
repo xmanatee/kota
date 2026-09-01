@@ -2,7 +2,7 @@
  * Capture tool — agent-callable wrapper over the in-process `CaptureProvider`.
  *
  * The tool lets a per-user agent session route a noteworthy chat-resident
- * fact through the same classifier + contributor registry every other
+ * fact through the same classifier and canonical store transform every other
  * surface uses. Inputs and outputs map 1:1 onto `CaptureProvider.capture`;
  * the tool adds nothing beyond the JSON-Schema entry point and shared
  * plain-text rendering so the transcript matches the slash-command surface
@@ -11,20 +11,15 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import { daemonWriteEffect } from "#core/tools/effect.js";
+import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import type {
-  CaptureFilter,
-  CaptureProvider,
-  CaptureTarget,
+import {
+  CAPTURE_TARGET_ORDER,
+  type CaptureFilter,
+  type CaptureProvider,
+  type CaptureTarget,
 } from "./capture-types.js";
 import { renderCaptureResultPlain } from "./render.js";
-
-const CAPTURE_TARGETS: ReadonlyArray<CaptureTarget> = [
-  "memory",
-  "knowledge",
-  "tasks",
-  "inbox",
-];
 
 export const captureTool: KotaTool = {
   name: "capture",
@@ -45,7 +40,7 @@ export const captureTool: KotaTool = {
       },
       target: {
         type: "string",
-        enum: [...CAPTURE_TARGETS],
+        enum: [...CAPTURE_TARGET_ORDER],
         description:
           "Optional explicit destination store. When omitted the classifier " +
           "decides; when present the seam dispatches without classification.",
@@ -63,8 +58,11 @@ export const captureTool: KotaTool = {
 
 export function createCaptureToolRunner(
   resolveProvider: () => CaptureProvider,
-): (input: Record<string, unknown>) => Promise<ToolResult> {
-  return async (input) => {
+): (
+  input: Record<string, unknown>,
+  context?: ToolRunnerContext,
+) => Promise<ToolResult> {
+  return async (input, context) => {
     const text = input.text;
     if (typeof text !== "string") {
       return {
@@ -76,10 +74,10 @@ export function createCaptureToolRunner(
     if (input.target !== undefined) {
       if (
         typeof input.target !== "string" ||
-        !CAPTURE_TARGETS.includes(input.target as CaptureTarget)
+        !(CAPTURE_TARGET_ORDER as readonly string[]).includes(input.target)
       ) {
         return {
-          content: `Capture failed: \`target\` must be one of ${CAPTURE_TARGETS.join(", ")}.`,
+          content: `Capture failed: \`target\` must be one of ${CAPTURE_TARGET_ORDER.join(", ")}.`,
           is_error: true,
         };
       }
@@ -94,6 +92,13 @@ export function createCaptureToolRunner(
       }
       filter.hint = input.hint;
     }
+    if (!context?.scopeId) {
+      return {
+        content: "Capture failed: the selected session scope is unavailable.",
+        is_error: true,
+      };
+    }
+    filter.scopeId = context.scopeId;
 
     const result = await resolveProvider().capture(text, filter);
     const content = renderCaptureResultPlain(result);

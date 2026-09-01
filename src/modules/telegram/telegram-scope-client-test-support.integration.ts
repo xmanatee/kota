@@ -92,11 +92,13 @@ export function makeSpies(): Map<string, ScopeSpies> {
         })),
         capture: vi.fn(async () => ({
           ok: true as const,
-          record: { target: "memory" as const, recordId: "capture-a" },
+          target: "memory" as const,
+          id: "capture-a",
         })),
         retract: vi.fn(async () => ({
           ok: true as const,
-          record: { target: "memory" as const, recordId: "retract-a" },
+          target: "memory" as const,
+          identifier: "retract-a",
         })),
       },
     ],
@@ -119,11 +121,13 @@ export function makeSpies(): Map<string, ScopeSpies> {
         })),
         capture: vi.fn(async () => ({
           ok: true as const,
-          record: { target: "memory" as const, recordId: "capture-b" },
+          target: "memory" as const,
+          id: "capture-b",
         })),
         retract: vi.fn(async () => ({
           ok: true as const,
-          record: { target: "memory" as const, recordId: "mem-b" },
+          target: "memory" as const,
+          identifier: "mem-b",
         })),
       },
     ],

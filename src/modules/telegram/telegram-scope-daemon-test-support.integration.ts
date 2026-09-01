@@ -8,7 +8,10 @@ import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import { createScopedKotaClient } from "#core/server/scoped-kota-client.js";
-import type { KotaClient } from "#root/client/kota-client.generated.js";
+import {
+  createRoutineDaemonClientHandlers,
+  type KotaClient,
+} from "#root/client/kota-client.generated.js";
 
 export const SCOPE_A: DirectoryScope = {
   scopeId: "scope-a",
@@ -113,7 +116,8 @@ export function makeScopedRoutes(
         });
         writeJson(res, 200, {
           ok: true,
-          record: { target: "memory", recordId: `${scopeId}-capture` },
+          target: "memory",
+          id: `${scopeId}-capture`,
         });
       },
     },
@@ -129,14 +133,13 @@ export function makeScopedRoutes(
         calls.push({
           kind: "retract",
           scopeId,
-          id: typeof body.id === "string" ? body.id : "",
+          id: typeof body.identifier === "string" ? body.identifier : "",
         });
         writeJson(res, 200, {
           ok: true,
-          record: {
-            target: "memory",
-            recordId: typeof body.id === "string" ? body.id : "unknown",
-          },
+          target: "memory",
+          identifier:
+            typeof body.identifier === "string" ? body.identifier : "unknown",
         });
       },
     },
@@ -147,6 +150,7 @@ export function buildDaemonScopeClient(
   address: DaemonControlAddress,
 ): KotaClient {
   const transport = daemonTransportFromAddress(address);
+  const routine = createRoutineDaemonClientHandlers(transport);
   let client: KotaClient;
   client = createKotaClientTestDouble({
     scopes: {
@@ -180,21 +184,8 @@ export function buildDaemonScopeClient(
         ) as ReturnType<KotaClient["memory"]["search"]>;
       },
     },
-    capture: {
-      capture: async (text, filter) =>
-        transport.requestStrict("POST", "/capture", {
-          text,
-          ...(filter ? { filter } : {}),
-        }) as ReturnType<KotaClient["capture"]["capture"]>,
-    },
-    retract: {
-      retract: async (request) =>
-        transport.requestStrict(
-          "POST",
-          "/retract",
-          request,
-        ) as ReturnType<KotaClient["retract"]["retract"]>,
-    },
+    capture: routine.capture,
+    retract: routine.retract,
   }, (scopeId: string) => createScopedKotaClient(client, scopeId));
   return client;
 }

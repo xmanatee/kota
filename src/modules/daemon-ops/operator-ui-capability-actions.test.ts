@@ -14,10 +14,19 @@ function projectionClient(): KotaClient {
       show: async () => ({ ok: false, reason: "not_found" }),
     },
     capture: {
-      capture: async () => ({ ok: false, reason: "no_contributors" }),
+      capture: async () => ({
+        ok: false,
+        reason: "ambiguous",
+        suggestions: ["memory", "knowledge", "tasks", "inbox"],
+      }),
     },
     retract: {
-      retract: async () => ({ ok: false, reason: "no_contributors" }),
+      retract: async (request) => ({
+        ok: false,
+        reason: "not_found",
+        target: request.target,
+        identifier: request.identifier,
+      }),
     },
     config: {
       validate: async () => ({ sources: [], warnings: [], resolved: {} }),

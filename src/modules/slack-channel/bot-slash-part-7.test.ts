@@ -66,7 +66,8 @@ describe("SlackBot", () => {
     it("/retract-memory <id> calls retract.retract and renders the success arm", async () => {
       const result: RetractResult = {
         ok: true,
-        record: { target: "memory", recordId: "mem-42" },
+        target: "memory",
+        identifier: "mem-42",
       };
       const retractFn = vi.fn().mockResolvedValue(result);
       const bot = makeBot({ retract: { retract: retractFn } });
@@ -81,7 +82,10 @@ describe("SlackBot", () => {
         "env-rm1",
       );
 
-      expect(retractFn).toHaveBeenCalledWith({ target: "memory", id: "mem-42" });
+      expect(retractFn).toHaveBeenCalledWith({
+        target: "memory",
+        identifier: "mem-42",
+      });
       // Byte-identical parity with Telegram's /retract-<store> handler:
       // both render the same envelope through `renderRetractResultPlain`.
       expect(post.text).toBe(renderRetractResultPlain(result));
@@ -93,7 +97,8 @@ describe("SlackBot", () => {
     it("/retract-knowledge <slug> dispatches with target=knowledge", async () => {
       const result: RetractResult = {
         ok: true,
-        record: { target: "knowledge", recordId: "kota-overview" },
+        target: "knowledge",
+        identifier: "kota-overview",
       };
       const retractFn = vi.fn().mockResolvedValue(result);
       const bot = makeBot({ retract: { retract: retractFn } });
@@ -110,7 +115,7 @@ describe("SlackBot", () => {
 
       expect(retractFn).toHaveBeenCalledWith({
         target: "knowledge",
-        slug: "kota-overview",
+        identifier: "kota-overview",
       });
       expect(post.text).toBe(renderRetractResultPlain(result));
 
@@ -121,13 +126,13 @@ describe("SlackBot", () => {
     it("/retract-tasks <id> dispatches with target=tasks and renders the path-bearing success arm", async () => {
       const result: RetractResult = {
         ok: true,
-        record: {
-          target: "tasks",
-          recordId: "task-fix-redirect",
-          previousPath: "data/tasks/task-fix-redirect.md",
-          path: "data/tasks/archive/task-fix-redirect.md",
-          toState: "dropped",
-        },
+        target: "tasks",
+        identifier: "task-fix-redirect",
+        id: "task-fix-redirect",
+        fromState: "open",
+        previousPath: "data/tasks/task-fix-redirect.md",
+        path: "data/tasks/archive/task-fix-redirect.md",
+        toState: "dropped",
       };
       const retractFn = vi.fn().mockResolvedValue(result);
       const bot = makeBot({ retract: { retract: retractFn } });
@@ -144,7 +149,7 @@ describe("SlackBot", () => {
 
       expect(retractFn).toHaveBeenCalledWith({
         target: "tasks",
-        id: "task-fix-redirect",
+        identifier: "task-fix-redirect",
       });
       expect(post.text).toBe(renderRetractResultPlain(result));
 

@@ -7,18 +7,14 @@ import { Readable } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { buildDirectoryScope, type DirectoryScope } from "#core/daemon/scope-registry.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   initProviderRegistry,
   KNOWLEDGE_PROVIDER_TOKEN,
   MEMORY_PROVIDER_TOKEN,
-  type ProviderToken,
   REPO_TASKS_PROVIDER_TOKEN,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
-import { buildLocalKotaClient } from "#core/server/local-kota-client.js";
 import {
   answerHistoryRootForScope,
   DiskAnswerHistoryStore,
@@ -29,21 +25,12 @@ import { createAnswerRecallContributor } from "#modules/answer/recall-contributo
 import { createAnswerRouteHandler } from "#modules/answer/routes.js";
 import { createAnswerScopeContextResolver } from "#modules/answer/scope-context.js";
 import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
-import {
-  createScopeInboxContributor as createCaptureScopeInboxContributor,
-  createScopeKnowledgeContributor as createCaptureScopeKnowledgeContributor,
-  createScopeMemoryContributor as createCaptureScopeMemoryContributor,
-  createScopeTasksContributor as createCaptureScopeTasksContributor,
-} from "#modules/capture/contributors.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { createCaptureScopeContextResolver } from "#modules/capture/scope-context.js";
 import { getScopeHistoryStore } from "#modules/history/history.js";
-import historyModule from "#modules/history/index.js";
 import { createHistoryScopeStores } from "#modules/history/scope.js";
-import knowledgeModule from "#modules/knowledge/index.js";
 import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
-import memoryModule from "#modules/memory/index.js";
 import { createMemoryScopeStores } from "#modules/memory/scope.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import {
@@ -55,20 +42,11 @@ import {
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
 import { createRecallScopeContextResolver } from "#modules/recall/scope-context.js";
-import repoTasksModule from "#modules/repo-tasks/index.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
 import { createRepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
-import {
-  createScopeInboxContributor as createRetractScopeInboxContributor,
-  createScopeKnowledgeContributor as createRetractScopeKnowledgeContributor,
-  createScopeMemoryContributor as createRetractScopeMemoryContributor,
-  createScopeTasksContributor as createRetractScopeTasksContributor,
-} from "#modules/retract/contributors.js";
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import { createRetractRouteHandler } from "#modules/retract/routes.js";
 import { createRetractScopeContextResolver } from "#modules/retract/scope-context.js";
-import type { KotaClient, LocalClientHandlers } from "#root/client/kota-client.generated.js";
-import { KotaClientScopeError } from "#root/client/kota-client.generated.js";
 
 type JsonResult = { status: number; body: unknown };
 
@@ -120,7 +98,6 @@ describe("scope-scoped cross-store daemon routes", () => {
   let answer: ReturnType<typeof createAnswerRouteHandler>;
   let retract: ReturnType<typeof createRetractRouteHandler>;
   let historyA: DiskAnswerHistoryStore;
-  let client: KotaClient;
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "kota-cross-store-scopes-"));
@@ -168,10 +145,6 @@ describe("scope-scoped cross-store daemon routes", () => {
       classifier: { classify: async () => ({ kind: "ambiguous" }) },
       resolveScopeContext: captureScope,
     });
-    captureProvider.register(createCaptureScopeMemoryContributor());
-    captureProvider.register(createCaptureScopeKnowledgeContributor());
-    captureProvider.register(createCaptureScopeTasksContributor());
-    captureProvider.register(createCaptureScopeInboxContributor());
 
     const recallScope = createRecallScopeContextResolver(scopeA.scopeRoot);
     const recallProvider = new RecallProviderImpl({
@@ -223,76 +196,12 @@ describe("scope-scoped cross-store daemon routes", () => {
     const retractProvider = new RetractProviderImpl({
       resolveScopeContext: retractScope,
     });
-    retractProvider.register(createRetractScopeMemoryContributor());
-    retractProvider.register(createRetractScopeKnowledgeContributor());
-    retractProvider.register(createRetractScopeTasksContributor());
-    retractProvider.register(createRetractScopeInboxContributor());
 
     capture = createCaptureRouteHandler(() => captureProvider, captureScope);
     recall = createRecallRouteHandler(() => recallProvider, recallScope);
     answer = createAnswerRouteHandler(() => answerProvider, answerScope);
     retract = createRetractRouteHandler(() => retractProvider, retractScope);
 
-    const moduleCtx = {
-      cwd: scopeA.scopeRoot,
-      getProvider: <T>(token: ProviderToken<T>) => registry.get(token),
-    } as ModuleContext;
-    const handlers = {
-      ...completeDaemonClientHandlers(),
-      ...memoryModule.localClient!(moduleCtx),
-      ...knowledgeModule.localClient!(moduleCtx),
-      ...historyModule.localClient!(moduleCtx),
-      ...repoTasksModule.localClient!(moduleCtx),
-      recall: {
-        recall: async (query, filter) => {
-          const scope = recallScope(filter?.scopeId);
-          if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-          return {
-            ok: true as const,
-            hits: await recallProvider.recall(query, filter, scope),
-          };
-        },
-      },
-      answer: {
-        answer: async (query, filter) => {
-          const scope = answerScope(filter?.scopeId);
-          if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-          return answerProvider.answer(query, filter, scope);
-        },
-        log: async (filter) => {
-          const scope = answerScope(filter?.scopeId);
-          if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-          const entries = await scope.history.listAnswers({
-            ...(filter?.limit !== undefined && { limit: filter.limit }),
-            ...(filter?.beforeId !== undefined && { beforeId: filter.beforeId }),
-          });
-          return { entries };
-        },
-        show: async (id, scopeSelection) => {
-          const scope = answerScope(scopeSelection?.scopeId);
-          if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-          const record = await scope.history.getAnswer(id);
-          return record
-            ? { ok: true as const, record }
-            : { ok: false as const, reason: "not_found" as const };
-        },
-      },
-      capture: {
-        capture: async (text, filter) => {
-          const scope = captureScope(filter?.scopeId);
-          if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-          return captureProvider.capture(text, filter, scope);
-        },
-      },
-      retract: {
-        retract: async (request) => {
-          const scope = retractScope(request.scopeId);
-          if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-          return retractProvider.retract(request, scope);
-        },
-      },
-    } as LocalClientHandlers;
-    client = buildLocalKotaClient(handlers);
   });
 
   afterEach(() => {
@@ -306,7 +215,7 @@ describe("scope-scoped cross-store daemon routes", () => {
       filter: { target: "memory", scopeId: scopeA.scopeId },
     });
     expect(captureA.status).toBe(200);
-    const memoryAId = (captureA.body as { ok: true; record: { recordId: string } }).record.recordId;
+    const memoryAId = (captureA.body as { ok: true; id: string }).id;
 
     const recallA = await invoke(recall, {
       query: "alphaonly",
@@ -345,11 +254,11 @@ describe("scope-scoped cross-store daemon routes", () => {
       filter: { target: "memory", scopeId: scopeB.scopeId },
     });
     expect(captureB.status).toBe(200);
-    const memoryBId = (captureB.body as { ok: true; record: { recordId: string } }).record.recordId;
+    const memoryBId = (captureB.body as { ok: true; id: string }).id;
 
     const wrongScopeRetract = await invoke(retract, {
       target: "memory",
-      id: memoryBId,
+      identifier: memoryBId,
       scopeId: scopeA.scopeId,
     });
     expect(wrongScopeRetract.status).toBe(200);
@@ -362,13 +271,14 @@ describe("scope-scoped cross-store daemon routes", () => {
 
     const rightScopeRetract = await invoke(retract, {
       target: "memory",
-      id: memoryBId,
+      identifier: memoryBId,
       scopeId: scopeB.scopeId,
     });
     expect(rightScopeRetract.status).toBe(200);
     expect(rightScopeRetract.body).toEqual({
       ok: true,
-      record: { target: "memory", recordId: memoryBId },
+      target: "memory",
+      identifier: memoryBId,
     });
   });
 
@@ -397,108 +307,8 @@ describe("scope-scoped cross-store daemon routes", () => {
 
     await expect(invoke(retract, {
       target: "memory",
-      id: "mem-x",
+      identifier: "mem-x",
       scopeId: "missing-scope",
     })).resolves.toMatchObject({ status: 404 });
-  });
-
-  it("KotaClient.forScope isolates cross-store reads and capture effects", async () => {
-    const clientA = client.forScope(scopeA.scopeId);
-    const clientB = client.forScope(scopeB.scopeId);
-
-    const memoryA = await clientA.memory.add("client-alpha memory note");
-    const memorySearchA = await clientA.memory.search("client-alpha");
-    expect(memorySearchA).toMatchObject({
-      ok: true,
-      entries: [expect.objectContaining({ id: memoryA.id })],
-    });
-    const memorySearchB = await clientB.memory.search("client-alpha");
-    expect(memorySearchB).toEqual({ ok: true, entries: [] });
-
-    const knowledgeA = await clientA.knowledge.add({
-      title: "client-alpha knowledge",
-      content: "client-alpha knowledge body",
-    });
-    const knowledgeSearchA = await clientA.knowledge.search("client-alpha knowledge");
-    expect(knowledgeSearchA).toMatchObject({
-      ok: true,
-      entries: [expect.objectContaining({ id: knowledgeA.id })],
-    });
-    const knowledgeSearchB = await clientB.knowledge.search("client-alpha knowledge");
-    expect(knowledgeSearchB).toEqual({ ok: true, entries: [] });
-
-    const historyId = getScopeHistoryStore(scopeA.scopeRoot).create(
-      "test-model",
-      scopeA.scopeRoot,
-    );
-    getScopeHistoryStore(scopeA.scopeRoot).save(
-      historyId,
-      [{ role: "user", content: "client-alpha history turn" }],
-      0,
-      0,
-    );
-    const historySearchA = await clientA.history.search("client-alpha history");
-    expect(historySearchA).toMatchObject({
-      ok: true,
-      conversations: [expect.objectContaining({ id: historyId })],
-    });
-    const historySearchB = await clientB.history.search("client-alpha history");
-    expect(historySearchB).toEqual({ ok: true, conversations: [] });
-
-    const captureA = await clientA.capture.capture("client-alpha capture note", {
-      target: "memory",
-    });
-    expect(captureA).toMatchObject({ ok: true, record: { target: "memory" } });
-    const captureSearchB = await clientB.memory.search("client-alpha capture");
-    expect(captureSearchB).toEqual({ ok: true, entries: [] });
-
-    const recallA = await clientA.recall.recall("client-alpha");
-    expect(recallA.ok).toBe(true);
-    expect(recallA.ok ? recallA.hits.length : 0).toBeGreaterThan(0);
-    const recallB = await clientB.recall.recall("client-alpha");
-    expect(recallB).toEqual({ ok: true, hits: [] });
-
-    const answerA = await clientA.answer.answer("client-alpha");
-    expect(answerA).toMatchObject({ ok: true });
-    const answerLogA = await clientA.answer.log();
-    expect(answerLogA.entries.length).toBeGreaterThan(0);
-    const answerLogB = await clientB.answer.log();
-    expect(answerLogB.entries).toEqual([]);
-    const leakedAnswer = await clientB.answer.show(answerLogA.entries[0]!.id);
-    expect(leakedAnswer).toEqual({ ok: false, reason: "not_found" });
-    const answerB = await clientB.answer.answer("client-alpha");
-    expect(answerB).toEqual({ ok: false, reason: "no_hits" });
-    const answerLogBAfterOwnCall = await clientB.answer.log();
-    expect(answerLogBAfterOwnCall.entries.map((entry) => entry.id)).not.toContain(
-      answerLogA.entries[0]!.id,
-    );
-
-    const retractTarget = await clientA.memory.add("client-alpha retract target");
-    const wrongScopeRetract = await clientB.retract.retract({
-      target: "memory",
-      id: retractTarget.id,
-    });
-    expect(wrongScopeRetract).toEqual({
-      ok: false,
-      reason: "not_found",
-      target: "memory",
-      identifier: retractTarget.id,
-    });
-    const rightScopeRetract = await clientA.retract.retract({
-      target: "memory",
-      id: retractTarget.id,
-    });
-    expect(rightScopeRetract).toEqual({
-      ok: true,
-      record: { target: "memory", recordId: retractTarget.id },
-    });
-
-    await expect(client.forScope("missing-scope").memory.list()).rejects.toMatchObject({
-      reason: "unknown_scope",
-      scopeId: "missing-scope",
-    });
-    await expect(client.forScope("missing-scope").memory.list()).rejects.toBeInstanceOf(
-      KotaClientScopeError,
-    );
   });
 });

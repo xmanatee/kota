@@ -109,16 +109,7 @@ function buildRetractRequest(
   command: RetractSlashCommand,
   identifier: string,
 ): RetractRequest {
-  switch (command) {
-    case "/retract-memory":
-      return { target: "memory", id: identifier };
-    case "/retract-knowledge":
-      return { target: "knowledge", slug: identifier };
-    case "/retract-tasks":
-      return { target: "tasks", id: identifier };
-    case "/retract-inbox":
-      return { target: "inbox", path: identifier };
-  }
+  return { target: command.slice("/retract-".length) as RetractRequest["target"], identifier };
 }
 
 /** Default page size for the per-store semantic-search seams. Matches Telegram. */

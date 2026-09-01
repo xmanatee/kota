@@ -1891,19 +1891,118 @@
     "CaptureResult": {
       "anyOf": [
         {
+          "$ref": "#/definitions/CaptureMemoryResult"
+        },
+        {
+          "$ref": "#/definitions/CaptureKnowledgeResult"
+        },
+        {
           "type": "object",
           "properties": {
+            "target": {
+              "type": "string",
+              "const": "tasks"
+            },
             "ok": {
               "type": "boolean",
               "const": true
             },
-            "record": {
-              "$ref": "#/definitions/CaptureRecord"
+            "id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
             }
           },
           "required": [
+            "target",
             "ok",
-            "record"
+            "id",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "tasks"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "invalid_slug",
+                "already_exists"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "ok",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "inbox"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": true
+            },
+            "id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "ok",
+            "id",
+            "path"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "inbox"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "invalid_slug",
+                "already_exists"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "ok",
+            "reason"
           ],
           "additionalProperties": false
         },
@@ -1941,25 +2040,7 @@
             },
             "reason": {
               "type": "string",
-              "const": "no_contributors"
-            }
-          },
-          "required": [
-            "ok",
-            "reason"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "ok": {
-              "type": "boolean",
-              "const": false
-            },
-            "reason": {
-              "type": "string",
-              "const": "contributor_failed"
+              "const": "write_failed"
             },
             "target": {
               "$ref": "#/definitions/CaptureTarget"
@@ -1976,105 +2057,52 @@
           ],
           "additionalProperties": false
         }
-      ],
-      "description": "Result of `capture.capture`.\n\nThe seam deliberately returns one strict envelope:\n\n- `ok: true` → the contributor accepted the write. The record carries   the typed identifier the underlying store minted plus any per-target   metadata.\n- `ok: false, reason: \"ambiguous\"` → no `target` was given and the   classifier could not pick a single destination confidently. The   surface (or upstream caller) disambiguates by re-issuing the call   with an explicit `target`. `suggestions` is the contributor list   the classifier considered.\n- `ok: false, reason: \"no_contributors\"` → the seam has no   registered contributors. Mirrors recall's `semantic_unavailable`   shape so callers can branch on \"the seam is unconfigured\".\n- `ok: false, reason: \"contributor_failed\"` → the chosen contributor   threw (e.g. inbox writer cannot reach the scope root). The seam   never silently retries into a different store."
+      ]
     },
-    "CaptureRecord": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/CaptureMemoryRecord"
-        },
-        {
-          "$ref": "#/definitions/CaptureKnowledgeRecord"
-        },
-        {
-          "$ref": "#/definitions/CaptureTasksRecord"
-        },
-        {
-          "$ref": "#/definitions/CaptureInboxRecord"
-        }
-      ],
-      "description": "Discriminated record returned on a successful capture. `recordId` is the typed identifier each store already exposes (memory id, knowledge slug, task id, inbox file slug); per-target arms also expose any additional path metadata so a caller can resolve back to the underlying store the same way recall hits do."
-    },
-    "CaptureMemoryRecord": {
+    "CaptureMemoryResult": {
       "type": "object",
       "properties": {
         "target": {
           "type": "string",
           "const": "memory"
         },
-        "recordId": {
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "id": {
           "type": "string"
         }
       },
       "required": [
         "target",
-        "recordId"
+        "ok",
+        "id"
       ],
       "additionalProperties": false,
-      "description": "Memory-store record minted by a successful capture."
+      "description": "Direct store outcomes tagged only with the cross-store destination."
     },
-    "CaptureKnowledgeRecord": {
+    "CaptureKnowledgeResult": {
       "type": "object",
       "properties": {
         "target": {
           "type": "string",
           "const": "knowledge"
         },
-        "recordId": {
+        "ok": {
+          "type": "boolean",
+          "const": true
+        },
+        "id": {
           "type": "string"
         }
       },
       "required": [
         "target",
-        "recordId"
+        "ok",
+        "id"
       ],
-      "additionalProperties": false,
-      "description": "Knowledge-store record minted by a successful capture."
-    },
-    "CaptureTasksRecord": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string",
-          "const": "tasks"
-        },
-        "recordId": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "target",
-        "recordId",
-        "path"
-      ],
-      "additionalProperties": false,
-      "description": "Tasks-store record minted by a successful capture."
-    },
-    "CaptureInboxRecord": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string",
-          "const": "inbox"
-        },
-        "recordId": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "target",
-        "recordId",
-        "path"
-      ],
-      "additionalProperties": false,
-      "description": "Inbox-store record minted by a successful capture."
+      "additionalProperties": false
     },
     "CaptureTarget": {
       "type": "string",
@@ -2083,41 +2111,300 @@
         "knowledge",
         "tasks",
         "inbox"
-      ],
-      "description": "Target store for a `CaptureClient.capture` call. Mirrors the contributor sources registered by the capture seam. Adding a fifth contributor extends this union and the `CaptureRecord` discriminated type below."
+      ]
     },
     "RetractResult": {
       "anyOf": [
         {
           "type": "object",
           "properties": {
+            "target": {
+              "type": "string",
+              "const": "memory"
+            },
+            "identifier": {
+              "type": "string"
+            },
             "ok": {
               "type": "boolean",
               "const": true
-            },
-            "record": {
-              "$ref": "#/definitions/RetractRecord"
             }
           },
           "required": [
-            "ok",
-            "record"
+            "target",
+            "identifier",
+            "ok"
           ],
           "additionalProperties": false
         },
         {
           "type": "object",
           "properties": {
+            "target": {
+              "type": "string",
+              "const": "memory"
+            },
+            "identifier": {
+              "type": "string"
+            },
             "ok": {
               "type": "boolean",
               "const": false
             },
             "reason": {
               "type": "string",
-              "const": "no_contributors"
+              "const": "not_found"
             }
           },
           "required": [
+            "target",
+            "identifier",
+            "ok",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "knowledge"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": true
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "knowledge"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "const": "not_found"
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "tasks"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": true
+            },
+            "id": {
+              "type": "string"
+            },
+            "fromState": {
+              "type": "string",
+              "enum": [
+                "open",
+                "blocked",
+                "done",
+                "dropped"
+              ]
+            },
+            "toState": {
+              "type": "string",
+              "const": "dropped"
+            },
+            "path": {
+              "type": "string"
+            },
+            "previousPath": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok",
+            "id",
+            "fromState",
+            "toState",
+            "path",
+            "previousPath"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "tasks"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "const": "invalid_id"
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "tasks"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "const": "not_found"
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok",
+            "reason"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "tasks"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "const": "already_in_state"
+            },
+            "state": {
+              "type": "string",
+              "enum": [
+                "open",
+                "blocked",
+                "done",
+                "dropped"
+              ]
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok",
+            "reason",
+            "state"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "inbox"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": true
+            },
+            "path": {
+              "type": "string"
+            },
+            "recordId": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
+            "ok",
+            "path",
+            "recordId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "target": {
+              "type": "string",
+              "const": "inbox"
+            },
+            "identifier": {
+              "type": "string"
+            },
+            "ok": {
+              "type": "boolean",
+              "const": false
+            },
+            "reason": {
+              "type": "string",
+              "const": "not_found"
+            }
+          },
+          "required": [
+            "target",
+            "identifier",
             "ok",
             "reason"
           ],
@@ -2132,36 +2419,13 @@
             },
             "reason": {
               "type": "string",
-              "const": "not_found"
+              "const": "retract_failed"
             },
             "target": {
               "$ref": "#/definitions/RetractTarget"
             },
             "identifier": {
               "type": "string"
-            }
-          },
-          "required": [
-            "ok",
-            "reason",
-            "target",
-            "identifier"
-          ],
-          "additionalProperties": false
-        },
-        {
-          "type": "object",
-          "properties": {
-            "ok": {
-              "type": "boolean",
-              "const": false
-            },
-            "reason": {
-              "type": "string",
-              "const": "contributor_failed"
-            },
-            "target": {
-              "$ref": "#/definitions/RetractTarget"
             },
             "message": {
               "type": "string"
@@ -2171,122 +2435,12 @@
             "ok",
             "reason",
             "target",
+            "identifier",
             "message"
           ],
           "additionalProperties": false
         }
-      ],
-      "description": "Result of `retract.retract`.\n\n- `ok: true` → the contributor accepted the removal. The record carries   the typed identifier(s) that were actually removed plus any path   metadata the operator needs (\"moved to dropped\" / \"file deleted\").\n- `ok: false, reason: \"no_contributors\"` → the seam itself is   unconfigured (zero contributors registered, or the explicit `target`   is not registered).\n- `ok: false, reason: \"not_found\"` → the named record is not present   in the named target. The seam never falls back into a different   store.\n- `ok: false, reason: \"contributor_failed\"` → the chosen contributor   threw mid-removal. The seam never silently retries into a different   store."
-    },
-    "RetractRecord": {
-      "anyOf": [
-        {
-          "$ref": "#/definitions/RetractMemoryRecord"
-        },
-        {
-          "$ref": "#/definitions/RetractKnowledgeRecord"
-        },
-        {
-          "$ref": "#/definitions/RetractTasksRecord"
-        },
-        {
-          "$ref": "#/definitions/RetractInboxRecord"
-        }
-      ],
-      "description": "Discriminated record returned on a successful retract. Mirrors `CaptureRecord`; per-target arms carry whatever metadata the operator surface needs to render \"what just happened\" without leaking internal filesystem moves into the seam."
-    },
-    "RetractMemoryRecord": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string",
-          "const": "memory"
-        },
-        "recordId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "target",
-        "recordId"
-      ],
-      "additionalProperties": false,
-      "description": "Memory-store record removed by a successful retract."
-    },
-    "RetractKnowledgeRecord": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string",
-          "const": "knowledge"
-        },
-        "recordId": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "target",
-        "recordId"
-      ],
-      "additionalProperties": false,
-      "description": "Knowledge-store record removed by a successful retract."
-    },
-    "RetractTasksRecord": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string",
-          "const": "tasks"
-        },
-        "recordId": {
-          "type": "string"
-        },
-        "previousPath": {
-          "type": "string",
-          "description": "Previous repo-relative path (`data/tasks/<id>.md`)."
-        },
-        "path": {
-          "type": "string",
-          "description": "New repo-relative path (always under `data/tasks/archive/`)."
-        },
-        "toState": {
-          "type": "string",
-          "const": "dropped",
-          "description": "Resulting task state — always `\"dropped\"` for the retract seam."
-        }
-      },
-      "required": [
-        "target",
-        "recordId",
-        "previousPath",
-        "path",
-        "toState"
-      ],
-      "additionalProperties": false,
-      "description": "Tasks-store record dropped by a successful retract.\n\nRetracting a task does not delete the file — it routes through the existing task-state machine into `data/tasks/archive/`. The arm carries the previous and resulting paths plus the explicit destination state so the operator surface can render \"moved to dropped\", not \"deleted\"."
-    },
-    "RetractInboxRecord": {
-      "type": "object",
-      "properties": {
-        "target": {
-          "type": "string",
-          "const": "inbox"
-        },
-        "recordId": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string",
-          "description": "Repo-relative path of the deleted note file."
-        }
-      },
-      "required": [
-        "target",
-        "recordId",
-        "path"
-      ],
-      "additionalProperties": false,
-      "description": "Inbox-store record removed by a successful retract."
+      ]
     },
     "RetractTarget": {
       "type": "string",
@@ -2295,8 +2449,7 @@
         "knowledge",
         "tasks",
         "inbox"
-      ],
-      "description": "Target store for a `RetractClient.retract` call. Mirrors the contributor sources registered by the retract seam. Adding a fifth contributor extends this union and the `RetractRecord` discriminated type below."
+      ]
     },
     "KnowledgeSearchResult": {
       "anyOf": [

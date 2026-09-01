@@ -22,6 +22,7 @@ export function generateKotaClientAggregate() {
     ["#modules/module-manager/client.js", ["ModuleInspectResult", "ModuleReloadResult", "ModulesListResult"]],
     ["#modules/inbound-signals/client.js", ["InboundSignalRouteListResult", "InboundSignalRouteValidationResult", "InboundSignalScopeSelection"]],
     ["#modules/answer/client.js", ["AnswerFilter", "AnswerHistoryListFilter", "AnswerHistoryListResult", "AnswerHistoryShowFilter", "AnswerHistoryShowResult", "AnswerResult", "decodeAnswerHistoryListResult", "decodeAnswerHistoryShowResult"]],
+    ["#root/client/daemon-contract.generated.js", ["parseCaptureResult", "parseRetractResult"]],
   ];
 
   for (const [path, extraTypes] of extraImports) {
@@ -35,8 +36,9 @@ export function generateKotaClientAggregate() {
   const imports = [...importsByPath.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
     .flatMap(([path, types]) => {
-      const typeImports = types.filter(t => !t.startsWith("decode"));
-      const valImports = types.filter(t => t.startsWith("decode"));
+      const isValueImport = (symbol) => symbol.startsWith("decode") || symbol.startsWith("parse");
+      const typeImports = types.filter(t => !isValueImport(t));
+      const valImports = types.filter(isValueImport);
       const lines = [];
       if (typeImports.length > 0) lines.push(`import type { ${typeImports.sort().join(", ")} } from ${JSON.stringify(path)};`);
       if (valImports.length > 0) lines.push(`import { ${valImports.sort().join(", ")} } from ${JSON.stringify(path)};`);
@@ -166,10 +168,11 @@ class RoutineCaptureClient implements CaptureClient {
   constructor(private readonly transport: DaemonTransport) {}
 
   async capture(text: string, filter?: CaptureFilter): Promise<CaptureResult> {
-    return this.transport.requestStrict<CaptureResult>("POST", "/capture", {
+    const decoded = await this.transport.requestStrict<unknown>("POST", "/capture", {
       text,
       ...(filter && { filter }),
     });
+    return parseCaptureResult(decoded);
   }
 }
 
@@ -177,11 +180,12 @@ class RoutineRetractClient implements RetractClient {
   constructor(private readonly transport: DaemonTransport) {}
 
   async retract(request: RetractRequest): Promise<RetractResult> {
-    return this.transport.requestStrict<RetractResult>(
+    const decoded = await this.transport.requestStrict<unknown>(
       "POST",
       "/retract",
       request,
     );
+    return parseRetractResult(decoded);
   }
 }
 

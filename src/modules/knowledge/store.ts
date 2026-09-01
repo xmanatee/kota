@@ -17,7 +17,15 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	renameSync,
+	rmSync,
+	unlinkSync,
+	writeFileSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -39,6 +47,17 @@ import {
 	cleanKnowledgeMeta,
 	workMemoryMetadataFields,
 } from "./store-metadata.js";
+
+function writeKnowledgeFileAtomic(path: string, content: string): void {
+	const temporaryPath = `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+	try {
+		writeFileSync(temporaryPath, content, "utf-8");
+		renameSync(temporaryPath, path);
+	} catch (error) {
+		rmSync(temporaryPath, { force: true });
+		throw error;
+	}
+}
 
 export class KnowledgeStore {
 	private scopeDir: string | null;
@@ -152,7 +171,10 @@ export class KnowledgeStore {
 			}),
 		};
 
-		writeFileSync(join(dir, filename), serializeFrontMatter(attrs, opts.content), "utf-8");
+		writeKnowledgeFileAtomic(
+			join(dir, filename),
+			serializeFrontMatter(attrs, opts.content),
+		);
 		return id;
 	}
 
@@ -195,7 +217,10 @@ export class KnowledgeStore {
 			attrs.updated = new Date().toISOString();
 
 			const newBody = changes.content !== undefined ? changes.content : body;
-			writeFileSync(join(dir, file), serializeFrontMatter(attrs, newBody), "utf-8");
+			writeKnowledgeFileAtomic(
+				join(dir, file),
+				serializeFrontMatter(attrs, newBody),
+			);
 			return true;
 		}
 		return false;

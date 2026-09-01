@@ -44,7 +44,7 @@ indirect enum UiActionOperation: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(String.self, forKey: .kind)) == "daemon-route" {
+        if (try? container.decode(String.self, forKey: .kind)) == "daemon-route" && (try? container.decode(UiActionMethod.self, forKey: .method)) != nil {
             self = .daemonRoute(
                 method: try container.decode(UiActionMethod.self, forKey: .method),
                 path: try container.decode(String.self, forKey: .path)
@@ -161,7 +161,7 @@ indirect enum UiAttachmentPoint: Codable, Equatable {
             self = .root
             return
         }
-        if (try? container.decode(String.self, forKey: .kind)) == "intent" {
+        if (try? container.decode(String.self, forKey: .kind)) == "intent" && (try? container.decode(UiIntent.self, forKey: .intent)) != nil {
             self = .intent(
                 intent: try container.decode(UiIntent.self, forKey: .intent)
             )
@@ -213,14 +213,14 @@ indirect enum UiCondition: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(String.self, forKey: .kind)) == "capability" {
+        if (try? container.decode(String.self, forKey: .kind)) == "capability" && (try? container.decode(UiConditionStatus.self, forKey: .status)) != nil {
             self = .capability(
                 capabilityId: try container.decode(String.self, forKey: .capabilityId),
                 status: try container.decode(UiConditionStatus.self, forKey: .status)
             )
             return
         }
-        if (try? container.decode(String.self, forKey: .kind)) == "setup" {
+        if (try? container.decode(String.self, forKey: .kind)) == "setup" && (try? container.decode(UiSetupState.self, forKey: .state)) != nil {
             self = .setup(
                 moduleName: try container.decode(String.self, forKey: .moduleName),
                 requirementId: try container.decode(String.self, forKey: .requirementId),
@@ -280,7 +280,7 @@ indirect enum UiConfirmation: Codable, Equatable {
             self = .none
             return
         }
-        if (try? container.decode(String.self, forKey: .mode)) == "required" {
+        if (try? container.decode(String.self, forKey: .mode)) == "required" && (try? container.decode(UiConfirmationRisk.self, forKey: .risk)) != nil {
             self = .required(
                 confirmLabel: try container.decode(String.self, forKey: .confirmLabel),
                 detail: try container.decode(String.self, forKey: .detail),
@@ -686,7 +686,7 @@ indirect enum UiNode: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(String.self, forKey: .kind)) == "progress" {
+        if (try? container.decode(String.self, forKey: .kind)) == "progress" && (try? container.decode(UiRole.self, forKey: .role)) != nil {
             self = .progress(
                 label: try container.decode(String.self, forKey: .label),
                 max: try container.decode(Double.self, forKey: .max),
@@ -857,13 +857,13 @@ indirect enum UiPermission: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(String.self, forKey: .kind)) == "capability-scope" {
+        if (try? container.decode(String.self, forKey: .kind)) == "capability-scope" && (try? container.decode(UiCapabilityScope.self, forKey: .scope)) != nil {
             self = .capabilityScope(
                 scope: try container.decode(UiCapabilityScope.self, forKey: .scope)
             )
             return
         }
-        if (try? container.decode(String.self, forKey: .kind)) == "effect" {
+        if (try? container.decode(String.self, forKey: .kind)) == "effect" && (try? container.decode(UiActionEffect.self, forKey: .effect)) != nil {
             self = .effect(
                 effect: try container.decode(UiActionEffect.self, forKey: .effect)
             )

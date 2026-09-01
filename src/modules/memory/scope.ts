@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import type { DaemonScopeProvider } from "#core/daemon/scope-provider.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
@@ -9,7 +8,7 @@ import {
 } from "#core/daemon/scope-registry.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { MemoryProvider } from "#core/modules/provider-types.js";
-import { MemoryStore } from "./store.js";
+import { getScopeMemoryStore } from "./store.js";
 
 export type UnknownMemoryScopeError = {
 	error: "Unknown scope";
@@ -126,7 +125,7 @@ export class MemoryScopeStores {
 		}
 		const existing = this.stores.get(scope.scopeId);
 		if (existing) return existing;
-		const store = new MemoryStore(join(scope.scopeRoot, ".kota"));
+		const store = getScopeMemoryStore(scope.scopeRoot);
 		this.stores.set(scope.scopeId, store);
 		return store;
 	}

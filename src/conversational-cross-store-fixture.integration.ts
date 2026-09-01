@@ -4,7 +4,8 @@
  * Builds a temp scope root with real `MemoryStore`, `KnowledgeStore`,
  * and `RepoTasksDefaultStore` instances, plus production
  * `CaptureProviderImpl` / `RecallProviderImpl` / `RetractProviderImpl` /
- * `AnswerProviderImpl` providers wired to the real first-party
+ * `AnswerProviderImpl` providers. Capture and retract dispatch through their
+ * production store transforms, while recall uses its real first-party
  * contributors. Used by:
  *
  *   - src/conversational-agent-tools.integration.test.ts
@@ -56,12 +57,6 @@ import type {
   CaptureClassification,
   CaptureClassifier,
 } from "#modules/capture/capture-types.js";
-import {
-  createInboxContributor as createInboxCaptureContributor,
-  createKnowledgeContributor as createKnowledgeCaptureContributor,
-  createMemoryContributor as createMemoryCaptureContributor,
-  createTasksContributor as createTasksCaptureContributor,
-} from "#modules/capture/contributors.js";
 import { createCaptureToolDef } from "#modules/capture/tool.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
 import { MemoryStore } from "#modules/memory/store.js";
@@ -74,17 +69,7 @@ import {
 } from "#modules/recall/contributors.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import { createRecallToolDef } from "#modules/recall/tool.js";
-import {
-  createRepoTaskRuntimeSandbox,
-  repoTaskRuntimeSandboxTarget,
-} from "#modules/repo-tasks/repo-task-mutation-test-support.js";
 import { RepoTasksDefaultStore } from "#modules/repo-tasks/repo-tasks-store.js";
-import {
-  createInboxContributor as createInboxRetractContributor,
-  createKnowledgeContributor as createKnowledgeRetractContributor,
-  createMemoryContributor as createMemoryRetractContributor,
-  createTasksContributor as createTasksRetractContributor,
-} from "#modules/retract/contributors.js";
 import { RetractProviderImpl } from "#modules/retract/retract-provider.js";
 import { createRetractToolDef } from "#modules/retract/tool.js";
 
@@ -105,11 +90,7 @@ export type CrossStoreFixture = {
 };
 
 export function makeCrossStoreScopeRoot(prefix: string): string {
-  const scopeDir = mkdtempSync(join(tmpdir(), prefix));
-  const dir = createRepoTaskRuntimeSandbox(
-    scopeDir,
-    "conversational-cross-store",
-  ).workspaceRoot;
+  const dir = mkdtempSync(join(tmpdir(), prefix));
   mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(dir, "data", "inbox"), { recursive: true });
   mkdirSync(join(dir, ".kota"), { recursive: true });
@@ -176,15 +157,17 @@ export function buildCrossStoreFixture(
   });
   const tasksProvider = new RepoTasksDefaultStore(scopeRoot);
   const historyProvider = createEmptyHistoryProvider();
+  const scopeContext = {
+    scopeId: "cross-store-fixture",
+    scopeRoot,
+    memory: memoryStore,
+    knowledge: knowledgeStore,
+  };
 
   const captureProvider = new CaptureProviderImpl({
     classifier: memoryCaptureClassifier(),
+    resolveScopeContext: () => scopeContext,
   });
-  captureProvider.register(createMemoryCaptureContributor(memoryStore));
-  captureProvider.register(createKnowledgeCaptureContributor(knowledgeStore));
-  const mutationTarget = repoTaskRuntimeSandboxTarget(scopeRoot);
-  captureProvider.register(createTasksCaptureContributor(mutationTarget));
-  captureProvider.register(createInboxCaptureContributor(mutationTarget));
 
   const recallProvider = new RecallProviderImpl({
     onContributorError: () => {},
@@ -201,11 +184,9 @@ export function buildCrossStoreFixture(
   });
   recallProvider.register(createAnswerRecallContributor(answerHistoryStore));
 
-  const retractProvider = new RetractProviderImpl();
-  retractProvider.register(createMemoryRetractContributor(memoryStore));
-  retractProvider.register(createKnowledgeRetractContributor(knowledgeStore));
-  retractProvider.register(createTasksRetractContributor(mutationTarget));
-  retractProvider.register(createInboxRetractContributor(mutationTarget));
+  const retractProvider = new RetractProviderImpl({
+    resolveScopeContext: () => scopeContext,
+  });
 
   const recallSeam: AnswerRecallSeam = {
     async recall(query, filter) {

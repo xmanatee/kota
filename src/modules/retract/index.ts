@@ -4,9 +4,8 @@
  *
  * - Builds a `RetractProviderImpl` and registers it as the `retract`
  *   provider.
- * - Wires each first-party store (memory, knowledge, tasks, inbox)
- *   as a typed contributor; adding a fifth store later means registering
- *   a fifth contributor here, not editing every consumer.
+ * - Maps each selected target to the canonical store operation and returns
+ *   that store's domain result without a copied result envelope.
  * - Exposes the seam through one daemon-control route (`POST /retract`),
  *   one user-facing HTTP route (`POST /api/retract`), one
  *   `KotaClient.retract` namespace, one `kota retract` CLI command, and
@@ -19,17 +18,11 @@
 
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
 import { createRetractReadinessSource } from "./capability-readiness.js";
 import { registerRetractCommand } from "./cli.js";
 import type { RetractClient, } from "./client.js";
-import {
-  createScopeInboxContributor,
-  createScopeKnowledgeContributor,
-  createScopeMemoryContributor,
-  createScopeTasksContributor,
-} from "./contributors.js";
 import { RetractProviderImpl } from "./retract-provider.js";
 import {
   RETRACT_PROVIDER_TOKEN,
@@ -44,22 +37,17 @@ import {
 import { createRetractToolDef } from "./tool.js";
 import { retractUiSurfaceSource } from "./ui-surface.js";
 
-let activeProvider: RetractProvider | null = null;
-
-function resolveActiveProvider(): RetractProvider {
-  if (!activeProvider) {
-    throw new Error(
-      "Retract provider is not initialized. Ensure the retract module loaded.",
-    );
-  }
-  return activeProvider;
+function requireRetractProvider(ctx: ModuleContext): RetractProvider {
+  const provider = ctx.getProvider(RETRACT_PROVIDER_TOKEN);
+  if (!provider) throw new Error("retract provider is not registered");
+  return provider;
 }
 
 const retractModule: KotaModule = {
   name: "retract",
   version: "1.0.0",
   description:
-    "Cross-store retract seam — typed removal of one prior capture from memory, knowledge, tasks, or inbox through the same contributor pattern capture uses.",
+    "Cross-store retract seam — typed removal of one prior capture through the canonical memory, knowledge, task, or inbox owner.",
   dependencies: ["memory", "knowledge", "repo-tasks", "rendering"],
   uiSurfaces: [retractUiSurfaceSource],
   manifest: {
@@ -106,28 +94,16 @@ const retractModule: KotaModule = {
     const provider = new RetractProviderImpl({
       resolveScopeContext: createRetractScopeContextResolver(ctx.cwd, ctx),
     });
-    provider.register(createScopeMemoryContributor());
-    provider.register(createScopeKnowledgeContributor());
-    provider.register(createScopeTasksContributor());
-    provider.register(createScopeInboxContributor());
-    activeProvider = provider;
     ctx.registerProvider(RETRACT_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
-      createRetractReadinessSource(provider),
+      createRetractReadinessSource(),
     );
     ctx.registerDynamicStateProvider(
       RETRACT_DYNAMIC_STATE_NAME,
       buildRetractDynamicStateProvider(),
     );
-    ctx.log.info(
-      `retract: registered ${provider.contributors().length} contributor(s)`,
-    );
-    return {
-      dispose: () => {
-        if (activeProvider === provider) activeProvider = null;
-      },
-    };
+    ctx.log.info("retract: initialized cross-store remover");
   },
 
   commands: (ctx) => {
@@ -136,17 +112,17 @@ const retractModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  tools: () => [createRetractToolDef(resolveActiveProvider)],
+  tools: (ctx) => [createRetractToolDef(() => requireRetractProvider(ctx))],
 
   controlRoutes: (ctx) =>
     retractControlRoutes(
-      resolveActiveProvider,
+      () => requireRetractProvider(ctx),
       createRetractScopeContextResolver(ctx.cwd, ctx),
     ),
 
   routes: (ctx) =>
     retractApiRoutes(
-      resolveActiveProvider,
+      () => requireRetractProvider(ctx),
       createRetractScopeContextResolver(ctx.cwd, ctx),
     ),
 
@@ -157,7 +133,7 @@ const retractModule: KotaModule = {
           selectedScopeSelectorId(request),
         );
         if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-        return resolveActiveProvider().retract(request, scope);
+        return requireRetractProvider(ctx).retract(request, scope);
       },
     };
     return { retract: handler };

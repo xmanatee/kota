@@ -615,7 +615,7 @@ indirect enum AnswerResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(AnswerResultFailureReason.self, forKey: .reason)) != nil {
             self = .failure(
                 reason: try container.decode(AnswerResultFailureReason.self, forKey: .reason)
             )
@@ -725,25 +725,64 @@ struct RecallFilter: Codable, Equatable {
 }
 
 indirect enum CaptureResult: Codable, Equatable {
-    case success(record: CaptureRecord)
+    case memory(id: String)
+    case knowledge(id: String)
+    case tasksSuccess(id: String, path: String)
+    case tasksFailure(reason: CaptureResultTasksFailureReason, message: String?)
+    case inboxSuccess(id: String, path: String)
+    case inboxFailure(reason: CaptureResultInboxFailureReason, message: String?)
     case ambiguous(suggestions: [CaptureTarget])
-    case noContributors
-    case contributorFailed(target: CaptureTarget, message: String)
+    case writeFailed(target: CaptureTarget, message: String)
 
     private enum CodingKeys: String, CodingKey {
+        case id
         case message
         case ok
+        case path
         case reason
-        case record
         case suggestions
         case target
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(Bool.self, forKey: .ok)) == true {
-            self = .success(
-                record: try container.decode(CaptureRecord.self, forKey: .record)
+        if (try? container.decode(String.self, forKey: .target)) == "memory" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .memory(
+                id: try container.decode(String.self, forKey: .id)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "knowledge" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .knowledge(
+                id: try container.decode(String.self, forKey: .id)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .tasksSuccess(
+                id: try container.decode(String.self, forKey: .id),
+                path: try container.decode(String.self, forKey: .path)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(CaptureResultTasksFailureReason.self, forKey: .reason)) != nil {
+            self = .tasksFailure(
+                reason: try container.decode(CaptureResultTasksFailureReason.self, forKey: .reason),
+                message: try container.decodeIfPresent(String.self, forKey: .message)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "inbox" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .inboxSuccess(
+                id: try container.decode(String.self, forKey: .id),
+                path: try container.decode(String.self, forKey: .path)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "inbox" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(CaptureResultInboxFailureReason.self, forKey: .reason)) != nil {
+            self = .inboxFailure(
+                reason: try container.decode(CaptureResultInboxFailureReason.self, forKey: .reason),
+                message: try container.decodeIfPresent(String.self, forKey: .message)
             )
             return
         }
@@ -753,12 +792,8 @@ indirect enum CaptureResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "no_contributors" {
-            self = .noContributors
-            return
-        }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "contributor_failed" {
-            self = .contributorFailed(
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "write_failed" && (try? container.decode(CaptureTarget.self, forKey: .target)) != nil {
+            self = .writeFailed(
                 target: try container.decode(CaptureTarget.self, forKey: .target),
                 message: try container.decode(String.self, forKey: .message)
             )
@@ -770,109 +805,57 @@ indirect enum CaptureResult: Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .success(let record):
+        case .memory(let id):
+            try container.encode("memory", forKey: .target)
             try container.encode(true, forKey: .ok)
-            try container.encode(record, forKey: .record)
+            try container.encode(id, forKey: .id)
+        case .knowledge(let id):
+            try container.encode("knowledge", forKey: .target)
+            try container.encode(true, forKey: .ok)
+            try container.encode(id, forKey: .id)
+        case .tasksSuccess(let id, let path):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(true, forKey: .ok)
+            try container.encode(id, forKey: .id)
+            try container.encode(path, forKey: .path)
+        case .tasksFailure(let reason, let message):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode(reason, forKey: .reason)
+            try container.encodeIfPresent(message, forKey: .message)
+        case .inboxSuccess(let id, let path):
+            try container.encode("inbox", forKey: .target)
+            try container.encode(true, forKey: .ok)
+            try container.encode(id, forKey: .id)
+            try container.encode(path, forKey: .path)
+        case .inboxFailure(let reason, let message):
+            try container.encode("inbox", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode(reason, forKey: .reason)
+            try container.encodeIfPresent(message, forKey: .message)
         case .ambiguous(let suggestions):
             try container.encode(false, forKey: .ok)
             try container.encode("ambiguous", forKey: .reason)
             try container.encode(suggestions, forKey: .suggestions)
-        case .noContributors:
+        case .writeFailed(let target, let message):
             try container.encode(false, forKey: .ok)
-            try container.encode("no_contributors", forKey: .reason)
-        case .contributorFailed(let target, let message):
-            try container.encode(false, forKey: .ok)
-            try container.encode("contributor_failed", forKey: .reason)
+            try container.encode("write_failed", forKey: .reason)
             try container.encode(target, forKey: .target)
             try container.encode(message, forKey: .message)
         }
     }
 }
 
-indirect enum CaptureRecord: Codable, Equatable {
-    case memory(recordId: String)
-    case knowledge(recordId: String)
-    case tasks(recordId: String, path: String)
-    case inbox(recordId: String, path: String)
-
-    private enum CodingKeys: String, CodingKey {
-        case path
-        case recordId
-        case target
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(String.self, forKey: .target)) == "memory" {
-            self = .memory(
-                recordId: try container.decode(String.self, forKey: .recordId)
-            )
-            return
-        }
-        if (try? container.decode(String.self, forKey: .target)) == "knowledge" {
-            self = .knowledge(
-                recordId: try container.decode(String.self, forKey: .recordId)
-            )
-            return
-        }
-        if (try? container.decode(String.self, forKey: .target)) == "tasks" {
-            self = .tasks(
-                recordId: try container.decode(String.self, forKey: .recordId),
-                path: try container.decode(String.self, forKey: .path)
-            )
-            return
-        }
-        if (try? container.decode(String.self, forKey: .target)) == "inbox" {
-            self = .inbox(
-                recordId: try container.decode(String.self, forKey: .recordId),
-                path: try container.decode(String.self, forKey: .path)
-            )
-            return
-        }
-        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .memory(let recordId):
-            try container.encode("memory", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-        case .knowledge(let recordId):
-            try container.encode("knowledge", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-        case .tasks(let recordId, let path):
-            try container.encode("tasks", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-            try container.encode(path, forKey: .path)
-        case .inbox(let recordId, let path):
-            try container.encode("inbox", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-            try container.encode(path, forKey: .path)
-        }
-    }
+struct CaptureMemoryResult: Codable, Equatable, Identifiable {
+    let target: CaptureMemoryResultTarget
+    let ok: Bool
+    let id: String
 }
 
-struct CaptureMemoryRecord: Codable, Equatable {
-    let target: CaptureMemoryRecordTarget
-    let recordId: String
-}
-
-struct CaptureKnowledgeRecord: Codable, Equatable {
-    let target: CaptureKnowledgeRecordTarget
-    let recordId: String
-}
-
-struct CaptureTasksRecord: Codable, Equatable {
-    let target: CaptureTasksRecordTarget
-    let recordId: String
-    let path: String
-}
-
-struct CaptureInboxRecord: Codable, Equatable {
-    let target: CaptureInboxRecordTarget
-    let recordId: String
-    let path: String
+struct CaptureKnowledgeResult: Codable, Equatable, Identifiable {
+    let target: CaptureKnowledgeResultTarget
+    let ok: Bool
+    let id: String
 }
 
 enum CaptureTarget: String, Codable, Equatable, CaseIterable {
@@ -883,42 +866,106 @@ enum CaptureTarget: String, Codable, Equatable, CaseIterable {
 }
 
 indirect enum RetractResult: Codable, Equatable {
-    case success(record: RetractRecord)
-    case noContributors
-    case notFound(target: RetractTarget, identifier: String)
-    case contributorFailed(target: RetractTarget, message: String)
+    case memorySuccess(identifier: String)
+    case memoryNotFound(identifier: String)
+    case knowledgeSuccess(identifier: String)
+    case knowledgeNotFound(identifier: String)
+    case tasksDropped(identifier: String, id: String, fromState: RetractResultTasksDroppedFromState, path: String, previousPath: String)
+    case tasksInvalidId(identifier: String)
+    case tasksNotFound(identifier: String)
+    case tasksAlreadyInState(identifier: String, state: RetractResultTasksAlreadyInStateState)
+    case inboxSuccess(identifier: String, path: String, recordId: String)
+    case inboxNotFound(identifier: String)
+    case retractFailed(target: RetractTarget, identifier: String, message: String)
 
     private enum CodingKeys: String, CodingKey {
+        case fromState
+        case id
         case identifier
         case message
         case ok
+        case path
+        case previousPath
         case reason
-        case record
+        case recordId
+        case state
         case target
+        case toState
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(Bool.self, forKey: .ok)) == true {
-            self = .success(
-                record: try container.decode(RetractRecord.self, forKey: .record)
-            )
-            return
-        }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "no_contributors" {
-            self = .noContributors
-            return
-        }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "not_found" {
-            self = .notFound(
-                target: try container.decode(RetractTarget.self, forKey: .target),
+        if (try? container.decode(String.self, forKey: .target)) == "memory" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .memorySuccess(
                 identifier: try container.decode(String.self, forKey: .identifier)
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "contributor_failed" {
-            self = .contributorFailed(
+        if (try? container.decode(String.self, forKey: .target)) == "memory" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "not_found" {
+            self = .memoryNotFound(
+                identifier: try container.decode(String.self, forKey: .identifier)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "knowledge" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .knowledgeSuccess(
+                identifier: try container.decode(String.self, forKey: .identifier)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "knowledge" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "not_found" {
+            self = .knowledgeNotFound(
+                identifier: try container.decode(String.self, forKey: .identifier)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == true && (try? container.decode(String.self, forKey: .toState)) == "dropped" && (try? container.decode(RetractResultTasksDroppedFromState.self, forKey: .fromState)) != nil {
+            self = .tasksDropped(
+                identifier: try container.decode(String.self, forKey: .identifier),
+                id: try container.decode(String.self, forKey: .id),
+                fromState: try container.decode(RetractResultTasksDroppedFromState.self, forKey: .fromState),
+                path: try container.decode(String.self, forKey: .path),
+                previousPath: try container.decode(String.self, forKey: .previousPath)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "invalid_id" {
+            self = .tasksInvalidId(
+                identifier: try container.decode(String.self, forKey: .identifier)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "not_found" {
+            self = .tasksNotFound(
+                identifier: try container.decode(String.self, forKey: .identifier)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "already_in_state" && (try? container.decode(RetractResultTasksAlreadyInStateState.self, forKey: .state)) != nil {
+            self = .tasksAlreadyInState(
+                identifier: try container.decode(String.self, forKey: .identifier),
+                state: try container.decode(RetractResultTasksAlreadyInStateState.self, forKey: .state)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "inbox" && (try? container.decode(Bool.self, forKey: .ok)) == true {
+            self = .inboxSuccess(
+                identifier: try container.decode(String.self, forKey: .identifier),
+                path: try container.decode(String.self, forKey: .path),
+                recordId: try container.decode(String.self, forKey: .recordId)
+            )
+            return
+        }
+        if (try? container.decode(String.self, forKey: .target)) == "inbox" && (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "not_found" {
+            self = .inboxNotFound(
+                identifier: try container.decode(String.self, forKey: .identifier)
+            )
+            return
+        }
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(String.self, forKey: .reason)) == "retract_failed" && (try? container.decode(RetractTarget.self, forKey: .target)) != nil {
+            self = .retractFailed(
                 target: try container.decode(RetractTarget.self, forKey: .target),
+                identifier: try container.decode(String.self, forKey: .identifier),
                 message: try container.decode(String.self, forKey: .message)
             )
             return
@@ -929,117 +976,68 @@ indirect enum RetractResult: Codable, Equatable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case .success(let record):
+        case .memorySuccess(let identifier):
+            try container.encode("memory", forKey: .target)
             try container.encode(true, forKey: .ok)
-            try container.encode(record, forKey: .record)
-        case .noContributors:
-            try container.encode(false, forKey: .ok)
-            try container.encode("no_contributors", forKey: .reason)
-        case .notFound(let target, let identifier):
+            try container.encode(identifier, forKey: .identifier)
+        case .memoryNotFound(let identifier):
+            try container.encode("memory", forKey: .target)
             try container.encode(false, forKey: .ok)
             try container.encode("not_found", forKey: .reason)
+            try container.encode(identifier, forKey: .identifier)
+        case .knowledgeSuccess(let identifier):
+            try container.encode("knowledge", forKey: .target)
+            try container.encode(true, forKey: .ok)
+            try container.encode(identifier, forKey: .identifier)
+        case .knowledgeNotFound(let identifier):
+            try container.encode("knowledge", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode("not_found", forKey: .reason)
+            try container.encode(identifier, forKey: .identifier)
+        case .tasksDropped(let identifier, let id, let fromState, let path, let previousPath):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(true, forKey: .ok)
+            try container.encode("dropped", forKey: .toState)
+            try container.encode(identifier, forKey: .identifier)
+            try container.encode(id, forKey: .id)
+            try container.encode(fromState, forKey: .fromState)
+            try container.encode(path, forKey: .path)
+            try container.encode(previousPath, forKey: .previousPath)
+        case .tasksInvalidId(let identifier):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode("invalid_id", forKey: .reason)
+            try container.encode(identifier, forKey: .identifier)
+        case .tasksNotFound(let identifier):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode("not_found", forKey: .reason)
+            try container.encode(identifier, forKey: .identifier)
+        case .tasksAlreadyInState(let identifier, let state):
+            try container.encode("tasks", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode("already_in_state", forKey: .reason)
+            try container.encode(identifier, forKey: .identifier)
+            try container.encode(state, forKey: .state)
+        case .inboxSuccess(let identifier, let path, let recordId):
+            try container.encode("inbox", forKey: .target)
+            try container.encode(true, forKey: .ok)
+            try container.encode(identifier, forKey: .identifier)
+            try container.encode(path, forKey: .path)
+            try container.encode(recordId, forKey: .recordId)
+        case .inboxNotFound(let identifier):
+            try container.encode("inbox", forKey: .target)
+            try container.encode(false, forKey: .ok)
+            try container.encode("not_found", forKey: .reason)
+            try container.encode(identifier, forKey: .identifier)
+        case .retractFailed(let target, let identifier, let message):
+            try container.encode(false, forKey: .ok)
+            try container.encode("retract_failed", forKey: .reason)
             try container.encode(target, forKey: .target)
             try container.encode(identifier, forKey: .identifier)
-        case .contributorFailed(let target, let message):
-            try container.encode(false, forKey: .ok)
-            try container.encode("contributor_failed", forKey: .reason)
-            try container.encode(target, forKey: .target)
             try container.encode(message, forKey: .message)
         }
     }
-}
-
-indirect enum RetractRecord: Codable, Equatable {
-    case memory(recordId: String)
-    case knowledge(recordId: String)
-    case tasks(recordId: String, previousPath: String, path: String)
-    case inbox(recordId: String, path: String)
-
-    private enum CodingKeys: String, CodingKey {
-        case path
-        case previousPath
-        case recordId
-        case target
-        case toState
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(String.self, forKey: .target)) == "memory" {
-            self = .memory(
-                recordId: try container.decode(String.self, forKey: .recordId)
-            )
-            return
-        }
-        if (try? container.decode(String.self, forKey: .target)) == "knowledge" {
-            self = .knowledge(
-                recordId: try container.decode(String.self, forKey: .recordId)
-            )
-            return
-        }
-        if (try? container.decode(String.self, forKey: .target)) == "tasks" && (try? container.decode(String.self, forKey: .toState)) == "dropped" {
-            self = .tasks(
-                recordId: try container.decode(String.self, forKey: .recordId),
-                previousPath: try container.decode(String.self, forKey: .previousPath),
-                path: try container.decode(String.self, forKey: .path)
-            )
-            return
-        }
-        if (try? container.decode(String.self, forKey: .target)) == "inbox" {
-            self = .inbox(
-                recordId: try container.decode(String.self, forKey: .recordId),
-                path: try container.decode(String.self, forKey: .path)
-            )
-            return
-        }
-        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .memory(let recordId):
-            try container.encode("memory", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-        case .knowledge(let recordId):
-            try container.encode("knowledge", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-        case .tasks(let recordId, let previousPath, let path):
-            try container.encode("tasks", forKey: .target)
-            try container.encode("dropped", forKey: .toState)
-            try container.encode(recordId, forKey: .recordId)
-            try container.encode(previousPath, forKey: .previousPath)
-            try container.encode(path, forKey: .path)
-        case .inbox(let recordId, let path):
-            try container.encode("inbox", forKey: .target)
-            try container.encode(recordId, forKey: .recordId)
-            try container.encode(path, forKey: .path)
-        }
-    }
-}
-
-struct RetractMemoryRecord: Codable, Equatable {
-    let target: RetractMemoryRecordTarget
-    let recordId: String
-}
-
-struct RetractKnowledgeRecord: Codable, Equatable {
-    let target: RetractKnowledgeRecordTarget
-    let recordId: String
-}
-
-struct RetractTasksRecord: Codable, Equatable {
-    let target: RetractTasksRecordTarget
-    let recordId: String
-    let previousPath: String
-    let path: String
-    let toState: RetractTasksRecordToState
-}
-
-struct RetractInboxRecord: Codable, Equatable {
-    let target: RetractInboxRecordTarget
-    let recordId: String
-    let path: String
 }
 
 enum RetractTarget: String, Codable, Equatable, CaseIterable {
@@ -1359,7 +1357,7 @@ indirect enum VoiceTranscribeResponse: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(VoiceTranscribeResponseFailureCode.self, forKey: .code)) != nil {
             self = .failure(
                 status: try container.decode(Double.self, forKey: .status),
                 error: try container.decode(String.self, forKey: .error),
@@ -1503,14 +1501,14 @@ indirect enum ResolvedScopePolicyRetention: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(String.self, forKey: .mode)) == "retain" {
+        if (try? container.decode(String.self, forKey: .mode)) == "retain" && (try? container.decode(ScopeRedactionProfile.self, forKey: .redaction)) != nil {
             self = .retain(
                 source: try container.decode(ScopePolicySource.self, forKey: .source),
                 redaction: try container.decode(ScopeRedactionProfile.self, forKey: .redaction)
             )
             return
         }
-        if (try? container.decode(String.self, forKey: .mode)) == "expire-after-days" {
+        if (try? container.decode(String.self, forKey: .mode)) == "expire-after-days" && (try? container.decode(ScopeRedactionProfile.self, forKey: .redaction)) != nil {
             self = .expireAfterDays(
                 source: try container.decode(ScopePolicySource.self, forKey: .source),
                 maxAgeDays: try container.decode(Double.self, forKey: .maxAgeDays),
@@ -1714,7 +1712,7 @@ indirect enum RecallHitAnswerResult: Codable, Equatable {
             self = .success
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(RecallHitAnswerResultFailureReason.self, forKey: .reason)) != nil {
             self = .failure(
                 reason: try container.decode(RecallHitAnswerResultFailureReason.self, forKey: .reason)
             )
@@ -1770,7 +1768,7 @@ indirect enum RecallAnswerHitResult: Codable, Equatable {
             self = .success
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(RecallAnswerHitResultFailureReason.self, forKey: .reason)) != nil {
             self = .failure(
                 reason: try container.decode(RecallAnswerHitResultFailureReason.self, forKey: .reason)
             )
@@ -1815,7 +1813,7 @@ indirect enum AnswerHistoryEntryResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(AnswerHistoryEntryResultFailureReason.self, forKey: .reason)) != nil {
             self = .failure(
                 reason: try container.decode(AnswerHistoryEntryResultFailureReason.self, forKey: .reason)
             )
@@ -1837,40 +1835,36 @@ indirect enum AnswerHistoryEntryResult: Codable, Equatable {
     }
 }
 
-enum CaptureMemoryRecordTarget: String, Codable, Equatable, CaseIterable {
+enum CaptureResultTasksFailureReason: String, Codable, Equatable, CaseIterable {
+    case invalidSlug = "invalid_slug"
+    case alreadyExists = "already_exists"
+}
+
+enum CaptureResultInboxFailureReason: String, Codable, Equatable, CaseIterable {
+    case invalidSlug = "invalid_slug"
+    case alreadyExists = "already_exists"
+}
+
+enum CaptureMemoryResultTarget: String, Codable, Equatable, CaseIterable {
     case memory
 }
 
-enum CaptureKnowledgeRecordTarget: String, Codable, Equatable, CaseIterable {
+enum CaptureKnowledgeResultTarget: String, Codable, Equatable, CaseIterable {
     case knowledge
 }
 
-enum CaptureTasksRecordTarget: String, Codable, Equatable, CaseIterable {
-    case tasks
-}
-
-enum CaptureInboxRecordTarget: String, Codable, Equatable, CaseIterable {
-    case inbox
-}
-
-enum RetractMemoryRecordTarget: String, Codable, Equatable, CaseIterable {
-    case memory
-}
-
-enum RetractKnowledgeRecordTarget: String, Codable, Equatable, CaseIterable {
-    case knowledge
-}
-
-enum RetractTasksRecordTarget: String, Codable, Equatable, CaseIterable {
-    case tasks
-}
-
-enum RetractTasksRecordToState: String, Codable, Equatable, CaseIterable {
+enum RetractResultTasksDroppedFromState: String, Codable, Equatable, CaseIterable {
+    case `open`
+    case blocked
+    case done
     case dropped
 }
 
-enum RetractInboxRecordTarget: String, Codable, Equatable, CaseIterable {
-    case inbox
+enum RetractResultTasksAlreadyInStateState: String, Codable, Equatable, CaseIterable {
+    case `open`
+    case blocked
+    case done
+    case dropped
 }
 
 enum ConversationRecordSource: String, Codable, Equatable, CaseIterable {
