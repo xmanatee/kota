@@ -4,6 +4,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { computeStatsRows } from "./run-stats.js";
 
+const EMPTY_AUTHORITY = {
+  authorityCriticalRunIds: new Set<string>(),
+  operationallyActiveRunIds: new Set<string>(),
+  terminalRunIds: new Set<string>(),
+};
+
 let dirCounter = 0;
 function makeRunsDir(): string {
   const base = join(tmpdir(), `kota-stats-test-${Date.now()}-${dirCounter++}`);
@@ -51,7 +57,9 @@ function writeRun(
 describe("computeStatsRows", () => {
   it("returns empty when no runs in window", () => {
     const runsDir = makeRunsDir();
-    const rows = computeStatsRows(runsDir, Date.now() - 1000);
+    const rows = computeStatsRows(runsDir, Date.now() - 1000, {
+      authority: EMPTY_AUTHORITY,
+    });
     expect(rows).toEqual([]);
   });
 
@@ -62,7 +70,9 @@ describe("computeStatsRows", () => {
     writeRun(runsDir, "r2", "builder", "failed", now, 30_000, 0.05);
     writeRun(runsDir, "r3", "explorer", "success", now, 120_000, 0.20);
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-    const rows = computeStatsRows(runsDir, cutoffMs);
+    const rows = computeStatsRows(runsDir, cutoffMs, {
+      authority: EMPTY_AUTHORITY,
+    });
 
     expect(rows).toHaveLength(2);
     const builder = rows.find((r) => r.workflow === "builder")!;
@@ -85,7 +95,10 @@ describe("computeStatsRows", () => {
     writeRun(runsDir, "r1", "builder", "success", now, 60_000, 0.10);
     writeRun(runsDir, "r2", "explorer", "success", now, 30_000, 0.05);
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-    const rows = computeStatsRows(runsDir, cutoffMs, { workflow: "builder" });
+    const rows = computeStatsRows(runsDir, cutoffMs, {
+      authority: EMPTY_AUTHORITY,
+      workflow: "builder",
+    });
     expect(rows).toHaveLength(1);
     expect(rows[0].workflow).toBe("builder");
   });
@@ -95,7 +108,9 @@ describe("computeStatsRows", () => {
     const old = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     writeRun(runsDir, "r1", "builder", "success", old, 60_000, 0.10);
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-    const rows = computeStatsRows(runsDir, cutoffMs);
+    const rows = computeStatsRows(runsDir, cutoffMs, {
+      authority: EMPTY_AUTHORITY,
+    });
     expect(rows).toEqual([]);
   });
 
@@ -105,7 +120,9 @@ describe("computeStatsRows", () => {
     writeRun(runsDir, "r1", "builder", "success", now, 60_000, 0.10);
     writeRun(runsDir, "r2", "builder", "running", now);
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-    const rows = computeStatsRows(runsDir, cutoffMs);
+    const rows = computeStatsRows(runsDir, cutoffMs, {
+      authority: EMPTY_AUTHORITY,
+    });
     const builder = rows.find((r) => r.workflow === "builder")!;
     expect(builder.runs).toBe(1);
   });

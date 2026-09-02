@@ -1,13 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AgentUsage } from "#core/agent-harness/usage.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { stack } from "#modules/rendering/primitives.js";
 import { renderToString } from "#modules/rendering/transport.js";
-import { buildStepSummaryLines } from "./step-inspect.js";
+import { buildStepSummaryLines, readWorkflowRunStep } from "./step-inspect.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
 
@@ -125,41 +125,69 @@ describe("buildStepSummaryLines", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Integration tests: read step file from a real temp directory
+// Integration tests: resolve steps through canonical run metadata
 // ---------------------------------------------------------------------------
 
 describe("step-inspect command integration", () => {
   let tmpDir: string;
   let runsDir: string;
+  let store: WorkflowRunStore;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), "kota-step-inspect-"));
     runsDir = join(tmpDir, ".kota", "runs");
     mkdirSync(runsDir, { recursive: true });
+    store = new WorkflowRunStore(tmpDir);
   });
 
-  it("reads step JSON from the steps directory", () => {
+  it("reads the step admitted by canonical run metadata", () => {
     const runId = "2026-01-01T00-00-00-000Z-builder-abc123";
     const step = makeStep({ id: "build" });
     writeRunFixture(runsDir, runId, [step]);
 
-    const stepPath = join(runsDir, runId, "steps", "build.json");
-    expect(existsSync(stepPath)).toBe(true);
-    const loaded = readOptionalJsonFile<StepRecord>(stepPath);
-    expect(loaded).not.toBeNull();
-    expect(loaded!.id).toBe("build");
-    expect(loaded!.status).toBe("success");
-    const output = loaded!.output as { turns: number };
+    const result = readWorkflowRunStep(store, runId, "build");
+    expect(result.kind).toBe("found");
+    if (result.kind !== "found") throw new Error("Expected the step to be found");
+    expect(result.step.id).toBe("build");
+    expect(result.step.status).toBe("success");
+    const output = result.step.output as { turns: number };
     expect(output.turns).toBe(5);
   });
 
-  it("returns null for a missing step file", () => {
+  it("reports a missing step from canonical run metadata", () => {
     const runId = "2026-01-01T00-00-00-000Z-builder-abc123";
     writeRunFixture(runsDir, runId, [makeStep({ id: "build" })]);
 
-    const loaded = readOptionalJsonFile<StepRecord>(
-      join(runsDir, runId, "steps", "nonexistent.json"),
+    expect(readWorkflowRunStep(store, runId, "nonexistent")).toEqual({
+      kind: "step-not-found",
+    });
+  });
+
+  it("does not treat an artifact-only directory as a run", () => {
+    const runId = "2026-01-01T00-00-00-000Z-builder-artifact";
+    const stepsDir = join(runsDir, runId, "steps");
+    mkdirSync(stepsDir, { recursive: true });
+    writeFileSync(join(stepsDir, "build.json"), JSON.stringify(makeStep()));
+
+    expect(readWorkflowRunStep(store, runId, "build")).toEqual({
+      kind: "run-not-found",
+    });
+  });
+
+  it("fails closed when authority-critical run metadata is malformed", () => {
+    const runId = "2026-01-01T00-00-00-000Z-builder-malformed";
+    const runDir = join(runsDir, runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({ id: runId, status: "success" }),
     );
-    expect(loaded).toBeNull();
+    const authorityStore = new WorkflowRunStore(tmpDir, {
+      authorityCriticalRunIds: () => new Set([runId]),
+    });
+
+    expect(() => readWorkflowRunStep(authorityStore, runId, "build")).toThrow(
+      /Workflow run metadata authority is invalid/,
+    );
   });
 });

@@ -72,10 +72,16 @@ describe("security-review due check", () => {
       join(runDir, "metadata.json"),
       `${JSON.stringify(
         {
+          metadataVersion: 1,
           id: args.runId,
           workflow: "security-review",
+          definitionPath: "src/modules/autonomy/workflows/security-review/workflow.ts",
+          trigger: { event: "manual", schemaRef: null, payload: {} },
+          startedAt: args.completedAt,
           status: "success",
           completedAt: args.completedAt,
+          runDir: `.kota/runs/${args.runId}`,
+          steps: [],
         },
         null,
         2,
@@ -138,6 +144,7 @@ describe("security-review due check", () => {
   ) {
     const gitEvidence = await collectSecurityReviewGitEvidence({
       workspaceRoot,
+      scopeRoot: workspaceRoot,
       stateDir: options.stateDir,
       runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
     });

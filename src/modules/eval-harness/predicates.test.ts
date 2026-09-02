@@ -226,6 +226,26 @@ describe("evaluatePredicate — emitted-events predicates", () => {
   ): void {
     const runDir = join(workDir, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
+    const workflow = runId.includes("-explorer-") ? "explorer" : "dispatcher";
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        metadataVersion: 1,
+        id: runId,
+        workflow,
+        definitionPath: `src/modules/autonomy/workflows/${workflow}/workflow.ts`,
+        trigger: {
+          event: "runtime.idle",
+          schemaRef: null,
+          payload: {},
+        },
+        startedAt: "2026-04-24T00:00:00.000Z",
+        completedAt: "2026-04-24T00:00:01.000Z",
+        status: "success",
+        runDir,
+        steps: [],
+      }),
+    );
     const lines = entries.map((e) =>
       JSON.stringify({
         event: e.event,
@@ -345,8 +365,9 @@ describe("evaluatePredicate — emitted-events predicates", () => {
   });
 
   it("run-emits-event fails loudly on a malformed event log", () => {
-    const runDir = join(workDir, ".kota", "runs", "2026-04-24T00-00-00-000Z-dispatcher-eeee55");
-    mkdirSync(runDir, { recursive: true });
+    const runId = "2026-04-24T00-00-00-000Z-dispatcher-eeee55";
+    seedRunWithEvents(runId, []);
+    const runDir = join(workDir, ".kota", "runs", runId);
     writeFileSync(join(runDir, "emitted-events.jsonl"), "{not json}\n");
     expect(() =>
       evaluatePredicate(workDir, {

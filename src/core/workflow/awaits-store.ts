@@ -13,9 +13,21 @@
  * executor and runtime so this file has no event-bus or store dependencies.
  */
 
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  type Dirent,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import {
+  readWorkflowRunMetadataFile,
+  WorkflowRunMetadataAuthorityError,
+  WorkflowRunMetadataEnumerationError,
+} from "./run-metadata.js";
 
 export type AwaitMatchScalar = string | number;
 
@@ -123,15 +135,49 @@ export type ScannedSuspension = {
 export function scanSuspensions(runsRoot: string): ScannedSuspension[] {
   if (!existsSync(runsRoot)) return [];
   const out: ScannedSuspension[] = [];
-  for (const runDirName of readdirSync(runsRoot)) {
+  let runEntries: Dirent[];
+  try {
+    runEntries = readdirSync(runsRoot, { withFileTypes: true });
+  } catch (error) {
+    throw new WorkflowRunMetadataEnumerationError(runsRoot, error);
+  }
+  for (const runEntry of runEntries) {
+    if (!runEntry.isDirectory()) continue;
+    const runDirName = runEntry.name;
     const runDir = join(runsRoot, runDirName);
     const dir = awaitsDir(runDir);
     if (!existsSync(dir)) continue;
-    for (const entry of readdirSync(dir)) {
-      if (!entry.endsWith(".json") || entry.endsWith(".delivered.json")) continue;
+    const suspensionEntries = readdirSync(dir).filter(
+      (entry) => entry.endsWith(".json") && !entry.endsWith(".delivered.json"),
+    );
+    if (suspensionEntries.length === 0) continue;
+
+    // The suspension file is independent recovery evidence. Validate its
+    // metadata as authority-bearing even when the raw status looks terminal.
+    const metadataPath = join(runDir, "metadata.json");
+    const metadata = readWorkflowRunMetadataFile(metadataPath, {
+      authorityCritical: true,
+    });
+
+    for (const entry of suspensionEntries) {
       const stepId = entry.slice(0, -".json".length);
       const suspension = readSuspension(runDir, stepId);
       if (!suspension) continue;
+      if (suspension.runId !== runDirName) {
+        throw new WorkflowRunMetadataAuthorityError({
+          source: join(dir, entry),
+          runId: runDirName,
+          reason: `suspension runId ${JSON.stringify(suspension.runId)} does not match recovery directory ${JSON.stringify(runDirName)}`,
+          recoveryAction:
+            `Repair ${join(dir, entry)} before restarting; do not delete authority-bearing recovery evidence`,
+          facts: {
+            id: metadata.id,
+            workflow: metadata.workflow,
+            status: metadata.status,
+            steps: [],
+          },
+        });
+      }
       const delivery = readDelivery(runDir, stepId);
       out.push({ suspension, runDir, delivery });
     }

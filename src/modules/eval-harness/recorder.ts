@@ -24,6 +24,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { parseAgentUsage, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import type {
   AgentStepRecording,
   AgentStepRecordingResponse,
@@ -142,16 +143,13 @@ function extractResponse(
 
 function readWorkflowName(workspaceRoot: string, sourceRunId: string): string {
   const path = join(workspaceRoot, ".kota", "runs", sourceRunId, "metadata.json");
-  if (!existsSync(path)) {
+  const metadata = readWorkflowRunMetadataFile(path);
+  if (metadata === null) {
     throw new Error(
       `Source run metadata not found: ${path}. The recorder needs it to determine the workflow name.`,
     );
   }
-  const meta = JSON.parse(readFileSync(path, "utf-8")) as { workflow?: unknown };
-  if (typeof meta.workflow !== "string") {
-    throw new Error(`Source run metadata missing "workflow" field: ${path}`);
-  }
-  return meta.workflow;
+  return metadata.workflow;
 }
 
 /**

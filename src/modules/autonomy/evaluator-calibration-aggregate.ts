@@ -1,6 +1,10 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import {
+  enumerateWorkflowRunMetadataFailClosed,
+  enumerateWorkflowRunMetadataWithDurableAuthority,
+} from "#core/workflow/run-operational-projection.js";
 import { readWriterIntegrationEvidence } from "#core/workflow/writer-integration-evidence.js";
 import { isCalibrationSourceFile } from "./evaluator-calibration-artifact.js";
 import {
@@ -22,6 +26,7 @@ const DEFAULT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_FOLLOW_UP_WINDOW_MS = 3 * 24 * 60 * 60 * 1000;
 
 export type AggregateCalibrationOptions = {
+  authority?: { stateDir: string; scopeRoot: string };
   windowMs?: number;
   followUpWindowMs?: number;
   nowMs?: number;
@@ -39,11 +44,21 @@ function loadCalibrationArtifactsInWindow(
   windowMs: number,
   nowMs: number,
   criticPromptHash: string,
+  authority?: { stateDir: string; scopeRoot: string },
 ): LoadedArtifact[] {
   if (!existsSync(runsDir)) return [];
   const cutoffMs = nowMs - windowMs;
   const loaded: LoadedArtifact[] = [];
-  for (const entry of readdirSync(runsDir).sort()) {
+  const enumeration = authority === undefined
+    ? enumerateWorkflowRunMetadataFailClosed({ runsDir })
+    : enumerateWorkflowRunMetadataWithDurableAuthority({
+      runsDir,
+      stateDir: authority.stateDir,
+      scopeRoot: authority.scopeRoot,
+    });
+  for (const entry of enumeration.runs
+    .map((run) => run.id)
+    .sort()) {
     const raw = readOptionalJsonFile<EvaluatorCalibrationArtifact>(
       join(runsDir, entry, EVALUATOR_CALIBRATION_ARTIFACT),
     );
@@ -116,6 +131,7 @@ export function aggregateCalibration(
     windowMs,
     nowMs,
     options.criticPromptHash,
+    options.authority,
   );
   const dispositions = loadEvaluatorCalibrationDispositions(runsDir);
 

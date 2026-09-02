@@ -149,7 +149,10 @@ function interruptedRunPattern(
 
 export function scanRuns(ctx: RuntimeHealthAuditContext): void {
   const runsDir = join(ctx.stateDir, "runs");
-  const runs = loadRunsInWindow(runsDir, ctx.windowStartMs);
+  const runs = loadRunsInWindow(runsDir, ctx.windowStartMs, {
+    stateDir: ctx.stateDir,
+    scopeRoot: ctx.scopeRoot,
+  });
   ctx.inspected.recentRuns = runs.length;
 
   const interruptedByWorkflowAndCause = new Map<

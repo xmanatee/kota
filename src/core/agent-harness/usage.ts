@@ -5,6 +5,8 @@ export type AgentUsageTokens =
 
 export type AgentUsageCost =
   | { state: "complete"; usd: number }
+  /** Known subtotal when one or more contributing costs remain unknown. */
+  | { state: "partial"; usd: number }
   | { state: "unavailable"; reason: "provider-does-not-report" }
   | { state: "unknown" };
 
@@ -73,9 +75,12 @@ export function parseAgentUsage(raw: unknown, field: string): AgentUsage {
   }
 
   let cost: AgentUsageCost;
-  if (rawCost.state === "complete") {
+  if (rawCost.state === "complete" || rawCost.state === "partial") {
     exactUsageFields(rawCost, ["state", "usd"], `${field}.cost`);
-    cost = { state: "complete", usd: costUsd(rawCost.usd, `${field}.cost.usd`) };
+    cost = {
+      state: rawCost.state,
+      usd: costUsd(rawCost.usd, `${field}.cost.usd`),
+    };
   } else if (rawCost.state === "unavailable") {
     exactUsageFields(rawCost, ["state", "reason"], `${field}.cost`);
     if (rawCost.reason !== "provider-does-not-report") {
@@ -88,7 +93,7 @@ export function parseAgentUsage(raw: unknown, field: string): AgentUsage {
     exactUsageFields(rawCost, ["state"], `${field}.cost`);
     cost = { state: "unknown" };
   } else {
-    throw new Error(`${field}.cost.state must be complete, unavailable, or unknown`);
+    throw new Error(`${field}.cost.state must be complete, partial, unavailable, or unknown`);
   }
 
   return { tokens, cost };
@@ -165,6 +170,7 @@ export class AgentUsageAccumulator {
     let measuredTokenObservations = 0;
     let allTokensComplete = true;
     let totalCostUsd = 0;
+    let measuredCostObservations = 0;
     let allCostsComplete = true;
     let costUnavailable = false;
 
@@ -183,7 +189,9 @@ export class AgentUsageAccumulator {
       } else if (usage.cost.state === "unknown") {
         allCostsComplete = false;
       } else {
+        measuredCostObservations += 1;
         totalCostUsd += usage.cost.usd;
+        if (usage.cost.state === "partial") allCostsComplete = false;
       }
     }
 
@@ -194,10 +202,14 @@ export class AgentUsageAccumulator {
           ? { state: "complete", inputTokens, outputTokens }
           : { state: "partial", inputTokens, outputTokens },
       cost: costUnavailable
-        ? { state: "unavailable", reason: "provider-does-not-report" }
+        ? measuredCostObservations > 0
+          ? { state: "partial", usd: totalCostUsd }
+          : { state: "unavailable", reason: "provider-does-not-report" }
         : allCostsComplete
           ? { state: "complete", usd: totalCostUsd }
-          : { state: "unknown" },
+          : measuredCostObservations > 0
+            ? { state: "partial", usd: totalCostUsd }
+            : { state: "unknown" },
     };
   }
 }

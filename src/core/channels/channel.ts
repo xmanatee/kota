@@ -89,6 +89,11 @@ export type ChannelWorkflowStatus = {
   runtimeState: WorkflowRuntimeSnapshot;
   dispatchPaused: boolean;
   runsDir: string;
+  runAuthority: {
+    authorityCriticalRunIds: ReadonlySet<string>;
+    operationallyActiveRunIds: ReadonlySet<string>;
+    terminalRunIds: ReadonlySet<string>;
+  };
 };
 
 /**

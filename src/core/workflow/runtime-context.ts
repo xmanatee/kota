@@ -15,6 +15,11 @@ import { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
+import {
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "./run-metadata.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRuntimeConfig } from "./runtime-config.js";
@@ -87,9 +92,24 @@ export function createWorkflowRuntimeContext(
   runtimeConfig: WorkflowRuntimeConfig,
 ): WorkflowRuntimeContext {
   const scopeRoot = runtimeConfig.scopeRoot ?? process.cwd();
-  const store = runtimeConfig.runStore ?? new WorkflowRunStore(scopeRoot);
   const scopeId = runtimeConfig.pbus?.getScopeId()
     ?? deriveDirectoryScopeId(scopeRoot);
+  const store = runtimeConfig.runStore ?? new WorkflowRunStore(scopeRoot, {
+    authorityCriticalRunIds: () =>
+      workflowRunMetadataAuthorityCriticalIds(
+        runtimeConfig.runState.listRuns(scopeId),
+        runtimeConfig.runState.listPendingPublicationHeads()
+          .filter((publication) => publication.scopeId === scopeId),
+      ),
+    operationallyActiveRunIds: () =>
+      workflowRunMetadataOperationallyActiveIds(
+        runtimeConfig.runState.listRuns(scopeId),
+      ),
+    terminalRunIds: () =>
+      workflowRunMetadataTerminalIds(
+        runtimeConfig.runState.listRuns(scopeId),
+      ),
+  });
   const pbus =
     runtimeConfig.pbus ??
     new ScopedEventBus(runtimeConfig.bus, scopeId);

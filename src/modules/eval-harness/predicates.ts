@@ -12,12 +12,12 @@
 import {
   existsSync,
   lstatSync,
-  readdirSync,
   readFileSync,
   realpathSync,
   statSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
 import type { ExecutableVerifier } from "./executable-verifier-sandbox.js";
 import type { ScientificClaimAnalyzerSandbox } from "./scientific-claim-analyzer-sandbox.js";
 import {
@@ -572,12 +572,15 @@ function readEmittedEventsFromRuns(
   const runsDir = join(workingDir, ".kota", "runs");
   if (!existsSync(runsDir)) return [];
   const entries: EmittedEventEntry[] = [];
-  for (const entry of readdirSync(runsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    if (workflowFilter !== undefined && !entry.name.includes(workflowFilter)) {
+  for (const run of enumerateWorkflowRunMetadataWithDurableAuthority({
+    runsDir,
+    stateDir: join(workingDir, ".kota"),
+    scopeRoot: workingDir,
+  }).runs) {
+    if (workflowFilter !== undefined && !run.workflow.includes(workflowFilter)) {
       continue;
     }
-    const logPath = join(runsDir, entry.name, "emitted-events.jsonl");
+    const logPath = join(runsDir, run.id, "emitted-events.jsonl");
     if (!existsSync(logPath)) continue;
     if (!statSync(logPath).isFile()) continue;
     const raw = readFileSync(logPath, "utf-8");

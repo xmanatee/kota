@@ -14,6 +14,9 @@ import {
   workflowRunIdFromPayload,
   writeJsonFile,
 } from "./run-io.js";
+import {
+  WORKFLOW_RUN_METADATA_VERSION,
+} from "./run-metadata.js";
 import { buildWorkflowSnapshot } from "./run-store-snapshot.js";
 import { buildStepOrder } from "./run-store-step-order.js";
 import type {
@@ -104,6 +107,7 @@ function buildRunMetadata(opts: {
   const tags = [...new Set([...opts.workflow.tags, ...triggerTags])];
 
   return {
+    metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
     id: opts.id,
     workflow: opts.workflow.name,
     definitionPath: opts.workflow.definitionPath,

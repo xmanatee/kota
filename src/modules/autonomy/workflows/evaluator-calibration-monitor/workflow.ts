@@ -36,8 +36,11 @@ const inspectGate = typedCodeStep<EvaluatorCalibrationInspection>({
       "passWithWarningsMinSample",
       "aggregate",
     ]),
-  run: ({ stateDir, runBlocking }) =>
-    runBlocking(inspectEvaluatorCalibrationOperation, { stateDir }),
+  run: ({ stateDir, scopeRoot, runBlocking }) =>
+    runBlocking(inspectEvaluatorCalibrationOperation, {
+      stateDir,
+      scopeRoot,
+    }),
 });
 
 type CalibrationObservationArtifact = {

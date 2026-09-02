@@ -57,8 +57,8 @@ export async function triggerWorkflowFromStep(
     runId,
     signal ?? new AbortController().signal,
   );
-  const childMeta = state.store.getRun(runId);
-  const childOutput = childMeta?.steps
+  const childMeta = state.store.getRun(runId, { authorityCritical: true });
+  const childOutput = childMeta.steps
     .slice()
     .reverse()
     .find((step) => step.status === "success")?.output;

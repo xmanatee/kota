@@ -16,7 +16,10 @@ import {
 } from "#core/evidence/policy.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { readWorkflowRunMetadataForEnumeration } from "#core/workflow/run-metadata.js";
+import {
+  enumerateWorkflowRunMetadata,
+  workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
 import { allocationName } from "#core/workflow/run-sandbox.js";
 import type { StoredRun } from "#core/workflow/run-state-types.js";
 import { PRUNED_RUN_REFERENCES_FILE } from "#core/workflow/run-store-retention.js";
@@ -1020,32 +1023,33 @@ export class LifecycleCollector {
       if (!existsSync(runsDir)) continue;
 
       const protectedIds = new Set<string>();
-      try {
-        const storedRuns = this.deps.runState.listRuns(scope.scopeId);
-        for (const run of storedRuns) {
-          if (
-            run.state === "queued" ||
-            run.state === "running" ||
-            run.state === "waiting" ||
-            run.state === "integrating" ||
-            run.state === "needs_attention"
-          ) {
-            protectedIds.add(run.id);
+      const authorityCriticalIds = new Set<string>();
+      const operationallyActiveIds = new Set<string>();
+      const storedRuns = this.deps.runState.listRuns(scope.scopeId);
+      const terminalRunIds = workflowRunMetadataTerminalIds(storedRuns);
+      for (const run of storedRuns) {
+        if (
+          run.state === "queued" ||
+          run.state === "running" ||
+          run.state === "waiting" ||
+          run.state === "integrating" ||
+          run.state === "needs_attention"
+        ) {
+          protectedIds.add(run.id);
+          if (run.state !== "queued") {
+            authorityCriticalIds.add(run.id);
+            operationallyActiveIds.add(run.id);
           }
         }
-      } catch {
-        // Run state query failure is non-fatal
+      }
+      for (const publication of this.deps.runState.listPendingPublicationHeads()) {
+        if (publication.scopeId !== scope.scopeId) continue;
+        protectedIds.add(publication.runId);
+        authorityCriticalIds.add(publication.runId);
       }
 
       for (const trackedId of listTrackedRunIds(scope.scopeRoot, runsDir)) {
         protectedIds.add(trackedId);
-      }
-
-      let runDirs: string[] = [];
-      try {
-        runDirs = readdirSync(runsDir);
-      } catch {
-        continue;
       }
 
       type RunCandidateMeta = {
@@ -1059,26 +1063,25 @@ export class LifecycleCollector {
 
       const parsedRuns: RunCandidateMeta[] = [];
 
-      for (const dir of runDirs) {
-        if (dir === PRUNED_RUN_REFERENCES_FILE) continue;
-        const metaPath = join(runsDir, dir, "metadata.json");
-        const meta = readWorkflowRunMetadataForEnumeration(metaPath);
-        if (meta?.id && meta.workflow && meta.startedAt) {
-          const runDir = join(runsDir, dir);
-          const dirSize = safeGetDirectorySize(runDir);
-          const startedAtMs = new Date(meta.startedAt).getTime();
-          const retainedFromMs = meta.status === "running"
-            ? startedAtMs
-            : new Date(meta.completedAt ?? meta.startedAt).getTime();
-          parsedRuns.push({
-            id: meta.id,
-            workflow: meta.workflow,
-            startedAtMs,
-            retainedFromMs,
-            metadata: meta,
-            dirSize,
-          });
-        }
+      for (const meta of enumerateWorkflowRunMetadata(runsDir, {
+        authorityCriticalRunIds: authorityCriticalIds,
+        operationallyActiveRunIds: operationallyActiveIds,
+        terminalRunIds,
+      }).runs) {
+        const runDir = join(runsDir, meta.id);
+        const dirSize = safeGetDirectorySize(runDir);
+        const startedAtMs = new Date(meta.startedAt).getTime();
+        const retainedFromMs = meta.status === "running"
+          ? startedAtMs
+          : new Date(meta.completedAt ?? meta.startedAt).getTime();
+        parsedRuns.push({
+          id: meta.id,
+          workflow: meta.workflow,
+          startedAtMs,
+          retainedFromMs,
+          metadata: meta,
+          dirSize,
+        });
       }
 
       const byWorkflow: Record<string, RunCandidateMeta[]> = {};

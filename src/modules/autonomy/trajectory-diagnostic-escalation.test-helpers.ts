@@ -137,6 +137,10 @@ export function seedTrajectoryRun(
 export function detectTrajectoryPatterns(workspaceRoot: string) {
   return detectRecurringTrajectoryDiagnosticPatterns(
     join(workspaceRoot, ".kota", "runs"),
+    {
+      stateDir: join(workspaceRoot, ".kota"),
+      scopeRoot: workspaceRoot,
+    },
     { nowMs: NOW },
   );
 }

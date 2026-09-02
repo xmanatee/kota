@@ -13,7 +13,6 @@ import {
 } from "#core/evidence/policy.js";
 import { jsonResponse, SseTransport, setCors } from "#core/server/session-pool.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import {
@@ -24,7 +23,6 @@ import {
   parseKotaAgentMessageLine,
   projectAgentMessageToRunStreamEvents,
 } from "../runs/stream-projection.js";
-import { listStoredWorkflowRuns } from "../runs/workflow-history.js";
 import { readStepEvents } from "../runs/workflow-logs.js";
 
 type RunSummary = {
@@ -122,7 +120,12 @@ export function listRunMetadata(
   workflow?: string,
   tag?: string,
 ): WorkflowRunMetadata[] {
-  const runs = listStoredWorkflowRuns(store.runsDir, { sinceMs: since, causedByRunId, workflow, tag });
+  const runs = store.listRuns({
+    limit: Number.MAX_SAFE_INTEGER,
+    causedByRunId,
+    workflow,
+    tag,
+  }).filter((run) => since === undefined || Date.parse(run.startedAt) >= since);
   if (since !== undefined) return runs;
   if (causedByRunId !== undefined) return runs.slice(offset, offset + limit);
   return runs.slice(offset, offset + limit);
@@ -169,7 +172,7 @@ export function handleWorkflowRunDetail(
     return;
   }
   const runDir = join(store.runsDir, runId);
-  const metadata = readWorkflowRunMetadataFile(join(runDir, "metadata.json"));
+  const metadata = store.getRun(runId);
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -195,10 +198,9 @@ export function handleWorkflowRunStream(
     return;
   }
   const runDir = join(store.runsDir, runId);
-  const metadataPath = join(runDir, "metadata.json");
   const stepsDir = join(runDir, "steps");
 
-  const metadata = readWorkflowRunMetadataFile(metadataPath);
+  const metadata = store.getRun(runId);
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
@@ -267,7 +269,7 @@ export function handleWorkflowRunStream(
   function poll(): void {
     if (sse.isClosed) return;
 
-    const meta = readWorkflowRunMetadataFile(metadataPath);
+    const meta = store.getRun(runId);
     if (!meta) return;
 
     // Completed steps from metadata
@@ -327,11 +329,11 @@ export function handleWorkflowRunArtifacts(
     jsonResponse(res, 400, { error: "Invalid run ID" });
     return;
   }
-  const runDir = join(store.runsDir, runId);
-  if (!existsSync(runDir)) {
+  if (store.getRun(runId) === null) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;
   }
+  const runDir = join(store.runsDir, runId);
 
   const rawWriterIntegration = readOptionalJsonFile<WriterIntegrationEvidence>(
     join(runDir, WRITER_INTEGRATION_EVIDENCE),
@@ -416,7 +418,7 @@ export function handleWorkflowRunThinking(
     return;
   }
   const runDir = join(store.runsDir, runId);
-  const metadata = readWorkflowRunMetadataFile(join(runDir, "metadata.json"));
+  const metadata = store.getRun(runId);
   if (!metadata) {
     jsonResponse(res, 404, { error: "Run not found" });
     return;

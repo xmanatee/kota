@@ -94,6 +94,7 @@ export type SupervisionLoadReport = {
 
 export type BuildSupervisionLoadReportInput = {
   workspaceRoot: string;
+  stateDir: string;
   runsDir: string;
   runs: readonly WorkflowRunMetadata[];
   tasks: readonly RepoTaskFullRecord[];

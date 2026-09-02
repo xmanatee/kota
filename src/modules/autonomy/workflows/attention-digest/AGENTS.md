@@ -8,19 +8,20 @@ This directory contains the attention digest workflow definition and test.
 
 ## On-Demand Seam
 
-`renderOnDemandAttention({ scopeRoot, runsDir })` in `step.ts` runs the same
+`renderOnDemandAttention({ scopeRoot, runsDir, authority })` in `step.ts` runs the same
 detector + renderer the cadence path uses and returns
 `{ items: AttentionItem[]; text: string }`. The cadence step
 calls the same seam so the two paths cannot drift. Operator-facing pull
 surfaces such as Telegram, Slack, CLI, daemon HTTP, embedded web, macOS, and
-mobile should consume this seam directly.
+mobile should consume this seam directly and pass canonical workflow-run
+authority rather than deriving it from the run-artifact directory.
 
-No-provider arm: unlike the recall, answer, and voice surfaces, attention
-has no upstream provider seam — the body is deterministic over local task
-state and run history. The route therefore exposes only success (200) and
-a defensive try/catch fallback (500); there is no `semantic_unavailable`
-arm. New attention client surfaces must not mint a phantom unavailable
-arm — strict-decode `{ data: { items }, text }` and surface transport
+Provider arm: unlike the recall, answer, and voice surfaces, attention has no
+semantic provider seam — the body is deterministic over local task state and
+run history. It does require the daemon's canonical workflow authority. The
+route returns 503 when that authority is unavailable, success (200) when it can
+render, and a defensive fallback (500) for read failures. New attention client
+surfaces should strict-decode `{ data: { items }, text }` and surface transport
 errors as plain failure banners.
 
 Counter invariant: the cadence counter is revisioned project state owned by

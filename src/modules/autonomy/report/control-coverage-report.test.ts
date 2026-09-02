@@ -162,6 +162,8 @@ describe("control coverage report aggregation", () => {
 
     const report = buildControlCoverageReportForWindow({
       runsDir,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopeRoot: workspaceRoot,
       windowEndMs: NOW,
       windowStartMs: NOW - 7 * MS_PER_DAY,
     });
@@ -195,6 +197,8 @@ describe("control coverage report aggregation", () => {
 
     const report = buildControlCoverageReportForWindow({
       runsDir,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopeRoot: workspaceRoot,
       windowEndMs: NOW,
       windowStartMs: NOW - 7 * MS_PER_DAY,
     });
@@ -243,6 +247,8 @@ describe("control coverage report aggregation", () => {
 
     const report = buildControlCoverageReportForWindow({
       runsDir,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopeRoot: workspaceRoot,
       windowEndMs: NOW,
       windowStartMs: NOW - 7 * MS_PER_DAY,
     });

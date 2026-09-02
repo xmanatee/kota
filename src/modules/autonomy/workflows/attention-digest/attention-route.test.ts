@@ -51,7 +51,22 @@ describe("GET /api/attention", () => {
       pool,
       scheduler: { count: () => 0 } as unknown as Scheduler,
       bus,
-      moduleRoutes: attentionRoutes({ workspaceRoot }),
+      moduleRoutes: attentionRoutes({
+        workspaceRoot,
+        getWorkflowStatus: async () => ({
+          activeRuns: [],
+          pendingRuns: [],
+          queueLength: 0,
+          completedRuns: 0,
+          protectedRunIds: [],
+          authorityCriticalRunIds: [],
+          operationallyActiveRunIds: [],
+          terminalRunIds: [],
+          workflows: {},
+          paused: false,
+          concurrency: 1,
+        }),
+      }),
       makeAgent: () => {
         throw new Error(
           "makeAgent should not be invoked by /api/attention tests",
@@ -78,7 +93,14 @@ describe("GET /api/attention", () => {
   });
 
   it("returns the same body and structured payload renderOnDemandAttention produces", async () => {
-    const expected = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
+    const expected = renderOnDemandAttention({
+      scopeRoot: workspaceRoot,
+      runsDir,
+      authority: {
+        stateDir: join(workspaceRoot, ".kota"),
+        scopeRoot: workspaceRoot,
+      },
+    });
 
     const res = await fetch(`${baseUrl}/api/attention`, {
       headers: { Authorization: `Bearer ${TOKEN}` },

@@ -11,7 +11,10 @@ import type {
   WorkflowRunMetadata,
   WorkflowRunWarning,
 } from "#core/workflow/run-types.js";
-import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import {
+  loadRunsInWindow,
+  type WorkflowRunDurableAuthority,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 
 export const READY_TASK_TARGET = 4;
 export const BACKLOG_TASK_TARGET = 8;
@@ -61,9 +64,14 @@ export function summarizeRun(metadata: WorkflowRunMetadata): RunSummary {
   };
 }
 
-export function loadRecentRuns(runsDir: string): RunSummary[] {
+export function loadRecentRuns(
+  runsDir: string,
+  authority: WorkflowRunDurableAuthority,
+): RunSummary[] {
   const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-  return loadRunsInWindow(runsDir, cutoffMs).slice(0, 20).map(summarizeRun);
+  return loadRunsInWindow(runsDir, cutoffMs, authority)
+    .slice(0, 20)
+    .map(summarizeRun);
 }
 
 export function computeCostByWorkflow(runs: RunSummary[]): Record<string, number> {

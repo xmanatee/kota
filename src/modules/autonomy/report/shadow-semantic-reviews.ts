@@ -203,13 +203,13 @@ function summarize(
     row.falsePositiveAnnotations += record.falsePositiveCount;
     if (record.status === "skipped") row.skippedTargetResolution += 1;
     if (record.status === "malformed") row.malformedArtifacts += 1;
-    if (record.usage.cost.state === "unknown") {
-      row.unknownCostArtifacts += 1;
+    if (record.usage.cost.state === "complete") {
+      row.measuredCostArtifacts += 1;
+      row.totalCostUsd = (row.totalCostUsd ?? 0) + record.usage.cost.usd;
     } else if (record.usage.cost.state === "unavailable") {
       row.unavailableCostArtifacts += 1;
     } else {
-      row.measuredCostArtifacts += 1;
-      row.totalCostUsd = (row.totalCostUsd ?? 0) + record.usage.cost.usd;
+      row.unknownCostArtifacts += 1;
     }
     byWorkflow.set(record.workflow, row);
   }
@@ -249,7 +249,8 @@ function summarize(
       record.usage.cost.state === "unavailable"
     ).length,
     unknownCostArtifacts: records.filter((record) =>
-      record.usage.cost.state === "unknown"
+      record.usage.cost.state === "unknown" ||
+      record.usage.cost.state === "partial"
     ).length + unsupported.length,
     totalCostUsd: measuredCosts.length > 0
       ? measuredCosts.reduce((sum, cost) => sum + cost, 0)

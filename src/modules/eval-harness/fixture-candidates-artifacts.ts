@@ -1,14 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import {
   collectCommandsFromJson,
   collectCommandsFromText,
 } from "./fixture-candidates-commands.js";
 import {
-  asArray,
   isJsonObject,
   parseNullableString,
-  parseString,
   parseStringArray,
   readJsonValue,
 } from "./fixture-candidates-json.js";
@@ -17,6 +16,7 @@ import type {
   CalibrationArtifact,
   FixtureCandidateCommand,
   FixtureCandidateStructuredArtifact,
+  JsonObject,
   JsonValue,
   RunEvidence,
   RunMetadata,
@@ -38,38 +38,22 @@ type StructuredArtifactCollection = {
 };
 
 function parseMetadata(path: string): RunMetadata {
-  const raw = readJsonValue(path);
-  if (!isJsonObject(raw)) throw new Error("metadata root is not an object");
-  const id = parseString(raw.id);
-  const workflow = parseString(raw.workflow);
-  const status = parseString(raw.status);
-  if (id === undefined || workflow === undefined || status === undefined) {
-    throw new Error("metadata missing id, workflow, or status");
-  }
-  const steps: RunStepArtifact[] = [];
-  for (const entry of asArray(raw.steps)) {
-    if (!isJsonObject(entry)) continue;
-    const stepId = parseString(entry.id);
-    const type = parseString(entry.type);
-    const stepStatus = parseString(entry.status);
-    if (stepId === undefined || type === undefined || stepStatus === undefined) {
-      continue;
-    }
-    steps.push({
-      id: stepId,
-      type,
-      status: stepStatus,
-      output: entry.output,
-      error: parseString(entry.error),
-    });
-  }
+  const metadata = readWorkflowRunMetadataFile(path);
+  if (metadata === null) throw new Error(`metadata is missing: ${path}`);
+  const steps: RunStepArtifact[] = metadata.steps.map((step) => ({
+    id: step.id,
+    type: step.type,
+    status: step.status,
+    output: step.output as JsonValue | undefined,
+    error: step.error,
+  }));
   return {
-    id,
-    workflow,
-    status,
-    startedAt: parseString(raw.startedAt),
-    runDir: parseString(raw.runDir),
-    trigger: isJsonObject(raw.trigger) ? raw.trigger : undefined,
+    id: metadata.id,
+    workflow: metadata.workflow,
+    status: metadata.status,
+    startedAt: metadata.startedAt,
+    runDir: metadata.runDir,
+    trigger: metadata.trigger as JsonObject,
     steps,
   };
 }

@@ -2,7 +2,6 @@ import { join } from "node:path";
 import { EventJournal } from "#core/events/event-journal.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { listStoredWorkflowRuns } from "./runs/workflow-history.js";
 
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
@@ -32,7 +31,7 @@ export function statusIcon(status: string): string {
 }
 
 export function listRuns(store: WorkflowRunStore, limit: number): WorkflowRunMetadata[] {
-  return listStoredWorkflowRuns(store.runsDir).slice(0, limit);
+  return store.listRuns({ limit });
 }
 
 export function eventJournalForScope(workspaceRoot: string): EventJournal {

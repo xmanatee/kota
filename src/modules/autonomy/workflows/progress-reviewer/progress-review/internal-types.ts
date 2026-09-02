@@ -31,8 +31,10 @@ export type ProgressReviewDirectorySource = {
   workspaceRoot: string;
   /** Canonical configured scope root. */
   scopeRoot: string;
-  /** Canonical durable runtime-state directory. */
+  /** Scope-local stores and retained run evidence. */
   stateDir: string;
+  /** Daemon state root containing canonical durable run authority. */
+  authorityStateDir: string;
   idPrefix: string;
 };
 

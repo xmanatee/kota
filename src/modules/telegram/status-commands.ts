@@ -154,10 +154,11 @@ export async function handleResolvedTelegramStatusCommand(
     return true;
   }
   if (text === "/attention") {
-    const runsDir = join(scope.scopeRoot, ".kota", "runs");
+    const status = await scope.getStatusInfo();
     const { text: body } = renderOnDemandAttention({
       scopeRoot: scope.scopeRoot,
-      runsDir,
+      runsDir: status.runsDir,
+      authority: status.runAuthority,
     });
     await sendPlain(truncateForTelegram(body));
     return true;

@@ -1,14 +1,20 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import type { Command } from "commander";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { type LineNode, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
+import {
+  requireWorkflowRunDurableAuthority,
+  workflowRunStoreWithDurableAuthority,
+} from "./workflow-history.js";
 
 type StepRecord = WorkflowRunMetadata["steps"][number];
+type WorkflowRunStepLookup =
+  | Readonly<{ kind: "found"; step: StepRecord }>
+  | Readonly<{ kind: "run-not-found" }>
+  | Readonly<{ kind: "step-not-found" }>;
 
 export function buildStepSummaryLines(step: StepRecord): LineNode[] {
   const icon = statusIcon(step.status);
@@ -83,21 +89,37 @@ export function printSummary(step: StepRecord): void {
 
 function resolveRunId(store: WorkflowRunStore, runId: string): string | null {
   if (runId.includes("Z-")) return runId;
-  try {
-    const dirs = readdirSync(store.runsDir).sort().reverse();
-    return dirs.find((d) => d.startsWith(runId)) ?? null;
-  } catch {
-    return null;
-  }
+  return store.resolveRunIdPrefix(runId);
 }
 
-export function registerStepInspectCommand(wfCmd: Command): void {
+export function readWorkflowRunStep(
+  store: WorkflowRunStore,
+  runId: string,
+  stepId: string,
+): WorkflowRunStepLookup {
+  const run = store.getRun(runId);
+  if (run === null) return { kind: "run-not-found" };
+  const step = run.steps.find((candidate) => candidate.id === stepId);
+  return step === undefined
+    ? { kind: "step-not-found" }
+    : { kind: "found", step };
+}
+
+export function registerStepInspectCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("step-inspect <run-id> <step-id>")
     .description("Print the output of a specific step from a run")
     .option("--format <fmt>", "Output format: json (default) or summary", "json")
     .action(async (runId: string, stepId: string, options: { format: string }) => {
-      const store = new WorkflowRunStore();
+      const status = await ctx.client.workflow.status();
+      const store = workflowRunStoreWithDurableAuthority(
+        ctx.cwd,
+        requireWorkflowRunDurableAuthority(
+          status.authorityCriticalRunIds,
+          status.operationallyActiveRunIds,
+          status.terminalRunIds,
+        ),
+      );
       const resolvedId = resolveRunId(store, runId);
 
       if (!resolvedId) {
@@ -105,19 +127,16 @@ export function registerStepInspectCommand(wfCmd: Command): void {
         process.exit(1);
       }
 
-      const runDir = join(store.runsDir, resolvedId);
-      if (!existsSync(runDir)) {
+      const result = readWorkflowRunStep(store, resolvedId, stepId);
+      if (result.kind === "run-not-found") {
         print(line(span(`Run "${resolvedId}" not found.`, "error")));
         process.exit(1);
       }
-
-      const stepPath = join(runDir, "steps", `${stepId}.json`);
-      const step = readOptionalJsonFile<StepRecord>(stepPath);
-
-      if (!step) {
+      if (result.kind === "step-not-found") {
         print(line(span(`Step "${stepId}" not found in run "${resolvedId}".`, "error")));
         process.exit(1);
       }
+      const { step } = result;
 
       if (options.format === "summary") {
         printSummary(step);

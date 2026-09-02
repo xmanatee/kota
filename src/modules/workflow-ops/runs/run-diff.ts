@@ -1,7 +1,5 @@
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
 import type { Command } from "commander";
-import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "#core/workflow/run-types.js";
 import {
@@ -16,6 +14,10 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
+import {
+  requireWorkflowRunDurableAuthority,
+  workflowRunStoreWithDurableAuthority,
+} from "./workflow-history.js";
 
 type StepDiff = {
   id: string;
@@ -155,26 +157,32 @@ export function formatRunDiff(a: WorkflowRunMetadata, b: WorkflowRunMetadata): R
 
 function resolveRunId(store: WorkflowRunStore, runId: string): string {
   if (runId.includes("Z-")) return runId;
-  const dirs = readdirSync(store.runsDir).sort().reverse();
-  const match = dirs.find((d) => d.startsWith(runId));
+  const match = store.resolveRunIdPrefix(runId);
   if (!match) throw new Error(`Run "${runId}" not found.`);
   return match;
 }
 
 function loadRun(store: WorkflowRunStore, runId: string): WorkflowRunMetadata {
   const resolved = resolveRunId(store, runId);
-  const path = join(store.runsDir, resolved, "metadata.json");
-  const meta = readWorkflowRunMetadataFile(path);
+  const meta = store.getRun(resolved);
   if (!meta) throw new Error(`Run "${runId}" not found.`);
   return meta;
 }
 
-export function registerRunDiffCommand(wfCmd: Command): void {
+export function registerRunDiffCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("diff <run-id-a> <run-id-b>")
     .description("Compare two workflow runs step-by-step")
-    .action((runIdA: string, runIdB: string) => {
-      const store = new WorkflowRunStore();
+    .action(async (runIdA: string, runIdB: string) => {
+      const status = await ctx.client.workflow.status();
+      const store = workflowRunStoreWithDurableAuthority(
+        ctx.cwd,
+        requireWorkflowRunDurableAuthority(
+          status.authorityCriticalRunIds,
+          status.operationallyActiveRunIds,
+          status.terminalRunIds,
+        ),
+      );
       let runA: WorkflowRunMetadata;
       let runB: WorkflowRunMetadata;
       try {

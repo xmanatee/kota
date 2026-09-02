@@ -64,17 +64,21 @@ export function buildReportCommand(): Command {
     .action((opts: ReportCommandOptions) => {
       const days = parseDaysOption(opts.days);
       const workspaceRoot = resolveScopeRoot();
-      const runsDir = join(workspaceRoot, ".kota", "runs");
+      const stateDir = join(workspaceRoot, ".kota");
+      const runsDir = join(stateDir, "runs");
       const windowEndMs = Date.now();
       const windowStartMs = windowEndMs - days * MS_PER_DAY;
       const baseData = aggregateAutonomyReport({
         workspaceRoot,
+        stateDir,
         runsDir,
         windowEndMs,
         windowDays: days,
       });
       const data = attachControlCoverageToReport(baseData, {
         runsDir,
+        stateDir,
+        scopeRoot: workspaceRoot,
         windowStartMs,
         windowEndMs,
       });

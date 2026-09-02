@@ -118,6 +118,11 @@ function makeScope(scopeRoot: string): TelegramStatusScope {
       },
       dispatchPaused: false,
       runsDir: join(scopeRoot, ".kota", "runs"),
+      runAuthority: {
+        authorityCriticalRunIds: new Set(),
+        operationallyActiveRunIds: new Set(),
+        terminalRunIds: new Set(),
+      },
     }),
     knowledge: {} as KnowledgeClient,
     memory: {} as MemoryClient,

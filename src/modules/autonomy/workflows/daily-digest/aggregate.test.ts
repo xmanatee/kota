@@ -113,6 +113,7 @@ describe("aggregateDailyDigest", () => {
   function aggregate(opts?: { previous?: { open: number; blocked: number } }) {
     return aggregateDailyDigest({
       runsDir,
+      stateDir: join(workspaceRoot, ".kota"),
       workspaceRoot,
       ownerQuestions,
       windowEndMs: NOW,

@@ -6,6 +6,13 @@ import {
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
+import {
+  WorkflowRunMetadataAuthorityError,
+  WorkflowRunMetadataEnumerationError,
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "./run-metadata.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import {
   emitIdleEvent,
@@ -48,20 +55,37 @@ export function startRuntime(
   state.lastIdleEventEmittedAtMs = undefined;
 
   try {
+    const durableRuns = state.runState.listRuns(state.scopeId);
+    const pendingPublications = state.runState.listPendingPublicationHeads()
+      .filter((publication) => publication.scopeId === state.scopeId);
+    const authorityCriticalRunIds = workflowRunMetadataAuthorityCriticalIds(
+      durableRuns,
+      pendingPublications,
+    );
+    const operationallyActiveRunIds =
+      workflowRunMetadataOperationallyActiveIds(durableRuns);
+    const terminalRunIds = workflowRunMetadataTerminalIds(durableRuns);
     state.store.pruneRuns({
-      protectedRunIds: new Set(
-        state.runState
-          .listRuns(state.scopeId, [
-            "queued",
-            "running",
-            "waiting",
-            "integrating",
-            "needs_attention",
-          ])
+      protectedRunIds: new Set([
+        ...durableRuns
+          .filter((run) =>
+            run.state === "queued" ||
+            operationallyActiveRunIds.has(run.id)
+          )
           .map((run) => run.id),
-      ),
+        ...authorityCriticalRunIds,
+      ]),
+      authorityCriticalRunIds,
+      operationallyActiveRunIds,
+      terminalRunIds,
     });
   } catch (error) {
+    if (
+      error instanceof WorkflowRunMetadataAuthorityError ||
+      error instanceof WorkflowRunMetadataEnumerationError
+    ) {
+      throw error;
+    }
     state.log(
       `Workflow run pruning failed: ${error instanceof Error ? error.message : String(error)}`,
     );

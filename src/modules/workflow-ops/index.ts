@@ -30,7 +30,11 @@ import {
 import {
   buildOperatorTriggerRequestBody,
 } from "#core/workflow/operator-trigger.js";
-import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
+import {
+  readRunOperationalProjection,
+  readWorkflowOperationalState,
+  readWorkflowRunMetadataDurableAuthority,
+} from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
@@ -94,17 +98,17 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
     );
 
   registerRunListCommands(wfCmd, ctx);
-  registerStatsCommand(wfCmd);
-  registerExportCommand(wfCmd);
+  registerStatsCommand(wfCmd, ctx);
+  registerExportCommand(wfCmd, ctx);
   registerRunShowCommand(wfCmd, ctx);
-  registerStepInspectCommand(wfCmd);
-  registerRunDiffCommand(wfCmd);
+  registerStepInspectCommand(wfCmd, ctx);
+  registerRunDiffCommand(wfCmd, ctx);
   registerDefinitionsCommand(wfCmd, ctx);
   registerDepsCommand(wfCmd, ctx);
   registerExplainCommand(wfCmd, ctx);
   registerDefinitionLogCommand(wfCmd, ctx);
   registerCostCommand(wfCmd, ctx);
-  registerLogsCommand(wfCmd);
+  registerLogsCommand(wfCmd, ctx);
   registerFollowCommand(wfCmd);
   registerTriggerCommands(wfCmd, ctx);
   registerTriggersCommand(wfCmd, ctx);
@@ -118,6 +122,10 @@ export function buildWorkflowCommand(ctx: ModuleContext): Command {
   registerGcCommand(wfCmd, ctx);
 
   return wfCmd;
+}
+
+function localWorkflowRunStore(ctx: ModuleContext): WorkflowRunStore {
+  return new WorkflowRunStore(ctx.cwd, { stateDir: join(ctx.cwd, ".kota") });
 }
 
 const workflowModule: KotaModule = {
@@ -136,13 +144,16 @@ const workflowModule: KotaModule = {
   localClient: (ctx) => {
     const handler: WorkflowClient = {
       async listRuns(filter) {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const limit = filter?.limit ?? 60;
         const tag = filter?.tag;
         const tagFiltered = listStoredWorkflowRuns(store.runsDir, {
           workflow: filter?.workflow,
           causedByRunId: filter?.causedByRunId,
           ...(tag !== undefined ? { tag } : {}),
+        }, {
+          stateDir: store.rootDir,
+          scopeRoot: ctx.cwd,
         }).slice(0, limit);
         return {
           runs: tagFiltered.map((r) => ({
@@ -164,8 +175,17 @@ const workflowModule: KotaModule = {
       },
       ...buildLocalDeadLetterClient(ctx),
       async status() {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const state = readStoredWorkflowRuntimeState(ctx.cwd, store.rootDir);
+        const durableRuns = readRunOperationalProjection({
+          stateDir: store.rootDir,
+          scopeRoot: ctx.cwd,
+        }).runs;
+        const authority = readWorkflowRunMetadataDurableAuthority({
+          stateDir: store.rootDir,
+          scopeRoot: ctx.cwd,
+        });
+        const authorityCriticalRunIds = authority.authorityCriticalRunIds;
         const pause = resolveWorkflowDispatchPause({
           operatorPaused: state.operatorPaused,
           runtimePaused: false,
@@ -182,6 +202,17 @@ const workflowModule: KotaModule = {
           pendingRuns: state.pendingRuns,
           queueLength: state.pendingRuns.length,
           completedRuns: state.completedRuns,
+          protectedRunIds: [
+            ...new Set([
+              ...durableRuns.map((run) => run.runId),
+              ...authorityCriticalRunIds,
+            ]),
+          ],
+          authorityCriticalRunIds: [...authorityCriticalRunIds],
+          operationallyActiveRunIds: durableRuns
+            .filter((run) => run.state !== "queued")
+            .map((run) => run.runId),
+          terminalRunIds: [...authority.terminalRunIds],
           ...(state.agentBackoff && { agentBackoff: state.agentBackoff }),
           ...(state.definitionsLoadedAt && { definitionsLoadedAt: state.definitionsLoadedAt }),
           workflows: state.workflows,
@@ -194,12 +225,12 @@ const workflowModule: KotaModule = {
         };
       },
       async pause() {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const changed = setStoredDispatchPaused(ctx.cwd, store.rootDir, true);
         return { paused: true, already: !changed };
       },
       async resume(options) {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const agentBackoffCleared = options?.retryAgent === true &&
           clearStoredAgentBackoff(ctx.cwd, store.rootDir);
         const changed = setStoredDispatchPaused(ctx.cwd, store.rootDir, false);
@@ -210,7 +241,7 @@ const workflowModule: KotaModule = {
         };
       },
       async abort() {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const activeRuns = readWorkflowOperationalState({
           stateDir: store.rootDir,
           scopeRoot: ctx.cwd,
@@ -226,7 +257,7 @@ const workflowModule: KotaModule = {
         };
       },
       async reload() {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const reloadPath = join(store.rootDir, RELOAD_SIGNAL_FILE);
         writeFileSync(reloadPath, "");
         return { status: "signaled" };
@@ -244,7 +275,7 @@ const workflowModule: KotaModule = {
         return { ok: false, reason: "daemon_required" };
       },
       async getRun(id) {
-        const store = new WorkflowRunStore(ctx.cwd);
+        const store = localWorkflowRunStore(ctx);
         const meta = readRunMetadata(store, id);
         if (!meta) return { found: false };
         return { found: true, run: runDetailFromMetadata(meta) };

@@ -17,22 +17,38 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import type { RouteRegistration } from "#core/modules/module-types.js";
+import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
+import { getWorkflowMetricsSource } from "#core/daemon/metrics-source-provider.js";
 import { jsonResponse } from "#core/server/session-pool.js";
+import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 import { renderOnDemandAttention } from "./step.js";
 
 export function attentionRoutes(opts: {
   workspaceRoot: string;
+  getWorkflowStatus?: () => WorkflowLiveStatus | Promise<WorkflowLiveStatus>;
 }): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/attention",
-      handler: (_req: IncomingMessage, res: ServerResponse) => {
+      handler: async (_req: IncomingMessage, res: ServerResponse) => {
         try {
           const runsDir = join(opts.workspaceRoot, ".kota", "runs");
+          const status = opts.getWorkflowStatus
+            ? await opts.getWorkflowStatus()
+            : getWorkflowMetricsSource()?.getWorkflowLiveStatus();
+          if (status === undefined) {
+            jsonResponse(res, 503, { error: "Workflow authority unavailable" });
+            return;
+          }
           const result = renderOnDemandAttention({
             scopeRoot: opts.workspaceRoot,
             runsDir,
+            authority: requireWorkflowRunDurableAuthority(
+              status.authorityCriticalRunIds,
+              status.operationallyActiveRunIds,
+              status.terminalRunIds,
+            ),
           });
           jsonResponse(res, 200, {
             data: { items: result.items },

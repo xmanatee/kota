@@ -144,10 +144,7 @@ export class WorkflowRuntime {
     signal: AbortSignal,
   ): Promise<RunExecutionOutcome> {
     return this.lifecycle.execute(run, signal).then((outcome) => {
-      if (
-        outcome.kind === "terminal" &&
-        this.ctx.store.getRun(run.id) !== null
-      ) {
+      if (outcome.kind === "terminal") {
         return this.finalizeTerminalOutcome(run, outcome);
       }
       return outcome;
@@ -165,8 +162,11 @@ export class WorkflowRuntime {
     run: StoredRun,
     outcome: Extract<RunExecutionOutcome, { kind: "terminal" }>,
   ): Extract<RunExecutionOutcome, { kind: "terminal" }> {
-    const metadata = this.ctx.store.getRun(run.id);
-    if (metadata === null || metadata.status === "running") {
+    const metadata = this.ctx.store.getRun(run.id, {
+      authorityCritical: true,
+      operationallyActive: false,
+    });
+    if (metadata.status === "running") {
       throw new Error(`Cannot finalize terminal workflow run "${run.id}"`);
     }
     const status: WorkflowRunStatus = outcome.state === "succeeded"
@@ -321,8 +321,10 @@ export class WorkflowRuntime {
         return { ok: false, error: `Workflow run "${runId}" disappeared` };
       }
       if (run.state === "succeeded") {
-        const metadata = this.ctx.store.getRun(runId);
-        const output = metadata?.steps
+        const metadata = this.ctx.store.getRun(runId, {
+          authorityCritical: true,
+        });
+        const output = metadata.steps
           .slice()
           .reverse()
           .find((step) => step.output !== undefined)?.output;

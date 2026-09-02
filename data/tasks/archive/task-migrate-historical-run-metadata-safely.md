@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p0
+status: done
 ---
 
 # Migrate and diagnose historical workflow metadata

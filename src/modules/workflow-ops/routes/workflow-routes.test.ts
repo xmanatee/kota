@@ -1343,6 +1343,52 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(404);
     });
 
+    it("does not treat an artifact-only directory as a run", () => {
+      const runDir = join(runsDir, "artifact-only");
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "notes.md"), "synthetic evidence");
+
+      const { res, result } = mockResponse();
+      handleWorkflowRunArtifacts(res, "artifact-only", store);
+
+      expect(result.status).toBe(404);
+      expect(result.body).toEqual({ error: "Run not found" });
+    });
+
+    it("fails closed when an authority-critical run has no metadata", () => {
+      const runId = "authority-artifact-only";
+      const runDir = join(runsDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(join(runDir, "notes.md"), "must not be returned");
+      const authorityStore = new WorkflowRunStore(workspaceRoot, {
+        authorityCriticalRunIds: () => new Set([runId]),
+      });
+
+      const { res } = mockResponse();
+      expect(() => handleWorkflowRunArtifacts(res, runId, authorityStore)).toThrow(
+        /metadata file is missing for an authority-critical workflow run/,
+      );
+    });
+
+    it("fails closed when authority-critical run metadata is malformed", () => {
+      const runId = "malformed-artifacts-run";
+      const runDir = join(runsDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(
+        join(runDir, "metadata.json"),
+        JSON.stringify({ id: runId, status: "success" }),
+      );
+      writeFileSync(join(runDir, "notes.md"), "must not be returned");
+      const authorityStore = new WorkflowRunStore(workspaceRoot, {
+        authorityCriticalRunIds: () => new Set([runId]),
+      });
+
+      const { res } = mockResponse();
+      expect(() => handleWorkflowRunArtifacts(res, runId, authorityStore)).toThrow(
+        /Workflow run metadata authority is invalid/,
+      );
+    });
+
     it("returns null fields when no artifact files exist", () => {
       writeRunMetadata(runsDir, "run-artifacts-001", "builder", "success");
       const { res, result } = mockResponse();

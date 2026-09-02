@@ -122,7 +122,7 @@ export function executeWorkflowRun(
     resolveAgentHarness: inputDeps.resolveAgentHarness ?? resolveAgentHarness,
   };
   const previousAttempt = runContext.run.attempt > 1
-    ? deps.store.getRun(runContext.run.id)
+    ? deps.store.getRun(runContext.run.id, { authorityCritical: true })
     : null;
   const resumeSessionIds = collectAgentSessionIds(previousAttempt?.steps ?? []);
   const run = deps.store.createRun(

@@ -226,6 +226,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -254,6 +255,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -291,6 +293,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -327,6 +330,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -365,6 +369,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -417,6 +422,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -467,6 +473,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -492,6 +499,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -523,6 +531,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -556,6 +565,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -602,6 +612,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -668,6 +679,7 @@ describe("aggregateAutonomyReport", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,

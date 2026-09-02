@@ -1,13 +1,14 @@
-import { readdirSync } from "node:fs";
-import { join } from "node:path";
 import type { Command } from "commander";
-import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
+import {
+  requireWorkflowRunDurableAuthority,
+  workflowRunStoreWithDurableAuthority,
+} from "./workflow-history.js";
 import { buildRunLogs, filterWithContext, followRunLogs, stepBanner } from "./workflow-logs.js";
 
-export function registerLogsCommand(wfCmd: Command): void {
+export function registerLogsCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("logs [run-id]")
     .description("Print agent conversation transcript for a run")
@@ -17,7 +18,15 @@ export function registerLogsCommand(wfCmd: Command): void {
     .option("--regex", "Treat --grep pattern as a regular expression")
     .option("-C, --context <n>", "Lines of context around each --grep match (default: 3)")
     .action(async (runId: string | undefined, opts: { step?: string; follow?: boolean; grep?: string; regex?: boolean; context?: string }) => {
-      const store = new WorkflowRunStore();
+      const status = await ctx.client.workflow.status();
+      const store = workflowRunStoreWithDurableAuthority(
+        ctx.cwd,
+        requireWorkflowRunDurableAuthority(
+          status.authorityCriticalRunIds,
+          status.operationallyActiveRunIds,
+          status.terminalRunIds,
+        ),
+      );
 
       if (!runId && !opts.follow) {
         print(line(span("Specify a run ID or use --follow to stream the active run.", "error")));
@@ -27,18 +36,12 @@ export function registerLogsCommand(wfCmd: Command): void {
       let resolvedId: string | undefined;
       if (runId) {
         if (!runId.includes("Z-")) {
-          try {
-            const dirs = readdirSync(store.runsDir).sort().reverse();
-            const match = dirs.find((d) => d.startsWith(runId));
-            if (!match) {
-              print(line(span(`Run "${runId}" not found.`, "error")));
-              process.exit(1);
-            }
-            resolvedId = match;
-          } catch {
+          const match = store.resolveRunIdPrefix(runId);
+          if (!match) {
             print(line(span(`Run "${runId}" not found.`, "error")));
             process.exit(1);
           }
+          resolvedId = match;
         } else {
           resolvedId = runId;
         }
@@ -47,15 +50,21 @@ export function registerLogsCommand(wfCmd: Command): void {
       if (opts.follow) {
         await followRunLogs(
           store.runsDir,
-          { stateDir: store.rootDir, scopeRoot: process.cwd() },
+          async () => {
+            const liveStatus = await ctx.client.workflow.status();
+            return requireWorkflowRunDurableAuthority(
+              liveStatus.authorityCriticalRunIds,
+              liveStatus.operationallyActiveRunIds,
+              liveStatus.terminalRunIds,
+            );
+          },
           resolvedId,
           opts.step,
         );
         return;
       }
 
-      const metadataPath = join(store.runsDir, resolvedId!, "metadata.json");
-      const metadata = readWorkflowRunMetadataFile(metadataPath);
+      const metadata = store.getRun(resolvedId!);
       if (!metadata) {
         print(line(span(`Run "${resolvedId}" not found.`, "error")));
         process.exit(1);

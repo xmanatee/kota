@@ -42,7 +42,7 @@ export type StandaloneRunExecutionOptions = Readonly<{
 
 export type StandaloneRunResult = Readonly<{
   run: StoredRun;
-  metadata: WorkflowRunMetadata | null;
+  metadata: WorkflowRunMetadata;
 }>;
 
 export type StandaloneNestedRun = Readonly<{
@@ -251,7 +251,9 @@ export class StandaloneRunHost {
       if (TERMINAL_STATES.has(run.state)) {
         return {
           run,
-          metadata: this.scopeRuntime.runStore.getRun(runId),
+          metadata: this.scopeRuntime.runStore.getRun(runId, {
+            authorityCritical: true,
+          }),
         };
       }
       if (run.state === "needs_attention") {
@@ -429,7 +431,8 @@ export class StandaloneRunHost {
       throw error;
     }
     const successful = child.state === "succeeded";
-    const childOutput = this.scopeRuntime.runStore.getRun(runId)?.steps
+    const childOutput = this.scopeRuntime.runStore
+      .getRun(runId, { authorityCritical: true }).steps
       .slice()
       .reverse()
       .find((step) => step.status === "success")?.output;

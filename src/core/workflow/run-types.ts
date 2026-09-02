@@ -300,6 +300,8 @@ export type WorkflowRunWarning = {
 };
 
 export type WorkflowRunMetadata = {
+  /** Present on persisted metadata; in-memory workflow fixtures need not model storage framing. */
+  metadataVersion?: 1;
   id: string;
   workflow: string;
   definitionPath: string;

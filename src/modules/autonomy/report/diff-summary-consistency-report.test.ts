@@ -141,6 +141,7 @@ describe("diff-summary consistency report", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 1,
@@ -177,6 +178,7 @@ describe("diff-summary consistency report", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 1,

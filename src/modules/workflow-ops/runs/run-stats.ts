@@ -1,4 +1,5 @@
 import type { Command } from "commander";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import {
   blank,
@@ -11,7 +12,12 @@ import {
 } from "#modules/rendering/primitives.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
 import { formatDuration } from "../utils.js";
-import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
+import {
+  computeHistoryStats,
+  loadRunsInWindow,
+  requireWorkflowRunDurableAuthority,
+  type WorkflowRunDurableAuthority,
+} from "./workflow-history.js";
 
 type StatsRow = {
   workflow: string;
@@ -25,10 +31,19 @@ type StatsRow = {
 export function computeStatsRows(
   runsDir: string,
   cutoffMs: number,
-  options: { untilMs?: number; workflow?: string } = {},
+  options: {
+    authority: WorkflowRunDurableAuthority;
+    untilMs?: number;
+    workflow?: string;
+  },
 ): StatsRow[] {
   const untilMs = options.untilMs ?? Number.POSITIVE_INFINITY;
-  const allRuns = loadRunsInWindow(runsDir, cutoffMs, untilMs);
+  const allRuns = loadRunsInWindow(
+    runsDir,
+    cutoffMs,
+    options.authority,
+    untilMs,
+  );
   const filtered = options.workflow
     ? allRuns.filter((r) => r.workflow === options.workflow)
     : allRuns;
@@ -95,7 +110,7 @@ function parseDateMs(value: string | undefined, label: string): number | null {
   return parsed;
 }
 
-export function registerStatsCommand(wfCmd: Command): void {
+export function registerStatsCommand(wfCmd: Command, ctx: ModuleContext): void {
   wfCmd
     .command("stats")
     .description("Show aggregate workflow health: success rate, duration, and cost")
@@ -104,7 +119,7 @@ export function registerStatsCommand(wfCmd: Command): void {
     .option("--since <date>", "Start of the stats window (ISO date or timestamp)")
     .option("--until <date>", "End of the stats window (ISO date or timestamp)")
     .option("--json", "Output as JSON")
-    .action((opts: { workflow?: string; days: string; since?: string; until?: string; json?: boolean }) => {
+    .action(async (opts: { workflow?: string; days: string; since?: string; until?: string; json?: boolean }) => {
       let sinceMs: number | null;
       let untilMs: number | null;
       try {
@@ -124,8 +139,14 @@ export function registerStatsCommand(wfCmd: Command): void {
       const windowLabel = sinceMs !== null || untilMs !== null
         ? `${new Date(cutoffMs).toISOString()}..${Number.isFinite(upperMs) ? new Date(upperMs).toISOString() : "now"}`
         : `${days}-day window`;
-      const store = new WorkflowRunStore();
+      const store = new WorkflowRunStore(ctx.cwd);
+      const status = await ctx.client.workflow.status();
       const rows = computeStatsRows(store.runsDir, cutoffMs, {
+        authority: requireWorkflowRunDurableAuthority(
+          status.authorityCriticalRunIds,
+          status.operationallyActiveRunIds,
+          status.terminalRunIds,
+        ),
         untilMs: upperMs,
         workflow: opts.workflow,
       });

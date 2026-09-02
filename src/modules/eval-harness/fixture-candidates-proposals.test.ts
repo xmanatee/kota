@@ -30,22 +30,30 @@ function seedRun(
 ): void {
   const runDir = join(workspaceRoot, ".kota/runs", runId);
   const commands = options.commands ?? [];
+  const authoredSteps = options.steps ?? [
+    {
+      id: "build",
+      type: "agent",
+      status: options.status ?? "success",
+      output: { content: commands.map((command) => `$ ${command}`).join("\n") },
+    },
+    { id: "verify", type: "code", status: "success", output: { command: commands[0] } },
+  ];
   writeJson(join(runDir, "metadata.json"), {
     id: runId,
     workflow: "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     startedAt: "2026-06-01T00:00:00.000Z",
+    completedAt: "2026-06-01T00:01:00.000Z",
     status: options.status ?? "success",
     runDir: `.kota/runs/${runId}`,
-    trigger: { event: "autonomy.queue.available", payload: {} },
-    steps: options.steps ?? [
-      {
-        id: "build",
-        type: "agent",
-        status: options.status ?? "success",
-        output: { content: commands.map((command) => `$ ${command}`).join("\n") },
-      },
-      { id: "verify", type: "code", status: "success", output: { command: commands[0] } },
-    ],
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    steps: authoredSteps.map((step, index) => ({
+      startedAt: `2026-06-01T00:00:0${index}.000Z`,
+      completedAt: `2026-06-01T00:00:1${index}.000Z`,
+      durationMs: 10_000,
+      ...(step as Record<string, unknown>),
+    })),
   });
   writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
     runId,

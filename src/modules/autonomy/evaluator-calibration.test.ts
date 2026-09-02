@@ -72,6 +72,21 @@ function seedRun(runsDir: string, seed: CalibrationSeed): void {
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
     JSON.stringify(artifact, null, 2),
   );
+  writeFileSync(
+    join(runDir, "metadata.json"),
+    JSON.stringify({
+      metadataVersion: 1,
+      id: seed.runId,
+      workflow: "builder",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+      startedAt: seed.completedAt,
+      completedAt: seed.completedAt,
+      status: seed.terminalRunStatus ?? "success",
+      runDir: `.kota/runs/${seed.runId}`,
+      steps: [],
+    }, null, 2),
+  );
 }
 
 function makeStepContext(
@@ -417,6 +432,21 @@ describe("writeCalibrationArtifact", () => {
       ],
       completedAt: "2026-04-20T12:00:00.000Z",
     });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        metadataVersion: 1,
+        id: "run-test",
+        workflow: "builder",
+        definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+        trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+        startedAt: "2026-04-20T11:59:00.000Z",
+        completedAt: "2026-04-20T12:00:00.000Z",
+        status: "success",
+        runDir: ".kota/runs/run-test",
+        steps: [],
+      }),
+    );
 
     const aggregate = aggregateCalibration(join(root, "runs"), {
       criticPromptHash: TEST_PROMPT_HASH,

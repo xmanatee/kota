@@ -143,5 +143,10 @@ export function makeStatusInfo() {
     },
     dispatchPaused: false,
     runsDir: "/tmp/scope-a/.kota/runs",
+    runAuthority: {
+      authorityCriticalRunIds: new Set<string>(),
+      operationallyActiveRunIds: new Set<string>(),
+      terminalRunIds: new Set<string>(),
+    },
   };
 }

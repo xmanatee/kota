@@ -1,5 +1,5 @@
 import { existsSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { EventJournal } from "#core/events/event-journal.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
@@ -225,6 +225,9 @@ export function buildControlMonitorCoverageArtifact(
   const links = inspectAsyncReviewers({
     scopeRoot,
     runDirPath,
+    stateDir: options.eventJournal
+      ? dirname(dirname(options.eventJournal.getPath()))
+      : join(scopeRoot, ".kota"),
     metadata,
     family,
     ...(options.linkedReviewers === undefined

@@ -16,7 +16,11 @@ import {
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import { formatDate, formatDuration, statusIcon } from "../utils.js";
 import type { HistoryStats } from "./workflow-history.js";
-import { computeHistoryStats, loadRunsInWindow } from "./workflow-history.js";
+import {
+  computeHistoryStats,
+  loadRunsInWindow,
+  requireWorkflowRunDurableAuthority,
+} from "./workflow-history.js";
 
 type RunRow = {
   id: string;
@@ -89,11 +93,21 @@ export function registerRunListCommands(wfCmd: Command, ctx: ModuleContext): voi
     .description("Show aggregate run stats grouped by workflow")
     .option("-w, --workflow <name>", "Filter to a single workflow")
     .option("--days <n>", "Time window in days", "7")
-    .action((opts: { workflow?: string; days: string }) => {
+    .action(async (opts: { workflow?: string; days: string }) => {
       const days = Number.parseInt(opts.days, 10) || 7;
       const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-      const store = new WorkflowRunStore();
-      const runs = loadRunsInWindow(store.runsDir, cutoffMs);
+      const store = new WorkflowRunStore(ctx.cwd);
+      const status = await ctx.client.workflow.status();
+      const authority = requireWorkflowRunDurableAuthority(
+        status.authorityCriticalRunIds,
+        status.operationallyActiveRunIds,
+        status.terminalRunIds,
+      );
+      const runs = loadRunsInWindow(
+        store.runsDir,
+        cutoffMs,
+        authority,
+      );
       const filtered = opts.workflow ? runs.filter((r) => r.workflow === opts.workflow) : runs;
 
       if (filtered.length === 0) {

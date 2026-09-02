@@ -12,6 +12,13 @@ describe("parseAgentUsage", () => {
     });
     expect(parseAgentUsage({
       tokens: { state: "partial", inputTokens: 12, outputTokens: 0 },
+      cost: { state: "partial", usd: 0.2 },
+    }, "usage")).toEqual({
+      tokens: { state: "partial", inputTokens: 12, outputTokens: 0 },
+      cost: { state: "partial", usd: 0.2 },
+    });
+    expect(parseAgentUsage({
+      tokens: { state: "partial", inputTokens: 12, outputTokens: 0 },
       cost: { state: "unavailable", reason: "provider-does-not-report" },
     }, "usage")).toEqual({
       tokens: { state: "partial", inputTokens: 12, outputTokens: 0 },
@@ -75,6 +82,23 @@ describe("AgentUsageAccumulator", () => {
     expect(usage.snapshot()).toEqual({
       tokens: { state: "partial", inputTokens: 10, outputTokens: 2 },
       cost: { state: "unavailable", reason: "provider-does-not-report" },
+    });
+  });
+
+  it("preserves a known cost subtotal when another invocation cost is unknown", () => {
+    const usage = new AgentUsageAccumulator();
+    usage.observe({
+      tokens: { state: "complete", inputTokens: 10, outputTokens: 2 },
+      cost: { state: "complete", usd: 0.25 },
+    });
+    usage.observe({
+      tokens: { state: "unknown" },
+      cost: { state: "unknown" },
+    });
+
+    expect(usage.snapshot()).toEqual({
+      tokens: { state: "partial", inputTokens: 10, outputTokens: 2 },
+      cost: { state: "partial", usd: 0.25 },
     });
   });
 });

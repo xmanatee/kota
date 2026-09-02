@@ -1,8 +1,12 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { readWorkflowRunMetadataForEnumeration } from "#core/workflow/run-metadata.js";
-import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
+import { enumerateWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
+import {
+  type ReadWorkflowOperationalState,
+  readWorkflowOperationalState,
+  readWorkflowRunMetadataDurableAuthority,
+} from "#core/workflow/run-operational-projection.js";
 import type {
   WorkflowQueuedRun,
   WorkflowRunMetadata,
@@ -27,15 +31,6 @@ function readRunTrigger(stateDir: string, runId: string): WorkflowRunTrigger | n
   return readOptionalJsonFile<WorkflowRunTrigger>(
     join(stateDir, "runs", runId, "trigger.json"),
   );
-}
-
-function validatedMetadataRunId(
-  metadata: WorkflowRunMetadata,
-  runDirName: string,
-): string | null {
-  if (!isSafeRunIdBasename(metadata.id)) return null;
-  if (metadata.id !== runDirName) return null;
-  return metadata.id;
 }
 
 function summarizeRun(
@@ -86,66 +81,42 @@ function summarizePendingRun(
   };
 }
 
-function readScopedRunEvidence(
+function listStoredRuns(
   source: ProgressReviewDirectorySource,
-  runDirName: string,
   excluded: string[],
-): ScopedRunEvidence | null {
-  const metadata = readWorkflowRunMetadataForEnumeration(
-    join(source.stateDir, "runs", runDirName, "metadata.json"),
-  );
-  if (!metadata) return null;
-  const runId = validatedMetadataRunId(metadata, runDirName);
-  if (!runId) {
-    excluded.push(
-      `${source.displayName} workflow run ${runDirName}: metadata id is not a safe basename matching the run directory`,
-    );
-    return null;
-  }
-  const startedMs = Date.parse(metadata.startedAt);
-  if (!Number.isFinite(startedMs)) {
-    excluded.push(
-      `${source.displayName} workflow run ${runDirName}: metadata startedAt is invalid`,
-    );
-    return null;
-  }
-  return {
-    source,
-    runId,
-    startedMs,
-    evidence: summarizeRun(source, runDirName, metadata),
-  };
-}
-
-function listRecentRuns(
-  source: ProgressReviewDirectorySource,
-  windowStartMs: number,
-  excluded: string[],
+  authorityCriticalRunIds: ReadonlySet<string>,
+  operationallyActiveRunIds: ReadonlySet<string>,
+  terminalRunIds: ReadonlySet<string>,
 ): ScopedRunEvidence[] {
   const runsDir = join(source.stateDir, "runs");
-  if (!existsSync(runsDir)) {
+  const runsDirExists = existsSync(runsDir);
+  const enumeration = enumerateWorkflowRunMetadata(runsDir, {
+    authorityCriticalRunIds,
+    operationallyActiveRunIds,
+    terminalRunIds,
+    onDiagnostic: (diagnostic) => {
+      excluded.push(
+        `${source.displayName} workflow run metadata quarantined: ${diagnostic.reason}`,
+      );
+    },
+  });
+  if (!runsDirExists) {
     excluded.push(`${source.displayName} workflow runs: .kota/runs does not exist`);
-    return [];
   }
-  return readdirSync(runsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .sort((a, b) => b.name.localeCompare(a.name))
-    .flatMap((entry) => {
-      const run = readScopedRunEvidence(source, entry.name, excluded);
-      return run && run.startedMs >= windowStartMs ? [run] : [];
-    });
+  return enumeration.runs.map((metadata): ScopedRunEvidence => ({
+    source,
+    runId: metadata.id,
+    startedMs: Date.parse(metadata.startedAt),
+    evidence: summarizeRun(source, metadata.id, metadata),
+  }));
 }
 
 function listPendingRuns(
   source: ProgressReviewDirectorySource,
   windowStartMs: number,
   excluded: string[],
+  state: ReadWorkflowOperationalState,
 ): ScopedRunEvidence[] {
-  const state = readWorkflowOperationalState({
-    stateDir: source.stateDir,
-    scopeRoot: source.scopeRoot,
-  });
-
   const pending: ScopedRunEvidence[] = [];
   for (const queued of state.pendingRuns) {
     const enqueuedMs = queued.enqueuedAtMs;
@@ -181,15 +152,46 @@ export function listRecentRunsForSources(
   trigger: WorkflowRunTrigger,
   excluded: string[],
 ): ScopedRunEvidence[] {
-  const recentRuns = sources
-    .flatMap((source) => [
-      ...listRecentRuns(source, windowStartMs, excluded),
-      ...listPendingRuns(source, windowStartMs, excluded),
-      ...listPrunedRuns(source, windowStartMs, excluded),
+  const sourceRuns = sources.map((source) => {
+    const operationalState = readWorkflowOperationalState({
+      stateDir: source.authorityStateDir,
+      scopeRoot: source.scopeRoot,
+    });
+    const authority = readWorkflowRunMetadataDurableAuthority({
+      stateDir: source.authorityStateDir,
+      scopeRoot: source.scopeRoot,
+    });
+    return {
+      source,
+      stored: listStoredRuns(
+        source,
+        excluded,
+        authority.authorityCriticalRunIds,
+        authority.operationallyActiveRunIds,
+        authority.terminalRunIds,
+      ),
+      pending: listPendingRuns(
+        source,
+        windowStartMs,
+        excluded,
+        operationalState,
+      ),
+      pruned: listPrunedRuns(source, windowStartMs, excluded),
+    };
+  });
+  const storedRuns = sourceRuns.flatMap((collection) => collection.stored);
+  const recentRuns = sourceRuns
+    .flatMap((collection) => [
+      ...collection.stored.filter((run) => run.startedMs >= windowStartMs),
+      ...collection.pending,
+      ...collection.pruned,
     ])
-    .sort((a, b) => b.startedMs - a.startedMs || a.evidence.id.localeCompare(b.evidence.id));
+    .sort(
+      (a, b) =>
+        b.startedMs - a.startedMs || a.evidence.id.localeCompare(b.evidence.id),
+    );
   const runs = mergeScopedRuns([
-    ...listBatchReferencedRunEvidence(trigger, sources, excluded),
+    ...listBatchReferencedRunEvidence(trigger, sources, storedRuns, excluded),
     ...recentRuns,
   ]);
   if (runs.length > PROGRESS_REVIEW_MAX_RUNS) {
@@ -222,6 +224,7 @@ function batchRunSource(
 function listBatchReferencedRunEvidence(
   trigger: WorkflowRunTrigger,
   sources: readonly ProgressReviewDirectorySource[],
+  storedRuns: readonly ScopedRunEvidence[],
   excluded: string[],
 ): ScopedRunEvidence[] {
   const batch = batchPayload(trigger);
@@ -244,7 +247,9 @@ function listBatchReferencedRunEvidence(
       excluded.push(`batch event ${event.event}: skipped run ${runId} with unknown scope`);
       continue;
     }
-    const run = readScopedRunEvidence(source, runId, excluded);
+    const run = storedRuns.find(
+      (candidate) => candidate.source === source && candidate.runId === runId,
+    );
     if (run) runs.push(run);
   }
   return runs;

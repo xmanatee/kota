@@ -294,10 +294,13 @@ export function createIntegratedWorkflowPublication(
   status: WorkflowRunStatus,
 ): Omit<RunPublication, "createdAt" | "deliveredAt"> {
   const definition = state.definitions.find((candidate) => candidate.name === run.workflow);
-  const metadata = state.store.getRun(run.id);
-  if (!definition || !metadata) {
+  if (!definition) {
     throw new Error(`Cannot publish integrated completion for run "${run.id}"`);
   }
+  const metadata = state.store.getRun(run.id, {
+    authorityCritical: true,
+    operationallyActive: false,
+  });
   if (metadata.status === "running") {
     throw new Error(`Cannot publish completion for running workflow "${run.id}"`);
   }
@@ -322,6 +325,9 @@ export function deliverIntegratedWorkflowPublication(
   state: WorkflowRuntimeDispatchState,
   publication: PendingRunPublication,
 ): void {
+  const completionMetadata = publication.event === "workflow.completed"
+    ? state.store.getRun(publication.runId, { authorityCritical: true })
+    : undefined;
   state.pbus.deliverOutbox(publication.event, publication.payload, publication.id);
   recordEmittedEventEvidence(join(state.store.runsDir, publication.runId), {
     publicationId: publication.id,
@@ -330,16 +336,12 @@ export function deliverIntegratedWorkflowPublication(
     payload: publication.payload,
     emittedAt: new Date().toISOString(),
   });
-  if (publication.event !== "workflow.completed") return;
-  const metadata = state.store.getRun(publication.runId);
-  if (!metadata) {
-    throw new Error(`Cannot reconcile publication for missing run "${publication.runId}"`);
-  }
+  if (completionMetadata === undefined) return;
   if (state.deadLetterQueue !== undefined) {
     dismissSupersededWorkflowDeadLetters({
       deadLetterQueue: state.deadLetterQueue,
       runStore: state.store,
-      successfulRun: metadata,
+      successfulRun: completionMetadata,
       log: state.log,
     });
   }

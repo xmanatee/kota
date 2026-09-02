@@ -155,6 +155,14 @@ export type WorkflowLiveStatus = {
   pendingRuns: WorkflowQueuedRun[];
   queueLength: number;
   completedRuns: number;
+  /** Every durable non-terminal run that destructive evidence pruning protects. */
+  protectedRunIds?: string[];
+  /** Durable runs whose evidence must decode strictly during inspection. */
+  authorityCriticalRunIds?: string[];
+  /** Operationally active durable runs whose evidence remains authority-bearing. */
+  operationallyActiveRunIds?: string[];
+  /** Durably terminal runs whose malformed evidence may be quarantined. */
+  terminalRunIds?: string[];
   agentBackoff?: WorkflowAgentBackoffState;
   definitionsLoadedAt?: string;
   workflows: WorkflowRuntimeSummary["workflows"];

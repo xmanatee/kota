@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   artifactRef,
@@ -6,7 +6,7 @@ import {
   triggerPayloadLinkedRunIds,
 } from "./control-monitor-coverage-readers.js";
 import { ASYNC_REVIEW_ARTIFACTS } from "./control-monitor-coverage-types.js";
-import { readWorkflowRunMetadataFile } from "./run-metadata.js";
+import { enumerateWorkflowRunMetadataWithDurableAuthority } from "./run-operational-projection.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 
 export type ReviewerResponseSummary = {
@@ -25,6 +25,7 @@ export type ReviewerLinks = {
 export function reviewerLinks(args: {
   scopeRoot: string;
   runDirPath: string;
+  stateDir?: string;
   metadata: WorkflowRunMetadata;
   linkedReviewers?: ReviewerLinks;
   discoverLinkedReviewers?: boolean;
@@ -46,11 +47,13 @@ export function reviewerLinks(args: {
       ? Date.parse(args.metadata.completedAt)
       : null;
     if (existsSync(runsDir)) {
-      for (const entry of readdirSync(runsDir, { withFileTypes: true })) {
-        if (!entry.isDirectory() || entry.name === args.metadata.id) continue;
-        const dir = join(runsDir, entry.name);
-        const metadata = readWorkflowRunMetadataFile(join(dir, "metadata.json"));
-        if (!metadata) continue;
+      for (const metadata of enumerateWorkflowRunMetadataWithDurableAuthority({
+        runsDir,
+        stateDir: args.stateDir ?? join(args.scopeRoot, ".kota"),
+        scopeRoot: args.scopeRoot,
+      }).runs) {
+        if (metadata.id === args.metadata.id) continue;
+        const dir = join(runsDir, metadata.id);
         const linked =
           metadata.causedBy?.runId === args.metadata.id ||
           metadata.triggeredByRunId === args.metadata.id ||

@@ -1,5 +1,6 @@
 import {
   mkdirSync,
+  realpathSync,
   readdirSync,
   rmSync,
   utimesSync,
@@ -8,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
   inspectAttentionDigestStep,
   NO_ATTENTION_ITEMS_TEXT,
@@ -107,7 +109,7 @@ describe("attention digest inspection", () => {
 
   function runSteps(n: number): void {
     for (let count = 1; count <= n; count += 1) {
-      const result = inspectAttentionDigestStep({ workspaceRoot, runsDir, count });
+      const result = inspectAttentionDigestStep({ workspaceRoot, stateDir, runsDir, count });
       if (result.event) emit(result.event.name, result.event.payload);
     }
   }
@@ -196,7 +198,7 @@ describe("attention digest inspection", () => {
   });
 
   it("emits digest without emit callback (no-op, no throw)", () => {
-    inspectAttentionDigestStep({ workspaceRoot, runsDir, count: 10 });
+    inspectAttentionDigestStep({ workspaceRoot, stateDir, runsDir, count: 10 });
     expect(emittedEvents).toHaveLength(0);
   });
 
@@ -402,6 +404,42 @@ describe("attention digest inspection", () => {
   });
 
   describe("renderOnDemandAttention", () => {
+    it("fails closed against a centralized active-run authority", () => {
+      const runId = "2026-09-02T00-00-00-000Z-builder-central";
+      writeRunMetadata(runsDir, runId, "builder", "success");
+      const canonicalStateDir = join(workspaceRoot, "daemon-state");
+      const runState = new RunStateDatabase(canonicalStateDir);
+      try {
+        runState.registerScope({
+          id: "scope-central",
+          rootPath: realpathSync(workspaceRoot),
+          createdAt: new Date().toISOString(),
+        });
+        const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+        runState.admitRun({
+          id: runId,
+          scopeId: "scope-central",
+          workflow: "builder",
+          repository: "read",
+          trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
+          resources: [],
+          admittedAt: new Date().toISOString(),
+        });
+        runState.startRun(runId, epoch, new Date().toISOString());
+
+        expect(() => renderOnDemandAttention({
+          scopeRoot: workspaceRoot,
+          runsDir,
+          authority: {
+            stateDir: canonicalStateDir,
+            scopeRoot: workspaceRoot,
+          },
+        })).toThrow(/operationally active.*terminal evidence/i);
+      } finally {
+        runState.close();
+      }
+    });
+
     it("returns the same body cadence would emit when items exist", () => {
       // Drive the cadence so we can compare its emitted text against the
       // on-demand body for the exact same repo state.
@@ -409,7 +447,11 @@ describe("attention digest inspection", () => {
       expect(emittedEvents).toHaveLength(1);
       const cadenceText = emittedEvents[0].payload.text as string;
 
-      const result = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
+      const result = renderOnDemandAttention({
+        scopeRoot: workspaceRoot,
+        runsDir,
+        authority: { stateDir, scopeRoot: workspaceRoot },
+      });
       expect(result.items.length).toBeGreaterThan(0);
       expect(result.text).toBe(cadenceText);
     });
@@ -417,18 +459,30 @@ describe("attention digest inspection", () => {
     it("returns the short fixed reply when nothing warrants attention", () => {
       makeTaskDir(workspaceRoot, "open", 1);
 
-      const result = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
+      const result = renderOnDemandAttention({
+        scopeRoot: workspaceRoot,
+        runsDir,
+        authority: { stateDir, scopeRoot: workspaceRoot },
+      });
       expect(result.items).toEqual([]);
       expect(result.text).toBe(NO_ATTENTION_ITEMS_TEXT);
     });
 
     it("does not depend on cadence state", () => {
-      expect(renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir }).items).toHaveLength(1);
+      expect(renderOnDemandAttention({
+        scopeRoot: workspaceRoot,
+        runsDir,
+        authority: { stateDir, scopeRoot: workspaceRoot },
+      }).items).toHaveLength(1);
     });
 
     it("does not emit workflow.attention.digest", () => {
       // Even though detection finds an item, the on-demand path must not emit.
-      renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
+      renderOnDemandAttention({
+        scopeRoot: workspaceRoot,
+        runsDir,
+        authority: { stateDir, scopeRoot: workspaceRoot },
+      });
       expect(emittedEvents).toHaveLength(0);
     });
   });

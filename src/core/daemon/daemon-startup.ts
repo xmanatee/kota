@@ -1,5 +1,10 @@
 import { join } from "node:path";
 import {
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
+import {
   warnIgnoredUntrustedScopeConfig,
   warnInvalidConcurrencyConfig,
   warnUnknownConfigKeys,
@@ -142,10 +147,21 @@ export async function runDaemonStartup(
       const runtime = ctx.scopeLifecycle.getChannelRuntime(
         ctx.scopeRuntimes.getDefaultScopeId(),
       );
+      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
       return {
         runtimeState: runtime.workflowRuntime.getState(),
         dispatchPaused: runtime.workflowRuntime.isDispatchPaused(),
         runsDir: join(runtime.scope.scopeRoot, ".kota", "runs"),
+        runAuthority: {
+          authorityCriticalRunIds: workflowRunMetadataAuthorityCriticalIds(
+            durableRuns,
+            runtime.runState.listPendingPublicationHeads()
+              .filter((publication) => publication.scopeId === runtime.scope.scopeId),
+          ),
+          operationallyActiveRunIds:
+            workflowRunMetadataOperationallyActiveIds(durableRuns),
+          terminalRunIds: workflowRunMetadataTerminalIds(durableRuns),
+        },
       };
     },
     operator,

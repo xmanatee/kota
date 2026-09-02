@@ -23,12 +23,16 @@ export type EvaluatorCalibrationInspection = {
 
 export function inspectEvaluatorCalibrationInWorker(input: {
   stateDir: string;
+  scopeRoot: string;
 }): EvaluatorCalibrationInspection {
   const config = resolveCalibrationGateConfig();
   const criticPromptHash = getCriticPromptHash();
   const aggregate = aggregateCalibration(
     join(input.stateDir, "runs"),
-    { criticPromptHash },
+    {
+      criticPromptHash,
+      authority: { stateDir: input.stateDir, scopeRoot: input.scopeRoot },
+    },
   );
   const decision = evaluateCalibrationGate(aggregate, config);
   return {
@@ -46,6 +50,6 @@ export function inspectEvaluatorCalibrationInWorker(input: {
 
 export const inspectEvaluatorCalibrationOperation =
   defineWorkflowBlockingOperation<
-    { stateDir: string },
+    { stateDir: string; scopeRoot: string },
     EvaluatorCalibrationInspection
   >(import.meta.url, "inspectEvaluatorCalibrationInWorker");

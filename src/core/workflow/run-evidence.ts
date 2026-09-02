@@ -9,6 +9,7 @@ import {
   projectEvidenceText,
 } from "#core/evidence/policy.js";
 import { safeJsonStringify } from "./run-io.js";
+import { WORKFLOW_RUN_METADATA_VERSION } from "./run-metadata.js";
 import type {
   WorkflowRunMetadata,
   WorkflowStepResult,
@@ -48,6 +49,7 @@ export function projectWorkflowRunMetadataForStorage(
   metadata: WorkflowRunMetadata,
 ): EvidenceJsonObject {
   const projected = projectSerializableObject(metadata);
+  projected.metadataVersion = WORKFLOW_RUN_METADATA_VERSION;
   projected.trigger = projectWorkflowRunTriggerForStorage(metadata.trigger);
   projected.steps = metadata.steps.map(projectWorkflowStepResultForStorage);
   return projected;

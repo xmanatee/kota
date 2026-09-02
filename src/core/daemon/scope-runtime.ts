@@ -29,6 +29,11 @@ import type { EventJournal } from "#core/events/event-journal.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { ModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import {
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
 import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowRuntime } from "#core/workflow/runtime.js";
@@ -159,7 +164,22 @@ export function createScopeRuntime(
   const pbus = new ScopedEventBus(opts.bus, opts.scope.scopeId);
   let isDefaultScopeRuntime = opts.installSingletons;
 
-  const runStore = new WorkflowRunStore(scopeRoot);
+  const runStore = new WorkflowRunStore(scopeRoot, {
+    authorityCriticalRunIds: () =>
+      workflowRunMetadataAuthorityCriticalIds(
+        opts.runState.listRuns(opts.scope.scopeId),
+        opts.runState.listPendingPublicationHeads()
+          .filter((publication) => publication.scopeId === opts.scope.scopeId),
+      ),
+    operationallyActiveRunIds: () =>
+      workflowRunMetadataOperationallyActiveIds(
+        opts.runState.listRuns(opts.scope.scopeId),
+      ),
+    terminalRunIds: () =>
+      workflowRunMetadataTerminalIds(
+        opts.runState.listRuns(opts.scope.scopeId),
+      ),
+  });
   const taskStore = new TaskStore(scopeRoot, undefined, pbus);
   const scheduler = new Scheduler(scopeRoot, undefined, pbus);
   const moduleLogStore = new ModuleLogStore(scopeRoot);

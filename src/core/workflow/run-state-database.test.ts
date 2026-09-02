@@ -885,6 +885,34 @@ describe("RunStateDatabase", () => {
     expect(store.listPendingPublications()).toEqual([]);
   });
 
+  test("does not prune a terminal run while its publication is undelivered", () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    admitAndStart(store, "run-a", epoch);
+    store.finishRun(
+      "run-a",
+      epoch,
+      "succeeded",
+      "2026-08-25T10:00:03.000Z",
+      undefined,
+      completionPublication("run-a"),
+    );
+
+    expect(store.pruneTerminalRuns({
+      finishedBefore: "2026-08-26T00:00:00.000Z",
+    })).toEqual({ count: 0, runIds: [] });
+    expect(store.getRun("run-a")?.state).toBe("succeeded");
+    expect(store.listPendingPublications()).toHaveLength(1);
+
+    store.markPublicationDelivered(
+      "workflow:run-a:completed",
+      "2026-08-25T10:00:04.000Z",
+    );
+    expect(store.pruneTerminalRuns({
+      finishedBefore: "2026-08-26T00:00:00.000Z",
+    })).toEqual({ count: 1, runIds: ["run-a"] });
+  });
+
   test("keeps staged emit intents invisible and accepts an identical replay", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");

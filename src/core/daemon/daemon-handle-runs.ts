@@ -1,4 +1,10 @@
 import { projectEvidenceObject, redactSensitiveText } from "#core/evidence/policy.js";
+import {
+  isWorkflowRunMetadataAuthorityCriticalState,
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
 import type {
   DaemonControlHandle,
   WorkflowCostEntry,
@@ -34,8 +40,23 @@ export function buildDaemonRunHandle(
       },
     ): WorkflowRunSummary[] => {
       const { workflow, limit, tag, causedByRunId, scopeId } = opts ?? {};
-      const runStore = lookupRuntime(scopeId).runStore;
-      return runStore.listRuns({ workflow, limit, tag, causedByRunId }).map((run) => ({
+      const runtime = lookupRuntime(scopeId);
+      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+      const authorityCriticalRunIds = workflowRunMetadataAuthorityCriticalIds(
+        durableRuns,
+        runtime.runState.listPendingPublicationHeads()
+          .filter((publication) => publication.scopeId === runtime.scope.scopeId),
+      );
+      return runtime.runStore.listRuns({
+        workflow,
+        limit,
+        tag,
+        causedByRunId,
+        authorityCriticalRunIds,
+        operationallyActiveRunIds:
+          workflowRunMetadataOperationallyActiveIds(durableRuns),
+        terminalRunIds: workflowRunMetadataTerminalIds(durableRuns),
+      }).map((run) => ({
         id: run.id,
         workflow: run.workflow,
         status: run.status,
@@ -52,8 +73,20 @@ export function buildDaemonRunHandle(
       }));
     },
     getWorkflowRun: (id: string, scopeId?: ScopeId): WorkflowRunDetail | null => {
-      const runStore = lookupRuntime(scopeId).runStore;
-      const run = runStore.getRun(id);
+      const runtime = lookupRuntime(scopeId);
+      const durableRun = runtime.runState.getRun(id);
+      const operationallyActive = durableRun !== null &&
+        isWorkflowRunMetadataAuthorityCriticalState(durableRun.state);
+      const pendingPublication = runtime.runState.listPendingPublicationHeads()
+        .some((publication) =>
+          publication.scopeId === runtime.scope.scopeId && publication.runId === id
+        );
+      const run = pendingPublication || operationallyActive
+        ? runtime.runStore.getRun(id, {
+            authorityCritical: true,
+            operationallyActive,
+          })
+        : runtime.runStore.getRun(id);
       if (!run) return null;
       const triggerPayload = Object.keys(run.trigger.payload).length > 0
         ? projectEvidenceObject(run.trigger.payload, "daemon-api")
@@ -106,7 +139,18 @@ export function buildDaemonRunHandle(
         };
       }
       const durationBucketsSeconds = [30, 120, 300, 900, 1800, 3600] as const;
-      const runs = runtime.runStore.listRuns({ limit: 100_000 });
+      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+      const runs = runtime.runStore.listRuns({
+        limit: 100_000,
+        authorityCriticalRunIds: workflowRunMetadataAuthorityCriticalIds(
+          durableRuns,
+          runtime.runState.listPendingPublicationHeads()
+            .filter((publication) => publication.scopeId === runtime.scope.scopeId),
+        ),
+        operationallyActiveRunIds:
+          workflowRunMetadataOperationallyActiveIds(durableRuns),
+        terminalRunIds: workflowRunMetadataTerminalIds(durableRuns),
+      });
       const countMap = new Map<string, number>();
       const costMap = new Map<string, number>();
       const durationMap = new Map<

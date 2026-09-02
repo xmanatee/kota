@@ -24,6 +24,7 @@ import type {
 
 export function readSupervisionLoadStores(input: {
   workspaceRoot: string;
+  stateDir: string;
   runsDir: string;
   runs: readonly WorkflowRunMetadata[];
 }): SupervisionLoadStoreReads {
@@ -32,7 +33,7 @@ export function readSupervisionLoadStores(input: {
     approvals: readApprovals(input.workspaceRoot),
     ownerQuestions: readOwnerQuestions(input.workspaceRoot),
     deadLetters: readDeadLetters(input.workspaceRoot),
-    attentionItems: readAttentionItems(input.workspaceRoot, input.runsDir),
+    attentionItems: readAttentionItems(input.workspaceRoot, input.stateDir, input.runsDir),
   };
 }
 
@@ -106,10 +107,15 @@ function readDeadLetters(workspaceRoot: string): StoreResult<DeadLetterRecord> {
 
 function readAttentionItems(
   workspaceRoot: string,
+  stateDir: string,
   runsDir: string,
 ): StoreResult<AttentionRecord> {
   try {
-    const rendered = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
+    const rendered = renderOnDemandAttention({
+      scopeRoot: workspaceRoot,
+      runsDir,
+      authority: { stateDir, scopeRoot: workspaceRoot },
+    });
     return {
       items: rendered.items.map((item, index) => ({
         id: `attention-${index + 1}`,

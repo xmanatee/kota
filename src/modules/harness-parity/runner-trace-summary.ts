@@ -124,6 +124,7 @@ function formatTokenUsage(usage: HarnessParityArtifact["usage"]): string {
 
 function formatCost(usage: HarnessParityArtifact["usage"]): string {
   if (usage.cost.state === "complete") return `$${usage.cost.usd}`;
+  if (usage.cost.state === "partial") return `at least $${usage.cost.usd}`;
   if (usage.cost.state === "unavailable") {
     return `unavailable (${usage.cost.reason})`;
   }

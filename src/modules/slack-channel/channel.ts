@@ -1,6 +1,11 @@
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import {
+	workflowRunMetadataAuthorityCriticalIds,
+	workflowRunMetadataOperationallyActiveIds,
+	workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
 import { renderOnDemandAttention } from "#modules/autonomy/workflows/attention-digest/step.js";
 import { renderOnDemandDigest } from "#modules/autonomy/workflows/daily-digest/on-demand.js";
 import { SlackApprovalBindingStore } from "./approval-bindings.js";
@@ -54,10 +59,24 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 						}
 					: undefined,
 				attention: {
-					snapshot: () => renderOnDemandAttention({
-						scopeRoot: ctx.getDefaultScopeRuntime().scope.scopeRoot,
-						runsDir: ctx.getWorkflowStatus().runsDir,
-					}),
+					snapshot: () => {
+						const runtime = ctx.getDefaultScopeRuntime();
+						const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+						return renderOnDemandAttention({
+							scopeRoot: runtime.scope.scopeRoot,
+							runsDir: ctx.getWorkflowStatus().runsDir,
+							authority: {
+								authorityCriticalRunIds: workflowRunMetadataAuthorityCriticalIds(
+									durableRuns,
+									runtime.runState.listPendingPublicationHeads()
+										.filter((publication) => publication.scopeId === runtime.scope.scopeId),
+								),
+								operationallyActiveRunIds:
+									workflowRunMetadataOperationallyActiveIds(durableRuns),
+								terminalRunIds: workflowRunMetadataTerminalIds(durableRuns),
+							},
+						});
+					},
 				},
 				digest: {
 					snapshot: () => {

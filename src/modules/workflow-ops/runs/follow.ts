@@ -1,4 +1,3 @@
-import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import type { DaemonSseEvent, WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
@@ -7,12 +6,19 @@ import {
   getDaemonTransport,
 } from "#core/server/daemon-transport.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
-import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
+import {
+  readWorkflowOperationalState,
+  readWorkflowRunMetadataDurableAuthority,
+} from "#core/workflow/run-operational-projection.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { type LineNode, line, plain, span, stack } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { formatDuration, statusIcon } from "../utils.js";
+import {
+  requireWorkflowRunDurableAuthority,
+  workflowRunStoreWithDurableAuthority,
+} from "./workflow-history.js";
 import { buildRunLogs, followRunLogs, stepBanner } from "./workflow-logs.js";
 
 function printRunSummary(metadata: WorkflowRunMetadata): void {
@@ -29,7 +35,9 @@ function printRunSummary(metadata: WorkflowRunMetadata): void {
   if (metadata.usage !== undefined) {
     const cost = metadata.usage.cost.state === "complete"
       ? `$${metadata.usage.cost.usd.toFixed(4)}`
-      : metadata.usage.cost.state;
+      : metadata.usage.cost.state === "partial"
+        ? `at least $${metadata.usage.cost.usd.toFixed(4)}`
+        : metadata.usage.cost.state;
     lines.push(line(plain(`Cost:     ${cost}`)));
   }
   print(stack(...lines));
@@ -64,14 +72,44 @@ async function followWithSse(
   link: DaemonTransport,
   store: WorkflowRunStore,
   targetRunId: string | undefined,
+  wfStatus: WorkflowLiveStatus,
 ): Promise<void> {
   let activeRunId = targetRunId;
+  const authority = requireWorkflowRunDurableAuthority(
+    wfStatus.authorityCriticalRunIds,
+    wfStatus.operationallyActiveRunIds,
+    wfStatus.terminalRunIds,
+  );
+  const authorityCriticalRunIds = new Set(authority.authorityCriticalRunIds);
+  const operationallyActiveRunIds = new Set(authority.operationallyActiveRunIds);
+
+  const readMetadata = (runId: string) => {
+    const operationallyActive = operationallyActiveRunIds.has(runId);
+    return authorityCriticalRunIds.has(runId) || operationallyActive
+      ? readWorkflowRunMetadataFile(
+          join(store.runsDir, runId, "metadata.json"),
+          {
+            authorityCritical: true,
+            operationallyActive,
+          },
+        )
+      : readWorkflowRunMetadataFile(
+          join(store.runsDir, runId, "metadata.json"),
+        );
+  };
 
   if (!activeRunId) {
-    const wfStatus = await link.request<WorkflowLiveStatus>("GET", "/workflow/status");
-    if (wfStatus && wfStatus.activeRuns.length > 0) {
+    if (wfStatus.activeRuns.length > 0) {
       activeRunId = wfStatus.activeRuns[0].runId;
       print(line(plain(`Following run: ${activeRunId}`)));
+    }
+  }
+  if (activeRunId && operationallyActiveRunIds.has(activeRunId)) {
+    const metadata = readMetadata(activeRunId);
+    if (metadata === null) {
+      throw new Error(
+        `Workflow run "${activeRunId}" is authority-critical but has no metadata`,
+      );
     }
   }
 
@@ -106,15 +144,28 @@ async function followWithSse(
           activeRunId = event.payload.runId;
           print(line(plain(`Following run: ${activeRunId}`)));
         }
+        if (event.payload.runId === activeRunId) {
+          authorityCriticalRunIds.add(activeRunId);
+          operationallyActiveRunIds.add(activeRunId);
+          readMetadata(activeRunId);
+        }
         return;
       }
 
       if (event.type === "workflow.step.completed") {
         if (!activeRunId || event.payload.runId !== activeRunId) return;
-        const metadata = readWorkflowRunMetadataFile(
-          join(store.runsDir, activeRunId, "metadata.json"),
-        );
-        if (metadata) emitPendingStepOutput(store, activeRunId, metadata, emittedSteps, stepOutputOffset);
+        authorityCriticalRunIds.add(activeRunId);
+        operationallyActiveRunIds.add(activeRunId);
+        const metadata = readMetadata(activeRunId);
+        if (metadata) {
+          emitPendingStepOutput(
+            store,
+            activeRunId,
+            metadata,
+            emittedSteps,
+            stepOutputOffset,
+          );
+        }
         const { stepId, status, durationMs } = event.payload;
         const dur = formatDuration(durationMs);
         print(line(plain("")));
@@ -124,9 +175,8 @@ async function followWithSse(
 
       if (event.type === "workflow.completed") {
         if (!activeRunId || event.payload.runId !== activeRunId) return;
-        const metadata = readWorkflowRunMetadataFile(
-          join(store.runsDir, activeRunId, "metadata.json"),
-        );
+        operationallyActiveRunIds.delete(activeRunId);
+        const metadata = readMetadata(activeRunId);
         if (metadata) {
           emitPendingStepOutput(store, activeRunId, metadata, emittedSteps, stepOutputOffset);
           printRunSummary(metadata);
@@ -165,13 +215,35 @@ export function registerFollowCommand(wfCmd: Command): void {
       "  Ctrl-C detaches without aborting the run.",
     )
     .action(async (runId: string | undefined) => {
-      const store = new WorkflowRunStore();
+      const localStore = new WorkflowRunStore();
       const link = getDaemonTransport();
+      const wfStatus = link
+        ? await link.request<WorkflowLiveStatus>("GET", "/workflow/status")
+        : null;
+      const daemonAuthority = wfStatus === null
+        ? null
+        : requireWorkflowRunDurableAuthority(
+            wfStatus.authorityCriticalRunIds,
+            wfStatus.operationallyActiveRunIds,
+            wfStatus.terminalRunIds,
+          );
+      const localAuthority = daemonAuthority ??
+        readWorkflowRunMetadataDurableAuthority({
+          stateDir: localStore.rootDir,
+          scopeRoot: process.cwd(),
+        });
+      const store = workflowRunStoreWithDurableAuthority(
+        process.cwd(),
+        localAuthority,
+      );
+      const authorityCriticalRunIds = localAuthority.authorityCriticalRunIds;
+      const operationallyActiveRunIds = localAuthority.operationallyActiveRunIds;
 
       let resolvedId = runId;
       if (runId && !runId.includes("Z-")) {
-        const dirs = readdirSync(store.runsDir).sort().reverse();
-        const match = dirs.find((d) => d.startsWith(runId));
+        const authorityMatch = [...authorityCriticalRunIds]
+          .find((candidate) => candidate.startsWith(runId));
+        const match = authorityMatch ?? store.resolveRunIdPrefix(runId);
         if (!match) {
           print(line(span(`Run "${runId}" not found.`, "error")));
           process.exit(1);
@@ -180,8 +252,14 @@ export function registerFollowCommand(wfCmd: Command): void {
       }
 
       if (resolvedId) {
-        const metadataPath = join(store.runsDir, resolvedId, "metadata.json");
-        const metadata = readWorkflowRunMetadataFile(metadataPath);
+        const authorityCritical = authorityCriticalRunIds.has(resolvedId);
+        const operationallyActive = operationallyActiveRunIds.has(resolvedId);
+        const metadata = authorityCritical || operationallyActive
+          ? store.getRun(resolvedId, {
+              authorityCritical: true,
+              operationallyActive,
+            })
+          : store.getRun(resolvedId);
         if (metadata && metadata.status !== "running") {
           const stepLogs = buildRunLogs(store.runsDir, resolvedId, metadata);
           for (const { stepId, lines } of stepLogs) {
@@ -195,7 +273,10 @@ export function registerFollowCommand(wfCmd: Command): void {
       }
 
       if (link) {
-        await followWithSse(link, store, resolvedId);
+        if (wfStatus === null) {
+          throw new Error("Workflow daemon status is unavailable");
+        }
+        await followWithSse(link, store, resolvedId, wfStatus);
       } else {
         if (!resolvedId) {
           const firstActiveRunId = readWorkflowOperationalState({

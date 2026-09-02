@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
 import { buildAttentionCommand } from "./attention-cli.js";
 import { NO_ATTENTION_ITEMS_TEXT, renderOnDemandAttention } from "./step.js";
 
@@ -26,7 +27,26 @@ async function captureStdout(fn: () => Promise<void> | void): Promise<string> {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  program.addCommand(buildAttentionCommand());
+  program.addCommand(buildAttentionCommand({
+    client: {
+      workflow: {
+        status: async () => ({
+          activeRuns: [],
+          pendingRuns: [],
+          queueLength: 0,
+          completedRuns: 0,
+          protectedRunIds: [],
+          authorityCriticalRunIds: [],
+          operationallyActiveRunIds: [],
+          terminalRunIds: [],
+          workflows: {},
+          paused: false,
+          pendingAbort: false,
+          concurrency: 1,
+        }),
+      },
+    },
+  } as unknown as ModuleContext));
   return program;
 }
 
@@ -81,7 +101,14 @@ describe("kota attention CLI", () => {
   });
 
   it("prints the same body renderOnDemandAttention produces when items exist", async () => {
-    const expected = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir }).text;
+    const expected = renderOnDemandAttention({
+      scopeRoot: workspaceRoot,
+      runsDir,
+      authority: {
+        stateDir: join(workspaceRoot, ".kota"),
+        scopeRoot: workspaceRoot,
+      },
+    }).text;
     expect(expected).not.toBe(NO_ATTENTION_ITEMS_TEXT);
 
     const out = await captureStdout(async () => {
@@ -106,7 +133,14 @@ describe("kota attention CLI", () => {
     makeTaskDir(workspaceRoot, "open", 2);
     makeTaskDir(workspaceRoot, "open", 1);
 
-    const expected = renderOnDemandAttention({ scopeRoot: workspaceRoot, runsDir });
+    const expected = renderOnDemandAttention({
+      scopeRoot: workspaceRoot,
+      runsDir,
+      authority: {
+        stateDir: join(workspaceRoot, ".kota"),
+        scopeRoot: workspaceRoot,
+      },
+    });
 
     const out = await captureStdout(async () => {
       await makeProgram().parseAsync(["node", "kota", "attention", "--json"]);

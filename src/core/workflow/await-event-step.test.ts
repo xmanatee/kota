@@ -12,6 +12,7 @@ import {
 import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
+import { WorkflowRunMetadataAuthorityError } from "./run-metadata.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
@@ -332,4 +333,56 @@ describe("await-event step", () => {
     expect(output.output.kind).toBe("timeout");
     expect(output.output.awaitTimeoutMs).toBe(50);
   });
+
+  it.each(["missing", "malformed-terminal"])(
+    "fails closed when persisted await recovery evidence has %s metadata",
+    (metadataState) => {
+      const runId = `recovery-${metadataState}`;
+      const runDir = join(store.runsDir, runId);
+      const awaitsDir = join(runDir, "awaits");
+      mkdirSync(awaitsDir, { recursive: true });
+      writeFileSync(
+        join(awaitsDir, "wait-answer.json"),
+        JSON.stringify({
+          runId,
+          workflowName: "test-await",
+          definitionPath: "src/modules/test/workflows/test-await/workflow.ts",
+          stepId: "wait-answer",
+          event: "operator.answer",
+          matchField: "questionId",
+          matchValue: "q-42",
+          suspendedAt: "2026-09-02T00:00:00.000Z",
+        }),
+        "utf-8",
+      );
+      if (metadataState === "malformed-terminal") {
+        writeFileSync(
+          join(runDir, "metadata.json"),
+          JSON.stringify({ id: runId, status: "success" }),
+          "utf-8",
+        );
+      }
+
+      expect(() =>
+        installAwaitResumers({
+          bus,
+          store,
+          definitions: [makeAwaitDefinition()],
+          log,
+          appendResumeRun: vi.fn(),
+          onScheduled: vi.fn(),
+        }),
+      ).toThrow(WorkflowRunMetadataAuthorityError);
+      expect(() =>
+        installAwaitResumers({
+          bus,
+          store,
+          definitions: [makeAwaitDefinition()],
+          log,
+          appendResumeRun: vi.fn(),
+          onScheduled: vi.fn(),
+        }),
+      ).toThrow("Recovery:");
+    },
+  );
 });

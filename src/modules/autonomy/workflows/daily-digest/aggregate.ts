@@ -10,13 +10,12 @@
  * so the digest cannot leak cost/throughput signals into autonomy prompts.
  */
 
-import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   OwnerQuestionQueue,
   PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import { parseWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
 import { parseBlockedPrecondition } from "#modules/repo-tasks/blocked-precondition.js";
@@ -117,6 +116,7 @@ export type DailyDigestData = {
 
 export type DailyDigestInput = {
   runsDir: string;
+  stateDir: string;
   workspaceRoot: string;
   ownerQuestions: OwnerQuestionQueue;
   windowEndMs: number;
@@ -128,7 +128,10 @@ export type DailyDigestInput = {
 export function aggregateDailyDigest(input: DailyDigestInput): DailyDigestData {
   const windowMs = input.windowMs ?? DEFAULT_DIGEST_WINDOW_MS;
   const windowStartMs = input.windowEndMs - windowMs;
-  const allRuns = loadRunsInWindow(input.runsDir, windowStartMs);
+  const allRuns = loadRunsInWindow(input.runsDir, windowStartMs, {
+    stateDir: input.stateDir,
+    scopeRoot: input.workspaceRoot,
+  });
 
   const builderCommits = collectBuilderCommits(allRuns, input.runsDir).slice(
     0,
@@ -398,14 +401,5 @@ export function readRunMetadataFile(
   runsDir: string,
   runId: string,
 ): WorkflowRunMetadata | null {
-  const raw = readFileFromRun(runsDir, runId, "metadata.json");
-  return raw ? parseWorkflowRunMetadata(JSON.parse(raw)) : null;
-}
-
-function readFileFromRun(runsDir: string, runId: string, file: string): string | null {
-  try {
-    return readFileSync(join(runsDir, runId, file), "utf-8");
-  } catch {
-    return null;
-  }
+  return readWorkflowRunMetadataFile(join(runsDir, runId, "metadata.json"));
 }

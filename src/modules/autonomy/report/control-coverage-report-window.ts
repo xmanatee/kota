@@ -25,6 +25,8 @@ export type AutonomyReportDataWithControlCoverage = AutonomyReportData & {
 
 export type ControlCoverageReportWindowInput = {
   runsDir: string;
+  stateDir: string;
+  scopeRoot: string;
   windowStartMs: number;
   windowEndMs: number;
 };
@@ -53,7 +55,10 @@ function prunedRunEvidenceGapsForWindow(
 export function buildControlCoverageReportForWindow(
   input: ControlCoverageReportWindowInput,
 ): ControlMonitorCoverageReport {
-  const runs = loadRunsInWindow(input.runsDir, input.windowStartMs).filter(
+  const runs = loadRunsInWindow(input.runsDir, input.windowStartMs, {
+    stateDir: input.stateDir,
+    scopeRoot: input.scopeRoot,
+  }).filter(
     (run) => Date.parse(run.startedAt) <= input.windowEndMs,
   );
   return buildControlCoverageReport(runs, input.runsDir, {

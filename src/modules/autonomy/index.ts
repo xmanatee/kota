@@ -113,9 +113,9 @@ const autonomyModule: KotaModule = {
   onLoad: (ctx) => {
     subscribeAutonomyIssueSources(ctx);
   },
-  commands: () => [
+  commands: (ctx) => [
     buildDigestCommand(),
-    buildAttentionCommand(),
+    buildAttentionCommand(ctx),
     buildReportCommand(),
   ],
   routes: (ctx) => [

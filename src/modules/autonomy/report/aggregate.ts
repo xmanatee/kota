@@ -85,7 +85,10 @@ export function aggregateAutonomyReport(
     allTasks.filter((task) => task.state === "open" || task.state === "blocked"),
     listRepoTaskDependencyWaits(input.workspaceRoot),
   );
-  const reportRuns = loadRunsInWindow(input.runsDir, windowStartMs - windowMs).filter(
+  const reportRuns = loadRunsInWindow(input.runsDir, windowStartMs - windowMs, {
+    stateDir: input.stateDir,
+    scopeRoot: input.workspaceRoot,
+  }).filter(
     (r) => Date.parse(r.startedAt) <= input.windowEndMs,
   );
   const runs = reportRuns.filter(
@@ -148,6 +151,7 @@ export function aggregateAutonomyReport(
   );
   const supervisionLoad = buildSupervisionLoadReport({
     workspaceRoot: input.workspaceRoot,
+    stateDir: input.stateDir,
     runsDir: input.runsDir,
     runs: reportRuns,
     tasks: allTasks,
@@ -185,6 +189,7 @@ export function aggregateAutonomyReport(
       input.runsDir,
       input.windowEndMs,
       windowMs,
+      { stateDir: input.stateDir, scopeRoot: input.workspaceRoot },
     ),
     processDiscipline: buildProcessDisciplineReport({
       runs,

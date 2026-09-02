@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { aggregateAutonomyReport } from "./aggregate.js";
 import { POST_COMPLETION_FOLLOW_UP_LINK_LIMIT } from "./post-completion-followups.js";
@@ -56,6 +57,7 @@ describe("post-completion follow-up quality stratification", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -122,6 +124,7 @@ describe("post-completion follow-up quality stratification", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,

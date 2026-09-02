@@ -1,8 +1,11 @@
+import { getWorkflowMetricsSource } from "#core/daemon/metrics-source-provider.js";
 import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
 import { jsonResponse } from "#core/server/session-pool.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 import { assembleCompiledAutomationGraph } from "../graph/index.js";
+import { requireWorkflowRunDurableAuthority } from "../runs/workflow-history.js";
 import { handleWorkflowSimulation } from "../simulation/routes.js";
 import { handleWorkflowExplain } from "./explain.js";
 import {
@@ -27,6 +30,36 @@ import {
   handleWorkflowRuns,
   handleWorkflowRunThinking,
 } from "./workflow-run-routes.js";
+
+function canonicalRouteRunStore(
+  ctx: ModuleContext | undefined,
+  res: Parameters<typeof jsonResponse>[0],
+): WorkflowRunStore | null {
+  const source = getWorkflowMetricsSource();
+  if (source === null) {
+    jsonResponse(res, 503, { error: "Workflow authority unavailable" });
+    return null;
+  }
+  const readAuthority = () => {
+    const status = source.getWorkflowLiveStatus();
+    return requireWorkflowRunDurableAuthority(
+      status.authorityCriticalRunIds,
+      status.operationallyActiveRunIds,
+      status.terminalRunIds,
+    );
+  };
+  try {
+    readAuthority();
+  } catch {
+    jsonResponse(res, 503, { error: "Workflow authority unavailable" });
+    return null;
+  }
+  return new WorkflowRunStore(ctx?.cwd ?? process.cwd(), {
+    authorityCriticalRunIds: () => readAuthority().authorityCriticalRunIds,
+    operationallyActiveRunIds: () => readAuthority().operationallyActiveRunIds,
+    terminalRunIds: () => readAuthority().terminalRunIds,
+  });
+}
 
 export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
   return [
@@ -149,29 +182,43 @@ export function workflowRoutes(ctx?: ModuleContext): RouteRegistration[] {
       method: "GET",
       path: "/api/workflow/runs",
       handler: (req, res) => {
+        const store = canonicalRouteRunStore(ctx, res);
+        if (store === null) return;
         const url = new URL(req.url!, `http://localhost`);
-        handleWorkflowRuns(res, url);
+        handleWorkflowRuns(res, url, store);
       },
     },
     {
       method: "GET",
       path: "/api/workflow/runs/:id/stream",
-      handler: (_req, res, params) => handleWorkflowRunStream(res, params.id),
+      handler: (_req, res, params) => {
+        const store = canonicalRouteRunStore(ctx, res);
+        if (store !== null) handleWorkflowRunStream(res, params.id, store);
+      },
     },
     {
       method: "GET",
       path: "/api/workflow/runs/:id/artifacts",
-      handler: (_req, res, params) => handleWorkflowRunArtifacts(res, params.id),
+      handler: (_req, res, params) => {
+        const store = canonicalRouteRunStore(ctx, res);
+        if (store !== null) handleWorkflowRunArtifacts(res, params.id, store);
+      },
     },
     {
       method: "GET",
       path: "/api/workflow/runs/:id/thinking",
-      handler: (_req, res, params) => handleWorkflowRunThinking(res, params.id),
+      handler: (_req, res, params) => {
+        const store = canonicalRouteRunStore(ctx, res);
+        if (store !== null) handleWorkflowRunThinking(res, params.id, store);
+      },
     },
     {
       method: "GET",
       path: "/api/workflow/runs/:id",
-      handler: (_req, res, params) => handleWorkflowRunDetail(res, params.id),
+      handler: (_req, res, params) => {
+        const store = canonicalRouteRunStore(ctx, res);
+        if (store !== null) handleWorkflowRunDetail(res, params.id, store);
+      },
     },
     {
       method: "DELETE",

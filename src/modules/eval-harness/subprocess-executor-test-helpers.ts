@@ -44,7 +44,18 @@ export function writeTerminalRun(
   mkdirSync(runDir, { recursive: true });
   writeFileSync(
     join(runDir, "metadata.json"),
-    JSON.stringify({ id: runId, workflow: workflowName, status }),
+    JSON.stringify({
+      metadataVersion: 1,
+      id: runId,
+      workflow: workflowName,
+      definitionPath: `workflows/${workflowName}.ts`,
+      trigger: { event: "eval.fixture", schemaRef: null, payload: {} },
+      startedAt: "2026-04-24T00:00:00.000Z",
+      completedAt: "2026-04-24T00:00:01.000Z",
+      status,
+      runDir,
+      steps: [],
+    }),
   );
 }
 

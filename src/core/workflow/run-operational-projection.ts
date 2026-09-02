@@ -1,6 +1,14 @@
 import { existsSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
 import Database from "better-sqlite3";
+import {
+  enumerateWorkflowRunMetadata,
+  type WorkflowRunMetadataDiagnostic,
+  type WorkflowRunMetadataEnumeration,
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "./run-metadata.js";
 import type { RunSandbox } from "./run-sandbox.js";
 import type { StoredRun } from "./run-state-database.js";
 import type { DurableRunState } from "./run-state-types.js";
@@ -287,4 +295,111 @@ export function readRunOperationalProjection(input: {
   } finally {
     database.close();
   }
+}
+
+export type WorkflowRunMetadataDurableAuthority = Readonly<{
+  authorityCriticalRunIds: ReadonlySet<string>;
+  operationallyActiveRunIds: ReadonlySet<string>;
+  terminalRunIds: ReadonlySet<string>;
+}>;
+
+/** Read durable dispositions used to classify persisted run evidence. */
+export function readWorkflowRunMetadataDurableAuthority(input: {
+  stateDir: string;
+  scopeRoot: string;
+}): WorkflowRunMetadataDurableAuthority {
+  const databasePath = join(input.stateDir, "kota.sqlite");
+  if (!existsSync(databasePath)) {
+    return {
+      authorityCriticalRunIds: new Set(),
+      operationallyActiveRunIds: new Set(),
+      terminalRunIds: new Set(),
+    };
+  }
+
+  const database = new Database(databasePath, {
+    readonly: true,
+    fileMustExist: true,
+  });
+  try {
+    const scope = database
+      .prepare("SELECT id FROM scopes WHERE root_path = ?")
+      .get(canonicalPath(input.scopeRoot)) as { id: string } | undefined;
+    if (scope === undefined) {
+      return {
+        authorityCriticalRunIds: new Set(),
+        operationallyActiveRunIds: new Set(),
+        terminalRunIds: new Set(),
+      };
+    }
+    const runs = database
+      .prepare(
+        `SELECT id, state FROM runs
+         WHERE scope_id = ?`,
+      )
+      .all(scope.id) as Array<{ id: string; state: DurableRunState }>;
+    const publications = database
+      .prepare(
+        `SELECT DISTINCT run_id FROM run_publications
+         WHERE scope_id = ? AND delivered_at IS NULL`,
+      )
+      .all(scope.id) as Array<{ run_id: string }>;
+    return {
+      authorityCriticalRunIds: workflowRunMetadataAuthorityCriticalIds(
+        runs,
+        publications.map((publication) => ({ runId: publication.run_id })),
+      ),
+      operationallyActiveRunIds: workflowRunMetadataOperationallyActiveIds(runs),
+      terminalRunIds: workflowRunMetadataTerminalIds(runs),
+    };
+  } finally {
+    database.close();
+  }
+}
+
+/** Read the complete set of durable IDs whose evidence must fail closed. */
+export function readWorkflowRunMetadataAuthorityCriticalIds(input: {
+  stateDir: string;
+  scopeRoot: string;
+}): ReadonlySet<string> {
+  return readWorkflowRunMetadataDurableAuthority(input).authorityCriticalRunIds;
+}
+
+/** Enumerate evidence using the canonical read-only durable authority projection. */
+export function enumerateWorkflowRunMetadataWithDurableAuthority(input: {
+  runsDir: string;
+  stateDir: string;
+  scopeRoot: string;
+  onDiagnostic?: (diagnostic: WorkflowRunMetadataDiagnostic) => void;
+  maxWarnings?: number;
+}): WorkflowRunMetadataEnumeration {
+  const authority = readWorkflowRunMetadataDurableAuthority(input);
+  return enumerateWorkflowRunMetadata(input.runsDir, {
+    authorityCriticalRunIds: authority.authorityCriticalRunIds,
+    operationallyActiveRunIds: authority.operationallyActiveRunIds,
+    terminalRunIds: authority.terminalRunIds,
+    ...(input.onDiagnostic !== undefined
+      ? { onDiagnostic: input.onDiagnostic }
+      : {}),
+    ...(input.maxWarnings !== undefined ? { maxWarnings: input.maxWarnings } : {}),
+  });
+}
+
+/**
+ * Enumerate evidence when no canonical daemon state root is available.
+ * Metadata that positively identifies itself as active still fails closed;
+ * child directories without metadata are not evidence and are ignored.
+ */
+export function enumerateWorkflowRunMetadataFailClosed(input: {
+  runsDir: string;
+  onDiagnostic?: (diagnostic: WorkflowRunMetadataDiagnostic) => void;
+  maxWarnings?: number;
+}): WorkflowRunMetadataEnumeration {
+  return enumerateWorkflowRunMetadata(input.runsDir, {
+    authorityCriticalRunIds: new Set(),
+    ...(input.onDiagnostic !== undefined
+      ? { onDiagnostic: input.onDiagnostic }
+      : {}),
+    ...(input.maxWarnings !== undefined ? { maxWarnings: input.maxWarnings } : {}),
+  });
 }

@@ -188,6 +188,11 @@ function makeStatusInfo(overrides: Partial<StatusInfo> = {}): StatusInfo {
     },
     dispatchPaused: false,
     runsDir: "/fake/runs",
+    runAuthority: {
+      authorityCriticalRunIds: new Set(),
+      operationallyActiveRunIds: new Set(),
+      terminalRunIds: new Set(),
+    },
     ...overrides,
   };
 }
@@ -430,7 +435,12 @@ describe("startTelegramStatusPoll", () => {
 
     expect(mockedRenderOnDemandAttention).toHaveBeenCalledWith({
       scopeRoot: FAKE_SCOPE_DIR,
-      runsDir: `${FAKE_SCOPE_DIR}/.kota/runs`,
+      runsDir: "/fake/runs",
+      authority: {
+        authorityCriticalRunIds: new Set(),
+        operationallyActiveRunIds: new Set(),
+        terminalRunIds: new Set(),
+      },
     });
     const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
     expect(sendCall).toBeDefined();

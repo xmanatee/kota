@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
+import { enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   WRITER_INTEGRATION_EVIDENCE,
@@ -199,6 +200,7 @@ function outcomeLabel(outcome: SecurityReviewOutcomeJson | null): string {
 
 function findLastSecurityReviewEvidence(
   stateDir: string,
+  scopeRoot: string,
 ): SecurityReviewLastEvidence {
   const runsDir = join(stateDir, "runs");
   if (!existsSync(runsDir)) return { kind: "none" };
@@ -212,20 +214,18 @@ function findLastSecurityReviewEvidence(
     sortMs: number;
   }> = [];
 
-  for (const runId of readdirSync(runsDir).sort()) {
+  for (const runMetadata of enumerateWorkflowRunMetadataWithDurableAuthority({
+    runsDir,
+    stateDir,
+    scopeRoot,
+  }).runs) {
+    const runId = runMetadata.id;
     const runDirPath = join(runsDir, runId);
-    let isDirectory = false;
-    try {
-      isDirectory = statSync(runDirPath).isDirectory();
-    } catch {
-      isDirectory = false;
-    }
-    if (!isDirectory) continue;
     const outcomePath = join(runDirPath, "security-review-outcome.json");
     const candidatesPath = join(runDirPath, "security-review-candidates.json");
     if (!existsSync(outcomePath) && !existsSync(candidatesPath)) continue;
 
-    const metadata = readJsonFile<RunMetadataJson>(join(runDirPath, "metadata.json")) ?? {};
+    const metadata: RunMetadataJson = runMetadata;
     if (metadata.status && metadata.status !== "success") continue;
     const outcome = readJsonFile<SecurityReviewOutcomeJson>(outcomePath);
     const completedAt = parseTimestamp(metadata.completedAt);
@@ -312,6 +312,7 @@ async function changedPathsForComparison(
 
 export async function collectSecurityReviewGitEvidence(args: {
   workspaceRoot: string;
+  scopeRoot: string;
   stateDir: string;
   runCommand: WorkflowCommandRunner;
 }): Promise<SecurityReviewGitEvidence> {
@@ -322,7 +323,10 @@ export async function collectSecurityReviewGitEvidence(args: {
   const currentHead: SecurityReviewGitHead = headLines?.[0]
     ? { kind: "commit", sha: headLines[0] }
     : { kind: "unavailable", reason: "git-head-unavailable" };
-  const recordedReview = findLastSecurityReviewEvidence(args.stateDir);
+  const recordedReview = findLastSecurityReviewEvidence(
+    args.stateDir,
+    args.scopeRoot,
+  );
   const lastReview =
     recordedReview.kind === "found" && recordedReview.head.kind === "commit" &&
       (await tryGitLines(args.runCommand, args.workspaceRoot, [

@@ -366,6 +366,7 @@ export function inspectRuntimeProbe(args: {
 export function inspectAsyncReviewers(args: {
   scopeRoot: string;
   runDirPath: string;
+  stateDir?: string;
   metadata: WorkflowRunMetadata;
   family: FamilyAccessor;
   linkedReviewers?: ReviewerLinks;

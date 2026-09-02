@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { WorkflowRunMetadataAuthorityError } from "#core/workflow/run-metadata.js";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import {
   type FixtureCandidateReport,
@@ -35,32 +36,40 @@ function seedRun(
 ): void {
   const runDir = join(workspaceRoot, ".kota/runs", runId);
   const commands = options.commands ?? [];
+  const authoredSteps = options.steps ?? [
+    {
+      id: "build",
+      type: "agent",
+      status: options.status ?? "success",
+      output: {
+        content: commands.map((command) => `$ ${command}`).join("\n"),
+      },
+    },
+    {
+      id: "verify",
+      type: "code",
+      status: "success",
+      output: {
+        command: commands[0],
+        exitCode: 0,
+      },
+    },
+  ];
   writeJson(join(runDir, "metadata.json"), {
     id: runId,
     workflow: options.workflow ?? "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
     startedAt: "2026-06-01T00:00:00.000Z",
+    completedAt: "2026-06-01T00:01:00.000Z",
     status: options.status ?? "success",
     runDir: `.kota/runs/${runId}`,
-    trigger: { event: "autonomy.queue.available", payload: {} },
-    steps: options.steps ?? [
-      {
-        id: "build",
-        type: "agent",
-        status: options.status ?? "success",
-        output: {
-          content: commands.map((command) => `$ ${command}`).join("\n"),
-        },
-      },
-      {
-        id: "verify",
-        type: "code",
-        status: "success",
-        output: {
-          command: commands[0],
-          exitCode: 0,
-        },
-      },
-    ],
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    steps: authoredSteps.map((step, index) => ({
+      startedAt: `2026-06-01T00:00:0${index}.000Z`,
+      completedAt: `2026-06-01T00:00:1${index}.000Z`,
+      durationMs: 10_000,
+      ...(step as Record<string, unknown>),
+    })),
   });
   writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
     runId,
@@ -183,20 +192,15 @@ describe("fixture candidate mining", () => {
     expect(candidate.reproducibility.localOnly).toBe(false);
   });
 
-  it("emits explicit malformed rejected records instead of silently skipping bad artifacts", () => {
+  it("fails closed when malformed JSON cannot prove terminal disposition", () => {
     const runDir = join(workspaceRoot, ".kota/runs/run-malformed");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "metadata.json"), "{ bad json");
 
-    const result = mineFixtureCandidates(workspaceRoot, {
+    expect(() => mineFixtureCandidates(workspaceRoot, {
       runIds: ["run-malformed"],
       outputDir: "out",
-    });
-
-    const candidate = result.report.candidates[0];
-    expect(candidate.status).toBe("rejected");
-    expect(candidate.reasonCodes).toEqual(["artifact-malformed"]);
-    expect(candidate.reasonSummary).toContain("artifact-malformed");
+    })).toThrow(WorkflowRunMetadataAuthorityError);
   });
 
   it("rejects otherwise viable runs with malformed top-level JSON artifacts", () => {

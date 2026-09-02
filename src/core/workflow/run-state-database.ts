@@ -1720,7 +1720,12 @@ export class RunStateDatabase {
         `SELECT id FROM runs
          WHERE state IN ('succeeded', 'failed', 'cancelled')
            AND finished_at IS NOT NULL
-           AND finished_at <= ?`,
+           AND finished_at <= ?
+           AND NOT EXISTS (
+             SELECT 1 FROM run_publications
+             WHERE run_publications.run_id = runs.id
+               AND run_publications.delivered_at IS NULL
+           )`,
       )
       .all(input.finishedBefore) as Array<{ id: string }>;
     const runIds = candidateRuns.map((r) => r.id).filter((id) => !excluded.has(id));

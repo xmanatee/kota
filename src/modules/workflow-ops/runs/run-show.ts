@@ -1,10 +1,12 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Command } from "commander";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { parseWorkflowRunMetadata } from "#core/workflow/run-metadata.js";
-import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import {
+  parseWorkflowRunMetadata,
+  WORKFLOW_RUN_METADATA_VERSION,
+} from "#core/workflow/run-metadata.js";
 import type { RepairSummary } from "#core/workflow/run-store-snapshot.js";
 import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import type {
@@ -30,6 +32,10 @@ import {
 import { print } from "#modules/rendering/transport.js";
 import type { WorkflowClient } from "../client.js";
 import { formatDuration, statusIcon } from "../utils.js";
+import {
+  requireWorkflowRunDurableAuthority,
+  workflowRunStoreWithDurableAuthority,
+} from "./workflow-history.js";
 
 export function formatSkipReason(reason: WorkflowStepSkipReason): string {
   return reason.label ? `${reason.kind}:${reason.label}` : reason.kind;
@@ -293,6 +299,7 @@ function errorSpans(message: string): TextSpan[] {
  */
 function metadataFromDetail(run: WorkflowRunDetail): WorkflowRunMetadata {
   return parseWorkflowRunMetadata({
+    metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
     id: run.id,
     workflow: run.workflow,
     definitionPath: "",
@@ -343,25 +350,24 @@ export function registerRunShowCommand(wfCmd: Command, ctx: ModuleContext): void
       const stepId = options.step as string | undefined;
       const showPayload = options.payload as boolean | undefined;
       const showChain = options.chain as boolean | undefined;
-      const store = new WorkflowRunStore();
+      const status = await ctx.client.workflow.status();
+      const store = workflowRunStoreWithDurableAuthority(
+        ctx.cwd,
+        requireWorkflowRunDurableAuthority(
+          status.authorityCriticalRunIds,
+          status.operationallyActiveRunIds,
+          status.terminalRunIds,
+        ),
+      );
 
-      // Run-id prefix matching reads the on-disk runs directory; the contract
-      // only takes fully-qualified ids and would have to round-trip through
-      // listRuns + filter for the same effect.
       let resolvedId = runId;
       if (!runId.includes("Z-")) {
-        try {
-          const dirs = readdirSync(store.runsDir).sort().reverse();
-          const match = dirs.find((d) => d.startsWith(runId));
-          if (!match) {
-            print(line(...errorSpans(`Run "${runId}" not found.`)));
-            process.exit(1);
-          }
-          resolvedId = match;
-        } catch {
+        const match = store.resolveRunIdPrefix(runId);
+        if (!match) {
           print(line(...errorSpans(`Run "${runId}" not found.`)));
           process.exit(1);
         }
+        resolvedId = match;
       }
 
       // The contract `getRun` returns the daemon's live view when daemon-up

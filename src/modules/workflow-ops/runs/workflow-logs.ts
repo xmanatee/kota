@@ -10,11 +10,17 @@ import type {
 } from "#core/agent-harness/index.js";
 import { formatToolCallLogLabel } from "#core/loop/tool-observations.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
-import { readWorkflowOperationalState } from "#core/workflow/run-operational-projection.js";
+import {
+  readWorkflowRunMetadataDurableAuthority,
+} from "#core/workflow/run-operational-projection.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { line, plain } from "#modules/rendering/primitives.js";
 import { print } from "#modules/rendering/transport.js";
 import { parseKotaAgentMessageLine } from "./stream-projection.js";
+import type {
+  WorkflowRunAuthorityProjection,
+  WorkflowRunDurableAuthority,
+} from "./workflow-history.js";
 
 const DEFAULT_MAX_LEN = 200;
 
@@ -200,15 +206,36 @@ function emitNewStepEvents(
 
 export async function followRunLogs(
   runsDir: string,
-  operationalScope: { stateDir: string; scopeRoot: string },
+  authoritySource:
+    | WorkflowRunDurableAuthority
+    | (() => Promise<WorkflowRunAuthorityProjection>),
   runId: string | undefined,
   filterStep: string | undefined,
   maxLen = DEFAULT_MAX_LEN,
   pollIntervalMs = 500,
 ): Promise<void> {
+  const readAuthority = async (): Promise<WorkflowRunAuthorityProjection> => {
+    if (typeof authoritySource === "function") return await authoritySource();
+    if ("authorityCriticalRunIds" in authoritySource) return authoritySource;
+    return readWorkflowRunMetadataDurableAuthority(authoritySource);
+  };
+  const readMetadata = async (
+    id: string,
+  ): Promise<WorkflowRunMetadata | null> => {
+    const authority = await readAuthority();
+    const operationallyActive = authority.operationallyActiveRunIds.has(id);
+    const authorityCritical = operationallyActive ||
+      authority.authorityCriticalRunIds.has(id);
+    const metadataPath = join(runsDir, id, "metadata.json");
+    return authorityCritical
+      ? readWorkflowRunMetadataFile(metadataPath, {
+        authorityCritical: true,
+        operationallyActive,
+      })
+      : readWorkflowRunMetadataFile(metadataPath);
+  };
   if (runId) {
-    const metadataPath = join(runsDir, runId, "metadata.json");
-    const metadata = readWorkflowRunMetadataFile(metadataPath);
+    const metadata = await readMetadata(runId);
     if (metadata && metadata.status !== "running") {
       const stepLogs = buildRunLogs(runsDir, runId, metadata, filterStep, maxLen);
       for (const { stepId, lines } of stepLogs) {
@@ -224,48 +251,69 @@ export async function followRunLogs(
   let activeRunId = runId;
   let waitingPrinted = false;
 
-  return new Promise<void>((resolve) => {
-    const cleanup = () => {
+  return new Promise<void>((resolve, reject) => {
+    const cleanup = (error?: Error) => {
       clearInterval(timer);
       process.off("SIGINT", cleanup);
-      resolve();
+      if (error !== undefined) reject(error);
+      else resolve();
     };
 
     process.once("SIGINT", cleanup);
 
+    let polling = false;
     const timer = setInterval(() => {
-      if (!activeRunId) {
-        const firstActiveRunId = readWorkflowOperationalState(
-          operationalScope,
-        ).activeRuns[0]?.runId;
-        if (!firstActiveRunId) {
-          if (!waitingPrinted) {
-            print(line(plain("Waiting for an active run...")));
-            waitingPrinted = true;
+      if (polling) return;
+      polling = true;
+      void (async () => {
+        try {
+          if (!activeRunId) {
+            const firstActiveRunId = (await readAuthority())
+              .operationallyActiveRunIds.values().next().value as
+                | string
+                | undefined;
+            if (!firstActiveRunId) {
+              if (!waitingPrinted) {
+                print(line(plain("Waiting for an active run...")));
+                waitingPrinted = true;
+              }
+              return;
+            }
+            activeRunId = firstActiveRunId;
+            print(line(plain(`Following run: ${activeRunId}`)));
           }
-          return;
+
+          const metadata = await readMetadata(activeRunId);
+          if (!metadata) return;
+
+          const agentSteps = metadata.steps.filter(
+            (s) => s.type === "agent" && (!filterStep || s.id === filterStep),
+          );
+          for (const step of agentSteps) {
+            if (!stepStates.has(step.id)) {
+              stepStates.set(step.id, {
+                headerPrinted: false,
+                linesEmitted: 0,
+              });
+            }
+            emitNewStepEvents(
+              runsDir,
+              activeRunId,
+              step.id,
+              stepStates.get(step.id)!,
+              maxLen,
+            );
+          }
+
+          if (metadata.status !== "running") {
+            cleanup();
+          }
+        } catch (error) {
+          cleanup(error instanceof Error ? error : new Error(String(error)));
+        } finally {
+          polling = false;
         }
-        activeRunId = firstActiveRunId;
-        print(line(plain(`Following run: ${activeRunId}`)));
-      }
-
-      const metadataPath = join(runsDir, activeRunId, "metadata.json");
-      const metadata = readWorkflowRunMetadataFile(metadataPath);
-      if (!metadata) return;
-
-      const agentSteps = metadata.steps.filter(
-        (s) => s.type === "agent" && (!filterStep || s.id === filterStep),
-      );
-      for (const step of agentSteps) {
-        if (!stepStates.has(step.id)) {
-          stepStates.set(step.id, { headerPrinted: false, linesEmitted: 0 });
-        }
-        emitNewStepEvents(runsDir, activeRunId, step.id, stepStates.get(step.id)!, maxLen);
-      }
-
-      if (metadata.status !== "running") {
-        cleanup();
-      }
+      })();
     }, pollIntervalMs);
   });
 }

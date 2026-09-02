@@ -174,7 +174,7 @@ export function listDeadLetterCounts(
     }
     const store = deadLetterStoreForScope(source.scopeRoot);
     const counts = store.counts(source.scopeId);
-    const runArtifacts = deadLetterRunArtifactIds(source.scopeRoot);
+    const runArtifacts = deadLetterRunArtifactIds(source.scopeRoot, source.stateDir);
     return {
       scopeId: source.scopeId,
       path: join(".kota", "dead-letter-queue", "items.json"),

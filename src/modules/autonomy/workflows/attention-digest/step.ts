@@ -1,6 +1,7 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { WorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 import { blockedAttentionItems } from "./blocked-attention.js";
 
 const DIGEST_EVERY_N_RUNS = 10;
@@ -28,6 +29,7 @@ export const NO_ATTENTION_ITEMS_TEXT = "No attention items right now.";
 
 export type AttentionDigestStepInput = {
   workspaceRoot: string;
+  stateDir: string;
   runsDir: string;
   count: number;
 };
@@ -133,8 +135,9 @@ function buildDigestText(items: AttentionItem[]): string {
 export function renderOnDemandAttention(opts: {
   scopeRoot: string;
   runsDir: string;
+  authority: WorkflowRunDurableAuthority;
 }): RenderedAttention {
-  const recentRuns = loadRecentRuns(opts.runsDir);
+  const recentRuns = loadRecentRuns(opts.runsDir, opts.authority);
   const items = detectAttentionItems(opts.scopeRoot, recentRuns);
   const text =
     items.length === 0 ? NO_ATTENTION_ITEMS_TEXT : buildDigestText(items);
@@ -156,6 +159,7 @@ export function inspectAttentionDigestStep(
   const { items, text } = renderOnDemandAttention({
     scopeRoot: input.workspaceRoot,
     runsDir: input.runsDir,
+    authority: { stateDir: input.stateDir, scopeRoot: input.workspaceRoot },
   });
   if (items.length === 0) return {};
 

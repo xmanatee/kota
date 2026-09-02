@@ -37,6 +37,7 @@ describe("buildSupervisionLoadReport", () => {
 
     const report = buildSupervisionLoadReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       runs: [],
       tasks,
@@ -94,6 +95,7 @@ describe("buildSupervisionLoadReport", () => {
 
     const report = buildSupervisionLoadReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       runs,
       tasks,
@@ -154,6 +156,7 @@ describe("buildSupervisionLoadReport", () => {
 
     const report = buildSupervisionLoadReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       runs: [run],
       tasks: [task],
@@ -187,6 +190,7 @@ describe("buildSupervisionLoadReport", () => {
 
     const report = buildSupervisionLoadReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       runs: [],
       tasks,
@@ -216,6 +220,7 @@ describe("buildSupervisionLoadReport", () => {
 
     const report = buildSupervisionLoadReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       runs: [],
       tasks: [],

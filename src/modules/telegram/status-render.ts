@@ -19,7 +19,12 @@ export const RETRACT_UMBRELLA_HELP_BODY =
   "  /retract-tasks <id>\n" +
   "  /retract-inbox <path>";
 
-export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: StatusInfo): string {
+export function buildStatusText({
+  runtimeState,
+  dispatchPaused,
+  runsDir,
+  runAuthority,
+}: StatusInfo): string {
   const activeRuns = runtimeState.activeRuns;
 
   let dispatchStatus: string;
@@ -37,7 +42,7 @@ export function buildStatusText({ runtimeState, dispatchPaused, runsDir }: Statu
     lines.push(`*Active run:* \`${run.runId}\` (${run.workflow})`);
   }
 
-  const runs = loadRecentRuns(runsDir);
+  const runs = loadRecentRuns(runsDir, runAuthority);
   const costByWorkflow = computeCostByWorkflow(runs);
   const totalCost = Object.values(costByWorkflow).reduce((a, b) => a + b, 0);
   lines.push(`*Today's spend:* $${totalCost.toFixed(4)}`);

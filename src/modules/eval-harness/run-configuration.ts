@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig } from "#core/config/config.js";
 import {
@@ -9,6 +9,7 @@ import {
   type PresetSource,
   resolvePreset,
 } from "#core/model/preset.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import {
   isMultiRoundFixtureSpec,
   isSkillAblationFixtureSpec,
@@ -162,20 +163,6 @@ export type EvalRunConfigurationComparison =
 type GitCapture =
   | { ok: true; stdout: string }
   | { ok: false; message: string };
-
-type WorkflowStepEvidenceFile = {
-  id: string;
-  type: string;
-  status?: string;
-  harness?: string;
-  model?: string;
-};
-
-type WorkflowRunEvidenceFile = {
-  id: string;
-  workflow: string;
-  steps: readonly Partial<WorkflowStepEvidenceFile>[];
-};
 
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -489,9 +476,9 @@ function recordWorkflowRunEvidence(params: {
     return;
   }
 
-  let metadata: Partial<WorkflowRunEvidenceFile>;
+  let metadata: ReturnType<typeof readWorkflowRunMetadataFile>;
   try {
-    metadata = JSON.parse(readFileSync(metadataPath, "utf8")) as Partial<WorkflowRunEvidenceFile>;
+    metadata = readWorkflowRunMetadataFile(metadataPath);
   } catch {
     recordMissingArtifact(
       params.accumulator,
@@ -503,11 +490,7 @@ function recordWorkflowRunEvidence(params: {
     return;
   }
 
-  if (
-    typeof metadata.id !== "string" ||
-    typeof metadata.workflow !== "string" ||
-    !Array.isArray(metadata.steps)
-  ) {
+  if (metadata === null) {
     recordMissingArtifact(
       params.accumulator,
       params.fixtureId,

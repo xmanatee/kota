@@ -42,7 +42,18 @@ export function seedSourceRun(
   mkdirSync(join(runDir, "steps"), { recursive: true });
   writeFileSync(
     join(runDir, "metadata.json"),
-    JSON.stringify({ id: runId, workflow: workflowName }),
+    JSON.stringify({
+      metadataVersion: 1,
+      id: runId,
+      workflow: workflowName,
+      definitionPath: `workflows/${workflowName}.ts`,
+      trigger: { event: "eval.record", schemaRef: null, payload: {} },
+      startedAt: "2026-04-24T00:00:00.000Z",
+      completedAt: "2026-04-24T00:00:01.000Z",
+      status: "success",
+      runDir,
+      steps: [],
+    }),
   );
   writeFileSync(
     join(runDir, "steps", `${stepId}.json`),

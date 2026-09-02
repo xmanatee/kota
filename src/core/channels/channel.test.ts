@@ -20,6 +20,11 @@ const STUB_START_CTX: ChannelStartContext = {
     runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },
     dispatchPaused: false,
     runsDir: "/tmp/.kota/runs",
+    runAuthority: {
+      authorityCriticalRunIds: new Set(),
+      operationallyActiveRunIds: new Set(),
+      terminalRunIds: new Set(),
+    },
   }),
 };
 

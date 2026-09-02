@@ -19,6 +19,24 @@ describe("extractJudgeCallRecording", () => {
     rmSync(fixtureDir, { recursive: true, force: true });
   });
 
+  function writeRunMetadata(runDir: string, runId: string, workflow: string): void {
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        metadataVersion: 1,
+        id: runId,
+        workflow,
+        definitionPath: `workflows/${workflow}.ts`,
+        trigger: { event: "eval.record", schemaRef: null, payload: {} },
+        startedAt: "2026-04-24T00:00:00.000Z",
+        completedAt: "2026-04-24T00:00:01.000Z",
+        status: "success",
+        runDir,
+        steps: [],
+      }),
+    );
+  }
+
   function seedJudgeArtifact(
     runId: string,
     workflowName: string,
@@ -27,10 +45,7 @@ describe("extractJudgeCallRecording", () => {
   ): void {
     const runDir = join(workspaceRoot, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({ id: runId, workflow: workflowName }),
-    );
+    writeRunMetadata(runDir, runId, workflowName);
     writeFileSync(
       join(runDir, `${label}.json`),
       JSON.stringify(verdict, null, 2),
@@ -104,10 +119,7 @@ describe("extractJudgeCallRecording", () => {
     const runId = "2026-04-24T00-00-00-000Z-builder-nojudge";
     const runDir = join(workspaceRoot, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({ id: runId, workflow: "builder" }),
-    );
+    writeRunMetadata(runDir, runId, "builder");
 
     let err: unknown;
     try {
@@ -150,10 +162,7 @@ describe("extractJudgeCallRecording", () => {
     const runId = "2026-04-24T00-00-00-000Z-builder-badjson";
     const runDir = join(workspaceRoot, ".kota", "runs", runId);
     mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify({ id: runId, workflow: "builder" }),
-    );
+    writeRunMetadata(runDir, runId, "builder");
     writeFileSync(join(runDir, "critic-review.json"), "{not json");
 
     expect(() =>

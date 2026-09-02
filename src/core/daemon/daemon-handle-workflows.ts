@@ -1,4 +1,8 @@
 import type { WorkflowEnqueueOptions } from "#core/workflow/operator-trigger.js";
+import {
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
 import { buildClientIdentity, type ClientIdentity } from "./client-identity.js";
 import type {
   DaemonControlHandle,
@@ -36,8 +40,24 @@ export function buildDaemonWorkflowHandle(
   const { scopeRegistry } = ctx;
   return {
     getWorkflowLiveStatus: (scopeId?: ScopeId) => {
-      const workflows = lookupRuntime(scopeId).workflowRuntime;
+      const runtime = lookupRuntime(scopeId);
+      const workflows = runtime.workflowRuntime;
       const wfState = workflows.getState();
+      const durableRuns = runtime.runState.listRuns(runtime.scope.scopeId);
+      const pendingPublications = runtime.runState.listPendingPublicationHeads()
+        .filter((publication) => publication.scopeId === runtime.scope.scopeId);
+      const authorityCriticalRunIds = workflowRunMetadataAuthorityCriticalIds(
+        durableRuns,
+        pendingPublications,
+      );
+      const operationallyActiveRunIds = durableRuns
+        .filter((run) =>
+          run.state === "running" ||
+          run.state === "waiting" ||
+          run.state === "integrating" ||
+          run.state === "needs_attention"
+        )
+        .map((run) => run.id);
       const windowStatus = workflows.getDispatchWindowStatus();
       const pause = workflows.getDispatchPauseStatus();
       return {
@@ -45,6 +65,23 @@ export function buildDaemonWorkflowHandle(
         pendingRuns: wfState.pendingRuns,
         queueLength: wfState.queueLength,
         completedRuns: wfState.completedRuns,
+        protectedRunIds: [
+          ...new Set([
+            ...durableRuns
+              .filter((run) =>
+                run.state === "queued" ||
+                run.state === "running" ||
+                run.state === "waiting" ||
+                run.state === "integrating" ||
+                run.state === "needs_attention"
+              )
+              .map((run) => run.id),
+            ...authorityCriticalRunIds,
+          ]),
+        ],
+        authorityCriticalRunIds: [...authorityCriticalRunIds],
+        operationallyActiveRunIds,
+        terminalRunIds: [...workflowRunMetadataTerminalIds(durableRuns)],
         agentBackoff: wfState.agentBackoff,
         definitionsLoadedAt: wfState.definitionsLoadedAt,
         workflows: wfState.workflows,

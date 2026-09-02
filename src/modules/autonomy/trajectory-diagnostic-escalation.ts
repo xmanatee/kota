@@ -4,7 +4,10 @@ import type {
   TrajectoryDiagnosticCode,
 } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import {
+  loadRunsInWindow,
+  type WorkflowRunDurableAuthority,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 import {
   isEscalatableDiagnostic,
   isEscalatableDiagnosticArtifact,
@@ -278,11 +281,14 @@ function groupActivePatterns(
 
 export function detectRecurringTrajectoryDiagnosticPatterns(
   runsDir: string,
+  authority: WorkflowRunDurableAuthority,
   config?: TrajectoryDiagnosticPatternConfig,
 ): TrajectoryDiagnosticPattern[] {
   const normalized = normalizeConfig(config);
   const cutoffMs = normalized.nowMs - normalized.windowMs;
-  const runs = sortRunsNewestFirst(loadRunsInWindow(runsDir, cutoffMs)).filter(
+  const runs = sortRunsNewestFirst(
+    loadRunsInWindow(runsDir, cutoffMs, authority),
+  ).filter(
     (entry) => entry.timeMs >= cutoffMs && entry.timeMs <= normalized.nowMs,
   );
   const { observations, latestScopeObservationMs } =

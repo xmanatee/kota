@@ -77,7 +77,8 @@ describe("createSubprocessExecutor host preflight and env filtering", () => {
         "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-host-env');",
         "mkdirSync(runDir, { recursive: true });",
         "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
-        "  id: 'run-1-noop-host-env', workflow: 'noop', status: 'success',",
+        "  metadataVersion: 1, id: 'run-1-noop-host-env', workflow: 'noop', status: 'success',",
+        "  definitionPath: 'workflows/noop.ts', trigger: { event: 'eval.fixture', schemaRef: null, payload: {} }, startedAt: '2026-04-24T00:00:00.000Z', completedAt: '2026-04-24T00:00:01.000Z', runDir, steps: [],",
         "}));",
       ].join("\n"),
     );

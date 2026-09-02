@@ -56,6 +56,7 @@ export function computeDigestSnapshot(opts: {
   );
   const data = aggregateDailyDigest({
     runsDir,
+    stateDir: opts.stateDir,
     workspaceRoot: opts.workspaceRoot,
     ownerQuestions,
     windowEndMs,

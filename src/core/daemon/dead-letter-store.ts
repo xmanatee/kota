@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { EventJsonObject } from "#core/events/event-journal.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
 import {
   redactDeadLetterJson,
   resolveClosedDeadLetterRetention,
@@ -331,7 +332,10 @@ export function deadLetterStoreForScope(scopeRoot: string): DeadLetterQueueStore
   return new DeadLetterQueueStore(join(scopeRoot, ".kota", "dead-letter-queue"));
 }
 
-export function deadLetterRunArtifactIds(scopeRoot: string): {
+export function deadLetterRunArtifactIds(
+  scopeRoot: string,
+  stateDir = join(scopeRoot, ".kota"),
+): {
   itemIds: string[];
   runIds: string[];
 } {
@@ -343,9 +347,13 @@ export function deadLetterRunArtifactIds(scopeRoot: string): {
   const runsDir = join(scopeRoot, ".kota", "runs");
   const runIds: string[] = [];
   if (existsSync(runsDir)) {
-    for (const name of readdirSync(runsDir)) {
-      if (!name.includes("redrive")) continue;
-      runIds.push(name);
+    for (const run of enumerateWorkflowRunMetadataWithDurableAuthority({
+      runsDir,
+      stateDir,
+      scopeRoot,
+    }).runs) {
+      if (!run.id.includes("redrive")) continue;
+      runIds.push(run.id);
     }
   }
   return { itemIds, runIds };

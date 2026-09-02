@@ -35,6 +35,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
         );
         const result = await runBlocking(attentionDigestStepOperation, {
           workspaceRoot,
+          stateDir,
           runsDir: join(stateDir, "runs"),
           count,
         });

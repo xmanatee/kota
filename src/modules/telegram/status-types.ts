@@ -1,4 +1,5 @@
 import type { WorkflowRuntimeSnapshot } from "#core/workflow/run-types.js";
+import type { WorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { HistoryClient } from "#modules/history/client.js";
@@ -14,6 +15,7 @@ export type StatusInfo = {
   runtimeState: WorkflowRuntimeSnapshot;
   dispatchPaused: boolean;
   runsDir: string;
+  runAuthority: WorkflowRunDurableAuthority;
 };
 
 export type TelegramStatusPollScopeRouting = {

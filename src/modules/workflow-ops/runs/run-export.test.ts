@@ -6,6 +6,12 @@ import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { WorkflowStepResult } from "#core/workflow/run-types.js";
 import { formatCsv, loadRunSummaries, type RunSummary } from "./run-export.js";
 
+const EMPTY_AUTHORITY = {
+  authorityCriticalRunIds: new Set<string>(),
+  operationallyActiveRunIds: new Set<string>(),
+  terminalRunIds: new Set<string>(),
+};
+
 let counter = 0;
 function makeRunsDir(): string {
   const base = join(tmpdir(), `kota-export-test-${Date.now()}-${counter++}`);
@@ -62,7 +68,15 @@ function completeUsage(costUsd: number): AgentUsage {
 describe("loadRunSummaries", () => {
   it("returns empty array when no runs exist", () => {
     const runsDir = makeRunsDir();
-    expect(loadRunSummaries(runsDir, {})).toEqual([]);
+    expect(loadRunSummaries(runsDir, { authority: EMPTY_AUTHORITY })).toEqual([]);
+  });
+
+  it("ignores arbitrary child directories without run metadata", () => {
+    const runsDir = makeRunsDir();
+    mkdirSync(join(runsDir, "fixture-report"));
+    writeFileSync(join(runsDir, "fixture-report", "report.json"), "{}");
+
+    expect(loadRunSummaries(runsDir, { authority: EMPTY_AUTHORITY })).toEqual([]);
   });
 
   it("returns run summaries sorted by id descending", () => {
@@ -70,7 +84,7 @@ describe("loadRunSummaries", () => {
     const now = new Date().toISOString();
     writeRun(runsDir, { id: "2024-01-01-builder-aaa", workflow: "builder", status: "success", startedAt: now, durationMs: 60000, usage: completeUsage(0.1), steps: [successfulCodeStep("a"), successfulCodeStep("b")] });
     writeRun(runsDir, { id: "2024-01-02-explorer-bbb", workflow: "explorer", status: "failed", startedAt: now, durationMs: 30000, usage: completeUsage(0.05) });
-    const summaries = loadRunSummaries(runsDir, {});
+    const summaries = loadRunSummaries(runsDir, { authority: EMPTY_AUTHORITY });
     expect(summaries).toHaveLength(2);
     expect(summaries[0].id).toBe("2024-01-02-explorer-bbb");
     expect(summaries[1].id).toBe("2024-01-01-builder-aaa");
@@ -89,7 +103,7 @@ describe("loadRunSummaries", () => {
       steps: [successfulCodeStep("a"), successfulCodeStep("b"), successfulCodeStep("c")],
       trigger: { event: "workflow.completed", payload: {} },
     });
-    const [s] = loadRunSummaries(runsDir, {});
+    const [s] = loadRunSummaries(runsDir, { authority: EMPTY_AUTHORITY });
     expect(s.id).toBe("run-1");
     expect(s.workflow).toBe("builder");
     expect(s.status).toBe("success");
@@ -107,7 +121,7 @@ describe("loadRunSummaries", () => {
   it("uses null for missing optional fields", () => {
     const runsDir = makeRunsDir();
     writeRun(runsDir, { id: "run-no-cost", workflow: "builder", status: "failed", startedAt: new Date().toISOString() });
-    const [s] = loadRunSummaries(runsDir, {});
+    const [s] = loadRunSummaries(runsDir, { authority: EMPTY_AUTHORITY });
     expect(s.durationMs).toBeNull();
     expect(s.tokenState).toBeNull();
     expect(s.inputTokens).toBeNull();
@@ -117,9 +131,19 @@ describe("loadRunSummaries", () => {
     expect(s.stepCount).toBe(0);
   });
 
-  it("keeps unavailable and unknown cost distinct from zero", () => {
+  it("keeps partial, unavailable, and unknown cost distinct from zero", () => {
     const runsDir = makeRunsDir();
     const now = new Date().toISOString();
+    writeRun(runsDir, {
+      id: "run-partial",
+      workflow: "builder",
+      status: "success",
+      startedAt: now,
+      usage: {
+        tokens: { state: "partial", inputTokens: 10, outputTokens: 2 },
+        cost: { state: "partial", usd: 0.25 },
+      },
+    });
     writeRun(runsDir, {
       id: "run-unavailable",
       workflow: "builder",
@@ -138,7 +162,11 @@ describe("loadRunSummaries", () => {
       usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
     });
 
-    const summaries = loadRunSummaries(runsDir, {});
+    const summaries = loadRunSummaries(runsDir, { authority: EMPTY_AUTHORITY });
+    expect(summaries.find((summary) => summary.id === "run-partial")).toMatchObject({
+      costState: "partial",
+      costUsd: 0.25,
+    });
     expect(summaries.find((summary) => summary.id === "run-unavailable")).toMatchObject({
       tokenState: "partial",
       inputTokens: 10,
@@ -160,7 +188,10 @@ describe("loadRunSummaries", () => {
     const now = new Date().toISOString();
     writeRun(runsDir, { id: "r1", workflow: "builder", status: "success", startedAt: now });
     writeRun(runsDir, { id: "r2", workflow: "explorer", status: "success", startedAt: now });
-    const summaries = loadRunSummaries(runsDir, { workflow: "builder" });
+    const summaries = loadRunSummaries(runsDir, {
+      authority: EMPTY_AUTHORITY,
+      workflow: "builder",
+    });
     expect(summaries).toHaveLength(1);
     expect(summaries[0].workflow).toBe("builder");
   });
@@ -170,7 +201,10 @@ describe("loadRunSummaries", () => {
     const now = new Date().toISOString();
     writeRun(runsDir, { id: "r1", workflow: "builder", status: "success", startedAt: now });
     writeRun(runsDir, { id: "r2", workflow: "builder", status: "failed", startedAt: now });
-    const summaries = loadRunSummaries(runsDir, { status: "failed" });
+    const summaries = loadRunSummaries(runsDir, {
+      authority: EMPTY_AUTHORITY,
+      status: "failed",
+    });
     expect(summaries).toHaveLength(1);
     expect(summaries[0].status).toBe("failed");
   });
@@ -182,7 +216,10 @@ describe("loadRunSummaries", () => {
     writeRun(runsDir, { id: "r-old", workflow: "builder", status: "success", startedAt: old });
     writeRun(runsDir, { id: "r-new", workflow: "builder", status: "success", startedAt: recent });
     const sinceMs = Date.now() - 24 * 60 * 60 * 1000;
-    const summaries = loadRunSummaries(runsDir, { sinceMs });
+    const summaries = loadRunSummaries(runsDir, {
+      authority: EMPTY_AUTHORITY,
+      sinceMs,
+    });
     expect(summaries).toHaveLength(1);
     expect(summaries[0].id).toBe("r-new");
   });
@@ -193,7 +230,10 @@ describe("loadRunSummaries", () => {
     for (let i = 1; i <= 5; i++) {
       writeRun(runsDir, { id: `r-00${i}`, workflow: "builder", status: "success", startedAt: now });
     }
-    const summaries = loadRunSummaries(runsDir, { last: 3 });
+    const summaries = loadRunSummaries(runsDir, {
+      authority: EMPTY_AUTHORITY,
+      last: 3,
+    });
     expect(summaries).toHaveLength(3);
   });
 });

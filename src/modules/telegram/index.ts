@@ -15,7 +15,7 @@ export function createTelegramModule(
   name: "telegram",
   version: "1.0.0",
   description: "Telegram bot frontend for KOTA",
-  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "model-clients", "recall", "repo-tasks", "retract", "secrets", "transcription"],
+  dependencies: ["answer", "approval-queue", "autonomy", "capture", "daemon-ops", "history", "inbound-signals", "knowledge", "memory", "model-clients", "recall", "repo-tasks", "retract", "secrets", "transcription", "workflow-ops"],
   setupRequirements: telegramSetupRequirements,
   manifest: {
     schemaVersion: 1,

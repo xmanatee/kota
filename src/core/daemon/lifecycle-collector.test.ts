@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventJournal } from "#core/events/event-journal.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { allocationName } from "#core/workflow/run-sandbox.js";
+import {
+  WORKFLOW_RUN_METADATA_VERSION,
+  WorkflowRunMetadataAuthorityError,
+} from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { InteractiveSession } from "./daemon-control-types.js";
@@ -318,6 +322,90 @@ describe("LifecycleCollector", () => {
     expect(existsSync(join(approvalsDir, "corrupt.json"))).toBe(true);
     // Valid expired file is deleted
     expect(existsSync(join(approvalsDir, "app-old.json"))).toBe(false);
+  });
+
+  it("fails closed when terminal artifact metadata belongs to an integrating run", async () => {
+    const scopeA = scopeRegistry.list()[0]!;
+    const runId = "2026-09-02T00-00-00-000Z-builder-integrating";
+    const startedAt = new Date(Date.now() - 2000).toISOString();
+    const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+    runState.admitRun({
+      id: runId,
+      scopeId: scopeA.scopeId,
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "test", schemaRef: null, payload: {} },
+      resources: [],
+      admittedAt: startedAt,
+    });
+    runState.startRun(runId, epoch, startedAt);
+    runState.beginIntegration(runId, epoch, { phase: "rebase" });
+
+    const runDir = join(scopeRootA, ".kota", "runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({
+        metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
+        id: runId,
+        workflow: "builder",
+        definitionPath: 17,
+        trigger: { event: "test", schemaRef: null, payload: {} },
+        startedAt,
+        completedAt: new Date(Date.now() - 1000).toISOString(),
+        status: "success",
+        runDir: `.kota/runs/${runId}`,
+        steps: [],
+      }),
+    );
+
+    const collector = new LifecycleCollector({
+      stateDir,
+      scopeRegistry,
+      runState,
+      eventJournal,
+      sessions,
+      chatBindings,
+    });
+
+    await expect(collector.status({ scopeId: scopeA.scopeId })).rejects.toThrow(
+      WorkflowRunMetadataAuthorityError,
+    );
+  });
+
+  it("does not require metadata for queued runs or Git-tracked evidence-only directories", async () => {
+    const scopeA = scopeRegistry.list()[0]!;
+    const queuedRunId = "2026-09-02T00-00-00-000Z-builder-queued";
+    runState.admitRun({
+      id: queuedRunId,
+      scopeId: scopeA.scopeId,
+      workflow: "builder",
+      repository: "write",
+      trigger: { event: "test", schemaRef: null, payload: {} },
+      resources: [],
+      admittedAt: new Date().toISOString(),
+    });
+    const evidenceDir = join(scopeRootA, ".kota", "runs", "evidence-only");
+    mkdirSync(evidenceDir, { recursive: true });
+    writeFileSync(join(evidenceDir, "transcript.txt"), "historical evidence\n");
+    execFileSync("git", ["add", "-f", ".kota/runs/evidence-only/transcript.txt"], {
+      cwd: scopeRootA,
+      env: withProtectedGitBareRepositoryEnv(),
+      stdio: "ignore",
+    });
+
+    const collector = new LifecycleCollector({
+      stateDir,
+      scopeRegistry,
+      runState,
+      eventJournal,
+      sessions,
+      chatBindings,
+    });
+
+    await expect(
+      collector.status({ scopeId: scopeA.scopeId }),
+    ).resolves.toMatchObject({ summary: { totalCandidates: expect.any(Number) } });
   });
 
   it("compacts dead letter queue snapshots and event journal payloads while preserving active records", async () => {

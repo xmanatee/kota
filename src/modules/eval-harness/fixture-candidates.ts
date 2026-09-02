@@ -1,16 +1,12 @@
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
+import { enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
 import { readRunEvidence } from "./fixture-candidates-artifacts.js";
 import {
   malformedCandidate,
   toCandidate,
 } from "./fixture-candidates-classify.js";
 import { collectDuplicateCoverage } from "./fixture-candidates-duplicates.js";
-import {
-  isJsonObject,
-  parseString,
-  readJsonValue,
-} from "./fixture-candidates-json.js";
 import { createCandidateTask } from "./fixture-candidates-task-writer.js";
 
 export type {
@@ -55,32 +51,33 @@ function resolveRunsDir(workspaceRoot: string, options: FixtureCandidateMiningOp
 }
 
 function comparableRunTime(runDir: string): number {
-  const metadataPath = join(runDir, "metadata.json");
-  if (existsSync(metadataPath)) {
-    try {
-      const metadata = readJsonValue(metadataPath);
-      const startedAt = isJsonObject(metadata) ? parseString(metadata.startedAt) : undefined;
-      if (startedAt !== undefined) return Date.parse(startedAt);
-    } catch {
-      return statSync(runDir).mtimeMs;
-    }
-  }
   return statSync(runDir).mtimeMs;
 }
 
 function selectRunIds(
+  workspaceRoot: string,
   runsDir: string,
   options: FixtureCandidateMiningOptions,
 ): readonly string[] {
+  const runs = enumerateWorkflowRunMetadataWithDurableAuthority({
+    runsDir,
+    stateDir: join(workspaceRoot, ".kota"),
+    scopeRoot: workspaceRoot,
+  }).runs;
   if (options.runIds !== undefined && options.runIds.length > 0) {
-    return [...options.runIds].sort();
+    const requested = new Set(options.runIds);
+    return runs
+      .map((run) => run.id)
+      .filter((runId) => requested.has(runId))
+      .sort();
   }
   const sinceMs = options.since === undefined ? null : Date.parse(options.since);
-  return readdirSync(runsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({
-      id: entry.name,
-      comparableMs: comparableRunTime(join(runsDir, entry.name)),
+  return runs
+    .map((run) => ({
+      id: run.id,
+      comparableMs: Number.isFinite(Date.parse(run.startedAt))
+        ? Date.parse(run.startedAt)
+        : comparableRunTime(join(runsDir, run.id)),
     }))
     .filter((entry) => sinceMs === null || entry.comparableMs >= sinceMs)
     .sort((a, b) => b.comparableMs - a.comparableMs || a.id.localeCompare(b.id))
@@ -217,7 +214,7 @@ export function mineFixtureCandidates(
   options: FixtureCandidateMiningOptions,
 ): FixtureCandidateMiningResult {
   const runsDir = resolveRunsDir(workspaceRoot, options);
-  const runIds = selectRunIds(runsDir, options);
+  const runIds = selectRunIds(workspaceRoot, runsDir, options);
   const coverage = collectDuplicateCoverage(workspaceRoot);
   const evidences: RunEvidence[] = [];
   const malformedCandidates: FixtureCandidateRecord[] = [];

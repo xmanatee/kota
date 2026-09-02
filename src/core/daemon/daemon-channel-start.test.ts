@@ -33,6 +33,11 @@ describe("startChannel", () => {
           runtimeState: { activeRuns: [], completedRuns: 0, pendingRuns: [], workflows: {} },
           dispatchPaused: false,
           runsDir: "/tmp/project/.kota/runs",
+          runAuthority: {
+            authorityCriticalRunIds: new Set(),
+            operationallyActiveRunIds: new Set(),
+            terminalRunIds: new Set(),
+          },
         }),
       },
       statuses,

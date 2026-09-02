@@ -61,6 +61,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const scopeId = deriveDirectoryScopeId(scopeRoot);
         const securityReviewGitEvidence = await collectSecurityReviewGitEvidence({
           workspaceRoot,
+          scopeRoot,
           stateDir,
           runCommand,
         });

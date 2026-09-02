@@ -37,6 +37,11 @@ function makeScope(recall: RecallClient["recall"]): TelegramStatusScope {
       },
       dispatchPaused: false,
       runsDir: "/tmp/kota-telegram-recall-runtime/.kota/runs",
+      runAuthority: {
+        authorityCriticalRunIds: new Set(),
+        operationallyActiveRunIds: new Set(),
+        terminalRunIds: new Set(),
+      },
     }),
     knowledge: {} as KnowledgeClient,
     memory: {} as MemoryClient,

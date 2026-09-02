@@ -17,6 +17,12 @@ import {
 
 type Iter = { attempt: number; failures: Array<{ id: string }> };
 
+const TEST_RUN_AUTHORITY = {
+  authorityCriticalRunIds: new Set<string>(),
+  operationallyActiveRunIds: new Set<string>(),
+  terminalRunIds: new Set<string>(),
+};
+
 function makeStep(
   id: string,
   status: WorkflowStepStatus,
@@ -407,7 +413,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "Exclude failed runs from duration-outlier signal",
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.durationOutliers).toHaveLength(1);
     expect(result.durationOutliers[0]).toMatchObject({
       runId: "outlier-1",
@@ -421,7 +427,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     writeRun("baseline-3", "improver", 700_000, 699_000);
     writeRun("outlier-1", "improver", 2_500_000, 2_499_000);
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.durationOutliers).toHaveLength(1);
     expect(result.durationOutliers[0].commitSubject).toBeUndefined();
   });
@@ -433,7 +439,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     writeRun("abort-1", "improver", 100_000, 50_000, undefined, "interrupted");
     writeRun("abort-2", "improver", 200_000, 100_000, undefined, "interrupted");
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     const improver = result.failureRates7d.find((r) => r.workflow === "improver");
     expect(improver).toEqual({
       workflow: "improver",
@@ -485,7 +491,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T04:00:00.000Z",
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBe("2026-04-21T02:00:00.000Z");
   });
 
@@ -533,7 +539,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T04:00:00.000Z",
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.durationOutliers).toHaveLength(1);
     expect(result.durationOutliers[0].runId).toBe("outlier-success");
     expect(result.latestActionableRunAt).toBeNull();
@@ -561,7 +567,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       ["critic-review"],
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBeNull();
   });
 
@@ -585,7 +591,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T02:00:00.000Z",
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBeNull();
   });
 
@@ -644,7 +650,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T02:00:00.000Z",
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBeNull();
     expect(result.agentStepTimeouts7d.map((t) => t.runId)).toEqual([
       "stalled-decomposer",
@@ -792,7 +798,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       'Agent step "build" failed (codex_cli_error): You\'ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits or try again at Jun 1st, 2026 1:01 AM.',
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBeNull();
   });
 
@@ -813,7 +819,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
       "2026-04-21T02:00:00.000Z",
     );
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBe("2026-04-21T02:00:00.000Z");
     expect(result.agentStepTimeouts7d).toHaveLength(1);
     expect(result.agentStepTimeouts7d[0].runId).toBe("stalled-decomposer");
@@ -846,7 +852,7 @@ describe("aggregateRunOutcomes duration outlier enrichment", () => {
     };
     writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
 
-    const result = aggregateRunOutcomes(runsDir);
+    const result = aggregateRunOutcomes(runsDir, TEST_RUN_AUTHORITY);
     expect(result.latestActionableRunAt).toBeNull();
     expect(result.topRepairFailures24h).toEqual([]);
   });

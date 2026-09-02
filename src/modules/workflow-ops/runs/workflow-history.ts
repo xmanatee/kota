@@ -1,18 +1,18 @@
-import { readdirSync } from "node:fs";
 import { join } from "node:path";
-import { validateWorkflowRunId } from "#core/workflow/run-io.js";
-import { readWorkflowRunMetadataForEnumeration } from "#core/workflow/run-metadata.js";
+import {
+  enumerateWorkflowRunMetadata,
+  type StoredWorkflowRunDirectoryId,
+  type StoredWorkflowRunMetadata,
+  type WorkflowRunMetadataEnumeration,
+} from "#core/workflow/run-metadata.js";
+import {
+  enumerateWorkflowRunMetadataWithDurableAuthority,
+} from "#core/workflow/run-operational-projection.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 
-declare const storedWorkflowRunDirectoryId: unique symbol;
-
-export type StoredWorkflowRunDirectoryId = string & {
-  readonly [storedWorkflowRunDirectoryId]: "stored-workflow-run-directory-id";
-};
-
-export type StoredWorkflowRun = WorkflowRunMetadata & {
-  id: StoredWorkflowRunDirectoryId;
-};
+export type { StoredWorkflowRunDirectoryId };
+export type StoredWorkflowRun = StoredWorkflowRunMetadata;
 
 export type HistoryStats = {
   total: number;
@@ -37,45 +37,48 @@ export type StoredWorkflowRunFilter = {
   causedByRunId?: string;
 };
 
-const VALID_RUN_STATUSES = new Set([
-  "running",
-  "success",
-  "failed",
-  "interrupted",
-  "completed-with-warnings",
-]);
+export type WorkflowRunAuthorityProjection = {
+  authorityCriticalRunIds: ReadonlySet<string>;
+  operationallyActiveRunIds: ReadonlySet<string>;
+  terminalRunIds: ReadonlySet<string>;
+};
 
-function isWorkflowRunMetadata(value: WorkflowRunMetadata | null): value is WorkflowRunMetadata {
-  if (!value || typeof value !== "object") return false;
-  return (
-    typeof value.id === "string" &&
-    typeof value.workflow === "string" &&
-    typeof value.startedAt === "string" &&
-    Number.isFinite(new Date(value.startedAt).getTime()) &&
-    typeof value.status === "string" &&
-    VALID_RUN_STATUSES.has(value.status)
-  );
+export type WorkflowRunDurableAuthority =
+  | { stateDir: string; scopeRoot: string }
+  | WorkflowRunAuthorityProjection;
+
+/** Consume the complete durable authority projection exposed by workflow status. */
+export function requireWorkflowRunDurableAuthority(
+  authorityCriticalRunIds: readonly string[] | undefined,
+  operationallyActiveRunIds: readonly string[] | undefined,
+  terminalRunIds: readonly string[] | undefined,
+): WorkflowRunAuthorityProjection {
+  if (
+    authorityCriticalRunIds === undefined ||
+    operationallyActiveRunIds === undefined ||
+    terminalRunIds === undefined
+  ) {
+    throw new Error(
+      "Workflow run inspection requires the canonical durable run authority from workflow status",
+    );
+  }
+  return {
+    authorityCriticalRunIds: new Set(authorityCriticalRunIds),
+    operationallyActiveRunIds: new Set(operationallyActiveRunIds),
+    terminalRunIds: new Set(terminalRunIds),
+  };
 }
 
-function storedWorkflowRunForDirectory(
-  value: WorkflowRunMetadata | null,
-  directoryName: string,
-): StoredWorkflowRun | null {
-  if (!isWorkflowRunMetadata(value)) return null;
-  let validatedDirectoryName: string;
-  try {
-    validatedDirectoryName = validateWorkflowRunId(
-      directoryName,
-      "Stored workflow run directory",
-    );
-  } catch {
-    return null;
-  }
-  if (value.id !== validatedDirectoryName) return null;
-  return {
-    ...value,
-    id: validatedDirectoryName as StoredWorkflowRunDirectoryId,
-  };
+/** Build an artifact reader whose metadata decisions use canonical authority. */
+export function workflowRunStoreWithDurableAuthority(
+  scopeRoot: string,
+  authority: WorkflowRunAuthorityProjection,
+): WorkflowRunStore {
+  return new WorkflowRunStore(scopeRoot, {
+    authorityCriticalRunIds: () => authority.authorityCriticalRunIds,
+    operationallyActiveRunIds: () => authority.operationallyActiveRunIds,
+    terminalRunIds: () => authority.terminalRunIds,
+  });
 }
 
 export function storedWorkflowRunDirectory(
@@ -88,29 +91,37 @@ export function storedWorkflowRunDirectory(
 export function loadRunsInWindow(
   runsDir: string,
   cutoffMs: number,
+  authority: WorkflowRunDurableAuthority,
   untilMs = Number.POSITIVE_INFINITY,
 ): StoredWorkflowRun[] {
-  return listStoredWorkflowRuns(runsDir, { sinceMs: cutoffMs, untilMs });
+  return listStoredWorkflowRuns(
+    runsDir,
+    { sinceMs: cutoffMs, untilMs },
+    authority,
+  );
 }
 
 export function listStoredWorkflowRuns(
   runsDir: string,
-  filter: StoredWorkflowRunFilter = {},
+  filter: StoredWorkflowRunFilter,
+  authority: WorkflowRunDurableAuthority,
 ): StoredWorkflowRun[] {
-  let dirs: string[];
-  try {
-    dirs = readdirSync(runsDir);
-  } catch {
-    return [];
-  }
   const runs: StoredWorkflowRun[] = [];
-  for (const dir of dirs) {
-    const metadataPath = join(runsDir, dir, "metadata.json");
-    const metadata = storedWorkflowRunForDirectory(
-      readWorkflowRunMetadataForEnumeration(metadataPath),
-      dir,
-    );
-    if (!metadata) continue;
+  let enumeration: WorkflowRunMetadataEnumeration;
+  if ("authorityCriticalRunIds" in authority) {
+    enumeration = enumerateWorkflowRunMetadata(runsDir, {
+      authorityCriticalRunIds: authority.authorityCriticalRunIds,
+      operationallyActiveRunIds: authority.operationallyActiveRunIds,
+      terminalRunIds: authority.terminalRunIds,
+    });
+  } else {
+    enumeration = enumerateWorkflowRunMetadataWithDurableAuthority({
+      runsDir,
+      stateDir: authority.stateDir,
+      scopeRoot: authority.scopeRoot,
+    });
+  }
+  for (const metadata of enumeration.runs) {
     const startedAtMs = new Date(metadata.startedAt).getTime();
     if (filter.untilMs !== undefined && startedAtMs > filter.untilMs) continue;
     if (filter.sinceMs !== undefined && startedAtMs < filter.sinceMs) continue;

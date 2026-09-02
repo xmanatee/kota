@@ -260,6 +260,130 @@ describe("followRunLogs", () => {
     }
   });
 
+  it("fails with recovery guidance when durable state identifies an active run without metadata", async () => {
+    const runState = new RunStateDatabase(tmpDir);
+    try {
+      runState.registerScope({
+        id: "project-follow",
+        rootPath: realpathSync(scopeRoot),
+        createdAt: new Date().toISOString(),
+      });
+      const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+      const startedAt = new Date().toISOString();
+      runState.admitRun({
+        id: RUN_ID,
+        scopeId: "project-follow",
+        workflow: "builder",
+        repository: "read",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: startedAt,
+      });
+      runState.startRun(RUN_ID, epoch, startedAt);
+
+      await expect(
+        followRunLogs(
+          runsDir,
+          { stateDir: tmpDir, scopeRoot },
+          RUN_ID,
+          undefined,
+          200,
+          10,
+        ),
+      ).rejects.toThrow(
+        "metadata file is missing for an authority-critical workflow run",
+      );
+    } finally {
+      runState.close();
+    }
+  });
+
+  it.each(["waiting", "needs_attention"] as const)(
+    "fails with recovery guidance when durable state identifies a %s run without metadata",
+    async (state) => {
+      const runState = new RunStateDatabase(tmpDir);
+      try {
+        runState.registerScope({
+          id: "project-follow",
+          rootPath: realpathSync(scopeRoot),
+          createdAt: new Date().toISOString(),
+        });
+        const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+        const startedAt = new Date().toISOString();
+        runState.admitRun({
+          id: RUN_ID,
+          scopeId: "project-follow",
+          workflow: "builder",
+          repository: "read",
+          trigger: { event: "manual", schemaRef: null, payload: {} },
+          resources: [],
+          admittedAt: startedAt,
+        });
+        runState.startRun(RUN_ID, epoch, startedAt);
+        runState.suspendRun({
+          runId: RUN_ID,
+          epoch,
+          state,
+          suspendedAt: new Date().toISOString(),
+        });
+
+        await expect(
+          followRunLogs(
+            runsDir,
+            { stateDir: tmpDir, scopeRoot },
+            RUN_ID,
+            undefined,
+            200,
+            10,
+          ),
+        ).rejects.toThrow(
+          "metadata file is missing for an authority-critical workflow run",
+        );
+      } finally {
+        runState.close();
+      }
+    },
+  );
+
+  it("stops waiting when a newly active run has no metadata", async () => {
+    const capture = captureTransport();
+    const runState = new RunStateDatabase(tmpDir);
+    try {
+      const followPromise = followRunLogs(
+        runsDir,
+        { stateDir: tmpDir, scopeRoot },
+        undefined,
+        undefined,
+        200,
+        10,
+      );
+      runState.registerScope({
+        id: "project-follow",
+        rootPath: realpathSync(scopeRoot),
+        createdAt: new Date().toISOString(),
+      });
+      const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+      const startedAt = new Date().toISOString();
+      runState.admitRun({
+        id: RUN_ID,
+        scopeId: "project-follow",
+        workflow: "builder",
+        repository: "read",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: startedAt,
+      });
+      runState.startRun(RUN_ID, epoch, startedAt);
+
+      await expect(followPromise).rejects.toThrow(
+        "metadata file is missing for an authority-critical workflow run",
+      );
+    } finally {
+      runState.close();
+      capture.restore();
+    }
+  });
+
   it("polls a running run and exits when it completes", async () => {
     writeMetadata(makeMetadata("running"));
     writeEvents([assistantEvent]);

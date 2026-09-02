@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type {
   WorkflowRunMetadata,
@@ -10,9 +11,14 @@ import type {
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import {
   computeHistoryStats,
-  listStoredWorkflowRuns,
   loadRunsInWindow,
 } from "./workflow-history.js";
+
+const EMPTY_AUTHORITY = {
+  authorityCriticalRunIds: new Set<string>(),
+  operationallyActiveRunIds: new Set<string>(),
+  terminalRunIds: new Set<string>(),
+};
 
 const minimalWorkflow = (name: string): WorkflowDefinition => ({
   name,
@@ -88,7 +94,7 @@ describe("workflow history", () => {
       run2.finish({ status: "failed", durationMs: 2000 });
 
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const runs = loadRunsInWindow(store.runsDir, cutoff);
+      const runs = loadRunsInWindow(store.runsDir, cutoff, EMPTY_AUTHORITY);
       expect(runs).toHaveLength(2);
     });
 
@@ -98,12 +104,16 @@ describe("workflow history", () => {
       run.finish({ status: "success", durationMs: 1000 });
 
       const futureMs = Date.now() + 10_000;
-      const runs = loadRunsInWindow(store.runsDir, futureMs);
+      const runs = loadRunsInWindow(store.runsDir, futureMs, EMPTY_AUTHORITY);
       expect(runs).toHaveLength(0);
     });
 
     it("returns empty array when runs directory does not exist", () => {
-      const runs = loadRunsInWindow("/nonexistent/path", Date.now() - 86400_000);
+      const runs = loadRunsInWindow(
+        "/nonexistent/path",
+        Date.now() - 86400_000,
+        EMPTY_AUTHORITY,
+      );
       expect(runs).toHaveLength(0);
     });
 
@@ -125,40 +135,54 @@ describe("workflow history", () => {
       const run = store.createRun(minimalWorkflow("builder"), trigger);
       run.finish({ status: "success", durationMs: 1000 });
 
-      const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
+      const runs = loadRunsInWindow(
+        store.runsDir,
+        Date.now() - 86400_000,
+        EMPTY_AUTHORITY,
+      );
       expect(runs.map((item) => item.workflow)).toEqual(["builder"]);
     });
 
-    it("rejects mismatched, alternate-run, traversal, and noncanonical directory identities", () => {
-      const startedAt = new Date().toISOString();
-      const cases = [
-        ["mismatched-directory", "different-run"],
-        ["forged-alternate-directory", "authentic-alternate-run"],
-        ["posix-traversal-directory", "../authentic-alternate-run"],
-        ["windows-traversal-directory", "..\\authentic-alternate-run"],
-        ["unsafe directory", "unsafe directory"],
-      ] as const;
-      for (const [directoryName, metadataId] of cases) {
-        const runDir = join(store.runsDir, directoryName);
-        mkdirSync(runDir, { recursive: true });
-        writeFileSync(
-          join(runDir, "metadata.json"),
-          JSON.stringify(storedMetadata(metadataId, "builder", startedAt)),
-        );
-      }
-
-      const authenticRunDir = join(store.runsDir, "authentic-alternate-run");
-      mkdirSync(authenticRunDir, { recursive: true });
+    it("fails closed when SQLite owns terminal-looking malformed integration evidence", () => {
+      const trigger = { event: "test", schemaRef: null, payload: {} };
+      const run = store.createRun(minimalWorkflow("builder"), trigger);
+      run.finish({ status: "success", durationMs: 1000 });
       writeFileSync(
-        join(authenticRunDir, "metadata.json"),
-        JSON.stringify(
-          storedMetadata("authentic-alternate-run", "builder", startedAt),
-        ),
+        join(store.runsDir, run.metadata.id, "metadata.json"),
+        JSON.stringify({ id: run.metadata.id, status: "success" }),
       );
 
-      expect(listStoredWorkflowRuns(store.runsDir).map((run) => run.id)).toEqual([
-        "authentic-alternate-run",
-      ]);
+      const stateDir = join(workspaceRoot, "operator-daemon-state");
+      const runState = new RunStateDatabase(stateDir);
+      try {
+        runState.registerScope({
+          id: "scope-a",
+          rootPath: workspaceRoot,
+          createdAt: new Date().toISOString(),
+        });
+        const { epoch } = runState.beginDaemonSession(new Date().toISOString());
+        runState.admitRun({
+          id: run.metadata.id,
+          scopeId: "scope-a",
+          workflow: "builder",
+          repository: "write",
+          trigger,
+          resources: [],
+          admittedAt: new Date().toISOString(),
+        });
+        runState.startRun(run.metadata.id, epoch, new Date().toISOString());
+        runState.beginIntegration(run.metadata.id, epoch, { phase: "rebase" });
+
+        expect(() =>
+          loadRunsInWindow(
+            store.runsDir,
+            Date.now() - 86400_000,
+            { stateDir, scopeRoot: workspaceRoot },
+          )
+        ).toThrow("Workflow run metadata authority is invalid");
+      } finally {
+        runState.close();
+      }
     });
   });
 
@@ -179,7 +203,7 @@ describe("workflow history", () => {
       run3.finish({ status: "success", durationMs: 30_000 });
 
       const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const runs = loadRunsInWindow(store.runsDir, cutoff);
+      const runs = loadRunsInWindow(store.runsDir, cutoff, EMPTY_AUTHORITY);
       const stats = computeHistoryStats(runs);
 
       expect(stats.total).toBe(3);
@@ -200,7 +224,11 @@ describe("workflow history", () => {
       run2.recordStep(makeAgentStep("s1", 0.30, 3000));
       run2.finish({ status: "success", durationMs: 3000 });
 
-      const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
+      const runs = loadRunsInWindow(
+        store.runsDir,
+        Date.now() - 86400_000,
+        EMPTY_AUTHORITY,
+      );
       const stats = computeHistoryStats(runs);
 
       expect(stats.totalCostUsd).toBeCloseTo(0.40);
@@ -219,7 +247,11 @@ describe("workflow history", () => {
         run.finish({ status: "success", durationMs: dur });
       }
 
-      const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
+      const runs = loadRunsInWindow(
+        store.runsDir,
+        Date.now() - 86400_000,
+        EMPTY_AUTHORITY,
+      );
       const stats = computeHistoryStats(runs);
 
       expect(stats.avgDurationMs).toBeCloseTo(5500);
@@ -232,7 +264,11 @@ describe("workflow history", () => {
       const run = store.createRun(minimalWorkflow("builder"), trigger);
       run.finish({ status: "success", durationMs: 5000 });
 
-      const runs = loadRunsInWindow(store.runsDir, Date.now() - 86400_000);
+      const runs = loadRunsInWindow(
+        store.runsDir,
+        Date.now() - 86400_000,
+        EMPTY_AUTHORITY,
+      );
       const stats = computeHistoryStats(runs);
       expect(stats.totalCostUsd).toBeNull();
       expect(stats.avgCostUsd).toBeNull();
@@ -261,7 +297,11 @@ describe("workflow history", () => {
       unknownRun.finish({ status: "success", durationMs: 1000 });
 
       const stats = computeHistoryStats(
-        loadRunsInWindow(store.runsDir, Date.now() - 86400_000),
+        loadRunsInWindow(
+          store.runsDir,
+          Date.now() - 86400_000,
+          EMPTY_AUTHORITY,
+        ),
       );
       expect(stats.totalCostUsd).toBeNull();
       expect(stats.avgCostUsd).toBeNull();

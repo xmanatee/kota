@@ -1,4 +1,3 @@
-import { readdirSync } from "node:fs";
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
@@ -12,6 +11,11 @@ import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import { printWorkflowError, printWorkflowText } from "../cli-output.js";
 import type { WorkflowGetRunResult } from "../client.js";
 import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
+import {
+  requireWorkflowRunDurableAuthority,
+  workflowRunStoreWithDurableAuthority,
+} from "../runs/workflow-history.js";
+import { resolveWorkflowRunPruneAuthority } from "./prune-authority.js";
 
 function triggerFailureMessage(
   workflowName: string,
@@ -27,25 +31,26 @@ function triggerFailureMessage(
 }
 
 /**
- * Resolve a run-id prefix against the on-disk run directories. The CLI
- * accepts short prefixes (`builder-9pekjj`) and full timestamped ids; this
- * resolution stays local because run-id prefix lookup walks `.kota/runs/`,
- * which the contract does not expose.
+ * Resolve a run-id prefix against canonically enumerated run metadata.
  */
 function resolveRunIdOrExit(store: WorkflowRunStore, runId: string): string {
   if (runId.includes("Z-")) return runId;
-  try {
-    const dirs = readdirSync(store.runsDir).sort().reverse();
-    const match = dirs.find((d) => d.startsWith(runId));
-    if (!match) {
-      printWorkflowError(`Run "${runId}" not found.`);
-      process.exit(1);
-    }
-    return match;
-  } catch {
+  const match = store.resolveRunIdPrefix(runId);
+  if (!match) {
     printWorkflowError(`Run "${runId}" not found.`);
     process.exit(1);
   }
+  return match;
+}
+
+async function canonicalWorkflowRunStore(ctx: ModuleContext): Promise<WorkflowRunStore> {
+  const status = await ctx.client.workflow.status();
+  const authority = requireWorkflowRunDurableAuthority(
+    status.authorityCriticalRunIds,
+    status.operationallyActiveRunIds,
+    status.terminalRunIds,
+  );
+  return workflowRunStoreWithDurableAuthority(ctx.cwd, authority);
 }
 
 export function registerTriggerCommands(
@@ -118,7 +123,7 @@ export function registerTriggerCommands(
     .command("retry <run-id>")
     .description("Retry a failed workflow run, replaying successful steps and re-executing from the first failure")
     .action(async (runId: string) => {
-      const store = new WorkflowRunStore();
+      const store = await canonicalWorkflowRunStore(ctx);
       const resolvedId = resolveRunIdOrExit(store, runId);
 
       const original = await loadRunOrExit(ctx, resolvedId);
@@ -160,7 +165,7 @@ export function registerTriggerCommands(
     .command("replay <run-id>")
     .description("Replay a completed workflow run using its original trigger payload")
     .action(async (runId: string) => {
-      const store = new WorkflowRunStore();
+      const store = await canonicalWorkflowRunStore(ctx);
       const resolvedId = resolveRunIdOrExit(store, runId);
 
       const original = await loadRunOrExit(ctx, resolvedId);
@@ -204,14 +209,10 @@ export function registerTriggerCommands(
     .description("Resume a failed workflow run from a specific step, reusing prior step outputs")
     .requiredOption("--from-step <step-id>", "Step ID to resume execution from")
     .action(async (runId: string, opts: { fromStep: string }) => {
-      const store = new WorkflowRunStore();
+      const store = await canonicalWorkflowRunStore(ctx);
       const resolvedId = resolveRunIdOrExit(store, runId);
 
-      const original = store.getRun(resolvedId);
-      if (!original) {
-        printWorkflowError(`Run "${resolvedId}" not found.`);
-        process.exit(1);
-      }
+      const original = await loadRunOrExit(ctx, resolvedId);
 
       if (original.status === "running") {
         printWorkflowError(`Run "${resolvedId}" is still active. Cannot resume a running run.`);
@@ -275,13 +276,35 @@ export function registerTriggerCommands(
     .option("--days <n>", "Delete runs older than N days")
     .option("--min-keep <n>", "Keep at least N runs per workflow", "10")
     .option("--dry-run", "Show what would be deleted without deleting")
-    .action((opts: { days?: string; minKeep: string; dryRun?: boolean }) => {
+    .action(async (opts: { days?: string; minKeep: string; dryRun?: boolean }) => {
       const retentionDays = opts.days !== undefined
         ? Number.parseInt(opts.days, 10)
         : defaultWorkflowRunRetentionDays();
       const minKeepPerWorkflow = Number.parseInt(opts.minKeep, 10) || 10;
-      const store = new WorkflowRunStore();
-      const deleted = store.pruneRuns({ retentionDays, minKeepPerWorkflow, dryRun: opts.dryRun });
+      const status = await ctx.client.workflow.status();
+      const store = new WorkflowRunStore(ctx.cwd);
+      const {
+        protectedRunIds,
+        authorityCriticalRunIds,
+        operationallyActiveRunIds,
+        terminalRunIds,
+      } =
+        resolveWorkflowRunPruneAuthority({
+          liveRunIds: status.activeRuns.map((run) => run.runId),
+          protectedRunIds: status.protectedRunIds,
+          authorityCriticalRunIds: status.authorityCriticalRunIds,
+          operationallyActiveRunIds: status.operationallyActiveRunIds,
+          terminalRunIds: status.terminalRunIds,
+        });
+      const deleted = store.pruneRuns({
+        retentionDays,
+        minKeepPerWorkflow,
+        dryRun: opts.dryRun,
+        protectedRunIds,
+        authorityCriticalRunIds,
+        operationallyActiveRunIds,
+        terminalRunIds,
+      });
       if (deleted.length === 0) {
         printWorkflowText(opts.dryRun ? "Nothing to prune." : "Nothing pruned.");
       } else if (opts.dryRun) {
@@ -300,6 +323,7 @@ async function loadRunOrExit(
   workflow: string;
   status: string;
   trigger: WorkflowRunTrigger;
+  steps: Array<{ id: string; status: string }>;
 }> {
   const result: WorkflowGetRunResult = await ctx.client.workflow.getRun(resolvedId);
   if (!result.found) {
@@ -314,5 +338,6 @@ async function loadRunOrExit(
       schemaRef: result.run.triggerSchemaRef,
       payload: result.run.triggerPayload ?? {},
     },
+    steps: result.run.steps.map((step) => ({ id: step.id, status: step.status })),
   };
 }

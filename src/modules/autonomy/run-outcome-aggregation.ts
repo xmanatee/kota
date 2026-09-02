@@ -4,7 +4,10 @@ import {
   type WorkflowRunMetadata,
 } from "#core/workflow/run-types.js";
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
-import { loadRunsInWindow } from "#modules/workflow-ops/runs/workflow-history.js";
+import {
+  loadRunsInWindow,
+  type WorkflowRunDurableAuthority,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 import { readAutonomyRunDeliveryEvidence } from "./run-delivery-evidence.js";
 import { type RunSummary, summarizeRun } from "./shared.js";
 
@@ -286,12 +289,15 @@ function latestActionableCompletedAt(
   return latest;
 }
 
-export function aggregateRunOutcomes(runsDir: string): RunOutcomeAggregation {
+export function aggregateRunOutcomes(
+  runsDir: string,
+  authority: WorkflowRunDurableAuthority,
+): RunOutcomeAggregation {
   const now = Date.now();
   const cutoff24h = now - 24 * 60 * 60 * 1000;
   const cutoff7d = now - 7 * 24 * 60 * 60 * 1000;
 
-  const all7d = loadRunsInWindow(runsDir, cutoff7d);
+  const all7d = loadRunsInWindow(runsDir, cutoff7d, authority);
   const all24h = all7d.filter((r) => new Date(r.startedAt).getTime() >= cutoff24h);
 
   const summaries7d = all7d.map(summarizeRun);

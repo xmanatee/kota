@@ -50,6 +50,7 @@ export function currentDirectorySource(
     workspaceRoot,
     scopeRoot,
     stateDir,
+    authorityStateDir: stateDir,
     idPrefix: "",
   };
 }
@@ -66,6 +67,7 @@ export function loadConfiguredDirectorySources(
       workspaceRoot: scope.scopeRoot,
       scopeRoot: scope.scopeRoot,
       stateDir: join(scope.scopeRoot, ".kota"),
+      authorityStateDir: stateDir,
       idPrefix: "",
     })),
   };

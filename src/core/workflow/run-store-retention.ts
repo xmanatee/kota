@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { appendFileSync, existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
   buildEvidencePrunedReference,
@@ -11,7 +11,7 @@ import {
 } from "#core/evidence/policy.js";
 import { validateEvidencePrunedReference } from "#core/evidence/pruned-reference.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { readWorkflowRunMetadataForEnumeration } from "./run-metadata.js";
+import { enumerateWorkflowRunMetadata } from "./run-metadata.js";
 import type { WorkflowRunMetadata } from "./run-types.js";
 
 export const PRUNED_RUN_REFERENCES_FILE = "pruned-runs.jsonl";
@@ -24,6 +24,9 @@ export type WorkflowRunPruneOptions = {
   minKeepPerWorkflow?: number;
   dryRun?: boolean;
   protectedRunIds?: Set<string>;
+  authorityCriticalRunIds?: ReadonlySet<string>;
+  operationallyActiveRunIds?: ReadonlySet<string>;
+  terminalRunIds?: ReadonlySet<string>;
 };
 
 type RunEntry = {
@@ -75,14 +78,23 @@ export function pruneWorkflowRuns(opts: WorkflowRunPruneOptions): string[] {
   const minKeepPerWorkflow = opts.minKeepPerWorkflow ?? 10;
   const dryRun = opts.dryRun ?? false;
 
-  if (!existsSync(opts.runsDir)) return [];
-
   const protectedIds = new Set<string>(opts.protectedRunIds);
+  for (const runId of opts.authorityCriticalRunIds ?? []) {
+    protectedIds.add(runId);
+  }
+  for (const runId of opts.operationallyActiveRunIds ?? []) {
+    protectedIds.add(runId);
+  }
   for (const runId of listTrackedRunIds(opts.scopeRoot, opts.runsDir)) {
     protectedIds.add(runId);
   }
 
-  const runs = readRunEntries(opts.runsDir);
+  const runs = readRunEntries(
+    opts.runsDir,
+    opts.authorityCriticalRunIds ?? new Set<string>(),
+    opts.operationallyActiveRunIds ?? new Set<string>(),
+    opts.terminalRunIds ?? new Set<string>(),
+  );
   const byWorkflow = groupRunsByWorkflow(runs);
   const toDelete = selectRunsToPrune({
     byWorkflow,
@@ -133,22 +145,26 @@ function listTrackedRunIds(scopeRoot: string, runsDir: string): Set<string> {
   }
 }
 
-function readRunEntries(runsDir: string): RunEntry[] {
-  const dirs = readdirSync(runsDir);
+function readRunEntries(
+  runsDir: string,
+  authorityCriticalRunIds: ReadonlySet<string>,
+  operationallyActiveRunIds: ReadonlySet<string>,
+  terminalRunIds: ReadonlySet<string>,
+): RunEntry[] {
   const runs: RunEntry[] = [];
-  for (const dir of dirs) {
-    const metaPath = join(runsDir, dir, "metadata.json");
-    const meta = readWorkflowRunMetadataForEnumeration(metaPath);
-    if (meta?.id && meta.workflow && meta.startedAt) {
-      runs.push({
-        id: meta.id,
-        workflow: meta.workflow,
-        startedAtMs: new Date(meta.startedAt).getTime(),
-        retainedFromMs: runRetentionStartMs(meta),
-        lifecycleState: workflowRunLifecycleState(meta),
-        metadata: meta,
-      });
-    }
+  for (const meta of enumerateWorkflowRunMetadata(runsDir, {
+    authorityCriticalRunIds,
+    operationallyActiveRunIds,
+    terminalRunIds,
+  }).runs) {
+    runs.push({
+      id: meta.id,
+      workflow: meta.workflow,
+      startedAtMs: new Date(meta.startedAt).getTime(),
+      retainedFromMs: runRetentionStartMs(meta),
+      lifecycleState: workflowRunLifecycleState(meta),
+      metadata: meta,
+    });
   }
   return runs;
 }
@@ -249,6 +265,7 @@ function isWorkflowRunPastRetention(
   nowMs: number,
   retentionMsOverride: number | undefined,
 ): boolean {
+  if (run.lifecycleState === "active") return false;
   if (retentionMsOverride !== undefined) {
     return run.retainedFromMs <= nowMs - retentionMsOverride;
   }

@@ -24,11 +24,15 @@ export function runEvalCalibration(
   const thresholdRate = options.thresholdRate ?? DEFAULT_CALIBRATION_THRESHOLD_RATE;
   const minSample = options.minSample ?? DEFAULT_CALIBRATION_MIN_SAMPLE;
   const runsDir = options.runsDir ?? join(workspaceRoot, ".kota", "runs");
+  const stateDir = join(workspaceRoot, ".kota");
 
   const aggregate = aggregateCalibration(runsDir, {
     windowMs: windowDays * DAY_MS,
     followUpWindowMs: followUpDays * DAY_MS,
     criticPromptHash: getCriticPromptHash(),
+    ...(options.runsDir === undefined
+      ? { authority: { stateDir, scopeRoot: workspaceRoot } }
+      : {}),
   });
   const decision = evaluateCalibrationGate(aggregate, {
     thresholdRate,

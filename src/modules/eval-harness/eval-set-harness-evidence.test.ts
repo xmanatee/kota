@@ -38,14 +38,27 @@ describe("runEvalSet harness evidence", () => {
           writeFileSync(
             join(childRunDir, "metadata.json"),
             JSON.stringify({
+              metadataVersion: 1,
               id: "child-run",
               workflow: "noop",
+              definitionPath: "workflows/noop.ts",
+              trigger: { event: "eval.fixture", schemaRef: null, payload: {} },
+              startedAt: "2026-04-24T00:00:00.000Z",
+              completedAt: "2026-04-24T00:00:01.000Z",
               status: "success",
+              runDir: childRunDir,
               steps: [
                 {
                   id: "build",
                   type: "agent",
                   status: "success",
+                  startedAt: "2026-04-24T00:00:00.000Z",
+                  completedAt: "2026-04-24T00:00:01.000Z",
+                  durationMs: 1_000,
+                  usage: {
+                    tokens: { state: "complete", inputTokens: 1, outputTokens: 1 },
+                    cost: { state: "unknown" },
+                  },
                   harness: "codex",
                   model: "gpt-5.6-sol",
                 },
@@ -89,19 +102,31 @@ describe("runEvalSet harness evidence", () => {
           writeFileSync(
             join(childRunDir, "metadata.json"),
             JSON.stringify({
+              metadataVersion: 1,
               id: "child-run",
               workflow: "decomposer",
+              definitionPath: "workflows/decomposer.ts",
+              trigger: { event: "eval.fixture", schemaRef: null, payload: {} },
+              startedAt: "2026-04-24T00:00:00.000Z",
+              completedAt: "2026-04-24T00:00:01.000Z",
               status: "success",
+              runDir: childRunDir,
               steps: [
                 {
                   id: "assess-failure",
                   type: "code",
                   status: "success",
+                  startedAt: "2026-04-24T00:00:00.000Z",
+                  completedAt: "2026-04-24T00:00:00.500Z",
+                  durationMs: 500,
                 },
                 {
                   id: "decompose",
                   type: "agent",
                   status: "skipped",
+                  startedAt: "2026-04-24T00:00:00.500Z",
+                  completedAt: "2026-04-24T00:00:01.000Z",
+                  durationMs: 500,
                   skipReason: { kind: "when-predicate" },
                 },
               ],

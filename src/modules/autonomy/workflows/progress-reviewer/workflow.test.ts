@@ -1103,6 +1103,38 @@ describe("progress-reviewer workflow", () => {
     ).not.toThrow();
   });
 
+  it("quarantines malformed terminal batch run metadata without blocking review", () => {
+    const workspaceRoot = trackScopeRoot(
+      "progress-reviewer-batch-run-quarantine",
+    );
+    const runId = "malformed-terminal-run";
+    const runDir = join(workspaceRoot, ".kota", "runs", runId);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "metadata.json"),
+      JSON.stringify({ id: runId, status: "success" }),
+    );
+
+    const evidence = collectProgressReviewEvidence({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
+      trigger: {
+        event: WORKFLOW_BATCH_FLUSH_EVENT,
+        schemaRef: null,
+        payload: runCountBatchPayload(workspaceRoot, runId),
+      },
+      now: NOW,
+    });
+
+    expect(evidence.runs.map((run) => run.id)).not.toContain(`run:${runId}`);
+    expect(evidence.excluded).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("workflow run metadata quarantined"),
+      ]),
+    );
+  });
+
   it("builds a bounded review-agent packet and validates only exposed ids", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-agent-packet");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
@@ -2213,6 +2245,86 @@ describe("progress-reviewer workflow", () => {
     expect(evidence.runs[0].summary).toContain("eligible at 2026-06-04T11:50:00.000Z");
   });
 
+  it("fails closed for malformed terminal evidence retained by an undelivered publication", () => {
+    const workspaceRoot = trackScopeRoot("progress-reviewer-pending-publication");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    writeRun(
+      workspaceRoot,
+      "publication-pending",
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+    const metadataPath = join(
+      workspaceRoot,
+      ".kota",
+      "runs",
+      "publication-pending",
+      "metadata.json",
+    );
+    const malformed = JSON.parse(readFileSync(metadataPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    malformed.definitionPath = 17;
+    writeFileSync(metadataPath, JSON.stringify(malformed, null, 2));
+
+    const state = new RunStateDatabase(join(workspaceRoot, ".kota"));
+    state.registerScope({
+      id: scopeId,
+      rootPath: workspaceRoot,
+      createdAt: "2026-06-04T11:00:00.000Z",
+    });
+    const { epoch } = state.beginDaemonSession("2026-06-04T11:10:00.000Z");
+    state.admitRun({
+      id: "publication-pending",
+      scopeId,
+      workflow: "builder",
+      repository: "read",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
+      resources: [],
+      admittedAt: "2026-06-04T11:15:00.000Z",
+    });
+    state.startRun(
+      "publication-pending",
+      epoch,
+      "2026-06-04T11:16:00.000Z",
+    );
+    state.finishRun(
+      "publication-pending",
+      epoch,
+      "succeeded",
+      "2026-06-04T11:20:00.000Z",
+      undefined,
+      {
+        id: "workflow:publication-pending:completed",
+        runId: "publication-pending",
+        scopeId,
+        event: "workflow.completed",
+        payload: { runId: "publication-pending" },
+      },
+    );
+    state.close();
+
+    expect(() =>
+      collectProgressReviewEvidence({
+        workspaceRoot,
+        scopeRoot: workspaceRoot,
+        stateDir: join(workspaceRoot, ".kota"),
+        trigger: {
+          event: progressReviewRequested.name,
+          schemaRef: null,
+          payload: { scopeId, windowMs: 3_600_000 },
+        },
+        now: NOW,
+      })
+    ).toThrow("before restarting or dispatching");
+  });
+
   it("collects open dead-letter queue counts and citeable item evidence", () => {
     const workspaceRoot = trackScopeRoot("progress-reviewer-dlq");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
@@ -2601,6 +2713,70 @@ describe("progress-reviewer workflow", () => {
       expect.arrayContaining([
         `scope:${scopeAId}:run:run-scope-a`,
         `scope:${scopeBId}:run:run-scope-b`,
+      ]),
+    );
+  });
+
+  it("uses central durable authority for finalized evidence in a non-default active scope", () => {
+    const scopeARoot = trackScopeRoot("progress-reviewer-central-authority-a");
+    const scopeBRoot = trackScopeRoot("progress-reviewer-central-authority-b");
+    const stateDir = join(scopeARoot, ".kota");
+    const scopeBId = deriveDirectoryScopeId(scopeBRoot);
+    const runId = "scope-b-operationally-active";
+    writeRun(
+      scopeBRoot,
+      runId,
+      "builder",
+      "success",
+      "2026-06-04T11:20:00.000Z",
+    );
+    new ScopeRegistry({
+      stateDir,
+      scopes: [
+        { scopeRoot: scopeARoot, displayName: "scope a" },
+        { scopeRoot: scopeBRoot, displayName: "scope b" },
+      ],
+    });
+    const durableState = new RunStateDatabase(stateDir);
+    durableState.registerScope({
+      id: scopeBId,
+      rootPath: scopeBRoot,
+      createdAt: "2026-06-04T11:00:00.000Z",
+    });
+    const { epoch } = durableState.beginDaemonSession(
+      "2026-06-04T11:10:00.000Z",
+    );
+    durableState.admitRun({
+      id: runId,
+      scopeId: scopeBId,
+      workflow: "builder",
+      repository: "read",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
+      resources: [],
+      admittedAt: "2026-06-04T11:15:00.000Z",
+    });
+    durableState.startRun(runId, epoch, "2026-06-04T11:16:00.000Z");
+    durableState.close();
+
+    const evidence = collectProgressReviewEvidence({
+      workspaceRoot: scopeARoot,
+      scopeRoot: scopeARoot,
+      stateDir,
+      trigger: {
+        event: progressReviewRequested.name,
+        schemaRef: null,
+        payload: { scopeId: GLOBAL_SCOPE_ID, windowMs: 3_600_000 },
+      },
+      now: NOW,
+    });
+
+    expect(evidence.runs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: `scope:${scopeBId}:run:${runId}` }),
       ]),
     );
   });

@@ -2,8 +2,9 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
+import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowDefinition } from "./types.js";
 
@@ -21,6 +22,7 @@ function writeRun(
   id: string,
   workflow: string,
   startedAtMs: number,
+  status: "success" | "running" = "success",
 ): void {
   const runDir = join(runsDir, id);
   mkdirSync(runDir, { recursive: true });
@@ -30,9 +32,13 @@ function writeRun(
     definitionPath: `src/modules/test/workflows/${workflow}/workflow.ts`,
     trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
     startedAt: new Date(startedAtMs).toISOString(),
-    status: "success",
-    completedAt: new Date(startedAtMs + 1000).toISOString(),
-    durationMs: 1000,
+    status,
+    ...(status === "success"
+      ? {
+          completedAt: new Date(startedAtMs + 1000).toISOString(),
+          durationMs: 1000,
+        }
+      : {}),
     runDir: `.kota/runs/${id}`,
     steps: [],
   };
@@ -57,6 +63,37 @@ describe("WorkflowRunStore.pruneRuns", () => {
   it("returns empty array when there are no runs", () => {
     const deleted = store.pruneRuns();
     expect(deleted).toEqual([]);
+  });
+
+  it("quarantines an invalid terminal timestamp without blocking retention", () => {
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    writeRun(
+      runsDir,
+      "run-invalid-timestamp",
+      "builder",
+      Date.now() - 30 * DAY_MS,
+    );
+    const metadataPath = join(
+      runsDir,
+      "run-invalid-timestamp",
+      "metadata.json",
+    );
+    const metadata = JSON.parse(
+      readFileSync(metadataPath, "utf-8"),
+    ) as Record<string, unknown>;
+    metadata.startedAt = "not-a-timestamp";
+    writeFileSync(metadataPath, JSON.stringify(metadata));
+
+    const terminalHistoryStore = new WorkflowRunStore(workspaceRoot, {
+      authorityCriticalRunIds: () => new Set(),
+    });
+    expect(
+      terminalHistoryStore.pruneRuns({
+        retentionDays: 7,
+        minKeepPerWorkflow: 0,
+      }),
+    ).toEqual([]);
+    expect(existsSync(join(runsDir, "run-invalid-timestamp"))).toBe(true);
   });
 
   it("does not delete runs within the retention window", () => {
@@ -141,19 +178,50 @@ describe("WorkflowRunStore.pruneRuns", () => {
     expect(deleted).toHaveLength(5); // 8 - 3 = 5 deleted
   });
 
-  it("never deletes the active run", () => {
+  it("never deletes active metadata even with an explicit retention override", () => {
     const runsDir = join(workspaceRoot, ".kota", "runs");
     const now = Date.now();
     const activeId = "run-old-active";
-    writeRun(runsDir, activeId, "builder", now - 30 * DAY_MS);
+    writeRun(runsDir, activeId, "builder", now - 30 * DAY_MS, "running");
 
     const deleted = store.pruneRuns({
       retentionDays: 7,
       minKeepPerWorkflow: 0,
-      protectedRunIds: new Set([activeId]),
     });
     expect(deleted).not.toContain(activeId);
     expect(existsSync(join(runsDir, activeId))).toBe(true);
+  });
+
+  it("never deletes a durable-state protected run whose metadata is terminal", () => {
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    const protectedId = "run-old-integrating";
+    writeRun(runsDir, protectedId, "builder", Date.now() - 30 * DAY_MS);
+
+    const deleted = store.pruneRuns({
+      retentionDays: 7,
+      minKeepPerWorkflow: 0,
+      protectedRunIds: new Set([protectedId]),
+    });
+
+    expect(deleted).not.toContain(protectedId);
+    expect(existsSync(join(runsDir, protectedId))).toBe(true);
+  });
+
+  it("protects a queued run without requiring pre-execution metadata", () => {
+    expect(
+      store.pruneRuns({
+        protectedRunIds: new Set(["queued-run"]),
+      }),
+    ).toEqual([]);
+  });
+
+  it("fails when durable authority identifies a run with no metadata directory", () => {
+    expect(() =>
+      store.pruneRuns({
+        protectedRunIds: new Set(["waiting-run"]),
+        authorityCriticalRunIds: new Set(["waiting-run"]),
+      }),
+    ).toThrow("metadata file is missing for an authority-critical workflow run");
   });
 
   it("handles multiple workflows independently", () => {
@@ -212,6 +280,266 @@ describe("WorkflowRunStore.pruneRuns", () => {
     expect(deleted).toEqual(["run-old-untracked"]);
     expect(existsSync(join(runsDir, "run-old-tracked"))).toBe(true);
     expect(existsSync(join(runsDir, "run-old-untracked"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// WorkflowRunStore — durable metadata authority
+// ---------------------------------------------------------------------------
+
+describe("WorkflowRunStore durable metadata authority", () => {
+  let workspaceRoot: string;
+
+  beforeEach(() => {
+    workspaceRoot = makeScopeRoot();
+  });
+
+  afterEach(() => {
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  });
+
+  it("ignores arbitrary child directories when no durable authority is available", () => {
+    mkdirSync(join(workspaceRoot, ".kota", "runs", "fixture-report"), {
+      recursive: true,
+    });
+
+    const store = new WorkflowRunStore(workspaceRoot);
+
+    expect(store.listRuns()).toEqual([]);
+  });
+
+  it("fails list and direct lookup when durable state owns terminal-looking malformed evidence", () => {
+    const runId = "run-integrating";
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    writeRun(runsDir, runId, "builder", Date.now());
+    const metadataPath = join(runsDir, runId, "metadata.json");
+    const metadata = JSON.parse(readFileSync(metadataPath, "utf-8")) as Record<string, unknown>;
+    metadata.definitionPath = 17;
+    writeFileSync(metadataPath, JSON.stringify(metadata));
+
+    const store = new WorkflowRunStore(workspaceRoot, {
+      authorityCriticalRunIds: () => new Set([runId]),
+    });
+
+    expect(() => store.listRuns({ limit: 10 })).toThrow(
+      "Workflow run metadata authority is invalid",
+    );
+    expect(() => store.getRun(runId)).toThrow(
+      "Workflow run metadata authority is invalid",
+    );
+  });
+
+  it("reads finalized execution metadata while durable state is operational", () => {
+    const runId = "run-operational-terminal-evidence";
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    writeRun(runsDir, runId, "builder", Date.now());
+    const store = new WorkflowRunStore(workspaceRoot, {
+      authorityCriticalRunIds: () => new Set([runId]),
+      operationallyActiveRunIds: () => new Set([runId]),
+    });
+
+    expect(store.getRun(runId)?.status).toBe("success");
+  });
+
+  it.each(["running", "waiting", "integrating", "needs_attention"] as const)(
+    "enumerates finalized execution metadata while durable state is %s",
+    (state) => {
+      const runId = `run-finalized-${state}`;
+      const runsDir = join(workspaceRoot, ".kota", "runs");
+      writeRun(runsDir, runId, "builder", Date.now());
+      const stateDir = join(workspaceRoot, "operator-daemon-state");
+      const database = new RunStateDatabase(stateDir);
+      try {
+        database.registerScope({
+          id: "scope-a",
+          rootPath: workspaceRoot,
+          createdAt: "2026-09-02T00:00:00.000Z",
+        });
+        const { epoch } = database.beginDaemonSession(
+          "2026-09-02T00:00:01.000Z",
+        );
+        database.admitRun({
+          id: runId,
+          scopeId: "scope-a",
+          workflow: "builder",
+          repository: "write",
+          trigger: { event: "manual", schemaRef: null, payload: {} },
+          resources: [],
+          admittedAt: "2026-09-02T00:00:02.000Z",
+        });
+        database.startRun(runId, epoch, "2026-09-02T00:00:03.000Z");
+        if (state === "integrating") {
+          database.beginIntegration(runId, epoch, { phase: "publication" });
+        } else if (state === "waiting" || state === "needs_attention") {
+          database.suspendRun({
+            runId,
+            epoch,
+            state: "waiting",
+            suspendedAt: "2026-09-02T00:00:04.000Z",
+            wait: { reason: "agent-backoff" },
+          });
+          if (state === "needs_attention") {
+            database.requireRunAttention(runId, "operator review", []);
+          }
+        }
+
+        const store = new WorkflowRunStore(workspaceRoot, { stateDir });
+        expect(store.listRuns()).toEqual([
+          expect.objectContaining({ id: runId, status: "success" }),
+        ]);
+      } finally {
+        database.close();
+      }
+    },
+  );
+
+  it("fails enumeration when durable authority has no evidence directory", () => {
+    const store = new WorkflowRunStore(workspaceRoot, {
+      authorityCriticalRunIds: () => new Set(["run-waiting"]),
+    });
+
+    expect(() => store.listRuns()).toThrow(
+      "metadata file is missing for an authority-critical workflow run",
+    );
+  });
+
+  it("reads authority from an operator-configured daemon state root", () => {
+    const runId = "run-integrating-external-state";
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    writeRun(runsDir, runId, "builder", Date.now());
+    const metadataPath = join(runsDir, runId, "metadata.json");
+    const metadata = JSON.parse(readFileSync(metadataPath, "utf-8")) as Record<
+      string,
+      unknown
+    >;
+    metadata.definitionPath = 17;
+    writeFileSync(metadataPath, JSON.stringify(metadata));
+
+    const stateDir = join(workspaceRoot, "operator-daemon-state");
+    const database = new RunStateDatabase(stateDir);
+    try {
+      database.registerScope({
+        id: "scope-a",
+        rootPath: workspaceRoot,
+        createdAt: "2026-09-02T00:00:00.000Z",
+      });
+      const { epoch } = database.beginDaemonSession("2026-09-02T00:00:01.000Z");
+      database.admitRun({
+        id: runId,
+        scopeId: "scope-a",
+        workflow: "builder",
+        repository: "write",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: "2026-09-02T00:00:02.000Z",
+      });
+      database.startRun(runId, epoch, "2026-09-02T00:00:03.000Z");
+      database.beginIntegration(runId, epoch, { phase: "publication" });
+
+      const store = new WorkflowRunStore(workspaceRoot, { stateDir });
+      expect(() => store.listRuns()).toThrow(
+        "Workflow run metadata authority is invalid",
+      );
+    } finally {
+      database.close();
+    }
+  });
+
+  it("protects terminal metadata while its durable publication is undelivered", () => {
+    const runId = "run-terminal-pending-publication";
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    writeRun(runsDir, runId, "builder", Date.now() - 30 * DAY_MS);
+
+    const stateDir = join(workspaceRoot, "operator-daemon-state");
+    const database = new RunStateDatabase(stateDir);
+    try {
+      database.registerScope({
+        id: "scope-a",
+        rootPath: workspaceRoot,
+        createdAt: "2026-09-02T00:00:00.000Z",
+      });
+      const { epoch } = database.beginDaemonSession("2026-09-02T00:00:01.000Z");
+      database.admitRun({
+        id: runId,
+        scopeId: "scope-a",
+        workflow: "builder",
+        repository: "write",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: "2026-09-02T00:00:02.000Z",
+      });
+      database.startRun(runId, epoch, "2026-09-02T00:00:03.000Z");
+      database.finishRun(
+        runId,
+        epoch,
+        "succeeded",
+        "2026-09-02T00:00:04.000Z",
+        undefined,
+        {
+          id: `workflow:${runId}:completed`,
+          runId,
+          scopeId: "scope-a",
+          event: "workflow.completed",
+          payload: { runId },
+        },
+      );
+
+      const store = new WorkflowRunStore(workspaceRoot, { stateDir });
+      expect(store.pruneRuns({ retentionDays: 7, minKeepPerWorkflow: 0 }))
+        .not.toContain(runId);
+      expect(existsSync(join(runsDir, runId))).toBe(true);
+    } finally {
+      database.close();
+    }
+  });
+
+  it("quarantines durably terminal invalid JSON during startup pruning", () => {
+    const runId = "run-terminal-invalid-json";
+    const runsDir = join(workspaceRoot, ".kota", "runs");
+    writeRun(runsDir, runId, "builder", Date.now() - 30 * DAY_MS);
+    writeFileSync(join(runsDir, runId, "metadata.json"), "{invalid");
+
+    const stateDir = join(workspaceRoot, "operator-daemon-state");
+    const database = new RunStateDatabase(stateDir);
+    const emitWarning = vi
+      .spyOn(process, "emitWarning")
+      .mockImplementation(() => {});
+    try {
+      database.registerScope({
+        id: "scope-a",
+        rootPath: workspaceRoot,
+        createdAt: "2026-09-02T00:00:00.000Z",
+      });
+      const { epoch } = database.beginDaemonSession("2026-09-02T00:00:01.000Z");
+      database.admitRun({
+        id: runId,
+        scopeId: "scope-a",
+        workflow: "builder",
+        repository: "write",
+        trigger: { event: "manual", schemaRef: null, payload: {} },
+        resources: [],
+        admittedAt: "2026-09-02T00:00:02.000Z",
+      });
+      database.startRun(runId, epoch, "2026-09-02T00:00:03.000Z");
+      database.finishRun(
+        runId,
+        epoch,
+        "succeeded",
+        "2026-09-02T00:00:04.000Z",
+      );
+
+      const store = new WorkflowRunStore(workspaceRoot, { stateDir });
+      expect(store.pruneRuns({ retentionDays: 7, minKeepPerWorkflow: 0 }))
+        .toEqual([]);
+      expect(existsSync(join(runsDir, runId))).toBe(true);
+      expect(emitWarning).toHaveBeenCalledWith(
+        expect.stringContaining("Quarantined workflow run metadata"),
+        { code: "KOTA_WORKFLOW_RUN_METADATA_QUARANTINED" },
+      );
+    } finally {
+      emitWarning.mockRestore();
+      database.close();
+    }
   });
 });
 
@@ -294,10 +622,13 @@ describe("WorkflowRunStore tags", () => {
     expect(allRuns).toHaveLength(3);
   });
 
-  it("lists valid runs when an unrelated historical artifact is malformed", () => {
+  it("lists valid runs when malformed history positively proves it is terminal", () => {
     const malformedDir = join(store.runsDir, "historical-fixture");
     mkdirSync(malformedDir, { recursive: true });
-    writeFileSync(join(malformedDir, "metadata.json"), JSON.stringify({ id: "old" }));
+    writeFileSync(
+      join(malformedDir, "metadata.json"),
+      JSON.stringify({ id: "old", status: "success" }),
+    );
     const handle = store.createRun(minimalWorkflow, {
       event: "manual",
       schemaRef: null,

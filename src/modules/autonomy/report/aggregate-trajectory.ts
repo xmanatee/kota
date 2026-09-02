@@ -2,17 +2,25 @@ import {
   DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT,
   detectRecurringTrajectoryDiagnosticPatterns,
 } from "#modules/autonomy/trajectory-diagnostic-escalation.js";
+import type {
+  WorkflowRunDurableAuthority,
+} from "#modules/workflow-ops/runs/workflow-history.js";
 import type { TrajectoryDiagnosticReport } from "./aggregate-types.js";
 
 export function buildTrajectoryDiagnosticReport(
   runsDir: string,
   windowEndMs: number,
   windowMs: number,
+  authority: WorkflowRunDurableAuthority,
 ): TrajectoryDiagnosticReport {
-  const patterns = detectRecurringTrajectoryDiagnosticPatterns(runsDir, {
-    nowMs: windowEndMs,
-    windowMs,
-  });
+  const patterns = detectRecurringTrajectoryDiagnosticPatterns(
+    runsDir,
+    authority,
+    {
+      nowMs: windowEndMs,
+      windowMs,
+    },
+  );
   return {
     activePatterns: patterns
       .slice(0, DEFAULT_TRAJECTORY_DIAGNOSTIC_REPORT_LIMIT)

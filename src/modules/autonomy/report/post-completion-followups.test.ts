@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { aggregateAutonomyReport } from "./aggregate.js";
 import {
@@ -101,6 +102,7 @@ describe("post-completion corrective follow-up report", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -199,6 +201,7 @@ describe("post-completion corrective follow-up report", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,

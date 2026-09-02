@@ -9,6 +9,10 @@ export const STUB_CHANNEL_START_CTX = {
   getDefaultScopeRuntime: () =>
     ({
       scope: { scopeId: "test-scope", scopeRoot: "/tmp", displayName: "test" },
+      runState: {
+        listRuns: () => [],
+        listPendingPublicationHeads: () => [],
+      },
     }) as never,
   getScopeRuntime: () =>
     ({
@@ -20,6 +24,11 @@ export const STUB_CHANNEL_START_CTX = {
     runtimeState: { completedRuns: 0, pendingRuns: [], workflows: {} },
     dispatchPaused: false,
     runsDir: "/tmp/.kota/runs",
+    runAuthority: {
+      authorityCriticalRunIds: new Set(),
+      operationallyActiveRunIds: new Set(),
+      terminalRunIds: new Set(),
+    },
   }),
 };
 

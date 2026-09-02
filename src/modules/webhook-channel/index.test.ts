@@ -87,6 +87,11 @@ describe("webhookChannelModule channel adapter", () => {
         },
         dispatchPaused: false,
         runsDir: "/tmp/.kota/runs",
+        runAuthority: {
+          authorityCriticalRunIds: new Set(),
+          operationallyActiveRunIds: new Set(),
+          terminalRunIds: new Set(),
+        },
       }),
     });
     expect(result.status).toBe("started");

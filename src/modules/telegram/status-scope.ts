@@ -4,6 +4,7 @@ import type {
   TelegramStatusScope,
   TelegramStatusScopeResolution,
 } from "./status-types.js";
+import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 
 export async function resolveTelegramStatusScope(
   messageChatId: number,
@@ -29,6 +30,11 @@ export async function resolveTelegramStatusScope(
           },
           dispatchPaused: status.paused,
           runsDir: join(resolved.scope.scopeRoot, ".kota", "runs"),
+          runAuthority: requireWorkflowRunDurableAuthority(
+            status.authorityCriticalRunIds,
+            status.operationallyActiveRunIds,
+            status.terminalRunIds,
+          ),
         };
       },
       knowledge: scoped.knowledge,
