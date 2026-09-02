@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: Authenticated remote config reads can still disclose credentials stored in foreignModules[].env when the environment-variable name is not secret-shaped. The redactor classifies individual key names only, so neutral names such as SESSION retain their inline values in both /config/validate and parent /config/value responses.
 
@@ -110,3 +109,18 @@ excerpt:
 >   ...result,
 >   resolved: maskConfig(result.resolved),
 > });
+
+## Verification
+
+The client-visible redaction projection now tracks absolute config paths and
+masks every value beneath `foreignModules[].env`, including neutral names such
+as `SESSION`. Focused daemon-route coverage exercises both `/config/validate`
+and the `foreignModules` parent lookup with the same inline credential and
+proves that neither response contains it.
+
+- `src/core/config/config-redaction.ts` makes inline foreign-module environment
+  values schema-sensitive while preserving the existing key-name policy.
+- `src/modules/config/config-control-routes.test.ts` passes for the vulnerable
+  public reads: 2 files, 5 tests.
+- `pnpm check:fast` passes production/test type checking, lint, task validation,
+  and generated client-binding freshness.

@@ -45,16 +45,43 @@ export function maskConfigValue(
 	value: unknown,
 	requestedPath: readonly string[] = [],
 ): RedactedConfigValue {
-	if (requestedPath.some(isSensitiveConfigKey)) return "***";
-	return walkAndMask(value as ConfigRedactionInputValue);
+	if (
+		requestedPath.some(isSensitiveConfigKey) ||
+		isForeignModuleEnvValuePath(requestedPath)
+	) {
+		return "***";
+	}
+	return walkAndMask(value as ConfigRedactionInputValue, requestedPath);
 }
 
-function walkAndMask(value: ConfigRedactionInputValue): RedactedConfigValue {
-	if (Array.isArray(value)) return value.map(walkAndMask);
+function isForeignModuleEnvValuePath(path: readonly string[]): boolean {
+	// Inline foreign-module environment entries are credential-bearing by
+	// schema, even when the operator chose a neutral variable name.
+	return (
+		path.length > 3 &&
+		path[0] === "foreignModules" &&
+		/^\d+$/.test(path[1] ?? "") &&
+		path[2] === "env"
+	);
+}
+
+function walkAndMask(
+	value: ConfigRedactionInputValue,
+	path: readonly string[],
+): RedactedConfigValue {
+	if (Array.isArray(value)) {
+		return value.map((nested, index) =>
+			walkAndMask(nested, [...path, String(index)]),
+		);
+	}
 	if (value !== null && typeof value === "object") {
 		const result: RedactedConfigObject = {};
 		for (const [key, nested] of Object.entries(value)) {
-			result[key] = isSensitiveConfigKey(key) ? "***" : walkAndMask(nested);
+			const nestedPath = [...path, key];
+			result[key] =
+				isSensitiveConfigKey(key) || isForeignModuleEnvValuePath(nestedPath)
+					? "***"
+					: walkAndMask(nested, nestedPath);
 		}
 		return result;
 	}

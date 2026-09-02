@@ -31,6 +31,8 @@ const SECRET_VALUES = [
   "inline-cookie",
 ] as const;
 
+const NEUTRAL_FOREIGN_MODULE_CREDENTIAL = "foreign-module-session-credential";
+
 const scopeRoots: string[] = [];
 
 afterEach(() => {
@@ -65,6 +67,13 @@ function makeScopeRoot(): string {
           label: "visible-label",
         },
       },
+      foreignModules: [
+        {
+          transport: "stdio",
+          command: "fixture-module",
+          env: { SESSION: NEUTRAL_FOREIGN_MODULE_CREDENTIAL },
+        },
+      ],
     }),
   );
   return scopeRoot;
@@ -136,5 +145,22 @@ describe("config daemon-control redaction", () => {
       status: 200,
       body: { found: true, value: "***" },
     });
+  });
+
+  it("masks neutral environment-variable names in validated config and foreign-module parent reads", async () => {
+    const scopeRoot = makeScopeRoot();
+    const validated = await requestConfigRoute(scopeRoot, "/config/validate");
+    const parent = await requestConfigRoute(
+      scopeRoot,
+      "/config/value?key=foreignModules",
+    );
+
+    expect(validated.status).toBe(200);
+    expect(parent.status).toBe(200);
+    for (const body of [validated.body, parent.body]) {
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain(NEUTRAL_FOREIGN_MODULE_CREDENTIAL);
+      expect(serialized).toContain('"SESSION":"***"');
+    }
   });
 });
