@@ -35,6 +35,14 @@ import type {
   DirectoryScope,
   ScopeId,
 } from "#core/daemon/scope-registry.js";
+import type {
+  ScopeOnboardingApplyResult,
+  ScopeOnboardingChoices,
+  ScopeOnboardingInspection,
+  ScopeOnboardingOperation,
+  ScopeOnboardingPlan,
+  ScopeOnboardingPlanResult,
+} from "#core/daemon/scope-onboarding.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -197,6 +205,22 @@ export type ScopeAuthorityClientMutationResult =
   | ScopeAuthorityMutationResult
   | { ok: false; reason: "daemon_required" };
 
+export type ScopeOnboardingInspectClientResult =
+  | { ok: true; inspection: ScopeOnboardingInspection }
+  | { ok: false; reason: "invalid_directory" | "daemon_required"; message?: string };
+
+export type ScopeOnboardingPlanClientResult =
+  | ScopeOnboardingPlanResult
+  | { ok: false; reason: "daemon_required" };
+
+export type ScopeOnboardingApplyClientResult =
+  | ScopeOnboardingApplyResult
+  | { ok: false; reason: "daemon_required"; message?: string };
+
+export type ScopeOnboardingStatusClientResult =
+  | { ok: true; operation: ScopeOnboardingOperation }
+  | { ok: false; reason: "not_found" | "daemon_required"; message?: string };
+
 /**
  * Scope-selection operations exposed to operator CLIs and clients.
  *
@@ -221,4 +245,20 @@ export interface ScopesClient {
     mutation: ScopeAuthorityMutation,
     operatorAction: ScopeAuthorityOperatorActionValue,
   ): Promise<ScopeAuthorityClientMutationResult>;
+  inspectOnboarding?(directoryRoot: string): Promise<ScopeOnboardingInspectClientResult>;
+  planOnboarding?(
+    directoryRoot: string,
+    choices?: ScopeOnboardingChoices,
+  ): Promise<ScopeOnboardingPlanClientResult>;
+  applyOnboarding?(
+    plan: ScopeOnboardingPlan,
+    operatorAction: ScopeAuthorityOperatorActionValue,
+  ): Promise<ScopeOnboardingApplyClientResult>;
+  getOnboardingStatus?(operationId: string): Promise<ScopeOnboardingStatusClientResult>;
+  retryOnboarding?(
+    operationId: string,
+    scopeId: string,
+    operatorAction: ScopeAuthorityOperatorActionValue,
+  ): Promise<ScopeOnboardingApplyClientResult>;
+  cancelOnboarding?(operationId: string): Promise<ScopeOnboardingApplyClientResult>;
 }

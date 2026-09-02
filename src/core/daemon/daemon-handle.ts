@@ -30,6 +30,7 @@ import type {
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeAuthorityMutation } from "./scope-authority-types.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
+import type { ScopeOnboardingService } from "./scope-onboarding.js";
 import {
   defaultScopePolicyDecisionExamples,
   type ScopePolicyRouteResponse,
@@ -52,6 +53,7 @@ export type DaemonHandleContext = {
   scopeRegistry: ScopeRegistry;
   scopeAuthority?: ScopeAuthorityService;
   scopeAuthorityOperatorVerifier?: ScopeAuthorityOperatorTokenVerifier;
+  scopeOnboarding?: ScopeOnboardingService;
   scopeRuntimes: ScopeRuntimeRegistry;
   getScopeHostingState: (scopeId: ScopeId) => ScopeHostingState;
   config: DaemonConfig;
@@ -140,6 +142,24 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
         request: ScopeAuthorityOperatorRequest,
         suppliedProof: string | undefined,
       ) => ctx.scopeAuthorityOperatorVerifier?.authorize(request, suppliedProof),
+    } : {}),
+    ...(ctx.scopeOnboarding ? {
+      inspectScopeOnboarding: (directoryRoot: string) =>
+        ctx.scopeOnboarding!.inspect(directoryRoot),
+      planScopeOnboarding: (directoryRoot: string, choices = {}) =>
+        ctx.scopeOnboarding!.plan(directoryRoot, choices),
+      applyScopeOnboarding: (
+        plan: Parameters<ScopeOnboardingService["apply"]>[0],
+        operatorAction?: ScopeAuthorityOperatorAction,
+      ) => ctx.scopeOnboarding!.apply(plan, operatorAction),
+      getScopeOnboardingStatus: (operationId: string) =>
+        ctx.scopeOnboarding!.status(operationId),
+      retryScopeOnboarding: (
+        operationId: string,
+        operatorAction?: ScopeAuthorityOperatorAction,
+      ) => ctx.scopeOnboarding!.retry(operationId, operatorAction),
+      cancelScopeOnboarding: (operationId: string) =>
+        ctx.scopeOnboarding!.cancel(operationId),
     } : {}),
     hasScope: (scopeId: string) =>
       scopeRegistry.get(scopeId) !== undefined

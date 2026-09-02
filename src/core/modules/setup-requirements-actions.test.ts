@@ -84,6 +84,29 @@ describe("module setup actions", () => {
     expect(JSON.parse(readFileSync(path, "utf8")).actions[0]).not.toHaveProperty("url");
   });
 
+  it("projects legacy setup actions during inspection without rewriting scope state", async () => {
+    const path = join(harness.scopeRoot, ".kota", "setup-actions.json");
+    mkdirSync(join(harness.scopeRoot, ".kota"), { recursive: true });
+    const legacy = JSON.stringify({
+      actions: [{
+        actionId: "demo.oauth.previous-format",
+        moduleName: "demo",
+        requirementId: "oauth",
+        url: "https://example.com/callback/opaque-secret-token",
+        label: "Open setup",
+        status: "pending",
+        createdAt: "2026-02-03T00:00:00.000Z",
+        expiresAt: "2026-02-03T00:30:00.000Z",
+      }],
+    });
+    writeFileSync(path, legacy);
+
+    const inspected = await harness.service([oauthRequirement()]).inspect();
+
+    expect(JSON.stringify(inspected)).not.toContain("opaque-secret-token");
+    expect(readFileSync(path, "utf8")).toBe(legacy);
+  });
+
   it("rejects unknown fields and values outside declared setup options", async () => {
     const base = configRequirement();
     const requirement = {

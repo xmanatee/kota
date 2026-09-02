@@ -13,11 +13,22 @@ export function validateDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): void 
   }
 }
 
-export function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): Promise<void> {
-  return ctx.scopeRuntimeHost.startInitial(
-    ctx.scopeRuntimes,
-    ctx.startupDispatchPaused ? "paused" : "active",
-  );
+export async function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): Promise<void> {
+  await ctx.scopeRuntimeHost.startInitial(ctx.scopeRuntimes, "prepared");
+  for (const runtime of ctx.scopeRuntimes.list()) {
+    if (!(await ctx.scopeOnboarding.recoverForStartup(runtime.scope.scopeId))) {
+      ctx.scopeLifecycle.restorePreparedScope(runtime.scope.scopeId);
+    } else {
+      await ctx.scopeRuntimeHost.activatePrepared(
+        runtime,
+        ctx.startupDispatchPaused ? "paused" : "active",
+      );
+      if (ctx.scopeOnboarding.isActivationAllowed(runtime.scope.scopeId)) {
+        // Succeeded onboarding can publish only after its workflow subscriptions are active.
+        await ctx.scopeOnboarding.recoverForStartup(runtime.scope.scopeId);
+      }
+    }
+  }
 }
 
 export async function stopDaemonWorkflowRuntimes(

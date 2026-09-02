@@ -123,12 +123,25 @@ function parseAudit(raw: BoundaryValue, index: number): ScopeAuthorityAuditRecor
     throw new Error(`${path}.trust before and after must be booleans`);
   }
   const policy = objectValue(obj.policy, `${path}.policy`);
-  assertKeys(policy, `${path}.policy`, ["operation", "dangerousWideningAreas"]);
+  assertKeys(policy, `${path}.policy`, [
+    "operation",
+    "dangerousWideningAreas",
+    "before",
+    "after",
+    "compensatable",
+    "compensationOf",
+  ]);
   if (
     policy.operation !== "set" &&
     policy.operation !== "clear" &&
     policy.operation !== "unchanged"
   ) throw new Error(`${path}.policy.operation is invalid`);
+  if (policy.compensatable !== undefined && typeof policy.compensatable !== "boolean") {
+    throw new Error(`${path}.policy.compensatable must be a boolean when present`);
+  }
+  if (policy.compensationOf !== undefined && typeof policy.compensationOf !== "string") {
+    throw new Error(`${path}.policy.compensationOf must be a string when present`);
+  }
   return {
     id: requiredString(obj.id, `${path}.id`),
     revision: positiveInteger(obj.revision, `${path}.revision`),
@@ -144,8 +157,35 @@ function parseAudit(raw: BoundaryValue, index: number): ScopeAuthorityAuditRecor
         `${path}.policy.dangerousWideningAreas`,
         POLICY_AREAS,
       ),
+      ...decodeOptionalAuditPolicy(policy.before, `${path}.policy.before`, "before"),
+      ...decodeOptionalAuditPolicy(policy.after, `${path}.policy.after`, "after"),
+      ...(policy.compensatable === undefined
+        ? {}
+        : { compensatable: policy.compensatable }),
+      ...(policy.compensationOf === undefined
+        ? {}
+        : {
+            compensationOf: requiredString(
+              policy.compensationOf,
+              `${path}.policy.compensationOf`,
+            ),
+          }),
     },
   };
+}
+
+function decodeOptionalAuditPolicy(
+  raw: BoundaryValue,
+  path: string,
+  field: "before" | "after",
+): Partial<Pick<ScopeAuthorityAuditRecord["policy"], "before" | "after">> {
+  if (raw === undefined) return {};
+  if (raw === null) return field === "before" ? { before: null } : { after: null };
+  const decoded = decodeScopePolicyFragment(raw);
+  if (!decoded.ok) throw new Error(`${path}: ${decoded.error}`);
+  return field === "before"
+    ? { before: decoded.value }
+    : { after: decoded.value };
 }
 
 function objectValue(raw: BoundaryValue, path: string): BoundaryObject {

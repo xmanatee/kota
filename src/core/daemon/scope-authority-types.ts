@@ -25,6 +25,10 @@ export type ScopeAuthorityAuditRecord = {
   policy: {
     operation: "set" | "clear" | "unchanged";
     dangerousWideningAreas: readonly ScopePolicyArea[];
+    before?: ScopePolicyFragment | null;
+    after?: ScopePolicyFragment | null;
+    compensatable?: boolean;
+    compensationOf?: string;
   };
 };
 
@@ -95,6 +99,14 @@ export type ScopeAuthorityMutationResult =
       auditRecord?: ScopeAuthorityAuditRecord;
     }
   | ScopeAuthorityFailure;
+
+export type ScopeAuthorityCompensation = {
+  expectedRevision: number;
+  expectedAuditId: string;
+  reason: string;
+  trust: boolean;
+  policy: ScopePolicyFragment | null;
+};
 
 export type ScopeAuthorityStoredState = {
   trustedScopes: readonly string[];

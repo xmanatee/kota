@@ -49,6 +49,14 @@ import type {
   ScopeAuthorityView,
 } from "./scope-authority-types.js";
 import type { ScopeHostingState } from "./scope-lifecycle-types.js";
+import type {
+  ScopeOnboardingApplyResult,
+  ScopeOnboardingChoices,
+  ScopeOnboardingInspection,
+  ScopeOnboardingOperation,
+  ScopeOnboardingPlan,
+  ScopeOnboardingPlanResult,
+} from "./scope-onboarding-types.js";
 import type { ScopePolicyRouteResponse } from "./scope-policy.js";
 import type {
   ScopeId,
@@ -92,6 +100,23 @@ export type DaemonControlHandle = {
   getScopeHostingState(scopeId: ScopeId): ScopeHostingState;
   hasScope(scopeId: string): boolean;
   getScopePolicy(scopeId: string): ScopePolicyRouteResponse;
+  inspectScopeOnboarding?(directoryRoot: string): Promise<ScopeOnboardingInspection>;
+  planScopeOnboarding?(
+    directoryRoot: string,
+    choices?: ScopeOnboardingChoices,
+  ): Promise<ScopeOnboardingPlanResult>;
+  applyScopeOnboarding?(
+    plan: ScopeOnboardingPlan,
+    operatorAction?: ScopeAuthorityOperatorAction,
+  ): Promise<ScopeOnboardingApplyResult>;
+  getScopeOnboardingStatus?(
+    operationId: string,
+  ): Promise<ScopeOnboardingOperation | null>;
+  retryScopeOnboarding?(
+    operationId: string,
+    operatorAction?: ScopeAuthorityOperatorAction,
+  ): Promise<ScopeOnboardingApplyResult>;
+  cancelScopeOnboarding?(operationId: string): Promise<ScopeOnboardingApplyResult>;
   inspectScopeAuthority?(scopeId: string): ScopeAuthorityView | ScopeAuthorityFailure;
   validateScopeAuthority?(
     scopeId: string,

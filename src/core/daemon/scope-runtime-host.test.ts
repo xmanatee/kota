@@ -52,6 +52,50 @@ afterEach(() => {
 });
 
 describe("ScopeRuntimeHost", () => {
+  it("keeps prepared runtimes detached from schedules until activation", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-scope-runtime-prepared-"));
+    const scopeRoot = mkdtempSync(join(root, "project-"));
+    const stateDir = mkdtempSync(join(root, "state-"));
+    const bus = new EventBus();
+    const registry = new ScopeRegistry({ stateDir, scopes: [{ scopeRoot }] });
+    const runtimes = createTestRuntimeRegistry(registry, bus, stateDir);
+    const runtime = runtimes.getDefault();
+    runtime.scheduler.addEventTrigger("prepared fixture", "test.scope-runtime-prepared");
+    let scheduleFireCount = 0;
+    const host = new ScopeRuntimeHost({
+      bus,
+      pollIntervalMs: 60_000,
+      onDueItems: (_runtime, items) => {
+        scheduleFireCount += items.length;
+      },
+    });
+
+    await host.startInitial(runtimes, "prepared");
+    bus.emit("test.scope-runtime-prepared", {});
+    expect(host.isPrepared(runtime.scope.scopeId)).toBe(true);
+    expect(runtime.workflowRuntime.isDispatchPaused()).toBe(true);
+    expect(scheduleFireCount).toBe(0);
+
+    await host.activatePrepared(runtime);
+    bus.emit("test.scope-runtime-prepared", {});
+    expect(host.isPrepared(runtime.scope.scopeId)).toBe(false);
+    expect(runtime.workflowRuntime.isDispatchPaused()).toBe(false);
+    expect(scheduleFireCount).toBe(1);
+
+    await host.deactivateToPrepared(runtime, 0);
+    bus.emit("test.scope-runtime-prepared", {});
+    expect(host.isPrepared(runtime.scope.scopeId)).toBe(true);
+    expect(runtime.workflowRuntime.isDispatchPaused()).toBe(true);
+    expect(scheduleFireCount).toBe(1);
+
+    await host.activatePrepared(runtime);
+    bus.emit("test.scope-runtime-prepared", {});
+    expect(scheduleFireCount).toBe(2);
+
+    await host.stopAll(runtimes, 0);
+    rmSync(root, { recursive: true, force: true });
+  });
+
   it("owns each runtime subscription and schedule connection exactly once", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-scope-runtime-host-"));
     const scopeRoot = mkdtempSync(join(root, "project-"));

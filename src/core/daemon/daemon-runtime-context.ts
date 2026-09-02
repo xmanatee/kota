@@ -20,6 +20,7 @@ import type { LifecycleCollector } from "./lifecycle-collector.js";
 import type { ScopeAuthorityOperatorTokenVerifier } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeLifecycleService } from "./scope-lifecycle.js";
+import type { ScopeOnboardingService } from "./scope-onboarding.js";
 import type { ScopeRegistry } from "./scope-registry.js";
 import type { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import type { ScopeRuntimeHost } from "./scope-runtime-host.js";
@@ -48,6 +49,7 @@ export type DaemonRuntimeContext = {
   readonly scopeAuthority: ScopeAuthorityService;
   readonly scopeRuntimes: ScopeRuntimeRegistry;
   readonly scopeLifecycle: ScopeLifecycleService;
+  readonly scopeOnboarding: ScopeOnboardingService;
   readonly scopeRuntimeHost: ScopeRuntimeHost;
   readonly collector: LifecycleCollector;
   readonly eventLoopLatency: DaemonEventLoopLatencyMonitor;

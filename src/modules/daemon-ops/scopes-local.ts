@@ -26,5 +26,23 @@ export function scopesLocalClient(): ScopesClient {
     async applyAuthority() {
       return { ok: false, reason: "daemon_required" };
     },
+    async inspectOnboarding() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async planOnboarding() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async applyOnboarding() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async getOnboardingStatus() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async retryOnboarding() {
+      return { ok: false, reason: "daemon_required" };
+    },
+    async cancelOnboarding() {
+      return { ok: false, reason: "daemon_required" };
+    },
   };
 }

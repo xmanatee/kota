@@ -23,6 +23,10 @@ import {
   type WorkflowMetricCounts,
 } from "./daemon-control.js";
 import { daemonSetupControlHandleStubs } from "./daemon-setup-control-test-stubs.js";
+import type {
+  ScopeOnboardingOperation,
+  ScopeOnboardingPlan,
+} from "./scope-onboarding.js";
 import {
   makeDaemonConfigReloadEvent,
   makeTaskChangedEvent,
@@ -70,6 +74,68 @@ function deadLetterFixture(overrides: Partial<DeadLetterItem> = {}): DeadLetterI
       expiresAt: "2026-07-06T12:00:00.000Z",
     },
     ...overrides,
+  };
+}
+
+function completedOnboardingFixture(): {
+  plan: ScopeOnboardingPlan;
+  operation: ScopeOnboardingOperation;
+} {
+  const plan: ScopeOnboardingPlan = {
+    schema: 1,
+    planId: "plan_completed",
+    operationId: "onboard_111111111111111111111111",
+    inspectionId: "inspection_completed",
+    scopeId: "scope-external",
+    directoryRoot: "/tmp/external",
+    createdAt: "2026-09-02T00:00:00.000Z",
+    choices: {
+      displayName: "External",
+      trust: false,
+      initialAutomationMode: "passive",
+      writes: { mode: "none" },
+    },
+    registrationBaseline: {
+      registered: false,
+      displayName: "external",
+      hostingState: null,
+    },
+    authorityBaseline: { revision: 0, trusted: false, policyFragment: null },
+    changes: [],
+    permissions: { trusted: false, autonomy: "passive", writes: { mode: "none" } },
+    blockers: [],
+  };
+  return {
+    plan,
+    operation: {
+      schema: 1,
+      operationId: plan.operationId,
+      state: "succeeded",
+      acceptedPlan: plan,
+      attempts: 1,
+      registeredByOperation: true,
+      authorityRevision: 1,
+      authorityApplied: { revision: 1, auditId: "audit-onboarding" },
+      displayNameBefore: null,
+      mutations: [],
+      readiness: {
+        scopeId: plan.scopeId,
+        directoryRoot: plan.directoryRoot,
+        registered: true,
+        configured: true,
+        trusted: false,
+        workflowReady: false,
+        blocked: true,
+        partiallyApplied: false,
+        reasons: [{ code: "scope_untrusted", message: "Scope remains untrusted." }],
+      },
+      provenance: {
+        actor: "operator",
+        acceptedAt: plan.createdAt,
+        lastUpdatedAt: plan.createdAt,
+      },
+      error: null,
+    },
   };
 }
 
@@ -685,6 +751,86 @@ describe("DaemonControlServer", () => {
       lookup.mockClear();
       await fetchWithToken(port, "/workflow/status");
       expect(lookup).toHaveBeenCalledWith(undefined);
+    });
+  });
+
+  describe("scope onboarding", () => {
+    it("returns the durable completed operation when the accepted plan is applied again", async () => {
+      const { plan, operation } = completedOnboardingFixture();
+      handle.getScopeOnboardingStatus = vi.fn(async () => operation);
+      handle.planScopeOnboarding = vi.fn(async () => ({
+        ok: false as const,
+        reason: "invalid_directory" as const,
+        message: "live state no longer matches the original plan",
+      }));
+      handle.applyScopeOnboarding = vi.fn(async () => ({ ok: true as const, operation }));
+
+      const res = await fetchWithToken(port, "/scope-onboarding/apply", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: plan.planId,
+          operationId: plan.operationId,
+          inspectionId: plan.inspectionId,
+          directoryRoot: plan.directoryRoot,
+          createdAt: plan.createdAt,
+          choices: plan.choices,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ ok: true, operation });
+      expect(handle.planScopeOnboarding).not.toHaveBeenCalled();
+      expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(plan, undefined);
+    });
+
+    it("validates a fresh accepted plan after the prior operation was cancelled", async () => {
+      const { plan, operation } = completedOnboardingFixture();
+      const replacementPlan = {
+        ...plan,
+        createdAt: "2026-09-02T01:00:00.000Z",
+      };
+      handle.getScopeOnboardingStatus = vi.fn(async () => ({
+        ...operation,
+        state: "cancelled" as const,
+      }));
+      handle.planScopeOnboarding = vi.fn(async () => ({
+        ok: true as const,
+        plan: replacementPlan,
+      }));
+      const replacementOperation = {
+        ...operation,
+        acceptedPlan: replacementPlan,
+        provenance: {
+          ...operation.provenance,
+          acceptedAt: replacementPlan.createdAt,
+          lastUpdatedAt: replacementPlan.createdAt,
+        },
+      };
+      handle.applyScopeOnboarding = vi.fn(async () => ({
+        ok: true as const,
+        operation: replacementOperation,
+      }));
+
+      const res = await fetchWithToken(port, "/scope-onboarding/apply", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: replacementPlan.planId,
+          operationId: replacementPlan.operationId,
+          inspectionId: replacementPlan.inspectionId,
+          directoryRoot: replacementPlan.directoryRoot,
+          createdAt: replacementPlan.createdAt,
+          choices: replacementPlan.choices,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(handle.planScopeOnboarding).toHaveBeenCalledWith(
+        replacementPlan.directoryRoot,
+        replacementPlan.choices,
+      );
+      expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(replacementPlan, undefined);
     });
   });
 

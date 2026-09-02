@@ -184,6 +184,47 @@ export async function executeUiAction(args: {
         : `Active scope set to ${result.activeScopeId}.`,
     };
   }
+  if (action.operation.namespace === "scopes" && action.operation.method === "planOnboarding") {
+    const directoryRoot = stringParameter(parameters, "directoryRoot");
+    if (!directoryRoot || !client.scopes.planOnboarding) {
+      return {
+        ok: false,
+        reason: directoryRoot ? "daemon_required" : "invalid-input",
+        message: directoryRoot
+          ? "Scope onboarding requires a live daemon."
+          : "directoryRoot is required.",
+      };
+    }
+    const initialAutomationMode = stringParameter(parameters, "initialAutomationMode");
+    const writes = stringParameter(parameters, "writes");
+    const result = await client.scopes.planOnboarding(directoryRoot, {
+      ...(stringParameter(parameters, "displayName") !== undefined
+        ? { displayName: stringParameter(parameters, "displayName") }
+        : {}),
+      trust: booleanParameter(parameters, "trusted"),
+      ...(initialAutomationMode === "passive" ||
+        initialAutomationMode === "supervised" ||
+        initialAutomationMode === "autonomous"
+        ? { initialAutomationMode }
+        : {}),
+      ...(writes === "none" || writes === "scope-directory" || writes === "unrestricted"
+        ? { writes: { mode: writes } }
+        : {}),
+    });
+    if (!result.ok) return {
+      ok: false,
+      reason: result.reason,
+      message: "message" in result
+        ? result.message
+        : "Scope onboarding plan is unavailable.",
+    };
+    return {
+      ok: true,
+      message:
+        `Plan ${result.plan.planId}: ${result.plan.changes.length} change(s), ` +
+        `${result.plan.blockers.length} blocker(s).`,
+    };
+  }
   if (action.operation.namespace === "workflow" && action.operation.method === "status") {
     const result = await client.workflow.status();
     return { ok: true, message: `${result.activeRuns.length} active, ${result.pendingRuns.length} queued.` };

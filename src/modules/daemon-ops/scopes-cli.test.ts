@@ -143,4 +143,40 @@ describe("kota scope CLI", () => {
     expect(errs.join("\n")).toContain("Pass <scopeId> to switch");
     expect(process.exitCode).toBe(1);
   });
+
+  it("onboarding plan delegates explicit operator choices to the scopes client", async () => {
+    const planOnboarding = vi.fn(async () => ({
+      ok: false as const,
+      reason: "invalid_choices" as const,
+      message: "fixture plan response",
+    }));
+    const scopes: ScopesClient = {
+      list: vi.fn(),
+      use: vi.fn(),
+      planOnboarding,
+    };
+    const cmd = buildScopeCommand(makeCtx(scopes));
+    await cmd.parseAsync([
+      "onboarding",
+      "plan",
+      "/tmp/external",
+      "--trusted",
+      "--automation",
+      "supervised",
+      "--writes",
+      "scope-directory",
+      "--json",
+    ], { from: "user" });
+
+    expect(planOnboarding).toHaveBeenCalledWith("/tmp/external", {
+      trust: true,
+      initialAutomationMode: "supervised",
+      writes: { mode: "scope-directory" },
+    });
+    expect(JSON.parse(logs[0]!)).toEqual({
+      ok: false,
+      reason: "invalid_choices",
+      message: "fixture plan response",
+    });
+  });
 });

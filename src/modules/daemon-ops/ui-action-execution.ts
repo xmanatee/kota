@@ -38,6 +38,34 @@ function routeForUiNamespaceOperation(
       message: scopeId === null ? "Active scope cleared." : `Active scope set to ${scopeId}.`,
     };
   }
+  if (operation.namespace === "scopes" && operation.method === "planOnboarding") {
+    const directoryRoot = stringUiParameter(parameters, "directoryRoot");
+    if (!directoryRoot) {
+      return {
+        method: "POST",
+        path: "/scope-onboarding/plan",
+        body: {},
+        message: "directoryRoot is required.",
+      };
+    }
+    const displayName = stringUiParameter(parameters, "displayName");
+    const initialAutomationMode = stringUiParameter(parameters, "initialAutomationMode");
+    const writes = stringUiParameter(parameters, "writes");
+    return {
+      method: "POST",
+      path: "/scope-onboarding/plan",
+      body: {
+        directoryRoot,
+        choices: {
+          ...(displayName !== undefined ? { displayName } : {}),
+          trust: booleanUiParameter(parameters, "trusted"),
+          ...(initialAutomationMode !== undefined ? { initialAutomationMode } : {}),
+          ...(writes !== undefined ? { writes: { mode: writes } } : {}),
+        },
+      },
+      message: "Scope onboarding plan prepared.",
+    };
+  }
   const staticRoutes: Record<string, { method: string; path: string; message: string }> = {
     "workflow:status": { method: "GET", path: "/workflow/status", message: "Workflow status loaded." },
     "workflow:pause": { method: "POST", path: "/workflow/pause", message: "Workflow dispatch paused." },

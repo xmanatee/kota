@@ -17,6 +17,15 @@ import {
 } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityFailure, ScopeAuthorityMutation } from "./scope-authority-types.js";
 import { SCOPE_AUTHORITY_OPERATOR_ACTION_HEADER } from "./scope-authority-types.js";
+import {
+  decodeScopeOnboardingAcceptedPlan,
+  decodeScopeOnboardingInspectionRequest,
+  decodeScopeOnboardingPlanRequest,
+} from "./scope-onboarding-codec.js";
+import type {
+  ScopeOnboardingAcceptedPlan,
+  ScopeOnboardingPlan,
+} from "./scope-onboarding-types.js";
 import type { ScopeId } from "./scope-registry.js";
 
 type ParsedAuthorityBody =
@@ -58,6 +67,33 @@ function scopeAuthorityFailureStatus(failure: ScopeAuthorityFailure): number {
   if (failure.reason === "operator_action_required") return 403;
   if (failure.reason === "persistence_failed") return 500;
   return 409;
+}
+
+function onboardingFailureStatus(reason: string): number {
+  if (reason === "not_found") return 404;
+  if (reason === "operator_action_required") return 403;
+  if (reason === "apply_failed" || reason === "rollback_failed") return 500;
+  return 409;
+}
+
+function parseJson(raw: Buffer): { ok: true; value: unknown } | { ok: false; message: string } {
+  try {
+    return { ok: true, value: JSON.parse(raw.toString("utf8")) as unknown };
+  } catch {
+    return { ok: false, message: "Request body must be valid JSON" };
+  }
+}
+
+function acceptedPlanMatches(
+  accepted: ScopeOnboardingAcceptedPlan,
+  canonical: ScopeOnboardingPlan,
+): boolean {
+  return accepted.planId === canonical.planId &&
+    accepted.operationId === canonical.operationId &&
+    accepted.inspectionId === canonical.inspectionId &&
+    accepted.directoryRoot === canonical.directoryRoot &&
+    accepted.createdAt === canonical.createdAt &&
+    JSON.stringify(accepted.choices) === JSON.stringify(canonical.choices);
 }
 
 function parseScopeAuthorityOperatorAction(
@@ -149,6 +185,179 @@ export function buildDaemonCoreControlRoutes(
         ...h.getScopeRegistryProjection(),
         activeScopeId: h.getActiveScopeId(),
       }),
+    },
+    {
+      method: "POST",
+      path: "/scope-onboarding/inspect",
+      capabilityScope: "read",
+      handler: async (req, res) => {
+        if (!h.inspectScopeOnboarding) {
+          jsonResponse(res, 501, { error: "Scope onboarding is unavailable" });
+          return;
+        }
+        const parsed = parseJson(await readBody(req));
+        const decoded = parsed.ok
+          ? decodeScopeOnboardingInspectionRequest(parsed.value)
+          : { ok: false as const, error: parsed.message };
+        if (!decoded.ok) {
+          jsonResponse(res, 400, { ok: false, reason: "invalid_directory", message: decoded.error });
+          return;
+        }
+        try {
+          jsonResponse(res, 200, await h.inspectScopeOnboarding(decoded.value.directoryRoot));
+        } catch (error) {
+          jsonResponse(res, 400, {
+            ok: false,
+            reason: "invalid_directory",
+            message: error instanceof Error ? error.message : String(error),
+          });
+        }
+      },
+    },
+    {
+      method: "POST",
+      path: "/scope-onboarding/plan",
+      capabilityScope: "read",
+      handler: async (req, res) => {
+        if (!h.planScopeOnboarding) {
+          jsonResponse(res, 501, { error: "Scope onboarding is unavailable" });
+          return;
+        }
+        const parsed = parseJson(await readBody(req));
+        const decoded = parsed.ok
+          ? decodeScopeOnboardingPlanRequest(parsed.value)
+          : { ok: false as const, error: parsed.message };
+        if (!decoded.ok) {
+          jsonResponse(res, 400, { ok: false, reason: "invalid_choices", message: decoded.error });
+          return;
+        }
+        const result = await h.planScopeOnboarding(
+          decoded.value.directoryRoot,
+          decoded.value.choices,
+        );
+        jsonResponse(res, result.ok ? 200 : 400, result);
+      },
+    },
+    {
+      method: "PUT",
+      path: "/scope-onboarding/apply",
+      capabilityScope: "control",
+      handler: async (req, res) => {
+        if (
+          !h.planScopeOnboarding ||
+          !h.applyScopeOnboarding ||
+          !h.getScopeOnboardingStatus
+        ) {
+          jsonResponse(res, 501, { error: "Scope onboarding is unavailable" });
+          return;
+        }
+        const rawBody = await readBody(req);
+        const parsed = parseJson(rawBody);
+        const decoded = parsed.ok
+          ? decodeScopeOnboardingAcceptedPlan(parsed.value)
+          : { ok: false as const, error: parsed.message };
+        if (!decoded.ok) {
+          jsonResponse(res, 400, { ok: false, reason: "plan_changed", message: decoded.error });
+          return;
+        }
+        const existing = await h.getScopeOnboardingStatus(decoded.value.operationId);
+        const reusableExisting = existing?.state === "cancelled" ? null : existing;
+        const canonical = reusableExisting === null
+          ? await h.planScopeOnboarding(decoded.value.directoryRoot, decoded.value.choices)
+          : { ok: true as const, plan: reusableExisting.acceptedPlan };
+        const acceptedPlan = canonical.ok && reusableExisting === null
+          ? { ...canonical.plan, createdAt: decoded.value.createdAt }
+          : canonical.ok ? canonical.plan : null;
+        if (
+          !canonical.ok ||
+          acceptedPlan === null ||
+          !acceptedPlanMatches(decoded.value, acceptedPlan)
+        ) {
+          jsonResponse(res, 409, {
+            ok: false,
+            reason: "plan_changed",
+            message: canonical.ok
+              ? "Scope state changed after this onboarding plan was created"
+              : canonical.message,
+          });
+          return;
+        }
+        const result = await h.applyScopeOnboarding(
+          acceptedPlan,
+          parseScopeAuthorityOperatorAction(
+            req,
+            deps,
+            canonical.plan.scopeId,
+            rawBody.toString("utf8"),
+          ),
+        );
+        jsonResponse(res, result.ok ? 200 : onboardingFailureStatus(result.reason), result);
+      },
+    },
+    {
+      method: "GET",
+      path: "/scope-onboarding/:operationId",
+      capabilityScope: "read",
+      handler: async (_req, res, params) => {
+        if (!h.getScopeOnboardingStatus) {
+          jsonResponse(res, 501, { error: "Scope onboarding is unavailable" });
+          return;
+        }
+        const operation = await h.getScopeOnboardingStatus(params.operationId);
+        if (operation === null) {
+          jsonResponse(res, 404, {
+            ok: false,
+            reason: "not_found",
+            message: "Onboarding operation not found",
+          });
+          return;
+        }
+        jsonResponse(res, 200, { ok: true, operation });
+      },
+    },
+    {
+      method: "POST",
+      path: "/scope-onboarding/:operationId/retry",
+      capabilityScope: "control",
+      handler: async (req, res, params) => {
+        if (!h.getScopeOnboardingStatus || !h.retryScopeOnboarding) {
+          jsonResponse(res, 501, { error: "Scope onboarding is unavailable" });
+          return;
+        }
+        const operation = await h.getScopeOnboardingStatus(params.operationId);
+        if (operation === null) {
+          jsonResponse(res, 404, {
+            ok: false,
+            reason: "not_found",
+            message: "Onboarding operation not found",
+          });
+          return;
+        }
+        const rawBody = await readBody(req);
+        const result = await h.retryScopeOnboarding(
+          params.operationId,
+          parseScopeAuthorityOperatorAction(
+            req,
+            deps,
+            operation.acceptedPlan.scopeId,
+            rawBody.toString("utf8"),
+          ),
+        );
+        jsonResponse(res, result.ok ? 200 : onboardingFailureStatus(result.reason), result);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/scope-onboarding/:operationId",
+      capabilityScope: "control",
+      handler: async (_req, res, params) => {
+        if (!h.cancelScopeOnboarding) {
+          jsonResponse(res, 501, { error: "Scope onboarding is unavailable" });
+          return;
+        }
+        const result = await h.cancelScopeOnboarding(params.operationId);
+        jsonResponse(res, result.ok ? 200 : onboardingFailureStatus(result.reason), result);
+      },
     },
     {
       method: "GET",

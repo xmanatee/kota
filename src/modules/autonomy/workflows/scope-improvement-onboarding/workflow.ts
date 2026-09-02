@@ -15,7 +15,7 @@ const workflow: WorkflowDefinitionInput = {
   name: "scope-improvement-onboarding",
   repository: "none",
   description:
-    "Reserve and publish the initial scope-improvement request for a newly registered scope.",
+    "Reserve and publish the initial scope-improvement request after onboarding commits.",
   triggers: [
     {
       event: "scope.lifecycle.changed",
@@ -25,8 +25,17 @@ const workflow: WorkflowDefinitionInput = {
   ],
   triggerAdmission: ({ scopeRoot, trigger, state: scopeState }) => {
     const payload = trigger.payload;
-    if (payload.transition !== "registered") {
-      return { admitted: false, reason: "scope lifecycle transition is not registration" };
+    if (payload.transition !== "onboarding-completed") {
+      return { admitted: false, reason: "scope lifecycle transition is not completed onboarding" };
+    }
+    if (
+      typeof payload.idempotencyKey !== "string" ||
+      payload.idempotencyKey.trim().length === 0
+    ) {
+      return { admitted: false, reason: "scope onboarding completion has no durable identity" };
+    }
+    if (trigger.eventId !== payload.idempotencyKey) {
+      return { admitted: false, reason: "scope onboarding completion identity is inconsistent" };
     }
     const scopeId = deriveDirectoryScopeId(scopeRoot);
     if (

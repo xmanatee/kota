@@ -54,6 +54,72 @@ describe("ScopeAuthorityService", () => {
     expect(fixture.persistence.commitCount).toBe(1);
   });
 
+  it("conditionally compensates the exact authority audit produced by a transaction", async () => {
+    const revoked: string[] = [];
+    const fixture = createFixture(undefined, (scopeId) => revoked.push(scopeId));
+    const scopeId = fixture.registry.getDefaultScopeId();
+    const applied = await fixture.service.applyTransactional(scopeId, {
+      expectedRevision: 0,
+      reason: "Apply an onboarding authority transaction.",
+      trust: true,
+      policy: {
+        scopeId,
+        reason: "Allow supervised scope writes during onboarding.",
+        autonomy: { defaultMode: "supervised", maxMode: "supervised" },
+        writes: { mode: "scope-directory" },
+      },
+    }, operatorAction());
+    expect(applied.ok).toBe(true);
+    if (!applied.ok || applied.auditRecord === undefined) return;
+
+    const forged = await fixture.service.compensate(scopeId, {
+      expectedRevision: applied.authority.revision,
+      expectedAuditId: applied.auditRecord.id,
+      reason: "Attempt to widen while pretending to compensate.",
+      trust: false,
+      policy: {
+        scopeId,
+        reason: "This was not the audited pre-transaction policy.",
+        writes: { mode: "unrestricted" },
+      },
+    });
+    expect(forged).toMatchObject({ ok: false, reason: "invalid_request" });
+
+    const compensated = await fixture.service.compensate(scopeId, {
+      expectedRevision: applied.authority.revision,
+      expectedAuditId: applied.auditRecord.id,
+      reason: "Roll back the interrupted onboarding transaction.",
+      trust: false,
+      policy: null,
+    });
+
+    expect(compensated).toMatchObject({
+      ok: true,
+      status: "applied",
+      authority: {
+        revision: 2,
+        trust: { trusted: false },
+        policyFragment: null,
+      },
+    });
+    expect(fixture.persistence.read().metadata.audit).toHaveLength(2);
+
+    const resumed = await fixture.service.compensate(scopeId, {
+      expectedRevision: applied.authority.revision,
+      expectedAuditId: applied.auditRecord.id,
+      reason: "Resume after compensation committed before its caller checkpointed.",
+      trust: false,
+      policy: null,
+    });
+    expect(resumed).toMatchObject({
+      ok: true,
+      status: "unchanged",
+      authority: { revision: 2, trust: { trusted: false }, policyFragment: null },
+    });
+    expect(fixture.persistence.read().metadata.audit).toHaveLength(2);
+    expect(revoked).toEqual([]);
+  });
+
   it("serializes concurrent mutations and rejects the stale revision", async () => {
     const fixture = createFixture();
     const scopeId = fixture.registry.getDefaultScopeId();
@@ -367,11 +433,12 @@ function createFixture(
     scopePolicies: [],
     metadata: { schema: 1, revision: 0, audit: [] },
   });
+  let auditSequence = 0;
   const service = new ScopeAuthorityService(
     persistence,
     registry,
     () => new Date("2026-08-01T12:00:00.000Z"),
-    () => "authority-audit-1",
+    () => `authority-audit-${++auditSequence}`,
     onTrustRevoked,
   );
   return { registry, persistence, service };

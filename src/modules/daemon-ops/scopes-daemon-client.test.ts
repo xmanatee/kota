@@ -34,6 +34,12 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
     expect(contributed.scopes).toBeDefined();
     expect(typeof contributed.scopes!.list).toBe("function");
     expect(typeof contributed.scopes!.use).toBe("function");
+    expect(typeof contributed.scopes!.inspectOnboarding).toBe("function");
+    expect(typeof contributed.scopes!.planOnboarding).toBe("function");
+    expect(typeof contributed.scopes!.applyOnboarding).toBe("function");
+    expect(typeof contributed.scopes!.getOnboardingStatus).toBe("function");
+    expect(typeof contributed.scopes!.retryOnboarding).toBe("function");
+    expect(typeof contributed.scopes!.cancelOnboarding).toBe("function");
   });
 
   it("routes list() through GET /scopes with auth headers and decodes the success arm", async () => {
@@ -129,5 +135,65 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
     });
     const contributed = daemonOpsModule.daemonClient!(transport);
     await expect(contributed.scopes!.use("p1")).rejects.toThrow(/fetch failed/);
+  });
+
+  it("routes onboarding inspection and planning through the shared daemon service endpoints", async () => {
+    const { transport, calls } = makeRecordingTransport((path) => path.endsWith("/inspect")
+      ? jsonResponse(200, {
+          inspectionId: "inspection-1",
+          operationId: "onboarding-1",
+          scopeId: "dir:external",
+          directoryRoot: "/tmp/external",
+          displayName: "external",
+          kind: "directory",
+          registered: false,
+          hostingState: null,
+          trust: null,
+          policyRevision: 0,
+          policyFragment: null,
+          policy: null,
+          existing: {
+            kotaState: false,
+            scopeConfig: false,
+            taskQueue: false,
+            inbox: false,
+            guidance: [],
+          },
+          setup: [],
+          blockers: [],
+        })
+      : jsonResponse(400, {
+          ok: false,
+          reason: "invalid_choices",
+          message: "invalid automation mode",
+        }));
+    const scopes = daemonOpsModule.daemonClient!(transport).scopes!;
+
+    await expect(scopes.inspectOnboarding!("/tmp/external")).resolves.toMatchObject({
+      ok: true,
+      inspection: { operationId: "onboarding-1", directoryRoot: "/tmp/external" },
+    });
+    await expect(scopes.planOnboarding!("/tmp/external", {
+      trust: false,
+      initialAutomationMode: "passive",
+      writes: { mode: "none" },
+    })).resolves.toEqual({
+      ok: false,
+      reason: "invalid_choices",
+      message: "invalid automation mode",
+    });
+
+    expect(calls.map((call) => [call.init?.method, call.path])).toEqual([
+      ["POST", "/scope-onboarding/inspect"],
+      ["POST", "/scope-onboarding/plan"],
+    ]);
+    expect(JSON.parse(String(calls[1]!.init?.body))).toEqual({
+      directoryRoot: "/tmp/external",
+      choices: {
+        trust: false,
+        initialAutomationMode: "passive",
+        writes: { mode: "none" },
+      },
+    });
   });
 });

@@ -43,6 +43,58 @@ function scopeUseParameters(): UiActionParameterSpec {
   };
 }
 
+function scopeOnboardingPlanParameters(): UiActionParameterSpec {
+  return {
+    fields: [
+      { id: "directoryRoot", label: "Folder", input: "text", required: true },
+      { id: "displayName", label: "Display name", input: "text", required: false },
+      { id: "trusted", label: "Trust this scope", input: "boolean", required: false },
+      {
+        id: "initialAutomationMode",
+        label: "Initial automation",
+        input: "select",
+        required: true,
+        options: [
+          { label: "Passive", value: "passive" },
+          { label: "Supervised", value: "supervised" },
+          { label: "Autonomous", value: "autonomous" },
+        ],
+      },
+      {
+        id: "writes",
+        label: "Write boundary",
+        input: "select",
+        required: true,
+        options: [
+          { label: "No writes", value: "none" },
+          { label: "Scope folder", value: "scope-directory" },
+          { label: "Unrestricted", value: "unrestricted" },
+        ],
+      },
+    ],
+    schema: {
+      type: "object",
+      required: ["directoryRoot", "initialAutomationMode", "writes"],
+      properties: {
+        directoryRoot: { type: "string" },
+        displayName: { type: "string" },
+        trusted: { type: "boolean", default: false },
+        initialAutomationMode: {
+          type: "string",
+          enum: ["passive", "supervised", "autonomous"],
+          default: "passive",
+        },
+        writes: {
+          type: "string",
+          enum: ["none", "scope-directory", "unrestricted"],
+          default: "none",
+        },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
 function sessionAutonomyParameters(): UiActionParameterSpec {
   return {
     fields: [
@@ -158,6 +210,19 @@ export function buildScopeUiSurface(args: {
         risk: "low",
       },
       result: resultSpec("Active scope updated."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.plan",
+      scopeId,
+      label: "Preview external folder onboarding",
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "planOnboarding",
+      },
+      parameters: scopeOnboardingPlanParameters(),
+      result: resultSpec("Scope onboarding plan prepared."),
     }),
     action({
       surfaceId: "scopes",

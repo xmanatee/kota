@@ -43,6 +43,27 @@ activation, compensate on failure, and recheck live-resource blockers before
 removal. Trust and policy changes are atomic; untrust quarantines control work,
 aborts workflows, and restarts before repository authority changes.
 
+External directory onboarding composes those owners through the single
+`ScopeOnboardingService` inspect/plan/apply transaction. A prepared runtime
+created by that transaction stays dispatch-closed until declared scope state and
+machine authority commit; incomplete operations never quarantine a scope that
+predated them and recover through retry or cancel. Scope-directory effects are
+write-ahead claimed in the operation artifact before mutation, so an interrupted
+claim remains rollback-owned. Transaction compensation restores unpublished
+authority while dispatch is closed, so it does not enter the separate live
+trust-revocation restart path. Task and inbox directories remain lazily owned by
+the repo-task domain; onboarding never creates a parallel queue scaffold.
+Git-backed onboarding accepts only the repository top-level because runtime
+writer sandboxes check out that complete tree; nested selections cannot align a
+scope-directory write boundary with the publication boundary.
+
+Daemon routes, the typed `scopes` client namespace, terminal commands, and UI
+planning actions delegate to that service. Successful onboarding publishes the
+committed lifecycle boundary for the initial improvement workflow through a
+write-ahead publication intent and stable dispatch identity; retries therefore
+reuse one workflow admission. Readiness requires both that workflow and
+`scope-improver`, not only the worker.
+
 Scope-owned handlers resolve the live runtime through the runtime-scope
 provider. Invalid selectors fail without cwd/default fallback. The daemon owns
 one runtime module loader; sessions borrow it without replacing its provider or

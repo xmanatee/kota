@@ -4,9 +4,12 @@ import type { ScheduledItem } from "./scheduler.js";
 import type { ScopeRuntime, ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 type HostedRuntimeResources = {
+  workflowStarted: boolean;
   stopSchedulerBus: () => void;
   stopSchedulerTimer: () => void;
 };
+
+export type ScopeRuntimeHostStartMode = WorkflowRuntimeInitialDispatch | "prepared";
 
 export type ScopeRuntimeHostOptions = {
   bus: EventBus;
@@ -14,7 +17,7 @@ export type ScopeRuntimeHostOptions = {
   onDueItems: (runtime: ScopeRuntime, items: ScheduledItem[]) => void;
 };
 
-/** Owns every live subscription and timer attached to a scope runtime. */
+/** Owns prepared/active state plus every live subscription and timer for a scope runtime. */
 export class ScopeRuntimeHost {
   private readonly hosted = new Map<string, HostedRuntimeResources>();
   private active = false;
@@ -23,14 +26,14 @@ export class ScopeRuntimeHost {
 
   async startInitial(
     registry: ScopeRuntimeRegistry,
-    initialDispatch: WorkflowRuntimeInitialDispatch = "active",
+    mode: ScopeRuntimeHostStartMode = "active",
   ): Promise<void> {
     if (this.active) return;
     this.active = true;
     const started: ScopeRuntime[] = [];
     try {
       for (const runtime of registry.list()) {
-        await this.start(runtime, initialDispatch);
+        await this.start(runtime, mode);
         started.push(runtime);
       }
     } catch (error) {
@@ -44,7 +47,7 @@ export class ScopeRuntimeHost {
 
   async start(
     runtime: ScopeRuntime,
-    initialDispatch: WorkflowRuntimeInitialDispatch = "active",
+    mode: ScopeRuntimeHostStartMode = "active",
   ): Promise<void> {
     const scopeId = runtime.scope.scopeId;
     if (!this.active) throw new Error("ScopeRuntimeHost is not active");
@@ -52,28 +55,57 @@ export class ScopeRuntimeHost {
       throw new Error(`ScopeRuntimeHost: scope ${scopeId} is already hosted`);
     }
 
-    let stopSchedulerBus = (): void => {};
-    let stopSchedulerTimer = (): void => {};
+    runtime.workflowRuntime.validateDefinitions();
+    if (mode === "prepared") {
+      runtime.workflowRuntime.setDispatchPaused(true);
+    }
+    this.hosted.set(
+      scopeId,
+      mode === "prepared"
+        ? this.preparedResources()
+        : await this.startRuntimeResources(runtime, mode),
+    );
+  }
+
+  /** Open subscriptions and schedules only after prepared scope authority commits. */
+  async activatePrepared(
+    runtime: ScopeRuntime,
+    initialDispatch: WorkflowRuntimeInitialDispatch = "active",
+  ): Promise<void> {
+    const scopeId = runtime.scope.scopeId;
+    const resources = this.hosted.get(scopeId);
+    if (!resources) {
+      throw new Error(`ScopeRuntimeHost: scope ${scopeId} is not hosted`);
+    }
+    if (resources.workflowStarted) {
+      throw new Error(`ScopeRuntimeHost: scope ${scopeId} is already active`);
+    }
+    this.hosted.set(
+      scopeId,
+      await this.startRuntimeResources(runtime, initialDispatch),
+    );
+  }
+
+  /** Close an activated onboarding runtime while retaining its prepared registration. */
+  async deactivateToPrepared(
+    runtime: ScopeRuntime,
+    gracePeriodMs: number,
+    abortWaitMs?: number,
+  ): Promise<void> {
+    const scopeId = runtime.scope.scopeId;
+    const resources = this.hosted.get(scopeId);
+    if (!resources) {
+      throw new Error(`ScopeRuntimeHost: scope ${scopeId} is not hosted`);
+    }
+    if (!resources.workflowStarted) return;
+
+    runtime.workflowRuntime.setDispatchPaused(true);
     try {
-      runtime.workflowRuntime.validateDefinitions();
-      stopSchedulerBus = runtime.scheduler.connectBus(
-        this.options.bus,
-        (items) => this.options.onDueItems(runtime, items),
-      );
-      stopSchedulerTimer = runtime.scheduler.startTimer(
-        this.options.pollIntervalMs,
-        (items) => this.options.onDueItems(runtime, items),
-      );
-      runtime.workflowRuntime.start(initialDispatch);
-      this.hosted.set(scopeId, {
-        stopSchedulerBus,
-        stopSchedulerTimer,
-      });
-    } catch (error) {
-      stopSchedulerTimer();
-      stopSchedulerBus();
-      await runtime.workflowRuntime.stop(1, 1_000);
-      throw error;
+      await this.stopWorkflow(runtime, gracePeriodMs, abortWaitMs);
+    } finally {
+      resources.stopSchedulerTimer();
+      resources.stopSchedulerBus();
+      this.hosted.set(scopeId, this.preparedResources());
     }
   }
 
@@ -84,7 +116,9 @@ export class ScopeRuntimeHost {
   ): Promise<void> {
     const resources = this.hosted.get(runtime.scope.scopeId);
     if (!resources) return;
-    await this.stopWorkflow(runtime, gracePeriodMs, abortWaitMs);
+    if (resources.workflowStarted) {
+      await this.stopWorkflow(runtime, gracePeriodMs, abortWaitMs);
+    }
     this.releaseHostedResources(runtime, resources);
   }
 
@@ -98,7 +132,9 @@ export class ScopeRuntimeHost {
     if (!resources) return;
     let stopError: Error | null = null;
     try {
-      await this.stopWorkflow(runtime, gracePeriodMs, abortWaitMs);
+      if (resources.workflowStarted) {
+        await this.stopWorkflow(runtime, gracePeriodMs, abortWaitMs);
+      }
     } catch (error) {
       stopError = error instanceof Error ? error : new Error(String(error));
     } finally {
@@ -128,6 +164,48 @@ export class ScopeRuntimeHost {
 
   hostedCount(): number {
     return this.hosted.size;
+  }
+
+  isPrepared(scopeId: string): boolean {
+    const resources = this.hosted.get(scopeId);
+    return resources !== undefined && !resources.workflowStarted;
+  }
+
+  private preparedResources(): HostedRuntimeResources {
+    return {
+      workflowStarted: false,
+      stopSchedulerBus: () => {},
+      stopSchedulerTimer: () => {},
+    };
+  }
+
+  private async startRuntimeResources(
+    runtime: ScopeRuntime,
+    initialDispatch: WorkflowRuntimeInitialDispatch,
+  ): Promise<HostedRuntimeResources> {
+    let stopSchedulerBus = (): void => {};
+    let stopSchedulerTimer = (): void => {};
+    try {
+      stopSchedulerBus = runtime.scheduler.connectBus(
+        this.options.bus,
+        (items) => this.options.onDueItems(runtime, items),
+      );
+      stopSchedulerTimer = runtime.scheduler.startTimer(
+        this.options.pollIntervalMs,
+        (items) => this.options.onDueItems(runtime, items),
+      );
+      runtime.workflowRuntime.start(initialDispatch);
+      return {
+        workflowStarted: true,
+        stopSchedulerBus,
+        stopSchedulerTimer,
+      };
+    } catch (error) {
+      stopSchedulerTimer();
+      stopSchedulerBus();
+      await runtime.workflowRuntime.stop(1, 1_000);
+      throw error;
+    }
   }
 
   private async stopWorkflow(

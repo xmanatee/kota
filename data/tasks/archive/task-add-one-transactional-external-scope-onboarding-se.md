@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-complete-the-terminal-project-to-scope-migration, task-make-scope-trust-and-policy-operator-mutable]
+status: done
 ---
 
 # Add one transactional external scope onboarding service

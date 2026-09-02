@@ -7,7 +7,9 @@ import type { ModuleSetupActionFile, ModuleSetupPendingAction } from "./types.js
 export class ModuleSetupActionStore {
   constructor(private readonly scopeRoot: string) {}
 
-  read(): ModuleSetupActionFile {
+  read(
+    options: { persistSanitizedLegacyRecords?: boolean } = {},
+  ): ModuleSetupActionFile {
     const path = this.path();
     if (!existsSync(path)) return { actions: [] };
     const parsed = JSON.parse(readFileSync(path, "utf8")) as ModuleSetupActionFile;
@@ -15,7 +17,10 @@ export class ModuleSetupActionStore {
     const actions = rawActions.map((action) =>
       projectModuleSetupPendingActionForClient(action)
     );
-    if (rawActions.some((action) => Object.hasOwn(action, "url"))) {
+    if (
+      options.persistSanitizedLegacyRecords !== false &&
+      rawActions.some((action) => Object.hasOwn(action, "url"))
+    ) {
       this.write({ actions });
     }
     return { actions };
@@ -38,8 +43,9 @@ export class ModuleSetupActionStore {
   latest(
     moduleName: string,
     requirementId: string,
+    options: { persistSanitizedLegacyRecords?: boolean } = {},
   ): ModuleSetupPendingAction | undefined {
-    return this.read().actions
+    return this.read(options).actions
       .filter((action) => action.moduleName === moduleName && action.requirementId === requirementId)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   }

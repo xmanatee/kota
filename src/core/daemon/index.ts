@@ -40,6 +40,19 @@ export {
 	setSchedulerInstance,
 } from "./scheduler.js";
 export type {
+	ScopeOnboardingApplyResult,
+	ScopeOnboardingChoices,
+	ScopeOnboardingInspection,
+	ScopeOnboardingOperation,
+	ScopeOnboardingPlan,
+	ScopeOnboardingPlanResult,
+	ScopeOnboardingReadiness,
+} from "./scope-onboarding.js";
+export {
+	ScopeOnboardingInspectionError,
+	ScopeOnboardingService,
+} from "./scope-onboarding.js";
+export type {
 	ResolvedScopePolicy,
 	RestrictiveScopePolicyChange,
 	RestrictiveScopePolicyChangeListener,
@@ -81,4 +94,3 @@ export {
 	type TaskStatus,
 	TaskStore,
 } from "./task-store.js";
-

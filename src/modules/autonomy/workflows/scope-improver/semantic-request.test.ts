@@ -31,11 +31,13 @@ describe("scope improvement onboarding workflow", () => {
       trigger: {
         event: "scope.lifecycle.changed",
         schemaRef: null,
+        eventId: "scope-onboarding:onboard_fixture:completed",
         payload: {
-          transition: "registered",
+          transition: "onboarding-completed",
           affectedScopeId: scopeId,
           directoryRoot: workspaceRoot,
           displayName: "External scope",
+          idempotencyKey: "scope-onboarding:onboard_fixture:completed",
         },
       },
       scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),

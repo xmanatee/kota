@@ -88,7 +88,7 @@ describe("live directory scope lifecycle", () => {
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
 
-  it("registers, runs, restores, drains, and removes one live scope without touching its files", async () => {
+  it("hosts, runs, restores, drains, and removes a scope without touching its files", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-live-scope-"));
     roots.push(root);
     const scopeA = mkdtempSync(join(root, "scope-a-"));
@@ -139,7 +139,7 @@ describe("live directory scope lifecycle", () => {
     ];
 
     const first = new Daemon({
-      scopeRoot: scopeA,
+      scopes: [{ scopeRoot: scopeA }, { scopeRoot: scopeB, displayName: "Live B" }],
       stateDir,
       workflows,
       channels: [{
@@ -162,11 +162,6 @@ describe("live directory scope lifecycle", () => {
     });
     const firstRun = await startDaemon(first, stateDir);
     await waitFor(() => channelContext !== null);
-    const registration = await first.registerDirectoryScope({
-      directoryRoot: scopeB,
-      displayName: "Live B",
-    });
-    expect(registration).toMatchObject({ ok: true, scope: { scopeId: scopeBId } });
     expect(first.getHostedScopeCount()).toBe(2);
     expect(channelContext!.getDefaultScopeRuntime().scope.scopeId).toBe(scopeAId);
     expect(await first.setDefaultScope(scopeBId))

@@ -49,6 +49,18 @@ export type ScopeRegistrationResult =
       existing?: RegisteredDirectoryScope;
     };
 
+export type ScopePreparedRegistrationResult =
+  | { ok: true; status: "prepared"; scope: RegisteredDirectoryScope }
+  | Exclude<ScopeRegistrationResult, { ok: true }>;
+
+export type ScopePreparedRegistrationMutationResult =
+  | {
+      ok: true;
+      status: "activated" | "deactivated" | "rolled_back" | "unchanged";
+      scope: RegisteredDirectoryScope;
+    }
+  | ScopeMutationFailure;
+
 export type ScopeMutationResult =
   | {
       ok: true;

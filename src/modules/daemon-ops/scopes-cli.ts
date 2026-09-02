@@ -12,6 +12,10 @@
  */
 
 import { Command } from "commander";
+import type {
+  ScopeOnboardingChoices,
+  ScopeOnboardingPlan,
+} from "#core/daemon/scope-onboarding.js";
 import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { confirmAction } from "#core/util/confirm.js";
@@ -275,7 +279,269 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       if (!result.ok) process.exitCode = 1;
     });
 
+  const onboarding = cmd
+    .command("onboarding")
+    .description("Inspect, plan, apply, and recover external-folder onboarding");
+
+  onboarding
+    .command("inspect <directory>")
+    .description("Inspect a folder without changing it")
+    .option("--json", "Output as JSON")
+    .action(async (directory: string, opts: { json?: boolean }) => {
+      const client = ctx.client.scopes.inspectOnboarding;
+      if (!client) return onboardingUnavailable(opts.json);
+      const result = await client(directory);
+      if (opts.json) writeJson(result);
+      else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
+      else print(stack(
+        line(plain("Directory: "), span(result.inspection.directoryRoot, "accent")),
+        line(plain("Scope: "), span(result.inspection.scopeId, "muted")),
+        line(plain("Kind: "), plain(result.inspection.kind)),
+        line(plain("Registered: "), plain(result.inspection.registered ? "yes" : "no")),
+        line(plain("Blockers: "), span(String(result.inspection.blockers.length), "muted")),
+      ));
+      if (!result.ok) process.exitCode = 1;
+    });
+
+  addOnboardingChoiceOptions(
+    onboarding
+      .command("plan <directory>")
+      .description("Return the exact onboarding changes and readiness blockers")
+      .option("--json", "Output as JSON"),
+  ).action(async (
+    directory: string,
+    opts: OnboardingChoiceOptions & { json?: boolean },
+  ) => {
+    const client = ctx.client.scopes.planOnboarding;
+    if (!client) return onboardingUnavailable(opts.json);
+    const choices = parseOnboardingChoices(opts);
+    if (!choices.ok) return onboardingInputError(choices.message, opts.json);
+    const result = await client(directory, choices.value);
+    if (opts.json) writeJson(result);
+    else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
+    else printOnboardingPlan(result.plan);
+    if (!result.ok) process.exitCode = 1;
+  });
+
+  addOnboardingChoiceOptions(
+    onboarding
+      .command("apply <directory>")
+      .description("Plan, confirm, and transactionally onboard a folder")
+      .option("--json", "Output as JSON"),
+  ).action(async (
+    directory: string,
+    opts: OnboardingChoiceOptions & { json?: boolean },
+  ) => {
+    const { planOnboarding, applyOnboarding } = ctx.client.scopes;
+    if (!planOnboarding || !applyOnboarding) return onboardingUnavailable(opts.json);
+    const choices = parseOnboardingChoices(opts);
+    if (!choices.ok) return onboardingInputError(choices.message, opts.json);
+    const planned = await planOnboarding(directory, choices.value);
+    if (!planned.ok) {
+      if (opts.json) writeJson(planned);
+      else printToStderr(line(span(onboardingError(planned), "error")));
+      process.exitCode = 1;
+      return;
+    }
+    if (process.env.KOTA_SESSION_ID !== undefined || !process.stdin.isTTY) {
+      onboardingInputError(
+        "Applying scope onboarding requires an interactive operator terminal.",
+        opts.json,
+      );
+      return;
+    }
+    if (!opts.json) printOnboardingPlan(planned.plan);
+    const confirmed = await confirmAction(
+      `Apply onboarding plan ${planned.plan.planId} for ${planned.plan.directoryRoot}?`,
+    );
+    if (!confirmed) {
+      onboardingInputError("Scope onboarding was not confirmed.", opts.json);
+      return;
+    }
+    const dangerous = planned.plan.choices.trust ||
+      planned.plan.choices.initialAutomationMode !== "passive" ||
+      planned.plan.choices.writes.mode !== "none";
+    const result = await applyOnboarding(
+      planned.plan,
+      dangerous ? "confirm-dangerous" : "apply",
+    );
+    if (opts.json) writeJson(result);
+    else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
+    else print(stack(
+      line(span("Scope onboarding completed.", "success")),
+      line(plain("Operation: "), span(result.operation.operationId, "muted")),
+      line(plain("Workflow ready: "), span(
+        result.operation.readiness.workflowReady ? "yes" : "no",
+        result.operation.readiness.workflowReady ? "success" : "warn",
+      )),
+    ));
+    if (!result.ok) process.exitCode = 1;
+  });
+
+  onboarding
+    .command("status <operationId>")
+    .description("Show a durable onboarding operation")
+    .option("--json", "Output as JSON")
+    .action(async (operationId: string, opts: { json?: boolean }) => {
+      const client = ctx.client.scopes.getOnboardingStatus;
+      if (!client) return onboardingUnavailable(opts.json);
+      const result = await client(operationId);
+      if (opts.json) writeJson(result);
+      else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
+      else print(stack(
+        line(plain("Operation: "), span(result.operation.operationId, "accent")),
+        line(plain("State: "), plain(result.operation.state)),
+        line(plain("Attempts: "), span(String(result.operation.attempts), "muted")),
+      ));
+      if (!result.ok) process.exitCode = 1;
+    });
+
+  onboarding
+    .command("retry <operationId>")
+    .description("Retry an incomplete onboarding transaction")
+    .option("--json", "Output as JSON")
+    .action(async (operationId: string, opts: { json?: boolean }) => {
+      const { getOnboardingStatus, retryOnboarding } = ctx.client.scopes;
+      if (!getOnboardingStatus || !retryOnboarding) return onboardingUnavailable(opts.json);
+      const status = await getOnboardingStatus(operationId);
+      if (!status.ok) {
+        if (opts.json) writeJson(status);
+        else printToStderr(line(span(onboardingError(status), "error")));
+        process.exitCode = 1;
+        return;
+      }
+      if (process.env.KOTA_SESSION_ID !== undefined || !process.stdin.isTTY) {
+        onboardingInputError(
+          "Retrying scope onboarding requires an interactive operator terminal.",
+          opts.json,
+        );
+        return;
+      }
+      const confirmed = await confirmAction(`Retry onboarding operation ${operationId}?`);
+      if (!confirmed) return onboardingInputError("Scope onboarding retry was not confirmed.", opts.json);
+      const plan = status.operation.acceptedPlan;
+      const dangerous = plan.choices.trust ||
+        plan.choices.initialAutomationMode !== "passive" ||
+        plan.choices.writes.mode !== "none";
+      const result = await retryOnboarding(
+        operationId,
+        plan.scopeId,
+        dangerous ? "confirm-dangerous" : "apply",
+      );
+      if (opts.json) writeJson(result);
+      else print(line(span(
+        result.ok ? "Scope onboarding retry completed." : onboardingError(result),
+        result.ok ? "success" : "error",
+      )));
+      if (!result.ok) process.exitCode = 1;
+    });
+
+  onboarding
+    .command("cancel <operationId>")
+    .description("Roll back and cancel an incomplete onboarding transaction")
+    .option("--json", "Output as JSON")
+    .action(async (operationId: string, opts: { json?: boolean }) => {
+      const client = ctx.client.scopes.cancelOnboarding;
+      if (!client) return onboardingUnavailable(opts.json);
+      if (!process.stdin.isTTY) {
+        onboardingInputError("Cancelling scope onboarding requires an interactive terminal.", opts.json);
+        return;
+      }
+      const confirmed = await confirmAction(`Cancel and roll back onboarding operation ${operationId}?`);
+      if (!confirmed) return onboardingInputError("Scope onboarding cancellation was not confirmed.", opts.json);
+      const result = await client(operationId);
+      if (opts.json) writeJson(result);
+      else print(line(span(
+        result.ok ? "Scope onboarding cancelled." : onboardingError(result),
+        result.ok ? "success" : "error",
+      )));
+      if (!result.ok) process.exitCode = 1;
+    });
+
   return cmd;
+}
+
+type OnboardingChoiceOptions = {
+  name?: string;
+  trusted?: boolean;
+  automation?: string;
+  writes?: string;
+  writePath?: string[];
+};
+
+function addOnboardingChoiceOptions(command: Command): Command {
+  return command
+    .option("--name <displayName>", "Scope display name")
+    .option("--trusted", "Explicitly trust the scope")
+    .option("--automation <mode>", "Initial automation mode: passive, supervised, or autonomous")
+    .option("--writes <mode>", "Write boundary: none, scope-directory, paths, or unrestricted")
+    .option("--write-path <path...>", "Allowed path(s) when --writes paths is selected");
+}
+
+function parseOnboardingChoices(
+  opts: OnboardingChoiceOptions,
+): { ok: true; value: ScopeOnboardingChoices } | { ok: false; message: string } {
+  if (
+    opts.automation !== undefined &&
+    opts.automation !== "passive" &&
+    opts.automation !== "supervised" &&
+    opts.automation !== "autonomous"
+  ) return { ok: false, message: "--automation must be passive, supervised, or autonomous." };
+  if (
+    opts.writes !== undefined &&
+    opts.writes !== "none" &&
+    opts.writes !== "scope-directory" &&
+    opts.writes !== "paths" &&
+    opts.writes !== "unrestricted"
+  ) return { ok: false, message: "--writes must be none, scope-directory, paths, or unrestricted." };
+  if (opts.writes === "paths" && (opts.writePath?.length ?? 0) === 0) {
+    return { ok: false, message: "--writes paths requires at least one --write-path." };
+  }
+  if (opts.writes !== "paths" && opts.writePath !== undefined) {
+    return { ok: false, message: "--write-path is only valid with --writes paths." };
+  }
+  let writes: ScopeOnboardingChoices["writes"];
+  if (opts.writes === "paths") writes = { mode: "paths", paths: opts.writePath! };
+  else if (opts.writes === "none") writes = { mode: "none" };
+  else if (opts.writes === "scope-directory") writes = { mode: "scope-directory" };
+  else if (opts.writes === "unrestricted") writes = { mode: "unrestricted" };
+  return {
+    ok: true,
+    value: {
+      ...(opts.name !== undefined ? { displayName: opts.name } : {}),
+      ...(opts.trusted === true ? { trust: true } : {}),
+      ...(opts.automation !== undefined ? { initialAutomationMode: opts.automation } : {}),
+      ...(writes !== undefined ? { writes } : {}),
+    },
+  };
+}
+
+function printOnboardingPlan(plan: ScopeOnboardingPlan): void {
+  print(stack(
+    line(plain("Plan: "), span(plan.planId, "accent")),
+    line(plain("Directory: "), span(plan.directoryRoot, "muted")),
+    line(plain("Changes: "), plain(String(plan.changes.length))),
+    line(plain("Blockers: "), span(String(plan.blockers.length), plan.blockers.length > 0 ? "warn" : "success")),
+    line(plain("Permissions: "), plain(
+      `${plan.permissions.trusted ? "trusted" : "untrusted"}, ` +
+      `${plan.permissions.autonomy}, writes=${plan.permissions.writes.mode}`,
+    )),
+  ));
+}
+
+function onboardingUnavailable(json: boolean | undefined): void {
+  onboardingInputError("Scope onboarding requires a live, current daemon.", json);
+}
+
+function onboardingInputError(message: string, json: boolean | undefined): void {
+  if (json) writeJson({ ok: false, reason: "invalid_input", message });
+  else printToStderr(line(span(message, "error")));
+  process.exitCode = 1;
+}
+
+function onboardingError(result: { reason: string; message?: string }): string {
+  if (result.reason === "daemon_required") return "Daemon is not running.";
+  return result.message ?? `Scope onboarding failed: ${result.reason}`;
 }
 
 function parseTrust(value: string | undefined): boolean | undefined {

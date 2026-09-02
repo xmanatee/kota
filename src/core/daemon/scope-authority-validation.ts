@@ -154,6 +154,8 @@ export function buildScopeAuthorityAuditRecord(
         ? "unchanged"
         : mutation.policy === null ? "clear" : "set",
       dangerousWideningAreas: prepared.preview.dangerousWideningAreas,
+      before: prepared.before.policyFragment,
+      after: prepared.preview.authority.policyFragment,
     },
   };
 }

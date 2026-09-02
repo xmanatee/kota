@@ -134,6 +134,23 @@ export class RunStateDatabase {
       .run(input.id, resolve(input.rootPath), input.displayName ?? null, input.createdAt);
   }
 
+  /** Remove a prepared scope only when it never admitted durable work. */
+  removeUnadmittedScope(scopeId: string): boolean {
+    return this.database.transaction(() => {
+      const run = this.database
+        .prepare("SELECT id FROM runs WHERE scope_id = ? LIMIT 1")
+        .get(scopeId) as { id: string } | undefined;
+      if (run !== undefined) {
+        throw new Error(
+          `Cannot remove prepared run-state scope ${scopeId}: durable run ${run.id} exists`,
+        );
+      }
+      return this.database
+        .prepare("DELETE FROM scopes WHERE id = ?")
+        .run(scopeId).changes === 1;
+    })();
+  }
+
   getScopeIdByRootPath(rootPath: string): string | null {
     const row = this.database
       .prepare("SELECT id FROM scopes WHERE root_path = ?")

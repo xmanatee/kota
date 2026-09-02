@@ -12,6 +12,7 @@ import type { ScopeRuntime } from "./scope-runtime.js";
 export async function registerDirectoryScope(
   options: ScopeLifecycleOptions,
   input: DirectoryScopeRegistrationInput,
+  activate = true,
 ): Promise<ScopeRegistrationResult> {
   if (!options.runtimeHost.isActive()) {
     return {
@@ -99,7 +100,7 @@ export async function registerDirectoryScope(
   try {
     options.runtimes.add(runtime);
     runtimeAdded = true;
-    await options.runtimeHost.start(runtime, "paused");
+    await options.runtimeHost.start(runtime, activate ? "active" : "prepared");
   } catch (error) {
     const rollbackFailure = await rollbackCommittedRegistration(options, runtime, runtimeAdded);
     if (rollbackFailure !== null) {
@@ -118,14 +119,14 @@ export async function registerDirectoryScope(
     };
   }
 
-  runtime.workflowRuntime.setDispatchPaused(false);
-
-  options.bus.emit("scope.lifecycle.changed", {
-    transition: "registered",
-    affectedScopeId: scope.scopeId,
-    directoryRoot: scope.scopeRoot,
-    displayName: scope.displayName,
-  });
+  if (activate) {
+    options.bus.emit("scope.lifecycle.changed", {
+      transition: "registered",
+      affectedScopeId: scope.scopeId,
+      directoryRoot: scope.scopeRoot,
+      displayName: scope.displayName,
+    });
+  }
   return {
     ok: true,
     status: "registered",
@@ -147,19 +148,46 @@ async function rollbackCommittedRegistration(
   try {
     await options.runtimeHost.abortUncommitted(runtime, 1, 1_000);
   } catch (error) {
-    failures.push(`runtime stop: ${errorMessage(error as Error)}`);
+    return `runtime stop: ${errorMessage(error as Error)}`;
   }
   if (runtimeAdded) {
     try {
       options.runtimes.remove(runtime.scope.scopeId);
     } catch (error) {
-      failures.push(`runtime registry: ${errorMessage(error as Error)}`);
+      return `runtime registry: ${errorMessage(error as Error)}`;
     }
   }
   try {
     options.registry.remove(runtime.scope.scopeId);
   } catch (error) {
     failures.push(`scope registry: ${errorMessage(error as Error)}`);
+    if (runtimeAdded) {
+      try {
+        options.runtimes.add(runtime);
+      } catch (restoreError) {
+        failures.push(`runtime registry restore: ${errorMessage(restoreError as Error)}`);
+      }
+    }
+    return failures.join("; ");
+  }
+  try {
+    options.runState.removeUnadmittedScope(runtime.scope.scopeId);
+  } catch (error) {
+    failures.push(`run-state scope: ${errorMessage(error as Error)}`);
+    // The run-state deletion is transactional, so a failure leaves its scope
+    // row intact. Restore the other canonical projections to the same state.
+    try {
+      options.registry.add(runtime.scope);
+    } catch (restoreError) {
+      failures.push(`scope registry restore: ${errorMessage(restoreError as Error)}`);
+    }
+    if (runtimeAdded) {
+      try {
+        options.runtimes.add(runtime);
+      } catch (restoreError) {
+        failures.push(`runtime registry restore: ${errorMessage(restoreError as Error)}`);
+      }
+    }
   }
   return failures.length === 0 ? null : failures.join("; ");
 }

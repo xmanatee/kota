@@ -47,6 +47,15 @@ export class ModuleSetupService {
   }
 
   async list(): Promise<ModuleSetupStatusResponse> {
+    return this.#list(true);
+  }
+
+  /** Project setup readiness without migrating or otherwise rewriting scope-owned state. */
+  async inspect(): Promise<ModuleSetupStatusResponse> {
+    return this.#list(false);
+  }
+
+  async #list(persistSanitizedLegacyRecords: boolean): Promise<ModuleSetupStatusResponse> {
     const visibility = this.#getVisibility();
     if (visibility === "hidden") {
       return { visibility, requirements: [], summary: summarizeStatuses([]) };
@@ -55,7 +64,7 @@ export class ModuleSetupService {
     const config = this.#loadScopeConfig();
     const statuses = this.#getRequirements().map((entry) =>
       this.#projectStatus(
-        this.#statusFor(entry, config, capabilities),
+        this.#statusFor(entry, config, capabilities, persistSanitizedLegacyRecords),
       ),
     );
     return { visibility, requirements: statuses, summary: summarizeStatuses(statuses) };
@@ -299,12 +308,17 @@ export class ModuleSetupService {
     entry: ModuleSetupRequirementContribution,
     config: ReturnType<typeof loadConfig>,
     capabilities: Awaited<ReturnType<ModuleSetupServiceOptions["probeCapabilities"]>>,
+    persistSanitizedLegacyRecords = true,
   ): ModuleSetupRequirementStatus {
     return moduleSetupStatusFor({
       entry,
       config,
       capabilities,
-      pendingAction: this.#actions.latest(entry.moduleName, entry.requirement.id),
+      pendingAction: this.#actions.latest(
+        entry.moduleName,
+        entry.requirement.id,
+        { persistSanitizedLegacyRecords },
+      ),
       now: this.#now(),
       scopeRoot: this.#scopeRoot,
     });

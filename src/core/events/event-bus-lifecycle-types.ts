@@ -44,15 +44,27 @@ export type ScopeLifecycleBlockerKind =
   | "resource_lease"
   | "inspection_failure";
 
-export type ScopeLifecycleEvent = {
-  transition:
-    | "registered"
-    | "display-name-updated"
-    | "default-changed"
-    | "draining"
-    | "drain-blocked"
-    | "drained"
-    | "removed";
+type ScopeLifecycleTransition =
+  | "registered"
+  | "onboarding-completed"
+  | "display-name-updated"
+  | "default-changed"
+  | "draining"
+  | "drain-blocked"
+  | "drained"
+  | "removed";
+
+type ScopeLifecycleEventIdentity =
+  | {
+      transition: "onboarding-completed";
+      idempotencyKey: string;
+    }
+  | {
+      transition: Exclude<ScopeLifecycleTransition, "onboarding-completed">;
+      idempotencyKey?: never;
+    };
+
+export type ScopeLifecycleEvent = ScopeLifecycleEventIdentity & {
   affectedScopeId: ScopeId;
   directoryRoot: string;
   displayName: string;

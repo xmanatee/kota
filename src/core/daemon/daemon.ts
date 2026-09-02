@@ -20,12 +20,18 @@ import type {
   ScopeAuthorityView,
 } from "./scope-authority-types.js";
 import type {
-  DirectoryScopeRegistrationInput,
   ScopeDrainResult,
   ScopeMutationResult,
-  ScopeRegistrationResult,
   ScopeRemovalResult,
 } from "./scope-lifecycle.js";
+import type {
+  ScopeOnboardingApplyResult,
+  ScopeOnboardingChoices,
+  ScopeOnboardingInspection,
+  ScopeOnboardingOperation,
+  ScopeOnboardingPlan,
+  ScopeOnboardingPlanResult,
+} from "./scope-onboarding.js";
 import type { ScopeId, ScopeRegistryProjection } from "./scope-registry.js";
 
 export type { DaemonConfig } from "./daemon-config.js";
@@ -216,10 +222,37 @@ export class Daemon {
     throw new Error("Daemon has not started");
   }
 
-  registerDirectoryScope(
-    input: DirectoryScopeRegistrationInput,
-  ): Promise<ScopeRegistrationResult> {
-    return this.context().scopeLifecycle.registerDirectoryScope(input);
+  inspectScopeOnboarding(directoryRoot: string): Promise<ScopeOnboardingInspection> {
+    return this.context().scopeOnboarding.inspect(directoryRoot);
+  }
+
+  planScopeOnboarding(
+    directoryRoot: string,
+    choices?: ScopeOnboardingChoices,
+  ): Promise<ScopeOnboardingPlanResult> {
+    return this.context().scopeOnboarding.plan(directoryRoot, choices);
+  }
+
+  applyScopeOnboarding(
+    plan: ScopeOnboardingPlan,
+    operatorAction?: ScopeAuthorityOperatorAction,
+  ): Promise<ScopeOnboardingApplyResult> {
+    return this.context().scopeOnboarding.apply(plan, operatorAction);
+  }
+
+  getScopeOnboardingStatus(operationId: string): Promise<ScopeOnboardingOperation | null> {
+    return this.context().scopeOnboarding.status(operationId);
+  }
+
+  retryScopeOnboarding(
+    operationId: string,
+    operatorAction?: ScopeAuthorityOperatorAction,
+  ): Promise<ScopeOnboardingApplyResult> {
+    return this.context().scopeOnboarding.retry(operationId, operatorAction);
+  }
+
+  cancelScopeOnboarding(operationId: string): Promise<ScopeOnboardingApplyResult> {
+    return this.context().scopeOnboarding.cancel(operationId);
   }
 
   updateScopeDisplayName(

@@ -1,9 +1,11 @@
 import type { Transport } from "#core/loop/transport.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   HISTORY_SCOPE_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
+import { ModuleSetupService } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import {
   createRunStateReader,
@@ -40,6 +42,7 @@ import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "./runtime-scope-provider.js"
 import { inspectChannelScopeDrainBlockers } from "./scope-channel-drain-inspection.js";
 import { inspectExternalScopeDrainBlockers } from "./scope-drain-inspection.js";
 import { ScopeLifecycleService } from "./scope-lifecycle.js";
+import { ScopeOnboardingService } from "./scope-onboarding.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "./scope-provider.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
@@ -122,6 +125,43 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   });
   const daemonModel = config.model ?? config.config?.model;
   const getDefaultWorkflows = () => scopeRuntimes.getDefault().workflowRuntime;
+  const scopeOnboarding = new ScopeOnboardingService({
+    stateDir,
+    registry: scopeRegistry,
+    lifecycle: scopeLifecycle,
+    authority: scopeAuthority,
+    getSetupStatus: (directoryRoot, scopeId) => {
+      const setupService = new ModuleSetupService({
+        scopeRoot: directoryRoot,
+        ...(config.authorityConfigPath !== undefined
+          ? { authorityConfigPath: config.authorityConfigPath }
+          : {}),
+        getRequirements: () =>
+          moduleSetupRequirementsFromSummaries(config.getModuleSummaries?.() ?? []),
+        probeCapabilities: async () => (
+          await probeCapabilityReadinessWithTrigger(
+            scopeId === undefined
+              ? getDefaultWorkflows()
+              : scopeRuntimes.get(scopeId).workflowRuntime,
+            providerRegistry,
+          )
+        ).capabilities,
+        getVisibility: () => scopeId === undefined
+          ? "full"
+          : scopeAuthority.getSnapshot(scopeId).policy.setup.visibility,
+      });
+      return setupService.inspect();
+    },
+    isInitialImprovementAvailable: (scopeId) => {
+      const enabled = new Set(
+        scopeRuntimes.get(scopeId).workflowRuntime.getDefinitions()
+          .filter((definition) => definition.enabled)
+          .map((definition) => definition.name),
+      );
+      return enabled.has("scope-improvement-onboarding") && enabled.has("scope-improver");
+    },
+    isDispatchAvailable: () => !startupDispatchPaused && !ctx.restartRequested,
+  });
   const chatBindings = new DaemonChatBindingStore(stateDir);
   const historyScopeProvider = providerRegistry?.get(HISTORY_SCOPE_PROVIDER_TOKEN);
   const resolveChatHistoryProvider = createChatHistoryProviderResolver({
@@ -159,6 +199,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     scopeRegistry,
     scopeAuthority,
     scopeAuthorityOperatorVerifier,
+    scopeOnboarding,
     scopeRuntimes,
     getScopeHostingState: (scopeId) => scopeLifecycle.getHostingState(scopeId),
     config,
@@ -292,6 +333,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     scopeAuthority,
     scopeRuntimes,
     scopeLifecycle,
+    scopeOnboarding,
     scopeRuntimeHost,
     collector,
     eventLoopLatency,

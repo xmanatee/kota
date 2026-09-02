@@ -132,6 +132,7 @@ describe("ScopeLifecycleService", () => {
     expect(registryRemove).toHaveBeenCalledWith(deriveDirectoryScopeId(scopeB));
     expect(registry.list()).toHaveLength(1);
     expect(runtimes.size()).toBe(1);
+    expect(runState.getScopeIdByRootPath(scopeB)).toBeNull();
     expect(new ScopeRegistry({ stateDir, scopes: [{ scopeRoot: scopeA }] }).list())
       .toHaveLength(1);
     failedStart.mockRestore();
