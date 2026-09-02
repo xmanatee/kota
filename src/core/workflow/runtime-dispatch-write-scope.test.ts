@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -18,6 +18,26 @@ import type { RepositoryAccess } from "./run-sandbox.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRuntime, type WorkflowRuntimeConfig } from "./runtime.js";
 import type { RegisteredWorkflowDefinitionInput } from "./types.js";
+
+// Port binding is an external capability, not behavior owned by this suite.
+// Keep the runtime composition real while making its allocator probe deterministic.
+vi.mock("node:net", () => ({
+  createServer: () => {
+    const server = {
+      unref: () => server,
+      once: () => server,
+      listen: (_options: unknown, listening: () => void) => {
+        listening();
+        return server;
+      },
+      close: (closed: () => void) => {
+        closed();
+        return server;
+      },
+    };
+    return server;
+  },
+}));
 
 function createRuntime(
   config: Omit<
@@ -128,13 +148,13 @@ describe("runtime dispatch write-scope attribution", () => {
       steps: [{
         id: "observe-sandbox",
         type: "code",
-        run: async (context) => {
+        run: (context) => {
           const hasGitMetadata = existsSync(join(context.workspaceRoot, ".git"));
           const branch = hasGitMetadata
-            ? (await context.runCommand({
-                command: "git",
-                args: ["branch", "--show-current"],
-              })).stdout.text.trim()
+            ? execFileSync("git", ["branch", "--show-current"], {
+                cwd: context.workspaceRoot,
+                encoding: "utf8",
+              }).trim()
             : null;
           observed.set(repository, {
             branch,
@@ -187,14 +207,35 @@ describe("runtime dispatch write-scope attribution", () => {
     expect(observed.get("write")?.workspaceRoot).not.toBe(workspaceRoot);
   });
 
-  it("keeps shared-workspace agent write-scope snapshots from blaming concurrent agent edits", async () => {
+  it("isolates security-review attribution from concurrent canonical native writes", async () => {
     const harnessName =
       `runtime-dispatch-write-scope-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tasksDir = join(workspaceRoot, "data", "tasks");
+    const preExistingDirtyPath = "data/tasks/planning-existing.md";
+    const concurrentStagedPath = "data/tasks/planning-concurrent.md";
+    const reviewOutputPath = "data/tasks/security-review-output.md";
+    mkdirSync(tasksDir, { recursive: true });
     writeFileSync(join(workspaceRoot, "prompt.md"), "Review.\n");
+    writeFileSync(join(workspaceRoot, preExistingDirtyPath), "canonical baseline\n");
+    execFileSync("git", ["add", "prompt.md", preExistingDirtyPath], {
+      cwd: workspaceRoot,
+      stdio: "ignore",
+    });
+    execFileSync(
+      "git",
+      ["-c", "user.email=t@t", "-c", "user.name=T", "commit", "-m", "fixture"],
+      { cwd: workspaceRoot, stdio: "ignore" },
+    );
+    writeFileSync(join(workspaceRoot, preExistingDirtyPath), "planning draft\n");
 
-    let builderStartedAt = 0;
-    let builderCompletedAt = 0;
-    let reviewerStartedAt = 0;
+    let reviewerStarted = false;
+    let reviewerWorkspace = "";
+    let reviewerSawExisting = "";
+    let reviewerSawConcurrent = false;
+    let finishReview = (): void => {};
+    const reviewMayFinish = new Promise<void>((resolve) => {
+      finishReview = resolve;
+    });
 
     registerAgentHarness({
       name: harnessName,
@@ -205,25 +246,16 @@ describe("runtime dispatch write-scope attribution", () => {
       emitsAgentMessageStream: false,
       toolControl: "kota",
       run: async (options) => {
-        if (options.workflowContext?.workflowName === "builder") {
-          builderStartedAt = Date.now();
-          await wait(80);
-          const target = join(
-            options.cwd ?? workspaceRoot,
-            "src",
-            "modules",
-            "autonomy",
-            "workflows",
-            "builder",
-            "runtime-resources.ts",
-          );
-          mkdirSync(dirname(target), { recursive: true });
-          writeFileSync(target, "export const touchedByBuilder = true;\n");
-          builderCompletedAt = Date.now();
-        } else if (options.workflowContext?.workflowName === "progress-reviewer") {
-          reviewerStartedAt = Date.now();
-          await wait(120);
-        }
+        reviewerWorkspace = options.cwd ?? workspaceRoot;
+        reviewerSawExisting = readFileSync(
+          join(reviewerWorkspace, preExistingDirtyPath),
+          "utf8",
+        );
+        reviewerSawConcurrent = existsSync(
+          join(reviewerWorkspace, concurrentStagedPath),
+        );
+        reviewerStarted = true;
+        await reviewMayFinish;
         return {
           text: "done",
           streamedText: "done",
@@ -240,16 +272,17 @@ describe("runtime dispatch write-scope attribution", () => {
       idleIntervalMs: 60_000,
       workflows: [
         {
-          repository: "read",
-          name: "builder",
+          repository: "write",
+          integration: { validationCommand: ["true"] },
+          name: "security-review",
           definitionPath: "src/core/workflow/runtime-dispatch-write-scope.test.ts",
           moduleRoot: workspaceRoot,
           triggers: [{ event: "manual", cooldownMs: 0 }],
           steps: [
             {
-              id: "build",
+              id: "investigate-candidates",
               type: "agent",
-              agentName: "builder",
+              agentName: "security-reviewer",
               harness: harnessName,
               promptPath: "prompt.md",
               model: "test-model",
@@ -257,48 +290,28 @@ describe("runtime dispatch write-scope attribution", () => {
               autonomyMode: "autonomous",
               timeoutMs: 10_000,
             },
-          ],
-        },
-        {
-          repository: "read",
-          name: "progress-reviewer",
-          definitionPath: "src/core/workflow/runtime-dispatch-write-scope.test.ts",
-          moduleRoot: workspaceRoot,
-          triggers: [{ event: "manual", cooldownMs: 0 }],
-          steps: [
             {
-              id: "review-evidence",
-              type: "agent",
-              agentName: "progress-reviewer",
-              harness: harnessName,
-              promptPath: "prompt.md",
-              model: "test-model",
-              effort: "low",
-              autonomyMode: "passive",
-              timeoutMs: 10_000,
+              id: "record-review-outcome",
+              type: "code",
+              run: (context) => {
+                writeFileSync(
+                  join(context.workspaceRoot, reviewOutputPath),
+                  "security review outcome\n",
+                );
+              },
             },
           ],
         },
       ],
       resolveAgentDef: (name) => {
-        if (name === "builder") {
+        if (name === "security-reviewer") {
           return {
             name,
-            role: "Mutate builder files.",
+            role: "Investigate candidates without mutating repository files.",
             promptPath: "prompt.md",
             model: "test-model",
             effort: "low",
-            writeScope: [],
-          };
-        }
-        if (name === "progress-reviewer") {
-          return {
-            name,
-            role: "Review evidence without mutating source files.",
-            promptPath: "prompt.md",
-            model: "test-model",
-            effort: "low",
-            writeScope: [".kota/runs/"],
+            writeScope: "deny-all",
           };
         }
         return undefined;
@@ -307,50 +320,210 @@ describe("runtime dispatch write-scope attribution", () => {
 
     runtime.start();
     try {
-      expect(runtime.enqueuePendingRun("builder").ok).toBe(true);
-      await waitUntil(() => builderStartedAt > 0, "Timed out waiting for builder agent");
+      expect(runtime.enqueuePendingRun("security-review").ok).toBe(true);
+      await waitUntil(
+        () => reviewerStarted,
+        "Timed out waiting for security reviewer",
+      );
 
-      expect(runtime.enqueuePendingRun("progress-reviewer").ok).toBe(true);
+      writeFileSync(
+        join(workspaceRoot, preExistingDirtyPath),
+        "native writer final\n",
+      );
+      writeFileSync(
+        join(workspaceRoot, concurrentStagedPath),
+        "native writer addition\n",
+      );
+      execFileSync("git", ["add", preExistingDirtyPath, concurrentStagedPath], {
+        cwd: workspaceRoot,
+        stdio: "ignore",
+      });
+      expect(
+        execFileSync("git", ["diff", "--cached", "--name-only"], {
+          cwd: workspaceRoot,
+          encoding: "utf8",
+        }).trim().split("\n").sort(),
+      ).toEqual([concurrentStagedPath, preExistingDirtyPath].sort());
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "user.email=t@t",
+          "-c",
+          "user.name=T",
+          "commit",
+          "-m",
+          "native writer",
+        ],
+        { cwd: workspaceRoot, stdio: "ignore" },
+      );
+      finishReview();
       await waitUntil(
         () =>
-          countWorkflowRuns(workspaceRoot, "builder") === 1 &&
-          countWorkflowRuns(workspaceRoot, "progress-reviewer") === 1 &&
+          countWorkflowRuns(workspaceRoot, "security-review") === 1 &&
           !runtime.isBusy(),
-        "Timed out waiting for shared-workspace agent runs",
+        "Timed out waiting for security review",
       );
     } finally {
       await runtime.stop();
       runState.close();
     }
 
-    expect(builderCompletedAt).toBeGreaterThan(0);
-    expect(reviewerStartedAt).toBeLessThan(builderCompletedAt);
-
-    const progressRunId = readdirSync(join(workspaceRoot, ".kota", "runs")).find(
-      (runId) => runId.includes("progress-reviewer"),
+    expect(reviewerWorkspace).not.toBe(workspaceRoot);
+    expect(reviewerSawExisting).toBe("canonical baseline\n");
+    expect(reviewerSawConcurrent).toBe(false);
+    expect(readFileSync(join(workspaceRoot, preExistingDirtyPath), "utf8")).toBe(
+      "native writer final\n",
     );
-    expect(progressRunId).toBeDefined();
+    expect(readFileSync(join(workspaceRoot, concurrentStagedPath), "utf8")).toBe(
+      "native writer addition\n",
+    );
+    expect(readFileSync(join(workspaceRoot, reviewOutputPath), "utf8")).toBe(
+      "security review outcome\n",
+    );
+    expect(execFileSync("git", ["status", "--porcelain"], {
+      cwd: workspaceRoot,
+      encoding: "utf8",
+    })).toBe("");
+
+    const securityRunId = readdirSync(join(workspaceRoot, ".kota", "runs")).find(
+      (runId) => runId.includes("security-review"),
+    );
+    expect(securityRunId).toBeDefined();
     const metadata = JSON.parse(
       readFileSync(
-        join(workspaceRoot, ".kota", "runs", progressRunId!, "metadata.json"),
+        join(workspaceRoot, ".kota", "runs", securityRunId!, "metadata.json"),
         "utf-8",
       ),
     ) as { status: string; steps: Array<{ id: string; status: string }> };
     expect(metadata.status).toBe("success");
-    expect(metadata.steps.find((step) => step.id === "review-evidence")).toMatchObject({
-      status: "success",
-    });
+    expect(
+      metadata.steps.find((step) => step.id === "investigate-candidates"),
+    ).toMatchObject({ status: "success" });
+    expect(
+      metadata.steps.find((step) => step.id === "record-review-outcome"),
+    ).toMatchObject({ status: "success" });
     expect(
       existsSync(
         join(
           workspaceRoot,
           ".kota",
           "runs",
-          progressRunId!,
+          securityRunId!,
           "steps",
-          "review-evidence.write-scope-violation.json",
+          "investigate-candidates.write-scope-violation.json",
         ),
       ),
     ).toBe(false);
+  });
+
+  it("fails a genuine deny-all reviewer mutation with inspectable provenance", async () => {
+    const harnessName =
+      `runtime-dispatch-write-scope-violation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const violationPath = "data/tasks/reviewer-authored.md";
+    writeFileSync(join(workspaceRoot, "prompt.md"), "Review.\n");
+
+    registerAgentHarness({
+      name: harnessName,
+      description: "runtime dispatch write-scope violation harness",
+      supportsMultiTurn: false,
+      supportedHookKinds: [],
+      askOwnerToolName: null,
+      emitsAgentMessageStream: false,
+      toolControl: "kota",
+      run: async (options) => {
+        const target = join(options.cwd ?? workspaceRoot, violationPath);
+        mkdirSync(dirname(target), { recursive: true });
+        writeFileSync(target, "reviewer mutation\n");
+        return {
+          text: "done",
+          streamedText: "done",
+          turns: 1,
+          usage: UNKNOWN_AGENT_USAGE,
+          isError: false,
+        };
+      },
+    });
+
+    const { runtime, runState } = createRuntime({
+      bus: new EventBus(),
+      scopeRoot: workspaceRoot,
+      idleIntervalMs: 60_000,
+      workflows: [{
+        repository: "write",
+        integration: { validationCommand: ["true"] },
+        name: "security-review",
+        definitionPath: "src/core/workflow/runtime-dispatch-write-scope.test.ts",
+        moduleRoot: workspaceRoot,
+        triggers: [{ event: "manual", cooldownMs: 0 }],
+        steps: [{
+          id: "investigate-candidates",
+          type: "agent",
+          agentName: "security-reviewer",
+          harness: harnessName,
+          promptPath: "prompt.md",
+          model: "test-model",
+          effort: "low",
+          autonomyMode: "autonomous",
+          timeoutMs: 10_000,
+        }],
+      }],
+      resolveAgentDef: (name) =>
+        name === "security-reviewer"
+          ? {
+              name,
+              role: "Investigate candidates without mutating repository files.",
+              promptPath: "prompt.md",
+              model: "test-model",
+              effort: "low",
+              writeScope: "deny-all",
+            }
+          : undefined,
+    });
+
+    runtime.start();
+    try {
+      expect(runtime.enqueuePendingRun("security-review").ok).toBe(true);
+      await waitUntil(
+        () =>
+          countWorkflowRuns(workspaceRoot, "security-review") === 1 &&
+          !runtime.isBusy(),
+        "Timed out waiting for rejected security review",
+      );
+    } finally {
+      await runtime.stop();
+      runState.close();
+    }
+
+    const securityRunId = readdirSync(join(workspaceRoot, ".kota", "runs")).find(
+      (runId) => runId.includes("security-review"),
+    );
+    expect(securityRunId).toBeDefined();
+    const runDir = join(workspaceRoot, ".kota", "runs", securityRunId!);
+    const metadata = JSON.parse(
+      readFileSync(join(runDir, "metadata.json"), "utf8"),
+    ) as { status: string; steps: Array<{ id: string; status: string }> };
+    expect(metadata.status).toBe("failed");
+    expect(
+      metadata.steps.find((step) => step.id === "investigate-candidates"),
+    ).toMatchObject({ status: "failed" });
+    expect(
+      JSON.parse(
+        readFileSync(
+          join(
+            runDir,
+            "steps",
+            "investigate-candidates.write-scope-violation.json",
+          ),
+          "utf8",
+        ),
+      ),
+    ).toMatchObject({
+      stepId: "investigate-candidates",
+      agentName: "security-reviewer",
+      scope: "deny-all",
+      violations: [violationPath],
+    });
+    expect(existsSync(join(workspaceRoot, violationPath))).toBe(false);
   });
 });

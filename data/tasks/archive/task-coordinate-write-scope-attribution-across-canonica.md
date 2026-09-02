@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-protect-workflow-authority-provenance-from-agent-w]
+status: done
 ---
 
 # Coordinate write-scope attribution across canonical workspace writers
@@ -28,6 +26,34 @@ closed with inspectable provenance.
 
 - The issue's root cause is fixed or disproven with inspectable evidence.
 - A typed clear observation or explicit disposition resolves the durable issue.
+
+## Resolution
+
+The shared-canonical-workspace execution shape has been removed by the unified
+workflow runtime. `RunSandboxManager` gives repository readers a detached
+worktree and writers a distinct runtime-owned branch/worktree;
+`IntegrationQueue` alone serializes publication to the canonical branch.
+Agent write-scope snapshots therefore observe only the run-owned workspace.
+
+The core runtime regression now reproduces the cited shape with the production
+security-review repository contract. A canonical/native writer changes and
+stages task paths during `investigate-candidates`, then publishes its work. The
+reviewer sees only its admitted snapshot; its own code-step change subsequently
+rebases, validates, and publishes through `IntegrationQueue` without a false
+violation or loss of the native writer's changes. A companion writer-workflow
+case proves a reviewer-authored task mutation still fails closed and records the
+exact path in the write-scope violation artifact.
+
+`$KOTA_RUN_DIR/write-scope-attribution-evidence.md` and the typed
+`$KOTA_RUN_DIR/write-scope-attribution-disposition.json` record the
+architectural disposition and focused validation. The stale dead letter is
+explicitly dispositioned for dismissal rather than redrive: replaying its
+trigger under the isolated writer runtime cannot recreate its
+shared-canonical-workspace failure. The production replacement review
+`2026-08-24T02-28-34-718Z-security-review-qly4j5` published commit
+`20e858c75147b1449fd2fe3f1645ea66f5702f0e`; Git ancestry proves that review
+covered the interrupted `54d03b1cf82bba8e59902a6deb3cd7b36d477194`
+change set.
 
 ## Source / Intent
 
