@@ -1577,7 +1577,7 @@
         "createdAt"
       ],
       "additionalProperties": false,
-      "description": "Prior-answer envelope hit payload surfaced through `recall`.\n\nThe hit is the persistent shadow of a prior `AnswerProvider.answer(query)` call. `query` is the original operator question that produced the envelope; `preview` is a clipped view of the synthesized answer text on the success arm or the failure reason on the failure arm; `citationCount` is the size of the typed `[source:id]` citation list the synthesizer resolved. A zero count identifies a failed prior answer; its `preview` carries the answer owner's failure reason without copying that result union into recall's public contract."
+      "description": "Prior-answer envelope hit payload surfaced through `recall`.\n\nThe hit is the persistent shadow of a prior cited-answer query call. `query` is the original operator question that produced the envelope; `preview` is a clipped view of the synthesized answer text on the success arm or the failure reason on the failure arm; `citationCount` is the size of the typed `[source:id]` citation list the synthesizer resolved. A zero count identifies a failed prior answer; its `preview` carries the answer owner's failure reason without copying that result union into recall's public contract."
     },
     "AnswerResult": {
       "anyOf": [
@@ -1644,7 +1644,7 @@
         "tasks",
         "answer"
       ],
-      "description": "Source of a `RecallHit`. The cross-store recall seam discriminates each hit by which store originated it. Adding a new contributor extends this union and the `RecallHit` discriminated type below.\n\n`answer` carries the assistant's own prior cited-answer envelopes — every `AnswerProvider.answer` call appends a record to the answer-history store, and the answer module registers a recall contributor over that store so a fact-shaped follow-up turn can ground in prior synthesized answers alongside the raw `knowledge` / `memory` / `history` / `tasks` stores."
+      "description": "Source of a `RecallHit`. The cross-store recall seam discriminates each hit by which store originated it. Adding a new contributor extends this union and the `RecallHit` discriminated type below.\n\n`answer` carries the assistant's own prior cited-answer envelopes — every Each cited-answer call appends a record to the answer-history store, and the answer module registers a recall contributor over that store so a fact-shaped follow-up turn can ground in prior synthesized answers alongside the raw `knowledge` / `memory` / `history` / `tasks` stores."
     },
     "AnswerFailure": {
       "type": "object",
@@ -1807,7 +1807,7 @@
         "result"
       ],
       "additionalProperties": false,
-      "description": "Persisted record of one `AnswerProvider.answer(query, filter?)` call.\n\nOne record per call regardless of `ok`. The record carries the original query verbatim, the post-default filter actually used, the typed `RecallHit[]` the synthesizer was shown (or what recall returned for `ok: false` arms that never reached the synthesizer), and the discriminated `AnswerResult` envelope the caller saw. The shape is the eval-harness corpus seam — every fixture authored from this store is a strict subset of these fields."
+      "description": "Persisted record of one cited-answer query.\n\nOne record per call regardless of `ok`. The record carries the original query verbatim, the post-default filter actually used, the typed `RecallHit[]` the synthesizer was shown (or what recall returned for `ok: false` arms that never reached the synthesizer), and the discriminated `AnswerResult` envelope the caller saw. The shape is the eval-harness corpus seam — every fixture authored from this store is a strict subset of these fields."
     },
     "AnswerFilter": {
       "$ref": "#/definitions/RecallFilter",
