@@ -5,6 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
+import {
+  enqueuePendingRun,
+  type WorkflowRuntimeRunsControlState,
+} from "./runtime-runs-control.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
@@ -19,26 +23,40 @@ function trigger(
   return { event, schemaRef: null, payload };
 }
 
-function workflow(scopeRoot: string): WorkflowDefinition {
+type ContractChange =
+  | "none"
+  | "event"
+  | "payload"
+  | "admission"
+  | "resources"
+  | "repository";
+
+function workflow(scopeRoot: string, contractChange: ContractChange = "none"): WorkflowDefinition {
   return validateWorkflowDefinitions(
     [
       registerWorkflowDefinition("test/workflow.ts", {
         name: "semantic-review",
-        repository: "read",
-        triggers: [{ event: "review.changed", queueMode: "all" }],
+        repository: contractChange === "repository" ? "none" : "read",
+        triggers: [
+          {
+            event: contractChange === "event" ? "review.replaced" : "review.changed",
+            queueMode: "all",
+          },
+        ],
         inputSchema: {
           type: "object",
           required: ["taskId", "revision"],
           properties: {
             taskId: { type: "string" },
-            revision: { type: "number" },
+            revision: { type: contractChange === "payload" ? "string" : "number" },
           },
         },
         resources: ({ trigger: runTrigger }) => [
-          `task:${String(runTrigger.payload.taskId)}`,
+          `task:${String(runTrigger.payload.taskId)}${contractChange === "resources" ? ":current" : ""}`,
         ],
         triggerAdmission: ({ trigger: runTrigger }) =>
-          runTrigger.event === "manual" || runTrigger.payload.revision !== 0
+          contractChange !== "admission" &&
+          (runTrigger.event === "manual" || runTrigger.payload.revision !== 0)
             ? { admitted: true }
             : { admitted: false, reason: "revision was already consumed" },
         steps: [{ id: "noop", type: "code", run: () => ({ ok: true }) }],
@@ -143,13 +161,11 @@ describe("durable workflow queue restoration", () => {
 
     queue.restorePending();
 
-    expect(queue.getRuns().map((run) => run.runId)).toEqual([
-      "valid",
-      "manual-control",
-    ]);
+    expect(queue.getRuns().map((run) => run.runId)).toEqual(["valid"]);
     expect(runState.listRuns(SCOPE_ID, ["cancelled"]).map((run) => run.id).sort()).toEqual([
       "changed-resource",
       "invalid-payload",
+      "manual-control",
       "missing-definition",
       "obsolete-event",
       "rejected-admission",
@@ -160,8 +176,114 @@ describe("durable workflow queue restoration", () => {
         expect.stringContaining("payload validation failed"),
         expect.stringContaining("revision was already consumed"),
         expect.stringContaining("resource ownership changed"),
-        expect.stringContaining("Recovered 2 durable queued workflow run(s)"),
+        expect.stringContaining("Recovered 1 durable queued workflow run(s)"),
       ]),
     );
   });
+
+  it.each([
+    ["the event is no longer accepted", "event"],
+    ["the payload no longer matches the schema", "payload"],
+    ["current trigger admission rejects it", "admission"],
+    ["resource ownership changed", "resources"],
+    ["repository access changed", "repository"],
+  ] as const)(
+    "keeps a retained run in attention when %s",
+    (_reason, contractChange) => {
+      const admittedDefinition = workflow(scopeRoot);
+      const runId = `retained-${contractChange}`;
+      runState.admitRun({
+        id: runId,
+        scopeId: SCOPE_ID,
+        workflow: admittedDefinition.name,
+        trigger: trigger("review.changed", { taskId: contractChange, revision: 2 }),
+        repository: admittedDefinition.repository,
+        resources: [`task:${contractChange}`],
+        admittedAt: "2026-08-25T10:00:00.000Z",
+      });
+      runState.requireRunAttention(runId, "preserved after runtime interruption", []);
+
+      const currentDefinition = workflow(scopeRoot, contractChange);
+      const refill = vi.fn();
+      const queue = new WorkflowQueueManager({
+        store: new WorkflowRunStore(scopeRoot),
+        runState,
+        coordinator: { refill } as unknown as RunCoordinator,
+        scopeId: SCOPE_ID,
+        scopeRoot,
+        getScopeId: () => SCOPE_ID,
+        getActiveBackoff: () => null,
+        workflowUsesAgent: () => false,
+        getDefinitions: () => [currentDefinition],
+        log: vi.fn(),
+      });
+      const state = {
+        definitions: [currentDefinition],
+        runtimeConfig: { runState, scopeId: SCOPE_ID },
+        wfQueue: queue,
+      } as unknown as WorkflowRuntimeRunsControlState;
+
+      expect(
+        enqueuePendingRun(state, currentDefinition.name, {
+          payload: { retryOf: runId },
+        }),
+      ).toEqual({
+        ok: false,
+        error: `Retained run "${runId}" no longer matches the loaded workflow contract`,
+        reason: "workflow_contract_conflict",
+      });
+      expect(runState.getRun(runId)?.state).toBe("needs_attention");
+      expect(refill).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(["manual", "resume", "workflow.triggered"] as const)(
+    "revalidates the current payload schema before resuming a retained %s run",
+    (event) => {
+      const admittedDefinition = workflow(scopeRoot);
+      const runId = `retained-${event}`;
+      runState.admitRun({
+        id: runId,
+        scopeId: SCOPE_ID,
+        workflow: admittedDefinition.name,
+        trigger: trigger(event, { taskId: event, revision: 2 }),
+        repository: admittedDefinition.repository,
+        resources: [`task:${event}`],
+        admittedAt: "2026-08-25T10:00:00.000Z",
+      });
+      runState.requireRunAttention(runId, "preserved after runtime interruption", []);
+
+      const currentDefinition = workflow(scopeRoot, "payload");
+      const refill = vi.fn();
+      const queue = new WorkflowQueueManager({
+        store: new WorkflowRunStore(scopeRoot),
+        runState,
+        coordinator: { refill } as unknown as RunCoordinator,
+        scopeId: SCOPE_ID,
+        scopeRoot,
+        getScopeId: () => SCOPE_ID,
+        getActiveBackoff: () => null,
+        workflowUsesAgent: () => false,
+        getDefinitions: () => [currentDefinition],
+        log: vi.fn(),
+      });
+      const state = {
+        definitions: [currentDefinition],
+        runtimeConfig: { runState, scopeId: SCOPE_ID },
+        wfQueue: queue,
+      } as unknown as WorkflowRuntimeRunsControlState;
+
+      expect(
+        enqueuePendingRun(state, currentDefinition.name, {
+          payload: { retryOf: runId },
+        }),
+      ).toEqual({
+        ok: false,
+        error: `Retained run "${runId}" no longer matches the loaded workflow contract`,
+        reason: "workflow_contract_conflict",
+      });
+      expect(runState.getRun(runId)?.state).toBe("needs_attention");
+      expect(refill).not.toHaveBeenCalled();
+    },
+  );
 });

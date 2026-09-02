@@ -265,6 +265,7 @@ export class WorkflowRuntime {
     runId?: string;
     alreadyQueued?: boolean;
     error?: string;
+    reason?: "workflow_contract_conflict";
   } {
     return enqueuePendingRun(this.ctx, name, options);
   }

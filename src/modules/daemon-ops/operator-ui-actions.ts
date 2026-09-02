@@ -97,12 +97,15 @@ async function triggerRunFollowUp(args: {
       });
   const result = await args.client.workflow.triggerByName(run.workflow, options);
   if (!result.ok) {
+    const message = result.reason === "daemon_required"
+      ? `The daemon must be running to queue ${run.workflow}.`
+      : result.reason === "workflow_contract_conflict"
+        ? `Workflow ${run.workflow} no longer accepts the retained run's trigger contract.`
+        : `Workflow ${run.workflow} is already queued.`;
     return {
       ok: false,
       reason: result.reason,
-      message: result.reason === "daemon_required"
-        ? `The daemon must be running to queue ${run.workflow}.`
-        : `Workflow ${run.workflow} is already queued.`,
+      message,
     };
   }
   return {

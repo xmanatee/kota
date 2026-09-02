@@ -247,10 +247,13 @@ async function executeCanonicalWorkflow(
 		runId: requestedRunId,
 	});
 	if (!admission.ok) {
+		const reason = admission.reason === "daemon_required"
+			? "daemon-owned workflow authority is unavailable"
+			: admission.reason === "workflow_contract_conflict"
+				? "the retained run no longer matches the loaded workflow contract"
+				: "the run is already queued";
 		throw new Error(
-			admission.reason === "daemon_required"
-				? `Cannot execute canonical workflow "${name}": daemon-owned workflow authority is unavailable`
-				: `Cannot execute canonical workflow "${name}": the run is already queued`,
+			`Cannot execute canonical workflow "${name}": ${reason}`,
 		);
 	}
 	const runId = admission.runId ?? requestedRunId;

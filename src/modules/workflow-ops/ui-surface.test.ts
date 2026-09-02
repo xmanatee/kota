@@ -193,7 +193,17 @@ describe("operator UI runtime actions", () => {
 
     const retry = surface.actions.find((candidate) => candidate.actionId === "run.retry");
     if (!retry) throw new Error("run.retry action missing");
-    const triggerByName = vi.fn(async () => ({ ok: true as const, path: "daemon" as const, queued: "builder" }));
+    const triggerByName = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true as const,
+        path: "daemon" as const,
+        queued: "builder",
+      })
+      .mockResolvedValueOnce({
+        ok: false as const,
+        reason: "workflow_contract_conflict" as const,
+      });
     const client = createKotaClientTestDouble({
       workflow: {
         getRun: vi.fn(async () => ({
@@ -217,11 +227,21 @@ describe("operator UI runtime actions", () => {
       parameters: { runId: "run-failed-1" },
     });
     expect(result).toEqual({ ok: true, message: "Queued retry of builder from run-failed-1." });
-    expect(triggerByName).toHaveBeenCalledWith("builder", {
+    expect(triggerByName).toHaveBeenNthCalledWith(1, "builder", {
       event: "manual",
       schemaRef: null,
       runId: expect.stringMatching(/-builder-/),
       payload: { retryOf: "run-failed-1" },
+    });
+
+    await expect(executeUiAction({
+      action: retry,
+      client,
+      parameters: { runId: "run-failed-1" },
+    })).resolves.toEqual({
+      ok: false,
+      reason: "workflow_contract_conflict",
+      message: "Workflow builder no longer accepts the retained run's trigger contract.",
     });
   });
 });

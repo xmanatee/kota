@@ -652,6 +652,21 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     });
   });
 
+  it("triggerByName preserves a typed workflow-contract conflict", async () => {
+    const { transport } = makeRecordingTransport({
+      respondFetch: () =>
+        jsonResponse(409, {
+          error: "Retained run no longer matches the loaded workflow contract",
+          reason: "workflow_contract_conflict",
+        }),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+    expect(await wf.triggerByName("wf-1")).toEqual({
+      ok: false,
+      reason: "workflow_contract_conflict",
+    });
+  });
+
   it("triggerByName falls back queued to the workflow name when the daemon body omits it", async () => {
     const { transport } = makeRecordingTransport({
       respondFetch: () => jsonResponse(200, {}),

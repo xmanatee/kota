@@ -1305,6 +1305,34 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(409);
     });
 
+    it("returns 409 when a retained run no longer matches the workflow contract", async () => {
+      handle = makeHandle({
+        enqueuePendingRun: vi.fn(() => ({
+          ok: false,
+          error: "Retained run no longer matches the loaded workflow contract",
+          reason: "workflow_contract_conflict" as const,
+        })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/trigger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "builder",
+          payload: { retryOf: "retained-builder-run" },
+        }),
+      });
+
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({
+        error: "Retained run no longer matches the loaded workflow contract",
+        reason: "workflow_contract_conflict",
+      });
+    });
+
     it("returns 400 when enqueue fails with an error message", async () => {
       handle = makeHandle({
         enqueuePendingRun: vi.fn(() => ({ ok: false, error: "No such workflow" })),

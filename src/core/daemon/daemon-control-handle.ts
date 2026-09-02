@@ -138,7 +138,7 @@ export type DaemonControlHandle = {
     runId?: string;
     alreadyQueued?: boolean;
     error?: string;
-    reason?: "scope_not_hosted";
+    reason?: "scope_not_hosted" | "workflow_contract_conflict";
     scopeId?: ScopeId;
     state?: Exclude<ScopeHostingState, "hosted">;
   };

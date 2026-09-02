@@ -200,7 +200,13 @@ export type WorkflowTriggerOptions = WorkflowEnqueueOptions & ScopeSelector;
  */
 export type WorkflowTriggerResult =
   | { ok: true; path: "daemon"; queued: string; runId?: string }
-  | { ok: false; reason: "already_queued" | "daemon_required" };
+  | {
+      ok: false;
+      reason:
+        | "already_queued"
+        | "daemon_required"
+        | "workflow_contract_conflict";
+    };
 
 /**
  * Result of `workflow.listDefinitions`. `source` carries which side produced

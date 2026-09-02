@@ -372,7 +372,6 @@ export class WorkflowQueueManager {
       return `event "${run.trigger.event}" is not accepted by the current definition`;
     }
     if (
-      resolution.kind === "declared" &&
       rejectInvalidTriggerPayload({
         definition,
         trigger: run.trigger,

@@ -15,11 +15,15 @@ import { getValidatedWorkflowDefinitions } from "../definitions-source.js";
 
 function triggerFailureMessage(
   workflowName: string,
-  reason: "already_queued" | "daemon_required",
+  reason: "already_queued" | "daemon_required" | "workflow_contract_conflict",
 ): string {
-  return reason === "daemon_required"
-    ? `Cannot queue workflow "${workflowName}" while the daemon is offline.`
-    : `Workflow "${workflowName}" is already queued.`;
+  if (reason === "daemon_required") {
+    return `Cannot queue workflow "${workflowName}" while the daemon is offline.`;
+  }
+  if (reason === "workflow_contract_conflict") {
+    return `Workflow "${workflowName}" no longer accepts the retained run's trigger contract.`;
+  }
+  return `Workflow "${workflowName}" is already queued.`;
 }
 
 /**

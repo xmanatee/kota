@@ -52,6 +52,7 @@ export function enqueuePendingRun(
   runId?: string;
   alreadyQueued?: boolean;
   error?: string;
+  reason?: "workflow_contract_conflict";
 } {
   const definition = state.definitions.find((d) => d.name === name);
   if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
@@ -70,6 +71,7 @@ export function enqueuePendingRun(
         return {
           ok: false,
           error: `Retained run "${retryOf}" no longer matches the loaded workflow contract`,
+          reason: "workflow_contract_conflict",
         };
       }
       maybeStartNext(state);

@@ -294,6 +294,20 @@ const workflowModule: KotaModule = {
   daemonClient: (link) => ({ workflow: buildWorkflowDaemonHandler(link) }),
 };
 
+function decodeWorkflowTriggerConflict(
+  payload: unknown,
+): "already_queued" | "workflow_contract_conflict" {
+  if (
+    typeof payload === "object" &&
+    payload !== null &&
+    "reason" in payload &&
+    payload.reason === "workflow_contract_conflict"
+  ) {
+    return "workflow_contract_conflict";
+  }
+  return "already_queued";
+}
+
 /**
  * Daemon-side `WorkflowClient` backed by the typed `DaemonTransport`. Routes
  * workflow namespace methods through the daemon HTTP control routes.
@@ -331,7 +345,9 @@ const workflowModule: KotaModule = {
  *  - `triggerByName(name, options)` → `POST /workflow/trigger` with body
  *    from `buildOperatorTriggerRequestBody`, preserving event, schema, payload, run id,
  *    tags, and dispatch eligibility in the daemon-owned admission path.
- *    Throws on transport failure; 409 → `{ ok: false, reason: "already_queued" }`;
+ *    Throws on transport failure; 409 decodes the daemon's typed
+ *    `workflow_contract_conflict` reason and otherwise reports
+ *    `{ ok: false, reason: "already_queued" }`;
  *    success returns `{ ok: true, path: "daemon", queued: result.queued ?? name,
  *    ...(result.runId !== undefined && { runId: result.runId }) }`.
  *  - `trial(name, options)` → `POST /workflow/trial` with body
@@ -590,7 +606,9 @@ export function buildWorkflowDaemonHandler(
         throw new Error(`Daemon unreachable while triggering workflow "${name}"`);
       }
       if (resp.status === 409) {
-        return { ok: false, reason: "already_queued" };
+        const body: unknown = await resp.json().catch(() => null);
+        const reason = decodeWorkflowTriggerConflict(body);
+        return { ok: false, reason };
       }
       if (!resp.ok) {
         throw new Error(`Daemon unreachable while triggering workflow "${name}"`);

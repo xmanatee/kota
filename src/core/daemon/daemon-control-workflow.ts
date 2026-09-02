@@ -263,6 +263,13 @@ export function handleTriggerWorkflow(
         });
         return;
       }
+      if (result.reason === "workflow_contract_conflict") {
+        jsonResponse(res, 409, {
+          error: result.error,
+          reason: result.reason,
+        });
+        return;
+      }
       if (!result.ok) {
         jsonResponse(res, 400, { error: result.error ?? "Failed to enqueue workflow" });
         return;
