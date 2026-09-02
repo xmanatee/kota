@@ -21,8 +21,7 @@ import type {
 import type { AnswerHistoryStore } from "./answer-history-store.js";
 import type {
   AnswerCitation,
-  AnswerFilter,
-  AnswerResult,
+  AnswerClient,
 } from "./client.js";
 
 export type { AnswerCitation, AnswerFilter, AnswerResult } from "./client.js";
@@ -84,6 +83,19 @@ export type AnswerScopeContext = {
   history: AnswerHistoryStore;
 };
 
+export type ResolveAnswerScopeContext = (
+  scopeId: string | null | undefined,
+) => AnswerScopeContext | { error: "unknown_scope"; scopeId: string };
+
+export class AnswerScopeSelectionError extends Error {
+  readonly reason = "unknown_scope" as const;
+
+  constructor(readonly scopeId: string) {
+    super(`Unknown scope: ${scopeId}`);
+    this.name = "AnswerScopeSelectionError";
+  }
+}
+
 /**
  * Result of parsing the model output into prose plus typed citations.
  * `unknownMarkers` carries the `[source:id]` pairs that did not resolve
@@ -95,15 +107,6 @@ export type ParsedSynthesis = {
   unknownMarkers: string[];
 };
 
-/** The owning provider seam. */
-export interface AnswerProvider {
-  answer(
-    query: string,
-    filter?: AnswerFilter,
-    scope?: AnswerScopeContext,
-  ): Promise<AnswerResult>;
-}
-
 /** Provider-registry token for the cited-answer seam. */
-export const ANSWER_PROVIDER_TOKEN: ProviderToken<AnswerProvider> =
-  defineProviderToken<AnswerProvider>("answer");
+export const ANSWER_PROVIDER_TOKEN: ProviderToken<AnswerClient> =
+  defineProviderToken<AnswerClient>("answer");

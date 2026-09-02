@@ -183,13 +183,11 @@ describe("scope-scoped cross-store daemon routes", () => {
     };
     const answerProvider = new AnswerProviderImpl({
       recall: {
-        recall: async (query, filter) => ({
-          ok: true,
-          hits: await recallProvider.recall(query, filter),
-        }),
+        recall: async (query, filter) => recallProvider.recall(query, filter),
       },
       synthesizer,
       history: historyA,
+      resolveScopeContext: answerScope,
     });
 
     const retractScope = createRetractScopeContextResolver(scopeA.scopeRoot);
@@ -198,8 +196,8 @@ describe("scope-scoped cross-store daemon routes", () => {
     });
 
     capture = createCaptureRouteHandler(() => captureProvider, captureScope);
-    recall = createRecallRouteHandler(() => recallProvider, recallScope);
-    answer = createAnswerRouteHandler(() => answerProvider, answerScope);
+    recall = createRecallRouteHandler(() => recallProvider);
+    answer = createAnswerRouteHandler(() => answerProvider);
     retract = createRetractRouteHandler(() => retractProvider, retractScope);
 
   });

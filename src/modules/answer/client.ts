@@ -47,6 +47,16 @@ export type AnswerCitation = {
   id: string;
 };
 
+export type AnswerFailureReason =
+  | "no_hits"
+  | "semantic_unavailable"
+  | "synthesis_failed";
+
+export type AnswerFailure = {
+  ok: false;
+  reason: AnswerFailureReason;
+};
+
 /**
  * Result of `answer.answer`.
  *
@@ -69,13 +79,10 @@ export type AnswerResult =
       citations: AnswerCitation[];
       hits: RecallHit[];
     }
-  | {
-      ok: false;
-      reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
-    };
+  | AnswerFailure;
 
 /**
- * Persisted record of one `AnswerProvider.answer(query, filter?)` call.
+ * Persisted record of one cited-answer query.
  *
  * One record per call regardless of `ok`. The record carries the original
  * query verbatim, the post-default filter actually used, the typed
@@ -106,7 +113,7 @@ export type AnswerHistoryEntry = {
   query: string;
   result:
     | { ok: true; citationCount: number }
-    | { ok: false; reason: "no_hits" | "semantic_unavailable" | "synthesis_failed" };
+    | AnswerFailure;
 };
 
 /**

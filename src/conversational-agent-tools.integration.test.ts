@@ -208,9 +208,11 @@ describe("conversational agent tools — prior answers surface as recall hits", 
     // typed `answer`-source hit for the query that already produced an
     // answer-history record. The scoring contract checked here is the
     // task's "comes back as one of the top-K", not the absolute score.
-    const hits = await harness.fixture.recallProvider.recall(ANSWER_QUERY, {
+    const recallResult = await harness.fixture.recallProvider.recall(ANSWER_QUERY, {
       topK: 8,
     });
+    if (!recallResult.ok) throw new Error("expected recall hits");
+    const hits = recallResult.hits;
     const sources = new Set(hits.map((h) => h.source));
     expect(sources.has("knowledge")).toBe(true);
     expect(sources.has("answer")).toBe(true);
@@ -218,7 +220,7 @@ describe("conversational agent tools — prior answers surface as recall hits", 
     if (!answerHit) throw new Error("expected an answer-source hit");
     if (answerHit.source !== "answer") throw new Error("type narrowing");
     expect(answerHit.query).toBe(ANSWER_QUERY);
-    expect(answerHit.result).toEqual({ ok: true });
+    expect(answerHit.citationCount).toBeGreaterThan(0);
 
     // Agent-loop assertion: the `recall` tool the agent fired through the
     // production harness rendered the same prior-answer hit alongside the
@@ -326,7 +328,7 @@ describe("conversational agent tools — answer-then-answer chain (prior cited a
       if (!answerHit) throw new Error("unreachable");
       if (answerHit.source !== "answer") throw new Error("type narrowing");
       expect(answerHit.query).toBe(ANSWER_QUERY);
-      expect(answerHit.result).toEqual({ ok: true });
+      expect(answerHit.citationCount).toBeGreaterThan(0);
     });
   });
 
@@ -440,8 +442,9 @@ describe("conversational agent tools — retract round trip", () => {
     const preHits = await fixture.recallProvider.recall(
       POST_RETRACT_RECALL_QUERY,
     );
+    if (!preHits.ok) throw new Error("setup: expected recall hits");
     if (
-      !preHits.some(
+      !preHits.hits.some(
         (h) => h.source === "memory" && h.id === retractedMemoryId,
       )
     ) {
@@ -543,9 +546,11 @@ describe("conversational agent tools — post-retract answer settles", () => {
       }
       retractedMemoryId = capture.id;
 
-      preRetractHits = await fixture.recallProvider.recall(
+      const preRetractResult = await fixture.recallProvider.recall(
         POST_RETRACT_ANSWER_QUERY,
       );
+      if (!preRetractResult.ok) throw new Error("setup: expected recall hits");
+      preRetractHits = preRetractResult.hits;
       if (
         !preRetractHits.some(
           (h) => h.source === "memory" && h.id === retractedMemoryId,

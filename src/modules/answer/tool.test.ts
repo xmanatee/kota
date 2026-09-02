@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RecallHit, RecallResult } from "#modules/recall/client.js";
-import type { AnswerHistorySink } from "./answer-history-store.js";
+import { RECALL_SOURCE_ORDER } from "#modules/recall/recall-types.js";
+import type { AnswerHistoryStore } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";
 import type { AnswerHistoryRecord } from "./client.js";
@@ -15,7 +16,7 @@ function fixedRecall(result: RecallResult): AnswerRecallSeam {
 }
 
 function recordingSink(): {
-  sink: AnswerHistorySink;
+  sink: AnswerHistoryStore;
   records: AnswerHistoryRecord[];
 } {
   const records: AnswerHistoryRecord[] = [];
@@ -25,6 +26,9 @@ function recordingSink(): {
       async appendAnswer(record) {
         records.push(record);
       },
+      async listAnswers() { return []; },
+      async getAnswer() { return null; },
+      async searchAnswers() { return []; },
     },
   };
 }
@@ -55,13 +59,7 @@ describe("answer tool — schema", () => {
     const props = answerTool.input_schema.properties as Record<string, unknown>;
     expect(props.query).toBeDefined();
     const sources = (props.sources as { items: { enum: string[] } }).items;
-    expect(sources.enum).toEqual([
-      "knowledge",
-      "memory",
-      "history",
-      "tasks",
-      "answer",
-    ]);
+    expect(sources.enum).toEqual(RECALL_SOURCE_ORDER);
   });
 });
 

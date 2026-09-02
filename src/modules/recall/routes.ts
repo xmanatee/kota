@@ -15,47 +15,15 @@ import type {
 } from "#core/modules/module-types.js";
 import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import type {
-  RecallFilter,
-  RecallResult,
-  RecallSource,
-} from "./client.js";
-import type { RecallProvider } from "./recall-types.js";
-import type { ResolveRecallScopeContext } from "./scope-context.js";
-
-const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
-  "knowledge",
-  "memory",
-  "history",
-  "tasks",
-  "answer",
-];
-
-function parseFilter(value: unknown): RecallFilter | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const raw = value as Record<string, unknown>;
-  const filter: RecallFilter = {};
-  if (typeof raw.topK === "number" && Number.isFinite(raw.topK)) {
-    filter.topK = raw.topK;
-  }
-  if (typeof raw.minScore === "number" && Number.isFinite(raw.minScore)) {
-    filter.minScore = raw.minScore;
-  }
-  if (Array.isArray(raw.sources)) {
-    const sources = raw.sources.filter((s): s is RecallSource =>
-      typeof s === "string" && (ALLOWED_SOURCES as readonly string[]).includes(s),
-    );
-    if (sources.length > 0) filter.sources = sources;
-  }
-  if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
-    filter.scopeId = raw.scopeId;
-  }
-  return filter;
-}
+import type { RecallResult } from "./client.js";
+import { decodeRecallQueryRequest } from "./query.js";
+import {
+  type RecallProvider,
+  RecallScopeSelectionError,
+} from "./recall-types.js";
 
 export function createRecallRouteHandler(
   resolveProvider: () => RecallProvider,
-  resolveScopeContext?: ResolveRecallScopeContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -68,35 +36,29 @@ export function createRecallRouteHandler(
       jsonResponse(res, 400, { error: "Invalid request body" });
       return;
     }
-    const query = typeof body.query === "string" ? body.query : "";
-    if (query.trim() === "") {
+    const decoded = decodeRecallQueryRequest(body);
+    if (!decoded) {
       jsonResponse(res, 400, { error: "query is required" });
       return;
     }
-    const filter = parseFilter(body.filter);
+    const { query, filter } = decoded;
     try {
       const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
       if (selectedId === null) return;
-      const scope = resolveScopeContext?.(selectedId);
-      if (scope && "error" in scope) {
+      const scopedFilter = selectedId === undefined
+        ? filter
+        : { ...filter, scopeId: selectedId };
+      const result = await resolveProvider().recall(query, scopedFilter);
+      jsonResponse(res, 200, result satisfies RecallResult);
+    } catch (err) {
+      if (err instanceof RecallScopeSelectionError) {
         jsonResponse(res, 404, {
           error: "Unknown scope",
-          reason: "unknown_scope",
-          scopeId: scope.scopeId,
+          reason: err.reason,
+          scopeId: err.scopeId,
         });
         return;
       }
-      const provider = resolveProvider();
-      if (provider.contributors().length === 0) {
-        jsonResponse(res, 200, {
-          ok: false,
-          reason: "semantic_unavailable",
-        } satisfies RecallResult);
-        return;
-      }
-      const hits = await provider.recall(query, filter, scope);
-      jsonResponse(res, 200, { ok: true, hits } satisfies RecallResult);
-    } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       jsonResponse(res, 500, { error: message });
     }
@@ -105,27 +67,25 @@ export function createRecallRouteHandler(
 
 export function recallControlRoutes(
   resolveProvider: () => RecallProvider,
-  resolveScopeContext?: ResolveRecallScopeContext,
 ): ControlRouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/recall",
       capabilityScope: "read",
-      handler: createRecallRouteHandler(resolveProvider, resolveScopeContext),
+      handler: createRecallRouteHandler(resolveProvider),
     },
   ];
 }
 
 export function recallApiRoutes(
   resolveProvider: () => RecallProvider,
-  resolveScopeContext?: ResolveRecallScopeContext,
 ): RouteRegistration[] {
   return [
     {
       method: "POST",
       path: "/api/recall",
-      handler: createRecallRouteHandler(resolveProvider, resolveScopeContext),
+      handler: createRecallRouteHandler(resolveProvider),
     },
   ];
 }

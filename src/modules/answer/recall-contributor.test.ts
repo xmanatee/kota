@@ -76,7 +76,6 @@ describe("createAnswerRecallContributor", () => {
     expect(hit.payload.query).toBe("How does the recall seam rank hits?");
     expect(hit.payload.preview).toContain("normalizes");
     expect(hit.payload.citationCount).toBe(1);
-    expect(hit.payload.result).toEqual({ ok: true });
     expect(hit.payload.createdAt).toBe("2026-04-27T10:00:00.000Z");
   });
 
@@ -99,10 +98,7 @@ describe("createAnswerRecallContributor", () => {
     const [hit] = hits;
     if (hit.source !== "answer") throw new Error("type narrowing");
     expect(hit.payload.citationCount).toBe(0);
-    expect(hit.payload.result).toEqual({
-      ok: false,
-      reason: "synthesis_failed",
-    });
+    expect(hit.payload.preview).toBe("synthesis_failed");
   });
 
   it("flows end-to-end through AnswerProviderImpl + searchAnswers", async () => {

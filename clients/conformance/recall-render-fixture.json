@@ -60,8 +60,7 @@
           "query": "How does the harness boundary work?",
           "preview": "The harness boundary is a typed protocol.",
           "citationCount": 2,
-          "createdAt": "2026-05-01T12:00:00.000Z",
-          "result": { "ok": true }
+          "createdAt": "2026-05-01T12:00:00.000Z"
         },
         {
           "source": "answer",
@@ -70,8 +69,7 @@
           "query": "Why did synthesis fail?",
           "preview": "Prior answer synthesis failed.",
           "citationCount": 0,
-          "createdAt": "2026-05-01T12:05:00.000Z",
-          "result": { "ok": false, "reason": "semantic_unavailable" }
+          "createdAt": "2026-05-01T12:05:00.000Z"
         }
       ]
     },
@@ -81,7 +79,7 @@
       "history:hist-1": "Recall design discussion",
       "tasks:task-recall": "[open/p2] Wire recall surfaces",
       "answer:ans-ok": "[ok(2)] How does the harness boundary work?",
-      "answer:ans-fail": "[semantic_unavailable] Why did synthesis fail?"
+      "answer:ans-fail": "[failed] Why did synthesis fail?"
     },
     "scores": {
       "knowledge:kn-1": "0.912",
@@ -91,7 +89,7 @@
       "answer:ans-ok": "0.521",
       "answer:ans-fail": "0.409"
     },
-    "plain": "knowledge  0.912  kn-1         Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current\nmemory     0.834  mem-1        Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27\nhistory    0.712  hist-1       Recall design discussion\ntasks      0.633  task-recall  [open/p2] Wire recall surfaces\nanswer     0.521  ans-ok       [ok(2)] How does the harness boundary work?\nanswer     0.409  ans-fail     [semantic_unavailable] Why did synthesis fail?"
+    "plain": "knowledge  0.912  kn-1         Cross-store recall fan-out | file:docs/ARCHITECTURE.md observed 2026-04-26; current\nmemory     0.834  mem-1        Remembers the recall fan-out cadence | run:2026-04-25T08-00-00Z-builder-demo observed 2026-04-25; superseded -> mem-2 2026-04-27\nhistory    0.712  hist-1       Recall design discussion\ntasks      0.633  task-recall  [open/p2] Wire recall surfaces\nanswer     0.521  ans-ok       [ok(2)] How does the harness boundary work?\nanswer     0.409  ans-fail     [failed] Why did synthesis fail?"
   },
   "empty": {
     "result": { "ok": true, "hits": [] },

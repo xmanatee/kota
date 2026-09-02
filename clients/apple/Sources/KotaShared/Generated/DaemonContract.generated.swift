@@ -378,7 +378,7 @@ indirect enum RecallHit: Codable, Equatable {
     case memory(score: Double, id: String, preview: String, created: String, updated: String?, provenance: WorkMemoryProvenance?, freshness: WorkMemoryFreshness?)
     case history(score: Double, id: String, title: String, cwd: String, updatedAt: String)
     case tasks(score: Double, id: String, title: String, state: String, priority: String?)
-    case answer(score: Double, id: String, query: String, preview: String, citationCount: Double, createdAt: String, result: RecallHitAnswerResult)
+    case answer(score: Double, id: String, query: String, preview: String, citationCount: Double, createdAt: String)
 
     private enum CodingKeys: String, CodingKey {
         case citationCount
@@ -391,7 +391,6 @@ indirect enum RecallHit: Codable, Equatable {
         case priority
         case provenance
         case query
-        case result
         case score
         case source
         case state
@@ -453,8 +452,7 @@ indirect enum RecallHit: Codable, Equatable {
                 query: try container.decode(String.self, forKey: .query),
                 preview: try container.decode(String.self, forKey: .preview),
                 citationCount: try container.decode(Double.self, forKey: .citationCount),
-                createdAt: try container.decode(String.self, forKey: .createdAt),
-                result: try container.decode(RecallHitAnswerResult.self, forKey: .result)
+                createdAt: try container.decode(String.self, forKey: .createdAt)
             )
             return
         }
@@ -496,7 +494,7 @@ indirect enum RecallHit: Codable, Equatable {
             try container.encode(title, forKey: .title)
             try container.encode(state, forKey: .state)
             try container.encode(priority, forKey: .priority)
-        case .answer(let score, let id, let query, let preview, let citationCount, let createdAt, let result):
+        case .answer(let score, let id, let query, let preview, let citationCount, let createdAt):
             try container.encode("answer", forKey: .source)
             try container.encode(score, forKey: .score)
             try container.encode(id, forKey: .id)
@@ -504,7 +502,6 @@ indirect enum RecallHit: Codable, Equatable {
             try container.encode(preview, forKey: .preview)
             try container.encode(citationCount, forKey: .citationCount)
             try container.encode(createdAt, forKey: .createdAt)
-            try container.encode(result, forKey: .result)
         }
     }
 }
@@ -590,12 +587,11 @@ struct RecallAnswerHit: Codable, Equatable, Identifiable {
     let preview: String
     let citationCount: Double
     let createdAt: String
-    let result: RecallAnswerHitResult
 }
 
 indirect enum AnswerResult: Codable, Equatable {
     case success(answer: String, citations: [AnswerCitation], hits: [RecallHit])
-    case failure(reason: AnswerResultFailureReason)
+    case failure(reason: AnswerFailureReason)
 
     private enum CodingKeys: String, CodingKey {
         case answer
@@ -615,9 +611,9 @@ indirect enum AnswerResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(AnswerResultFailureReason.self, forKey: .reason)) != nil {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(AnswerFailureReason.self, forKey: .reason)) != nil {
             self = .failure(
-                reason: try container.decode(AnswerResultFailureReason.self, forKey: .reason)
+                reason: try container.decode(AnswerFailureReason.self, forKey: .reason)
             )
             return
         }
@@ -650,6 +646,17 @@ enum RecallSource: String, Codable, Equatable, CaseIterable {
     case history
     case tasks
     case answer
+}
+
+struct AnswerFailure: Codable, Equatable {
+    let ok: Bool
+    let reason: AnswerFailureReason
+}
+
+enum AnswerFailureReason: String, Codable, Equatable, CaseIterable {
+    case noHits = "no_hits"
+    case semanticUnavailable = "semantic_unavailable"
+    case synthesisFailed = "synthesis_failed"
 }
 
 struct AnswerHistoryListResult: Codable, Equatable {
@@ -1697,42 +1704,6 @@ enum ModuleSetupPendingActionStatus: String, Codable, Equatable, CaseIterable {
     case revoked
 }
 
-indirect enum RecallHitAnswerResult: Codable, Equatable {
-    case success
-    case failure(reason: RecallHitAnswerResultFailureReason)
-
-    private enum CodingKeys: String, CodingKey {
-        case ok
-        case reason
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(Bool.self, forKey: .ok)) == true {
-            self = .success
-            return
-        }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(RecallHitAnswerResultFailureReason.self, forKey: .reason)) != nil {
-            self = .failure(
-                reason: try container.decode(RecallHitAnswerResultFailureReason.self, forKey: .reason)
-            )
-            return
-        }
-        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .success:
-            try container.encode(true, forKey: .ok)
-        case .failure(let reason):
-            try container.encode(false, forKey: .ok)
-            try container.encode(reason, forKey: .reason)
-        }
-    }
-}
-
 enum RecallKnowledgeHitSource: String, Codable, Equatable, CaseIterable {
     case knowledge
 }
@@ -1753,51 +1724,9 @@ enum RecallAnswerHitSource: String, Codable, Equatable, CaseIterable {
     case answer
 }
 
-indirect enum RecallAnswerHitResult: Codable, Equatable {
-    case success
-    case failure(reason: RecallAnswerHitResultFailureReason)
-
-    private enum CodingKeys: String, CodingKey {
-        case ok
-        case reason
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if (try? container.decode(Bool.self, forKey: .ok)) == true {
-            self = .success
-            return
-        }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(RecallAnswerHitResultFailureReason.self, forKey: .reason)) != nil {
-            self = .failure(
-                reason: try container.decode(RecallAnswerHitResultFailureReason.self, forKey: .reason)
-            )
-            return
-        }
-        throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown generated union variant"))
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case .success:
-            try container.encode(true, forKey: .ok)
-        case .failure(let reason):
-            try container.encode(false, forKey: .ok)
-            try container.encode(reason, forKey: .reason)
-        }
-    }
-}
-
-enum AnswerResultFailureReason: String, Codable, Equatable, CaseIterable {
-    case noHits = "no_hits"
-    case semanticUnavailable = "semantic_unavailable"
-    case synthesisFailed = "synthesis_failed"
-}
-
 indirect enum AnswerHistoryEntryResult: Codable, Equatable {
     case success(citationCount: Double)
-    case failure(reason: AnswerHistoryEntryResultFailureReason)
+    case failure(reason: AnswerFailureReason)
 
     private enum CodingKeys: String, CodingKey {
         case citationCount
@@ -1813,9 +1742,9 @@ indirect enum AnswerHistoryEntryResult: Codable, Equatable {
             )
             return
         }
-        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(AnswerHistoryEntryResultFailureReason.self, forKey: .reason)) != nil {
+        if (try? container.decode(Bool.self, forKey: .ok)) == false && (try? container.decode(AnswerFailureReason.self, forKey: .reason)) != nil {
             self = .failure(
-                reason: try container.decode(AnswerHistoryEntryResultFailureReason.self, forKey: .reason)
+                reason: try container.decode(AnswerFailureReason.self, forKey: .reason)
             )
             return
         }
@@ -1888,24 +1817,6 @@ enum ResolvedScopePolicyChannelsMode: String, Codable, Equatable, CaseIterable {
     case blocked
     case allowList = "allow-list"
     case allowAll = "allow-all"
-}
-
-enum RecallHitAnswerResultFailureReason: String, Codable, Equatable, CaseIterable {
-    case noHits = "no_hits"
-    case semanticUnavailable = "semantic_unavailable"
-    case synthesisFailed = "synthesis_failed"
-}
-
-enum RecallAnswerHitResultFailureReason: String, Codable, Equatable, CaseIterable {
-    case noHits = "no_hits"
-    case semanticUnavailable = "semantic_unavailable"
-    case synthesisFailed = "synthesis_failed"
-}
-
-enum AnswerHistoryEntryResultFailureReason: String, Codable, Equatable, CaseIterable {
-    case noHits = "no_hits"
-    case semanticUnavailable = "semantic_unavailable"
-    case synthesisFailed = "synthesis_failed"
 }
 typealias AttentionResponse = RenderedAttention
 typealias CapabilityMetaValue = CapabilityReadinessMetaValue

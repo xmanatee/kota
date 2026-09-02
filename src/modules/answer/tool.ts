@@ -1,10 +1,10 @@
 /**
- * Answer tool — agent-callable wrapper over the in-process `AnswerProvider`.
+ * Answer tool — agent-callable surface for the registered `AnswerClient`.
  *
  * The tool lets a per-user agent session produce a cited answer mid-
  * conversation, going through the same recall + synthesizer + history-
  * append path every other surface uses. Inputs and outputs map 1:1 onto
- * `AnswerProvider.answer`; the rendered transcript matches the slash-
+ * `AnswerClient.answer`; the rendered transcript matches the slash-
  * command surface byte-for-byte through `renderAnswerReplyPlain`, and
  * every successful call appends one `AnswerHistoryRecord` so the answer
  * shows up in `/answer-log` like any other cited answer.
@@ -14,19 +14,12 @@ import type { ToolDef } from "#core/modules/module-types.js";
 import { daemonWriteEffect } from "#core/tools/effect.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { RecallSource } from "#modules/recall/client.js";
+import { isRecallSource, RECALL_SOURCE_ORDER } from "#modules/recall/recall-types.js";
 import type {
+  AnswerClient,
   AnswerFilter,
-  AnswerProvider,
-} from "./answer-types.js";
+} from "./client.js";
 import { renderAnswerReplyPlain } from "./render.js";
-
-const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
-  "knowledge",
-  "memory",
-  "history",
-  "tasks",
-  "answer",
-];
 
 export const answerTool: KotaTool = {
   name: "answer",
@@ -58,7 +51,7 @@ export const answerTool: KotaTool = {
       },
       sources: {
         type: "array",
-        items: { type: "string", enum: [...RECALL_SOURCES] },
+        items: { type: "string", enum: [...RECALL_SOURCE_ORDER] },
         description:
           "Optional subset of recall sources to query. Defaults to every " +
           "registered contributor.",
@@ -69,7 +62,7 @@ export const answerTool: KotaTool = {
 };
 
 export function createAnswerToolRunner(
-  resolveProvider: () => AnswerProvider,
+  resolveProvider: () => AnswerClient,
 ): (input: Record<string, unknown>) => Promise<ToolResult> {
   return async (input) => {
     const query = input.query;
@@ -103,11 +96,11 @@ export function createAnswerToolRunner(
         !Array.isArray(input.sources) ||
         !input.sources.every(
           (s): s is RecallSource =>
-            typeof s === "string" && RECALL_SOURCES.includes(s as RecallSource),
+            isRecallSource(s),
         )
       ) {
         return {
-          content: `Answer failed: \`sources\` must be a list of ${RECALL_SOURCES.join(", ")}.`,
+          content: `Answer failed: \`sources\` must be a list of ${RECALL_SOURCE_ORDER.join(", ")}.`,
           is_error: true,
         };
       }
@@ -121,7 +114,7 @@ export function createAnswerToolRunner(
 }
 
 export function createAnswerToolDef(
-  resolveProvider: () => AnswerProvider,
+  resolveProvider: () => AnswerClient,
 ): ToolDef {
   return {
     tool: answerTool,

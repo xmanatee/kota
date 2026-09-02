@@ -55,10 +55,11 @@ describe("work-memory provenance through recall", () => {
 		recall.register(createKnowledgeContributor(knowledge));
 
 		const before = await recall.recall("provenance recall", { topK: 10 });
-		expect(before.map((hit) => `${hit.source}:${hit.id}`)).toEqual(
+		if (!before.ok) throw new Error("expected recall hits");
+		expect(before.hits.map((hit) => `${hit.source}:${hit.id}`)).toEqual(
 			expect.arrayContaining([`memory:${memoryId}`, `knowledge:${knowledgeId}`]),
 		);
-		expect(renderRecallHitsPlain(before)).toContain(
+		expect(renderRecallHitsPlain(before.hits)).toContain(
 			"run:run-provenance observed 2026-04-25; current",
 		);
 
@@ -70,7 +71,8 @@ describe("work-memory provenance through recall", () => {
 			},
 		});
 		const corrected = await recall.recall("provenance recall", { topK: 10 });
-		expect(renderRecallHitsPlain(corrected)).toContain(
+		if (!corrected.ok) throw new Error("expected recall hits");
+		expect(renderRecallHitsPlain(corrected.hits)).toContain(
 			"superseded -> mem-replacement 2026-04-27",
 		);
 
@@ -92,7 +94,8 @@ describe("work-memory provenance through recall", () => {
 		});
 
 		const after = await recall.recall("provenance recall", { topK: 10 });
-		expect(after.some((hit) => hit.source === "memory" && hit.id === memoryId)).toBe(false);
-		expect(after.some((hit) => hit.source === "knowledge" && hit.id === knowledgeId)).toBe(true);
+		if (!after.ok) throw new Error("expected recall hits");
+		expect(after.hits.some((hit) => hit.source === "memory" && hit.id === memoryId)).toBe(false);
+		expect(after.hits.some((hit) => hit.source === "knowledge" && hit.id === knowledgeId)).toBe(true);
 	});
 });

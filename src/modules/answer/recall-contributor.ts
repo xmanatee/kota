@@ -20,7 +20,7 @@ import {
   type AnswerHistoryStore,
   answerSearchPreview,
 } from "./answer-history-store.js";
-import type { ResolveAnswerScopeContext } from "./scope-context.js";
+import type { ResolveAnswerScopeContext } from "./answer-types.js";
 
 export function createAnswerRecallContributor(
   store: AnswerHistoryStore,
@@ -47,9 +47,6 @@ export function createAnswerRecallContributor(
           preview: answerSearchPreview(record),
           citationCount: record.result.ok ? record.result.citations.length : 0,
           createdAt: record.createdAt,
-          result: record.result.ok
-            ? { ok: true }
-            : { ok: false, reason: record.result.reason },
         },
       }));
     },

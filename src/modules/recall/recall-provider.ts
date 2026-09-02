@@ -12,7 +12,7 @@
  * the same ordering on repeat calls.
  */
 import { selectedScopeSelectorId } from "#core/server/scope-selector.js";
-import type { RecallFilter, RecallHit } from "./client.js";
+import type { RecallFilter, RecallHit, RecallResult } from "./client.js";
 import {
   type RawRecallEntry,
   RECALL_DEFAULT_TOP_K,
@@ -20,6 +20,7 @@ import {
   type RecallContributor,
   type RecallProvider,
   type RecallScopeContext,
+  RecallScopeSelectionError,
   type RecallSource,
 } from "./recall-types.js";
 
@@ -116,7 +117,6 @@ function toRecallHit(entry: ScoredEntry): RecallHit {
         preview: entry.payload.preview,
         citationCount: entry.payload.citationCount,
         createdAt: entry.payload.createdAt,
-        result: entry.payload.result,
       };
   }
 }
@@ -173,23 +173,26 @@ export class RecallProviderImpl implements RecallProvider {
     query: string,
     filter?: RecallFilter,
     scope?: RecallScopeContext,
-  ): Promise<RecallHit[]> {
+  ): Promise<RecallResult> {
     const trimmed = query.trim();
-    if (trimmed === "") return [];
+    if (this.order.length === 0) {
+      return { ok: false, reason: "semantic_unavailable" };
+    }
+    if (trimmed === "") return { ok: true, hits: [] };
     const resolvedScope =
       scope ?? this.resolveScopeContext?.(selectedScopeSelectorId(filter));
     if (resolvedScope && "error" in resolvedScope) {
-      throw new Error(`Unknown scope: ${resolvedScope.scopeId}`);
+      throw new RecallScopeSelectionError(resolvedScope.scopeId);
     }
     const topK = filter?.topK ?? RECALL_DEFAULT_TOP_K;
-    if (topK <= 0) return [];
+    if (topK <= 0) return { ok: true, hits: [] };
     const minScore = filter?.minScore ?? 0;
     const allowed: ReadonlySet<RecallSource> = filter?.sources && filter.sources.length > 0
       ? new Set(filter.sources)
       : new Set(this.order);
 
     const targets = this.order.filter((source) => allowed.has(source));
-    if (targets.length === 0) return [];
+    if (targets.length === 0) return { ok: true, hits: [] };
 
     const batches = await Promise.all(
       targets.map(async (source) => {
@@ -215,6 +218,6 @@ export class RecallProviderImpl implements RecallProvider {
     const filtered = minScore > 0
       ? scored.filter((entry) => entry.normalized >= minScore)
       : scored;
-    return filtered.slice(0, topK).map(toRecallHit);
+    return { ok: true, hits: filtered.slice(0, topK).map(toRecallHit) };
   }
 }

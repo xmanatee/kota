@@ -13,17 +13,13 @@ import {
   answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "./answer-history-store.js";
-import type { AnswerScopeContext } from "./answer-types.js";
+import type { ResolveAnswerScopeContext } from "./answer-types.js";
 
 type ScopeSnapshot = {
   defaultScopeId: ScopeId;
   activeScopeId: ScopeId | null;
   scopes: readonly DirectoryScope[];
 };
-
-export type ResolveAnswerScopeContext = (
-  scopeId: string | null | undefined,
-) => AnswerScopeContext | { error: "unknown_scope"; scopeId: string };
 
 export function createAnswerScopeContextResolver(
   defaultScopeRoot: string,

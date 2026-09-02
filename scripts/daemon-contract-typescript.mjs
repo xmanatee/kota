@@ -8,7 +8,6 @@ import {
 } from "./daemon-contract-graph.mjs";
 
 const EXTRA_ALIASES = {
-  RecallAnswerHitResult: 'RecallAnswerHit["result"]',
 };
 
 function referenceName(ref) {

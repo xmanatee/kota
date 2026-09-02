@@ -19,50 +19,12 @@ import type {
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 import { selectedScopeSelectorIdOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
-import type { RecallSource } from "#modules/recall/client.js";
-import type { AnswerHistoryStore } from "./answer-history-store.js";
-import type { AnswerProvider } from "./answer-types.js";
-import type {
-  AnswerFilter,
-  AnswerHistoryListResult,
-  AnswerHistoryShowResult,
-  AnswerResult,
-} from "./client.js";
-import type { ResolveAnswerScopeContext } from "./scope-context.js";
-
-const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
-  "knowledge",
-  "memory",
-  "history",
-  "tasks",
-  "answer",
-];
-
-function parseFilter(value: unknown): AnswerFilter | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const raw = value as Record<string, unknown>;
-  const filter: AnswerFilter = {};
-  if (typeof raw.topK === "number" && Number.isFinite(raw.topK)) {
-    filter.topK = raw.topK;
-  }
-  if (typeof raw.minScore === "number" && Number.isFinite(raw.minScore)) {
-    filter.minScore = raw.minScore;
-  }
-  if (Array.isArray(raw.sources)) {
-    const sources = raw.sources.filter((s): s is RecallSource =>
-      typeof s === "string" && (ALLOWED_SOURCES as readonly string[]).includes(s),
-    );
-    if (sources.length > 0) filter.sources = sources;
-  }
-  if (typeof raw.scopeId === "string" && raw.scopeId.trim() !== "") {
-    filter.scopeId = raw.scopeId;
-  }
-  return filter;
-}
+import { decodeRecallQueryRequest } from "#modules/recall/query.js";
+import { AnswerScopeSelectionError } from "./answer-types.js";
+import type { AnswerClient, AnswerResult } from "./client.js";
 
 export function createAnswerRouteHandler(
-  resolveProvider: () => AnswerProvider,
-  resolveScopeContext?: ResolveAnswerScopeContext,
+  resolveProvider: () => AnswerClient,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async function handler(
     req: IncomingMessage,
@@ -75,28 +37,29 @@ export function createAnswerRouteHandler(
       jsonResponse(res, 400, { error: "Invalid request body" });
       return;
     }
-    const query = typeof body.query === "string" ? body.query : "";
-    if (query.trim() === "") {
+    const decoded = decodeRecallQueryRequest(body);
+    if (!decoded) {
       jsonResponse(res, 400, { error: "query is required" });
       return;
     }
-    const filter = parseFilter(body.filter);
+    const { query, filter } = decoded;
     try {
       const selectedId = selectedScopeSelectorIdOrErrorResponse(res, filter);
       if (selectedId === null) return;
-      const scope = resolveScopeContext?.(selectedId);
-      if (scope && "error" in scope) {
+      const scopedFilter = selectedId === undefined
+        ? filter
+        : { ...filter, scopeId: selectedId };
+      const result = await resolveProvider().answer(query, scopedFilter);
+      jsonResponse(res, 200, result satisfies AnswerResult);
+    } catch (err) {
+      if (err instanceof AnswerScopeSelectionError) {
         jsonResponse(res, 404, {
           error: "Unknown scope",
-          reason: "unknown_scope",
-          scopeId: scope.scopeId,
+          reason: err.reason,
+          scopeId: err.scopeId,
         });
         return;
       }
-      const provider = resolveProvider();
-      const result = await provider.answer(query, filter, scope);
-      jsonResponse(res, 200, result satisfies AnswerResult);
-    } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       jsonResponse(res, 500, { error: message });
     }
@@ -104,20 +67,15 @@ export function createAnswerRouteHandler(
 }
 
 export function answerControlRoutes(
-  resolveProvider: () => AnswerProvider,
-  resolveHistory: () => AnswerHistoryStore,
-  resolveScopeContext?: ResolveAnswerScopeContext,
+  resolveProvider: () => AnswerClient,
 ): ControlRouteRegistration[] {
-  const historyHandlers = createAnswerHistoryRouteHandler(
-    resolveHistory,
-    resolveScopeContext,
-  );
+  const historyHandlers = createAnswerHistoryRouteHandler(resolveProvider);
   return [
     {
       method: "POST",
       path: "/answer",
       capabilityScope: "read",
-      handler: createAnswerRouteHandler(resolveProvider, resolveScopeContext),
+      handler: createAnswerRouteHandler(resolveProvider),
     },
     {
       method: "GET",
@@ -135,19 +93,14 @@ export function answerControlRoutes(
 }
 
 export function answerApiRoutes(
-  resolveProvider: () => AnswerProvider,
-  resolveHistory: () => AnswerHistoryStore,
-  resolveScopeContext?: ResolveAnswerScopeContext,
+  resolveProvider: () => AnswerClient,
 ): RouteRegistration[] {
-  const historyHandlers = createAnswerHistoryRouteHandler(
-    resolveHistory,
-    resolveScopeContext,
-  );
+  const historyHandlers = createAnswerHistoryRouteHandler(resolveProvider);
   return [
     {
       method: "POST",
       path: "/api/answer",
-      handler: createAnswerRouteHandler(resolveProvider, resolveScopeContext),
+      handler: createAnswerRouteHandler(resolveProvider),
     },
     {
       method: "GET",
@@ -188,8 +141,7 @@ function parseListQuery(req: IncomingMessage): ListQuery {
 }
 
 export function createAnswerHistoryRouteHandler(
-  resolveHistory: () => AnswerHistoryStore,
-  resolveScopeContext?: ResolveAnswerScopeContext,
+  resolveProvider: () => AnswerClient,
 ): {
   list: (req: IncomingMessage, res: ServerResponse) => Promise<void>;
   showById: (
@@ -204,21 +156,19 @@ export function createAnswerHistoryRouteHandler(
         const query = parseListQuery(req);
         const selectedId = selectedScopeSelectorIdOrErrorResponse(res, query);
         if (selectedId === null) return;
-        const scope = resolveScopeContext?.(selectedId);
-        if (scope && "error" in scope) {
+        const filter = selectedId === undefined
+          ? query
+          : { ...query, scopeId: selectedId };
+        jsonResponse(res, 200, await resolveProvider().log(filter));
+      } catch (err) {
+        if (err instanceof AnswerScopeSelectionError) {
           jsonResponse(res, 404, {
             error: "Unknown scope",
-            reason: "unknown_scope",
-            scopeId: scope.scopeId,
+            reason: err.reason,
+            scopeId: err.scopeId,
           });
           return;
         }
-        const history = scope?.history ?? resolveHistory();
-        const { scopeId: _scopeId, ...filter } = query;
-        const entries = await history.listAnswers(filter);
-        const body: AnswerHistoryListResult = { entries };
-        jsonResponse(res, 200, body);
-      } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         jsonResponse(res, 500, { error: message });
       }
@@ -232,22 +182,17 @@ export function createAnswerHistoryRouteHandler(
         const query = parseListQuery(req);
         const selectedId = selectedScopeSelectorIdOrErrorResponse(res, query);
         if (selectedId === null) return;
-        const scope = resolveScopeContext?.(selectedId);
-        if (scope && "error" in scope) {
+        const scope = selectedId === undefined ? undefined : { scopeId: selectedId };
+        jsonResponse(res, 200, await resolveProvider().show(id, scope));
+      } catch (err) {
+        if (err instanceof AnswerScopeSelectionError) {
           jsonResponse(res, 404, {
             error: "Unknown scope",
-            reason: "unknown_scope",
-            scopeId: scope.scopeId,
+            reason: err.reason,
+            scopeId: err.scopeId,
           });
           return;
         }
-        const history = scope?.history ?? resolveHistory();
-        const record = await history.getAnswer(id);
-        const body: AnswerHistoryShowResult = record
-          ? { ok: true, record }
-          : { ok: false, reason: "not_found" };
-        jsonResponse(res, 200, body);
-      } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         jsonResponse(res, 500, { error: message });
       }

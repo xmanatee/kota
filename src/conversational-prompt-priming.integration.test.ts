@@ -107,7 +107,8 @@ describe("conversational prompt priming (capture / recall / answer / retract)", 
 
   it("(positive) recall returns the seeded knowledge hit and answer appends a fresh AnswerHistoryRecord — i.e. behavior changed, not just prompt text", async () => {
     const recallHits = await fixture.recallProvider.recall(RECALL_QUERY);
-    const knowledgeHit = recallHits.find((h) => h.source === "knowledge");
+    if (!recallHits.ok) throw new Error("expected recall hits");
+    const knowledgeHit = recallHits.hits.find((h) => h.source === "knowledge");
     expect(knowledgeHit).toBeDefined();
     expect(knowledgeHit?.id).toBeDefined();
 
@@ -147,8 +148,9 @@ describe("conversational prompt priming (capture / recall / answer / retract)", 
     const memoryId = capture.id;
 
     const before = await fixture.recallProvider.recall(RETRACT_RECALL_QUERY);
+    if (!before.ok) throw new Error("expected recall hits");
     expect(
-      before.some((h) => h.source === "memory" && h.id === memoryId),
+      before.hits.some((h) => h.source === "memory" && h.id === memoryId),
     ).toBe(true);
 
     const result = await fixture.retractProvider.retract({
@@ -162,8 +164,9 @@ describe("conversational prompt priming (capture / recall / answer / retract)", 
     });
 
     const after = await fixture.recallProvider.recall(RETRACT_RECALL_QUERY);
+    if (!after.ok) throw new Error("expected recall hits");
     expect(
-      after.some((h) => h.source === "memory" && h.id === memoryId),
+      after.hits.some((h) => h.source === "memory" && h.id === memoryId),
     ).toBe(false);
   });
 

@@ -190,8 +190,7 @@ export function buildCrossStoreFixture(
 
   const recallSeam: AnswerRecallSeam = {
     async recall(query, filter) {
-      const hits = await recallProvider.recall(query, filter);
-      return { ok: true, hits };
+      return recallProvider.recall(query, filter);
     },
   };
   const defaultSynthesizer: Synthesizer = async ({ hits }) => {

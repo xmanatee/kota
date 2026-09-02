@@ -1565,45 +1565,6 @@
         },
         "createdAt": {
           "type": "string"
-        },
-        "result": {
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "ok": {
-                  "type": "boolean",
-                  "const": true
-                }
-              },
-              "required": [
-                "ok"
-              ],
-              "additionalProperties": false
-            },
-            {
-              "type": "object",
-              "properties": {
-                "ok": {
-                  "type": "boolean",
-                  "const": false
-                },
-                "reason": {
-                  "type": "string",
-                  "enum": [
-                    "no_hits",
-                    "semantic_unavailable",
-                    "synthesis_failed"
-                  ]
-                }
-              },
-              "required": [
-                "ok",
-                "reason"
-              ],
-              "additionalProperties": false
-            }
-          ]
         }
       },
       "required": [
@@ -1613,11 +1574,10 @@
         "query",
         "preview",
         "citationCount",
-        "createdAt",
-        "result"
+        "createdAt"
       ],
       "additionalProperties": false,
-      "description": "Prior-answer envelope hit payload surfaced through `recall`.\n\nThe hit is the persistent shadow of a prior `AnswerProvider.answer(query)` call. `query` is the original operator question that produced the envelope; `preview` is a clipped view of the synthesized answer text on the success arm or the failure reason on the failure arm; `citationCount` is the size of the typed `[source:id]` citation list the synthesizer resolved (zero on failure); `result` mirrors the discriminated success/ failure shape stored in the `AnswerHistoryRecord` so a consumer can show an operator that the prior answer failed instead of treating every prior envelope as a usable citation source."
+      "description": "Prior-answer envelope hit payload surfaced through `recall`.\n\nThe hit is the persistent shadow of a prior `AnswerProvider.answer(query)` call. `query` is the original operator question that produced the envelope; `preview` is a clipped view of the synthesized answer text on the success arm or the failure reason on the failure arm; `citationCount` is the size of the typed `[source:id]` citation list the synthesizer resolved. A zero count identifies a failed prior answer; its `preview` carries the answer owner's failure reason without copying that result union into recall's public contract."
     },
     "AnswerResult": {
       "anyOf": [
@@ -1653,26 +1613,7 @@
           "additionalProperties": false
         },
         {
-          "type": "object",
-          "properties": {
-            "ok": {
-              "type": "boolean",
-              "const": false
-            },
-            "reason": {
-              "type": "string",
-              "enum": [
-                "no_hits",
-                "semantic_unavailable",
-                "synthesis_failed"
-              ]
-            }
-          },
-          "required": [
-            "ok",
-            "reason"
-          ],
-          "additionalProperties": false
+          "$ref": "#/definitions/AnswerFailure"
         }
       ],
       "description": "Result of `answer.answer`.\n\n`ok: true` carries one short composed answer with structured citations and the typed `RecallHit[]` they resolve against (a strict subset of the recall result the seam consumed).\n\n`ok: false` discriminates the three non-trivial failure modes:\n\n- `no_hits` — recall returned zero hits; nothing to synthesize.\n- `semantic_unavailable` — recall itself is unconfigured (forwarded   verbatim from the recall seam).\n- `synthesis_failed` — the model call failed or produced malformed   citations that survived the single allowed retry."
@@ -1704,6 +1645,31 @@
         "answer"
       ],
       "description": "Source of a `RecallHit`. The cross-store recall seam discriminates each hit by which store originated it. Adding a new contributor extends this union and the `RecallHit` discriminated type below.\n\n`answer` carries the assistant's own prior cited-answer envelopes — every `AnswerProvider.answer` call appends a record to the answer-history store, and the answer module registers a recall contributor over that store so a fact-shaped follow-up turn can ground in prior synthesized answers alongside the raw `knowledge` / `memory` / `history` / `tasks` stores."
+    },
+    "AnswerFailure": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "const": false
+        },
+        "reason": {
+          "$ref": "#/definitions/AnswerFailureReason"
+        }
+      },
+      "required": [
+        "ok",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "AnswerFailureReason": {
+      "type": "string",
+      "enum": [
+        "no_hits",
+        "semantic_unavailable",
+        "synthesis_failed"
+      ]
     },
     "AnswerHistoryListResult": {
       "type": "object",
@@ -1753,26 +1719,7 @@
               "additionalProperties": false
             },
             {
-              "type": "object",
-              "properties": {
-                "ok": {
-                  "type": "boolean",
-                  "const": false
-                },
-                "reason": {
-                  "type": "string",
-                  "enum": [
-                    "no_hits",
-                    "semantic_unavailable",
-                    "synthesis_failed"
-                  ]
-                }
-              },
-              "required": [
-                "ok",
-                "reason"
-              ],
-              "additionalProperties": false
+              "$ref": "#/definitions/AnswerFailure"
             }
           ]
         }

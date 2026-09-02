@@ -250,7 +250,6 @@ describe("ResourceDiscoveryProviderImpl", () => {
             preview: "Run tests, notify owner, and keep rollback ready.",
             citationCount: 2,
             createdAt: "2026-06-24T00:00:00.000Z",
-            result: { ok: true },
           },
         ],
       })
@@ -278,7 +277,7 @@ describe("ResourceDiscoveryProviderImpl", () => {
           kind: "recall-hit",
           metadata: expect.objectContaining({
             source: "answer",
-            result: "ok",
+            answered: true,
             citationCount: 2,
           }),
         }),

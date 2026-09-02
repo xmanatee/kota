@@ -186,11 +186,12 @@ async function recallHits(
 ): Promise<RecallHit[]> {
   if (!provider) return [];
   try {
-    return await provider.recall(query, {
+    const result = await provider.recall(query, {
       topK: RECALL_LIMIT,
       sources: RECALL_DISCOVERY_SOURCES,
       ...(filter.scopeId !== undefined && { scopeId: filter.scopeId }),
     });
+    return result.ok ? result.hits : [];
   } catch {
     return [];
   }

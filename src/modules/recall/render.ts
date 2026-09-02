@@ -29,9 +29,7 @@ export function describeRecallHit(hit: RecallHit): string {
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
     case "answer": {
-      const badge = hit.result.ok
-        ? `ok(${hit.citationCount})`
-        : hit.result.reason;
+      const badge = hit.citationCount > 0 ? `ok(${hit.citationCount})` : "failed";
       return `[${badge}] ${hit.query}`;
     }
   }

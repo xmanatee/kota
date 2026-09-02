@@ -161,19 +161,19 @@
   "outputs": [
     {
       "path": "schema/daemon-contract.schema.json",
-      "sha256": "ad8451c3cc1f3dadbf88a29018347b879b5ad0230d4754f9a35f4bd6fc61e227"
+      "sha256": "e63c130a47bb4b5bec7014969f8e022a574bfd8259246af6b6a7a2f955c7c913"
     },
     {
       "path": "clients/conformance/daemon-contract.generated.ts",
-      "sha256": "c66b02b72eb5085762c160feafc07e21c012fd1de1bc74389cd2c6998a639f8e"
+      "sha256": "ffac32bb8716a066020ebbfc619d35445e7b6bceb4935317f9033094ee4c4ec5"
     },
     {
       "path": "src/client/daemon-contract.generated.ts",
-      "sha256": "c66b02b72eb5085762c160feafc07e21c012fd1de1bc74389cd2c6998a639f8e"
+      "sha256": "ffac32bb8716a066020ebbfc619d35445e7b6bceb4935317f9033094ee4c4ec5"
     },
     {
       "path": "clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift",
-      "sha256": "05e11d6630b106242d8350ff09eb1bc40c4eab33277ffaa548c3910084c2cee1"
+      "sha256": "4493a69273da44f78455af9493a69bd3eb0ec6309cf07278b64a5d125b892766"
     },
     {
       "path": "src/client/kota-client.generated.ts",

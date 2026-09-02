@@ -7,7 +7,7 @@ function stubProvider(sources: ReadonlyArray<RecallSource>): RecallProvider {
     register: () => {},
     unregister: () => {},
     contributors: () => sources,
-    recall: async () => [],
+    recall: async () => ({ ok: true, hits: [] }),
   };
 }
 

@@ -184,7 +184,7 @@ describe("buildResourceDiscoverySnapshotReader", () => {
       recall: async (query, filter) => {
         captured.query = query;
         captured.filter = filter;
-        return [recallHit];
+        return { ok: true, hits: [recallHit] };
       },
     };
     const registry = initProviderRegistry();

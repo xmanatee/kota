@@ -1,34 +1,19 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
-import type { RecallHit } from "./client.js";
 import type { RecallProvider } from "./recall-types.js";
+import { RecallScopeSelectionError } from "./recall-types.js";
 import { createRecallRouteHandler } from "./routes.js";
 
-function mockResponse() {
-  const result = { status: 0, body: null as unknown };
-  const res = {
-    setHeader: vi.fn(),
-    writeHead: (s: number) => {
-      result.status = s;
-    },
-    end: (data: string) => {
-      result.body = JSON.parse(data);
-    },
-    on: vi.fn(),
-  } as unknown as ServerResponse;
-  return { res, result };
-}
-
-function mockRequest(body: Record<string, unknown>): IncomingMessage {
+function request(body: Record<string, unknown>): IncomingMessage {
   const data = Buffer.from(JSON.stringify(body));
-  const handlers: Record<string, Array<(arg?: Buffer | Error) => void>> = {};
+  const handlers: Record<string, Array<(value?: Buffer) => void>> = {};
   return {
-    on(event: string, handler: (arg?: Buffer | Error) => void) {
-      (handlers[event] = handlers[event] || []).push(handler);
+    on(event: string, handler: (value?: Buffer) => void) {
+      (handlers[event] ??= []).push(handler);
       if (event === "end") {
         setImmediate(() => {
-          for (const h of handlers.data ?? []) h(data);
-          for (const h of handlers.end ?? []) h();
+          for (const listener of handlers.data ?? []) listener(data);
+          for (const listener of handlers.end ?? []) listener();
         });
       }
       return this;
@@ -36,127 +21,71 @@ function mockRequest(body: Record<string, unknown>): IncomingMessage {
   } as unknown as IncomingMessage;
 }
 
-function fakeProvider(
-  hits: RecallHit[],
-  capture?: { query?: string; filter?: unknown },
-  contributors: ReadonlyArray<
-    "knowledge" | "memory" | "history" | "tasks" | "answer"
-  > = ["knowledge", "memory", "history", "tasks"],
-): RecallProvider {
+function response(): {
+  res: ServerResponse;
+  result: { status: number; body: unknown };
+} {
+  const result = { status: 0, body: undefined as unknown };
+  const res = {
+    setHeader: vi.fn(),
+    writeHead(status: number) { result.status = status; },
+    end(data: string) { result.body = JSON.parse(data); },
+    on: vi.fn(),
+  } as unknown as ServerResponse;
+  return { res, result };
+}
+
+function provider(recall: RecallProvider["recall"]): RecallProvider {
   return {
-    register: () => {},
-    unregister: () => {},
-    contributors: () => contributors,
-    async recall(query, filter) {
-      if (capture) {
-        capture.query = query;
-        capture.filter = filter;
-      }
-      return hits;
-    },
+    register() {},
+    unregister() {},
+    contributors: () => ["knowledge"],
+    recall,
   };
 }
 
-describe("recall route handler", () => {
-  it("returns 200 with discriminated hits payload", async () => {
-    const hits: RecallHit[] = [
-      {
-        source: "knowledge",
-        score: 1,
-        id: "k1",
-        title: "Recall design",
-        preview: "...",
-        updated: "2026-04-26",
-      },
-      {
-        source: "tasks",
-        score: 0.8,
-        id: "task-recall",
-        title: "Add recall seam",
-        state: "open",
-        priority: "p2",
-      },
-    ];
-    const handler = createRecallRouteHandler(() => fakeProvider(hits));
-    const { res, result } = mockResponse();
-    await handler(mockRequest({ query: "recall" }), res);
-    expect(result.status).toBe(200);
-    const body = result.body as { ok: true; hits: RecallHit[] };
-    expect(body.ok).toBe(true);
-    expect(body.hits).toHaveLength(2);
-    expect(body.hits[0]).toMatchObject({ source: "knowledge", id: "k1" });
-    expect(body.hits[1]).toMatchObject({ source: "tasks", id: "task-recall" });
-  });
+describe("recall route boundary", () => {
+  it("decodes the untrusted query/filter once before calling the domain owner", async () => {
+    const recall = vi.fn<RecallProvider["recall"]>(async () => ({ ok: true, hits: [] }));
+    const handler = createRecallRouteHandler(() => provider(recall));
+    const { res, result } = response();
 
-  it("returns ok:false reason:semantic_unavailable when no contributors are registered", async () => {
-    const handler = createRecallRouteHandler(() =>
-      fakeProvider([], undefined, []),
-    );
-    const { res, result } = mockResponse();
-    await handler(mockRequest({ query: "anything" }), res);
-    expect(result.status).toBe(200);
-    expect(result.body).toEqual({
-      ok: false,
-      reason: "semantic_unavailable",
-    });
-  });
+    await handler(request({
+      query: "graphrag",
+      filter: {
+        topK: 5,
+        minScore: 0.4,
+        sources: ["knowledge", "unknown"],
+        scopeId: "scope-a",
+      },
+    }), res);
 
-  it("forwards filter fields through to the provider", async () => {
-    const capture: { query?: string; filter?: unknown } = {};
-    const handler = createRecallRouteHandler(() => fakeProvider([], capture));
-    const { res } = mockResponse();
-    await handler(
-      mockRequest({
-        query: "graphrag",
-        filter: { topK: 5, minScore: 0.4, sources: ["knowledge", "tasks"] },
-      }),
-      res,
-    );
-    expect(capture.query).toBe("graphrag");
-    expect(capture.filter).toEqual({
+    expect(result.status).toBe(200);
+    expect(recall).toHaveBeenCalledWith("graphrag", {
       topK: 5,
       minScore: 0.4,
-      sources: ["knowledge", "tasks"],
+      sources: ["knowledge"],
+      scopeId: "scope-a",
     });
   });
 
-  it("drops unknown sources from the filter and ignores empty source list", async () => {
-    const capture: { query?: string; filter?: unknown } = {};
-    const handler = createRecallRouteHandler(() => fakeProvider([], capture));
-    const { res } = mockResponse();
-    await handler(
-      mockRequest({ query: "x", filter: { sources: ["bogus"] } }),
-      res,
-    );
-    expect(capture.filter).toEqual({});
-  });
+  it("rejects a blank wire query and maps an unknown domain scope", async () => {
+    const recall = vi.fn<RecallProvider["recall"]>(async () => {
+      throw new RecallScopeSelectionError("missing");
+    });
+    const handler = createRecallRouteHandler(() => provider(recall));
+    const blank = response();
+    await handler(request({ query: "  " }), blank.res);
+    expect(blank.result.status).toBe(400);
+    expect(recall).not.toHaveBeenCalled();
 
-  it("returns 400 when query is missing", async () => {
-    const handler = createRecallRouteHandler(() => fakeProvider([]));
-    const { res, result } = mockResponse();
-    await handler(mockRequest({}), res);
-    expect(result.status).toBe(400);
-  });
-
-  it("returns 400 when query is blank", async () => {
-    const handler = createRecallRouteHandler(() => fakeProvider([]));
-    const { res, result } = mockResponse();
-    await handler(mockRequest({ query: "   " }), res);
-    expect(result.status).toBe(400);
-  });
-
-  it("returns 500 when the provider throws", async () => {
-    const handler = createRecallRouteHandler(() => ({
-      register: () => {},
-      unregister: () => {},
-      contributors: () => ["knowledge"],
-      async recall() {
-        throw new Error("provider boom");
-      },
-    }));
-    const { res, result } = mockResponse();
-    await handler(mockRequest({ query: "anything" }), res);
-    expect(result.status).toBe(500);
-    expect((result.body as { error: string }).error).toContain("provider boom");
+    const unknown = response();
+    await handler(request({ query: "x", filter: { scopeId: "missing" } }), unknown.res);
+    expect(unknown.result.status).toBe(404);
+    expect(unknown.result.body).toEqual({
+      error: "Unknown scope",
+      reason: "unknown_scope",
+      scopeId: "missing",
+    });
   });
 });

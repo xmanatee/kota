@@ -285,7 +285,9 @@ describe("execution-intent recall fixture", () => {
     expect(toolResult.is_error).toBeUndefined();
     expect(toolResult.content).toContain(HIDDEN_DECISION_MARKER);
 
-    const rankedHits = await provider.recall(recallQuery, { topK: 5 });
+    const recallResult = await provider.recall(recallQuery, { topK: 5 });
+    if (!recallResult.ok) throw new Error("expected recall hits");
+    const rankedHits = recallResult.hits;
     expect(rankedHits[0]).toMatchObject({
       source: "memory",
       id: stores.relevantMemoryId,

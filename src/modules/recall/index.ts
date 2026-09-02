@@ -14,7 +14,11 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
-import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
+import type {
+  KotaModule,
+  ModuleContext,
+  ModuleRuntimeContext,
+} from "#core/modules/module-types.js";
 import {
   HISTORY_PROVIDER_TOKEN,
   KNOWLEDGE_PROVIDER_TOKEN,
@@ -27,7 +31,7 @@ import { createMemoryScopeStores } from "#modules/memory/scope.js";
 import { createRepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import { createRecallReadinessSource } from "./capability-readiness.js";
 import { registerRecallCommand } from "./cli.js";
-import type { RecallClient, } from "./client.js";
+import type { RecallClient } from "./client.js";
 import {
   createScopeHistoryContributor,
   createScopeKnowledgeContributor,
@@ -45,15 +49,14 @@ import {
 import { createRecallToolDef } from "./tool.js";
 import { recallUiSurfaceSource } from "./ui-surface.js";
 
-let activeProvider: RecallProvider | null = null;
-
-function resolveActiveProvider(): RecallProvider {
-  if (!activeProvider) {
+function resolveProvider(ctx: ModuleContext): RecallProvider {
+  const provider = ctx.getProvider(RECALL_PROVIDER_TOKEN);
+  if (!provider) {
     throw new Error(
       "Recall provider is not initialized. Ensure the recall module loaded.",
     );
   }
-  return activeProvider;
+  return provider;
 }
 
 const recallModule: KotaModule = {
@@ -101,7 +104,6 @@ const recallModule: KotaModule = {
         return value;
       }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
     ));
-    activeProvider = provider;
     // Expose the live provider through the provider-registry seam so other
     // modules can contribute their own `RecallContributor` from their own
     // `onLoad` (e.g. the `answer` module registers an `answer`-source
@@ -119,11 +121,6 @@ const recallModule: KotaModule = {
     ctx.log.info(
       `recall: registered ${provider.contributors().length} contributor(s)`,
     );
-    return {
-      dispose: () => {
-        if (activeProvider === provider) activeProvider = null;
-      },
-    };
   },
 
   commands: (ctx) => {
@@ -132,29 +129,18 @@ const recallModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  tools: () => [createRecallToolDef(resolveActiveProvider)],
+  tools: (ctx) => [createRecallToolDef(() => resolveProvider(ctx))],
 
   controlRoutes: (ctx) =>
-    recallControlRoutes(
-      resolveActiveProvider,
-      createRecallScopeContextResolver(ctx.cwd, ctx),
-    ),
+    recallControlRoutes(() => resolveProvider(ctx)),
 
   routes: (ctx) =>
-    recallApiRoutes(
-      resolveActiveProvider,
-      createRecallScopeContextResolver(ctx.cwd, ctx),
-    ),
+    recallApiRoutes(() => resolveProvider(ctx)),
 
-  localClient: () => {
+  localClient: (ctx) => {
     const handler: RecallClient = {
       async recall(query, filter) {
-        const provider = resolveActiveProvider();
-        if (provider.contributors().length === 0) {
-          return { ok: false, reason: "semantic_unavailable" };
-        }
-        const hits = await provider.recall(query, filter);
-        return { ok: true, hits };
+        return resolveProvider(ctx).recall(query, filter);
       },
     };
     return { recall: handler };

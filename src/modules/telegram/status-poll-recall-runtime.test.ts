@@ -77,9 +77,9 @@ function summarizeRecallResult(result: RecallResult): Record<string, unknown> {
   return {
     ok: true,
     sources: result.hits.map((hit) => hit.source),
-    answerResultArms: result.hits.flatMap((hit) => {
+    answerOutcomes: result.hits.flatMap((hit) => {
       if (hit.source !== "answer") return [];
-      return [hit.result.ok ? "ok" : hit.result.reason];
+      return [hit.citationCount > 0 ? "answered" : "failed"];
     }),
   };
 }
@@ -171,7 +171,6 @@ describe("Telegram /recall runtime evidence", () => {
             preview: "The harness boundary is a typed protocol; see kn-42.",
             citationCount: 1,
             createdAt: "2026-05-01T12:00:00.000Z",
-            result: { ok: true },
           },
         ],
       }),
@@ -186,7 +185,6 @@ describe("Telegram /recall runtime evidence", () => {
             preview: "Recall returned no hits for this question.",
             citationCount: 0,
             createdAt: "2026-05-01T12:05:00.000Z",
-            result: { ok: false, reason: "no_hits" },
           },
         ],
       }),
@@ -207,7 +205,7 @@ describe("Telegram /recall runtime evidence", () => {
     expect(cases[0].contractResult).toMatchObject({
       ok: true,
       sources: ["knowledge", "memory", "history", "tasks", "answer"],
-      answerResultArms: ["ok"],
+      answerOutcomes: ["answered"],
     });
     expect(cases[0].reply.text).toContain("knowledge");
     expect(cases[0].reply.text).toContain("memory");
@@ -220,9 +218,9 @@ describe("Telegram /recall runtime evidence", () => {
     expect(cases[1].contractResult).toMatchObject({
       ok: true,
       sources: ["answer"],
-      answerResultArms: ["no_hits"],
+      answerOutcomes: ["failed"],
     });
-    expect(cases[1].reply.text).toContain("[no_hits] What is the latest deploy status?");
+    expect(cases[1].reply.text).toContain("[failed] What is the latest deploy status?");
 
     expect(cases[2].recallCalls).toEqual([["anything"]]);
     expect(cases[2].reply.text).toBe(

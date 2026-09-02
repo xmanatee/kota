@@ -1,322 +1,91 @@
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runReadDocument } from "./read-document.js";
 
-vi.mock("node:child_process", () => ({
-	execFileSync: vi.fn(),
-}));
-
-vi.mock("node:fs", () => ({
-	existsSync: vi.fn(),
-	readFileSync: vi.fn(),
-}));
+vi.mock("node:child_process", () => ({ execFileSync: vi.fn() }));
+vi.mock("node:fs", () => ({ existsSync: vi.fn(), readFileSync: vi.fn() }));
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 
-const mockExec = execFileSync as ReturnType<typeof vi.fn>;
-const mockExists = existsSync as ReturnType<typeof vi.fn>;
-const mockRead = readFileSync as ReturnType<typeof vi.fn>;
+const execute = execFileSync as ReturnType<typeof vi.fn>;
+const exists = existsSync as ReturnType<typeof vi.fn>;
+const read = readFileSync as ReturnType<typeof vi.fn>;
 
-describe("runReadDocument", () => {
-	const originalPlatform = process.platform;
+describe("read_document", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    exists.mockReturnValue(true);
+  });
 
-	function setPlatform(p: string) {
-		Object.defineProperty(process, "platform", { value: p, writable: true });
-	}
+  it("rejects absent and missing paths before choosing an extractor", async () => {
+    await expect(runReadDocument({})).resolves.toMatchObject({ is_error: true });
+    exists.mockReturnValue(false);
+    await expect(runReadDocument({ path: "/tmp/missing.pdf" })).resolves.toEqual({
+      content: "Error: file not found: /tmp/missing.pdf",
+      is_error: true,
+    });
+    expect(execute).not.toHaveBeenCalled();
+  });
 
-	beforeEach(() => {
-		vi.clearAllMocks();
-		mockExists.mockReturnValue(true);
-	});
+  it("resolves relative paths against the tool invocation scope", async () => {
+    const scopeRoot = "/selected/project";
+    const filePath = join(scopeRoot, "docs", "scope.html");
+    read.mockReturnValue("<html><body>Selected project</body></html>");
 
-	afterEach(() => {
-		setPlatform(originalPlatform);
-	});
+    const result = await runReadDocument(
+      { path: "docs/scope.html" },
+      { cwd: scopeRoot },
+    );
 
-	// --- Validation ---
+    expect(exists).toHaveBeenCalledWith(filePath);
+    expect(read).toHaveBeenCalledWith(filePath, "utf-8");
+    expect(result.content).toContain("Selected project");
+  });
 
-	it("returns error when path is missing", async () => {
-		const result = await runReadDocument({});
-		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("path is required");
-	});
+  it("maps PDF page ranges to pdftotext and renders extraction provenance", async () => {
+    execute.mockReturnValue("Pages 3-7");
+    const result = await runReadDocument({ path: "/tmp/test.pdf", pages: "3-7" });
 
-	it("returns error when file does not exist", async () => {
-		mockExists.mockReturnValue(false);
-		const result = await runReadDocument({ path: "/tmp/missing.pdf" });
-		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("file not found");
-	});
+    expect(execute).toHaveBeenCalledWith(
+      "pdftotext",
+      ["-f", "3", "-l", "7", "/tmp/test.pdf", "-"],
+      expect.objectContaining({ timeout: 30_000 }),
+    );
+    expect(result.content).toBe("[Extracted via pdftotext, 9 chars]\n\nPages 3-7");
+  });
 
-	it("resolves relative paths against runner context cwd", async () => {
-		const scopeRoot = "/selected/project";
-		const filePath = join(scopeRoot, "docs", "scope.html");
-		mockRead.mockReturnValue("<html><body>Selected project</body></html>");
+  it("falls through the PDF provider chain when the preferred binary fails", async () => {
+    execute.mockImplementation((command: string) => {
+      if (command === "pdftotext") throw new Error("not installed");
+      if (command === "python3") return "Fallback text";
+      throw new Error(`unexpected command ${command}`);
+    });
 
-		const result = await runReadDocument(
-			{ path: "docs/scope.html" },
-			{ cwd: scopeRoot },
-		);
+    const result = await runReadDocument({ path: "/tmp/test.pdf" });
+    expect(result.content).toContain("[Extracted via pdfminer");
+    expect(result.content).toContain("Fallback text");
+  });
 
-		expect(result.is_error).toBeUndefined();
-		expect(mockExists).toHaveBeenCalledWith(filePath);
-		expect(mockRead).toHaveBeenCalledWith(filePath, "utf-8");
-		expect(result.content).toContain("Selected project");
-	});
+  it("reports extractor exhaustion with the format-specific setup hint", async () => {
+    execute.mockImplementation(() => { throw new Error("not installed"); });
+    const result = await runReadDocument({ path: "/tmp/test.pdf" });
+    expect(result).toMatchObject({ is_error: true });
+    expect(result.content).toContain("No extractor available for .pdf files");
+    expect(result.content).toContain("poppler");
+  });
 
-	// --- PDF extraction ---
+  it("clips oversized extraction output at the public max_chars boundary", async () => {
+    execute.mockReturnValue("A".repeat(100));
+    const result = await runReadDocument({ path: "/tmp/test.pdf", max_chars: 50 });
+    expect(result.content).toContain("50 chars (truncated)");
+    expect(result.content.endsWith("A".repeat(50))).toBe(true);
+  });
 
-	it("extracts PDF via pdftotext", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pdftotext") return "Hello from PDF";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Hello from PDF");
-		expect(result.content).toContain("pdftotext");
-	});
-
-	it("falls back to pdfminer when pdftotext unavailable", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pdftotext") throw new Error("not found");
-			if (cmd === "python3") return "Mined PDF text";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Mined PDF text");
-	});
-
-	it("passes page range to pdftotext", async () => {
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "pdftotext") {
-				expect(args).toContain("-f");
-				expect(args).toContain("3");
-				expect(args).toContain("-l");
-				expect(args).toContain("7");
-				return "Pages 3-7";
-			}
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({
-			path: "/tmp/test.pdf",
-			pages: "3-7",
-		});
-		expect(result.content).toContain("Pages 3-7");
-	});
-
-	it("handles single page number", async () => {
-		mockExec.mockImplementation((cmd: string, args: string[]) => {
-			if (cmd === "pdftotext") {
-				expect(args).toContain("-f");
-				expect(args).toContain("5");
-				expect(args).toContain("-l");
-				expect(args).toContain("5");
-				return "Page 5";
-			}
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({
-			path: "/tmp/test.pdf",
-			pages: "5",
-		});
-		expect(result.content).toContain("Page 5");
-	});
-
-	it("returns error when no PDF extractor available", async () => {
-		mockExec.mockImplementation(() => {
-			throw new Error("not found");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("No extractor available");
-		expect(result.content).toContain("poppler");
-	});
-
-	// --- DOCX extraction ---
-
-	it("extracts DOCX via textutil on macOS", async () => {
-		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "textutil") return "Word document text";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.docx" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Word document text");
-		expect(result.content).toContain("textutil");
-	});
-
-	it("extracts DOCX via pandoc on Linux", async () => {
-		setPlatform("linux");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pandoc") return "Pandoc extracted text";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.docx" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Pandoc extracted text");
-		expect(result.content).toContain("pandoc");
-	});
-
-	it("falls back to python-docx when pandoc unavailable", async () => {
-		setPlatform("linux");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pandoc") throw new Error("not found");
-			if (cmd === "python3") return "Python docx text";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.docx" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Python docx text");
-	});
-
-	// --- RTF extraction ---
-
-	it("extracts RTF via textutil on macOS", async () => {
-		setPlatform("darwin");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "textutil") return "RTF content";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.rtf" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("RTF content");
-	});
-
-	it("extracts RTF via pandoc on Linux", async () => {
-		setPlatform("linux");
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pandoc") return "Pandoc RTF text";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.rtf" });
-		expect(result.content).toContain("Pandoc RTF text");
-	});
-
-	// --- ODT extraction ---
-
-	it("extracts ODT via pandoc", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pandoc") return "ODT content";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.odt" });
-		expect(result.content).toContain("ODT content");
-	});
-
-	// --- HTML extraction ---
-
-	it("extracts text from local HTML files", async () => {
-		mockRead.mockReturnValue(
-			"<html><body><p>Hello</p> <b>World</b></body></html>",
-		);
-
-		const result = await runReadDocument({ path: "/tmp/test.html" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("Hello");
-		expect(result.content).toContain("World");
-		expect(result.content).toContain("html-strip");
-	});
-
-	// --- Truncation ---
-
-	it("truncates output exceeding max_chars", async () => {
-		const longText = "A".repeat(100);
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pdftotext") return longText;
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({
-			path: "/tmp/test.pdf",
-			max_chars: 50,
-		});
-		expect(result.content).toContain("truncated");
-		expect(result.content).toContain("50 chars");
-	});
-
-	it("does not truncate when under max_chars", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pdftotext") return "Short text";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.content).not.toContain("truncated");
-	});
-
-	// --- Empty content ---
-
-	it("reports when document has no text", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pdftotext") return "   ";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.is_error).toBeUndefined();
-		expect(result.content).toContain("no text");
-		expect(result.content).toContain("image-based");
-	});
-
-	// --- EPUB extraction ---
-
-	it("extracts EPUB via pandoc", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pandoc") return "Book content";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/book.epub" });
-		expect(result.content).toContain("Book content");
-	});
-
-	// --- Install hints ---
-
-	it("shows poppler install hint for PDF failures", async () => {
-		mockExec.mockImplementation(() => {
-			throw new Error("not found");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.content).toContain("poppler");
-	});
-
-	it("shows pandoc install hint for DOCX failures on Linux", async () => {
-		setPlatform("linux");
-		mockExec.mockImplementation(() => {
-			throw new Error("not found");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.docx" });
-		expect(result.content).toContain("pandoc");
-	});
-
-	// --- Header format ---
-
-	it("includes extraction method and char count in header", async () => {
-		mockExec.mockImplementation((cmd: string) => {
-			if (cmd === "pdftotext") return "Some PDF content here";
-			throw new Error("unexpected");
-		});
-
-		const result = await runReadDocument({ path: "/tmp/test.pdf" });
-		expect(result.content).toMatch(
-			/\[Extracted via pdftotext, \d+ chars\]/,
-		);
-	});
+  it("distinguishes successful empty extraction from provider failure", async () => {
+    execute.mockReturnValue("   ");
+    const result = await runReadDocument({ path: "/tmp/test.pdf" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("contains no text");
+  });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { RecallHit, RecallResult } from "./client.js";
 import { RecallProviderImpl } from "./recall-provider.js";
 import type {
   RawRecallEntry,
@@ -8,236 +9,119 @@ import type {
 
 function fixedContributor(
   source: RecallSource,
-  hits: RawRecallEntry[],
+  entries: RawRecallEntry[],
 ): RecallContributor {
-  return { source, async recall() { return hits; } };
+  return { source, async recall() { return entries; } };
 }
 
-function failingContributor(source: RecallSource, error: Error): RecallContributor {
-  return {
-    source,
-    async recall() {
-      throw error;
-    },
-  };
-}
-
-function knowledgeHit(id: string, nativeScore: number, title = id): RawRecallEntry {
+function knowledge(id: string, nativeScore: number): RawRecallEntry {
   return {
     source: "knowledge",
     id,
     nativeScore,
-    payload: { title, preview: `preview-${id}`, updated: "2026-04-01" },
+    payload: { title: id, preview: id, updated: "2026-04-01" },
   };
 }
 
-function memoryHit(id: string, nativeScore: number): RawRecallEntry {
+function memory(id: string, nativeScore: number): RawRecallEntry {
   return {
     source: "memory",
     id,
     nativeScore,
-    payload: { preview: `preview-${id}`, created: "2026-04-02" },
+    payload: { preview: id, created: "2026-04-02" },
   };
 }
 
-function historyHit(id: string, nativeScore: number): RawRecallEntry {
-  return {
-    source: "history",
-    id,
-    nativeScore,
-    payload: { title: `chat-${id}`, cwd: "/repo", updatedAt: "2026-04-03" },
-  };
-}
-
-function tasksHit(id: string, nativeScore: number): RawRecallEntry {
+function tasks(id: string, nativeScore: number): RawRecallEntry {
   return {
     source: "tasks",
     id,
     nativeScore,
-    payload: {
-      title: `task-${id}`,
-      state: "open",
-      priority: "p2",
-    },
+    payload: { title: id, state: "open", priority: "p2" },
   };
 }
 
+function hits(result: RecallResult): RecallHit[] {
+  if (!result.ok) throw new Error(`expected recall hits, got ${result.reason}`);
+  return result.hits;
+}
+
 describe("RecallProviderImpl", () => {
-  it("merges hits from every contributor and tags each by source", async () => {
+  it("owns semantic availability and returns the public result envelope", async () => {
     const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 5), knowledgeHit("k2", 3)]));
-    provider.register(fixedContributor("memory", [memoryHit("m1", 10)]));
-    provider.register(fixedContributor("history", [historyHit("h1", 0.5)]));
-    provider.register(fixedContributor("tasks", [tasksHit("t1", 0.9), tasksHit("t2", 0.4)]));
-
-    const hits = await provider.recall("anything", { topK: 10 });
-    const sources = new Set(hits.map((h) => h.source));
-    expect(sources).toEqual(new Set(["knowledge", "memory", "history", "tasks"]));
-    expect(hits.length).toBe(6);
-  });
-
-  it("normalizes scores per source via min-max into [0, 1]", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [
-      knowledgeHit("k1", 100),
-      knowledgeHit("k2", 50),
-      knowledgeHit("k3", 0),
-    ]));
-
-    const hits = await provider.recall("q", { topK: 10 });
-    expect(hits).toHaveLength(3);
-    const byId = Object.fromEntries(hits.map((h) => [h.id, h.score]));
-    expect(byId.k1).toBeCloseTo(1, 5);
-    expect(byId.k2).toBeCloseTo(0.5, 5);
-    expect(byId.k3).toBeCloseTo(0, 5);
-  });
-
-  it("ranks merged hits by normalized score (desc) and clips to topK", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    // Two-hit batches per source so each top hit normalizes to 1 and each
-    // bottom hit to 0; the merged ranking groups all top hits before all
-    // bottom hits regardless of cross-source absolute scale.
-    provider.register(fixedContributor("tasks", [tasksHit("t1", 0.9), tasksHit("t2", 0.1)]));
-    provider.register(fixedContributor("memory", [memoryHit("m1", 100), memoryHit("m2", 50)]));
-
-    const hits = await provider.recall("q", { topK: 3 });
-    // Top tier: m1 (memory before tasks by source order), then t1.
-    // Bottom tier (normalized = 0): m2 first, then t2 — m2 fits the topK=3 cap.
-    expect(hits.map((h) => h.id)).toEqual(["m1", "t1", "m2"]);
-    expect(hits[0].score).toBeCloseTo(1, 5);
-    expect(hits[1].score).toBeCloseTo(1, 5);
-    expect(hits[2].score).toBeCloseTo(0, 5);
-  });
-
-  it("tie-breaks deterministically by source order then id", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    // Each contributor has a single hit normalized to 1.
-    provider.register(fixedContributor("history", [historyHit("z", 1)]));
-    provider.register(fixedContributor("tasks", [tasksHit("a", 1)]));
-    provider.register(fixedContributor("knowledge", [knowledgeHit("m", 1)]));
-    provider.register(fixedContributor("memory", [memoryHit("b", 1)]));
-
-    const hits = await provider.recall("q");
-    // Source order: knowledge, memory, tasks, history
-    expect(hits.map((h) => `${h.source}:${h.id}`)).toEqual([
-      "knowledge:m",
-      "memory:b",
-      "tasks:a",
-      "history:z",
-    ]);
-  });
-
-  it("returns identical orderings on repeat calls (stable)", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 0.6), knowledgeHit("k2", 0.4)]));
-    provider.register(fixedContributor("tasks", [tasksHit("t1", 0.6), tasksHit("t2", 0.4)]));
-
-    const a = await provider.recall("q");
-    const b = await provider.recall("q");
-    expect(a).toEqual(b);
-  });
-
-  it("degrades gracefully when a contributor returns zero hits", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", []));
-    provider.register(fixedContributor("memory", [memoryHit("m1", 1)]));
-
-    const hits = await provider.recall("q");
-    expect(hits.map((h) => h.source)).toEqual(["memory"]);
-  });
-
-  it("degrades gracefully when a contributor throws (e.g. embedding failure)", async () => {
-    const errors: Array<{ source: RecallSource; error: unknown }> = [];
-    const provider = new RecallProviderImpl({
-      onContributorError: (source, error) => errors.push({ source, error }),
+    await expect(provider.recall("query")).resolves.toEqual({
+      ok: false,
+      reason: "semantic_unavailable",
     });
-    provider.register(failingContributor("knowledge", new Error("embedding unreachable")));
-    provider.register(fixedContributor("memory", [memoryHit("m1", 0.7)]));
-    provider.register(fixedContributor("tasks", [tasksHit("t1", 0.5)]));
 
-    const hits = await provider.recall("q");
-    expect(hits.map((h) => h.source)).toEqual(["memory", "tasks"]);
-    expect(errors).toHaveLength(1);
-    expect(errors[0].source).toBe("knowledge");
+    provider.register(fixedContributor("knowledge", []));
+    await expect(provider.recall("query")).resolves.toEqual({ ok: true, hits: [] });
   });
 
-  it("filters by sources when set", async () => {
+  it("normalizes per source, merges, and tie-breaks deterministically", async () => {
     const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 0.9)]));
-    provider.register(fixedContributor("memory", [memoryHit("m1", 0.9)]));
-    provider.register(fixedContributor("tasks", [tasksHit("t1", 0.9)]));
+    provider.register(fixedContributor("tasks", [tasks("t1", 9), tasks("t2", 1)]));
+    provider.register(fixedContributor("knowledge", [knowledge("k1", 100), knowledge("k2", 50)]));
+    provider.register(fixedContributor("memory", [memory("m1", 1)]));
 
-    const hits = await provider.recall("q", { sources: ["memory", "tasks"] });
-    expect(hits.map((h) => h.source).sort()).toEqual(["memory", "tasks"]);
+    const first = hits(await provider.recall("query"));
+    const second = hits(await provider.recall("query"));
+    expect(first).toEqual(second);
+    expect(first.map((hit) => `${hit.source}:${hit.id}`)).toEqual([
+      "knowledge:k1",
+      "memory:m1",
+      "tasks:t1",
+      "knowledge:k2",
+      "tasks:t2",
+    ]);
+    expect(first.map((hit) => hit.score)).toEqual([1, 1, 1, 0, 0]);
   });
 
-  it("applies minScore floor", async () => {
+  it("continues with partial results when one contributor fails", async () => {
+    const failures: RecallSource[] = [];
+    const provider = new RecallProviderImpl({
+      onContributorError: (source) => failures.push(source),
+    });
+    provider.register({
+      source: "knowledge",
+      async recall() { throw new Error("embedding unavailable"); },
+    });
+    provider.register(fixedContributor("memory", [memory("m1", 1)]));
+
+    expect(hits(await provider.recall("query")).map((hit) => hit.source)).toEqual([
+      "memory",
+    ]);
+    expect(failures).toEqual(["knowledge"]);
+  });
+
+  it("applies source, score, and result-count filters at the owner", async () => {
     const provider = new RecallProviderImpl({ onContributorError: () => {} });
     provider.register(fixedContributor("knowledge", [
-      knowledgeHit("k1", 100),
-      knowledgeHit("k2", 50),
-      knowledgeHit("k3", 0),
+      knowledge("k1", 100),
+      knowledge("k2", 50),
+      knowledge("k3", 0),
     ]));
+    provider.register(fixedContributor("memory", [memory("m1", 1)]));
 
-    const hits = await provider.recall("q", { minScore: 0.5 });
-    expect(hits.map((h) => h.id)).toEqual(["k1", "k2"]);
+    const result = hits(await provider.recall("query", {
+      sources: ["knowledge"],
+      minScore: 0.5,
+      topK: 2,
+    }));
+    expect(result.map((hit) => hit.id)).toEqual(["k1", "k2"]);
   });
 
-  it("returns empty for blank query", async () => {
+  it("replaces and withdraws contributors through its registration protocol", async () => {
     const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 1)]));
-    expect(await provider.recall("")).toEqual([]);
-    expect(await provider.recall("   ")).toEqual([]);
-  });
+    provider.register(fixedContributor("knowledge", [knowledge("old", 1)]));
+    provider.register(fixedContributor("knowledge", [knowledge("new", 1)]));
+    expect(hits(await provider.recall("query")).map((hit) => hit.id)).toEqual(["new"]);
 
-  it("returns empty when topK <= 0", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 1)]));
-    expect(await provider.recall("q", { topK: 0 })).toEqual([]);
-  });
-
-  it("re-registering the same source replaces the prior contributor", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k-old", 1)]));
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k-new", 1)]));
-    const hits = await provider.recall("q");
-    expect(hits.map((h) => h.id)).toEqual(["k-new"]);
-    expect(provider.contributors()).toEqual(["knowledge"]);
-  });
-
-  it("unregister removes the contributor and stops surfacing its hits", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("knowledge", [knowledgeHit("k1", 1)]));
-    provider.register(fixedContributor("memory", [memoryHit("m1", 1)]));
-    expect(provider.contributors()).toEqual(["knowledge", "memory"]);
     provider.unregister("knowledge");
-    expect(provider.contributors()).toEqual(["memory"]);
-    const hits = await provider.recall("q");
-    expect(hits.map((h) => h.source)).toEqual(["memory"]);
-    // Unregistering a source that never registered is a no-op.
-    provider.unregister("history");
-    expect(provider.contributors()).toEqual(["memory"]);
-  });
-
-  it("payload fields propagate into the typed RecallHit", async () => {
-    const provider = new RecallProviderImpl({ onContributorError: () => {} });
-    provider.register(fixedContributor("tasks", [{
-      source: "tasks",
-      id: "t1",
-      nativeScore: 0.8,
-      payload: {
-        title: "Add recall seam",
-        state: "open",
-        priority: "p1",
-      },
-    }]));
-    const [hit] = await provider.recall("q");
-    expect(hit).toMatchObject({
-      source: "tasks",
-      id: "t1",
-      title: "Add recall seam",
-      state: "open",
-      priority: "p1",
+    expect(provider.contributors()).toEqual([]);
+    await expect(provider.recall("query")).resolves.toEqual({
+      ok: false,
+      reason: "semantic_unavailable",
     });
   });
 });

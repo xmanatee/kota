@@ -24,7 +24,7 @@ import type { ScopeSelector } from "#core/server/scope-selector.js";
  * and the `RecallHit` discriminated type below.
  *
  * `answer` carries the assistant's own prior cited-answer envelopes — every
- * `AnswerProvider.answer` call appends a record to the answer-history store,
+ * Each cited-answer call appends a record to the answer-history store,
  * and the answer module registers a recall contributor over that store so a
  * fact-shaped follow-up turn can ground in prior synthesized answers
  * alongside the raw `knowledge` / `memory` / `history` / `tasks` stores.
@@ -83,15 +83,14 @@ export type RecallTasksHit = {
 /**
  * Prior-answer envelope hit payload surfaced through `recall`.
  *
- * The hit is the persistent shadow of a prior `AnswerProvider.answer(query)`
+ * The hit is the persistent shadow of a prior cited-answer query
  * call. `query` is the original operator question that produced the
  * envelope; `preview` is a clipped view of the synthesized answer text on
  * the success arm or the failure reason on the failure arm; `citationCount`
  * is the size of the typed `[source:id]` citation list the synthesizer
- * resolved (zero on failure); `result` mirrors the discriminated success/
- * failure shape stored in the `AnswerHistoryRecord` so a consumer can show
- * an operator that the prior answer failed instead of treating every prior
- * envelope as a usable citation source.
+ * resolved. A zero count identifies a failed prior answer; its `preview`
+ * carries the answer owner's failure reason without copying that result union
+ * into recall's public contract.
  */
 export type RecallAnswerHit = {
   source: "answer";
@@ -101,12 +100,6 @@ export type RecallAnswerHit = {
   preview: string;
   citationCount: number;
   createdAt: string;
-  result:
-    | { ok: true }
-    | {
-        ok: false;
-        reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
-      };
 };
 
 /**

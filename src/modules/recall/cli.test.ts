@@ -102,15 +102,6 @@ describe("kota recall", () => {
     expect(output).toContain("Add recall seam");
   });
 
-  it("emits the structured payload for --json", async () => {
-    const program = makeProgram(async () => ({ ok: true, hits: sampleHits }));
-    const output = await captureStdout(async () => {
-      await program.parseAsync(["node", "kota", "recall", "graphrag", "--json"]);
-    });
-    const parsed = JSON.parse(output.trim());
-    expect(parsed).toEqual({ ok: true, hits: sampleHits });
-  });
-
   it("forwards --limit and --source into the recall filter", async () => {
     const program = makeProgram(async (_query, filter) => {
       captured.filter = filter;
@@ -187,20 +178,4 @@ describe("kota recall", () => {
     stderrSpy.mockRestore();
   });
 
-  it("--json emits the same hit set as the rendered table (parity)", async () => {
-    const program = makeProgram(async () => ({ ok: true, hits: sampleHits }));
-    const renderedOutput = await captureStdout(async () => {
-      await program.parseAsync(["node", "kota", "recall", "x"]);
-    });
-    const program2 = makeProgram(async () => ({ ok: true, hits: sampleHits }));
-    const jsonOutput = await captureStdout(async () => {
-      await program2.parseAsync(["node", "kota", "recall", "x", "--json"]);
-    });
-    const parsed = JSON.parse(jsonOutput.trim()) as RecallResult;
-    if (!parsed.ok) throw new Error("Expected ok:true result");
-    for (const hit of parsed.hits) {
-      expect(renderedOutput).toContain(hit.id);
-      expect(renderedOutput).toContain(hit.source);
-    }
-  });
 });

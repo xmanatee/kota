@@ -638,7 +638,9 @@ async function runCheckpoint(params: {
   if (toolResult.is_error) {
     throw new Error(toolResult.content);
   }
-  const rankedHits = await params.provider.recall(params.recallQuery, { topK: 10 });
+  const recallResult = await params.provider.recall(params.recallQuery, { topK: 10 });
+  if (!recallResult.ok) throw new Error("expected recall hits");
+  const rankedHits = recallResult.hits;
   const rawSelection = selectEvidence(rankedHits);
   const selection: EvidenceSelection = params.expectedPolicy === INITIAL_POLICY
     ? { ...rawSelection, ignoredStaleEvidenceIds: [] }

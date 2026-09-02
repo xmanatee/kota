@@ -5,6 +5,7 @@ import type {
   RecallContributor,
   RecallSource,
 } from "./recall-types.js";
+import { RECALL_SOURCE_ORDER } from "./recall-types.js";
 import { createRecallToolRunner, recallTool } from "./tool.js";
 
 function fixedContributor(
@@ -39,13 +40,7 @@ describe("recall tool — schema", () => {
     const props = recallTool.input_schema.properties as Record<string, unknown>;
     expect(props.query).toBeDefined();
     const sources = (props.sources as { items: { enum: string[] } }).items;
-    expect(sources.enum).toEqual([
-      "knowledge",
-      "memory",
-      "history",
-      "tasks",
-      "answer",
-    ]);
+    expect(sources.enum).toEqual(RECALL_SOURCE_ORDER);
   });
 });
 

@@ -230,7 +230,7 @@ function recallMetadata(
         ...base,
         citationCount: hit.citationCount,
         createdAt: hit.createdAt,
-        result: hit.result.ok ? "ok" : hit.result.reason,
+        answered: hit.citationCount > 0,
       });
   }
 }

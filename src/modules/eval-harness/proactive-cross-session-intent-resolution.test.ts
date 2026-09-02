@@ -633,7 +633,9 @@ describe("proactive cross-session intent resolution fixture", () => {
     expect(toolResult.content).toContain(AUTHORIZED_GROCERY_ACTION);
     expect(toolResult.content).toContain(CONFIRM_RIDE_BOUNDARY);
 
-    const rankedHits = await provider.recall(recallQuery, { topK: 12 });
+    const recallResult = await provider.recall(recallQuery, { topK: 12 });
+    if (!recallResult.ok) throw new Error("expected recall hits");
+    const rankedHits = recallResult.hits;
     const selection = selectEvidence(rankedHits, stores);
     expect(selection.selectedEvidenceIds).toEqual(
       expect.arrayContaining([

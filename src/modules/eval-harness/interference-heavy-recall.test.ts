@@ -437,7 +437,9 @@ describe("interference-heavy recall fixture", () => {
     expect(toolResult.content).toContain(CURRENT_AUDIT_DECISION);
     expect(toolResult.content).toContain(STALE_DECISION);
 
-    const rankedHits = await provider.recall(recallQuery, { topK: 8 });
+    const recallResult = await provider.recall(recallQuery, { topK: 8 });
+    if (!recallResult.ok) throw new Error("expected recall hits");
+    const rankedHits = recallResult.hits;
     const selection = selectEvidence(rankedHits);
     expect(selection.currentEvidenceIds).toEqual(
       expect.arrayContaining([

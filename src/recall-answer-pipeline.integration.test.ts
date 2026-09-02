@@ -27,7 +27,6 @@ import { DaemonControlClient } from "#core/server/daemon-client.js";
 import { completeDaemonClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { daemonTransportFromAddress } from "#core/server/daemon-transport.js";
 import {
-  type AnswerHistorySink,
   answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "#modules/answer/answer-history-store.js";
@@ -125,7 +124,6 @@ const SEED_ENTRIES: RawRecallEntry[] = [
         "Recall normalizes each source's native scores once, merges contributors, and tie-breaks deterministically.",
       citationCount: 4,
       createdAt: "2026-04-21T00:00:00.000Z",
-      result: { ok: true },
     },
   },
 ];
@@ -258,8 +256,7 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
 
     const recallSeam: AnswerRecallSeam = {
       async recall(query, filter) {
-        const hits = await recallProvider.recall(query, filter);
-        return { ok: true, hits };
+        return recallProvider.recall(query, filter);
       },
     };
 
@@ -269,12 +266,12 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
     const answerProvider = new AnswerProviderImpl({
       recall: recallSeam,
       synthesizer: stub.synthesizer,
-      history: history satisfies AnswerHistorySink,
+      history,
     });
 
     const recallHandler = createRecallRouteHandler(() => recallProvider);
     const answerHandler = createAnswerRouteHandler(() => answerProvider);
-    const historyHandlers = createAnswerHistoryRouteHandler(() => history);
+    const historyHandlers = createAnswerHistoryRouteHandler(() => answerProvider);
 
     const routeSpecs = buildRouteSpecs({
       recall: recallHandler,

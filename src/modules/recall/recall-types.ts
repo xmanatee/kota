@@ -25,7 +25,12 @@ import type {
   WorkMemoryFreshness,
   WorkMemoryProvenance,
 } from "#core/modules/work-memory-metadata.js";
-import type { RecallFilter, RecallHit, RecallSource } from "./client.js";
+import type {
+  RecallClient,
+  RecallFilter,
+  RecallResult,
+  RecallSource,
+} from "./client.js";
 
 export type {
   RecallAnswerHit,
@@ -58,6 +63,11 @@ export const RECALL_SOURCE_ORDER: ReadonlyArray<RecallSource> = [
   "answer",
 ] as const;
 
+export function isRecallSource(value: unknown): value is RecallSource {
+  return typeof value === "string"
+    && (RECALL_SOURCE_ORDER as readonly string[]).includes(value);
+}
+
 /**
  * Defaults applied at the seam when the caller does not supply a filter
  * field. Kept here so contributors never see `undefined` defaults.
@@ -72,6 +82,15 @@ export type RecallScopeContext = {
   history: HistoryProvider;
   tasks: RepoTasksProvider;
 };
+
+export class RecallScopeSelectionError extends Error {
+  readonly reason = "unknown_scope" as const;
+
+  constructor(readonly scopeId: string) {
+    super(`Unknown scope: ${scopeId}`);
+    this.name = "RecallScopeSelectionError";
+  }
+}
 
 /**
  * Raw hit a contributor emits. The seam normalizes `nativeScore` once across
@@ -132,12 +151,6 @@ export type RawRecallEntry =
         preview: string;
         citationCount: number;
         createdAt: string;
-        result:
-          | { ok: true }
-          | {
-              ok: false;
-              reason: "no_hits" | "semantic_unavailable" | "synthesis_failed";
-            };
       };
     };
 
@@ -171,7 +184,7 @@ export interface RecallContributor {
  * which the recall module populates during its own `onLoad` via
  * `ctx.registerProvider("recall", provider)`.
  */
-export interface RecallProvider {
+export interface RecallProvider extends RecallClient {
   register(contributor: RecallContributor): void;
   unregister(source: RecallSource): void;
   /** List currently-registered contributor sources, in registration order. */
@@ -180,7 +193,7 @@ export interface RecallProvider {
     query: string,
     filter?: RecallFilter,
     scope?: RecallScopeContext,
-  ): Promise<RecallHit[]>;
+  ): Promise<RecallResult>;
 }
 
 /** Provider-registry token for the cross-store recall seam. */

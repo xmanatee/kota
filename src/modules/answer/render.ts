@@ -26,6 +26,7 @@
 import type { RecallHit } from "#modules/recall/client.js";
 import type {
   AnswerCitation,
+  AnswerFailureReason,
   AnswerHistoryEntry,
   AnswerResult,
 } from "./client.js";
@@ -49,7 +50,7 @@ function describeHit(hit: RecallHit): string {
     case "tasks":
       return `[${hit.state}/${hit.priority}] ${hit.title}`;
     case "answer": {
-      const badge = hit.result.ok ? `ok(${hit.citationCount})` : hit.result.reason;
+      const badge = hit.citationCount > 0 ? `ok(${hit.citationCount})` : "failed";
       return `[${badge}] ${hit.query}`;
     }
   }
@@ -125,15 +126,16 @@ export function renderAnswerHistoryEntriesPlain(
  * preserved inline) followed by a labeled citation block sharing the
  * `renderAnswerCitationsPlain` helper that the CLI surface uses.
  */
-const ANSWER_FAILURE_BODY: Record<
-  Extract<AnswerResult, { ok: false }>["reason"],
-  string
-> = {
+const ANSWER_FAILURE_BODY: Record<AnswerFailureReason, string> = {
   no_hits: "No matching knowledge, memory, or history sources — nothing to synthesize.",
   semantic_unavailable: "Cross-store recall has no registered contributors.",
   synthesis_failed:
     "Synthesis failed (model unreachable or unable to cite resolvable sources).",
 };
+
+export function renderAnswerFailurePlain(reason: AnswerFailureReason): string {
+  return ANSWER_FAILURE_BODY[reason];
+}
 
 export function renderAnswerReplyPlain(result: AnswerResult): string {
   if (result.ok) {
@@ -141,12 +143,5 @@ export function renderAnswerReplyPlain(result: AnswerResult): string {
     if (citationsBlock === "") return result.answer;
     return `${result.answer}\n\nCitations\n${citationsBlock}`;
   }
-  switch (result.reason) {
-    case "no_hits":
-      return ANSWER_FAILURE_BODY.no_hits;
-    case "semantic_unavailable":
-      return ANSWER_FAILURE_BODY.semantic_unavailable;
-    case "synthesis_failed":
-      return ANSWER_FAILURE_BODY.synthesis_failed;
-  }
+  return renderAnswerFailurePlain(result.reason);
 }

@@ -4,7 +4,7 @@ import type {
   RecallHit,
   RecallResult,
 } from "#modules/recall/client.js";
-import type { AnswerHistorySink } from "./answer-history-store.js";
+import type { AnswerHistoryStore } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";
 import type { AnswerHistoryRecord } from "./client.js";
@@ -31,7 +31,7 @@ function captureRecall(
 }
 
 function recordingSink(): {
-  sink: AnswerHistorySink;
+  sink: AnswerHistoryStore;
   records: AnswerHistoryRecord[];
 } {
   const records: AnswerHistoryRecord[] = [];
@@ -41,14 +41,20 @@ function recordingSink(): {
       async appendAnswer(record) {
         records.push(record);
       },
+      async listAnswers() { return []; },
+      async getAnswer() { return null; },
+      async searchAnswers() { return []; },
     },
   };
 }
 
-const noopSink: AnswerHistorySink = {
+const noopSink: AnswerHistoryStore = {
   async appendAnswer() {
     /* noop */
   },
+  async listAnswers() { return []; },
+  async getAnswer() { return null; },
+  async searchAnswers() { return []; },
 };
 
 const sampleHits: RecallHit[] = [
@@ -78,6 +84,20 @@ const sampleHits: RecallHit[] = [
 ];
 
 describe("AnswerProviderImpl", () => {
+  it("owns history reads and the not-found result", async () => {
+    const provider = new AnswerProviderImpl({
+      recall: fixedRecall({ ok: true, hits: [] }),
+      synthesizer: async () => "unused",
+      history: noopSink,
+    });
+
+    await expect(provider.log()).resolves.toEqual({ entries: [] });
+    await expect(provider.show("missing")).resolves.toEqual({
+      ok: false,
+      reason: "not_found",
+    });
+  });
+
   it("returns a typed answer envelope with parsed citations and selected hits", async () => {
     const synthesizer: Synthesizer = async () =>
       "The recall seam ranks hits across stores [knowledge:k1] and the work landed under task [tasks:task-add-recall].";
@@ -352,10 +372,13 @@ describe("AnswerProviderImpl", () => {
 
     it("a failing append never alters the operator-visible response", async () => {
       const persistErrors: unknown[] = [];
-      const failingSink: AnswerHistorySink = {
+      const failingSink: AnswerHistoryStore = {
         async appendAnswer() {
           throw new Error("disk full");
         },
+        async listAnswers() { return []; },
+        async getAnswer() { return null; },
+        async searchAnswers() { return []; },
       };
       const provider = new AnswerProviderImpl({
         recall: fixedRecall({ ok: true, hits: sampleHits }),

@@ -25,24 +25,34 @@
 
 import type { RecallHit } from "#modules/recall/client.js";
 import {
-  type AnswerHistorySink,
+  type AnswerHistoryStore,
   buildAnswerHistoryRecord,
   mintAnswerHistoryId,
 } from "./answer-history-store.js";
 import {
   ANSWER_DEFAULT_TOP_K,
-  type AnswerProvider,
   type AnswerRecallSeam,
   type AnswerScopeContext,
+  AnswerScopeSelectionError,
+  type ResolveAnswerScopeContext,
   type Synthesizer,
 } from "./answer-types.js";
 import { parseCitations, selectCitedHits } from "./citation-parser.js";
-import type { AnswerFilter, AnswerResult } from "./client.js";
+import type {
+  AnswerClient,
+  AnswerFilter,
+  AnswerHistoryListFilter,
+  AnswerHistoryListResult,
+  AnswerHistoryShowFilter,
+  AnswerHistoryShowResult,
+  AnswerResult,
+} from "./client.js";
 
 export type AnswerProviderOptions = {
   recall: AnswerRecallSeam;
   synthesizer: Synthesizer;
-  history: AnswerHistorySink;
+  history: AnswerHistoryStore;
+  resolveScopeContext?: ResolveAnswerScopeContext;
   /**
    * Optional callback fired when the synthesizer throws or returns
    * malformed output that survives the retry. Defaults to silent —
@@ -59,10 +69,11 @@ export type AnswerProviderOptions = {
   onPersistError?: (error: unknown) => void;
 };
 
-export class AnswerProviderImpl implements AnswerProvider {
+export class AnswerProviderImpl implements AnswerClient {
   private readonly recall: AnswerRecallSeam;
   private readonly synthesize: Synthesizer;
-  private readonly history: AnswerHistorySink;
+  private readonly history: AnswerHistoryStore;
+  private readonly resolveScopeContext: ResolveAnswerScopeContext | undefined;
   private readonly onSynthesisError: (error: unknown) => void;
   private readonly onPersistError: (error: unknown) => void;
 
@@ -70,6 +81,7 @@ export class AnswerProviderImpl implements AnswerProvider {
     this.recall = options.recall;
     this.synthesize = options.synthesizer;
     this.history = options.history;
+    this.resolveScopeContext = options.resolveScopeContext;
     this.onSynthesisError = options.onSynthesisError ?? (() => {});
     this.onPersistError = options.onPersistError ?? (() => {});
   }
@@ -77,8 +89,8 @@ export class AnswerProviderImpl implements AnswerProvider {
   async answer(
     query: string,
     filter?: AnswerFilter,
-    scope?: AnswerScopeContext,
   ): Promise<AnswerResult> {
+    const scope = this.scopeFor(filter?.scopeId);
     const trimmed = query.trim();
     const recallFilter: AnswerFilter = {
       ...filter,
@@ -148,6 +160,30 @@ export class AnswerProviderImpl implements AnswerProvider {
       ok: false,
       reason: "synthesis_failed",
     }, scope);
+  }
+
+  async log(filter?: AnswerHistoryListFilter): Promise<AnswerHistoryListResult> {
+    const scope = this.scopeFor(filter?.scopeId);
+    return { entries: await (scope?.history ?? this.history).listAnswers(filter) };
+  }
+
+  async show(
+    id: string,
+    scopeFilter?: AnswerHistoryShowFilter,
+  ): Promise<AnswerHistoryShowResult> {
+    const scope = this.scopeFor(scopeFilter?.scopeId);
+    const record = await (scope?.history ?? this.history).getAnswer(id);
+    return record
+      ? { ok: true, record }
+      : { ok: false, reason: "not_found" };
+  }
+
+  private scopeFor(scopeId: string | undefined): AnswerScopeContext | undefined {
+    const resolved = this.resolveScopeContext?.(scopeId);
+    if (resolved && "error" in resolved) {
+      throw new AnswerScopeSelectionError(resolved.scopeId);
+    }
+    return resolved;
   }
 
   private async persistAndReturn(

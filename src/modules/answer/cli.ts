@@ -12,6 +12,7 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RecallHit, RecallSource } from "#modules/recall/client.js";
+import { isRecallSource, RECALL_SOURCE_ORDER } from "#modules/recall/recall-types.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
 import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
 import type {
@@ -21,16 +22,9 @@ import type {
 } from "./client.js";
 import {
   renderAnswerCitationsPlain,
+  renderAnswerFailurePlain,
   renderAnswerHistoryEntriesPlain,
 } from "./render.js";
-
-const ALLOWED_SOURCES: ReadonlyArray<RecallSource> = [
-  "knowledge",
-  "memory",
-  "history",
-  "tasks",
-  "answer",
-];
 
 let stderrRenderer: TerminalTransport | null = null;
 function stderrTransport(): TerminalTransport {
@@ -41,22 +35,12 @@ function stderrTransport(): TerminalTransport {
 }
 
 function collectSources(value: string, previous: RecallSource[]): RecallSource[] {
-  if (!(ALLOWED_SOURCES as readonly string[]).includes(value)) {
-    stderrTransport().write(line(span(`Unknown source "${value}". Valid: ${ALLOWED_SOURCES.join(", ")}`, "error")));
+  if (!isRecallSource(value)) {
+    stderrTransport().write(line(span(`Unknown source "${value}". Valid: ${RECALL_SOURCE_ORDER.join(", ")}`, "error")));
     process.exit(1);
   }
-  return [...previous, value as RecallSource];
+  return [...previous, value];
 }
-
-const FAILURE_MESSAGE: Record<
-  "no_hits" | "semantic_unavailable" | "synthesis_failed",
-  string
-> = {
-  no_hits: "No matching knowledge, memory, or history sources — nothing to synthesize.",
-  semantic_unavailable: "Cross-store recall has no registered contributors.",
-  synthesis_failed:
-    "Synthesis failed (model unreachable or unable to cite resolvable sources).",
-};
 
 function formatRecordTimestamp(iso: string): string {
   const idx = iso.indexOf(".");
@@ -205,7 +189,7 @@ export function registerAnswerCommand(
 
         if (!result.ok) {
           stderrTransport().write(
-            line(span(FAILURE_MESSAGE[result.reason], "error")),
+            line(span(renderAnswerFailurePlain(result.reason), "error")),
           );
           process.exit(1);
         }
@@ -246,7 +230,7 @@ function renderRecord(record: AnswerHistoryRecord): void {
     );
   } else {
     stderrTransport().write(
-      line(span(FAILURE_MESSAGE[record.result.reason], "error")),
+      line(span(renderAnswerFailurePlain(record.result.reason), "error")),
     );
   }
 }

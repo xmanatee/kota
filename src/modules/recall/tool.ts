@@ -14,17 +14,13 @@ import type { ToolResult } from "#core/tools/tool-result.js";
 import type {
   RecallFilter,
   RecallProvider,
-  RecallSource,
+} from "./recall-types.js";
+import {
+  isRecallSource,
+  RECALL_SOURCE_ORDER,
+  type RecallSource,
 } from "./recall-types.js";
 import { renderRecallHitsPlain } from "./render.js";
-
-const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
-  "knowledge",
-  "memory",
-  "history",
-  "tasks",
-  "answer",
-];
 
 export const recallTool: KotaTool = {
   name: "recall",
@@ -56,7 +52,7 @@ export const recallTool: KotaTool = {
       },
       sources: {
         type: "array",
-        items: { type: "string", enum: [...RECALL_SOURCES] },
+        items: { type: "string", enum: [...RECALL_SOURCE_ORDER] },
         description:
           "Optional subset of sources to query. Defaults to every registered " +
           "contributor.",
@@ -101,29 +97,28 @@ export function createRecallToolRunner(
         !Array.isArray(input.sources) ||
         !input.sources.every(
           (s): s is RecallSource =>
-            typeof s === "string" && RECALL_SOURCES.includes(s as RecallSource),
+            isRecallSource(s),
         )
       ) {
         return {
-          content: `Recall failed: \`sources\` must be a list of ${RECALL_SOURCES.join(", ")}.`,
+          content: `Recall failed: \`sources\` must be a list of ${RECALL_SOURCE_ORDER.join(", ")}.`,
           is_error: true,
         };
       }
       filter.sources = input.sources as RecallSource[];
     }
 
-    const provider = resolveProvider();
-    if (provider.contributors().length === 0) {
+    const result = await resolveProvider().recall(query, filter);
+    if (!result.ok) {
       return {
         content: "Cross-store recall has no registered contributors.",
         is_error: true,
       };
     }
-    const hits = await provider.recall(query, filter);
-    if (hits.length === 0) {
+    if (result.hits.length === 0) {
       return { content: "No matching hits." };
     }
-    return { content: renderRecallHitsPlain(hits) };
+    return { content: renderRecallHitsPlain(result.hits) };
   };
 }
 

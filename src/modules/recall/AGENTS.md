@@ -1,96 +1,57 @@
 # Recall Module
 
 Cross-store recall seam. One natural-language query returns ranked,
-source-tagged hits across every registered contributor — currently
-`knowledge`, `memory`, `history`, `tasks`, and the `answer`-history
-corpus contributed by the answer module.
+source-tagged hits across every registered contributor: `knowledge`, `memory`,
+`history`, `tasks`, and the answer-history corpus contributed by the answer
+module.
 
-## What this module owns
+## Ownership
 
-- The `RecallProvider` primitive and its single in-process implementation.
-- The typed `RecallContributor` protocol every store implements.
-- One daemon-control route (`POST /recall`) plus its user-facing twin
-  (`POST /api/recall`) — both share `createRecallRouteHandler` so the wire
-  shape cannot drift between operator surfaces.
-- Both routes resolve a concrete scope id before provider execution. The
-  provider passes a `RecallScopeContext` into contributors, so composed
-  recall reads scope-scoped stores instead of module-global providers.
-- One `KotaClient.recall` namespace and one `kota recall <query>` CLI
-  subcommand.
-- One agent-callable tool (`recall`) contributed through the standard
-  `KotaModule.tools` path. The tool wraps the same in-process
-  `RecallProvider` and renders results through `renderRecallHitsPlain`,
-  so a per-user agent session can pull cross-store context mid-
-  conversation without an explicit `/recall` slash command.
-- The module-owned plain-text render helper is pinned with the cross-client
-  recall render fixture in `clients/conformance/`. Web, mobile, and Apple
-  tests consume the same fixture (or verified embedded copies), so changes to
-  source labels, score precision, or per-source descriptions must update the
-  fixture and every consuming surface together.
-- One per-turn dynamic system-prompt contributor (entry point
-  `buildRecallDynamicStateProvider` in `system-prompt.ts`, registered
-  through `ctx.registerDynamicStateProvider` during `onLoad`). The block
-  covers when to ground fact-shaped questions in knowledge, memory, and history before
-  answering.
+- `RecallProvider` validates source filters, resolves scope context, classifies
+  semantic availability, queries contributors, normalizes scores, and returns
+  the public `RecallResult` directly.
+- `RecallContributor` is the typed registration protocol for store owners.
+- `query.ts` is the shared untrusted-wire decoder for `POST /recall` and
+  `POST /api/recall`. Routes only decode, delegate, and map the typed
+  unknown-scope error to HTTP.
+- The generated routine client binding owns daemon transport. The local client
+  late-binds the registered provider and returns the same domain result without
+  rebuilding its union.
+- The CLI and tool validate their own public inputs and render the domain
+  result. They do not inspect contributor state or reclassify availability.
+- `render.ts` owns the plain-text hit projection. The cross-client fixture in
+  `clients/conformance/` pins the shared rendering contract.
 
-## How a new store joins
+## Contributor registration
 
-A new contributor — owned by whichever module owns the underlying store —
-follows the same registration seam every other contributor uses:
+A new store extends the source and hit unions in `client.ts`, adds its raw arm
+in `recall-types.ts`, and implements `RecallContributor` beside the owning
+store. Its module registers and unregisters that contributor through the typed
+recall provider token and declares a runtime dependency on `recall`.
 
-1. Extends the recall source and hit unions in this module's `client.ts`;
-   generated client bindings pick up the new arm from the canonical wire root.
-2. Adds a matching arm to `RawRecallEntry` in `recall-types.ts`.
-3. Builds a `RecallContributor` adapter wherever the store is owned.
-4. From the owning module's `onLoad`, looks up the live `RecallProvider`
-   through the provider-registry seam
-   (`ctx.getProvider<RecallProvider>("recall")`) and calls
-   `register(contributor)`. Declares `recall` in the module's
-   `dependencies` so the loader populates the registry first.
-5. From the same module activation's returned disposer, calls
-   `recallProvider.unregister(<source>)` to withdraw the contributor.
+The first-party raw-store contributors live in `contributors.ts`. The answer
+contributor lives in `src/modules/answer/recall-contributor.ts`; registration
+flows one way through the public provider API, so recall does not depend on the
+answer module.
 
-The four first-party raw-store contributors (`knowledge`, `memory`,
-`history`, `tasks`) live in `contributors.ts` because the recall module
-already owns those stores. The `answer` contributor lives beside the rest
-of the answer-history code in `src/modules/answer/recall-contributor.ts`
-and is the worked example of the cross-module path: a module reaches the
-live `RecallProvider` through the public registration seam from its own
-`onLoad` and contributes a fifth source without the recall module gaining
-an `answer` dependency.
+## Ranking and degradation
 
-The `RecallProvider` enumerates contributors at runtime through its
-`register` / `unregister` API; nothing in core hard-codes the contributor
-set, and adding a sixth contributor follows the same path.
+Contributors return native scores. Recall normalizes once per source into
+`[0, 1]`, merges the batches, sorts by normalized score, and tie-breaks by
+`RECALL_SOURCE_ORDER` then id.
 
-## Score normalization rule
-
-Contributors return their native scores (cosine for embedding-backed
-contributors, weighted token count or rank-derived for keyword fallbacks).
-The seam normalizes once via per-source min-max rescaling into `[0, 1]`,
-merges every contributor's batch, sorts by normalized score, and tie-breaks
-deterministically by `RECALL_SOURCE_ORDER` then id. The same query against
-the same data returns the same ordering on every call.
-
-## Degradation
-
-A contributor that has no semantic backend falls back to its provider's
-keyword search. A contributor that throws (e.g. embedding endpoint
-unreachable) returns an empty batch — the seam logs once and continues with
-the remaining contributors. The unified call never aborts because one store
-cannot answer.
+A contributor without a semantic backend uses its store's keyword fallback. A
+contributor that throws logs once and contributes an empty batch. With no
+registered contributors, the provider returns `semantic_unavailable`; routes,
+clients, tools, and CLIs consume that classification rather than duplicating
+it.
 
 ## Boundaries
 
-- No new embedding plumbing, no new sidecar files, no new index format. The
-  contributors delegate to each store's existing semantic-search interface.
-- No replacement of the per-store query paths. `searchKnowledge`,
-  `searchMemory`, `searchHistory`, and `searchTasks` remain as-is.
-- New contributors that read scope data must consume the supplied scope
-  context; global provider getters are only for the default-scope resolver.
-- The recall module does not seed a parallel multi-surface fan-out chain
-  by itself. Surface adoption (Telegram, Slack, macOS, mobile, web) lands
-  as honest single-task follow-ups owned by the surface module. Each
-  surface consumes the same `createRecallRouteHandler` envelope through
-  `POST /api/recall` (visual clients) or `POST /recall` (other daemon
-  clients via `KotaClient.recall.recall`).
+- Contributors use the supplied scope context. Do not introduce global
+  provider getters or a second contributor registry.
+- Per-store query paths and semantic indexes remain owned by their store
+  modules; recall adds no embedding cache or index format.
+- Answer-history hits carry the prior query, preview, citation count, and
+  timestamp needed for ranking and rendering. They do not embed a copied
+  `AnswerResult`; the answer-history store remains the provenance owner.

@@ -19,35 +19,28 @@ import { loadConfig } from "#core/config/config.js";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
-import type { KotaModule, ModuleContext, ModuleRuntimeContext } from "#core/modules/module-types.js";
+import type {
+  KotaModule,
+  ModuleContext,
+  ModuleRuntimeContext,
+} from "#core/modules/module-types.js";
 import {
   apiKeyNameForProvider,
   resolveApiKey,
   resolveModelProviderName,
 } from "#modules/model-clients/factory.js";
-import {
-  RECALL_PROVIDER_TOKEN,
-  type RecallProvider,
-} from "#modules/recall/recall-types.js";
-import {
-  type AnswerHistoryStore,
-  answerHistoryRootForScope,
-  DiskAnswerHistoryStore,
-} from "./answer-history-store.js";
+import { RECALL_PROVIDER_TOKEN } from "#modules/recall/recall-types.js";
+import { answerHistoryRootForScope, DiskAnswerHistoryStore } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import {
   ANSWER_PROVIDER_TOKEN,
-  type AnswerProvider,
   type AnswerRecallSeam,
   type SynthesisInput,
   type Synthesizer,
 } from "./answer-types.js";
 import { createAnswerReadinessSource } from "./capability-readiness.js";
 import { registerAnswerCommand } from "./cli.js";
-import type {
-  AnswerClient,
-  AnswerHistoryListFilter,
-} from "./client.js";
+import type { AnswerClient } from "./client.js";
 import { createAnswerRecallContributor } from "./recall-contributor.js";
 import { answerApiRoutes, answerControlRoutes } from "./routes.js";
 import { createAnswerScopeContextResolver } from "./scope-context.js";
@@ -64,26 +57,14 @@ import { answerUiSurfaceSource } from "./ui-surface.js";
 
 const ANSWER_MAX_OUTPUT_TOKENS = 1024;
 
-let activeProvider: AnswerProvider | null = null;
-let activeHistory: AnswerHistoryStore | null = null;
-let recallContributorHost: RecallProvider | null = null;
-
-function resolveActiveProvider(): AnswerProvider {
-  if (!activeProvider) {
+function resolveProvider(ctx: ModuleContext): AnswerClient {
+  const provider = ctx.getProvider(ANSWER_PROVIDER_TOKEN);
+  if (!provider) {
     throw new Error(
       "Answer provider is not initialized. Ensure the answer module loaded.",
     );
   }
-  return activeProvider;
-}
-
-function resolveActiveHistory(): AnswerHistoryStore {
-  if (!activeHistory) {
-    throw new Error(
-      "Answer history store is not initialized. Ensure the answer module loaded.",
-    );
-  }
-  return activeHistory;
+  return provider;
 }
 
 function createDefaultSynthesizer(ctx: ModuleContext): Synthesizer {
@@ -138,6 +119,7 @@ const answerModule: KotaModule = {
       recall: recallSeam,
       synthesizer,
       history,
+      resolveScopeContext,
       onSynthesisError: (err) => {
         const msg = err instanceof Error ? err.message : String(err);
         ctx.log.warn(`answer: synthesis failed — ${msg}`);
@@ -147,8 +129,6 @@ const answerModule: KotaModule = {
         ctx.log.warn(`answer: history append failed — ${msg}`);
       },
     });
-    activeHistory = history;
-    activeProvider = provider;
     ctx.registerProvider(ANSWER_PROVIDER_TOKEN, provider);
     ctx.registerProvider(
       CAPABILITY_READINESS_PROVIDER_TYPE,
@@ -190,17 +170,10 @@ const answerModule: KotaModule = {
     recallProvider.register(
       createAnswerRecallContributor(history, resolveScopeContext),
     );
-    recallContributorHost = recallProvider;
-
     ctx.log.info("answer: cited-answer seam ready");
     return {
       dispose: () => {
-        if (activeProvider === provider) {
-          recallProvider.unregister("answer");
-          activeProvider = null;
-          if (activeHistory === history) activeHistory = null;
-          if (recallContributorHost === recallProvider) recallContributorHost = null;
-        }
+        recallProvider.unregister("answer");
       },
     };
   },
@@ -211,56 +184,24 @@ const answerModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  tools: () => [createAnswerToolDef(resolveActiveProvider)],
+  tools: (ctx) => [createAnswerToolDef(() => resolveProvider(ctx))],
 
   controlRoutes: (ctx) =>
-    answerControlRoutes(
-      resolveActiveProvider,
-      resolveActiveHistory,
-      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory, ctx),
-    ),
+    answerControlRoutes(() => resolveProvider(ctx)),
 
   routes: (ctx) =>
-    answerApiRoutes(
-      resolveActiveProvider,
-      resolveActiveHistory,
-      createAnswerScopeContextResolver(ctx.cwd, () => activeHistory, ctx),
-    ),
+    answerApiRoutes(() => resolveProvider(ctx)),
 
   localClient: (ctx) => {
-    const localStore = new DiskAnswerHistoryStore({
-      rootDir: answerHistoryRootForScope(join(ctx.cwd, ".kota")),
-    });
     const handler: AnswerClient = {
       async answer(query, filter) {
-        const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
-          activeHistory ?? localStore,
-        ctx);
-        const scope = resolver(filter?.scopeId);
-        if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-        return resolveActiveProvider().answer(query, filter, scope);
+        return resolveProvider(ctx).answer(query, filter);
       },
-      async log(filter?: AnswerHistoryListFilter) {
-        const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
-          activeHistory ?? localStore,
-        ctx);
-        const scope = resolver(filter?.scopeId);
-        if ("error" in scope) throw new Error(`Unknown scope: ${scope.scopeId}`);
-        const store = scope.history;
-        const entries = await store.listAnswers(filter);
-        return { entries };
+      async log(filter) {
+        return resolveProvider(ctx).log(filter);
       },
       async show(id: string, scope) {
-        const resolver = createAnswerScopeContextResolver(ctx.cwd, () =>
-          activeHistory ?? localStore,
-        ctx);
-        const resolved = resolver(scope?.scopeId);
-        if ("error" in resolved) throw new Error(`Unknown scope: ${resolved.scopeId}`);
-        const store = resolved.history;
-        const record = await store.getAnswer(id);
-        return record
-          ? { ok: true as const, record }
-          : { ok: false as const, reason: "not_found" as const };
+        return resolveProvider(ctx).show(id, scope);
       },
     };
     return { answer: handler };

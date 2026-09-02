@@ -127,32 +127,6 @@ describe("kota answer", () => {
     expect(output).toContain("Add recall seam");
   });
 
-  it("emits the structured payload for --json", async () => {
-    const program = makeProgram(async () => sampleResult);
-    const output = await captureStdout(async () => {
-      await program.parseAsync(["node", "kota", "answer", "q", "--json"]);
-    });
-    const parsed = JSON.parse(output.trim()) as AnswerResult;
-    expect(parsed).toEqual(sampleResult);
-  });
-
-  it("rendered output and --json reference the same citation ids (parity)", async () => {
-    const program = makeProgram(async () => sampleResult);
-    const renderedOutput = await captureStdout(async () => {
-      await program.parseAsync(["node", "kota", "answer", "x"]);
-    });
-    const program2 = makeProgram(async () => sampleResult);
-    const jsonOutput = await captureStdout(async () => {
-      await program2.parseAsync(["node", "kota", "answer", "x", "--json"]);
-    });
-    const parsed = JSON.parse(jsonOutput.trim()) as AnswerResult;
-    if (!parsed.ok) throw new Error("Expected ok:true result");
-    for (const c of parsed.citations) {
-      expect(renderedOutput).toContain(c.id);
-      expect(renderedOutput).toContain(c.source);
-    }
-  });
-
   it("forwards --limit, --source, and --min-score into the answer filter", async () => {
     const program = makeProgram(async (_q, filter) => {
       captured.filter = filter;
@@ -216,53 +190,6 @@ describe("kota answer", () => {
     stderrSpy.mockRestore();
   });
 
-  it("exits non-zero with a semantic_unavailable message", async () => {
-    const program = makeProgram(async () => ({
-      ok: false,
-      reason: "semantic_unavailable",
-    }));
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
-    try {
-      await program.parseAsync(["node", "kota", "answer", "anything"]);
-    } catch {
-      /* expected exit */
-    }
-    const stderr = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
-    expect(stderr).toContain("Cross-store recall has no registered contributors");
-    exitSpy.mockRestore();
-    stderrSpy.mockRestore();
-  });
-
-  it("exits non-zero with a synthesis_failed message", async () => {
-    const program = makeProgram(async () => ({
-      ok: false,
-      reason: "synthesis_failed",
-    }));
-    const exitSpy = vi
-      .spyOn(process, "exit")
-      .mockImplementation(((code?: number) => {
-        throw new Error(`process.exit:${code}`);
-      }) as never);
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
-    try {
-      await program.parseAsync(["node", "kota", "answer", "anything"]);
-    } catch {
-      /* expected exit */
-    }
-    const stderr = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
-    expect(stderr).toContain("Synthesis failed");
-    exitSpy.mockRestore();
-    stderrSpy.mockRestore();
-  });
 });
 
 const okEntry = (i: number) => ({
@@ -353,18 +280,6 @@ describe("kota answer log", () => {
     expect(output).toContain("q0");
     expect(output).toContain("ok(2)");
     expect(output).toContain("no_hits");
-  });
-
-  it("emits the structured payload for --json", async () => {
-    const program = makeProgram(async () => sampleResult, {
-      log: async () => ({ entries: [okEntry(0)] }),
-    });
-    const output = await captureStdout(async () => {
-      await program.parseAsync(["node", "kota", "answer", "log", "--json"]);
-    });
-    const parsed = JSON.parse(output.trim()) as AnswerHistoryListResult;
-    expect(parsed.entries).toHaveLength(1);
-    expect(parsed.entries[0].id).toBe(okEntry(0).id);
   });
 
   it("forwards --limit and --before through to the client", async () => {
@@ -458,23 +373,4 @@ describe("kota answer show", () => {
     stderrSpy.mockRestore();
   });
 
-  it("emits the structured AnswerHistoryShowResult for --json", async () => {
-    const record = okRecord("rec-3");
-    const program = makeProgram(async () => sampleResult, {
-      show: async () => ({ ok: true, record }),
-    });
-    const output = await captureStdout(async () => {
-      await program.parseAsync([
-        "node",
-        "kota",
-        "answer",
-        "show",
-        record.id,
-        "--json",
-      ]);
-    });
-    const parsed = JSON.parse(output.trim()) as AnswerHistoryShowResult;
-    if (!parsed.ok) throw new Error("expected ok:true");
-    expect(parsed.record.id).toBe(record.id);
-  });
 });
