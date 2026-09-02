@@ -1,12 +1,12 @@
 /**
  * Daemon-control HTTP routes for the `config` namespace.
  *
- * Both the daemon-control server and the local-side handler reach the
- * same `validateConfig` / `getConfigValue` / `setConfigValue` helpers so
- * daemon-up and daemon-down callers see the same shape and the same
- * `.kota/config.json` mutation.
+ * The local CLI may inspect raw resolved values, but every client-visible read
+ * from this control plane applies the core config-redaction policy before
+ * serializing a response.
  */
 import type { IncomingMessage } from "node:http";
+import { maskConfig, maskConfigValue } from "#core/config/config-redaction.js";
 import type {
   ControlRouteRegistration,
   ModuleContext,
@@ -20,6 +20,11 @@ import {
   validateConfig,
 } from "./config-operations.js";
 
+type ConfigControlRouteContext = Pick<
+  ModuleContext,
+  "cwd" | "getRegisteredConfigKeys"
+>;
+
 async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -30,7 +35,9 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return JSON.parse(text);
 }
 
-export function configControlRoutes(ctx: ModuleContext): ControlRouteRegistration[] {
+export function configControlRoutes(
+  ctx: ConfigControlRouteContext,
+): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
@@ -38,7 +45,10 @@ export function configControlRoutes(ctx: ModuleContext): ControlRouteRegistratio
       capabilityScope: "read",
       handler: (_req, res) => {
         const result = validateConfig(ctx.cwd, ctx.getRegisteredConfigKeys());
-        jsonResponse(res, 200, result);
+        jsonResponse(res, 200, {
+          ...result,
+          resolved: maskConfig(result.resolved),
+        });
       },
     },
     {
@@ -57,7 +67,10 @@ export function configControlRoutes(ctx: ModuleContext): ControlRouteRegistratio
           jsonResponse(res, 404, { found: false, reason: "not_found" });
           return;
         }
-        jsonResponse(res, 200, result);
+        jsonResponse(res, 200, {
+          found: true,
+          value: maskConfigValue(result.value, key.split(".")),
+        });
       },
     },
     {

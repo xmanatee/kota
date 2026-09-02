@@ -32,7 +32,21 @@ export function isSensitiveConfigKey(key: string): boolean {
 }
 
 export function maskConfig(config: object): RedactedConfigObject {
-	return walkAndMask(config as ConfigRedactionInputObject) as RedactedConfigObject;
+	return maskConfigValue(config) as RedactedConfigObject;
+}
+
+/**
+ * Project one resolved config value for a client-visible boundary.
+ *
+ * A lookup of a sensitive path must hide the matched leaf itself, while a
+ * lookup of a parent object or array recursively hides sensitive descendants.
+ */
+export function maskConfigValue(
+	value: unknown,
+	requestedPath: readonly string[] = [],
+): RedactedConfigValue {
+	if (requestedPath.some(isSensitiveConfigKey)) return "***";
+	return walkAndMask(value as ConfigRedactionInputValue);
 }
 
 function walkAndMask(value: ConfigRedactionInputValue): RedactedConfigValue {

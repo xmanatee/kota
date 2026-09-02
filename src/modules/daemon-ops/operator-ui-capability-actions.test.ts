@@ -51,6 +51,59 @@ function projectionClient(): KotaClient {
 }
 
 describe("capability shared UI actions", () => {
+  it("redacts config values before returning an operator UI action result", async () => {
+    const inlineSecrets = {
+      apiKey: "inline-api-key",
+      nested: [
+        { token: "inline-token" },
+        { password: "inline-password" },
+        { "private-key": "inline-private-key" },
+        { authorization: "Bearer inline-authorization" },
+        { cookie: "inline-cookie" },
+      ],
+      label: "visible-label",
+    };
+    const client = createKotaClientTestDouble({
+      config: {
+        get: async (key) => ({
+          found: true,
+          value: key === "modules.fixture.apiKey"
+            ? inlineSecrets.apiKey
+            : inlineSecrets,
+        }),
+      },
+    });
+
+    const objectResult = await executeCapabilityUiAction({
+      client,
+      operation: { kind: "client-namespace", namespace: "config", method: "get" },
+      parameters: { key: "modules.fixture" },
+    });
+    const leafResult = await executeCapabilityUiAction({
+      client,
+      operation: { kind: "client-namespace", namespace: "config", method: "get" },
+      parameters: { key: "modules.fixture.apiKey" },
+    });
+
+    expect(objectResult).toMatchObject({ ok: true });
+    expect(leafResult).toEqual({
+      ok: true,
+      message: "modules.fixture.apiKey = ***",
+    });
+    const rendered = JSON.stringify(objectResult);
+    for (const secret of [
+      "inline-api-key",
+      "inline-token",
+      "inline-password",
+      "inline-private-key",
+      "inline-authorization",
+      "inline-cookie",
+    ]) {
+      expect(rendered).not.toContain(secret);
+    }
+    expect(rendered).toContain("visible-label");
+  });
+
   it("dispatches every migrated operator capability through its typed client namespace", async () => {
     const client = projectionClient();
     const results = await Promise.all([

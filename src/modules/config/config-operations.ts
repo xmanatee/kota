@@ -1,11 +1,13 @@
 /**
- * Shared read/mutate logic for `kota config` and the matching daemon
- * control routes.
+ * Filesystem-backed read/mutate logic for `kota config` and the matching
+ * daemon control routes.
  *
  * Both the CLI subcommand (via the local-client handler) and the daemon
  * control routes route through these functions so the two transports
  * share one definition of resolution, dot-notation lookup, and persisted
- * mutation semantics.
+ * mutation semantics. Reads are intentionally raw here for local CLI
+ * inspection; client-visible callers must apply the core config-redaction
+ * projection before returning them.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";

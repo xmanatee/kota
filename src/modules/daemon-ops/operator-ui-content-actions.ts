@@ -1,3 +1,4 @@
+import { maskConfigValue } from "#core/config/config-redaction.js";
 import type { RecallHit } from "#modules/recall/client.js";
 import type { UiActionExecutionResult } from "./operator-ui-actions.js";
 import {
@@ -155,7 +156,8 @@ export async function executeContentCapabilityUiAction(
     if (!result.found) {
       return { ok: false, reason: result.reason, message: `Configuration key ${key} was not found.` };
     }
-    const value = typeof result.value === "string" ? result.value : JSON.stringify(result.value, null, 2);
+    const redacted = maskConfigValue(result.value, key.split("."));
+    const value = typeof redacted === "string" ? redacted : JSON.stringify(redacted, null, 2);
     return { ok: true, message: `${key} = ${value ?? "undefined"}` };
   }
   if (operation.namespace === "config" && operation.method === "set") {

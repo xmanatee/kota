@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: The authenticated operator UI can disclose inline configuration secrets because config.get returns an unredacted resolved value and the UI renders it verbatim, bypassing the repository's established config-redaction boundary.
 
@@ -116,3 +115,18 @@ excerpt:
 
 
 > result[key] = isSensitiveConfigKey(key) ? "***" : walkAndMask(nested);
+
+## Final Verification
+
+- Config daemon-control reads now mask a sensitive requested path in full and
+  recursively redact secret-shaped fields in returned objects and arrays.
+  The operator UI action applies the same projection before rendering a value;
+  filesystem-backed local CLI reads remain intentionally raw.
+- `NODE_OPTIONS=--conditions=source pnpm exec vitest run --configLoader runner
+  --silent=true --project=owner src/modules/config/config-control-routes.test.ts
+  src/modules/config/routes.test.ts src/modules/config/config.test.ts
+  src/modules/config/daemon-client.test.ts
+  src/modules/daemon-ops/operator-ui-capability-actions.test.ts
+  src/core/config/config-redaction.test.ts` passed 6 files / 50 tests.
+- `pnpm check:fast` passed production and test typechecking, lint, task
+  validation, and generated client-binding freshness.

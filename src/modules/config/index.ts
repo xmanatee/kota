@@ -1,9 +1,10 @@
 /**
  * Config module — owns the `kota config` CLI surface.
  *
- * Registers subcommands: validate, get, set, schema. Every subcommand
- * routes through `ctx.client.config.<method>()` so daemon-up and
- * daemon-down operators read and mutate config the same way.
+ * Registers subcommands: validate, get, set, schema. Every subcommand routes
+ * through `ctx.client.config.<method>()`; daemon reads are redacted at their
+ * control boundary, while the filesystem-backed local CLI can intentionally
+ * inspect raw resolved values.
  */
 
 import { Command } from "commander";

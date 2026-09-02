@@ -15,9 +15,10 @@
  * read (the global path is omitted when not present). `warnings` carries
  * unknown-key diagnostics (one warning per key the resolver did not
  * recognize given the loaded module set's contributed config keys). The
- * `resolved` payload is the same merged config shape `loadConfig` returns;
- * the contract types it as a plain JSON record because the CLI only ever
- * round-trips it for rendering.
+ * `resolved` has the same merged config shape `loadConfig` returns. Daemon
+ * clients receive the client-safe redacted projection; the intentional local
+ * CLI handler receives the raw filesystem-backed projection. The contract
+ * types both as a plain JSON record because consumers only render the result.
  */
 export type ConfigValidateResult = {
   sources: { label: "global" | "scope"; path: string }[];
@@ -31,8 +32,9 @@ export type ConfigValidateResult = {
  * `key` is dot-notation (`a.b.c`) into the resolved merged config.
  * Returns `not_found` instead of `undefined` so the CLI can render a
  * clear diagnostic without ambiguity between "missing" and "explicit
- * null". The value is the matched leaf (string, number, object, etc.)
- * surfaced verbatim for the caller to JSON-stringify or unwrap.
+ * null". The value is the matched leaf (string, number, object, etc.). Daemon
+ * clients receive a fully masked sensitive path or a recursively redacted
+ * parent value; the intentional local CLI handler receives the raw value.
  */
 export type ConfigGetResult =
   | { found: true; value: unknown }
