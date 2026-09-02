@@ -14,9 +14,14 @@ import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
+  EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT,
   type EvaluatorCalibrationArtifact,
 } from "#modules/autonomy/evaluator-calibration.js";
-import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
+import { projectAutonomyHealthEvidenceRefsForReview } from "#modules/autonomy/health-review-evidence-policy.js";
+import {
+  type AutonomyHealthSignal,
+  autonomyHealthSignal,
+} from "#modules/autonomy/health-signal.js";
 import evaluatorCalibrationMonitor from "./workflow.js";
 
 function seedCalibration(
@@ -116,6 +121,35 @@ describe("evaluator-calibration-monitor workflow", () => {
       new Date(now - 60 * 60 * 1_000).toISOString(),
       "fail",
     );
+    const dispositionsDir = join(
+      runsDir,
+      "run-review",
+      "evidence",
+      "artifacts",
+    );
+    mkdirSync(dispositionsDir, { recursive: true });
+    writeFileSync(
+      join(dispositionsDir, EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT),
+      JSON.stringify({
+        schemaVersion: 1,
+        records: [{
+          base: {
+            runId: "run-older",
+            sourceRevision: "1111111111111111111111111111111111111111",
+          },
+          later: {
+            runId: "run-newer",
+            sourceRevision: "1111111111111111111111111111111111111111",
+          },
+          disposition: {
+            kind: "accepted-overlap",
+            rationale: "The overlap was reviewed and accepted as unrelated behavior.",
+            decidedAt: new Date(now - 30 * 60 * 1_000).toISOString(),
+          },
+        }],
+        unavailableSources: [],
+      }),
+    );
 
     const result = await new WorkflowScenarioDriver(evaluatorCalibrationMonitor, {
       workspaceRoot,
@@ -132,6 +166,13 @@ describe("evaluator-calibration-monitor workflow", () => {
         payload: expect.objectContaining({
           driftKinds: ["pass-contradiction"],
           passContradictionCount: 1,
+          passContradictions: [{
+            base: expect.objectContaining({ runId: "run-older" }),
+            later: expect.objectContaining({ runId: "run-newer" }),
+            laterFailure: { verdict: "fail", terminalRunStatus: "failed" },
+            overlappingSourcePaths: ["src/core/a.ts"],
+            disposition: expect.objectContaining({ kind: "accepted-overlap" }),
+          }],
         }),
       }),
     ]);
@@ -151,7 +192,52 @@ describe("evaluator-calibration-monitor workflow", () => {
       sourceRunId: "run-newer",
       status: "gated",
       driftKinds: ["pass-contradiction"],
+      aggregate: expect.objectContaining({
+        passContradictions: [
+          expect.objectContaining({
+            base: expect.objectContaining({ runId: "run-older" }),
+            later: expect.objectContaining({ runId: "run-newer" }),
+            disposition: expect.objectContaining({ kind: "accepted-overlap" }),
+          }),
+        ],
+      }),
     });
+    const healthSignal = result.emitted.find(
+      (event) => event.event === autonomyHealthSignal.name,
+    );
+    const healthPayload = healthSignal?.payload as AutonomyHealthSignal | undefined;
+    expect(healthPayload?.summary).toContain(
+      "run-older@111111111111 -> run-newer@111111111111",
+    );
+    expect(healthPayload?.summary).toContain(
+      "disposition=accepted-overlap rationale=The overlap was reviewed",
+    );
+    expect(healthPayload?.evidenceRefs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "event",
+          ref: expect.stringContaining(
+            "run-older@1111111111111111111111111111111111111111->run-newer",
+          ),
+          summary: expect.stringContaining(
+            "laterFailure=fail/failed paths=src/core/a.ts " +
+              "disposition=accepted-overlap rationale=The overlap was reviewed",
+          ),
+        }),
+      ]),
+    );
+    expect(
+      projectAutonomyHealthEvidenceRefsForReview(
+        healthPayload?.evidenceRefs ?? [],
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "event",
+          summary: expect.stringContaining("disposition=accepted-overlap"),
+        }),
+      ]),
+    );
     expect(observation).not.toHaveProperty("proposal");
     expect(observation).not.toHaveProperty("applied");
   });

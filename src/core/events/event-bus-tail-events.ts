@@ -225,9 +225,9 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
   /**
    * The live-run evaluator calibration monitor observed that the critic's
    * pass-verdict contradiction rate crossed the configured threshold. The
-   * payload carries the aggregate window, the rates, and the threshold the
-   * gate enforced so observers can explain the drift to an operator without
-   * reopening the underlying calibration artifacts. Complements
+   * payload carries the aggregate window, exact contradiction identities and
+   * dispositions, the rates, and the enforced threshold so observers can
+   * explain the drift without reopening underlying calibration artifacts. Complements
    * `eval-harness.regression.detected`: fixtures catch generator drift
    * against fixed outcomes; this event catches evaluator drift on live runs.
    */
@@ -239,6 +239,47 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
     passVerdictCount: number;
     passContradictionCount: number;
     passContradictionRate: number;
+    passContradictions: Array<{
+      base: {
+        runId: string;
+        taskId: string | null;
+        sourceRevision: string | null;
+      };
+      later: {
+        runId: string;
+        taskId: string | null;
+        sourceRevision: string | null;
+      };
+      laterFailure: {
+        verdict: "pass" | "pass_with_warnings" | "fail" | "absent";
+        terminalRunStatus:
+          | "running"
+          | "success"
+          | "completed-with-warnings"
+          | "failed"
+          | "interrupted";
+      };
+      overlappingSourcePaths: string[];
+      disposition:
+        | {
+            kind: "reclassified";
+            verdict: "pass_with_warnings" | "fail";
+            rationale: string;
+            decidedAt: string;
+          }
+        | {
+            kind: "accepted-overlap";
+            rationale: string;
+            decidedAt: string;
+          }
+        | {
+            kind: "corrective-task";
+            taskId: string;
+            rationale: string;
+            decidedAt: string;
+          }
+        | null;
+    }>;
     passWithWarningsCount: number;
     passWithWarningsFollowUpCount: number;
     passWithWarningsFollowUpRate: number;

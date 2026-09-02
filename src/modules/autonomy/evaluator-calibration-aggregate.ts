@@ -4,12 +4,17 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { readWriterIntegrationEvidence } from "#core/workflow/writer-integration-evidence.js";
 import { isCalibrationSourceFile } from "./evaluator-calibration-artifact.js";
 import {
+  evaluatorCalibrationDispositionKey,
+  loadEvaluatorCalibrationDispositions,
+} from "./evaluator-calibration-dispositions.js";
+import {
   type CalibrationDriftKind,
   type CalibrationGateConfig,
   type CalibrationGateDecision,
   EVALUATOR_CALIBRATION_ARTIFACT,
   type EvaluatorCalibrationAggregate,
   type EvaluatorCalibrationArtifact,
+  type EvaluatorCalibrationContradiction,
   type EvaluatorCalibrationVerdict,
 } from "./evaluator-calibration-types.js";
 
@@ -73,24 +78,25 @@ function isHedgingOrFailing(artifact: EvaluatorCalibrationArtifact): boolean {
 
 type FollowUpFilter = (artifact: EvaluatorCalibrationArtifact) => boolean;
 
-function hasOverlappingFollowUp(
+function overlappingFollowUp(
   base: LoadedArtifact,
   later: LoadedArtifact[],
   followUpWindowMs: number,
   accept: FollowUpFilter,
-): boolean {
-  if (base.artifact.sourceFilesChanged.length === 0) return false;
+): { entry: LoadedArtifact; paths: string[] } | null {
+  if (base.artifact.sourceFilesChanged.length === 0) return null;
   const baseFiles = new Set(base.artifact.sourceFilesChanged);
   const deadlineMs = base.completedAtMs + followUpWindowMs;
   for (const candidate of later) {
     if (candidate.completedAtMs <= base.completedAtMs) continue;
     if (candidate.completedAtMs > deadlineMs) break;
     if (!accept(candidate.artifact)) continue;
-    if (candidate.artifact.sourceFilesChanged.some((file) => baseFiles.has(file))) {
-      return true;
-    }
+    const paths = candidate.artifact.sourceFilesChanged.filter((file) =>
+      baseFiles.has(file)
+    );
+    if (paths.length > 0) return { entry: candidate, paths: [...new Set(paths)].sort() };
   }
-  return false;
+  return null;
 }
 
 function rate(numerator: number, denominator: number): number {
@@ -111,6 +117,7 @@ export function aggregateCalibration(
     nowMs,
     options.criticPromptHash,
   );
+  const dispositions = loadEvaluatorCalibrationDispositions(runsDir);
 
   const byVerdict: Record<EvaluatorCalibrationVerdict, number> = {
     pass: 0,
@@ -118,22 +125,61 @@ export function aggregateCalibration(
     fail: 0,
     absent: 0,
   };
-  let passContradictionCount = 0;
+  const passContradictions: EvaluatorCalibrationContradiction[] = [];
   let passWithWarningsFollowUpCount = 0;
 
   for (let index = 0; index < artifacts.length; index++) {
     const entry = artifacts[index];
     const tail = artifacts.slice(index + 1);
     byVerdict[entry.artifact.verdict]++;
-    if (
-      entry.artifact.verdict === "pass" &&
-      hasOverlappingFollowUp(entry, tail, followUpWindowMs, hasTerminalFailureSignal)
-    ) {
-      passContradictionCount++;
+    if (entry.artifact.verdict === "pass") {
+      const followUp = overlappingFollowUp(
+        entry,
+        tail,
+        followUpWindowMs,
+        hasTerminalFailureSignal,
+      );
+      if (followUp) {
+        const contradiction: EvaluatorCalibrationContradiction = {
+          base: {
+            runId: entry.artifact.runId,
+            taskId: entry.artifact.taskId,
+            sourceRevision: entry.artifact.sourceRevision,
+          },
+          later: {
+            runId: followUp.entry.artifact.runId,
+            taskId: followUp.entry.artifact.taskId,
+            sourceRevision: followUp.entry.artifact.sourceRevision,
+          },
+          laterFailure: {
+            verdict: followUp.entry.artifact.verdict,
+            terminalRunStatus: followUp.entry.artifact.terminalRunStatus,
+          },
+          overlappingSourcePaths: followUp.paths,
+          disposition: null,
+        };
+        const baseRevision = contradiction.base.sourceRevision;
+        const laterRevision = contradiction.later.sourceRevision;
+        if (baseRevision !== null && laterRevision !== null) {
+          contradiction.disposition = dispositions.get(
+            evaluatorCalibrationDispositionKey({
+              base: {
+                runId: contradiction.base.runId,
+                sourceRevision: baseRevision,
+              },
+              later: {
+                runId: contradiction.later.runId,
+                sourceRevision: laterRevision,
+              },
+            }),
+          ) ?? null;
+        }
+        passContradictions.push(contradiction);
+      }
     }
     if (
       entry.artifact.verdict === "pass_with_warnings" &&
-      hasOverlappingFollowUp(entry, tail, followUpWindowMs, isHedgingOrFailing)
+      overlappingFollowUp(entry, tail, followUpWindowMs, isHedgingOrFailing)
     ) {
       passWithWarningsFollowUpCount++;
     }
@@ -144,8 +190,9 @@ export function aggregateCalibration(
     windowEndMs: nowMs,
     totalRuns: artifacts.length,
     byVerdict,
-    passContradictionCount,
-    passContradictionRate: rate(passContradictionCount, byVerdict.pass),
+    passContradictionCount: passContradictions.length,
+    passContradictionRate: rate(passContradictions.length, byVerdict.pass),
+    passContradictions,
     passWithWarningsFollowUpCount,
     passWithWarningsFollowUpRate: rate(
       passWithWarningsFollowUpCount,

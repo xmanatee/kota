@@ -13,6 +13,7 @@
  */
 
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import type { EvaluatorCalibrationContradiction } from "#modules/autonomy/evaluator-calibration.js";
 
 type CalibrationRegressionPayload = {
   windowStartMs: number;
@@ -21,6 +22,7 @@ type CalibrationRegressionPayload = {
   passVerdictCount: number;
   passContradictionCount: number;
   passContradictionRate: number;
+  passContradictions: EvaluatorCalibrationContradiction[];
   passWithWarningsCount: number;
   passWithWarningsFollowUpCount: number;
   passWithWarningsFollowUpRate: number;

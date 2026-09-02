@@ -91,8 +91,9 @@ export const SAMPLE_CALIBRATION_AGGREGATE: EvalCalibrationResult["aggregate"] = 
     fail: 0,
     absent: 0,
   },
-  passContradictionCount: 0,
-  passContradictionRate: 0,
+      passContradictionCount: 0,
+      passContradictionRate: 0,
+      passContradictions: [],
   passWithWarningsFollowUpCount: 0,
   passWithWarningsFollowUpRate: 0,
 };

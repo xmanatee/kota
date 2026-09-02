@@ -18,7 +18,9 @@ import {
   DEFAULT_CALIBRATION_THRESHOLD_RATE,
   DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
   DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
+  decodeEvaluatorCalibrationDispositionsArtifact,
   EVALUATOR_CALIBRATION_ARTIFACT,
+  EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT,
   type EvaluatorCalibrationArtifact,
   evaluateCalibrationGate,
   writeCalibrationArtifact,
@@ -41,6 +43,7 @@ type CalibrationSeed = {
   taskFinalState?: EvaluatorCalibrationArtifact["taskFinalState"];
   criticPromptHash?: string;
   terminalRunStatus?: EvaluatorCalibrationArtifact["terminalRunStatus"];
+  sourceRevision?: string | null;
 };
 
 function seedRun(runsDir: string, seed: CalibrationSeed): void {
@@ -59,7 +62,9 @@ function seedRun(runsDir: string, seed: CalibrationSeed): void {
     terminalRunStatus: seed.terminalRunStatus ?? "success",
     taskId: seed.taskId ?? null,
     taskFinalState: seed.taskFinalState ?? null,
-    sourceRevision: TEST_SOURCE_REVISION,
+    sourceRevision: seed.sourceRevision === undefined
+      ? TEST_SOURCE_REVISION
+      : seed.sourceRevision,
     sourceFilesChanged: seed.sourceFilesChanged,
     criticPromptHash: seed.criticPromptHash ?? TEST_PROMPT_HASH,
   };
@@ -517,6 +522,34 @@ describe("writeCalibrationArtifact", () => {
   );
 });
 
+describe("evaluator calibration disposition evidence", () => {
+  it("decodes an explicit unavailable source without manufacturing run identities", () => {
+    expect(
+      decodeEvaluatorCalibrationDispositionsArtifact({
+        schemaVersion: 1,
+        records: [],
+        unavailableSources: [{
+          sourceRef:
+            "git:13b6ff71513809651ad43cbc2bd3a23a422abf8c:data/tasks/task-evaluator-calibration-drift-repair.md",
+          expectedContradictionCount: 3,
+          reason: "The canonical run store is outside the isolated reader boundary.",
+          checkedAt: "2026-09-02T07:46:11.000Z",
+        }],
+      }),
+    ).toEqual({
+      schemaVersion: 1,
+      records: [],
+      unavailableSources: [{
+        sourceRef:
+          "git:13b6ff71513809651ad43cbc2bd3a23a422abf8c:data/tasks/task-evaluator-calibration-drift-repair.md",
+        expectedContradictionCount: 3,
+        reason: "The canonical run store is outside the isolated reader boundary.",
+        checkedAt: "2026-09-02T07:46:11.000Z",
+      }],
+    });
+  });
+});
+
 describe("aggregateCalibration", () => {
   let root: string;
   let runsDir: string;
@@ -556,6 +589,96 @@ describe("aggregateCalibration", () => {
     expect(agg.byVerdict.fail).toBe(1);
     expect(agg.passContradictionCount).toBe(1);
     expect(agg.passContradictionRate).toBeCloseTo(1, 5);
+  });
+
+  it("projects the exact overlapping failure and its revision-bound disposition", () => {
+    const baseRevision = "a".repeat(40);
+    const laterRevision = "b".repeat(40);
+    seedRun(runsDir, {
+      runId: "2026-04-20T09-00-00-000Z-builder-base",
+      completedAt: "2026-04-20T09:00:00.000Z",
+      verdict: "pass",
+      taskId: "task-base",
+      sourceRevision: baseRevision,
+      sourceFilesChanged: ["src/core/a.ts", "src/core/shared.ts"],
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T10-00-00-000Z-builder-unrelated",
+      completedAt: "2026-04-20T10:00:00.000Z",
+      verdict: "fail",
+      taskId: "task-unrelated",
+      sourceRevision: "c".repeat(40),
+      sourceFilesChanged: ["src/core/other.ts"],
+      terminalRunStatus: "failed",
+    });
+    seedRun(runsDir, {
+      runId: "2026-04-20T11-00-00-000Z-builder-later",
+      completedAt: "2026-04-20T11:00:00.000Z",
+      verdict: "fail",
+      taskId: "task-later",
+      sourceRevision: laterRevision,
+      sourceFilesChanged: ["src/core/shared.ts", "src/core/other.ts"],
+      terminalRunStatus: "failed",
+    });
+    const dispositionDir = join(
+      runsDir,
+      "2026-04-20T12-00-00-000Z-builder-review",
+      "evidence",
+      "artifacts",
+    );
+    mkdirSync(dispositionDir, { recursive: true });
+    writeFileSync(
+      join(dispositionDir, EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT),
+      JSON.stringify({
+        schemaVersion: 1,
+        records: [{
+          base: {
+            runId: "2026-04-20T09-00-00-000Z-builder-base",
+            sourceRevision: baseRevision,
+          },
+          later: {
+            runId: "2026-04-20T11-00-00-000Z-builder-later",
+            sourceRevision: laterRevision,
+          },
+          disposition: {
+            kind: "corrective-task",
+            taskId: "task-calibration-correction",
+            rationale: "The later terminal failure demonstrates a missed shared-path defect.",
+            decidedAt: "2026-04-20T12:00:00.000Z",
+          },
+        }],
+        unavailableSources: [],
+      }),
+    );
+
+    const aggregate = aggregateCalibration(runsDir, {
+      criticPromptHash: TEST_PROMPT_HASH,
+      windowMs: 7 * 24 * 60 * 60 * 1000,
+      followUpWindowMs: 3 * 24 * 60 * 60 * 1000,
+      nowMs: Date.parse("2026-04-20T12:30:00.000Z"),
+    });
+
+    expect(aggregate.passContradictionCount).toBe(1);
+    expect(aggregate.passContradictions).toEqual([{
+      base: {
+        runId: "2026-04-20T09-00-00-000Z-builder-base",
+        taskId: "task-base",
+        sourceRevision: baseRevision,
+      },
+      later: {
+        runId: "2026-04-20T11-00-00-000Z-builder-later",
+        taskId: "task-later",
+        sourceRevision: laterRevision,
+      },
+      laterFailure: { verdict: "fail", terminalRunStatus: "failed" },
+      overlappingSourcePaths: ["src/core/shared.ts"],
+      disposition: {
+        kind: "corrective-task",
+        taskId: "task-calibration-correction",
+        rationale: "The later terminal failure demonstrates a missed shared-path defect.",
+        decidedAt: "2026-04-20T12:00:00.000Z",
+      },
+    }]);
   });
 
   it("does not flag contradiction for healthy iteration chains where every overlapping run also passes", () => {
@@ -920,6 +1043,7 @@ describe("evaluateCalibrationGate", () => {
       },
       passContradictionCount: overrides.passContradictionCount ?? 0,
       passContradictionRate: overrides.passContradictionRate ?? 0,
+      passContradictions: [],
       passWithWarningsFollowUpCount: overrides.passWithWarningsFollowUpCount ?? 0,
       passWithWarningsFollowUpRate: overrides.passWithWarningsFollowUpRate ?? 0,
     };

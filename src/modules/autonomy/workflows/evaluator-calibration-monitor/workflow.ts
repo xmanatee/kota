@@ -129,6 +129,7 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
           passVerdictCount: aggregate.byVerdict.pass,
           passContradictionCount: aggregate.passContradictionCount,
           passContradictionRate: aggregate.passContradictionRate,
+          passContradictions: aggregate.passContradictions,
           passWithWarningsCount: aggregate.byVerdict.pass_with_warnings,
           passWithWarningsFollowUpCount:
             aggregate.passWithWarningsFollowUpCount,
@@ -153,6 +154,7 @@ const evaluatorCalibrationMonitor: WorkflowDefinitionInput = {
           runDir: ctx.workflow.runDir,
           driftKinds: inspection.driftKinds,
           decisionReason: inspection.reason,
+          contradictions: inspection.aggregate.passContradictions,
           createdAt: new Date().toISOString(),
         });
       },

@@ -12,6 +12,7 @@ const samplePayload = {
   passVerdictCount: 12,
   passContradictionCount: 5,
   passContradictionRate: 5 / 12,
+  passContradictions: [],
   passWithWarningsCount: 3,
   passWithWarningsFollowUpCount: 1,
   passWithWarningsFollowUpRate: 1 / 3,

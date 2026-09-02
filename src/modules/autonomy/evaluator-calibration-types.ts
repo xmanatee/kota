@@ -2,6 +2,8 @@ import type { WorkflowRunStatus } from "#core/workflow/run-types.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const EVALUATOR_CALIBRATION_ARTIFACT = "evaluator-calibration.json";
+export const EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT =
+  "evaluator-calibration-dispositions.json";
 export const EVALUATOR_CALIBRATION_STEP_ID = "write-calibration-artifact";
 
 /**
@@ -46,6 +48,72 @@ export type EvaluatorCalibrationArtifact = {
   criticPromptHash: string;
 };
 
+export type EvaluatorCalibrationRunIdentity = {
+  runId: string;
+  taskId: string | null;
+  sourceRevision: string | null;
+};
+
+export type EvaluatorCalibrationContradictionDisposition =
+  | {
+      kind: "reclassified";
+      verdict: "pass_with_warnings" | "fail";
+      rationale: string;
+      decidedAt: string;
+    }
+  | {
+      kind: "accepted-overlap";
+      rationale: string;
+      decidedAt: string;
+    }
+  | {
+      kind: "corrective-task";
+      taskId: string;
+      rationale: string;
+      decidedAt: string;
+    };
+
+/** One counted pass contradiction and the exact follow-up that established it. */
+export type EvaluatorCalibrationContradiction = {
+  base: EvaluatorCalibrationRunIdentity;
+  later: EvaluatorCalibrationRunIdentity;
+  laterFailure: {
+    verdict: EvaluatorCalibrationVerdict;
+    terminalRunStatus: WorkflowRunStatus | "running";
+  };
+  overlappingSourcePaths: string[];
+  disposition: EvaluatorCalibrationContradictionDisposition | null;
+};
+
+export type EvaluatorCalibrationDispositionRecord = {
+  base: {
+    runId: string;
+    sourceRevision: string;
+  };
+  later: {
+    runId: string;
+    sourceRevision: string;
+  };
+  disposition: EvaluatorCalibrationContradictionDisposition;
+};
+
+export type EvaluatorCalibrationUnavailableSource = {
+  sourceRef: string;
+  expectedContradictionCount: number;
+  reason: string;
+  checkedAt: string;
+};
+
+/**
+ * Sidecar evidence written by a later review. Historical verdict artifacts
+ * stay immutable; records bind the disposition to both run revisions.
+ */
+export type EvaluatorCalibrationDispositionsArtifact = {
+  schemaVersion: 1;
+  records: EvaluatorCalibrationDispositionRecord[];
+  unavailableSources: EvaluatorCalibrationUnavailableSource[];
+};
+
 export type EvaluatorCalibrationAggregate = {
   windowStartMs: number;
   windowEndMs: number;
@@ -54,6 +122,7 @@ export type EvaluatorCalibrationAggregate = {
   /** Passes followed by an overlapping run with a final failure signal. */
   passContradictionCount: number;
   passContradictionRate: number;
+  passContradictions: EvaluatorCalibrationContradiction[];
   /** Hedged verdicts followed by another overlapping hedging/failing run. */
   passWithWarningsFollowUpCount: number;
   passWithWarningsFollowUpRate: number;

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 
 # Disposition retained evaluator calibration contradictions
@@ -63,3 +62,24 @@ and evaluator retunes must not erase the weak verdicts that triggered them.
 - Focused evaluator-calibration aggregate and monitor fixture output.
 - A projected JSON disposition artifact enumerating the three source signals
   or recording source-unavailable evidence for any unrecoverable identity.
+
+## Outcome
+
+Calibration aggregates now retain one typed record per counted pass
+contradiction: the base and later run/task/revision identities, the later
+failure signal, only the intersecting source paths, and any disposition loaded
+from an immutable revision-bound sidecar artifact. The monitor observation,
+typed regression event, and health evidence handoff preserve that record for
+the reviewer and any isolated writer task without changing the numerator,
+denominator, or rates.
+
+The cited 3-of-10 snapshot cannot be resolved to individual runs from this
+isolated builder. The canonical `.kota/runs` store exists but denies child
+enumeration here, while the cited Git task and repository history preserve only
+the aggregate. The run evidence therefore contains one typed
+`unavailableSources` record for all three identities instead of fabricated
+dispositions.
+
+Focused evaluator-calibration and monitor/notify tests pass (41 tests), and
+`pnpm check:fast` passes production/test type checking, lint, task validation,
+and generated client-binding freshness.

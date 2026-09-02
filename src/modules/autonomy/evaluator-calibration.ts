@@ -16,6 +16,11 @@ export {
 } from "./evaluator-calibration-artifact.js";
 export { resolveCalibrationGateConfig } from "./evaluator-calibration-config.js";
 export {
+  decodeEvaluatorCalibrationDispositionsArtifact,
+  evaluatorCalibrationDispositionKey,
+  loadEvaluatorCalibrationDispositions,
+} from "./evaluator-calibration-dispositions.js";
+export {
   type CalibrationDriftKind,
   type CalibrationGateConfig,
   type CalibrationGateDecision,
@@ -25,8 +30,15 @@ export {
   DEFAULT_PASS_WITH_WARNINGS_MIN_SAMPLE,
   DEFAULT_PASS_WITH_WARNINGS_THRESHOLD_RATE,
   EVALUATOR_CALIBRATION_ARTIFACT,
+  EVALUATOR_CALIBRATION_DISPOSITIONS_ARTIFACT,
   EVALUATOR_CALIBRATION_STEP_ID,
   type EvaluatorCalibrationAggregate,
   type EvaluatorCalibrationArtifact,
+  type EvaluatorCalibrationContradiction,
+  type EvaluatorCalibrationContradictionDisposition,
+  type EvaluatorCalibrationDispositionRecord,
+  type EvaluatorCalibrationDispositionsArtifact,
+  type EvaluatorCalibrationRunIdentity,
+  type EvaluatorCalibrationUnavailableSource,
   type EvaluatorCalibrationVerdict,
 } from "./evaluator-calibration-types.js";
