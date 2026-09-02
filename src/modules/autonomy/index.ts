@@ -6,6 +6,7 @@ import {
 } from "#core/modules/runtime-module-discovery.js";
 import { kotaRuntimeAssetRoot } from "#core/util/kota-install-paths.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { buildAgyCanaryCommand } from "./agy-continuous-canary-cli.js";
 import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
@@ -114,6 +115,7 @@ const autonomyModule: KotaModule = {
     subscribeAutonomyIssueSources(ctx);
   },
   commands: (ctx) => [
+    buildAgyCanaryCommand(ctx),
     buildDigestCommand(),
     buildAttentionCommand(ctx),
     buildReportCommand(),

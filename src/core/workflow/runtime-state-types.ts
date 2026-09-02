@@ -1,6 +1,7 @@
 import type {
   WorkflowAgentBackoffKind,
   WorkflowAgentBackoffState,
+  WorkflowAgentOperatingState,
   WorkflowBatchBuffers,
   WorkflowRunTrigger,
 } from "./trigger-types.js";
@@ -95,5 +96,6 @@ export type WorkflowRuntimeSnapshot = WorkflowRuntimeSummary &
   WorkflowRuntimeOperationalState & {
     definitionsLoadedAt?: string;
     agentBackoff?: WorkflowAgentBackoffState;
+    agentOperatingState?: WorkflowAgentOperatingState;
     batchBuffers?: WorkflowBatchBuffers;
   };

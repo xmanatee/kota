@@ -39,6 +39,14 @@ function normalizeDeadLetterReason(reason: string): string {
     .replace(/\bdlq-[0-9a-f-]{36}\b/g, "<dlq-id>");
 }
 
+function isAgentIncident(item: DeadLetterItem): boolean {
+  return item.failure.lastErrorClass === "auth" ||
+    item.failure.lastErrorClass === "provider" ||
+    item.failure.lastErrorClass === "rate_limit" ||
+    item.failure.lastErrorClass === "runtime" ||
+    item.failure.lastErrorClass === "output_contract";
+}
+
 function deadLetterSourceFingerprint(source: DeadLetterSource): string {
   switch (source.kind) {
     case "workflow-dispatch":
@@ -201,6 +209,13 @@ export class DeadLetterQueueStore {
         lastErrorClass: input.failure.lastErrorClass,
         firstFailedAt: now,
         lastFailedAt: now,
+        observationTimes: Array.from(
+          { length: input.failure.retryCount ?? 1 },
+          () => now,
+        ),
+        ...(input.failure.backoffUntil === undefined
+          ? {}
+          : { backoffUntil: input.failure.backoffUntil }),
       },
       source: sanitizeDeadLetterSource(input.source),
       redrive: sanitizeDeadLetterRedriveSource(input.redrive),
@@ -216,13 +231,18 @@ export class DeadLetterQueueStore {
       ),
     };
     const snapshot = this.readSnapshot();
-    const recordFingerprint = deadLetterRecordFingerprint(item);
+    const agentIncident = isAgentIncident(item);
+    const recordFingerprint = agentIncident
+      ? deadLetterDuplicateFingerprint(item)
+      : deadLetterRecordFingerprint(item);
     const duplicateIndex = recordFingerprint === null
       ? -1
       : snapshot.items.findIndex(
           (existing) =>
             existing.status === "open" &&
-            deadLetterRecordFingerprint(existing) === recordFingerprint,
+            (agentIncident
+              ? deadLetterDuplicateFingerprint(existing)
+              : deadLetterRecordFingerprint(existing)) === recordFingerprint,
         );
     if (duplicateIndex !== -1) {
       const existing = snapshot.items[duplicateIndex]!;
@@ -239,6 +259,13 @@ export class DeadLetterQueueStore {
           retryCount: existing.failure.retryCount + item.failure.retryCount,
           lastErrorClass: item.failure.lastErrorClass,
           lastFailedAt: item.failure.lastFailedAt,
+          observationTimes: [
+            ...(existing.failure.observationTimes ?? []),
+            ...(item.failure.observationTimes ?? []),
+          ],
+          ...(item.failure.backoffUntil === undefined
+            ? {}
+            : { backoffUntil: item.failure.backoffUntil }),
         },
         redactedProjection: item.redactedProjection,
         updatedAt: now,

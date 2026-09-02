@@ -10,6 +10,7 @@ import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/na
 import type { KotaConfig } from "#core/config/config.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { renderUntrustedContent } from "#core/util/untrusted-content.js";
+import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { IntegrationValidation, IntegrationValidationInput } from "./integration-queue.js";
 import type { RunContext } from "./run-context.js";
 import type { IntegrationContinuationIssue } from "./run-lifecycle.js";
@@ -300,6 +301,7 @@ export async function continueRunIntegration(
   issue: IntegrationContinuationIssue,
   config: KotaConfig | undefined,
   authorityConfigPath?: string,
+  agentBackoff?: AgentBackoffManager,
 ): Promise<void> {
   const continuation = normalizeContinuation(context, issue);
   const runtime = resolveAgentRuntime(config);
@@ -323,6 +325,8 @@ export async function continueRunIntegration(
   });
   const response = await createWorkflowAgentHarnessRunner(
     context.processes.register,
+    agentBackoff,
+    context.scope.id,
   )(
     harness,
     {

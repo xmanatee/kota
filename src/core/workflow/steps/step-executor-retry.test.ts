@@ -6,6 +6,15 @@ describe("classifyAgentRuntimeFailure", () => {
     vi.useRealTimers();
   });
 
+  it("classifies typed successful-empty output incidents without parsing text", () => {
+    expect(
+      classifyAgentRuntimeFailure({
+        subtype: "antigravity_cli_empty_output",
+        message: "",
+      }),
+    ).toEqual({ kind: "output_contract", retryable: false });
+  });
+
   it("classifies native CLI sandbox bootstrap failures as local runtime failures", () => {
     expect(
       classifyAgentRuntimeFailure({

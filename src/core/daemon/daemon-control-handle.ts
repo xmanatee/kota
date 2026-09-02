@@ -135,6 +135,10 @@ export type DaemonControlHandle = {
   getActiveScopeId(): ScopeId | null;
   setActiveScopeId(scopeId: ScopeId | null): SetActiveScopeResult;
   pauseWorkflowDispatch(scopeId?: ScopeId): { already: boolean };
+  pauseAgentDispatchForQuality?(
+    reason: string,
+    scopeId?: ScopeId,
+  ): { already: boolean };
   resumeWorkflowDispatch(scopeId?: ScopeId, options?: WorkflowResumeOptions): {
     already: boolean;
     agentBackoffCleared?: true;

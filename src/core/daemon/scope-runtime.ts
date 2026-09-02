@@ -28,6 +28,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { ModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
+import type { AgentBackoffManager } from "#core/workflow/agent-backoff.js";
 import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import {
   workflowRunMetadataAuthorityCriticalIds,
@@ -127,6 +128,8 @@ export type ScopeRuntimeFactoryOptions = {
   runState: RunStateDatabase;
   runCoordinator: RunCoordinator;
   daemonEpoch: number;
+  /** Shared when a host executes runs outside WorkflowRuntime dispatch. */
+  agentBackoff?: AgentBackoffManager;
 };
 
 function installScopeRuntimeSingletons(runtime: ScopeRuntime): void {
@@ -231,6 +234,7 @@ export function createScopeRuntime(
     resolveSkillsPrompt: opts.resolveSkillsPrompt,
     isDefaultScopeRuntime: () => isDefaultScopeRuntime,
     scopePolicyAuthority: opts.scopePolicyAuthority,
+    agentBackoff: opts.agentBackoff,
   });
 
   const notificationGate =

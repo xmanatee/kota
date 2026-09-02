@@ -1519,6 +1519,30 @@ describe("DaemonControlServer", () => {
     });
   });
 
+  describe("POST /workflow/agent/quality-pause", () => {
+    it("persists a reason without globally pausing deterministic workflows", async () => {
+      const pauseAgentDispatchForQuality = vi.fn(() => ({ already: false }));
+      handle = makeHandle({ pauseAgentDispatchForQuality });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchWithToken(port, "/workflow/agent/quality-pause", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "shallow verification" }),
+      });
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toMatchObject({ ok: true, paused: true });
+      expect(pauseAgentDispatchForQuality).toHaveBeenCalledWith(
+        "shallow verification",
+        undefined,
+      );
+      expect(handle.pauseWorkflowDispatch).not.toHaveBeenCalled();
+    });
+  });
+
   describe("POST /workflow/resume", () => {
     it("resumes dispatch and returns ok", async () => {
       const res = await fetchWithToken(port, "/workflow/resume", { method: "POST" });
@@ -1990,6 +2014,34 @@ describe("DaemonControlServer", () => {
     it("does not require auth token", async () => {
       const res = await fetchNoToken(port, "/health");
       expect(res.status).toBe(200);
+    });
+
+    it("projects the canonical agent operating state", async () => {
+      handle = makeHandle({
+        getHealthStatus: vi.fn(() => ({
+          scheduler: "ok" as const,
+          modules: "ok" as const,
+          agentOperatingState: {
+            runtimeId: "antigravity-cli:antigravity-cli",
+            state: "quality-paused" as const,
+            reason: "unrelated edits",
+          },
+        })),
+      });
+      await server.stop();
+      server = new DaemonControlServer(handle, TEST_TOKEN);
+      port = await server.start();
+
+      const res = await fetchNoToken(port, "/health");
+      await expect(res.json()).resolves.toMatchObject({
+        components: {
+          agentOperatingState: {
+            runtimeId: "antigravity-cli:antigravity-cli",
+            state: "quality-paused",
+            reason: "unrelated edits",
+          },
+        },
+      });
     });
 
     it("returns 503 with degraded status when scheduler reports error", async () => {

@@ -2,6 +2,8 @@ import "./critic-test-fixture.integration.js";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AgentBackoffAdmissionError } from "#core/workflow/agent-backoff.js";
+import { AgentStepRuntimeError } from "#core/workflow/steps/step-executor-retry.js";
 import { createCriticCheck } from "./critic.js";
 import {
   type CodeCheck,
@@ -135,6 +137,28 @@ describe("critic judge retry handling", () => {
     expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
   });
 
+  it("does not retry after the shared agent backoff gate rejects dispatch", async () => {
+    const dir = makeTmpDir();
+    writeOpenTask(dir, "task-parked.md", "---\nstatus: open\npriority: p2\n---\n\n# Test parked provider\n\nContent.");
+    const runDir = makeRunDir(dir);
+    mockRunAgentHarness.mockRejectedValue(
+      new AgentBackoffAdmissionError({
+        runtimeId: "agy:antigravity-cli",
+        kind: "provider",
+        failureCount: 1,
+        until: "2026-09-02T18:00:00.000Z",
+        updatedAt: "2026-09-02T17:55:00.000Z",
+        reason: "provider unavailable",
+      }),
+    );
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    await expect(
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
+    ).rejects.toBeInstanceOf(AgentBackoffAdmissionError);
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(1);
+  });
+
   it("succeeds on second retry after initial transient provider failure", async () => {
     vi.useFakeTimers();
     const dir = makeTmpDir();
@@ -207,6 +231,32 @@ describe("critic judge retry handling", () => {
     expect(mockRunAgentHarness).toHaveBeenCalledTimes(2);
     expect(getPromptArg(mockRunAgentHarness.mock.calls[0])).not.toContain("Format reminder");
     expect(getPromptArg(mockRunAgentHarness.mock.calls[1])).toContain("Format reminder");
+  });
+
+  it("classifies only repeated typed successful-empty verdicts", async () => {
+    vi.useFakeTimers();
+    const dir = makeTmpDir();
+    writeOpenTask(
+      dir,
+      "task-empty.md",
+      "---\nstatus: open\npriority: p2\n---\n\n# Test empty\n\nContent.",
+    );
+    const runDir = makeRunDir(dir);
+    mockRunAgentHarness.mockResolvedValue({
+      text: "",
+      streamedText: "",
+      turns: 1,
+      isError: false,
+      subtype: "antigravity_cli_empty_output",
+    });
+
+    const check = createCriticCheck({ runDirPath: runDir });
+    const assertion = expect(
+      (check as CodeCheck).run(makeContext(dir, runDir), TEST_PARENT_STEP),
+    ).rejects.toBeInstanceOf(AgentStepRuntimeError);
+    await vi.runAllTimersAsync();
+    await assertion;
+    expect(mockRunAgentHarness).toHaveBeenCalledTimes(3);
   });
 
   it("throws after exhausting retries when every response is unparseable prose", async () => {

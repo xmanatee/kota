@@ -8,6 +8,7 @@ import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
+import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { RunContext } from "./run-context.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowRunToolRunner, WorkflowRuntimeSummary } from "./run-types.js";
@@ -50,4 +51,6 @@ export type RunExecutorDeps = {
   /** Host-owned harness lookup; defaults to the process registry. */
   resolveAgentHarness?: (name: string) => AgentHarness;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
+  /** Daemon-owned admission gate shared by every agent call in the hosted fleet. */
+  agentBackoff?: AgentBackoffManager;
 };

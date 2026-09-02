@@ -8,6 +8,7 @@ import {
   activeTimingMetadata,
   createActiveTimeout,
 } from "./active-timeout.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import {
   buildStepStartedPayload,
   buildWorkflowStartedPayload,
@@ -136,6 +137,8 @@ export function executeWorkflowRun(
   const startedAt = Date.now();
   const nestedAgentHarnessRunner = createWorkflowAgentHarnessRunner(
     runContext.processes.register,
+    deps.agentBackoff,
+    runContext.scope.id,
   );
   const contextDeps = {
     ...deps,
@@ -164,6 +167,7 @@ export function executeWorkflowRun(
 
   const promise = (async (): Promise<WorkflowRunExecutionResult> => {
     let agentBackoff: WorkflowRunExecutionResult["agentBackoff"];
+    let deferredByAgentBackoff: WorkflowRunExecutionResult["deferredByAgentBackoff"];
     const retryOfId = typeof trigger.payload.retryOf === "string" ? trigger.payload.retryOf : undefined;
     const resumedFromRunId = typeof trigger.payload.resumedFromRunId === "string" ? trigger.payload.resumedFromRunId : undefined;
     const resumeFromStep = typeof trigger.payload.resumeFromStep === "string" ? trigger.payload.resumeFromStep : undefined;
@@ -185,6 +189,11 @@ export function executeWorkflowRun(
       }
 
       for (let stepIdx = 0; stepIdx < definition.steps.length; stepIdx++) {
+        if (abortController.signal.aborted) {
+          throw abortController.signal.reason instanceof Error
+            ? abortController.signal.reason
+            : new Error("Workflow run aborted");
+        }
         if (stepIdx < retryFromIndex) continue;
         const step = definition.steps[stepIdx];
         const context = createStepContext(
@@ -222,6 +231,12 @@ export function executeWorkflowRun(
           scopePolicyAuthority: deps.scopePolicyAuthority,
           scopePolicySnapshot,
           scopePolicy: scopePolicySnapshot?.policy,
+          ...(deps.agentBackoff === undefined
+            ? {}
+            : {
+              agentBackoff: deps.agentBackoff,
+              agentBackoffAbortController: abortController,
+            }),
           ...(Object.keys(resumeSessionIds).length > 0
             ? { resumeSessionIds }
             : {}),
@@ -282,6 +297,12 @@ export function executeWorkflowRun(
         else if (thrownError) throw thrownError;
       }
 
+      if (abortController.signal.aborted) {
+        throw abortController.signal.reason instanceof Error
+          ? abortController.signal.reason
+          : new Error("Workflow run aborted");
+      }
+
       const outputWarnings: WorkflowRunWarning[] = [...acc.warnings];
       if (definition.outputSchema !== undefined) {
         const outputError = validatePayloadSchema(
@@ -310,11 +331,16 @@ export function executeWorkflowRun(
       };
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
+      if (err instanceof AgentBackoffAdmissionError) {
+        deferredByAgentBackoff = err.backoff;
+        agentBackoff = agentBackoff ?? err.incidentSignal;
+      }
       if (!agentBackoff && err instanceof AgentStepRuntimeError) {
         agentBackoff = workflowAgentBackoffSignalFromError(err);
       }
-      const status: WorkflowRunStatus =
-        abortController.signal.aborted || err.name === "AbortError"
+      const status: WorkflowRunStatus = err instanceof AgentBackoffAdmissionError
+        ? err.incidentSignal === undefined ? "interrupted" : "failed"
+        : abortController.signal.aborted || err.name === "AbortError"
           ? "interrupted"
           : "failed";
       const timing = runTimeout?.snapshot();
@@ -331,6 +357,7 @@ export function executeWorkflowRun(
       return {
         metadata: completed,
         ...(agentBackoff ? { agentBackoff } : {}),
+        ...(deferredByAgentBackoff ? { deferredByAgentBackoff } : {}),
       };
     } finally {
       runTimeout?.dispose();

@@ -97,7 +97,59 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     const contributed = daemonOpsModule.daemonClient!(link);
     expect(contributed.sessions).toBeDefined();
     expect(typeof contributed.sessions!.list).toBe("function");
+    expect(typeof contributed.sessions!.runOneShot).toBe("function");
     expect(typeof contributed.sessions!.setAutonomyMode).toBe("function");
+  });
+
+  it("marks a fleet-gated passive one-shot session and closes it", async () => {
+    const { transport, calls } = makeRecordingTransport((path, init) => {
+      if (path === "/sessions" && init?.method === "POST") {
+        return jsonResponse(201, { session_id: "review/session" });
+      }
+      if (
+        path === `/sessions/${encodeURIComponent("review/session")}/chat` &&
+        init?.method === "POST"
+      ) {
+        return new Response([
+          "event: session",
+          'data: {"session_id":"review/session"}',
+          "",
+          "event: done",
+          'data: {"session_id":"review/session","result":"reviewed"}',
+          "",
+        ].join("\n"), {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      if (
+        path === `/sessions/${encodeURIComponent("review/session")}` &&
+        init?.method === "DELETE"
+      ) {
+        return new Response(null, { status: 204 });
+      }
+      return jsonResponse(404, { error: "unexpected request" });
+    });
+
+    const contributed = daemonOpsModule.daemonClient!(transport);
+    await expect(
+      contributed.sessions!.runOneShot("Review evidence.", {
+        autonomyMode: "passive",
+        agentBackoff: "fleet",
+      }),
+    ).resolves.toEqual({ ok: true, text: "reviewed" });
+    expect(calls.map((call) => [call.path, call.init?.method])).toEqual([
+      ["/sessions", "POST"],
+      [`/sessions/${encodeURIComponent("review/session")}/chat`, "POST"],
+      [`/sessions/${encodeURIComponent("review/session")}`, "DELETE"],
+    ]);
+    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
+      autonomy_mode: "passive",
+    });
+    expect(JSON.parse(String(calls[1]!.init?.body))).toEqual({
+      message: "Review evidence.",
+      agent_backoff: "fleet",
+    });
   });
 
   it("routes list() through GET /sessions with auth headers and no body", async () => {

@@ -124,6 +124,7 @@ describe("antigravityCliAgentHarness failures", () => {
         cost: { state: "unavailable", reason: "provider-does-not-report" },
       },
       isError: false,
+      subtype: "antigravity_cli_empty_output",
     });
   });
 

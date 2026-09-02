@@ -243,6 +243,7 @@ async function runAntigravityCliProcess(
   const text = output.structuredOutput === undefined
     ? output.responseText ?? output.streamedText
     : `\`\`\`json\n${JSON.stringify(output.structuredOutput)}\n\`\`\``;
+  const emptyOutput = output.structuredOutput === undefined && text.trim().length === 0;
 
   return {
     text,
@@ -251,6 +252,7 @@ async function runAntigravityCliProcess(
     turns: output.turns,
     usage: unpricedAgentUsage(output.inputTokens, output.outputTokens),
     isError: false,
+    ...(emptyOutput ? { subtype: "antigravity_cli_empty_output" } : {}),
   };
 }
 

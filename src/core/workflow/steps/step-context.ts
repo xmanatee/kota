@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath, type KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
@@ -28,6 +28,10 @@ import {
   type TransactionalRunState,
 } from "../run-context.js";
 import { recordEmittedEventEvidence } from "../run-event-evidence.js";
+import {
+  formatProjectedEvidenceText,
+  projectProviderPayloadText,
+} from "../run-evidence.js";
 import type { WorkflowRunStore } from "../run-store.js";
 import type {
   WorkflowAgentHarnessRunner,
@@ -175,7 +179,7 @@ export function createStepContext(
         }
       : {}),
   });
-  const runAgentHarness: WorkflowAgentHarnessRunner = (
+  const runAgentHarness: WorkflowAgentHarnessRunner = async (
     harness,
     options,
     execution,
@@ -192,38 +196,73 @@ export function createStepContext(
       deps.authorityConfigPath ?? getGlobalConfigPath(),
     );
     const authority = deps.scopePolicyAuthority;
-    if (authority === undefined) {
-      return deps.runAgentHarness(
+    const getScopePolicySnapshot = authority === undefined
+      ? undefined
+      : () => authority.getSnapshot(context.scopeId);
+    const resolvedOptions = {
+      ...options,
+      scopeRoot: context.scopeRoot,
+      authorityConfigPath: context.authorityConfigPath,
+      workflowContext: context.workflow,
+      ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
+        ? { approvalQueue: deps.approvalQueue }
+        : {}),
+      ...(harness.toolControl === "kota" && authority !== undefined
+        ? { scopePolicyAuthority: authority }
+        : {}),
+      ...(getScopePolicySnapshot === undefined
+        ? {}
+        : {
+          scopePolicy: getScopePolicySnapshot().policy,
+          getScopePolicySnapshot,
+        }),
+    };
+    const startedAt = new Date().toISOString();
+    const evidencePath = join(
+      runDirPath,
+      "steps",
+      `${deps.currentStepId ?? "unknown"}.agent-attempts.jsonl`,
+    );
+    mkdirSync(dirname(evidencePath), { recursive: true });
+    const evidenceBase = {
+      startedAt,
+      harness: harness.name,
+      model: resolvedOptions.model,
+      prompt: formatProjectedEvidenceText(
+        projectProviderPayloadText(resolvedOptions.prompt),
+      ),
+      systemPrompt: formatProjectedEvidenceText(
+        projectProviderPayloadText(resolvedOptions.systemPrompt ?? ""),
+      ),
+    };
+    try {
+      const result = await deps.runAgentHarness(
         harness,
-        {
-          ...options,
-          scopeRoot: context.scopeRoot,
-          authorityConfigPath: context.authorityConfigPath,
-          workflowContext: context.workflow,
-        },
+        resolvedOptions,
         execution,
       );
+      appendFileSync(evidencePath, `${JSON.stringify({
+        ...evidenceBase,
+        completedAt: new Date().toISOString(),
+        outcome: result.isError ? "error-result" : "success",
+        ...(result.subtype === undefined ? {} : { subtype: result.subtype }),
+        resultText: formatProjectedEvidenceText(
+          projectProviderPayloadText(result.text),
+        ),
+        usage: result.usage,
+      })}\n`, "utf8");
+      return result;
+    } catch (error) {
+      appendFileSync(evidencePath, `${JSON.stringify({
+        ...evidenceBase,
+        completedAt: new Date().toISOString(),
+        outcome: "thrown-error",
+        error: formatProjectedEvidenceText(projectProviderPayloadText(
+          error instanceof Error ? error.message : String(error),
+        )),
+      })}\n`, "utf8");
+      throw error;
     }
-
-    const getScopePolicySnapshot = () => authority.getSnapshot(context.scopeId);
-    return deps.runAgentHarness(
-      harness,
-      {
-        ...options,
-        scopeRoot: context.scopeRoot,
-        authorityConfigPath: context.authorityConfigPath,
-        workflowContext: context.workflow,
-        ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
-          ? { approvalQueue: deps.approvalQueue }
-          : {}),
-        ...(harness.toolControl === "kota"
-          ? { scopePolicyAuthority: authority }
-          : {}),
-        scopePolicy: getScopePolicySnapshot().policy,
-        getScopePolicySnapshot,
-      },
-      execution,
-    );
   };
   let transactionalEmitSequence = 0;
   let transactionalToolSequence = 0;

@@ -3,7 +3,7 @@ import type {
 	WorkflowQueuedRun,
 	WorkflowRunStatus,
 } from "#core/workflow/run-types.js";
-import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
+import type { WorkflowAgentBackoffState, WorkflowAgentOperatingState } from "#core/workflow/trigger-types.js";
 
 export type DashboardTaskQueue = {
 	counts: {
@@ -35,6 +35,7 @@ export type DashboardSnapshot = {
 	dispatchWindowBlocked?: boolean;
 	dispatchWindowOpensAt?: string;
 	agentBackoff?: WorkflowAgentBackoffState;
+	agentOperatingState?: WorkflowAgentOperatingState;
 	definitionCount: number;
 	sessionCount: number;
 	taskQueue?: DashboardTaskQueue;

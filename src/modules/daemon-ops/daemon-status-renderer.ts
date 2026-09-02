@@ -28,6 +28,17 @@ export function buildDaemonStatusNode(
       role: "success",
     },
     { label: "Sessions", value: `${status.sessions.length} interactive` },
+    ...(workflow.agentOperatingState === undefined
+      ? []
+      : [{
+          label: "Agent autonomy",
+          value: `${workflow.agentOperatingState.runtimeId} ${workflow.agentOperatingState.state}`,
+          role: workflow.agentOperatingState.state === "working"
+            ? "success" as const
+            : workflow.agentOperatingState.state === "idle"
+              ? "muted" as const
+              : "warn" as const,
+        }]),
     {
       label: "Paused",
       value: workflow.paused ? "yes" : "no",

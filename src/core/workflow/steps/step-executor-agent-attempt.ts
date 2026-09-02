@@ -3,10 +3,10 @@ import {
   type AgentTokenBudgetLedger,
   createNativeAgentInvalidationLifecycle,
   type KotaAgentMessage,
-  runAgentHarness,
 } from "#core/agent-harness/index.js";
 import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import type { ToolTelemetry } from "#core/tools/tool-telemetry.js";
+import { AgentBackoffAdmissionError } from "../agent-backoff.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import { AgentStepIdleTimeoutError } from "../step-idle-timeout.js";
 import type { WorkflowAgentStepOutputValidationContext } from "../step-input-base.js";
@@ -34,6 +34,7 @@ import {
   classifyAgentRuntimeFailure,
   classifyThrownAgentError,
 } from "./step-executor-retry.js";
+import { createWorkflowAgentHarnessRunner } from "./workflow-agent-harness-runner.js";
 
 export async function runAgentAttempt(input: {
   step: WorkflowAgentStep;
@@ -111,8 +112,19 @@ export async function runAgentAttempt(input: {
       ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
     });
-    const runHarness = () =>
-      runAgentHarness(resolvedHarness, harnessRunOptions.options, { write: () => true });
+    const workflowHarnessRunner = createWorkflowAgentHarnessRunner(
+      agentConfig.onProcessSpawn,
+      agentConfig.agentBackoff,
+      agentConfig.scopeId,
+    );
+    const runHarness = () => workflowHarnessRunner(
+      resolvedHarness,
+      harnessRunOptions.options,
+      {
+        signal: attemptAbortController.signal,
+        writer: { write: () => true },
+      },
+    );
     const harnessRun = agentConfig.delegateBudget
       ? withHandoffAgentRuntime(
           {
@@ -187,10 +199,20 @@ export async function runAgentAttempt(input: {
     idleMonitor = createAgentStepIdleMonitor(step, attemptAbortController);
     const result = await waitForAgentHarnessWithIdleMonitor(harnessRun, idleMonitor);
     if (result.sessionId !== undefined) input.onSessionId(result.sessionId);
-    if (result.isError) {
-      const reason = result.subtype ?? "error";
-      const detail = result.text.trim() || "Agent step returned an error result";
-      const classified = classifyAgentRuntimeFailure({ message: detail, subtype: result.subtype });
+    const reason = result.subtype ?? "error";
+    const detail = result.text.trim() ||
+      (result.isError
+        ? "Agent step returned an error result"
+        : "Agent step returned successful empty output");
+    const classified = classifyAgentRuntimeFailure({
+      message: detail,
+      subtype: result.subtype,
+    });
+    if (
+      result.isError ||
+      (classified?.kind === "output_contract" &&
+        input.jsonOutputFeedback !== undefined)
+    ) {
       if (classified) {
         throw new AgentStepRuntimeError(
           `Agent step "${step.id}" failed (${reason}): ${detail}`,
@@ -227,15 +249,25 @@ export async function runAgentAttempt(input: {
     input.onSuccessfulAttemptMessages(attemptMessages);
     return validated;
   } catch (error) {
+    if (error instanceof AgentBackoffAdmissionError) throw error;
+    if (
+      attemptAbortController.signal.reason instanceof AgentBackoffAdmissionError
+    ) {
+      throw attemptAbortController.signal.reason;
+    }
     if (error instanceof AgentStepIdleTimeoutError) throw error;
     if (attemptAbortController.signal.reason instanceof AgentStepIdleTimeoutError) {
       throw attemptAbortController.signal.reason;
     }
+    if (abortController.signal.aborted) {
+      throw abortController.signal.reason instanceof Error
+        ? abortController.signal.reason
+        : error;
+    }
     if (
       error instanceof AgentStepRuntimeError ||
       error instanceof JsonOutputValidationError ||
-      (error instanceof Error && error.name === "AbortError") ||
-      abortController.signal.aborted
+      (error instanceof Error && error.name === "AbortError")
     ) throw error;
     const classified = classifyThrownAgentError(error);
     if (!classified) throw error;

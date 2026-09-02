@@ -6,7 +6,10 @@ import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
 import type { WorkflowRuntimeDispatchState } from "./runtime-dispatch.js";
 import type { WorkflowStep } from "./step-types.js";
 import { DEFAULT_AGENT_STEP_RETRY } from "./steps/step-executor-retry.js";
-import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentBackoffState,
+  WorkflowRunTrigger,
+} from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export function recordFailedWorkflowDispatchDeadLetter(
@@ -15,6 +18,7 @@ export function recordFailedWorkflowDispatchDeadLetter(
   trigger: WorkflowRunTrigger,
   metadata: WorkflowRunMetadata,
   agentFailureClass?: DeadLetterFailureClass,
+  appliedBackoff?: WorkflowAgentBackoffState,
 ): void {
   if (metadata.status !== "failed" || state.deadLetterQueue === undefined) return;
   const failedStep = terminalFailedStep(metadata.steps);
@@ -26,7 +30,12 @@ export function recordFailedWorkflowDispatchDeadLetter(
     reason: failedStep?.error ?? `Workflow "${definition.name}" failed`,
     errorClass: agentFailureClass ?? "execution",
     failedRun: metadata,
-    retryCount: failedStep === undefined ? 1 : retryCountForStep(definition.steps, failedStep),
+    retryCount: agentFailureClass !== undefined || failedStep === undefined
+      ? 1
+      : retryCountForStep(definition.steps, failedStep),
+    ...(appliedBackoff === undefined
+      ? {}
+      : { backoffUntil: appliedBackoff.until }),
     owningModule: "workflow-runtime",
   });
 }

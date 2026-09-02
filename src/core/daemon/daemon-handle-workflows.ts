@@ -17,6 +17,7 @@ type WorkflowHandle = Pick<
   DaemonControlHandle,
   | "getWorkflowLiveStatus"
   | "pauseWorkflowDispatch"
+  | "pauseAgentDispatchForQuality"
   | "resumeWorkflowDispatch"
   | "probeCapabilityReadiness"
   | "getClientIdentity"
@@ -83,6 +84,7 @@ export function buildDaemonWorkflowHandle(
         operationallyActiveRunIds,
         terminalRunIds: [...workflowRunMetadataTerminalIds(durableRuns)],
         agentBackoff: wfState.agentBackoff,
+        agentOperatingState: wfState.agentOperatingState,
         definitionsLoadedAt: wfState.definitionsLoadedAt,
         workflows: wfState.workflows,
         paused: workflows.isDispatchPaused(),
@@ -99,6 +101,10 @@ export function buildDaemonWorkflowHandle(
       const already = workflows.getDispatchPauseStatus().kind === "operator";
       if (!already) workflows.setDispatchPaused(true, "persistent");
       return { already };
+    },
+    pauseAgentDispatchForQuality: (reason, scopeId) => {
+      const workflows = lookupRuntime(scopeId).workflowRuntime;
+      return { already: !workflows.pauseAgentForQuality(reason) };
     },
     resumeWorkflowDispatch: (scopeId, options) => {
       const workflows = lookupRuntime(scopeId).workflowRuntime;

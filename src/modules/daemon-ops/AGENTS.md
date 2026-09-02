@@ -15,7 +15,12 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
   status, scope, inbox, and continuity; capability modules own their sources. Never register demo/fixture surfaces in production.
 - Session autonomy mode is part of that operator surface. This module owns the
   `kota session` CLI plus the `sessions` `KotaClient` namespace
-  (`client.sessions.list()` / `client.sessions.setAutonomyMode()`) end-to-end.
+  (`client.sessions.list()` / `client.sessions.runOneShot()` /
+  `client.sessions.setAutonomyMode()`) end-to-end. Command modules that need a
+  short agent judgment use `runOneShot`; they never call the runtime-only
+  `ModuleContext.createSession()` capability. Autonomous command judgments
+  opt into its fleet backoff mode so daemon-side admission, provider failure,
+  and successful-empty handling share the workflow runtime's authority.
   Both the local-side handler (`sessionsLocalClient`) and the daemon-side
   handler (`buildSessionsDaemonHandler` in `daemon-client-handlers.ts`, contributed through the
   `daemonClient(link)` factory) realize the contract declared in `client.ts`.

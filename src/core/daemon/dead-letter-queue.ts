@@ -21,6 +21,7 @@ export type DeadLetterFailureClass =
   | "provider"
   | "rate_limit"
   | "runtime"
+  | "output_contract"
   | "unknown";
 
 export type DeadLetterRedriveTarget = "original" | "simulation";
@@ -31,6 +32,10 @@ export type DeadLetterFailure = {
   lastErrorClass: DeadLetterFailureClass;
   firstFailedAt: string;
   lastFailedAt: string;
+  /** One timestamp per represented failure observation for window-local metrics. */
+  observationTimes?: string[];
+  /** Provider incident horizon captured when workflow dispatch was parked. */
+  backoffUntil?: string;
 };
 
 export type DeadLetterRetentionPolicy =
@@ -189,6 +194,7 @@ export type DeadLetterQueueRecordInput = {
     retryCount?: number;
     lastErrorClass: DeadLetterFailureClass;
     failedAt?: string;
+    backoffUntil?: string;
   };
   source: DeadLetterSource;
   redrive: DeadLetterRedriveSource;

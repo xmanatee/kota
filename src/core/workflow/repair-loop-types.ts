@@ -19,6 +19,7 @@ export type RepairIteration = {
   agentResponse?: string;
   agentTurns?: number;
   agentSessionId?: string;
+  agentSubtype?: string;
   agentError?: string;
 };
 

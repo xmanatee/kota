@@ -26,7 +26,11 @@ import type {
   WorkflowAgentStep,
   WorkflowStep,
 } from "./step-types.js";
-import type { WorkflowAgentBackoffSignal, WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentBackoffSignal,
+  WorkflowAgentBackoffState,
+  WorkflowRunTrigger,
+} from "./trigger-types.js";
 import type { WorkflowCommandRunner } from "./workflow-command.js";
 
 export * from "./runtime-state-types.js";
@@ -292,6 +296,8 @@ export type WorkflowRepairLoopConfig = {
 export type WorkflowRunExecutionResult = {
   metadata: WorkflowRunMetadata;
   agentBackoff?: WorkflowAgentBackoffSignal;
+  /** Existing incident that denied this run another agent-provider call. */
+  deferredByAgentBackoff?: WorkflowAgentBackoffState;
 };
 
 export type WorkflowRunWarning = {

@@ -77,7 +77,7 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
     .description("Resume dispatching new workflow runs")
     .option(
       "--retry-agent",
-      "Clear agent backoff after fixing provider or authentication setup",
+      "Clear an agent quality pause after correction; active provider reset horizons remain enforced",
     )
     .action(async (options: { retryAgent?: boolean }) => {
       const result = await ctx.client.workflow.resume(
@@ -86,14 +86,14 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
       if (result.already) {
         printWorkflowText(
           result.agentBackoffCleared
-            ? "Agent backoff cleared; dispatch is running."
+            ? "Agent retry accepted; any active provider reset horizon remains enforced."
             : "Dispatch is not paused.",
         );
         return;
       }
       printWorkflowText(
         result.agentBackoffCleared
-          ? "Dispatch resumed; agent backoff cleared."
+          ? "Dispatch resumed; agent retry accepted and any active provider reset horizon remains enforced."
           : "Dispatch resumed.",
       );
     });
@@ -226,6 +226,17 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
 
   printWorkflowText();
   printWorkflowText(`Total completed runs: ${status.completedRuns}`);
+  if (status.agentOperatingState) {
+    const resumeAt = status.agentOperatingState.resumeAt
+      ? ` until ${formatDate(status.agentOperatingState.resumeAt)}`
+      : "";
+    printWorkflowText(
+      `Agent autonomy:       ${status.agentOperatingState.runtimeId} ${status.agentOperatingState.state}${resumeAt}`,
+    );
+    if (status.agentOperatingState.reason) {
+      printWorkflowText(`Agent state reason:   ${status.agentOperatingState.reason}`);
+    }
+  }
   if (status.agentBackoff) {
     printWorkflowText(
       `Agent backoff:        ${status.agentBackoff.kind} until ${formatDate(status.agentBackoff.until)} (attempt ${status.agentBackoff.failureCount})`,

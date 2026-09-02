@@ -2,10 +2,15 @@ import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
+import { AgentBackoffAdmissionError } from "#core/workflow/agent-backoff.js";
 import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
 import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
 import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
+import {
+  AgentStepRuntimeError,
+  classifyAgentRuntimeFailure,
+  isEmptyAgentOutputSubtype,
+} from "#core/workflow/steps/step-executor-retry.js";
 import { parseVerdict } from "./critic-verdict.js";
 import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 
@@ -69,6 +74,7 @@ export async function invokeAgentJudge(
   const runContract = resolveAgentJudgeRunContract(config);
   let lastError: Error | undefined;
   let needsFormatReminder = false;
+  let emptyOutputFailures = 0;
 
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     if (attempt > 0) {
@@ -101,6 +107,7 @@ export async function invokeAgentJudge(
         },
       );
     } catch (thrown) {
+      if (thrown instanceof AgentBackoffAdmissionError) throw thrown;
       const message = thrown instanceof Error ? thrown.message : String(thrown);
       lastError = new Error(
         `${config.label} threw (attempt ${attempt + 1}/${maxRetries}): ${message}`,
@@ -123,9 +130,21 @@ export async function invokeAgentJudge(
         parseVerdict(response.text);
         return response;
       } catch (error) {
+        if (isEmptyAgentOutputSubtype(response.subtype)) {
+          emptyOutputFailures += 1;
+        } else {
+          emptyOutputFailures = 0;
+        }
         lastError = new Error(
           `${config.label} returned unparseable response (attempt ${attempt + 1}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`,
         );
+        if (emptyOutputFailures >= maxRetries) {
+          throw new AgentStepRuntimeError(
+            `${config.label} produced ${emptyOutputFailures} successful terminal results without a usable verdict (${response.subtype})`,
+            "output_contract",
+            false,
+          );
+        }
         needsFormatReminder = true;
         continue;
       }

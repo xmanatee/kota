@@ -21,7 +21,10 @@ import type {
   WorkflowRuntimeSummary,
   WorkflowStepSkipReason,
 } from "#core/workflow/run-types.js";
-import type { WorkflowAgentBackoffState } from "#core/workflow/trigger-types.js";
+import type {
+  WorkflowAgentBackoffState,
+  WorkflowAgentOperatingState,
+} from "#core/workflow/trigger-types.js";
 import type { DaemonState } from "./daemon-state.js";
 import type {
   DeadLetterItem,
@@ -164,6 +167,7 @@ export type WorkflowLiveStatus = {
   /** Durably terminal runs whose malformed evidence may be quarantined. */
   terminalRunIds?: string[];
   agentBackoff?: WorkflowAgentBackoffState;
+  agentOperatingState?: WorkflowAgentOperatingState;
   definitionsLoadedAt?: string;
   workflows: WorkflowRuntimeSummary["workflows"];
   paused: boolean;

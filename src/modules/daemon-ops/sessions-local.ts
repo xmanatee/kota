@@ -14,6 +14,9 @@ export function sessionsLocalClient(): SessionsClient {
     async list() {
       return { sessions: [] };
     },
+    async runOneShot() {
+      return { ok: false, reason: "daemon_required" };
+    },
     async setAutonomyMode() {
       return { ok: false, reason: "daemon_required" };
     },

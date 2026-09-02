@@ -77,6 +77,10 @@ export type SessionsListResult = {
   sessions: InteractiveSession[];
 };
 
+export type SessionsOneShotResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: "daemon_required" };
+
 /**
  * Result of `sessions.setAutonomyMode`. `serveOwned` indicates the session is
  * registered through `kota serve` rather than owned by the daemon directly;
@@ -92,18 +96,29 @@ export type SessionsSetAutonomyModeResult =
  * Interactive-session operations.
  *
  * `list` enumerates sessions registered with the daemon — both `kota serve`
- * registrations and daemon-owned chat sessions. `setAutonomyMode` mutates a
+ * registrations and daemon-owned chat sessions. `runOneShot` creates a
+ * passive daemon-owned session, returns one final response, and closes the
+ * live session; command modules use it instead of the runtime-only module
+ * session factory. `setAutonomyMode` mutates a
  * session's supervision posture; daemon-owned sessions update in-place and
  * serve-registered sessions get advisory metadata updated with `serveOwned:
  * true` so the caller knows the authoritative change must reach the owning
  * serve process.
  *
  * Local mode (no daemon reachable) returns an empty session list and
- * surfaces `daemon_required` from `setAutonomyMode` — interactive sessions
- * only exist while a runtime host is alive.
+ * surfaces `daemon_required` from daemon-only operations — interactive
+ * sessions only exist while a runtime host is alive.
  */
 export interface SessionsClient {
   list(): Promise<SessionsListResult>;
+  runOneShot(
+    prompt: string,
+    options?: {
+      autonomyMode?: AutonomyMode;
+      /** Register this autonomous command turn with the daemon-wide workflow gate. */
+      agentBackoff?: "fleet";
+    },
+  ): Promise<SessionsOneShotResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;
 }
 

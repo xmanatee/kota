@@ -1,3 +1,4 @@
+import type { WorkflowAgentOperatingState } from "#core/workflow/trigger-types.js";
 import type { EventLoopLatencySnapshot } from "./event-loop-latency.js";
 
 export type ComponentStatus = "ok" | "error";
@@ -10,6 +11,7 @@ export type ModuleHealthCheckResult = {
 export type HealthStatus = {
   scheduler: ComponentStatus;
   modules: ComponentStatus;
+  agentOperatingState?: WorkflowAgentOperatingState;
   eventLoop?: EventLoopLatencySnapshot;
   moduleHealthChecks?: Record<string, ModuleHealthCheckResult>;
 };

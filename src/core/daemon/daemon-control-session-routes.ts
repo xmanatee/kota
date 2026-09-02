@@ -54,6 +54,7 @@ export function buildDaemonSessionControlRoutes(
     defaultAutonomyMode,
     chatBindings,
     conversationResolver,
+    agentAttemptBoundary,
   } = deps;
   return [
     {
@@ -139,7 +140,13 @@ export function buildDaemonSessionControlRoutes(
           unavailableChatPool(res);
           return;
         }
-        return handleDaemonChat(chatPool, req, res, params.id);
+        return handleDaemonChat(
+          chatPool,
+          req,
+          res,
+          params.id,
+          agentAttemptBoundary ?? undefined,
+        );
       },
     },
     {

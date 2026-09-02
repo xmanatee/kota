@@ -53,6 +53,19 @@ Owns KOTA's autonomous workflows and their shared policy.
   contract, production run, durable record, direct inspection, or behavior test;
   review guidance explicitly permits omitting new tests when an architectural
   mechanism already proves the behavior.
+- **Canary evidence.** Continuous-agent canaries establish a persisted start
+  observation, then advance through one three-hour and consecutive,
+  non-overwriting six-hour windows. They collect runtime runs, tasks,
+  deduplicated incidents with retained backoff horizons, grounded agent inputs,
+  applicable instructions, inspectable writer diffs, and cleanup state at each
+  elapsed boundary. Nonterminal agent runs already present at baseline and runs
+  active at a later boundary carry forward until their terminal evidence can be
+  attributed once. Settled runs also carry forward while an agent incident
+  prevents review; the checkpoint consumes them only after a read-only reviewer
+  cites their complete collected evidence. That reviewer joins the fleet agent
+  gate atomically; a newly observed provider or successful-empty incident parks
+  later agent work and advances the window with review still pending. Canary
+  inputs never supply their own counters or timestamps.
 
 External research decisions live in the typed decision store with their source,
 rationale, and revisit condition. Code is the catalog; instructions do not copy
@@ -66,9 +79,10 @@ its entries, and tests exercise decision behavior rather than catalog identity.
   they do not use clarification loops or fixed caps.
 - `ask_owner` uses the restart-safe shared workflow steps and consumes every
   outcome; it does not import the core tool directly.
-- Agent judges use the shared retry classifier. Runaway budget failures warn;
-  unclassified SDK failures reject. Validation and runtime resolve the same
-  declared agent contract.
+- Agent judges use the shared retry classifier. Shared backoff admission stops
+  their internal retry loop during a classified provider incident. Runaway
+  budget failures warn; unclassified SDK failures reject. Validation and runtime
+  resolve the same declared agent contract.
 
 ## Queue Policy
 

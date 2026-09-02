@@ -14,7 +14,8 @@ and publication.
   SQLite API; runs stage compare-and-set mutations that commit atomically with
   success publications. `WorkflowRunStore` and run artifacts are evidence, not
   queue, summary, lease, or shared state. Persistent dispatch pause is project
-  state in that database. Only the daemon database composition root migrates
+  state in that database. Fleet agent backoff is one daemon-state value in that
+  database; never mirror it through scope rows. Only the daemon database composition root migrates
   schema or disposes known obsolete operational files; offline readers are
   explicit and read-only, and standalone hosts never perform cutover work.
 - `RunCoordinator` owns daemon-wide capacity, global and project admission
@@ -59,6 +60,14 @@ and publication.
   effects after integration.
 - Repair accounting includes initial and repair token usage, including terminal
   failures.
+- Every workflow-owned harness call crosses the daemon-wide agent-backoff gate,
+  including agent steps, repair iterations, and code-step judges. Classified
+  provider failures activate it at that boundary, cancel other in-flight agent
+  calls across every hosted scope, and deny later calls before harness launch
+  while deterministic dispatch remains eligible. Autonomous daemon one-shot
+  judgments explicitly join the same gate before sending. Quality pauses
+  retain any active provider recovery horizon, and an operator retry clears
+  only the quality pause while that provider incident remains active.
 
 ## Durable Waits
 

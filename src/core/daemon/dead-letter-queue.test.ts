@@ -166,6 +166,69 @@ describe("DeadLetterQueueStore", () => {
 
     expect(repeated.id).toBe(first.id);
     expect(repeated.failure.retryCount).toBe(2);
+    expect(repeated.failure.observationTimes).toEqual([NOW, NOW]);
+    expect(store.list({ workflowName: "builder", status: "open" })).toHaveLength(1);
+  });
+
+  it("keeps one representative output-contract incident across failed runs", () => {
+    const input = {
+      store,
+      scopeId: "scope-a",
+      workflowName: "builder",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
+      reason:
+        'Agent step "build" produced 2 successful terminal results without usable output or repair progress',
+      errorClass: "output_contract" as const,
+    };
+    const first = createWorkflowDispatchDeadLetter({
+      ...input,
+      failedRun: failedRun("run-builder-empty-a"),
+    });
+    const repeated = createWorkflowDispatchDeadLetter({
+      ...input,
+      failedRun: failedRun("run-builder-empty-b"),
+    });
+
+    expect(repeated.id).toBe(first.id);
+    expect(repeated.failure.retryCount).toBe(2);
+    expect(repeated.failure.observationTimes).toEqual([NOW, NOW]);
+    expect(repeated.source).toMatchObject({ failedRunId: "run-builder-empty-a" });
+    expect(store.list({ workflowName: "builder", status: "open" })).toHaveLength(1);
+  });
+
+  it("retains and coalesces provider backoff horizons across failed runs", () => {
+    const input = {
+      store,
+      scopeId: "scope-a",
+      workflowName: "builder",
+      trigger: {
+        event: "autonomy.queue.available",
+        schemaRef: null,
+        payload: {},
+      },
+      reason: 'Agent step "build" failed: quota exhausted',
+      errorClass: "rate_limit" as const,
+    };
+    const first = createWorkflowDispatchDeadLetter({
+      ...input,
+      failedRun: failedRun("run-builder-quota-a"),
+      backoffUntil: "2026-06-06T13:00:00.000Z",
+    });
+    const repeated = createWorkflowDispatchDeadLetter({
+      ...input,
+      failedRun: failedRun("run-builder-quota-b"),
+      backoffUntil: "2026-06-06T14:00:00.000Z",
+    });
+
+    expect(repeated.id).toBe(first.id);
+    expect(repeated.failure).toMatchObject({
+      retryCount: 2,
+      backoffUntil: "2026-06-06T14:00:00.000Z",
+    });
     expect(store.list({ workflowName: "builder", status: "open" })).toHaveLength(1);
   });
 

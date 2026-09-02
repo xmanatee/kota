@@ -12,19 +12,43 @@ export type WorkflowAgentBackoffKind = NonNullable<
   BusEvents["workflow.completed"]["failureKind"]
 >;
 
-export type WorkflowAgentBackoffState = {
+export type WorkflowAgentIncidentKind = WorkflowAgentBackoffKind | "quality";
+
+type WorkflowAgentIncidentState = {
   runtimeId: string;
-  kind: WorkflowAgentBackoffKind;
+  kind: WorkflowAgentIncidentKind;
   failureCount: number;
   until: string;
   updatedAt: string;
   reason: string;
 };
 
+export type WorkflowProviderBackoffState = WorkflowAgentIncidentState & {
+  kind: Exclude<WorkflowAgentBackoffKind, "output_contract">;
+};
+
+export type WorkflowAgentBackoffState = WorkflowAgentIncidentState & {
+  /** Provider recovery that must still hold after an operator clears a quality pause. */
+  retainedProviderIncident?: WorkflowProviderBackoffState;
+};
+
 export type WorkflowAgentBackoffSignal = {
   kind: WorkflowAgentBackoffKind;
   reason: string;
   retryAt?: string;
+};
+
+export type WorkflowAgentIncidentSignal = {
+  kind: WorkflowAgentIncidentKind;
+  reason: string;
+  retryAt?: string;
+};
+
+export type WorkflowAgentOperatingState = {
+  runtimeId: string;
+  state: "working" | "quota-parked" | "quality-paused" | "provider-parked" | "idle";
+  reason?: string;
+  resumeAt?: string;
 };
 
 export type WorkflowFilterScalar = string | number | boolean;

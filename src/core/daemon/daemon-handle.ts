@@ -102,6 +102,7 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
     getHealthStatus: () => buildDaemonHealthStatus(
       ctx.getModuleHealthChecks(),
       ctx.getEventLoopLatency?.(),
+      lookupRuntime().workflowRuntime.getState().agentOperatingState,
     ),
     getDaemonLiveState: () => ({ ...ctx.getState(), running: ctx.isRunning() }),
     listChannelStatuses: () => [...ctx.getChannelStatuses()],

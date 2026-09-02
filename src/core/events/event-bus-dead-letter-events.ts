@@ -17,6 +17,7 @@ export type WorkflowDeadLetterBusEvents = {
       | "provider"
       | "rate_limit"
       | "runtime"
+      | "output_contract"
       | "unknown";
     failureReason: string;
     resolutionReason: string | null;

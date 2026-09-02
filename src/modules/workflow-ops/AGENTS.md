@@ -22,9 +22,13 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
   related approval, question, and session reads remain typed client calls.
 - Tests are co-located with the code they cover inside each subdomain.
 - HTTP routes are contributed via `routes/routes.ts` using handlers in the same subdirectory.
-- `workflow resume` changes dispatch pause only. Clearing provider or
-  authentication backoff requires the explicit `--retry-agent` option after
-  the operator has fixed its cause.
+- `workflow resume` changes dispatch pause only. The explicit `--retry-agent`
+  option clears a corrected quality/output pause; provider and authentication
+  incidents remain parked until their recorded recovery horizon elapses.
+- Material canary quality regressions use the agent-only quality-pause control.
+  They persist in the shared backoff authority and leave deterministic workflow
+  dispatch available until an explicit agent retry. That retry clears the
+  quality pause but preserves any provider reset horizon that is still active.
 - workflow exec is the eval-harness subprocess boundary. Its paired
   --agent-harness / --agent-model override may also carry --agent-effort so
   model-matrix runs execute the requested runtime facts instead of merely
@@ -38,7 +42,7 @@ The `workflow` namespace contract lives in `client.ts` (`WorkflowClient` and
 result/option types). Core owns canonical queued-run and wire-trigger assembly.
 `localClient(ctx)` and `daemonClient(link)` factories in `index.ts` realize
 the contract; `buildWorkflowDaemonHandler(link)` is the daemon-side factory
-that routes the thirteen namespace methods through the typed
+that routes the namespace methods through the typed
 `DaemonTransport`. Trigger event, schema, payload, run id, and eligibility must
 have identical semantics on both paths. Wire paths and reshape semantics are
 pinned in `daemon-client.test.ts`.

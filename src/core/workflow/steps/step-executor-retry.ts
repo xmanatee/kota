@@ -135,6 +135,12 @@ export type AgentFailureClassification = {
   retryAt?: string;
 };
 
+export function isEmptyAgentOutputSubtype(
+  subtype: string | undefined,
+): boolean {
+  return subtype?.endsWith("_empty_output") === true;
+}
+
 const PROVIDER_HTTP_STATUSES = new Set([408, 500, 502, 503, 504, 529]);
 const NETWORK_ERROR_CODES = new Set([
   "ECONNRESET",
@@ -292,6 +298,10 @@ export function classifyAgentRuntimeFailure(
 
   if (input.subtype === "native_cli_sandbox_error") {
     return { kind: "runtime", retryable: false };
+  }
+
+  if (isEmptyAgentOutputSubtype(input.subtype)) {
+    return { kind: "output_contract", retryable: false };
   }
 
   if (input.subtype?.startsWith("error_")) {

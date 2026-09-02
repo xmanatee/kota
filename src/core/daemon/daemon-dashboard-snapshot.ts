@@ -30,6 +30,7 @@ export function buildDaemonDashboardSnapshot(ctx: DaemonRuntimeContext) {
     dispatchWindowBlocked: dispatchWindow.blocked,
     dispatchWindowOpensAt: dispatchWindow.opensAt,
     agentBackoff: state.agentBackoff,
+    agentOperatingState: state.agentOperatingState,
     definitionCount: workflows.getDefinitionCount(),
     sessionCount: ctx.sessions.size,
   };

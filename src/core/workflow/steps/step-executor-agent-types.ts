@@ -18,6 +18,7 @@ import type {
 import type { ProcessSpawnObserver } from "#core/execution/process-supervisor.js";
 import type { DelegateBudget } from "#core/tools/delegate-budget.js";
 import type { ToolResult } from "#core/tools/index.js";
+import type { AgentBackoffManager } from "../agent-backoff.js";
 import type { RepositoryAccess } from "../run-sandbox.js";
 import type { WorkflowRuntimeResources } from "../run-types.js";
 
@@ -72,4 +73,8 @@ export type AgentStepConfig = {
   scopePolicy?: ResolvedScopePolicy;
   /** Native provider sessions retained by step id across durable run attempts. */
   resumeSessionIds?: Readonly<Record<string, string>>;
+  /** Runtime-owned gate; standalone executor fixtures intentionally omit it. */
+  agentBackoff?: AgentBackoffManager;
+  /** Run-level cancellation used to preserve the complete run on suppression. */
+  agentBackoffAbortController?: AbortController;
 };

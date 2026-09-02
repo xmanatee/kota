@@ -1,6 +1,7 @@
 import type { KotaAgentMessage } from "#core/agent-harness/index.js";
 import type { AgentUsage } from "#core/agent-harness/usage.js";
 import type { ActiveWorkflowRunHandle } from "./active-run-handle.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import {
   type ActiveTimeoutSnapshot,
   activeTimingMetadata,
@@ -112,6 +113,17 @@ export function recordWorkflowStepFailure(args: {
   ) {
     agentBackoff = workflowAgentBackoffSignalFromError(agentRuntimeFailure);
   }
+  const appliedBackoff = agentBackoff === undefined
+    ? undefined
+    : agentConfig.agentBackoff?.apply(agentBackoff);
+  const thrownError = appliedBackoff === undefined
+    ? err
+    : new AgentBackoffAdmissionError(appliedBackoff, agentBackoff);
+  if (appliedBackoff !== undefined) {
+    (agentConfig.agentBackoffAbortController ?? runAbortController).abort(
+      thrownError,
+    );
+  }
   const trajectoryDiagnostics = writeFailedAgentTrajectoryDiagnostics({
     step,
     runDir: run.metadata.runDir,
@@ -183,5 +195,5 @@ export function recordWorkflowStepFailure(args: {
   deps.log(
     `Failed step "${failed.id}" (${failed.type}) in workflow "${definition.name}": ${failed.error ?? "unknown error"}`,
   );
-  return { completed: failed, agentBackoff, thrownError: err };
+  return { completed: failed, agentBackoff, thrownError };
 }

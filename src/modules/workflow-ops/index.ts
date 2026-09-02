@@ -21,6 +21,11 @@ import { projectEvidenceObject, redactSensitiveText } from "#core/evidence/polic
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { scopeSelectorQuery } from "#core/server/scope-selector.js";
+import {
+  activeAgentBackoffForRuntime,
+  resolveAgentOperatingState,
+  workflowAgentRuntimeId,
+} from "#core/workflow/agent-backoff.js";
 import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { resolveWorkflowDispatchPause } from "#core/workflow/dispatch-pause.js";
 import {
@@ -191,6 +196,11 @@ const workflowModule: KotaModule = {
           runtimePaused: false,
         });
         const config = loadConfig(ctx.cwd);
+        const runtimeId = workflowAgentRuntimeId(config);
+        const activeAgentBackoff = activeAgentBackoffForRuntime(
+          state.agentBackoff ?? null,
+          runtimeId,
+        );
         const dispatchWindow = config.scheduler?.dispatchWindow;
         const windowBlocked = dispatchWindow ? !isWithinDispatchWindow(dispatchWindow) : false;
         const windowOpensAt =
@@ -213,7 +223,13 @@ const workflowModule: KotaModule = {
             .filter((run) => run.state !== "queued")
             .map((run) => run.runId),
           terminalRunIds: [...authority.terminalRunIds],
-          ...(state.agentBackoff && { agentBackoff: state.agentBackoff }),
+          ...(activeAgentBackoff && { agentBackoff: activeAgentBackoff }),
+          agentOperatingState: resolveAgentOperatingState({
+            runtimeId,
+            backoff: activeAgentBackoff,
+            // Offline state has no live harness-attempt registry.
+            hasActiveAgentAttempt: false,
+          }),
           ...(state.definitionsLoadedAt && { definitionsLoadedAt: state.definitionsLoadedAt }),
           workflows: state.workflows,
           paused: pause.paused,
@@ -228,6 +244,9 @@ const workflowModule: KotaModule = {
         const store = localWorkflowRunStore(ctx);
         const changed = setStoredDispatchPaused(ctx.cwd, store.rootDir, true);
         return { paused: true, already: !changed };
+      },
+      async pauseAgentForQuality(_reason) {
+        return { ok: false, reason: "daemon_required" };
       },
       async resume(options) {
         const store = localWorkflowRunStore(ctx);
@@ -506,6 +525,19 @@ export function buildWorkflowDaemonHandler(
       );
       if (!result) throw new Error("Daemon unreachable while pausing dispatch");
       return { paused: result.paused, already: result.already ?? false };
+    },
+    pauseAgentForQuality: async (reason) => {
+      const result = await link.request<{
+        ok: true;
+        paused: true;
+        already?: boolean;
+      }>("POST", "/workflow/agent/quality-pause", { reason });
+      if (!result) return { ok: false, reason: "daemon_required" };
+      return {
+        ok: true,
+        paused: true,
+        already: result.already ?? false,
+      };
     },
     resume: async (options) => {
       const query = options?.retryAgent === true ? "?retryAgent=true" : "";

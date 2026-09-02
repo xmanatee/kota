@@ -75,6 +75,7 @@ export function createWorkflowDispatchDeadLetter(input: {
   errorClass: DeadLetterFailureClass;
   failedRun?: WorkflowRunMetadata;
   retryCount?: number;
+  backoffUntil?: string;
   owningModule?: string;
 }): DeadLetterItem {
   const projection = workflowTriggerProjection(input.workflowName, input.trigger);
@@ -101,6 +102,9 @@ export function createWorkflowDispatchDeadLetter(input: {
       retryCount: input.retryCount,
       lastErrorClass: input.errorClass,
       failedAt: input.failedRun?.completedAt,
+      ...(input.backoffUntil === undefined
+        ? {}
+        : { backoffUntil: input.backoffUntil }),
     },
     source: {
       kind: "workflow-dispatch",

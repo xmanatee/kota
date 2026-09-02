@@ -9,6 +9,7 @@ import {
 } from "#core/modules/module-log.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { DaemonAgentBackoffStateStore } from "#core/workflow/scope-runtime-state.js";
 import { getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 import {
   getIdempotencyStore,
@@ -215,7 +216,7 @@ describe("createScopeRuntime", () => {
   });
 });
 
-describe("ScopeRuntimeRegistry — independence across scopes", () => {
+describe("ScopeRuntimeRegistry — scoped ownership and fleet controls", () => {
   beforeEach(resetSingletons);
   afterEach(resetSingletons);
 
@@ -253,6 +254,20 @@ describe("ScopeRuntimeRegistry — independence across scopes", () => {
     expect(a.ownerQuestionQueue).not.toBe(b.ownerQuestionQueue);
     expect(a.moduleLogStore).not.toBe(b.moduleLogStore);
     expect(a.workflowRuntime).not.toBe(b.workflowRuntime);
+
+    expect(a.workflowRuntime.pauseAgentForQuality("fleet quality incident")).toBe(true);
+    expect(b.workflowRuntime.getState().agentBackoff).toMatchObject({
+      kind: "quality",
+      reason: "fleet quality incident",
+    });
+    expect(new DaemonAgentBackoffStateStore(
+      runInfrastructure.options.runState,
+    ).getAgentBackoff()).toMatchObject({ kind: "quality" });
+    expect(b.workflowRuntime.clearAgentBackoff("after fleet operator retry")).toBe(true);
+    expect(a.workflowRuntime.getState().agentBackoff).toBeUndefined();
+    expect(new DaemonAgentBackoffStateStore(
+      runInfrastructure.options.runState,
+    ).getAgentBackoff()).toBeNull();
 
     a.taskStore.add("alpha");
     b.taskStore.add("beta one");

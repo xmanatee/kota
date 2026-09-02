@@ -24,6 +24,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import {
   buildRepairPrompt,
+  RepairAgentRuntimeError,
   RepairLoopError,
   runAgentRepairLoop,
 } from "./repair-loop.js";
@@ -476,6 +477,52 @@ describe("runAgentRepairLoop", () => {
       'Repair loop for step "agent" made no progress after 3 consecutive attempts',
     );
     expect(repairRuns).toHaveLength(3);
+  });
+
+  it("parks repeated successful-empty attempts with no repair progress", async () => {
+    const harnessName = uniqueName("repair-empty-output");
+    registerRepairHarness(harnessName, async () => ({
+      text: "",
+      streamedText: "",
+      turns: 1,
+      usage: { tokens: { state: "complete", inputTokens: 10, outputTokens: 1 }, cost: { state: "unknown" } },
+      isError: false,
+      subtype: "antigravity_cli_empty_output",
+    }));
+    initGitRepo(scopeRoot);
+    const step = makeStep(scopeRoot, harnessName, {
+      repairLoop: {
+        checks: [{
+          id: "always-fails",
+          type: "code",
+          run: () => { throw new Error("still failing"); },
+        }],
+      },
+    });
+    const initial = makeInitialResult();
+    initial.output = {
+      content: "",
+      turns: 1,
+      subtype: "antigravity_cli_empty_output",
+    };
+
+    const failure = await runAgentRepairLoop(
+      step,
+      initial,
+      makeContext(scopeRoot),
+      makeMetadata(),
+      new AbortController(),
+      vi.fn(),
+      { scopeRoot, resolveAgentHarness },
+    ).then(() => null, (error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(RepairAgentRuntimeError);
+    const error = failure as RepairAgentRuntimeError;
+    expect(error.kind).toBe("output_contract");
+    expect(error.output.repairIterations).toHaveLength(1);
+    expect(error.output.repairIterations[0]?.agentSubtype).toBe(
+      "antigravity_cli_empty_output",
+    );
   });
 
   it("ignores volatile output from the same failing check when detecting no progress", async () => {

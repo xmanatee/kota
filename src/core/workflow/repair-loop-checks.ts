@@ -1,9 +1,11 @@
 import { getToolEffect } from "#core/tools/index.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import type {
   WorkflowRepairCheck,
   WorkflowStepContext,
 } from "./run-types.js";
 import type { WorkflowAgentStep } from "./step-types.js";
+import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
 
 export type RepairCheckResult = {
   id: string;
@@ -46,6 +48,12 @@ async function runRepairCheck(
     const output = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
     return { id: check.id, passed: true, output, severity };
   } catch (error) {
+    if (
+      error instanceof AgentBackoffAdmissionError ||
+      error instanceof AgentStepRuntimeError
+    ) {
+      throw error;
+    }
     const output = error instanceof Error ? error.message : String(error);
     // Tool checks can be unavailable in daemon workflow contexts; demote those
     // failures so the repair agent does not chase missing module wiring.

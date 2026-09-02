@@ -138,7 +138,7 @@ export function createWorkflowRuntimeContext(
     runtimeConfig.scopeId,
   );
 
-  const backoff = new AgentBackoffManager(
+  const backoff = runtimeConfig.agentBackoff ?? new AgentBackoffManager(
     scopeState,
     log,
     workflowAgentRuntimeId(runtimeConfig.config),

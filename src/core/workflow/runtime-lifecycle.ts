@@ -1,3 +1,4 @@
+import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import { installAwaitResumers } from "./awaits-resume.js";
 import {
   type AwaitSuspension,
@@ -94,7 +95,9 @@ export function startRuntime(
   state.definitions = loadDefinitionsViaDispatch(state);
   const supersededBackoff = state.backoff.getSupersededRuntime();
   if (supersededBackoff !== null) {
-    state.wfQueue.releaseAgentRunsDeferredUntil(supersededBackoff.until);
+    state.wfQueue.releaseAgentRunsDeferredUntil(
+      agentBackoffQueueUntil(supersededBackoff),
+    );
     state.backoff.clear(
       `after runtime changed from ${supersededBackoff.runtimeId}`,
     );

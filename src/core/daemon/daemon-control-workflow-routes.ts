@@ -10,6 +10,7 @@ import {
   handleGetWorkflowRun,
   handleGetWorkflowStatus,
   handleListWorkflowRuns,
+  handlePauseAgentForQuality,
   handlePauseWorkflow,
   handleReloadConfig,
   handleReloadWorkflow,
@@ -77,6 +78,13 @@ export function buildDaemonWorkflowControlRoutes(
       path: "/workflow/pause",
       capabilityScope: "control",
       handler: (req, res) => handlePauseWorkflow(h, res, requestUrl(req.url)),
+    },
+    {
+      method: "POST",
+      path: "/workflow/agent/quality-pause",
+      capabilityScope: "control",
+      handler: (req, res) =>
+        handlePauseAgentForQuality(h, req, res, requestUrl(req.url)),
     },
     {
       method: "POST",

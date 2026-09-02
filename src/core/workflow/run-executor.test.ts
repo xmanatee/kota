@@ -10,13 +10,21 @@ import type {
 } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
+import {
+  AgentBackoffAdmissionError,
+  type AgentBackoffManager,
+} from "./agent-backoff.js";
 import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { DEFAULT_STEP_TIMEOUT_MS } from "./run-executor-step.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
-import type { WorkflowRunTrigger } from "./trigger-types.js";
+import type {
+  WorkflowAgentBackoffSignal,
+  WorkflowAgentBackoffState,
+  WorkflowRunTrigger,
+} from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 function makeDefinition(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
@@ -80,6 +88,41 @@ function registerWorkflowScenarioDriver(
     toolControl: "kota",
     run,
   });
+}
+
+function createPrimaryAgentBackoffFixture(): {
+  manager: AgentBackoffManager;
+  apply: ReturnType<typeof vi.fn>;
+  registerAttempt: ReturnType<typeof vi.fn>;
+} {
+  let active: WorkflowAgentBackoffState | null = null;
+  const attempts = new Set<AbortController>();
+  const registerAttempt = vi.fn((controller: AbortController) => {
+    if (active !== null) throw new AgentBackoffAdmissionError(active);
+    attempts.add(controller);
+    return () => attempts.delete(controller);
+  });
+  const apply = vi.fn((signal: WorkflowAgentBackoffSignal) => {
+    const next: WorkflowAgentBackoffState = {
+      runtimeId: "agy:antigravity-cli",
+      kind: signal.kind,
+      failureCount: 1,
+      until: "2026-09-02T18:00:00.000Z",
+      updatedAt: "2026-09-02T17:55:00.000Z",
+      reason: signal.reason,
+    };
+    active = next;
+    for (const controller of attempts) {
+      controller.abort(new AgentBackoffAdmissionError(next, signal));
+    }
+    attempts.clear();
+    return next;
+  });
+  return {
+    manager: { registerAttempt, apply } as unknown as AgentBackoffManager,
+    apply,
+    registerAttempt,
+  };
 }
 
 function makeRunContext(workspaceRoot: string, attempt = 1): RunContext {
@@ -737,6 +780,95 @@ describe("step timeout", () => {
       cost: { state: "unavailable", reason: "provider-does-not-report" },
     });
   }, 10_000);
+
+  it("parks repeated successful-empty JSON results after one correction attempt", async () => {
+    const harness = "workflow-agent-successful-empty-json";
+    let attempts = 0;
+    registerWorkflowScenarioDriver(harness, async () => {
+      attempts += 1;
+      return {
+        text: "",
+        streamedText: "",
+        turns: 1,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
+        isError: false,
+        subtype: "antigravity_cli_empty_output",
+      };
+    });
+
+    const definition = makeDefinition({
+      moduleRoot: workspaceRoot,
+      steps: [
+        makeAgentStep(workspaceRoot, harness, {
+          outputFormat: "json",
+          outputSchema: {
+            type: "object",
+            required: ["body"],
+            properties: { body: { type: "string" } },
+          },
+          retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext, bus, store, log });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(attempts).toBe(2);
+    expect(result.agentBackoff).toMatchObject({
+      kind: "output_contract",
+    });
+    expect(result.agentBackoff?.reason).toContain("antigravity_cli_empty_output");
+  }, 10_000);
+
+  it("activates shared backoff at the primary agent boundary before step retries", async () => {
+    const harness = "workflow-primary-agent-provider-backoff";
+    let attempts = 0;
+    registerWorkflowScenarioDriver(harness, async () => {
+      attempts += 1;
+      return {
+        text: "API Error: 503 provider unavailable",
+        streamedText: "",
+        turns: 1,
+        usage: {
+          tokens: { state: "unknown" },
+          cost: { state: "unknown" },
+        },
+        isError: true,
+        subtype: "error_during_execution",
+      };
+    });
+    const backoff = createPrimaryAgentBackoffFixture();
+    const definition = makeDefinition({
+      moduleRoot: workspaceRoot,
+      steps: [
+        makeAgentStep(workspaceRoot, harness, {
+          retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 },
+        }),
+      ],
+    });
+
+    const { promise } = executeWorkflowRun(definition, TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      runContext,
+      bus,
+      store,
+      log,
+      agentBackoff: backoff.manager,
+    });
+    const result = await promise;
+
+    expect(result.metadata.status).toBe("failed");
+    expect(result.agentBackoff).toMatchObject({ kind: "provider" });
+    expect(attempts).toBe(1);
+    expect(backoff.registerAttempt).toHaveBeenCalledTimes(1);
+    expect(backoff.apply).toHaveBeenCalledTimes(1);
+  });
 
   it("retries missing fenced JSON output with a targeted correction prompt", async () => {
     const harness = "workflow-agent-missing-json-fence-retry";

@@ -45,8 +45,10 @@ repair attempt.
 Workflow `outputSchema` values pass through AGY's native `--json-schema`
 surface; core still validates the normalized structured result. A terminal AGY
 `SUCCESS` is transport success when AGY omits response text without an
-unrecovered tool failure. A tool failure followed by an empty terminal success
-is a harness error; workflow validators still decide whether otherwise
+unrecovered tool failure, and carries the typed
+`antigravity_cli_empty_output` subtype so workflow productivity policy can
+distinguish it from useful output. A tool failure followed by an empty terminal
+success is a harness error; workflow validators still decide whether otherwise
 successful work satisfies the task. A missing terminal result is a transport
 failure.
 

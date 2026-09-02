@@ -8,9 +8,11 @@ This directory owns step execution strategies and context construction.
 - Each `step-executor-<type>.ts` implements one step type strategy (agent,
   approval, branch, foreach, parallel, retry classification, trigger).
 - `step-context.ts` constructs `WorkflowStepContext`; workflow-owned judges,
-  reviewers, and resolvers use `ctx.runAgentHarness` for capacity, cancellation,
-  workflow tracing, and live scope authority. Direct native harness calls carry
-  that authority into fail-closed capability preflight before process launch.
+  reviewers, and resolvers use `ctx.runAgentHarness` for shared backoff
+  admission, cancellation, workflow tracing, live scope authority, and
+  canonical prompt/outcome evidence under the owning step. Direct native
+  harness calls carry that authority into fail-closed capability preflight
+  before process launch.
 - Code-step subprocesses use `ctx.runCommand`; the runtime binds cancellation,
   bounded output, timeout, process-group termination, and durable process
   registration through the shared process supervisor.
@@ -129,6 +131,7 @@ fuzzy string matches to the classifier. The same classifier governs autonomy
 agent judges; see `src/modules/autonomy/AGENTS.md` for the judge-wrapper rule
 that protects repair loops from runaway-judge throws.
 
-`executeRepairAgentIteration` in `../repair-loop.ts` uses the same classifier.
-After SDK retries exhaust on provider failure, it surfaces a non-retryable
-`AgentStepRuntimeError` so `AgentBackoffManager` prevents further dispatch.
+The workflow harness runner applies this classifier to every workflow-owned
+agent call. A classified provider result activates `AgentBackoffManager`
+immediately, so repair agents and code-step judges cannot launch an internal
+retry during the same incident.

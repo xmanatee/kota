@@ -2,6 +2,7 @@ import { isEventSchemaReference } from "#core/events/event-bus-envelope-types.js
 import type { RunStateDatabase } from "./run-state-database.js";
 import type {
   WorkflowAgentBackoffState,
+  WorkflowProviderBackoffState,
   WorkflowBatchBufferState,
   WorkflowBatchBuffers,
   WorkflowBatchTrigger,
@@ -16,15 +17,27 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function isBackoff(value: unknown): value is WorkflowAgentBackoffState {
+function isIncident(value: unknown): value is WorkflowAgentBackoffState {
   return isObject(value) &&
     typeof value.runtimeId === "string" && value.runtimeId.length > 0 &&
     (value.kind === "rate_limit" || value.kind === "auth" ||
-      value.kind === "provider" || value.kind === "runtime") &&
+      value.kind === "provider" || value.kind === "runtime" ||
+      value.kind === "output_contract" || value.kind === "quality") &&
     Number.isSafeInteger(value.failureCount) && Number(value.failureCount) > 0 &&
     typeof value.until === "string" && value.until.length > 0 &&
     typeof value.updatedAt === "string" && value.updatedAt.length > 0 &&
     typeof value.reason === "string" && value.reason.length > 0;
+}
+
+function isProviderIncident(value: unknown): value is WorkflowProviderBackoffState {
+  return isIncident(value) && value.kind !== "output_contract" &&
+    value.kind !== "quality" && value.retainedProviderIncident === undefined;
+}
+
+function isBackoff(value: unknown): value is WorkflowAgentBackoffState {
+  return isIncident(value) &&
+    (value.retainedProviderIncident === undefined ||
+      isProviderIncident(value.retainedProviderIncident));
 }
 
 function isPositiveInteger(value: unknown): value is number {
@@ -96,8 +109,34 @@ export function decodeWorkflowBatchBuffers(value: unknown): WorkflowBatchBuffers
   return value as WorkflowBatchBuffers;
 }
 
+export interface AgentBackoffStateStore {
+  getAgentBackoff(): WorkflowAgentBackoffState | null;
+  setAgentBackoff(value: WorkflowAgentBackoffState | null): void;
+}
+
+/** Single daemon-wide authority for the provider/runtime used by hosted scopes. */
+export class DaemonAgentBackoffStateStore implements AgentBackoffStateStore {
+  constructor(private readonly database: RunStateDatabase) {}
+
+  getAgentBackoff(): WorkflowAgentBackoffState | null {
+    return decodeAgentBackoff(
+      this.database.readDaemonStateValue(AGENT_BACKOFF_STATE_KEY).value,
+    );
+  }
+
+  setAgentBackoff(value: WorkflowAgentBackoffState | null): void {
+    const current = this.database.readDaemonStateValue(AGENT_BACKOFF_STATE_KEY);
+    this.database.compareAndSetDaemonStateValue({
+      key: AGENT_BACKOFF_STATE_KEY,
+      expectedRevision: current.revision,
+      value,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+}
+
 /** Typed runtime-owned access to mutable scope state in the run database. */
-export class ScopeRuntimeStateStore {
+export class ScopeRuntimeStateStore implements AgentBackoffStateStore {
   constructor(
     private readonly database: RunStateDatabase,
     private readonly scopeId: string,

@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const RUN_STATE_SCHEMA_VERSION = 4;
+export const RUN_STATE_SCHEMA_VERSION = 5;
 
 function tableExists(database: Database.Database, table: string): boolean {
   return database
@@ -341,6 +341,29 @@ function enforceTerminalResultStatus(database: Database.Database): void {
   `);
 }
 
+/** Promote the formerly mirrored per-scope incident to one daemon authority. */
+function addDaemonStateValues(database: Database.Database): void {
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS daemon_state_values (
+      state_key TEXT PRIMARY KEY,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      value_json TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    INSERT OR IGNORE INTO daemon_state_values
+      (state_key, revision, value_json, updated_at)
+    SELECT state_key, 1, value_json, updated_at
+    FROM scope_state_values
+    WHERE state_key = 'runtime/agent-backoff'
+    ORDER BY updated_at DESC, revision DESC
+    LIMIT 1;
+
+    DELETE FROM scope_state_values
+    WHERE state_key = 'runtime/agent-backoff';
+  `);
+}
+
 const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   version: number;
   apply(database: Database.Database): void;
@@ -349,6 +372,7 @@ const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   { version: 2, apply: addDurableResultStatus },
   { version: 3, apply: enforceTerminalResultStatus },
   { version: 4, apply: migrateLegacyScopeIdentity },
+  { version: 5, apply: addDaemonStateValues },
 ];
 
 export function initializeRunStateSchema(database: Database.Database): void {

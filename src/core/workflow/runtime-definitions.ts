@@ -1,3 +1,4 @@
+import { resolveAgentOperatingState } from "./agent-backoff.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
 import { deriveStoredWorkflowOperationalState } from "./run-operational-projection.js";
@@ -128,6 +129,11 @@ export function getRuntimeState(
     ...operationalState,
     definitionsLoadedAt: state.definitionsLoadedAt,
     agentBackoff: activeAgentBackoff ?? undefined,
+    agentOperatingState: resolveAgentOperatingState({
+      runtimeId: state.backoff.getRuntimeId(),
+      backoff: activeAgentBackoff,
+      hasActiveAgentAttempt: state.backoff.hasActiveAttempt(state.scopeId),
+    }),
     batchBuffers: state.scopeState.getBatchBuffers(),
     queueLength: operationalState.pendingRuns.length,
     concurrency: state.runCoordinator.capacity,

@@ -127,6 +127,83 @@ describe("RunStateDatabase", () => {
     ).toThrow(StateValueConflictError);
   });
 
+  test("updates daemon-wide state through one revisioned authority", () => {
+    const store = createStore();
+
+    store.compareAndSetDaemonStateValue({
+      key: "runtime/agent-backoff",
+      expectedRevision: 0,
+      value: { kind: "provider" },
+      updatedAt: "2026-08-25T10:00:00.000Z",
+    });
+
+    expect(store.readDaemonStateValue("runtime/agent-backoff")).toEqual({
+      revision: 1,
+      value: { kind: "provider" },
+    });
+    expect(() =>
+      store.compareAndSetDaemonStateValue({
+        key: "runtime/agent-backoff",
+        expectedRevision: 0,
+        value: null,
+        updatedAt: "2026-08-25T10:00:01.000Z",
+      })
+    ).toThrow(StateValueConflictError);
+  });
+
+  test("migrates mirrored scope incidents into one daemon record", () => {
+    const store = createStore();
+    const stateDir = dirname(store.path);
+    store.registerScope({
+      id: "scope-b",
+      rootPath: join(stateDir, "scope-b"),
+      createdAt: "2026-08-25T09:00:00.000Z",
+    });
+    const older = {
+      runtimeId: "agy:antigravity-cli",
+      kind: "provider",
+      failureCount: 1,
+      until: "2026-08-25T11:00:00.000Z",
+      updatedAt: "2026-08-25T10:00:00.000Z",
+      reason: "older provider incident",
+    };
+    const latest = {
+      ...older,
+      kind: "quality",
+      until: "2026-08-25T16:00:00.000Z",
+      updatedAt: "2026-08-25T10:05:00.000Z",
+      reason: "latest fleet incident",
+    };
+    store.compareAndSetScopeStateValue({
+      scopeId: "scope-a",
+      key: "runtime/agent-backoff",
+      expectedRevision: 0,
+      value: older,
+      updatedAt: older.updatedAt,
+    });
+    store.compareAndSetScopeStateValue({
+      scopeId: "scope-b",
+      key: "runtime/agent-backoff",
+      expectedRevision: 0,
+      value: latest,
+      updatedAt: latest.updatedAt,
+    });
+    store.close();
+
+    const legacy = new Database(join(stateDir, "kota.sqlite"));
+    legacy.exec("DROP TABLE daemon_state_values; PRAGMA user_version = 4;");
+    legacy.close();
+
+    const migrated = new RunStateDatabase(stateDir);
+    expect(migrated.readDaemonStateValue("runtime/agent-backoff").value)
+      .toEqual(latest);
+    expect(migrated.readScopeStateValue("scope-a", "runtime/agent-backoff").value)
+      .toBeNull();
+    expect(migrated.readScopeStateValue("scope-b", "runtime/agent-backoff").value)
+      .toBeNull();
+    migrated.close();
+  });
+
   test("rejects databases created by a newer schema", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-state-future-"));
     roots.push(root);
@@ -203,7 +280,7 @@ describe("RunStateDatabase", () => {
     migrated.close();
 
     const verified = new Database(path, { readonly: true });
-    expect(verified.pragma("user_version", { simple: true })).toBe(4);
+    expect(verified.pragma("user_version", { simple: true })).toBe(5);
     const legacyObjects = verified.prepare(`
       SELECT name FROM sqlite_master
       WHERE name IN ('projects', 'project_state_values')

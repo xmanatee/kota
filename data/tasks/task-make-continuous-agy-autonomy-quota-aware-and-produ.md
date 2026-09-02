@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-prove-agy-builder-parity-end-to-end]
 ---
@@ -93,3 +93,41 @@ Evidence-gated AGY autonomy rollout.
   provider incidents, and the continue-or-pause decision.
 - A runtime transcript showing redundant dispatch suppression during quota
   backoff and preserved-work resumption after recovery.
+
+## Blocked on
+```
+kind: operator-capture
+path: .kota/runs/agy-continuous-live-canary/agy-continuous-canary/
+description: Authenticated AGY live evidence — run the continuous daemon canary with run id agy-continuous-live-canary, establish its command-captured baseline through `pnpm kota agy-canary --run-id agy-continuous-live-canary --start`, capture the first three-hour and at least one six-hour observation through the matching `--phase` commands, and retain collected run/task evidence, cited diff-scope review, provider incidents, the continue-or-pause decision, and a runtime transcript proving quota suppression and preserved-work resumption under the path above.
+```
+
+## Status (2026-09-02 builder)
+
+Provider and quality incidents now share one daemon-wide durable
+agent-backoff record across every hosted scope, including daemon-down resume
+and restart recovery; every workflow-owned agent call, including repair agents
+and code-step judges, crosses that fleet gate.
+Classified provider failures apply it immediately, cancel other in-flight
+agent calls, and deny later calls before another harness launch. A quality
+pause retains a simultaneous provider recovery horizon, so explicit operator
+retry cannot release work before provider recovery. Agent work is deferred
+without deleting queued runs, while deterministic workflows remain available.
+Status and `/health` project the same working, quota-parked, provider-parked,
+quality-paused, or idle state, with working derived only from a live harness
+attempt in the selected scope. The three-/six-hour canary establishes its own
+baseline, collects canonical runs, task bodies, agent-step inputs, code-step
+agent prompts/outcomes, applicable instructions, deduplicated provider
+incidents with retained recovery horizons, and complete published writer
+diffs. Successful-empty results exhaust their owning correction retry before
+becoming one fleet incident, and per-observation timestamps plus actual
+dismissal times keep each canary window's retry and backoff metrics local to
+that window. It advances through one initial three-hour window and
+non-overwriting consecutive six-hour windows, carrying baseline-time waiting
+runs, later active runs, and settled runs awaiting an incident-blocked quality
+review forward so their eventual terminal and integration evidence is attributed
+exactly once.
+A read-only reviewer must cite the collected evidence for every settled run
+before the canary can decide. Its daemon one-shot review joins the fleet gate
+before sending; a newly classified provider or successful-empty failure parks
+agent dispatch and checkpoints those runs for later review. The task remains blocked on the elapsed
+authenticated live evidence required by Acceptance Evidence.

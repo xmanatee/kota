@@ -27,6 +27,7 @@ export type RepairAgentIterationResult = {
   text: string;
   turns?: number;
   sessionId?: string;
+  subtype?: string;
 };
 
 export class RepairAgentIterationError extends Error {
@@ -170,6 +171,7 @@ export async function executeRepairAgentIteration(
     text: result.text,
     turns: result.turns,
     sessionId: result.sessionId,
+    subtype: result.subtype,
   };
 
   if (result.isError) {

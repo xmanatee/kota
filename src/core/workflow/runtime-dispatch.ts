@@ -8,6 +8,7 @@ import { resolveEventSchemaReference } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
+import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow } from "./dispatch-window.js";
 import { buildWorkflowCompletedPayload } from "./event-payloads.js";
@@ -197,24 +198,28 @@ export async function executeAdmittedWorkflowRun(
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
       scopePolicyAuthority: state.runtimeConfig.scopePolicyAuthority,
+      agentBackoff: state.backoff,
     },
     abortController,
   );
   try {
     const result = await promise;
-    const appliedBackoff = result.agentBackoff
-      ? state.backoff.apply(result.agentBackoff)
-      : undefined;
+    const appliedBackoff = result.deferredByAgentBackoff ??
+      (result.agentBackoff ? state.backoff.apply(result.agentBackoff) : undefined);
     if (appliedBackoff !== undefined) {
-      state.wfQueue.deferAgentRunsUntil(appliedBackoff.until);
+      state.wfQueue.deferAgentRunsUntil(agentBackoffQueueUntil(appliedBackoff));
     }
-    if (appliedBackoff === undefined) {
+    if (
+      result.deferredByAgentBackoff === undefined ||
+      result.agentBackoff !== undefined
+    ) {
       recordFailedWorkflowDispatchDeadLetter(
         state,
         definition,
         admitted.trigger,
         result.metadata,
         result.agentBackoff?.kind,
+        appliedBackoff,
       );
     }
     if (
@@ -249,7 +254,7 @@ export async function executeAdmittedWorkflowRun(
           kind: appliedBackoff.kind,
         },
         error: appliedBackoff.reason,
-        resumeAt: appliedBackoff.until,
+        resumeAt: agentBackoffQueueUntil(appliedBackoff),
       };
     }
     const commitMessage = successful && definition.repository === "write"

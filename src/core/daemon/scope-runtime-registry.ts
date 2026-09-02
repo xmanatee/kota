@@ -4,6 +4,11 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import {
+  AgentBackoffManager,
+  workflowAgentRuntimeId,
+} from "#core/workflow/agent-backoff.js";
+import { DaemonAgentBackoffStateStore } from "#core/workflow/scope-runtime-state.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { QuietHoursConfig } from "./notification-gate.js";
 import type { ScopePolicyAuthority } from "./scope-policy.js";
@@ -59,6 +64,11 @@ export class ScopeRuntimeRegistry {
 
   static create(opts: ScopeRuntimeRegistryOptions): ScopeRuntimeRegistry {
     const defaultId = opts.registry.getDefaultScopeId();
+    const agentBackoff = new AgentBackoffManager(
+      new DaemonAgentBackoffStateStore(opts.runState),
+      opts.onLog,
+      workflowAgentRuntimeId(opts.config),
+    );
     const byId = new Map<ScopeId, ScopeRuntime>();
     for (const scope of opts.registry.list()) {
       const runtime = createScopeRuntime({
@@ -79,6 +89,7 @@ export class ScopeRuntimeRegistry {
         runState: opts.runState,
         runCoordinator: opts.runCoordinator,
         daemonEpoch: opts.daemonEpoch,
+        agentBackoff,
       });
       byId.set(scope.scopeId, runtime);
     }
@@ -98,6 +109,7 @@ export class ScopeRuntimeRegistry {
       runState: opts.runState,
       runCoordinator: opts.runCoordinator,
       daemonEpoch: opts.daemonEpoch,
+      agentBackoff,
     });
   }
 

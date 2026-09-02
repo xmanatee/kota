@@ -80,6 +80,51 @@ export function handlePauseWorkflow(handle: DaemonControlHandle, res: ServerResp
   jsonResponse(res, 200, { ok: true, paused: true, ...(already && { already: true }) });
 }
 
+export function handlePauseAgentForQuality(
+  handle: DaemonControlHandle,
+  req: IncomingMessage,
+  res: ServerResponse,
+  url: URL,
+): void {
+  const scope = resolveScopeIdParam(handle, url);
+  if (!scope.ok) {
+    jsonResponse(res, scope.status, scope.error);
+    return;
+  }
+  if (handle.pauseAgentDispatchForQuality === undefined) {
+    jsonResponse(res, 501, { error: "Agent quality control is unavailable" });
+    return;
+  }
+  readBody(req)
+    .then((buf) => {
+      let body: unknown;
+      try {
+        body = JSON.parse(buf.toString());
+      } catch {
+        jsonResponse(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const reasonValue = body !== null && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>).reason
+        : undefined;
+      if (
+        typeof reasonValue !== "string" ||
+        reasonValue.trim().length === 0
+      ) {
+        jsonResponse(res, 400, { error: "reason must be a non-empty string" });
+        return;
+      }
+      const reason = reasonValue.trim();
+      const { already } = handle.pauseAgentDispatchForQuality!(reason, scope.scopeId);
+      jsonResponse(res, 200, {
+        ok: true,
+        paused: true,
+        ...(already && { already: true }),
+      });
+    })
+    .catch(() => jsonResponse(res, 500, { error: "Internal error" }));
+}
+
 export function handleResumeWorkflow(handle: DaemonControlHandle, res: ServerResponse, url: URL): void {
   const scope = resolveScopeIdParam(handle, url);
   if (!scope.ok) {

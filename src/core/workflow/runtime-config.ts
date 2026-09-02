@@ -7,6 +7,7 @@ import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
+import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRunStore } from "./run-store.js";
@@ -53,4 +54,6 @@ export type WorkflowRuntimeConfig = {
   resolveAgentDef?: (name: string) => AgentDef | undefined;
   resolveSkillsPrompt?: (skillNames: string[] | "all", agentName?: string) => string;
   scopePolicyAuthority?: ScopePolicyAuthority;
+  /** Pre-built scope authority used by hosts that also execute runs directly. */
+  agentBackoff?: AgentBackoffManager;
 };

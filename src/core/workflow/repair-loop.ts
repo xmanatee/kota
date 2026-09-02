@@ -1,4 +1,5 @@
 import type { KotaAgentMessage } from "#core/agent-harness/types.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import {
   agentRunDirWriteScopes,
   resolveAgentRunDir,
@@ -34,7 +35,10 @@ import { requiresWriteScopeSnapshot } from "./steps/agent-write-scope.js";
 import { captureWorkflowMutationSnapshot } from "./steps/agent-write-scope-snapshot.js";
 import type { AgentStepConfig, AgentStepResult } from "./steps/step-executor-agent.js";
 import { writeAgentTokenBudgetArtifact } from "./steps/step-executor-agent-token-budget.js";
-import { AgentStepRuntimeError } from "./steps/step-executor-retry.js";
+import {
+  AgentStepRuntimeError,
+  isEmptyAgentOutputSubtype,
+} from "./steps/step-executor-retry.js";
 
 export type { RepairCheckResult } from "./repair-loop-checks.js";
 export { buildRepairPrompt } from "./repair-loop-prompt.js";
@@ -64,6 +68,7 @@ export async function runAgentRepairLoop(
     ? base.sessionId
     : undefined;
   let lastContent = typeof base.content === "string" ? base.content : "";
+  const initialSubtype = typeof base.subtype === "string" ? base.subtype : undefined;
   let warnings = [] as RepairCheckResult[];
   const trajectoryMessages = [...initialResult.trajectoryMessages];
   const resolvedHarness = agentConfig.resolveAgentHarness?.(step.harness);
@@ -97,6 +102,7 @@ export async function runAgentRepairLoop(
     iteration.agentResponse = result.text;
     iteration.agentTurns = result.turns;
     iteration.agentSessionId = result.sessionId;
+    iteration.agentSubtype = result.subtype;
     iterations.push(iteration);
 
     lastContent = result.text;
@@ -202,6 +208,9 @@ export async function runAgentRepairLoop(
       });
     }
     if (!repairAttempt.ok) {
+      if (repairAttempt.error instanceof AgentBackoffAdmissionError) {
+        throw repairAttempt.error;
+      }
       const failedIteration = repairAttempt.error instanceof RepairAgentIterationError
         ? repairAttempt.error
         : undefined;
@@ -247,11 +256,31 @@ export async function runAgentRepairLoop(
         failures,
         context.runCommand,
       );
-      if (progress.key === previousProgress.key) {
+      const madeNoProgress = progress.key === previousProgress.key;
+      if (madeNoProgress) {
         noProgressAttempts += 1;
       } else {
         previousProgress = progress;
         noProgressAttempts = 0;
+      }
+      const emptyOutputCount = Number(isEmptyAgentOutputSubtype(initialSubtype)) +
+        iterations.filter((entry) =>
+          isEmptyAgentOutputSubtype(entry.agentSubtype) &&
+          (entry.agentResponse ?? "").trim().length === 0
+        ).length;
+      if (emptyOutputCount >= 2 && madeNoProgress) {
+        throw new RepairAgentRuntimeError(
+          new AgentStepRuntimeError(
+            `Agent step "${step.id}" produced ${emptyOutputCount} successful terminal results without usable output or repair progress`,
+            "output_contract",
+            false,
+            undefined,
+            logicalAttemptSessionId,
+          ),
+          step.id,
+          progress.failureIds,
+          failureOutput(),
+        );
       }
       if (noProgressAttempts >= REPAIR_NO_PROGRESS_LIMIT) {
         throw new RepairLoopError(

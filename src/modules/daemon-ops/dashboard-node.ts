@@ -40,6 +40,30 @@ function statusRunText(status: WorkflowRunStatus): StatusTextRole {
 }
 
 function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
+	if (snapshot.agentOperatingState?.state === "quality-paused") {
+		return [
+			span(`${snapshot.agentOperatingState.runtimeId} quality-paused`, "error"),
+			plain(" - inspect `kota workflow status`; resume only with `--retry-agent` after review"),
+		];
+	}
+	if (snapshot.agentOperatingState?.state === "quota-parked") {
+		return [
+			span(
+				`${snapshot.agentOperatingState.runtimeId} quota-parked until ${new Date(snapshot.agentOperatingState.resumeAt!).toLocaleTimeString()}`,
+				"warn",
+			),
+			plain(" - deterministic maintenance remains available"),
+		];
+	}
+	if (snapshot.agentOperatingState?.state === "provider-parked") {
+		return [
+			span(
+				`${snapshot.agentOperatingState.runtimeId} provider-parked until ${new Date(snapshot.agentOperatingState.resumeAt!).toLocaleTimeString()}`,
+				"warn",
+			),
+			plain(" - inspect `kota workflow status`; fix provider/setup before `kota workflow resume --retry-agent`"),
+		];
+	}
 	if (snapshot.dispatchPaused) {
 		if (snapshot.dispatchPause?.kind === "operator") {
 			return [
@@ -71,7 +95,10 @@ function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
 		];
 	}
 	if (snapshot.activeRuns.length > 0) {
-		return [span(`running ${snapshot.activeRuns.map((run) => run.workflow).join(", ")}`, "success")];
+		const prefix = snapshot.agentOperatingState?.state === "working"
+			? `${snapshot.agentOperatingState.runtimeId} working; `
+			: "";
+		return [span(`${prefix}running ${snapshot.activeRuns.map((run) => run.workflow).join(", ")}`, "success")];
 	}
 	const readyPending = snapshot.pendingRuns.filter((run) => run.notBeforeMs <= Date.now());
 	if (readyPending.length > 0) {
@@ -98,7 +125,10 @@ function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
 		const tail = wait.role ? span(wait.text, wait.role) : plain(wait.text);
 		return [plain(`waiting for ${next.workflowName} `), tail];
 	}
-	return [plain("idle; no queued or dispatchable work - review `kota inbox` or open `kota navigate` > Inbox")];
+	const prefix = snapshot.agentOperatingState?.state === "idle"
+		? `${snapshot.agentOperatingState.runtimeId} idle; `
+		: "idle; ";
+	return [plain(`${prefix}no queued or dispatchable work - review \`kota inbox\` or open \`kota navigate\` > Inbox`)];
 }
 
 function statusHeaderSpan(snapshot: DashboardSnapshot): TextSpan {

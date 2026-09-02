@@ -1,4 +1,5 @@
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
+import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
@@ -143,7 +144,7 @@ export class WorkflowQueueManager {
       this.config.log(`Recovered ${restored} durable queued workflow run(s)`);
     }
     const backoff = this.config.getActiveBackoff();
-    if (backoff !== null) this.deferAgentRunsUntil(backoff.until);
+    if (backoff !== null) this.deferAgentRunsUntil(agentBackoffQueueUntil(backoff));
     this.config.coordinator.refill();
   }
 
@@ -180,15 +181,16 @@ export class WorkflowQueueManager {
     return deferred;
   }
 
-  releaseAgentRunsDeferredUntil(until: string): number {
-    const released = this.config.runState.releaseQueuedRunsDeferredUntil(
-      this.config.scopeId,
+  releaseAgentRunsDeferredUntil(until: string, remainingUntil?: string): number {
+    const released = this.config.runState.releaseAllQueuedRunsDeferredUntil(
       until,
-      new Date().toISOString(),
+      remainingUntil ?? new Date().toISOString(),
     );
     if (released > 0) {
       this.config.log(
-        `Released ${released} queued agent workflow run(s) from backoff`,
+        remainingUntil === undefined
+          ? `Released ${released} queued agent workflow run(s) from backoff`
+          : `Moved ${released} queued agent workflow run(s) to the remaining backoff horizon`,
       );
     }
     return released;
@@ -414,7 +416,7 @@ export class WorkflowQueueManager {
     const backoff = this.config.getActiveBackoff();
     return backoff === null
       ? requestedAtMs
-      : Math.max(requestedAtMs, Date.parse(backoff.until));
+      : Math.max(requestedAtMs, Date.parse(agentBackoffQueueUntil(backoff)));
   }
 
   private cancelRestoredRun(run: StoredRun, reason: string): void {

@@ -303,6 +303,14 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       makeAgentSession(transport, autonomyMode, scopeId, { resumeConversation }),
     defaultAutonomyMode: config.config?.serve?.defaultAutonomyMode,
     chatPool: { ttlMs: config.config?.daemon?.sessionIdleTtlMs },
+    agentAttemptBoundary: {
+      registerAttempt: (abortController, scopeId) =>
+        scopeRuntimes.get(scopeId).workflowRuntime.registerAgentAttempt(
+          abortController,
+        ),
+      applyIncident: (signal, scopeId) =>
+        scopeRuntimes.get(scopeId).workflowRuntime.applyAgentIncident(signal),
+    },
     chatBindings,
     conversationResolver,
     controlRoutes: config.controlRoutes,

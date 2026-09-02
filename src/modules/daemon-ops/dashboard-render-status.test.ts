@@ -47,6 +47,25 @@ describe("renderDashboard status", () => {
     expect(output).toMatch(/Paused\s+yes(\s|$)/m);
   });
 
+  it("shows provider incidents instead of an idle state", () => {
+    const output = stripAnsi(
+      renderDashboard(
+        makeSnapshot({
+          agentOperatingState: {
+            runtimeId: "agy:antigravity-cli",
+            state: "provider-parked",
+            reason: "provider authentication failed",
+            resumeAt: "2026-09-02T18:00:00.000Z",
+          },
+        }),
+        [],
+      ),
+    );
+    expect(output).toContain("agy:antigravity-cli provider-parked until");
+    expect(output).toContain("kota workflow resume --retry-agent");
+    expect(output).not.toContain("idle; no queued or dispatchable work");
+  });
+
   it("shows active runs with duration", () => {
     const output = stripAnsi(
       renderDashboard(

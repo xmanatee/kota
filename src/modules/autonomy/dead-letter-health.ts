@@ -48,6 +48,7 @@ export function deadLetterHealthCategory(
     case "validation":
     case "execution":
     case "runtime":
+    case "output_contract":
     case "unknown":
       return {
         failureClass,

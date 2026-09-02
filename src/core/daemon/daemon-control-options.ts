@@ -4,12 +4,27 @@ import type {
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import type {
+  WorkflowAgentBackoffState,
+  WorkflowAgentIncidentSignal,
+} from "#core/workflow/trigger-types.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { DaemonChatConversationResolver } from "./daemon-chat-handlers.js";
 import type {
   DaemonChatMakeAgent,
   DaemonChatPoolOptions,
 } from "./daemon-chat-pool.js";
+
+export type DaemonAgentAttemptBoundary = {
+  registerAttempt(
+    abortController: AbortController,
+    scopeId: string,
+  ): () => void;
+  applyIncident(
+    signal: WorkflowAgentIncidentSignal,
+    scopeId: string,
+  ): WorkflowAgentBackoffState;
+};
 
 export type DaemonControlServerOptions = {
   /** Maximum number of events retained in the in-memory ring buffer. Default: 500. */
@@ -27,6 +42,8 @@ export type DaemonControlServerOptions = {
   defaultAutonomyMode?: AutonomyMode;
   /** Options forwarded to the daemon chat session pool. */
   chatPool?: DaemonChatPoolOptions;
+  /** Canonical fleet gate used by explicitly marked autonomous one-shot turns. */
+  agentAttemptBoundary?: DaemonAgentAttemptBoundary;
   /**
    * Persisted session_id -> conversationId binding. Required whenever
    * DaemonControlServerOptions.makeAgent is supplied so daemon chat sessions

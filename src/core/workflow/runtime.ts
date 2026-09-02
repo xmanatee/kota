@@ -1,3 +1,4 @@
+import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import type { AwaitSuspension } from "./awaits-store.js";
 import { resolveWorkflowDispatchPause } from "./dispatch-pause.js";
 import type { WorkflowDispatchPauseStatus } from "./dispatch-pause-types.js";
@@ -66,6 +67,10 @@ import {
   ABORT_SIGNAL_FILE,
   RELOAD_SIGNAL_FILE,
 } from "./runtime-signals.js";
+import type {
+  WorkflowAgentBackoffState,
+  WorkflowAgentIncidentSignal,
+} from "./trigger-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import { WorkflowDefinitionError } from "./validation.js";
 import type { PendingWatchTriggerBuffer } from "./watch-triggers.js";
@@ -124,6 +129,7 @@ export class WorkflowRuntime {
           issue,
           runtimeConfig.config,
           runtimeConfig.authorityConfigPath,
+          this.ctx.backoff,
         ),
     });
   }
@@ -205,16 +211,45 @@ export class WorkflowRuntime {
     setDispatchPaused(this.ctx, paused, mode);
   }
 
+  registerAgentAttempt(abortController: AbortController): () => void {
+    return this.ctx.backoff.registerAttempt(
+      abortController,
+      this.ctx.runtimeConfig.scopeId,
+    );
+  }
+
+  applyAgentIncident(
+    signal: WorkflowAgentIncidentSignal,
+  ): WorkflowAgentBackoffState {
+    const incident = this.ctx.backoff.apply(signal);
+    this.ctx.wfQueue.deferAgentRunsUntil(agentBackoffQueueUntil(incident));
+    return incident;
+  }
+
   clearAgentBackoff(reason: string): boolean {
     const active = this.ctx.backoff.getActive();
-    if (active !== null) {
-      this.ctx.wfQueue.releaseAgentRunsDeferredUntil(active.until);
-    }
     const cleared = this.ctx.backoff.clear(reason);
     if (cleared) {
+      const remaining = this.ctx.backoff.getActive();
+      if (active !== null) {
+        this.ctx.wfQueue.releaseAgentRunsDeferredUntil(
+          agentBackoffQueueUntil(active),
+          remaining === null ? undefined : agentBackoffQueueUntil(remaining),
+        );
+      }
       this.ctx.runCoordinator.refill();
     }
     return cleared;
+  }
+
+  pauseAgentForQuality(reason: string): boolean {
+    const active = this.ctx.backoff.getActive();
+    const incident = this.ctx.backoff.apply({
+      kind: "quality",
+      reason,
+    });
+    this.ctx.wfQueue.deferAgentRunsUntil(agentBackoffQueueUntil(incident));
+    return active?.kind !== "quality" || active.reason !== incident.reason;
   }
 
   getDispatchWindowStatus(): { blocked: boolean; opensAt?: string } {

@@ -517,6 +517,18 @@ export class RunStateDatabase {
       .run(releasedAt, scopeId, deferredUntil).changes;
   }
 
+  releaseAllQueuedRunsDeferredUntil(
+    deferredUntil: string,
+    releasedAt: string,
+  ): number {
+    return this.database
+      .prepare(
+        `UPDATE runs SET not_before_at = ?
+         WHERE state = 'queued' AND not_before_at = ?`,
+      )
+      .run(releasedAt, deferredUntil).changes;
+  }
+
   startRun(runId: string, epoch: number, startedAt: string): number | null {
     const start = this.database.transaction(() => {
       this.assertCurrentEpoch(epoch);
@@ -875,6 +887,66 @@ export class RunStateDatabase {
           revision: row.revision,
           value: JSON.parse(row.value_json) as T,
         };
+  }
+
+  readDaemonStateValue<T = unknown>(key: string): ScopeStateValue<T> {
+    this.assertStateKey(key);
+    const row = this.database
+      .prepare(
+        `SELECT revision, value_json
+         FROM daemon_state_values
+         WHERE state_key = ?`,
+      )
+      .get(key) as { revision: number; value_json: string } | undefined;
+    return row === undefined
+      ? { revision: 0, value: null }
+      : { revision: row.revision, value: JSON.parse(row.value_json) as T };
+  }
+
+  compareAndSetDaemonStateValue(input: {
+    key: string;
+    expectedRevision: number;
+    value: unknown;
+    updatedAt: string;
+  }): void {
+    this.assertStateKey(input.key);
+    if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
+      throw new Error("Expected state revision must be a non-negative integer");
+    }
+    const valueJson = JSON.stringify(input.value);
+    if (valueJson === undefined) throw new Error("State values must be durable JSON");
+    const durableValue = JSON.parse(valueJson) as unknown;
+    if (!isDeepStrictEqual(input.value, durableValue)) {
+      throw new Error("State values must contain only durable JSON values");
+    }
+
+    this.database.transaction(() => {
+      const current = this.readDaemonStateValue(input.key);
+      if (current.revision !== input.expectedRevision) {
+        throw new StateValueConflictError(
+          "daemon",
+          input.key,
+          input.expectedRevision,
+          current.revision,
+        );
+      }
+      this.database
+        .prepare(
+          `INSERT INTO daemon_state_values
+            (state_key, revision, value_json, updated_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(state_key) DO UPDATE SET
+             revision = excluded.revision,
+             value_json = excluded.value_json,
+             updated_at = excluded.updated_at`,
+        )
+        .run(
+          input.key,
+          input.expectedRevision + 1,
+          valueJson,
+          input.updatedAt,
+        );
+    })();
   }
 
   compareAndSetScopeStateValue(input: {

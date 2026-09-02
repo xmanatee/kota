@@ -9,6 +9,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { KotaJsonObject } from "#core/agent-harness/message-protocol.js";
 import { type AgentEvent, NullTransport } from "#core/loop/transport.js";
 import { type AutonomyMode, isAutonomyMode } from "#core/tools/autonomy-mode.js";
+import { AgentBackoffAdmissionError } from "#core/workflow/agent-backoff.js";
+import { classifyThrownAgentError } from "#core/workflow/steps/step-executor-retry.js";
+import type { WorkflowAgentBackoffSignal } from "#core/workflow/trigger-types.js";
 import { createDaemonChatClientApprovalResolver } from "./daemon-chat-approvals.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type {
@@ -22,6 +25,7 @@ import {
   publishDaemonChatSse,
   writeDaemonChatSse,
 } from "./daemon-chat-stream.js";
+import type { DaemonAgentAttemptBoundary } from "./daemon-control-options.js";
 import { jsonResponse } from "./daemon-control-utils.js";
 
 export { handleResolveDaemonChatApproval } from "./daemon-chat-approvals.js";
@@ -94,6 +98,7 @@ export async function handleDaemonChat(
   req: IncomingMessage,
   res: ServerResponse,
   sessionId: string,
+  agentAttemptBoundary?: DaemonAgentAttemptBoundary,
 ): Promise<void> {
   const session = pool.get(sessionId);
   if (!session) {
@@ -115,11 +120,49 @@ export async function handleDaemonChat(
     return;
   }
   const clientApprovalEnabled = body.client_approval === true;
+  const agentBackoffMode = body.agent_backoff;
+  if (agentBackoffMode !== undefined && agentBackoffMode !== "fleet") {
+    jsonResponse(res, 400, { error: "agent_backoff must be fleet when provided" });
+    return;
+  }
+  if (agentBackoffMode === "fleet" && agentAttemptBoundary === undefined) {
+    jsonResponse(res, 503, { error: "Fleet agent-attempt boundary is unavailable" });
+    return;
+  }
 
   if (session.busy) {
     jsonResponse(res, 409, { error: "Session is busy processing another request" });
     return;
   }
+  const attemptAbortController = agentBackoffMode === "fleet"
+    ? new AbortController()
+    : undefined;
+  let releaseAttempt: (() => void) | undefined;
+  if (attemptAbortController !== undefined) {
+    try {
+      releaseAttempt = agentAttemptBoundary!.registerAttempt(
+        attemptAbortController,
+        session.scopeId,
+      );
+    } catch (error) {
+      jsonResponse(res, 409, {
+        error: error instanceof Error ? error.message : String(error),
+        reason: "agent_backoff",
+      });
+      return;
+    }
+  }
+  const cancelBackedOffAttempt = () => {
+    const reason = attemptAbortController?.signal.reason;
+    session.agent.cancelActiveTurn(
+      reason instanceof Error ? reason : new Error("Agent attempt backed off"),
+    );
+  };
+  attemptAbortController?.signal.addEventListener(
+    "abort",
+    cancelBackedOffAttempt,
+    { once: true },
+  );
   session.busy = true;
 
   res.writeHead(200, {
@@ -144,10 +187,58 @@ export async function handleDaemonChat(
 
   try {
     const result = await session.agent.send(message);
+    if (agentBackoffMode === "fleet" && result.trim().length === 0) {
+      const signal: WorkflowAgentBackoffSignal = {
+        kind: "output_contract",
+        reason: "Fleet one-shot agent review returned successful empty output",
+      };
+      const backoff = agentAttemptBoundary!.applyIncident(
+        signal,
+        session.scopeId,
+      );
+      throw new AgentBackoffAdmissionError(backoff, signal);
+    }
     publishDaemonChatSse(session, res, "done", { session_id: session.id, result });
   } catch (err) {
-    publishDaemonChatSse(session, res, "error", { message: (err as Error).message });
+    let reportedError = attemptAbortController?.signal.reason instanceof
+        AgentBackoffAdmissionError
+      ? attemptAbortController.signal.reason
+      : err;
+    if (
+      agentBackoffMode === "fleet" &&
+      !(reportedError instanceof AgentBackoffAdmissionError)
+    ) {
+      const classification = classifyThrownAgentError(reportedError);
+      if (classification !== null) {
+        const signal: WorkflowAgentBackoffSignal = {
+          kind: classification.kind,
+          reason: `Fleet one-shot agent review failed: ${
+            reportedError instanceof Error
+              ? reportedError.message
+              : String(reportedError)
+          }`,
+          ...(classification.retryAt === undefined
+            ? {}
+            : { retryAt: classification.retryAt }),
+        };
+        const backoff = agentAttemptBoundary!.applyIncident(
+          signal,
+          session.scopeId,
+        );
+        reportedError = new AgentBackoffAdmissionError(backoff, signal);
+      }
+    }
+    publishDaemonChatSse(session, res, "error", {
+      message: reportedError instanceof Error
+        ? reportedError.message
+        : String(reportedError),
+    });
   } finally {
+    releaseAttempt?.();
+    attemptAbortController?.signal.removeEventListener(
+      "abort",
+      cancelBackedOffAttempt,
+    );
     rejectPendingClientApprovals(
       session,
       new Error("Daemon chat turn ended before client approval resolved"),

@@ -11,7 +11,7 @@
  *     expected query/body shape.
  *  3. The success arm decodes correctly for each method.
  *  4. The throw-on-`null` arm fires with the byte-for-byte error string for
- *     each of the twelve methods that throw on transport failure.
+ *     each method that throws on transport failure.
  *  5. `listRuns` and `getRun` soft-fall through on `null` (returning `{ runs:
  *     [] }` and `{ found: false }` respectively).
  *  6. `triggerByName` preserves the complete enqueue contract and omits only
@@ -106,6 +106,7 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     expect(typeof wf.listRuns).toBe("function");
     expect(typeof wf.status).toBe("function");
     expect(typeof wf.pause).toBe("function");
+    expect(typeof wf.pauseAgentForQuality).toBe("function");
     expect(typeof wf.resume).toBe("function");
     expect(typeof wf.abort).toBe("function");
     expect(typeof wf.reload).toBe("function");
@@ -257,6 +258,25 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     await expect(wf.pause()).rejects.toThrow(
       "Daemon unreachable while pausing dispatch",
     );
+  });
+
+  it("persists agent-only quality pauses through the canonical control route", async () => {
+    const { transport, calls } = makeRecordingTransport({
+      respondRequest: () => ({ ok: true, paused: true }),
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+
+    await expect(wf.pauseAgentForQuality("unrelated edits")).resolves.toEqual({
+      ok: true,
+      paused: true,
+      already: false,
+    });
+    expect(calls[0]).toMatchObject({
+      kind: "request",
+      method: "POST",
+      path: "/workflow/agent/quality-pause",
+      body: { reason: "unrelated edits" },
+    });
   });
 
   it("resume routes through POST /workflow/resume and decodes already=true verbatim", async () => {

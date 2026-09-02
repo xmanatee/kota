@@ -107,6 +107,9 @@ export type WorkflowStatusSnapshot = WorkflowLiveStatus & {
 /** Result of `workflow.pause` / `workflow.resume`. `already` is true when the
  * call was a no-op (already paused / not paused). */
 export type WorkflowPauseResult = { paused: boolean; already: boolean };
+export type WorkflowAgentQualityPauseResult =
+  | { ok: true; paused: true; already: boolean }
+  | WorkflowDaemonRequiredResult;
 export type WorkflowResumeResult = WorkflowPauseResult & {
   agentBackoffCleared?: true;
 };
@@ -253,6 +256,7 @@ export interface WorkflowClient {
    */
   listDefinitions(selector?: ScopeSelector): Promise<WorkflowDefinitionsResult>;
   pause(): Promise<WorkflowPauseResult>;
+  pauseAgentForQuality(reason: string): Promise<WorkflowAgentQualityPauseResult>;
   resume(options?: WorkflowResumeOptions): Promise<WorkflowResumeResult>;
   abort(): Promise<WorkflowAbortResult>;
   reload(): Promise<WorkflowReloadResult>;

@@ -11,6 +11,10 @@ import { EventBus } from "#core/events/event-bus.js";
 import {
   ProviderRegistry,
 } from "#core/modules/provider-registry.js";
+import {
+  AgentBackoffManager,
+  workflowAgentRuntimeId,
+} from "./agent-backoff.js";
 import { resolveWorkflowConcurrency } from "./concurrency.js";
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
 import type { RunContext } from "./run-context.js";
@@ -27,6 +31,7 @@ import {
   type WorkflowExecutionOutcome,
 } from "./run-lifecycle.js";
 import { RunStateDatabase, type StoredRun } from "./run-state-database.js";
+import { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 import type { WorkflowRunMetadata, WorkflowRunToolRunner } from "./run-types.js";
 import type { RegisteredWorkflowDefinitionInput, WorkflowDefinition } from "./types.js";
 import type { WorkflowCommandRunner } from "./workflow-command.js";
@@ -85,6 +90,7 @@ export class StandaloneRunHost {
 
   private readonly epoch: number;
   private readonly lifecycle: RunLifecycle;
+  private readonly agentBackoff: AgentBackoffManager;
   private readonly definitions: readonly WorkflowDefinition[];
   private readonly onLog: (message: string) => void;
   private readonly nestedRuns = new Map<string, StandaloneNestedRun>();
@@ -101,6 +107,11 @@ export class StandaloneRunHost {
       displayName: options.scope.displayName,
       createdAt: now,
     });
+    this.agentBackoff = new AgentBackoffManager(
+      new ScopeRuntimeStateStore(this.state, options.scope.scopeId),
+      this.onLog,
+      workflowAgentRuntimeId(options.config),
+    );
     const session = this.state.beginDaemonSession(now);
     if (session.recovered.length > 0) {
       this.state.close();
@@ -137,6 +148,7 @@ export class StandaloneRunHost {
           issue,
           options.config,
           options.authorityConfigPath,
+          this.agentBackoff,
         ),
     });
     this.coordinator = new RunCoordinator({
@@ -180,6 +192,7 @@ export class StandaloneRunHost {
         runState: this.state,
         runCoordinator: this.coordinator,
         daemonEpoch: this.epoch,
+        agentBackoff: this.agentBackoff,
       });
       this.scopeRuntime = createdRuntime;
       this.scopeRuntime.workflowRuntime.start("paused");
@@ -354,6 +367,7 @@ export class StandaloneRunHost {
       runCommand: execution?.runCommand,
       resolveAgentHarness: execution?.resolveAgentHarness,
       createAgentCanUseTool: execution?.createAgentCanUseTool,
+      agentBackoff: this.agentBackoff,
     }, abortController);
     try {
       const result = await promise;

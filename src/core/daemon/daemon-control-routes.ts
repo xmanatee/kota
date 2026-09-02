@@ -14,6 +14,7 @@ import type { DaemonChatMakeAgent, DaemonChatPool } from "./daemon-chat-pool.js"
 import { buildDaemonCoreControlRoutes } from "./daemon-control-core-routes.js";
 import { buildDaemonDeadLetterControlRoutes } from "./daemon-control-dead-letter-routes.js";
 import { buildDaemonEventControlRoutes } from "./daemon-control-event-routes.js";
+import type { DaemonAgentAttemptBoundary } from "./daemon-control-options.js";
 import { buildDaemonSessionControlRoutes } from "./daemon-control-session-routes.js";
 import { buildDaemonSetupControlRoutes } from "./daemon-control-setup-routes.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
@@ -30,6 +31,7 @@ export type BuiltinControlRouteDeps = {
   defaultAutonomyMode: AutonomyMode | undefined;
   chatBindings: DaemonChatBindingStore | null;
   conversationResolver: DaemonChatConversationResolver | null;
+  agentAttemptBoundary: DaemonAgentAttemptBoundary | null;
 };
 
 export function buildBuiltinControlRoutes(

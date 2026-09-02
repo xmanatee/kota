@@ -86,6 +86,7 @@ export class DaemonControlServer {
       defaultAutonomyMode: options?.defaultAutonomyMode,
       chatBindings,
       conversationResolver,
+      agentAttemptBoundary: options?.agentAttemptBoundary ?? null,
     });
 
     const controlRoutes: ControlRouteRegistration[] = [...builtin];
