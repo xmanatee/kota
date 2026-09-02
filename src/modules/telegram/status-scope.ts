@@ -1,10 +1,10 @@
 import { join } from "node:path";
+import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 import type {
   TelegramStatusPollScopeRouting,
   TelegramStatusScope,
   TelegramStatusScopeResolution,
 } from "./status-types.js";
-import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 
 export async function resolveTelegramStatusScope(
   messageChatId: number,

@@ -1,7 +1,7 @@
 import {
   mkdirSync,
-  realpathSync,
   readdirSync,
+  realpathSync,
   rmSync,
   utimesSync,
   writeFileSync,

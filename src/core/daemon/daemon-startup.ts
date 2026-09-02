@@ -1,14 +1,14 @@
 import { join } from "node:path";
 import {
-  workflowRunMetadataAuthorityCriticalIds,
-  workflowRunMetadataOperationallyActiveIds,
-  workflowRunMetadataTerminalIds,
-} from "#core/workflow/run-metadata.js";
-import {
   warnIgnoredUntrustedScopeConfig,
   warnInvalidConcurrencyConfig,
   warnUnknownConfigKeys,
 } from "#core/config/config-warnings.js";
+import {
+  workflowRunMetadataAuthorityCriticalIds,
+  workflowRunMetadataOperationallyActiveIds,
+  workflowRunMetadataTerminalIds,
+} from "#core/workflow/run-metadata.js";
 import { startChannel } from "./daemon-channel-start.js";
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { writeControlFile } from "./daemon-instance-lock.js";

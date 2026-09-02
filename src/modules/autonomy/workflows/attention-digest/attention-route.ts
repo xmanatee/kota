@@ -16,9 +16,9 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
-import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
 import { getWorkflowMetricsSource } from "#core/daemon/metrics-source-provider.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
 import { renderOnDemandAttention } from "./step.js";

@@ -5,11 +5,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventJournal } from "#core/events/event-journal.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { allocationName } from "#core/workflow/run-sandbox.js";
 import {
   WORKFLOW_RUN_METADATA_VERSION,
   WorkflowRunMetadataAuthorityError,
 } from "#core/workflow/run-metadata.js";
+import { allocationName } from "#core/workflow/run-sandbox.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
 import type { InteractiveSession } from "./daemon-control-types.js";

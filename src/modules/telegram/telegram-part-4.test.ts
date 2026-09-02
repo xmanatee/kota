@@ -93,9 +93,9 @@ function makeChannelStartContext(
       dispatchPaused: false,
       runsDir: "/tmp/.kota/runs",
       runAuthority: {
-        authorityCriticalRunIds: new Set(),
-        operationallyActiveRunIds: new Set(),
-        terminalRunIds: new Set(),
+        authorityCriticalRunIds: new Set<string>(),
+        operationallyActiveRunIds: new Set<string>(),
+        terminalRunIds: new Set<string>(),
       },
     }),
   };
