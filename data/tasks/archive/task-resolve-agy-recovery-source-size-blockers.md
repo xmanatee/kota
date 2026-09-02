@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 
 # Resolve AGY recovery source-size blockers
