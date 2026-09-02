@@ -1,11 +1,16 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import type { KnowledgeEntry, SearchFilters } from "#core/modules/provider-types.js";
+import type { SearchFilters } from "#core/modules/provider-types.js";
 import {
   parseWorkMemoryMetadataFromBody,
   type WorkMemoryMetadata,
 } from "#core/modules/work-memory-metadata.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import {
+  listKnowledge,
+  reindexKnowledge,
+  searchKnowledge,
+} from "./operations.js";
 import { handleDeleteKnowledgeScoped } from "./route-delete.js";
 import { handleGetKnowledgeScoped } from "./route-get.js";
 import { resolveKnowledgeRouteProvider } from "./route-provider.js";
@@ -15,8 +20,6 @@ export { handleDeleteKnowledge } from "./route-delete.js";
 export { handleGetKnowledge } from "./route-get.js";
 
 type KnowledgeRequestBody = Awaited<ReturnType<typeof readBody>>;
-
-type KnowledgeListResponse = { entries: KnowledgeEntry[] };
 
 function parseScope(value: string | null): "scope" | "global" | "all" | undefined {
   if (value === "scope" || value === "global" || value === "all") return value;
@@ -45,8 +48,7 @@ export function handleListKnowledge(
     const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
     const filters = parseListFilters(req);
-    const entries = provider.list(filters);
-    jsonResponse(res, 200, { entries } satisfies KnowledgeListResponse);
+    jsonResponse(res, 200, listKnowledge(provider, filters));
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -138,15 +140,11 @@ export async function handleSearchKnowledge(
   try {
     const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const semanticSearch = provider.semanticSearchCapability;
-    if (semantic && !semanticSearch) {
-      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
-      return;
-    }
-    const entries = semantic
-      ? await semanticSearch!.semanticSearch(query, limit, filters)
-      : provider.search(query, filters).slice(0, limit);
-    jsonResponse(res, 200, { ok: true, entries });
+    jsonResponse(res, 200, await searchKnowledge(provider, query, {
+      ...filters,
+      semantic,
+      limit,
+    }));
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -160,13 +158,7 @@ export async function handleReindexKnowledge(
   try {
     const provider = resolveKnowledgeRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const semanticSearch = provider.semanticSearchCapability;
-    if (!semanticSearch) {
-      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
-      return;
-    }
-    const result = await semanticSearch.reindex();
-    jsonResponse(res, 200, { ok: true, ...result });
+    jsonResponse(res, 200, await reindexKnowledge(provider));
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

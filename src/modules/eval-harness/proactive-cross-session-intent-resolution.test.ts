@@ -14,7 +14,7 @@ import {
   type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
-import { getScopeHistoryStore, resetHistory } from "#modules/history/history.js";
+import { getScopeHistoryStore } from "#modules/history/history.js";
 import { HistoryScopeStores } from "#modules/history/scope.js";
 import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
@@ -599,13 +599,11 @@ describe("proactive cross-session intent resolution fixture", () => {
 
   beforeEach(() => {
     resetProviderRegistry();
-    resetHistory();
     root = mkdtempSync(join(tmpdir(), "kota-proactive-intent-resolution-"));
   });
 
   afterEach(() => {
     resetProviderRegistry();
-    resetHistory();
     rmSync(root, { recursive: true, force: true });
   });
 

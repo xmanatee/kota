@@ -16,7 +16,7 @@ import {
 import {
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { getScopeHistoryStore, resetHistory } from "#modules/history/history.js";
+import { getScopeHistoryStore } from "#modules/history/history.js";
 import {
   HistoryScopeStores,
 } from "#modules/history/scope.js";
@@ -258,13 +258,11 @@ describe("execution-intent recall fixture", () => {
 
   beforeEach(() => {
     resetProviderRegistry();
-    resetHistory();
     root = mkdtempSync(join(tmpdir(), "kota-execution-intent-recall-"));
   });
 
   afterEach(() => {
     resetProviderRegistry();
-    resetHistory();
     rmSync(root, { recursive: true, force: true });
   });
 

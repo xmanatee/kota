@@ -5,18 +5,19 @@ import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-type
 import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
-import { parseMemorySearchResponse } from "#root/client/daemon-contract.generated.js";
+import { createMemoryDaemonClient } from "#root/client/kota-client.generated.js";
 import { createMemoryReadinessSource } from "./capability-readiness.js";
 import { registerMemoryCommands } from "./cli.js";
 import type {
-  MemoryAddResult,
   MemoryClient,
-  MemoryDeleteResult,
-  MemoryListResult,
-  MemoryReindexResult,
-  MemorySearchResult,
 } from "./client.js";
 import { memoryTool, runMemory } from "./memory.js";
+import {
+  deleteMemory,
+  listMemory,
+  reindexMemory,
+  searchMemory,
+} from "./operations.js";
 import { memoryRoutes } from "./routes.js";
 import {
   createMemoryScopeStores,
@@ -54,19 +55,7 @@ const memoryModule: KotaModule = {
     const handler: MemoryClient = {
       async list(filter) {
         const provider = resolveMemoryProvider(scopeStores, filter?.scopeId);
-        const all = provider.list();
-        const slice =
-          filter?.limit !== undefined ? all.slice(0, filter.limit) : all;
-        return {
-            entries: slice.map((entry) => ({
-              id: entry.id,
-              created: entry.created,
-              ...(entry.updated && { updated: entry.updated }),
-              content: entry.content,
-              ...(entry.provenance && { provenance: entry.provenance }),
-              ...(entry.freshness && { freshness: entry.freshness }),
-            })),
-        };
+        return listMemory(provider, filter);
       },
       async add(content, tags, scopeSelector) {
         const provider = resolveMemoryProvider(scopeStores, scopeSelector?.scopeId);
@@ -75,53 +64,15 @@ const memoryModule: KotaModule = {
       },
       async delete(id, scopeSelector) {
         const provider = resolveMemoryProvider(scopeStores, scopeSelector?.scopeId);
-        const ok = provider.delete(id);
-        return ok ? { ok: true } : { ok: false, reason: "not_found" };
+        return deleteMemory(provider, id);
       },
       async search(query, filter) {
         const provider = resolveMemoryProvider(scopeStores, filter?.scopeId);
-        const limit = filter?.limit ?? 20;
-        if (filter?.semantic) {
-          const semanticSearch = provider.semanticSearchCapability;
-          if (!semanticSearch) {
-            return { ok: false, reason: "semantic_unavailable" };
-          }
-          const results = await semanticSearch.semanticSearch(query, limit, {
-            tag: filter.tag,
-            since: filter.since,
-          });
-          return {
-            ok: true,
-            entries: results.map((m) => ({
-              id: m.id,
-              created: m.created,
-              ...(m.updated && { updated: m.updated }),
-              content: m.content,
-              ...(m.provenance && { provenance: m.provenance }),
-              ...(m.freshness && { freshness: m.freshness }),
-            })),
-          };
-        }
-        const results = provider
-          .search(query, { tag: filter?.tag, since: filter?.since })
-          .slice(0, limit);
-        return {
-          ok: true,
-          entries: results.map((m) => ({
-            id: m.id,
-            created: m.created,
-            ...(m.updated && { updated: m.updated }),
-            content: m.content,
-            ...(m.provenance && { provenance: m.provenance }),
-            ...(m.freshness && { freshness: m.freshness }),
-          })),
-        };
+        return searchMemory(provider, query, filter);
       },
       async reindex(scopeSelector) {
         const provider = resolveMemoryProvider(scopeStores, scopeSelector?.scopeId);
-        const semanticSearch = provider.semanticSearchCapability;
-        if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
-        return { ok: true, ...await semanticSearch.reindex() };
+        return reindexMemory(provider);
       },
     };
     return { memory: handler };
@@ -153,45 +104,8 @@ const memoryModule: KotaModule = {
 };
 
 function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
-  return {
-    list: async (filter): Promise<MemoryListResult> => {
-      const query = scopeQuery(filter?.scopeId);
-      const result = await link.requestStrict<{
-        entries: {
-          id: string;
-          tags: string[];
-          created: string;
-          updated?: string;
-          excerpt: string;
-          provenance?: MemoryListResult["entries"][number]["provenance"];
-          freshness?: MemoryListResult["entries"][number]["freshness"];
-        }[];
-      }>("GET", `/api/memory${query}`);
-      const slice = result.entries.slice(
-        0,
-        filter?.limit ?? Number.POSITIVE_INFINITY,
-      );
-      return {
-        entries: slice.map((entry) => ({
-          id: entry.id,
-          created: entry.created,
-          ...(entry.updated && { updated: entry.updated }),
-          content: entry.excerpt,
-          ...(entry.provenance && { provenance: entry.provenance }),
-          ...(entry.freshness && { freshness: entry.freshness }),
-        })),
-      };
-    },
-    add: async (content, tags, scopeSelector): Promise<MemoryAddResult> => {
-      const query = scopeQuery(scopeSelector?.scopeId);
-      const result = await link.requestStrict<{ id: string }>(
-        "POST",
-        `/api/memory${query}`,
-        { content, tags: tags ?? [] },
-      );
-      return { id: result.id };
-    },
-    delete: async (id, scopeSelector): Promise<MemoryDeleteResult> => {
+  return createMemoryDaemonClient(link, {
+    delete: async (id, scopeSelector) => {
       const query = scopeQuery(scopeSelector?.scopeId);
       const result = await requestNullableMemoryRoute<{ deleted: string }>(
         link,
@@ -200,28 +114,7 @@ function buildMemoryDaemonHandler(link: DaemonTransport): MemoryClient {
       );
       return result ? { ok: true } : { ok: false, reason: "not_found" };
     },
-    search: async (query, filter): Promise<MemorySearchResult> => {
-      const params = new URLSearchParams();
-      params.set("q", query);
-      if (filter?.tag) params.set("tag", filter.tag);
-      if (filter?.since) params.set("since", filter.since);
-      if (filter?.semantic) params.set("semantic", "true");
-      if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-      if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-      const response = await link.requestStrict<unknown>(
-        "GET",
-        `/api/memory/search?${params.toString()}`,
-      );
-      return parseMemorySearchResponse(response);
-    },
-    reindex: async (scopeSelector): Promise<MemoryReindexResult> => {
-      const query = scopeQuery(scopeSelector?.scopeId);
-      return link.requestStrict<MemoryReindexResult>(
-        "POST",
-        `/api/memory/reindex${query}`,
-      );
-    },
-  };
+  });
 }
 
 type MemoryRouteErrorBody = {

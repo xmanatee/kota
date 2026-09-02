@@ -46,6 +46,42 @@ export const KOTA_CLIENT_NAMESPACE_GRAPH = [
   ["setup", "SetupClient", "#modules/setup/client.js"],
 ];
 
+/**
+ * Namespaces whose routine daemon transport is emitted into the generated
+ * KotaClient binding. Complete namespaces are assembled by the core client;
+ * partial namespaces accept only their classified exception methods from the
+ * owning module.
+ */
+export const GENERATED_DAEMON_CLIENT_GRAPH = [
+  { namespace: "agents", kind: "complete" },
+  { namespace: "skills", kind: "complete" },
+  { namespace: "recall", kind: "complete" },
+  { namespace: "capture", kind: "complete" },
+  { namespace: "retract", kind: "complete" },
+  { namespace: "resourceDiscovery", kind: "complete" },
+  { namespace: "doctor", kind: "complete" },
+  { namespace: "audit", kind: "complete" },
+  { namespace: "webhook", kind: "complete" },
+  { namespace: "modules", kind: "complete" },
+  { namespace: "modulesAdmin", kind: "complete" },
+  { namespace: "inboundSignals", kind: "complete" },
+  { namespace: "answer", kind: "complete" },
+  { namespace: "memory", kind: "partial", exportStem: "Memory" },
+  { namespace: "knowledge", kind: "partial", exportStem: "Knowledge" },
+  { namespace: "history", kind: "partial", exportStem: "History" },
+  { namespace: "tasks", kind: "partial", exportStem: "RepoTasks" },
+];
+
+// Search transport identity is shared by wire decoders and routine clients.
+// Keeping the values here prevents the wire manifest and client projection
+// from acquiring independent route owners.
+const DATA_SEARCH_PATHS = {
+  knowledge: "/api/knowledge/search",
+  memory: "/api/memory/search",
+  history: "/api/history/search",
+  tasks: "/tasks/search",
+};
+
 export const DAEMON_ROUTE_GRAPH = [
   { id: "identity", method: "GET", path: "/identity", type: "ClientIdentity", parser: "parseClientIdentity" },
   { id: "scopeRegistry", method: "GET", path: "/scopes", type: "ScopeRegistryProjection", parser: "parseScopeRegistryProjection" },
@@ -59,10 +95,10 @@ export const DAEMON_ROUTE_GRAPH = [
   { id: "answerHistoryShow", method: "GET", path: "/answers/:id", type: "AnswerHistoryShowResult", parser: "parseAnswerHistoryShowResult" },
   { id: "capture", method: "POST", path: "/capture", type: "CaptureResult", parser: "parseCaptureResult" },
   { id: "retract", method: "POST", path: "/retract", type: "RetractResult", parser: "parseRetractResult" },
-  { id: "knowledgeSearch", method: "GET", path: "/knowledge/search", type: "KnowledgeSearchResponse", parser: "parseKnowledgeSearchResponse" },
-  { id: "memorySearch", method: "GET", path: "/memory/search", type: "MemorySearchResponse", parser: "parseMemorySearchResponse" },
-  { id: "historySearch", method: "GET", path: "/history/search", type: "HistorySearchResponse", parser: "parseHistorySearchResponse" },
-  { id: "tasksSearch", method: "GET", path: "/tasks/search", type: "TasksSearchResponse", parser: "parseTasksSearchResponse" },
+  { id: "knowledgeSearch", method: "GET", path: DATA_SEARCH_PATHS.knowledge, type: "KnowledgeSearchResponse", parser: "parseKnowledgeSearchResponse" },
+  { id: "memorySearch", method: "GET", path: DATA_SEARCH_PATHS.memory, type: "MemorySearchResponse", parser: "parseMemorySearchResponse" },
+  { id: "historySearch", method: "GET", path: DATA_SEARCH_PATHS.history, type: "HistorySearchResponse", parser: "parseHistorySearchResponse" },
+  { id: "tasksSearch", method: "GET", path: DATA_SEARCH_PATHS.tasks, type: "TasksSearchResponse", parser: "parseTasksSearchResponse" },
   { id: "attention", method: "GET", path: "/attention", type: "AttentionResponse", parser: "parseAttentionResponse" },
   { id: "digest", method: "GET", path: "/digest", type: "DigestResponse", parser: "parseDigestResponse" },
   { id: "voiceTranscribe", method: "POST", path: "/voice/transcribe", type: "VoiceTranscribeResult", parser: "parseVoiceTranscribeResult" },
@@ -114,10 +150,10 @@ export const DAEMON_OPERATION_DESCRIPTORS = [
   { id: "recall.recall", namespace: "recall", clientMethod: "recall", method: "POST", path: "/recall", classification: "routine", responseType: "RecallResult", parameters: [{ name: "query", type: "body" }, { name: "filter", type: "bodyFilter", optional: true }] },
 
   // capture (capture)
-  { id: "capture.capture", namespace: "capture", clientMethod: "capture", method: "POST", path: "/capture", classification: "routine", responseType: "CaptureResult", parameters: [{ name: "text", type: "body" }, { name: "filter", type: "bodyFilter", optional: true }] },
+  { id: "capture.capture", namespace: "capture", clientMethod: "capture", method: "POST", path: "/capture", classification: "routine", responseType: "CaptureResult", responseDecoder: "parseCaptureResult", parameters: [{ name: "text", type: "body" }, { name: "filter", type: "bodyFilter", optional: true }] },
 
   // retract (retract)
-  { id: "retract.retract", namespace: "retract", clientMethod: "retract", method: "POST", path: "/retract", classification: "routine", responseType: "RetractResult", parameters: [{ name: "request", type: "bodyDirect" }] },
+  { id: "retract.retract", namespace: "retract", clientMethod: "retract", method: "POST", path: "/retract", classification: "routine", responseType: "RetractResult", responseDecoder: "parseRetractResult", parameters: [{ name: "request", type: "bodyDirect" }] },
 
   // resourceDiscovery (resource-discovery)
   { id: "resourceDiscovery.discover", namespace: "resourceDiscovery", clientMethod: "discover", method: "POST", path: "/resource-discovery", classification: "routine", responseType: "ResourceDiscoveryResult", parameters: [{ name: "query", type: "body" }, { name: "filter", type: "bodyFilter", optional: true }] },
@@ -140,13 +176,13 @@ export const DAEMON_OPERATION_DESCRIPTORS = [
   { id: "modulesAdmin.reload", namespace: "modulesAdmin", clientMethod: "reload", method: "POST", path: "/modules/:name/reload", classification: "routine", responseType: "ModuleReloadResult", parameters: [{ name: "name", type: "path" }] },
 
   // inboundSignals (inbound-signals)
-  { id: "inboundSignals.listRoutes", namespace: "inboundSignals", clientMethod: "listRoutes", method: "GET", path: "/inbound-signals/routes", classification: "routine", responseType: "InboundSignalRouteListResult", parameters: [{ name: "scopeSelector", type: "scopeQuery", optional: true }] },
-  { id: "inboundSignals.validateRoutes", namespace: "inboundSignals", clientMethod: "validateRoutes", method: "GET", path: "/inbound-signals/routes", classification: "routine", responseType: "InboundSignalRouteValidationResult", derivedFrom: "listRoutes", parameters: [{ name: "scopeSelector", type: "scopeQuery", optional: true }] },
+  { id: "inboundSignals.listRoutes", namespace: "inboundSignals", clientMethod: "listRoutes", method: "GET", path: "/inbound-signals/routes", classification: "routine", responseType: "InboundSignalRouteListResult", transport: "nullable", unavailableMessage: "Daemon unreachable while listing inbound signal routes", parameters: [{ name: "scopeSelector", type: "scopeQuery", optional: true }] },
+  { id: "inboundSignals.validateRoutes", namespace: "inboundSignals", clientMethod: "validateRoutes", method: "GET", path: "/inbound-signals/routes", classification: "routine", responseType: "InboundSignalRouteValidationResult", derivedFrom: "listRoutes", resultPath: "validation", parameters: [{ name: "scopeSelector", type: "scopeQuery", optional: true }] },
 
   // answer (answer)
   { id: "answer.answer", namespace: "answer", clientMethod: "answer", method: "POST", path: "/answer", classification: "routine", responseType: "AnswerResult", parameters: [{ name: "query", type: "body" }, { name: "filter", type: "bodyFilter", optional: true }] },
-  { id: "answer.log", namespace: "answer", clientMethod: "log", method: "GET", path: "/answers", classification: "routine", responseType: "AnswerHistoryListResult", responseDecoder: "decodeAnswerHistoryListResult", parameters: [{ name: "filter", type: "queryOptions", optional: true }] },
-  { id: "answer.show", namespace: "answer", clientMethod: "show", method: "GET", path: "/answers/:id", classification: "routine", responseType: "AnswerHistoryShowResult", responseDecoder: "decodeAnswerHistoryShowResult", parameters: [{ name: "id", type: "path" }, { name: "scope", type: "queryOptions", optional: true }] },
+  { id: "answer.log", namespace: "answer", clientMethod: "log", method: "GET", path: "/answers", classification: "routine", responseType: "AnswerHistoryListResult", responseDecoder: "decodeAnswerHistoryListResult", responseDecoderSource: "#modules/answer/client.js", parameters: [{ name: "filter", type: "queryOptions", optional: true }] },
+  { id: "answer.show", namespace: "answer", clientMethod: "show", method: "GET", path: "/answers/:id", classification: "routine", responseType: "AnswerHistoryShowResult", responseDecoder: "decodeAnswerHistoryShowResult", responseDecoderSource: "#modules/answer/client.js", parameters: [{ name: "id", type: "path" }, { name: "scope", type: "queryOptions", optional: true }] },
 
   // approvals (approval-queue) - Classified Exceptions
   { id: "approvals.list", namespace: "approvals", clientMethod: "list", method: "GET", path: "/approvals", classification: "routine", responseType: "ApprovalsListResult" },
@@ -159,38 +195,38 @@ export const DAEMON_OPERATION_DESCRIPTORS = [
   { id: "secrets.set", namespace: "secrets", clientMethod: "set", method: "PUT", path: "/api/secrets/:name", classification: "exception", exceptionReason: "semantic-transform: catches mutation failure exceptions and normalizes to SecretMutateResult failure union" },
   { id: "secrets.remove", namespace: "secrets", clientMethod: "remove", method: "DELETE", path: "/api/secrets/:name", classification: "exception", exceptionReason: "semantic-transform: catches mutation failure exceptions and normalizes to SecretMutateResult failure union" },
 
-  // tasks (repo-tasks) - Classified Exceptions
-  { id: "tasks.list", namespace: "tasks", clientMethod: "list", method: "GET", path: "/api/tasks", classification: "exception", exceptionReason: "semantic-transform: task state machine projection and client-side state filtering" },
+  // tasks (repo-tasks)
+  { id: "tasks.list", namespace: "tasks", clientMethod: "list", method: "GET", path: "/tasks", classification: "routine", responseType: "RepoTaskListResult", parameters: [{ name: "states", type: "query", wireName: "state", optional: true }, { name: "scopeSelector", type: "scopeQuery", optional: true }] },
   { id: "tasks.show", namespace: "tasks", clientMethod: "show", method: "GET", path: "/api/tasks/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to found:false domain union" },
-  { id: "tasks.move", namespace: "tasks", clientMethod: "move", method: "POST", path: "/api/tasks/:id/move", classification: "exception", exceptionReason: "semantic-transform: 409 already_in_state/terminal conflict mapping and 400 invalid_id translation" },
-  { id: "tasks.updateBody", namespace: "tasks", clientMethod: "updateBody", method: "PUT", path: "/api/tasks/:id/body", classification: "exception", exceptionReason: "semantic-transform: multi-step fetch and revision conflict handling" },
+  { id: "tasks.move", namespace: "tasks", clientMethod: "move", method: "PATCH", path: "/api/tasks/:id/move", classification: "exception", exceptionReason: "semantic-transform: 409 already_in_state/terminal conflict mapping and 400 invalid_id translation" },
+  { id: "tasks.updateBody", namespace: "tasks", clientMethod: "updateBody", method: "PATCH", path: "/api/tasks/:id/body", classification: "exception", exceptionReason: "semantic-transform: multi-step fetch and revision conflict handling" },
   { id: "tasks.create", namespace: "tasks", clientMethod: "create", method: "POST", path: "/api/tasks/normalized", classification: "exception", exceptionReason: "semantic-transform: 400/409 validation and duplicate task ID conflict mapping" },
   { id: "tasks.capture", namespace: "tasks", clientMethod: "capture", method: "POST", path: "/api/tasks/capture", classification: "exception", exceptionReason: "semantic-transform: 400/409 error envelope extraction" },
-  { id: "tasks.search", namespace: "tasks", clientMethod: "search", method: "GET", path: "/tasks/search", classification: "routine", responseType: "RepoTaskSearchResult" },
-  { id: "tasks.reindex", namespace: "tasks", clientMethod: "reindex", method: "POST", path: "/tasks/reindex", classification: "routine", responseType: "RepoTaskReindexResult" },
+  { id: "tasks.search", namespace: "tasks", clientMethod: "search", method: "GET", path: DATA_SEARCH_PATHS.tasks, classification: "routine", responseType: "RepoTaskSearchResult", responseDecoder: "parseTasksSearchResponse", parameters: [{ name: "query", type: "query", wireName: "q" }, { name: "filter", type: "queryOptions", optional: true, wireNames: { states: "state" } }] },
+  { id: "tasks.reindex", namespace: "tasks", clientMethod: "reindex", method: "POST", path: "/tasks/reindex", classification: "routine", responseType: "RepoTaskReindexResult", parameters: [{ name: "scope", type: "scopeQuery", optional: true }] },
 
   // memory (memory) - Classified Exceptions
-  { id: "memory.list", namespace: "memory", clientMethod: "list", method: "GET", path: "/api/memory", classification: "routine", responseType: "MemoryListResult" },
-  { id: "memory.add", namespace: "memory", clientMethod: "add", method: "POST", path: "/api/memory", classification: "routine", responseType: "MemoryAddResult" },
+  { id: "memory.list", namespace: "memory", clientMethod: "list", method: "GET", path: "/api/memory", classification: "routine", responseType: "MemoryListResult", parameters: [{ name: "filter", type: "queryOptions", optional: true }] },
+  { id: "memory.add", namespace: "memory", clientMethod: "add", method: "POST", path: "/api/memory", classification: "routine", responseType: "MemoryAddResult", parameters: [{ name: "content", type: "body" }, { name: "tags", type: "body", optional: true, defaultValue: "[]" }, { name: "scope", type: "scopeQuery", optional: true }] },
   { id: "memory.delete", namespace: "memory", clientMethod: "delete", method: "DELETE", path: "/api/memory/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to not_found domain union" },
-  { id: "memory.search", namespace: "memory", clientMethod: "search", method: "GET", path: "/api/memory/search", classification: "routine", responseType: "MemorySearchResult" },
-  { id: "memory.reindex", namespace: "memory", clientMethod: "reindex", method: "POST", path: "/api/memory/reindex", classification: "routine", responseType: "MemoryReindexResult" },
+  { id: "memory.search", namespace: "memory", clientMethod: "search", method: "GET", path: DATA_SEARCH_PATHS.memory, classification: "routine", responseType: "MemorySearchResult", responseDecoder: "parseMemorySearchResponse", parameters: [{ name: "query", type: "query", wireName: "q" }, { name: "filter", type: "queryOptions", optional: true }] },
+  { id: "memory.reindex", namespace: "memory", clientMethod: "reindex", method: "POST", path: "/api/memory/reindex", classification: "routine", responseType: "MemoryReindexResult", parameters: [{ name: "scope", type: "scopeQuery", optional: true }] },
 
   // knowledge (knowledge) - Classified Exceptions
-  { id: "knowledge.list", namespace: "knowledge", clientMethod: "list", method: "GET", path: "/knowledge", classification: "routine", responseType: "KnowledgeListResult" },
-  { id: "knowledge.show", namespace: "knowledge", clientMethod: "show", method: "GET", path: "/knowledge/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to found:false domain union" },
-  { id: "knowledge.search", namespace: "knowledge", clientMethod: "search", method: "GET", path: "/knowledge/search", classification: "routine", responseType: "KnowledgeSearchResult" },
-  { id: "knowledge.add", namespace: "knowledge", clientMethod: "add", method: "POST", path: "/knowledge", classification: "routine", responseType: "KnowledgeAddResult" },
-  { id: "knowledge.delete", namespace: "knowledge", clientMethod: "delete", method: "DELETE", path: "/knowledge/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to not_found domain union" },
-  { id: "knowledge.reindex", namespace: "knowledge", clientMethod: "reindex", method: "POST", path: "/knowledge/reindex", classification: "routine", responseType: "KnowledgeReindexResult" },
+  { id: "knowledge.list", namespace: "knowledge", clientMethod: "list", method: "GET", path: "/api/knowledge", classification: "routine", responseType: "KnowledgeListResult", parameters: [{ name: "filter", type: "queryOptions", optional: true }] },
+  { id: "knowledge.show", namespace: "knowledge", clientMethod: "show", method: "GET", path: "/api/knowledge/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to found:false domain union" },
+  { id: "knowledge.search", namespace: "knowledge", clientMethod: "search", method: "GET", path: DATA_SEARCH_PATHS.knowledge, classification: "routine", responseType: "KnowledgeSearchResult", responseDecoder: "parseKnowledgeSearchResponse", parameters: [{ name: "query", type: "query", wireName: "q" }, { name: "filter", type: "queryOptions", optional: true }] },
+  { id: "knowledge.add", namespace: "knowledge", clientMethod: "add", method: "POST", path: "/api/knowledge", classification: "routine", responseType: "KnowledgeAddResult", parameters: [{ name: "options", type: "bodySpread" }, { name: "scopeId", type: "scopeQuery", source: "options", optional: true }] },
+  { id: "knowledge.delete", namespace: "knowledge", clientMethod: "delete", method: "DELETE", path: "/api/knowledge/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to not_found domain union" },
+  { id: "knowledge.reindex", namespace: "knowledge", clientMethod: "reindex", method: "POST", path: "/api/knowledge/reindex", classification: "routine", responseType: "KnowledgeReindexResult", parameters: [{ name: "scope", type: "scopeQuery", optional: true }] },
 
   // history (history) - Classified Exceptions
-  { id: "history.list", namespace: "history", clientMethod: "list", method: "GET", path: "/history", classification: "routine", responseType: "HistoryListResult" },
-  { id: "history.listDiscoveredScopeRecords", namespace: "history", clientMethod: "listDiscoveredScopeRecords", method: "GET", path: "/history/discovered-scope-records", classification: "routine", responseType: "HistoryListResult" },
+  { id: "history.list", namespace: "history", clientMethod: "list", method: "GET", path: "/history", classification: "routine", responseType: "HistoryListResult", parameters: [{ name: "filter", type: "queryOptions", optional: true }] },
+  { id: "history.listDiscoveredScopeRecords", namespace: "history", clientMethod: "listDiscoveredScopeRecords", method: "GET", path: "/history/discovered-scope-records", classification: "routine", responseType: "HistoryListResult", parameters: [{ name: "filter", type: "queryOptions", optional: true }] },
   { id: "history.show", namespace: "history", clientMethod: "show", method: "GET", path: "/history/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to found:false domain union and detail decoding" },
   { id: "history.delete", namespace: "history", clientMethod: "delete", method: "DELETE", path: "/history/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to not_found domain union" },
-  { id: "history.search", namespace: "history", clientMethod: "search", method: "GET", path: "/api/history/search", classification: "routine", responseType: "HistorySearchResult" },
-  { id: "history.reindex", namespace: "history", clientMethod: "reindex", method: "POST", path: "/history/reindex", classification: "routine", responseType: "HistoryReindexResult" },
+  { id: "history.search", namespace: "history", clientMethod: "search", method: "GET", path: DATA_SEARCH_PATHS.history, classification: "routine", responseType: "HistorySearchResult", responseDecoder: "parseHistorySearchResponse", parameters: [{ name: "query", type: "query", wireName: "q" }, { name: "filter", type: "queryOptions", optional: true }] },
+  { id: "history.reindex", namespace: "history", clientMethod: "reindex", method: "POST", path: "/history/reindex", classification: "routine", responseType: "HistoryReindexResult", parameters: [{ name: "scope", type: "scopeQuery", optional: true }] },
 
   // ownerQuestions (owner-questions) - Classified Exceptions
   { id: "ownerQuestions.list", namespace: "ownerQuestions", clientMethod: "list", method: "GET", path: "/owner-questions", classification: "routine", responseType: "OwnerQuestionsListResult" },

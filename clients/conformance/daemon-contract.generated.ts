@@ -811,15 +811,15 @@ export const DAEMON_ROUTES = {
   },
   "knowledgeSearch": {
     "method": "GET",
-    "path": "/knowledge/search"
+    "path": "/api/knowledge/search"
   },
   "memorySearch": {
     "method": "GET",
-    "path": "/memory/search"
+    "path": "/api/memory/search"
   },
   "historySearch": {
     "method": "GET",
-    "path": "/history/search"
+    "path": "/api/history/search"
   },
   "tasksSearch": {
     "method": "GET",

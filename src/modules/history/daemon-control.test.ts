@@ -28,7 +28,7 @@ import {
   initProviderRegistry,
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
-import { getHistory, resetHistory } from "./history.js";
+import { ConversationHistory } from "./history.js";
 import { historyControlRoutes } from "./routes.js";
 import { HistoryScopeStores } from "./scope.js";
 
@@ -109,13 +109,14 @@ describe("history module daemon-control routes", () => {
   let port: number;
   let homeDir: string;
   let prevHome: string | undefined;
+  let history: ConversationHistory;
 
   beforeEach(async () => {
     homeDir = mkdtempSync(join(tmpdir(), "kota-history-control-"));
     prevHome = process.env.HOME;
     process.env.HOME = homeDir;
-    resetHistory();
-    initProviderRegistry().register(HISTORY_PROVIDER_TOKEN, "default", getHistory());
+    history = new ConversationHistory();
+    initProviderRegistry().register(HISTORY_PROVIDER_TOKEN, "default", history);
     server = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
       controlRoutes: historyControlRoutes(),
     });
@@ -125,7 +126,6 @@ describe("history module daemon-control routes", () => {
   afterEach(async () => {
     await server.stop();
     resetProviderRegistry();
-    resetHistory();
     if (prevHome === undefined) delete process.env.HOME;
     else process.env.HOME = prevHome;
     rmSync(homeDir, { recursive: true, force: true });
@@ -204,8 +204,7 @@ describe("history module daemon-control routes", () => {
     });
 
     it("returns conversations created via the history provider", async () => {
-      const { getHistory } = await import("./history.js");
-      const id = getHistory().create("claude-sonnet-4-6", "/tmp/project");
+      const id = history.create("claude-sonnet-4-6", "/tmp/project");
 
       const res = await fetchWith(port, "/history");
       expect(res.status).toBe(200);
@@ -215,8 +214,6 @@ describe("history module daemon-control routes", () => {
     });
 
     it("respects search and limit query params", async () => {
-      const { getHistory } = await import("./history.js");
-      const history = getHistory();
       const id1 = history.create("claude-sonnet-4-6", "/tmp/p1");
       history.save(id1, [{ role: "user", content: "alpha discussion" }], 0, 0);
       const id2 = history.create("claude-sonnet-4-6", "/tmp/p2");
@@ -287,8 +284,6 @@ describe("history module daemon-control routes", () => {
 
   describe("GET /history/:id", () => {
     it("returns 200 with the default bounded window when found", async () => {
-      const { getHistory } = await import("./history.js");
-      const history = getHistory();
       const id = history.create("claude-sonnet-4-6", "/tmp/project");
       history.save(id, [{ role: "user", content: "hello" }], 0, 42);
 
@@ -307,8 +302,6 @@ describe("history module daemon-control routes", () => {
     });
 
     it("returns explicit full conversation data when requested", async () => {
-      const { getHistory } = await import("./history.js");
-      const history = getHistory();
       const id = history.create("claude-sonnet-4-6", "/tmp/project");
       history.save(id, [{ role: "user", content: "hello" }], 0, 42);
 
@@ -359,8 +352,6 @@ describe("history module daemon-control routes", () => {
 
   describe("DELETE /history/:id", () => {
     it("returns 200 with { deleted: id } and removes the conversation", async () => {
-      const { getHistory } = await import("./history.js");
-      const history = getHistory();
       const id = history.create("claude-sonnet-4-6", "/tmp/project");
 
       const res = await fetchWith(port, `/history/${id}`, { method: "DELETE" });

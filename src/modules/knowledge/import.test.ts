@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseImportEntries } from "./cli.js";
-import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
+import { KnowledgeStore } from "./store.js";
 
 describe("parseImportEntries", () => {
 	it("parses a JSON array", () => {
@@ -57,12 +57,10 @@ describe("knowledge import integration", () => {
 		scopeRoot = join(tmpDir, "project");
 		mkdirSync(scopeRoot, { recursive: true });
 		store = new KnowledgeStore(scopeRoot);
-		resetKnowledgeStore();
 	});
 
 	afterEach(() => {
 		rmSync(tmpDir, { recursive: true, force: true });
-		resetKnowledgeStore();
 	});
 
 	it("creates entries for valid rows and counts skipped ones", () => {

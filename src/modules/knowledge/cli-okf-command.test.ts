@@ -16,7 +16,7 @@ import {
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { registerKnowledgeOkfCommand } from "./cli-okf-command.js";
-import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
+import { KnowledgeStore } from "./store.js";
 
 describe("kota knowledge okf", () => {
 	let scopeRoot: string;
@@ -27,7 +27,6 @@ describe("kota knowledge okf", () => {
 		scopeRoot = realpathSync(mkdtempSync(join(tmpdir(), "kota-knowledge-okf-cli-")));
 		origCwd = process.cwd();
 		process.chdir(scopeRoot);
-		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(scopeRoot);
@@ -37,7 +36,6 @@ describe("kota knowledge okf", () => {
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(scopeRoot, { recursive: true, force: true });
-		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
 

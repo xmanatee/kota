@@ -5,18 +5,21 @@ import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-type
 import { KNOWLEDGE_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { localWriteEffect } from "#core/tools/effect.js";
+import { createKnowledgeDaemonClient } from "#root/client/kota-client.generated.js";
 import { createKnowledgeReadinessSource } from "./capability-readiness.js";
 import { registerKnowledgeCommands } from "./cli.js";
 import type {
-	KnowledgeAddResult,
 	KnowledgeClient,
-	KnowledgeDeleteResult,
 	KnowledgeListResult,
-	KnowledgeReindexResult,
-	KnowledgeSearchResult,
-	KnowledgeShowResult,
 } from "./client.js";
 import { knowledgeTool, runKnowledge } from "./knowledge.js";
+import {
+	deleteKnowledge,
+	listKnowledge,
+	reindexKnowledge,
+	searchKnowledge,
+	showKnowledge,
+} from "./operations.js";
 import { knowledgeRoutes } from "./routes.js";
 import {
 	createKnowledgeScopeStores,
@@ -60,39 +63,15 @@ const knowledgeModule: KotaModule = {
 		const handler: KnowledgeClient = {
 			async list(filter) {
 				const provider = resolveKnowledgeProvider(scopeStores, filter?.scopeId);
-				const entries = provider.list({
-					tag: filter?.tag,
-					type: filter?.type,
-					status: filter?.status,
-					scope: filter?.scope,
-				});
-				return { entries };
+				return listKnowledge(provider, filter);
 			},
 			async show(id, scopeSelector) {
 				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
-				const entry = provider.read(id);
-				if (!entry) return { found: false };
-				return { found: true, entry };
+				return showKnowledge(provider, id);
 			},
 			async search(query, filter) {
 				const provider = resolveKnowledgeProvider(scopeStores, filter?.scopeId);
-				const limit = filter?.limit ?? 20;
-				const filters = {
-					tag: filter?.tag,
-					type: filter?.type,
-					status: filter?.status,
-					scope: filter?.scope,
-				};
-				if (filter?.semantic) {
-					const semanticSearch = provider.semanticSearchCapability;
-					if (!semanticSearch) {
-						return { ok: false, reason: "semantic_unavailable" };
-					}
-					const entries = await semanticSearch.semanticSearch(query, limit, filters);
-					return { ok: true, entries };
-				}
-				const entries = provider.search(query, filters).slice(0, limit);
-				return { ok: true, entries };
+				return searchKnowledge(provider, query, filter);
 			},
 			async add(options) {
 				const provider = resolveKnowledgeProvider(scopeStores, options.scopeId);
@@ -115,14 +94,11 @@ const knowledgeModule: KotaModule = {
 			},
 			async delete(id, scopeSelector) {
 				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
-				const ok = provider.delete(id);
-				return ok ? { ok: true } : { ok: false, reason: "not_found" };
+				return deleteKnowledge(provider, id);
 			},
 			async reindex(scopeSelector) {
 				const provider = resolveKnowledgeProvider(scopeStores, scopeSelector?.scopeId);
-				const semanticSearch = provider.semanticSearchCapability;
-				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
-				return { ok: true, ...await semanticSearch.reindex() };
+				return reindexKnowledge(provider);
 			},
 		};
 		return { knowledge: handler };
@@ -145,21 +121,8 @@ const knowledgeModule: KotaModule = {
 };
 
 function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
-	return {
-		list: async (filter): Promise<KnowledgeListResult> => {
-			const params = new URLSearchParams();
-			if (filter?.tag) params.set("tag", filter.tag);
-			if (filter?.type) params.set("type", filter.type);
-			if (filter?.status) params.set("status", filter.status);
-			if (filter?.scope) params.set("scope", filter.scope);
-			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-			const query = params.toString() ? `?${params.toString()}` : "";
-			return link.requestStrict<KnowledgeListResult>(
-				"GET",
-				`/api/knowledge${query}`,
-			);
-		},
-		show: async (id, scopeSelector): Promise<KnowledgeShowResult> => {
+	return createKnowledgeDaemonClient(link, {
+		show: async (id, scopeSelector) => {
 			const query = scopeQuery(scopeSelector?.scopeId);
 			const entry = await requestNullableKnowledgeRoute<
 				KnowledgeListResult["entries"][number]
@@ -170,32 +133,7 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 			);
 			return entry ? { found: true, entry } : { found: false };
 		},
-		search: async (query, filter): Promise<KnowledgeSearchResult> => {
-			const params = new URLSearchParams();
-			params.set("q", query);
-			if (filter?.tag) params.set("tag", filter.tag);
-			if (filter?.type) params.set("type", filter.type);
-			if (filter?.status) params.set("status", filter.status);
-			if (filter?.scope) params.set("scope", filter.scope);
-			if (filter?.semantic) params.set("semantic", "true");
-			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-			return link.requestStrict<KnowledgeSearchResult>(
-				"GET",
-				`/api/knowledge/search?${params.toString()}`,
-			);
-		},
-		add: async (options): Promise<KnowledgeAddResult> => {
-			const { scopeId, ...body } = options;
-			const query = scopeQuery(scopeId);
-			const result = await link.requestStrict<{ id: string }>(
-				"POST",
-				`/api/knowledge${query}`,
-				body,
-			);
-			return { id: result.id };
-		},
-		delete: async (id, scopeSelector): Promise<KnowledgeDeleteResult> => {
+		delete: async (id, scopeSelector) => {
 			const query = scopeQuery(scopeSelector?.scopeId);
 			const result = await requestNullableKnowledgeRoute<{ deleted: string }>(
 				link,
@@ -204,14 +142,7 @@ function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {
 			);
 			return result ? { ok: true } : { ok: false, reason: "not_found" };
 		},
-		reindex: async (scopeSelector): Promise<KnowledgeReindexResult> => {
-			const query = scopeQuery(scopeSelector?.scopeId);
-			return link.requestStrict<KnowledgeReindexResult>(
-				"POST",
-				`/api/knowledge/reindex${query}`,
-			);
-		},
-	};
+	});
 }
 
 type KnowledgeRouteErrorBody = {

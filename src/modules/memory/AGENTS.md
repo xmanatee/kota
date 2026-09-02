@@ -18,6 +18,11 @@ This directory owns persistent, searchable agent notes that survive across sessi
   empty collection. Replacement writes are atomic. The daemon client parses
   responses with the generated daemon-contract decoder rather than asserting
   a handwritten transport type.
+- `operations.ts` is the single orchestration owner for list/search/reindex
+  results, including explicit semantic-unavailable and delete not-found
+  outcomes. Local clients and HTTP routes call it directly. Routine daemon
+  list/add/search/reindex transport is generated; only delete's HTTP 404
+  transform remains module-authored.
 - Contributes the `memory` tool in the `management` group, the `kota memory …` CLI commands, the `/api/memory` HTTP routes, and the `memory` skill.
 - Telegram and terminal search consume the shared HTTP route and line renderer.
   Visual clients render the module's shared-UI contribution instead of owning

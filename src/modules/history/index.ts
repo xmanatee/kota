@@ -16,15 +16,11 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import { readOnlyDaemonEffect } from "#core/tools/effect.js";
+import { createHistoryDaemonClient } from "#root/client/kota-client.generated.js";
 import { createHistoryReadinessSource } from "./capability-readiness.js";
 import type {
 	HistoryClient,
-	HistoryDeleteResult,
 	HistoryDetail,
-	HistoryListResult,
-	HistoryReindexResult,
-	HistorySearchResult,
-	HistoryShowResult,
 } from "./client.js";
 import {
 	conversationRecallTool,
@@ -34,9 +30,15 @@ import { getScopeHistoryStore } from "./history.js";
 import {
 	buildHistoryDetailQuery,
 	normalizeHistoryShowOptions,
-	readHistoryDetail,
 } from "./history-detail.js";
 import { listLocalScopeHistoryRecords } from "./local-history-scan.js";
+import {
+	deleteHistory,
+	listHistory,
+	reindexHistory,
+	searchHistory,
+	showHistory,
+} from "./operations.js";
 import { historyControlRoutes, historyRoutes } from "./routes.js";
 import {
 	createHistoryScopeStores,
@@ -105,7 +107,7 @@ const historyModule: KotaModule = {
 		const handler: HistoryClient = {
 			async list(filter) {
 				const provider = resolveHistoryProvider(scopeStores, filter?.scopeId);
-				return { conversations: provider.list(filter) };
+				return listHistory(provider, filter);
 			},
 			async listDiscoveredScopeRecords(filter) {
 				return {
@@ -117,45 +119,19 @@ const historyModule: KotaModule = {
 			},
 			async show(id, options) {
 				const provider = resolveHistoryProvider(scopeStores, options?.scopeId);
-				return readHistoryDetail(
-					provider,
-					id,
-					normalizeHistoryShowOptions(options),
-				);
+				return showHistory(provider, id, options);
 			},
 			async delete(id, scopeSelector) {
 				const provider = resolveHistoryProvider(scopeStores, scopeSelector?.scopeId);
-				return provider.remove(id)
-					? { ok: true }
-					: { ok: false, reason: "not_found" };
+				return deleteHistory(provider, id);
 			},
 			async search(query, filter) {
 				const provider = resolveHistoryProvider(scopeStores, filter?.scopeId);
-				const limit = filter?.limit ?? 20;
-				if (filter?.semantic) {
-					const semanticSearch = provider.semanticSearchCapability;
-					if (!semanticSearch) {
-						return { ok: false, reason: "semantic_unavailable" };
-					}
-					const conversations = await semanticSearch.semanticSearch(query, limit, {
-						cwd: filter.cwd,
-						source: filter.source,
-					});
-					return { ok: true, conversations };
-				}
-				const conversations = provider.list({
-					search: query,
-					limit,
-					cwd: filter?.cwd,
-					source: filter?.source,
-				});
-				return { ok: true, conversations };
+				return searchHistory(provider, query, filter);
 			},
 			async reindex(scopeSelector) {
 				const provider = resolveHistoryProvider(scopeStores, scopeSelector?.scopeId);
-				const semanticSearch = provider.semanticSearchCapability;
-				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
-				return { ok: true, ...await semanticSearch.reindex() };
+				return reindexHistory(provider);
 			},
 		};
 		return { history: handler };
@@ -166,32 +142,8 @@ const historyModule: KotaModule = {
 
 /** Daemon-side history client over the module's typed routes. */
 function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
-	return {
-		list: async (filter): Promise<HistoryListResult> => {
-			const params = new URLSearchParams();
-			if (filter?.search) params.set("search", filter.search);
-			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.cwd) params.set("cwd", filter.cwd);
-			if (filter?.source) params.set("source", filter.source);
-			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-			const query = params.toString() ? `?${params.toString()}` : "";
-			return link.requestStrict<HistoryListResult>(
-				"GET",
-				`/history${query}`,
-			);
-		},
-		listDiscoveredScopeRecords: async (
-			filter,
-		): Promise<HistoryListResult> => {
-			const params = new URLSearchParams();
-			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			const query = params.toString() ? `?${params.toString()}` : "";
-			return link.requestStrict<HistoryListResult>(
-				"GET",
-				`/history/discovered-scope-records${query}`,
-			);
-		},
-		show: async (id, options): Promise<HistoryShowResult> => {
+	return createHistoryDaemonClient(link, {
+		show: async (id, options) => {
 			const request = normalizeHistoryShowOptions(options);
 			const query = buildHistoryDetailQuery(request, options?.scopeId);
 			const detail = await requestNullableHistoryRoute<HistoryDetail>(
@@ -201,7 +153,7 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			);
 			return detail ? { found: true, detail } : { found: false };
 		},
-		delete: async (id, scopeSelector): Promise<HistoryDeleteResult> => {
+		delete: async (id, scopeSelector) => {
 			const query = scopeQuery(scopeSelector?.scopeId);
 			const result = await requestNullableHistoryRoute<{ deleted: string }>(
 				link,
@@ -210,27 +162,7 @@ function buildHistoryDaemonHandler(link: DaemonTransport): HistoryClient {
 			);
 			return result ? { ok: true } : { ok: false, reason: "not_found" };
 		},
-		search: async (query, filter): Promise<HistorySearchResult> => {
-			const params = new URLSearchParams();
-			params.set("q", query);
-			if (filter?.cwd) params.set("cwd", filter.cwd);
-			if (filter?.source) params.set("source", filter.source);
-			if (filter?.semantic) params.set("semantic", "true");
-			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-			return link.requestStrict<HistorySearchResult>(
-				"GET",
-				`/api/history/search?${params.toString()}`,
-			);
-		},
-		reindex: async (scopeSelector): Promise<HistoryReindexResult> => {
-			const query = scopeQuery(scopeSelector?.scopeId);
-			return link.requestStrict<HistoryReindexResult>(
-				"POST",
-				`/history/reindex${query}`,
-			);
-		},
-	};
+	});
 }
 
 type HistoryRouteErrorBody = {

@@ -7,7 +7,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import { renderContext } from "#modules/rendering/render.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
-import { buildTaskListNode, listTasksForStates, registerTaskCommands } from "./cli.js";
+import { buildTaskListNode, registerTaskCommands } from "./cli.js";
 import type {
   RepoTaskCreateOptions,
   RepoTaskReindexResult,
@@ -15,15 +15,14 @@ import type {
   RepoTaskSearchResult,
   RepoTaskState,
 } from "./client.js";
-import { getRepoTasksDir, moveTaskById } from "./repo-tasks-domain.js";
+import { moveTaskById } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,
   createNormalizedTask,
+  listRepoTasks,
   showTask,
 } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
-
-const OPEN_STATES: RepoTaskState[] = ["open", "blocked"];
 
 type SearchOverride = (
   query: string,
@@ -44,9 +43,7 @@ function stubCtx(
     client: {
       tasks: {
         async list(states?: RepoTaskState[]) {
-          const wanted = states && states.length > 0 ? states : OPEN_STATES;
-          const tasks = listTasksForStates(getRepoTasksDir(repoRoot), wanted);
-          return { tasks };
+          return listRepoTasks(repoRoot, states);
         },
         async show(id: string) {
           return showTask(repoRoot, id);
@@ -171,73 +168,6 @@ function makeProgram(
   registerTaskCommands(program, stubCtx(repoRoot ?? process.cwd(), overrides));
   return program;
 }
-
-describe("listTasksForStates", () => {
-  let repoRoot: string;
-
-  beforeEach(() => {
-    repoRoot = makeScopeRoot();
-  });
-
-  afterEach(() => {
-    rmSync(repoRoot, { recursive: true, force: true });
-  });
-
-  it("returns empty array when no tasks exist", () => {
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
-    expect(result).toEqual([]);
-  });
-
-  it("returns tasks from requested states", () => {
-    writeTaskFile(repoRoot, "open", "task-a");
-    writeTaskFile(repoRoot, "blocked", "task-b");
-
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("task-a");
-    expect(result[0].state).toBe("open");
-  });
-
-  it("returns tasks across multiple states", () => {
-    writeTaskFile(repoRoot, "open", "task-a");
-    writeTaskFile(repoRoot, "blocked", "task-b");
-
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open", "blocked"]);
-    expect(result).toHaveLength(2);
-    const ids = result.map((t) => t.id);
-    expect(ids).toContain("task-a");
-    expect(ids).toContain("task-b");
-  });
-
-  it("skips AGENTS.md files", () => {
-    const dir = join(repoRoot, "data", "tasks");
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "AGENTS.md"), "# Agents");
-    writeTaskFile(repoRoot, "open", "task-real");
-
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("task-real");
-  });
-
-  it("returns id and priority from frontmatter", () => {
-    writeTaskFile(repoRoot, "open", "task-x", { priority: "p1", title: "My Task" });
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
-    expect(result[0].priority).toBe("p1");
-    expect(result[0].title).toBe("My Task");
-  });
-
-  it("returns unfinished hard dependency ids for task list output", () => {
-    writeTaskFile(repoRoot, "open", "task-dependent", {
-      depends_on: "[task-enabler]",
-    });
-    writeTaskFile(repoRoot, "open", "task-enabler");
-
-    const result = listTasksForStates(join(repoRoot, "data", "tasks"), ["open"]);
-
-    expect(result[0].waitingOnTasks).toEqual(["task-enabler"]);
-  });
-});
 
 describe("kota task list", () => {
   let repoRoot: string;

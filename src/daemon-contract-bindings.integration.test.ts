@@ -12,7 +12,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   ContractDecodeError,
@@ -121,6 +121,33 @@ describe("generated daemon contract bindings", () => {
       const changed = outputs.map((path) => hashFile(root, path));
       expect(changed.some((value, index) => value !== first[index])).toBe(true);
       expect(outputs.some((path) => readFileSync(resolve(root, path), "utf8").includes("requestId"))).toBe(true);
+    } finally {
+      if (existsSync(root)) rmSync(root, { recursive: true });
+    }
+  });
+
+  it("projects routine transport identity from operation descriptors", async () => {
+    const root = prepareRoot();
+    try {
+      const graphPath = resolve(root, "scripts/daemon-contract-graph.mjs");
+      const graph = readFileSync(graphPath, "utf8");
+      writeFileSync(
+        graphPath,
+        graph.replace(
+          'path: DATA_SEARCH_PATHS.memory, classification: "routine"',
+          'path: "/api/memory/find", classification: "routine"',
+        ),
+      );
+      const generatorUrl = pathToFileURL(
+        resolve(root, "scripts/kota-client-typescript.mjs"),
+      );
+      generatorUrl.searchParams.set("case", "operation-descriptor");
+      const generator = await import(generatorUrl.href) as {
+        generateKotaClientAggregate(): string;
+      };
+      const generated = generator.generateKotaClientAggregate();
+      expect(generated).toContain('withQuery("/api/memory/find", params)');
+      expect(generated).not.toContain('withQuery("/api/memory/search", params)');
     } finally {
       if (existsSync(root)) rmSync(root, { recursive: true });
     }

@@ -16,18 +16,17 @@ import {
 } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
 import { createRepoTasksReadinessSource } from "./capability-readiness.js";
-import { listTasksForStates, registerTaskCommands } from "./cli.js";
-import type {
-	RepoTaskListEntry,
-	RepoTaskSearchResult,
-	RepoTaskState,
-	RepoTasksClient,
-} from "./client.js";
+import { registerTaskCommands } from "./cli.js";
+import type { RepoTasksClient } from "./client.js";
 import { buildRepoTasksDaemonHandler } from "./daemon-client.js";
 import { mutateRepoTask } from "./repo-task-mutation-boundary.js";
 import repoTaskMutationWorkflow from "./repo-task-mutation-workflow.js";
-import { getRepoTasksDir } from "./repo-tasks-domain.js";
-import { showTask } from "./repo-tasks-operations.js";
+import {
+	listRepoTasks,
+	reindexRepoTasks,
+	searchRepoTasks,
+	showTask,
+} from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 import { taskControlRoutes, taskRoutes } from "./routes.js";
 import {
@@ -35,13 +34,6 @@ import {
 	type RepoTasksScopeStores,
 } from "./scope.js";
 import { repoTasksUiSurfaceSource } from "./ui-surface.js";
-
-const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
-	"open",
-	"blocked",
-];
-
-const DEFAULT_SEARCH_LIMIT = 20;
 
 function resolveRepoTasksScope(
 	scopeStores: RepoTasksScopeStores,
@@ -119,10 +111,7 @@ const repoTasksModule: KotaModule = {
 		const handler: RepoTasksClient = {
 			async list(states, scopeSelector) {
 				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
-				const tasksDir = getRepoTasksDir(resolved.scopeRoot);
-				const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
-				const tasks: RepoTaskListEntry[] = listTasksForStates(tasksDir, wanted);
-				return { tasks };
+				return listRepoTasks(resolved.scopeRoot, states);
 			},
 			async show(id, scopeSelector) {
 				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
@@ -149,37 +138,18 @@ const repoTasksModule: KotaModule = {
 				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
 				return await mutateRepoTask(resolved, { kind: "capture", title });
 			},
-			async search(query, filter): Promise<RepoTaskSearchResult> {
-				const semantic = filter?.semantic !== false;
-				const limit = filter?.limit ?? DEFAULT_SEARCH_LIMIT;
-				const opts: { topK: number; states?: ReadonlyArray<RepoTaskState> } = {
-					topK: limit,
-				};
-				if (filter?.states && filter.states.length > 0) {
-					opts.states = filter.states;
-				}
+			async search(query, filter) {
 				const resolved = resolveRepoTasksScope(scopeStores, filter?.scopeId);
-				if (!semantic) {
-					const fallback = new RepoTasksDefaultStore(resolved.scopeRoot);
-					return { ok: true, tasks: await fallback.searchTasks(query, opts) };
-				}
-				const provider = resolved.store;
-				const semanticSearch = provider.semanticSearchCapability;
-				if (!semanticSearch) {
-					return { ok: false, reason: "semantic_unavailable" };
-				}
-				try {
-					const tasks = await semanticSearch.searchTasks(query, opts);
-					return { ok: true, tasks };
-				} catch {
-					return { ok: false, reason: "semantic_unavailable" };
-				}
+				return searchRepoTasks(
+					resolved.store,
+					new RepoTasksDefaultStore(resolved.scopeRoot),
+					query,
+					filter,
+				);
 			},
 			async reindex(scopeSelector) {
 				const resolved = resolveRepoTasksScope(scopeStores, scopeSelector?.scopeId);
-				const semanticSearch = resolved.store.semanticSearchCapability;
-				if (!semanticSearch) return { ok: false, reason: "semantic_unavailable" };
-				return { ok: true, ...await semanticSearch.reindex() };
+				return reindexRepoTasks(resolved.store);
 			},
 		};
 		return { tasks: handler };

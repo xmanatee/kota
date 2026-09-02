@@ -3,7 +3,7 @@
 This directory owns conversation history — the persistent record of past sessions across KOTA.
 
 - Owns the file-based `ConversationHistory` store (`history.ts`, `history-utils.ts`) and the scope-scoped store resolver.
-- Registers itself as the history provider during `onLoad` via the typed `HISTORY_PROVIDER_TOKEN` (re-exported from `#core/modules/provider-registry.js`) and exposes scope-scoped lookup through `HISTORY_SCOPE_PROVIDER_TOKEN`. Core resolves stores through provider seams; callers outside this module must not import `getHistory` directly.
+- Registers itself as the history provider during `onLoad` via the typed `HISTORY_PROVIDER_TOKEN` (re-exported from `#core/modules/provider-registry.js`) and exposes scope-scoped lookup through `HISTORY_SCOPE_PROVIDER_TOKEN`. Core resolves stores through provider seams; there is no ambient global-history singleton or production reset hook.
 - Storage is scope-scoped under `.kota/history`. Daemon/API access resolves
   a concrete scope id before using the store. Omitted scope ids resolve to
   the daemon's active/default scope at the route or client boundary; explicit
@@ -17,6 +17,11 @@ This directory owns conversation history — the persistent record of past sessi
   the DELETE under `control`. Detail reads share the `history-detail.ts`
   helper and return an explicit metadata, bounded-window, or full-state
   view; malformed detail query parameters fail at the route/client boundary.
+- `operations.ts` owns list/show/delete/search/reindex orchestration and its
+  not-found and semantic-unavailable result arms. Local clients and routes
+  call it directly. Routine daemon list/discovery/search/reindex transport is
+  generated; show/delete retain only genuine detail-query and HTTP 404
+  transforms.
 - Telegram and terminal search consume the shared HTTP route and line renderer.
   Visual clients render the module's shared-UI contribution instead of owning
   history-specific screens or routes.

@@ -275,16 +275,3 @@ export class KnowledgeStore {
 	}
 
 }
-
-let store: KnowledgeStore | undefined;
-
-export function getKnowledgeStore(cwd?: string): KnowledgeStore {
-	if (!store) {
-		store = new KnowledgeStore(cwd || process.cwd());
-	}
-	return store;
-}
-
-export function resetKnowledgeStore(): void {
-	store = undefined;
-}

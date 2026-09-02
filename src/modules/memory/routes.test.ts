@@ -78,7 +78,7 @@ describe("memory-routes", () => {
       expect(body.entries).toEqual([]);
     });
 
-    it("returns list items with id, tags, created, and excerpt", () => {
+    it("returns the canonical memory collection without a route-local wire mirror", () => {
       const entry = makeMemory({ content: "Hello world memory." });
       vi.mocked(getMemoryProvider).mockReturnValue(makeProvider([entry]));
       const { res, result } = mockResponse();
@@ -88,19 +88,8 @@ describe("memory-routes", () => {
       expect(body.entries).toHaveLength(1);
       const item = body.entries[0];
       expect(item.id).toBe("mem-abc");
-      expect(item.tags).toEqual(["agent"]);
       expect(item.created).toBe("2026-01-01T00:00:00Z");
-      expect(item.excerpt).toBe("Hello world memory.");
-    });
-
-    it("truncates excerpt to 200 characters", () => {
-      const longContent = "x".repeat(300);
-      const entry = makeMemory({ content: longContent });
-      vi.mocked(getMemoryProvider).mockReturnValue(makeProvider([entry]));
-      const { res, result } = mockResponse();
-      handleListMemory(listRequest(), res);
-      const body = result.body as { entries: Array<Record<string, unknown>> };
-      expect((body.entries[0].excerpt as string).length).toBe(200);
+      expect(item.content).toBe("Hello world memory.");
     });
 
     it("returns 500 when provider throws", () => {

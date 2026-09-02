@@ -5,6 +5,9 @@ Embedding-backed semantic search over the file-based knowledge store.
 - Wraps the default `KnowledgeStore` with `SemanticKnowledgeStore`.
 - Keeps the sidecar index next to knowledge entries.
 - Registers itself as the knowledge provider selected by config.
+- `SemanticIndexManager` owns index load, reconciliation, ranking, background
+  update failure handling, persistence, and reindex lifecycle. This module
+  retains only knowledge document/filter/result mapping.
 
 ## Boundaries
 

@@ -20,6 +20,10 @@ This directory owns the `knowledge` management tool — a structured, file-based
   store. Omitted scope ids resolve to the daemon's active/default scope at
   the route or client boundary; explicit unknown ids return the typed
   `unknown_scope` route error.
+- `operations.ts` owns list/show/delete/search/reindex orchestration and the
+  not-found and semantic-unavailable result arms. Local clients and routes
+  consume it directly. Routine daemon list/add/search/reindex transport is
+  generated; show/delete retain only their HTTP 404 transform.
 - Registers `knowledge` in the `management` tool group.
 - Contributes the `knowledge` skill (prompt guidance for storing and querying structured entries).
 - Telegram and terminal search consume the shared HTTP route and line renderer.
@@ -35,6 +39,8 @@ This directory owns the `knowledge` management tool — a structured, file-based
 - Modules that consume the knowledge store at runtime (currently
   `knowledge-semantic`) must list `knowledge` in their KotaModule
   `dependencies` so the loader orders onLoad correctly.
+- Consumers resolve the registered provider; the store has no ambient
+  singleton or production reset hook.
 - The base provider is keyword-only. Embedding-backed implementations declare
   `semanticSearchCapability`; callers inspect that structural capability and
   report explicit unavailability when it is absent.

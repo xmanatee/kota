@@ -14,7 +14,7 @@ import {
   type DirectoryScope,
 } from "#core/daemon/scope-registry.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
-import { getScopeHistoryStore, resetHistory } from "#modules/history/history.js";
+import { getScopeHistoryStore } from "#modules/history/history.js";
 import { HistoryScopeStores } from "#modules/history/scope.js";
 import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
@@ -773,14 +773,12 @@ describe("memory lifecycle aging fixture", () => {
 
   beforeEach(() => {
     resetProviderRegistry();
-    resetHistory();
     resetWorkingMemory();
     root = mkdtempSync(join(tmpdir(), "kota-memory-lifecycle-aging-"));
   });
 
   afterEach(() => {
     resetProviderRegistry();
-    resetHistory();
     resetWorkingMemory();
     rmSync(root, { recursive: true, force: true });
   });

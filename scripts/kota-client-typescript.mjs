@@ -1,56 +1,267 @@
-import { KOTA_CLIENT_NAMESPACE_GRAPH } from "./daemon-contract-graph.mjs";
+import {
+  DAEMON_OPERATION_DESCRIPTORS,
+  GENERATED_DAEMON_CLIENT_GRAPH,
+  KOTA_CLIENT_NAMESPACE_GRAPH,
+} from "./daemon-contract-graph.mjs";
 
-export function generateKotaClientAggregate() {
-  const importsByPath = new Map();
-  for (const [, type, path] of KOTA_CLIENT_NAMESPACE_GRAPH) {
-    const types = importsByPath.get(path) ?? [];
-    types.push(type);
-    importsByPath.set(path, types);
+const DEFAULT_DECODER_SOURCE = "#root/client/daemon-contract.generated.js";
+
+function upperFirst(value) {
+  return value.slice(0, 1).toUpperCase() + value.slice(1);
+}
+
+function namespaceDefinition(namespace) {
+  const definition = KOTA_CLIENT_NAMESPACE_GRAPH.find(([name]) => name === namespace);
+  if (!definition) throw new Error(`Generated daemon client has unknown namespace: ${namespace}`);
+  return { type: definition[1], source: definition[2] };
+}
+
+function generatedOperations(namespace) {
+  return DAEMON_OPERATION_DESCRIPTORS.filter(
+    (operation) => operation.namespace === namespace,
+  );
+}
+
+function routineOperations(namespace) {
+  return generatedOperations(namespace).filter(
+    (operation) => operation.classification === "routine",
+  );
+}
+
+function methodArgumentNames(operation) {
+  return (operation.parameters ?? [])
+    .filter((parameter) => parameter.source === undefined)
+    .map((parameter) => parameter.name);
+}
+
+function renderPath(path) {
+  if (!path.includes(":")) return JSON.stringify(path);
+  return `\`${path.replace(
+    /:([A-Za-z_$][A-Za-z0-9_$]*)/g,
+    (_, name) => `\${encodeURIComponent(${name})}`,
+  )}\``;
+}
+
+function renderQuery(operation) {
+  const queryParameters = (operation.parameters ?? []).filter((parameter) =>
+    ["query", "queryOptions", "scopeQuery"].includes(parameter.type),
+  );
+  if (queryParameters.length === 0) return { statements: [], path: renderPath(operation.path) };
+
+  const statements = ["const params = new URLSearchParams();"];
+  for (const parameter of queryParameters) {
+    if (parameter.type === "query") {
+      statements.push(
+        `appendQueryValue(params, ${JSON.stringify(parameter.wireName ?? parameter.name)}, ${parameter.name});`,
+      );
+      continue;
+    }
+    if (parameter.type === "queryOptions") {
+      const wireNames = parameter.wireNames
+        ? `, ${JSON.stringify(parameter.wireNames)}`
+        : "";
+      statements.push(`appendQueryObject(params, ${parameter.name}${wireNames});`);
+      continue;
+    }
+    const value = parameter.source
+      ? `${parameter.source}?.${parameter.name}`
+      : `${parameter.name}?.scopeId`;
+    statements.push("appendQueryValue(params, \"scopeId\", " + value + ");");
   }
-  
-  // Add additional imported types needed for routine client classes
-  const extraImports = [
-    ["#modules/agent-ops/client.js", ["AgentInspectResult", "AgentsListResult"]],
-    ["#modules/skill-ops/client.js", ["SkillImportOptions", "SkillImportResult", "SkillsListResult"]],
-    ["#modules/recall/client.js", ["RecallFilter", "RecallResult"]],
-    ["#modules/capture/client.js", ["CaptureFilter", "CaptureResult"]],
-    ["#modules/retract/client.js", ["RetractRequest", "RetractResult"]],
-    ["#modules/resource-discovery/client.js", ["ResourceDiscoveryFilter", "ResourceDiscoveryResult"]],
-    ["#modules/doctor/client.js", ["DoctorFixResult", "DoctorRunOptions", "DoctorRunResult"]],
-    ["#modules/guardrails-audit/client.js", ["AuditListFilter", "AuditListResult"]],
-    ["#modules/webhook/client.js", ["WebhookListResult", "WebhookSecretGenerateResult", "WebhookSecretRemoveResult"]],
-    ["#modules/module-manager/client.js", ["ModuleInspectResult", "ModuleReloadResult", "ModulesListResult"]],
-    ["#modules/inbound-signals/client.js", ["InboundSignalRouteListResult", "InboundSignalRouteValidationResult", "InboundSignalScopeSelection"]],
-    ["#modules/answer/client.js", ["AnswerFilter", "AnswerHistoryListFilter", "AnswerHistoryListResult", "AnswerHistoryShowFilter", "AnswerHistoryShowResult", "AnswerResult", "decodeAnswerHistoryListResult", "decodeAnswerHistoryShowResult"]],
-    ["#root/client/daemon-contract.generated.js", ["parseCaptureResult", "parseRetractResult"]],
+  return {
+    statements,
+    path: `withQuery(${renderPath(operation.path)}, params)`,
+  };
+}
+
+function renderBody(operation) {
+  const parameters = operation.parameters ?? [];
+  const direct = parameters.find((parameter) => parameter.type === "bodyDirect");
+  if (direct) return direct.name;
+
+  const bodyParameters = parameters.filter((parameter) =>
+    ["body", "bodyFilter", "bodySpread"].includes(parameter.type),
+  );
+  if (bodyParameters.length === 0) return undefined;
+
+  const entries = [];
+  for (const parameter of bodyParameters) {
+    if (parameter.type === "bodySpread") {
+      const omitted = parameters
+        .filter((candidate) => candidate.source === parameter.name)
+        .map((candidate) => candidate.name);
+      const value = omitted.length > 0
+        ? `omitBodyKeys(${parameter.name}, ${JSON.stringify(omitted)})`
+        : parameter.name;
+      entries.push(`...(${value} ?? {})`);
+      continue;
+    }
+
+    const key = parameter.type === "bodyFilter" ? "filter" : parameter.name;
+    if (parameter.defaultValue !== undefined) {
+      entries.push(`${key}: ${parameter.name} ?? ${parameter.defaultValue}`);
+    } else if (parameter.optional) {
+      entries.push(`...(${parameter.name} !== undefined && { ${key}: ${parameter.name} })`);
+    } else {
+      entries.push(`${key}: ${parameter.name}`);
+    }
+  }
+  return `{ ${entries.join(", ")} }`;
+}
+
+function indent(lines, spaces) {
+  const prefix = " ".repeat(spaces);
+  return lines.map((line) => (line.length > 0 ? prefix + line : line));
+}
+
+function renderRoutineMethod(operation, clientType, transportExpression, indentation) {
+  const argumentsList = methodArgumentNames(operation);
+  const args = argumentsList.join(", ");
+  const returnType = `Awaited<ReturnType<${clientType}[${JSON.stringify(operation.clientMethod)}]>>`;
+  const parameters = argumentsList.length === 0
+    ? ""
+    : `...[${args}]: Parameters<${clientType}[${JSON.stringify(operation.clientMethod)}]>`;
+  const lines = [
+    `async ${operation.clientMethod}(${parameters}): Promise<${returnType}> {`,
   ];
 
-  for (const [path, extraTypes] of extraImports) {
-    const types = importsByPath.get(path) ?? [];
-    for (const t of extraTypes) {
-      if (!types.includes(t)) types.push(t);
-    }
-    importsByPath.set(path, types);
+  if (operation.derivedFrom) {
+    const resultPath = operation.resultPath ? `.${operation.resultPath}` : "";
+    lines.push(`  return (await this.${operation.derivedFrom}(${args}))${resultPath};`, "}");
+    return indent(lines, indentation).join("\n");
   }
 
-  const imports = [...importsByPath.entries()]
+  const query = renderQuery(operation);
+  lines.push(...query.statements.map((statement) => `  ${statement}`));
+  const body = renderBody(operation);
+  const requestArguments = [JSON.stringify(operation.method), query.path];
+  if (body !== undefined) requestArguments.push(body);
+  const request = requestArguments.join(", ");
+
+  if (operation.transport === "nullable") {
+    lines.push(
+      `  const result = await ${transportExpression}.request<${returnType}>(${request});`,
+      "  if (!result) {",
+      `    throw new Error(${JSON.stringify(operation.unavailableMessage)});`,
+      "  }",
+      "  return result;",
+      "}",
+    );
+    return indent(lines, indentation).join("\n");
+  }
+
+  if (operation.responseDecoder) {
+    lines.push(
+      `  const decoded = await ${transportExpression}.requestStrict<unknown>(${request});`,
+      `  return ${operation.responseDecoder}(decoded);`,
+      "}",
+    );
+    return indent(lines, indentation).join("\n");
+  }
+
+  lines.push(
+    `  return ${transportExpression}.requestStrict<${returnType}>(${request});`,
+    "}",
+  );
+  return indent(lines, indentation).join("\n");
+}
+
+function renderCompleteClient(definition) {
+  const { type } = namespaceDefinition(definition.namespace);
+  const className = `Routine${upperFirst(definition.namespace)}Client`;
+  const methods = routineOperations(definition.namespace)
+    .map((operation) => renderRoutineMethod(operation, type, "this.transport", 2))
+    .join("\n\n");
+  return `class ${className} implements ${type} {
+  constructor(private readonly transport: DaemonTransport) {}
+
+${methods}
+}`;
+}
+
+function renderPartialClient(definition) {
+  const { type } = namespaceDefinition(definition.namespace);
+  const operations = generatedOperations(definition.namespace);
+  const exceptions = operations
+    .filter((operation) => operation.classification === "exception")
+    .map((operation) => JSON.stringify(operation.clientMethod));
+  if (exceptions.length === 0) {
+    throw new Error(`Partial generated client has no exceptions: ${definition.namespace}`);
+  }
+  const methods = routineOperations(definition.namespace)
+    .map((operation) => renderRoutineMethod(operation, type, "transport", 4))
+    .join(",\n");
+  return `export type ${definition.exportStem}DaemonClientExceptions = Pick<
+  ${type},
+  ${exceptions.join(" | ")}
+>;
+
+export function create${definition.exportStem}DaemonClient(
+  transport: DaemonTransport,
+  exceptions: ${definition.exportStem}DaemonClientExceptions,
+): ${type} {
+  return {
+${methods},
+    ...exceptions,
+  };
+}`;
+}
+
+function renderImports() {
+  const importsByPath = new Map();
+  for (const [, type, path] of KOTA_CLIENT_NAMESPACE_GRAPH) {
+    const entry = importsByPath.get(path) ?? { types: new Set(), values: new Set() };
+    entry.types.add(type);
+    importsByPath.set(path, entry);
+  }
+  for (const definition of GENERATED_DAEMON_CLIENT_GRAPH) {
+    for (const operation of routineOperations(definition.namespace)) {
+      if (!operation.responseDecoder) continue;
+      const source = operation.responseDecoderSource ?? DEFAULT_DECODER_SOURCE;
+      const entry = importsByPath.get(source) ?? { types: new Set(), values: new Set() };
+      entry.values.add(operation.responseDecoder);
+      importsByPath.set(source, entry);
+    }
+  }
+  return [...importsByPath.entries()]
     .sort(([left], [right]) => left.localeCompare(right))
-    .flatMap(([path, types]) => {
-      const isValueImport = (symbol) => symbol.startsWith("decode") || symbol.startsWith("parse");
-      const typeImports = types.filter(t => !isValueImport(t));
-      const valImports = types.filter(isValueImport);
+    .flatMap(([path, symbols]) => {
       const lines = [];
-      if (typeImports.length > 0) lines.push(`import type { ${typeImports.sort().join(", ")} } from ${JSON.stringify(path)};`);
-      if (valImports.length > 0) lines.push(`import { ${valImports.sort().join(", ")} } from ${JSON.stringify(path)};`);
+      if (symbols.types.size > 0) {
+        lines.push(`import type { ${[...symbols.types].sort().join(", ")} } from ${JSON.stringify(path)};`);
+      }
+      if (symbols.values.size > 0) {
+        lines.push(`import { ${[...symbols.values].sort().join(", ")} } from ${JSON.stringify(path)};`);
+      }
       return lines;
     })
     .join("\n");
+}
 
+export function generateKotaClientAggregate() {
+  const imports = renderImports();
   const fields = KOTA_CLIENT_NAMESPACE_GRAPH
     .map(([name, type]) => `  readonly ${name}: ${type};`)
     .join("\n");
   const names = KOTA_CLIENT_NAMESPACE_GRAPH
     .map(([name]) => `  ${JSON.stringify(name)},`)
+    .join("\n");
+  const completeDefinitions = GENERATED_DAEMON_CLIENT_GRAPH.filter(
+    (definition) => definition.kind === "complete",
+  );
+  const clients = completeDefinitions.map(renderCompleteClient).join("\n\n");
+  const partialClients = GENERATED_DAEMON_CLIENT_GRAPH
+    .filter((definition) => definition.kind === "partial")
+    .map(renderPartialClient)
+    .join("\n\n");
+  const routineNamespaceUnion = completeDefinitions
+    .map((definition) => `  | ${JSON.stringify(definition.namespace)}`)
+    .join("\n");
+  const routineAssignments = completeDefinitions
+    .map(
+      (definition) =>
+        `    ${definition.namespace}: new Routine${upperFirst(definition.namespace)}Client(transport),`,
+    )
     .join("\n");
 
   return `// Generated from scripts/daemon-contract-graph.mjs.
@@ -109,287 +320,59 @@ export class KotaClientScopeError extends Error {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Routine Daemon Client Implementations
-// Generated from canonical operation descriptor authority.
-// ---------------------------------------------------------------------------
-
-class RoutineAgentsClient implements AgentsClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async list(): Promise<AgentsListResult> {
-    return this.transport.requestStrict<AgentsListResult>("GET", "/agents");
+function appendQueryValue(
+  params: URLSearchParams,
+  name: string,
+  value: unknown,
+): void {
+  if (value === undefined) return;
+  if (Array.isArray(value)) {
+    for (const item of value) appendQueryValue(params, name, item);
+    return;
   }
+  params.append(name, String(value));
+}
 
-  async inspect(name: string): Promise<AgentInspectResult> {
-    return this.transport.requestStrict<AgentInspectResult>(
-      "GET",
-      \`/agents/\${encodeURIComponent(name)}\`,
-    );
+function appendQueryObject(
+  params: URLSearchParams,
+  value: object | undefined,
+  wireNames: Readonly<Record<string, string>> = {},
+): void {
+  if (!value) return;
+  for (const [name, item] of Object.entries(value)) {
+    appendQueryValue(params, wireNames[name] ?? name, item);
   }
 }
 
-class RoutineSkillsClient implements SkillsClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async list(): Promise<SkillsListResult> {
-    return this.transport.requestStrict<SkillsListResult>("GET", "/skills");
-  }
-
-  async import(
-    source: string,
-    options?: SkillImportOptions,
-  ): Promise<SkillImportResult> {
-    return this.transport.requestStrict<SkillImportResult>(
-      "POST",
-      "/skills/import",
-      {
-        source,
-        ...(options?.name !== undefined && { name: options.name }),
-        ...(options?.skill !== undefined && { skill: options.skill }),
-        ...(options?.all !== undefined && { all: options.all }),
-      },
-    );
-  }
+function withQuery(path: string, params: URLSearchParams): string {
+  const query = params.toString();
+  return query.length > 0 ? \`\${path}?\${query}\` : path;
 }
 
-class RoutineRecallClient implements RecallClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async recall(query: string, filter?: RecallFilter): Promise<RecallResult> {
-    return this.transport.requestStrict<RecallResult>("POST", "/recall", {
-      query,
-      ...(filter && { filter }),
-    });
-  }
+function omitBodyKeys(
+  value: object | undefined,
+  omitted: readonly string[],
+): Record<string, unknown> | undefined {
+  if (!value) return undefined;
+  return Object.fromEntries(
+    Object.entries(value).filter(([name]) => !omitted.includes(name)),
+  );
 }
 
-class RoutineCaptureClient implements CaptureClient {
-  constructor(private readonly transport: DaemonTransport) {}
+${clients}
 
-  async capture(text: string, filter?: CaptureFilter): Promise<CaptureResult> {
-    const decoded = await this.transport.requestStrict<unknown>("POST", "/capture", {
-      text,
-      ...(filter && { filter }),
-    });
-    return parseCaptureResult(decoded);
-  }
-}
-
-class RoutineRetractClient implements RetractClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async retract(request: RetractRequest): Promise<RetractResult> {
-    const decoded = await this.transport.requestStrict<unknown>(
-      "POST",
-      "/retract",
-      request,
-    );
-    return parseRetractResult(decoded);
-  }
-}
-
-class RoutineResourceDiscoveryClient implements ResourceDiscoveryClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async discover(
-    query: string,
-    filter?: ResourceDiscoveryFilter,
-  ): Promise<ResourceDiscoveryResult> {
-    return this.transport.requestStrict<ResourceDiscoveryResult>(
-      "POST",
-      "/resource-discovery",
-      {
-        query,
-        ...(filter ? { filter } : {}),
-      },
-    );
-  }
-}
-
-class RoutineDoctorClient implements DoctorClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async run(options?: DoctorRunOptions): Promise<DoctorRunResult> {
-    const params = new URLSearchParams();
-    if (options?.skipConnectivity) params.set("skipConnectivity", "true");
-    if (options?.preset) params.set("preset", options.preset);
-    const query = params.toString() ? \`?\${params.toString()}\` : "";
-    return this.transport.requestStrict<DoctorRunResult>(
-      "GET",
-      \`/doctor/run\${query}\`,
-    );
-  }
-
-  async fix(): Promise<DoctorFixResult> {
-    return this.transport.requestStrict<DoctorFixResult>("POST", "/doctor/fix");
-  }
-}
-
-class RoutineAuditClient implements AuditClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async list(filter?: AuditListFilter): Promise<AuditListResult> {
-    const params = new URLSearchParams();
-    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-    if (filter?.since) params.set("since", filter.since);
-    if (filter?.tool) params.set("tool", filter.tool);
-    if (filter?.risk) params.set("risk", filter.risk);
-    if (filter?.policy) params.set("policy", filter.policy);
-    if (filter?.session) params.set("session", filter.session);
-    const query = params.toString() ? \`?\${params.toString()}\` : "";
-    return this.transport.requestStrict<AuditListResult>("GET", \`/audit\${query}\`);
-  }
-}
-
-class RoutineWebhookClient implements WebhookClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async list(): Promise<WebhookListResult> {
-    return this.transport.requestStrict<WebhookListResult>("GET", "/webhooks");
-  }
-
-  async secretGenerate(
-    workflow: string,
-  ): Promise<WebhookSecretGenerateResult> {
-    return this.transport.requestStrict<WebhookSecretGenerateResult>(
-      "POST",
-      \`/webhooks/\${encodeURIComponent(workflow)}/secret\`,
-    );
-  }
-
-  async secretRemove(workflow: string): Promise<WebhookSecretRemoveResult> {
-    return this.transport.requestStrict<WebhookSecretRemoveResult>(
-      "DELETE",
-      \`/webhooks/\${encodeURIComponent(workflow)}/secret\`,
-    );
-  }
-}
-
-class RoutineModulesClient implements ModulesClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async list(): Promise<ModulesListResult> {
-    return this.transport.requestStrict<ModulesListResult>("GET", "/modules");
-  }
-}
-
-class RoutineModulesAdminClient implements ModulesAdminClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async inspect(name: string): Promise<ModuleInspectResult> {
-    return this.transport.requestStrict<ModuleInspectResult>(
-      "GET",
-      \`/modules/\${encodeURIComponent(name)}\`,
-    );
-  }
-
-  async reload(name: string): Promise<ModuleReloadResult> {
-    return this.transport.requestStrict<ModuleReloadResult>(
-      "POST",
-      \`/modules/\${encodeURIComponent(name)}/reload\`,
-    );
-  }
-}
-
-class RoutineInboundSignalsClient implements InboundSignalsClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async listRoutes(
-    scopeSelector?: InboundSignalScopeSelection,
-  ): Promise<InboundSignalRouteListResult> {
-    const query = scopeSelector?.scopeId
-      ? \`?scopeId=\${encodeURIComponent(scopeSelector.scopeId)}\`
-      : "";
-    const result = await this.transport.request<InboundSignalRouteListResult>(
-      "GET",
-      \`/inbound-signals/routes\${query}\`,
-    );
-    if (!result) {
-      throw new Error("Daemon unreachable while listing inbound signal routes");
-    }
-    return result;
-  }
-
-  async validateRoutes(
-    scopeSelector?: InboundSignalScopeSelection,
-  ): Promise<InboundSignalRouteValidationResult> {
-    return (await this.listRoutes(scopeSelector)).validation;
-  }
-}
-
-class RoutineAnswerClient implements AnswerClient {
-  constructor(private readonly transport: DaemonTransport) {}
-
-  async answer(query: string, filter?: AnswerFilter): Promise<AnswerResult> {
-    return this.transport.requestStrict<AnswerResult>("POST", "/answer", {
-      query,
-      ...(filter && { filter }),
-    });
-  }
-
-  async log(filter?: AnswerHistoryListFilter): Promise<AnswerHistoryListResult> {
-    const params = new URLSearchParams();
-    if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-    if (filter?.beforeId !== undefined) params.set("beforeId", filter.beforeId);
-    if (filter?.scopeId !== undefined) params.set("scopeId", filter.scopeId);
-    const query = params.toString() ? \`?\${params.toString()}\` : "";
-    const decoded = await this.transport.requestStrict<unknown>(
-      "GET",
-      \`/answers\${query}\`,
-    );
-    return decodeAnswerHistoryListResult(decoded);
-  }
-
-  async show(
-    id: string,
-    scope?: AnswerHistoryShowFilter,
-  ): Promise<AnswerHistoryShowResult> {
-    const params = new URLSearchParams();
-    if (scope?.scopeId !== undefined) params.set("scopeId", scope.scopeId);
-    const query = params.toString() ? \`?\${params.toString()}\` : "";
-    const decoded = await this.transport.requestStrict<unknown>(
-      "GET",
-      \`/answers/\${encodeURIComponent(id)}\${query}\`,
-    );
-    return decodeAnswerHistoryShowResult(decoded);
-  }
-}
+${partialClients}
 
 export type RoutineDaemonClientHandlers = Pick<
   DaemonClientHandlers,
-  | "agents"
-  | "skills"
-  | "recall"
-  | "capture"
-  | "retract"
-  | "resourceDiscovery"
-  | "doctor"
-  | "audit"
-  | "webhook"
-  | "modules"
-  | "modulesAdmin"
-  | "inboundSignals"
-  | "answer"
+${routineNamespaceUnion}
 >;
 
 export function createRoutineDaemonClientHandlers(
   transport: DaemonTransport,
 ): RoutineDaemonClientHandlers {
   return {
-    agents: new RoutineAgentsClient(transport),
-    skills: new RoutineSkillsClient(transport),
-    recall: new RoutineRecallClient(transport),
-    capture: new RoutineCaptureClient(transport),
-    retract: new RoutineRetractClient(transport),
-    resourceDiscovery: new RoutineResourceDiscoveryClient(transport),
-    doctor: new RoutineDoctorClient(transport),
-    audit: new RoutineAuditClient(transport),
-    webhook: new RoutineWebhookClient(transport),
-    modules: new RoutineModulesClient(transport),
-    modulesAdmin: new RoutineModulesAdminClient(transport),
-    inboundSignals: new RoutineInboundSignalsClient(transport),
-    answer: new RoutineAnswerClient(transport),
+${routineAssignments}
   };
 }
 `;

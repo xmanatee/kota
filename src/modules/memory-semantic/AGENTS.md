@@ -5,6 +5,9 @@ Embedding-backed semantic search over the file-based memory store.
 - Wraps the default `MemoryStore` with `SemanticMemoryStore`.
 - Keeps the sidecar index next to `memory.json`.
 - Registers itself as the memory provider selected by config.
+- `SemanticIndexManager` owns index load, reconciliation, ranking, background
+  update failure handling, persistence, and reindex lifecycle. This module
+  retains only memory document/filter/result mapping.
 
 ## Boundaries
 

@@ -1,371 +1,77 @@
-/**
- * Repo-tasks namespace daemon-side handler test.
- *
- * The tasks namespace migrated out of the core stub into `daemonClient(link)`
- * on the repo-tasks module. This test pins the invariants the migration
- * relies on:
- *
- *  1. The repo-tasks module exposes a `daemonClient(link)` factory that
- *     contributes the task operations.
- *  2. `list(states)` GETs `/api/tasks` through `link.fetchRaw`, flattens the
- *     state-keyed body, and skips terminal `done`/`dropped` states. When
- *     the caller passes no states, it defaults to `open` and `blocked`.
- *  3. `list` soft-fails on transport error and on non-ok response: it
- *     returns `{ tasks: [] }` rather than throwing.
- *  4. `show(id)` GETs `/api/tasks/<encodeURIComponent(id)>`. 404 collapses
- *     to `{ found: false }`; non-ok throws the daemon's `error` field;
- *     success returns `{ found: true, state, content }`.
- *  5. `move(id, toState)` PATCHes `/api/tasks/<id>/move` with body
- *     `{ state: toState }` and the JSON content-type header. 404 collapses
- *     to `not_found`; 409 to `already_in_state` with the response body's
- *     `state` (or `toState` when missing); other non-ok throws.
- *  6. `create(options)` POSTs `/api/tasks/normalized` with the full
- *     options body. 409 → `already_exists`; 400 → `invalid_slug`; non-ok
- *     throws; success returns `{ ok: true, id, path }`.
- *  7. `capture(title)` POSTs `/api/tasks/capture` with body `{ title }`.
- *     Same conflict and success arms as `create`.
- *  8. `search(query, filter)` GETs `/tasks/search?q=…` with `semantic`,
- *     `limit`, and `state` query params. Non-ok throws; success returns
- *     the body verbatim.
- *  9. `reindex()` POSTs `/tasks/reindex`. Non-ok throws; success returns
- *     the body verbatim.
- * 10. Supplying the contribution to the assembly path satisfies coverage.
- * 11. Removing the repo-tasks module's contribution makes the assembled
- *     client fail loudly with a clear "tasks" missing-handler error.
- */
-
 import { describe, expect, it } from "vitest";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import repoTasksModule from "./index.js";
 
-type RecordedFetchRaw = {
-  path: string;
-  init: RequestInit | undefined;
-};
-
-type FetchResponder = (
-  path: string,
-  init: RequestInit | undefined,
-) => Response | Promise<Response>;
-
-function makeRecordingTransport(opts: {
-  fetchRaw?: FetchResponder;
-}): { transport: DaemonTransport; calls: RecordedFetchRaw[] } {
-  const calls: RecordedFetchRaw[] = [];
-  const transport: DaemonTransport = {
+function transport(
+  respond: (path: string, init?: RequestInit) => Response | Promise<Response>,
+): DaemonTransport {
+  return {
     baseUrl: "http://127.0.0.1:0",
-    authHeaders: () => ({ Authorization: "Bearer test-token" }),
+    authHeaders: () => ({}),
     request: async () => null,
     requestStrict: async () => {
-      throw new Error("not used");
+      throw new Error("routine transport is generated and covered by integration");
     },
-    fetchRaw: async (path, init) => {
-      calls.push({ path, init });
-      if (!opts.fetchRaw) {
-        throw new Error("fetchRaw responder not configured");
-      }
-      return opts.fetchRaw(path, init);
-    },
-    events: async function* () {
-      // empty generator
-    },
+    fetchRaw: async (path, init) => respond(path, init as RequestInit | undefined),
+    events: async function* () {},
   };
-  return { transport, calls };
 }
 
-function jsonResponse(status: number, body: unknown): Response {
+function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "Content-Type": "application/json" },
   });
 }
 
-describe("repo-tasks module daemonClient(link) — tasks namespace", () => {
-  it("contributes a tasks namespace handler with eight methods", () => {
-    expect(repoTasksModule.daemonClient).toBeTypeOf("function");
-    const { transport } = makeRecordingTransport({});
-    const contributed = repoTasksModule.daemonClient!(transport);
-    expect(contributed.tasks).toBeDefined();
-    const tasks = contributed.tasks!;
-    expect(typeof tasks.list).toBe("function");
-    expect(typeof tasks.show).toBe("function");
-    expect(typeof tasks.move).toBe("function");
-    expect(typeof tasks.create).toBe("function");
-    expect(typeof tasks.capture).toBe("function");
-    expect(typeof tasks.search).toBe("function");
-    expect(typeof tasks.reindex).toBe("function");
+function client(respond: Parameters<typeof transport>[0]) {
+  return repoTasksModule.daemonClient!(transport(respond)).tasks!;
+}
+
+describe("repo-tasks exceptional daemon transforms", () => {
+  it("maps missing reads and move conflicts to the domain unions", async () => {
+    await expect(client(() => json(404, {})).show("task-missing")).resolves.toEqual({
+      found: false,
+    });
+    await expect(client(() => json(409, { state: "blocked" })).move(
+      "task-a",
+      "blocked",
+    )).resolves.toEqual({
+      ok: false,
+      reason: "already_in_state",
+      state: "blocked",
+    });
   });
 
-  it("list flattens the state-keyed body and defaults to active states", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () =>
-        jsonResponse(200, {
-          counts: { open: 1, blocked: 1, done: 1, dropped: 0 },
-          tasks: {
-            open: [
-              { id: "o1", title: "O-One", priority: "p1", body: "" },
-            ],
-            blocked: [
-              { id: "b1", title: "B-One", priority: "p2", body: "" },
-            ],
-            done: [
-              { id: "d1", title: "D-One", priority: "p3", body: "" },
-            ],
-            dropped: [],
-          },
-        }),
+  it("preserves task and inbox validation failures without copied result arms", async () => {
+    const invalid = client((path) => path.includes("capture")
+      ? json(409, { error: "Inbox exists" })
+      : json(400, { error: "Invalid title" }));
+    await expect(invalid.create({ title: "?", priority: "p1" })).resolves.toEqual({
+      ok: false,
+      reason: "invalid_slug",
+      message: "Invalid title",
     });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.list();
-    expect(result).toEqual({
-      tasks: [
-        { id: "o1", title: "O-One", priority: "p1", state: "open", waitingOnTasks: [] },
-        { id: "b1", title: "B-One", priority: "p2", state: "blocked", waitingOnTasks: [] },
-      ],
+    await expect(invalid.capture("Existing")).resolves.toEqual({
+      ok: false,
+      reason: "already_exists",
+      message: "Inbox exists",
     });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.path).toBe("/api/tasks");
-    expect(calls[0]!.init?.method).toBe("GET");
   });
 
-  it("list skips terminal states even when the caller asks for them", async () => {
-    const { transport } = makeRecordingTransport({
-      fetchRaw: () =>
-        jsonResponse(200, {
-          counts: {},
-          tasks: {
-            done: [{ id: "d1", title: "D", priority: "p2", body: "" }],
-            dropped: [{ id: "x1", title: "X", priority: "p2", body: "" }],
-            open: [{ id: "o1", title: "O", priority: "p2", body: "" }],
-          },
-        }),
+  it("re-reads a body update so callers receive canonical persisted content", async () => {
+    let calls = 0;
+    const tasks = client(() => {
+      calls += 1;
+      return calls === 1
+        ? json(200, {})
+        : json(200, { state: "open", content: "# Canonical" });
     });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.list(["done", "dropped", "open"]);
-    expect(result.tasks.map((t) => t.id)).toEqual(["o1"]);
-  });
-
-  it("list soft-fails on non-ok response (returns { tasks: [] })", async () => {
-    const { transport } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(500, { error: "boom" }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.list();
-    expect(result).toEqual({ tasks: [] });
-  });
-
-  it("list soft-fails on transport error (fetchRaw throws)", async () => {
-    const { transport } = makeRecordingTransport({
-      fetchRaw: () => {
-        throw new Error("network down");
-      },
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.list();
-    expect(result).toEqual({ tasks: [] });
-  });
-
-  it("show GETs /api/tasks/<id> and decodes the success arm", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { state: "open", content: "task body" }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.show("task-foo bar");
-    expect(result).toEqual({ found: true, state: "open", content: "task body" });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.path).toBe("/api/tasks/task-foo%20bar");
-    expect(calls[0]!.init?.method).toBe("GET");
-  });
-
-  it("show returns { found: false } on 404 and throws the daemon's error on other non-ok", async () => {
-    const { transport: t404 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(404, { error: "missing" }),
-    });
-    const c404 = repoTasksModule.daemonClient!(t404);
-    expect(await c404.tasks!.show("missing")).toEqual({ found: false });
-
-    const { transport: t500 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(500, { error: "broken" }),
-    });
-    const c500 = repoTasksModule.daemonClient!(t500);
-    await expect(c500.tasks!.show("any")).rejects.toThrow(/broken/);
-  });
-
-  it("move PATCHes /api/tasks/<id>/move with the JSON state body", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () =>
-        jsonResponse(200, {
-          id: "t1",
-          fromState: "open",
-          toState: "open",
-          path: "data/tasks/t1.md",
-          previousPath: "data/tasks/t1.md",
-        }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.move("t1", "open");
-    expect(result).toEqual({
+    await expect(tasks.updateBody!("task-a", "# Requested")).resolves.toEqual({
       ok: true,
-      id: "t1",
-      fromState: "open",
-      toState: "open",
-      path: "data/tasks/t1.md",
-      previousPath: "data/tasks/t1.md",
-    });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.path).toBe("/api/tasks/t1/move");
-    expect(calls[0]!.init?.method).toBe("PATCH");
-    expect((calls[0]!.init?.headers as Record<string, string>)["Content-Type"]).toBe(
-      "application/json",
-    );
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ state: "open" });
-  });
-
-  it("move decodes not-found, same-state, and active resource ownership", async () => {
-    const { transport: t404 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(404, {}),
-    });
-    expect(
-      await repoTasksModule.daemonClient!(t404).tasks!.move("missing", "open"),
-    ).toEqual({ ok: false, reason: "not_found" });
-
-    const { transport: t409 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(409, { state: "open" }),
-    });
-    expect(
-      await repoTasksModule.daemonClient!(t409).tasks!.move("t1", "open"),
-    ).toEqual({ ok: false, reason: "already_in_state", state: "open" });
-
-    const { transport: t409Empty } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(409, {}),
-    });
-    expect(
-      await repoTasksModule.daemonClient!(t409Empty).tasks!.move("t1", "blocked"),
-    ).toEqual({ ok: false, reason: "already_in_state", state: "blocked" });
-
-  });
-
-  it("create POSTs /api/tasks/normalized and decodes 200/409/400", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/t1.md" }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.create({
-      title: "Hello",
-      priority: "p2",
+      id: "task-a",
       state: "open",
+      content: "# Canonical",
     });
-    expect(result).toEqual({ ok: true, id: "t1", path: "data/tasks/t1.md" });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.path).toBe("/api/tasks/normalized");
-    expect(calls[0]!.init?.method).toBe("POST");
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
-      title: "Hello",
-      priority: "p2",
-      state: "open",
-    });
-
-    const { transport: t409 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(409, { error: "exists" }),
-    });
-    expect(
-      await repoTasksModule.daemonClient!(t409).tasks!.create({
-        title: "Hello",
-        priority: "p2",
-        state: "open",
-      }),
-    ).toEqual({ ok: false, reason: "already_exists", message: "exists" });
-
-    const { transport: t400 } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(400, { error: "bad slug" }),
-    });
-    expect(
-      await repoTasksModule.daemonClient!(t400).tasks!.create({
-        title: "Hello",
-        priority: "p2",
-        state: "open",
-      }),
-    ).toEqual({ ok: false, reason: "invalid_slug", message: "bad slug" });
-  });
-
-  it("scope-scoped create sends scopeId in the query, not the JSON body", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { id: "t1", path: "data/tasks/t1.md" }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    await contributed.tasks!.create({
-      title: "Hello",
-      priority: "p2",
-      state: "open",
-      scopeId: "scope-a",
-    });
-    expect(calls[0]!.path).toBe("/api/tasks/normalized?scopeId=scope-a");
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({
-      title: "Hello",
-      priority: "p2",
-      state: "open",
-    });
-  });
-
-  it("capture POSTs /api/tasks/capture with the title body", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { id: "inb", path: "data/inbox/inb.md" }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.capture("Quick thought");
-    expect(result).toEqual({ ok: true, id: "inb", path: "data/inbox/inb.md" });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.path).toBe("/api/tasks/capture");
-    expect(calls[0]!.init?.method).toBe("POST");
-    expect(JSON.parse(String(calls[0]!.init?.body))).toEqual({ title: "Quick thought" });
-  });
-
-  it("search GETs /tasks/search with q/semantic/limit/state params", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { ok: true, tasks: [] }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.search("query terms", {
-      semantic: false,
-      limit: 5,
-      states: ["open", "blocked"],
-    });
-    expect(result).toEqual({ ok: true, tasks: [] });
-    expect(calls).toHaveLength(1);
-    expect(calls[0]!.path).toBe(
-      "/tasks/search?q=query+terms&semantic=false&limit=5&state=open&state=blocked",
-    );
-  });
-
-  it("scope-scoped search and reindex append scopeId to their query strings", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { ok: true, tasks: [] }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    await contributed.tasks!.search("query terms", {
-      semantic: false,
-      scopeId: "scope-a",
-    });
-    expect(calls[0]!.path).toBe(
-      "/tasks/search?q=query+terms&semantic=false&scopeId=scope-a",
-    );
-
-    const { transport: reindexTransport, calls: reindexCalls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { ok: true, indexed: 1, failed: 0 }),
-    });
-    const reindexClient = repoTasksModule.daemonClient!(reindexTransport);
-    await reindexClient.tasks!.reindex({ scopeId: "scope-a" });
-    expect(reindexCalls[0]!.path).toBe("/tasks/reindex?scopeId=scope-a");
-  });
-
-  it("reindex POSTs /tasks/reindex and returns the explicit operation result", async () => {
-    const { transport, calls } = makeRecordingTransport({
-      fetchRaw: () => jsonResponse(200, { ok: true, indexed: 7, failed: 1 }),
-    });
-    const contributed = repoTasksModule.daemonClient!(transport);
-    const result = await contributed.tasks!.reindex();
-    expect(result).toEqual({ ok: true, indexed: 7, failed: 1 });
-    expect(calls[0]!.path).toBe("/tasks/reindex");
-    expect(calls[0]!.init?.method).toBe("POST");
   });
 });

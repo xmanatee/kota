@@ -17,7 +17,7 @@ import type {
 	KnowledgeListFilter,
 	KnowledgeSearchFilter,
 } from "./client.js";
-import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
+import { KnowledgeStore } from "./store.js";
 
 function stubCtx(): ModuleContext {
 	return {
@@ -149,7 +149,6 @@ describe("kota knowledge add", () => {
 		scopeRoot = makeScopeRoot();
 		origCwd = process.cwd();
 		process.chdir(scopeRoot);
-		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(scopeRoot);
@@ -159,7 +158,6 @@ describe("kota knowledge add", () => {
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(scopeRoot, { recursive: true, force: true });
-		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
 
@@ -257,7 +255,6 @@ describe("kota knowledge export", () => {
 		scopeRoot = makeScopeRoot();
 		origCwd = process.cwd();
 		process.chdir(scopeRoot);
-		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(scopeRoot);
@@ -267,7 +264,6 @@ describe("kota knowledge export", () => {
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(scopeRoot, { recursive: true, force: true });
-		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
 
@@ -394,7 +390,6 @@ describe("kota knowledge search", () => {
 		scopeRoot = makeScopeRoot();
 		origCwd = process.cwd();
 		process.chdir(scopeRoot);
-		resetKnowledgeStore();
 		resetProviderRegistry();
 		const reg = initProviderRegistry();
 		store = new KnowledgeStore(scopeRoot);
@@ -404,7 +399,6 @@ describe("kota knowledge search", () => {
 	afterEach(() => {
 		process.chdir(origCwd);
 		rmSync(scopeRoot, { recursive: true, force: true });
-		resetKnowledgeStore();
 		resetProviderRegistry();
 	});
 

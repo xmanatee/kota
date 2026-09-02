@@ -6,12 +6,18 @@
  * diverge in behavior.
  */
 import { join, relative } from "node:path";
+import type { RepoTasksProvider } from "#core/modules/provider-types.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateOptions,
   RepoTaskCreateResult,
+  RepoTaskListResult,
+  RepoTaskReindexResult,
+  RepoTaskSearchFilter,
+  RepoTaskSearchResult,
   RepoTaskShowResult,
+  RepoTaskState,
   RepoTaskUpdateBodyResult,
 } from "./client.js";
 import { readVerifiedRepoMarkdownFile } from "./repo-file-mutations.js";
@@ -20,11 +26,65 @@ import {
   getRepoInboxDir,
   getRepoTaskPath,
   getRepoTasksDir,
+  listFullRepoTasks,
+  listRepoTaskDependencyWaits,
   listVerifiedFullRepoTasks,
   writeRepoInboxFile,
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
 import { isRepoTaskId } from "./task-id.js";
+
+const DEFAULT_SEARCH_LIMIT = 20;
+const DEFAULT_LIST_STATES: RepoTaskState[] = ["open", "blocked"];
+
+export function listRepoTasks(
+  repoRoot: string,
+  states?: RepoTaskState[],
+): RepoTaskListResult {
+  const selectedStates = states && states.length > 0 ? states : DEFAULT_LIST_STATES;
+  const waitingById = new Map(
+    listRepoTaskDependencyWaits(repoRoot).map((wait) => [wait.id, wait.waitingOn]),
+  );
+  return {
+    tasks: listFullRepoTasks(repoRoot, selectedStates).map((task) => ({
+      id: task.id,
+      priority: task.priority,
+      title: task.title,
+      state: task.state,
+      waitingOnTasks: waitingById.get(task.id) ?? [],
+    })),
+  };
+}
+
+export async function searchRepoTasks(
+  provider: RepoTasksProvider,
+  keywordProvider: RepoTasksProvider,
+  query: string,
+  filter?: RepoTaskSearchFilter,
+): Promise<RepoTaskSearchResult> {
+  const options = {
+    topK: filter?.limit ?? DEFAULT_SEARCH_LIMIT,
+    ...(filter?.states && filter.states.length > 0 ? { states: filter.states } : {}),
+  };
+  if (filter?.semantic === false) {
+    return { ok: true, tasks: await keywordProvider.searchTasks(query, options) };
+  }
+  const semantic = provider.semanticSearchCapability;
+  if (!semantic) return { ok: false, reason: "semantic_unavailable" };
+  try {
+    return { ok: true, tasks: await semantic.searchTasks(query, options) };
+  } catch {
+    return { ok: false, reason: "semantic_unavailable" };
+  }
+}
+
+export async function reindexRepoTasks(
+  provider: RepoTasksProvider,
+): Promise<RepoTaskReindexResult> {
+  const semantic = provider.semanticSearchCapability;
+  if (!semantic) return { ok: false, reason: "semantic_unavailable" };
+  return { ok: true, ...await semantic.reindex() };
+}
 
 /**
  * Slugify a task title into a stable kebab-case suffix used in filenames.

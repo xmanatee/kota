@@ -92,10 +92,7 @@ vi.mock("./core/modules/module-discovery.js", () => ({
 // --- Import after mocks ---
 
 import { AgentSession } from "./core/loop/loop.js";
-import {
-  getScopeHistoryStore,
-  resetHistory,
-} from "./modules/history/history.js";
+import { getScopeHistoryStore } from "./modules/history/history.js";
 
 // --- Test helpers ---
 
@@ -146,13 +143,11 @@ describe("history save → resume end-to-end", () => {
     originalCwd = process.cwd();
     process.env.HOME = tmpHome;
     process.chdir(tempScope);
-    resetHistory();
   });
 
   afterEach(() => {
     process.chdir(originalCwd);
     process.env.HOME = originalHome;
-    resetHistory();
     rmSync(tmpHome, { recursive: true, force: true });
     rmSync(tempScope, { recursive: true, force: true });
     vi.restoreAllMocks();
@@ -184,7 +179,6 @@ describe("history save → resume end-to-end", () => {
     await session1.send("Help me");
     const convId = session1.getConversationId();
     session1.close();
-    resetHistory(); // Reset singleton to force re-read from disk
 
     expect(convId).toBeTruthy();
 
@@ -194,7 +188,6 @@ describe("history save → resume end-to-end", () => {
     const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
     await session2.send("Continue the task");
     session2.close();
-    resetHistory();
 
     // Verify history has all messages
     const history = getScopeHistoryStore(tempScope);
@@ -226,7 +219,6 @@ describe("history save → resume end-to-end", () => {
     const session = new AgentSession({ autonomyMode: "autonomous" });
     await session.send("Read test.txt");
     session.close();
-    resetHistory();
 
     const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
@@ -242,13 +234,11 @@ describe("history save → resume end-to-end", () => {
     await session1.send("Start");
     const convId = session1.getConversationId();
     session1.close();
-    resetHistory();
 
     mockStreamMessage.mockResolvedValueOnce(textResponse("Second"));
     const session2 = new AgentSession({ autonomyMode: "autonomous", resumeConversation: convId! });
     await session2.send("Continue");
     session2.close();
-    resetHistory();
 
     const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
@@ -273,7 +263,6 @@ describe("history save → resume end-to-end", () => {
     const session = new AgentSession({ autonomyMode: "autonomous", resumeConversation: "nonexistent-id" });
     await session.send("Hello");
     session.close();
-    resetHistory();
 
     const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
@@ -287,7 +276,6 @@ describe("history save → resume end-to-end", () => {
     const session = new AgentSession({ autonomyMode: "autonomous" });
     await session.send("Analyze the quarterly revenue data");
     session.close();
-    resetHistory();
 
     const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
@@ -299,14 +287,11 @@ describe("history save → resume end-to-end", () => {
     const s1 = new AgentSession({ autonomyMode: "autonomous" });
     await s1.send("Task A");
     s1.close();
-    resetHistory();
 
     mockStreamMessage.mockResolvedValueOnce(textResponse("B"));
     const s2 = new AgentSession({ autonomyMode: "autonomous" });
     await s2.send("Task B");
     s2.close();
-    resetHistory();
-
     const history = getScopeHistoryStore(tempScope);
     const list = history.list({ limit: 100 });
     expect(list).toHaveLength(2);

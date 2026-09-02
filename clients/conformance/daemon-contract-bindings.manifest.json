@@ -9,11 +9,11 @@
     },
     {
       "path": "scripts/daemon-contract-graph.mjs",
-      "sha256": "5b30a9492656814af78dd001309152bfd93c2b5922b27e3a3009a557a9927a28"
+      "sha256": "6c177a65a1671fe87ef75311e9e64ea8ba8277f94294ac205e98f059a5a9e62d"
     },
     {
       "path": "scripts/kota-client-typescript.mjs",
-      "sha256": "6eef47fdcdbb11fa05fa637841edc01a29be689e897b1690401ff0ed12663627"
+      "sha256": "078d709204d6700b79e3539dc4a8f303475cb1cdae0cc7cba94fa8a172ce0ab3"
     }
   ],
   "routes": [
@@ -104,21 +104,21 @@
     {
       "id": "knowledgeSearch",
       "method": "GET",
-      "path": "/knowledge/search",
+      "path": "/api/knowledge/search",
       "type": "KnowledgeSearchResponse",
       "parser": "parseKnowledgeSearchResponse"
     },
     {
       "id": "memorySearch",
       "method": "GET",
-      "path": "/memory/search",
+      "path": "/api/memory/search",
       "type": "MemorySearchResponse",
       "parser": "parseMemorySearchResponse"
     },
     {
       "id": "historySearch",
       "method": "GET",
-      "path": "/history/search",
+      "path": "/api/history/search",
       "type": "HistorySearchResponse",
       "parser": "parseHistorySearchResponse"
     },
@@ -165,11 +165,11 @@
     },
     {
       "path": "clients/conformance/daemon-contract.generated.ts",
-      "sha256": "23ecbd492f0730a7cfc380a4442c18ebb67883d089efba36a488d431f78c665e"
+      "sha256": "462e95440641a5987dc4b7e9fef905bb1634a4de79061748578b44f1ea23c68a"
     },
     {
       "path": "src/client/daemon-contract.generated.ts",
-      "sha256": "23ecbd492f0730a7cfc380a4442c18ebb67883d089efba36a488d431f78c665e"
+      "sha256": "462e95440641a5987dc4b7e9fef905bb1634a4de79061748578b44f1ea23c68a"
     },
     {
       "path": "clients/apple/Sources/KotaShared/Generated/DaemonContract.generated.swift",
@@ -177,7 +177,7 @@
     },
     {
       "path": "src/client/kota-client.generated.ts",
-      "sha256": "5532ff99b88424c6e5afe81032964034117f9a8274d197d00bcd4fc3c42845b0"
+      "sha256": "8ea3a1ac5e1162199da37b00d04cf9a3d71ba3d747eb69ee4bdc07a9eba85303"
     }
   ]
 }

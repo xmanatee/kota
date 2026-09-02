@@ -1,13 +1,10 @@
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import { createRepoTasksDaemonClient } from "#root/client/kota-client.generated.js";
 import type {
 	RepoTaskCaptureResult,
 	RepoTaskCreateOptions,
 	RepoTaskCreateResult,
-	RepoTaskListEntry,
 	RepoTaskMoveResult,
-	RepoTaskReindexResult,
-	RepoTaskSearchFilter,
-	RepoTaskSearchResult,
 	RepoTaskShowResult,
 	RepoTaskState,
 	RepoTasksClient,
@@ -19,65 +16,8 @@ import {
 	throwRepoTaskRouteError,
 } from "./daemon-client-errors.js";
 
-const REPO_TASK_OPEN_STATES: RepoTaskState[] = [
-	"open",
-	"blocked",
-];
-
-type ListBody = {
-	counts: Record<string, number>;
-	tasks: Record<
-		string,
-		{
-			id: string;
-			title: string;
-			priority: "p0" | "p1" | "p2" | "p3";
-			body: string;
-			waitingOnTasks?: string[];
-		}[]
-	>;
-};
-
 export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksClient {
-	return {
-		list: async (states, scopeSelector) => {
-			const wanted = states && states.length > 0 ? states : REPO_TASK_OPEN_STATES;
-			const query = scopeQuery(scopeSelector?.scopeId);
-			let body: ListBody | null = null;
-			try {
-				const res = await link.fetchRaw(`/api/tasks${query}`, { method: "GET" });
-				if (res.ok) {
-					body = (await res.json()) as ListBody;
-				} else {
-					const errBody = await readRepoTaskRouteError(res);
-					if (errBody?.reason === "unknown_scope" && errBody.scopeId) {
-						throw new Error(`Unknown scope: ${errBody.scopeId}`);
-					}
-				}
-			} catch (err) {
-				if (err instanceof Error && /^Unknown scope(?::|$)/.test(err.message)) {
-					throw err;
-				}
-				body = null;
-			}
-			const tasks: RepoTaskListEntry[] = [];
-			if (body) {
-				for (const state of wanted) {
-					if (state === "done" || state === "dropped") continue;
-					const stateTasks = body.tasks[state] ?? [];
-					for (const task of stateTasks) {
-						tasks.push({
-							id: task.id,
-							priority: task.priority,
-							title: task.title,
-							state,
-							waitingOnTasks: task.waitingOnTasks ?? [],
-						});
-					}
-				}
-			}
-			return { tasks };
-		},
+	return createRepoTasksDaemonClient(link, {
 		show: async (id, scopeSelector): Promise<RepoTaskShowResult> => {
 			const query = scopeQuery(scopeSelector?.scopeId);
 			const res = await link.fetchRaw(
@@ -223,31 +163,5 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			const okBody = (await res.json()) as { id: string; path: string };
 			return { ok: true, id: okBody.id, path: okBody.path };
 		},
-		search: async (
-			query: string,
-			filter?: RepoTaskSearchFilter,
-		): Promise<RepoTaskSearchResult> => {
-			const params = new URLSearchParams();
-			params.set("q", query);
-			if (filter?.semantic === false) params.set("semantic", "false");
-			if (filter?.limit !== undefined) params.set("limit", String(filter.limit));
-			if (filter?.states) {
-				for (const state of filter.states) params.append("state", state);
-			}
-			if (filter?.scopeId) params.set("scopeId", filter.scopeId);
-			const res = await link.fetchRaw(`/tasks/search?${params.toString()}`);
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			return (await res.json()) as RepoTaskSearchResult;
-		},
-		reindex: async (scopeSelector): Promise<RepoTaskReindexResult> => {
-			const query = scopeQuery(scopeSelector?.scopeId);
-			const res = await link.fetchRaw(`/tasks/reindex${query}`, { method: "POST" });
-			if (!res.ok) {
-				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
-			}
-			return (await res.json()) as RepoTaskReindexResult;
-		},
-	};
+	});
 }

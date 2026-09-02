@@ -3,36 +3,16 @@ import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { Memory } from "#core/modules/provider-types.js";
 import { parseWorkMemoryMetadataFromBody } from "#core/modules/work-memory-metadata.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import {
+  deleteMemory,
+  listMemory,
+  reindexMemory,
+  searchMemory,
+} from "./operations.js";
 import { resolveMemoryRouteProvider } from "./route-provider.js";
 import type { MemoryScopeStores } from "./scope.js";
 
 type MemoryRequestBody = Awaited<ReturnType<typeof readBody>>;
-
-type MemoryListItem = {
-  id: string;
-  tags: string[];
-  created: string;
-  updated?: string;
-  excerpt: string;
-  provenance?: Memory["provenance"];
-  freshness?: Memory["freshness"];
-};
-
-type MemoryListResponse = {
-  entries: MemoryListItem[];
-};
-
-function toListItem(m: Memory): MemoryListItem {
-  return {
-    id: m.id,
-    tags: m.tags,
-    created: m.created,
-    ...(m.updated && { updated: m.updated }),
-    excerpt: m.content.slice(0, 200).replace(/\s+/g, " ").trim(),
-    ...(m.provenance && { provenance: m.provenance }),
-    ...(m.freshness && { freshness: m.freshness }),
-  };
-}
 
 export function handleListMemory(
   req: IncomingMessage,
@@ -42,8 +22,12 @@ export function handleListMemory(
   try {
     const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const all = provider.list();
-    jsonResponse(res, 200, { entries: all.map(toListItem) } satisfies MemoryListResponse);
+    const url = new URL(req.url ?? "", "http://localhost");
+    const rawLimit = url.searchParams.get("limit");
+    const limit = rawLimit === null ? undefined : Number.parseInt(rawLimit, 10);
+    jsonResponse(res, 200, listMemory(provider, {
+      ...(limit !== undefined && Number.isFinite(limit) && { limit }),
+    }));
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -163,8 +147,8 @@ export function handleDeleteMemory(
   try {
     const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const ok = provider.delete(id);
-    if (!ok) {
+    const result = deleteMemory(provider, id);
+    if (!result.ok) {
       jsonResponse(res, 404, { error: "Not found" });
       return;
     }
@@ -189,25 +173,12 @@ export async function handleSearchMemory(
   try {
     const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const semanticSearch = provider.semanticSearchCapability;
-    if (semantic && !semanticSearch) {
-      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
-      return;
-    }
-    const results = semantic
-      ? await semanticSearch!.semanticSearch(query, limit, { tag, since })
-      : provider.search(query, { tag, since }).slice(0, limit);
-    jsonResponse(res, 200, {
-      ok: true,
-      entries: results.map((m) => ({
-        id: m.id,
-        created: m.created,
-        ...(m.updated && { updated: m.updated }),
-        content: m.content,
-        ...(m.provenance && { provenance: m.provenance }),
-        ...(m.freshness && { freshness: m.freshness }),
-      })),
-    });
+    jsonResponse(res, 200, await searchMemory(provider, query, {
+      tag,
+      since,
+      semantic,
+      limit,
+    }));
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }
@@ -221,13 +192,7 @@ export async function handleReindexMemory(
   try {
     const provider = resolveMemoryRouteProvider(req, res, scopeStores);
     if (!provider) return;
-    const semanticSearch = provider.semanticSearchCapability;
-    if (!semanticSearch) {
-      jsonResponse(res, 200, { ok: false, reason: "semantic_unavailable" });
-      return;
-    }
-    const result = await semanticSearch.reindex();
-    jsonResponse(res, 200, { ok: true, ...result });
+    jsonResponse(res, 200, await reindexMemory(provider));
   } catch (err) {
     jsonResponse(res, 500, { error: (err as Error).message });
   }

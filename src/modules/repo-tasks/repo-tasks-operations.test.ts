@@ -12,6 +12,7 @@ import type { RepoTaskState } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,
   createNormalizedTask,
+  listRepoTasks,
   showTask,
   slugifyTaskTitle,
 } from "./repo-tasks-operations.js";
@@ -44,6 +45,35 @@ function writeTaskFile(
   const content = `---\n${frontmatter}\n---\n\n# Title for ${id}\n\n## Problem\n\nTest.\n`;
   writeFileSync(join(dir, `${id}.md`), content);
 }
+
+describe("listRepoTasks", () => {
+  let repoRoot: string;
+
+  beforeEach(() => {
+    repoRoot = makeScopeRoot();
+  });
+
+  afterEach(() => {
+    rmSync(repoRoot, { recursive: true, force: true });
+  });
+
+  it("owns default-state selection and returns requested terminal tasks", () => {
+    writeTaskFile(repoRoot, "open", "task-open");
+    writeTaskFile(repoRoot, "done", "task-done");
+    writeTaskFile(repoRoot, "dropped", "task-dropped");
+
+    expect(listRepoTasks(repoRoot).tasks.map(({ id }) => id)).toEqual(["task-open"]);
+    expect(
+      listRepoTasks(repoRoot, ["done", "dropped"]).tasks.map(({ id, state }) => ({
+        id,
+        state,
+      })),
+    ).toEqual([
+      { id: "task-done", state: "done" },
+      { id: "task-dropped", state: "dropped" },
+    ]);
+  });
+});
 
 describe("slugifyTaskTitle", () => {
   it("converts title to kebab slug", () => {

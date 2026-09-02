@@ -7,7 +7,7 @@
 
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { KNOWLEDGE_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
-import { getKnowledgeStore } from "#modules/knowledge/store.js";
+import { KnowledgeStore } from "#modules/knowledge/store.js";
 import {
 	createEmbeddingProvider,
 	readEmbeddingProviderConfig,
@@ -39,7 +39,11 @@ const knowledgeSemanticModule: KotaModule = {
 			ctx.log.warn(`knowledge-semantic: cannot init embedding provider — ${msg}`);
 			return;
 		}
-		const base = getKnowledgeStore(ctx.cwd);
+		const base = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
+		if (!(base instanceof KnowledgeStore)) {
+			ctx.log.warn("knowledge-semantic: the active base knowledge provider has no file-index storage owner");
+			return;
+		}
 		const store = new SemanticKnowledgeStore({
 			base,
 			provider,

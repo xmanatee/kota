@@ -262,13 +262,7 @@ export class ConversationHistory {
   }
 }
 
-let globalHistory: ConversationHistory | null = null;
 const scopeHistories = new Map<string, ConversationHistory>();
-
-export function getHistory(): ConversationHistory {
-  if (!globalHistory) globalHistory = new ConversationHistory();
-  return globalHistory;
-}
 
 export function getScopeHistoryStore(scopeRoot: string): ConversationHistory {
   const dir = getScopeHistoryDir(scopeRoot);
@@ -277,9 +271,4 @@ export function getScopeHistoryStore(scopeRoot: string): ConversationHistory {
   const history = new ConversationHistory(dir);
   scopeHistories.set(dir, history);
   return history;
-}
-
-export function resetHistory(): void {
-  globalHistory = null;
-  scopeHistories.clear();
 }

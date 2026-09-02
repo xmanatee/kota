@@ -5,6 +5,9 @@ Embedding-backed semantic search over the file-based conversation history store.
 - Wraps scope-scoped `ConversationHistory` with `SemanticHistoryStore`.
 - Keeps the sidecar index next to `index.json` in the history directory.
 - Registers itself as the history provider selected by config.
+- `SemanticIndexManager` owns index load, reconciliation, ranking, background
+  update failure handling, persistence, and reindex lifecycle. This module
+  retains only conversation document/filter/result mapping.
 
 ## Boundaries
 

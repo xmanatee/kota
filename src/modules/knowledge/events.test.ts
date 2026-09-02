@@ -9,7 +9,7 @@ import {
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { runKnowledge } from "./knowledge.js";
-import { KnowledgeStore, resetKnowledgeStore } from "./store.js";
+import { KnowledgeStore } from "./store.js";
 
 describe("knowledge events", () => {
 	let tmpDir: string;
@@ -18,7 +18,6 @@ describe("knowledge events", () => {
 	beforeEach(() => {
 		tmpDir = mkdtempSync(join(tmpdir(), "kota-kev-"));
 		bus = initEventBus();
-		resetKnowledgeStore();
 		const registry = initProviderRegistry();
 		registry.register(KNOWLEDGE_PROVIDER_TOKEN, "default", new KnowledgeStore(tmpDir));
 	});
@@ -26,7 +25,6 @@ describe("knowledge events", () => {
 	afterEach(() => {
 		resetEventBus();
 		resetProviderRegistry();
-		resetKnowledgeStore();
 		rmSync(tmpDir, { recursive: true, force: true });
 	});
 

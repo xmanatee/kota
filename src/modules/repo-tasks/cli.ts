@@ -17,14 +17,11 @@ import type {
 } from "./client.js";
 import { renderRepoTaskSearchPlain } from "./render.js";
 import {
-	listFullRepoTasks,
-	listRepoTaskDependencyWaits,
 	REPO_INBOX_DIR,
 	REPO_TASK_STATES,
 	type RepoTaskState,
 } from "./repo-tasks-domain.js";
 
-const OPEN_STATES: RepoTaskState[] = ["open", "blocked"];
 const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
 
 function isRepoTaskPriority(value: string): value is RepoTaskPriority {
@@ -37,35 +34,6 @@ function collectStates(value: string, previous: RepoTaskState[]): RepoTaskState[
 		process.exit(1);
 	}
 	return [...previous, value as RepoTaskState];
-}
-
-type TaskEntry = {
-	id: string;
-	priority: RepoTaskPriority | null;
-	title: string;
-	state: RepoTaskState;
-	waitingOnTasks: string[];
-};
-
-/**
- * Read the on-disk normalized tasks for the given states. Used by both the
- * local-side `tasks.list` handler and the CLI's table renderer.
- */
-export function listTasksForStates(tasksDir: string, states: RepoTaskState[]): TaskEntry[] {
-	const repoRoot = tasksDir.replace(/\/data\/tasks\/?$/, "");
-	const waitingById = new Map(
-		listRepoTaskDependencyWaits(repoRoot).map((wait) => [
-			wait.id,
-			wait.waitingOn,
-		]),
-	);
-	return listFullRepoTasks(repoRoot, states).map((task) => ({
-		id: task.id,
-		priority: task.priority,
-		title: task.title,
-		state: task.state,
-		waitingOnTasks: waitingById.get(task.id) ?? [],
-	}));
 }
 
 export function registerTaskCommands(program: Command, ctx: ModuleContext): void {
@@ -81,15 +49,13 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 			"Filter by state (open|blocked|done|dropped)",
 		)
 		.action(async (opts: { state?: string }) => {
-			let states: RepoTaskState[];
+			let states: RepoTaskState[] | undefined;
 			if (opts.state) {
 				if (!REPO_TASK_STATES.includes(opts.state as RepoTaskState)) {
 					printToStderr(line(span(`Unknown state "${opts.state}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
 					process.exit(1);
 				}
 				states = [opts.state as RepoTaskState];
-			} else {
-				states = OPEN_STATES;
 			}
 
 			const result = await ctx.client.tasks.list(states);

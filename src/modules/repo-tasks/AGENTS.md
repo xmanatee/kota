@@ -40,6 +40,11 @@ projections.
 - `/api/tasks` and task search are module-owned surfaces. Visual clients and the
   CLI use the shared control/client contract rather than reading task files
   directly.
+- `repo-tasks-operations.ts` owns the normalized list collection, dependency
+  waiting projection, keyword/semantic search selection, semantic-unavailable
+  result, and reindex result. Routes and local clients share those operations;
+  routine daemon list/search/reindex transport is generated. The visual
+  `/api/tasks` status projection and mutation transforms remain explicit.
 - The default search provider ranks verified task content. `tasks-semantic`
   overrides ranking and declares `semanticSearchCapability` when an embedding
   provider is configured; the base provider has no placeholder reindex method.
