@@ -3,14 +3,14 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
-import { buildAgentSystemPrompt } from "#core/workflow/steps/step-executor-agent-prompt.js";
+import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   WorkflowAgentStep,
   WorkflowCodeStep,
   WorkflowStep,
 } from "#core/workflow/step-types.js";
+import { buildAgentSystemPrompt } from "#core/workflow/steps/step-executor-agent-prompt.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import type { WriterIntegrationEvidence } from "#core/workflow/writer-integration-evidence.js";
 import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";

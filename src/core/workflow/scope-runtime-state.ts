@@ -2,10 +2,10 @@ import { isEventSchemaReference } from "#core/events/event-bus-envelope-types.js
 import type { RunStateDatabase } from "./run-state-database.js";
 import type {
   WorkflowAgentBackoffState,
-  WorkflowProviderBackoffState,
   WorkflowBatchBufferState,
   WorkflowBatchBuffers,
   WorkflowBatchTrigger,
+  WorkflowProviderBackoffState,
   WorkflowTrigger,
 } from "./trigger-types.js";
 
