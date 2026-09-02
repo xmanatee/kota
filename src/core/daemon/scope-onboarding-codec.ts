@@ -1,10 +1,10 @@
 import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
-import { decodeScopePolicyFragment } from "./scope-policy-codec.js";
 import type {
   ScopeOnboardingAcceptedPlan,
   ScopeOnboardingChoices,
   ScopeOnboardingNormalizedChoices,
 } from "./scope-onboarding-types.js";
+import { decodeScopePolicyFragment } from "./scope-policy-codec.js";
 
 type BoundaryObject = { [key: string]: unknown };
 const OPERATION_ID = /^onboard_[a-f0-9]{24}$/;

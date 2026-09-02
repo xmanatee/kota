@@ -32,10 +32,6 @@ import type {
   ScopeAuthorityView,
 } from "#core/daemon/scope-authority-types.js";
 import type {
-  DirectoryScope,
-  ScopeId,
-} from "#core/daemon/scope-registry.js";
-import type {
   ScopeOnboardingApplyResult,
   ScopeOnboardingChoices,
   ScopeOnboardingInspection,
@@ -43,6 +39,10 @@ import type {
   ScopeOnboardingPlan,
   ScopeOnboardingPlanResult,
 } from "#core/daemon/scope-onboarding.js";
+import type {
+  DirectoryScope,
+  ScopeId,
+} from "#core/daemon/scope-registry.js";
 import type { SessionGuardrailsReloadSummary } from "#core/events/event-bus-types.js";
 import type { ScopeSelector } from "#core/server/scope-selector.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";

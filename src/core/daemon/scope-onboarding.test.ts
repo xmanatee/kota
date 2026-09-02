@@ -1095,7 +1095,7 @@ describe("ScopeOnboardingService", () => {
     const applyAuthority = fixture.authority.applyTransactional.bind(fixture.authority);
     const authoritySpy = vi.spyOn(fixture.authority, "applyTransactional")
       .mockImplementationOnce(async (...args) => {
-        const result = await applyAuthority(...args);
+        await applyAuthority(...args);
         authorityCommitted();
         return new Promise<never>(() => {});
       });
