@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: The Jira provider accepts an arbitrary HTTP(S) base URL from configuration or an environment reference and sends the Jira email and API token to that origin using Basic authentication. An attacker who can influence that value can redirect credentials to a non-Atlassian or plaintext HTTP endpoint.
 
@@ -114,3 +113,13 @@ excerpt:
 >     throw new OutboundHttpTargetPolicyError(...);
 >   }
 >   return;
+
+## Final verification
+
+The Jira module now parses the resolved base URL before constructing Basic credentials. It accepts only a bare HTTPS origin on a hostname ending in `.atlassian.net`; URL credentials, paths, queries, and fragments are rejected before provider initialization or outbound transport invocation. The normalized origin is the only value passed to the configured-provider HTTP profile and request URL builder.
+
+Verification completed on 2026-09-02:
+
+- The focused Jira owner suite passed all 26 tests. Its public `onLoad` boundary cases prove HTTP, non-Atlassian hosts, URL credentials, paths, queries, and fragments are rejected while both `JiraTaskProvider.init` and `outboundHttp.request` remain uncalled.
+- Production and test TypeScript typechecking passed.
+- Focused Biome checks passed for the Jira implementation and test.

@@ -8,7 +8,8 @@ by Jira's REST API v3 that lets KOTA's builder pull tasks directly from a Jira p
 - Only activated when `modules.jira.taskProvider.enabled` is `true`.
 - Uses Jira REST API v3 (`/rest/api/3/`) with Basic auth; no npm dependencies.
 - Credentials are never logged.
-- Cloud only — base URL must end in `.atlassian.net`.
+- Cloud only — the base URL must be a bare HTTPS origin whose hostname ends in
+  `.atlassian.net`; URL credentials, paths, queries, and fragments are rejected.
 
 ## Config
 

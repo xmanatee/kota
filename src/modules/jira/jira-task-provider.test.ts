@@ -18,6 +18,7 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
+import { outboundHttp } from "#core/outbound-http/index.js";
 import type { JiraFetchFn, JiraTaskProviderConfig } from "./task-provider.js";
 import { JiraTaskProvider } from "./task-provider.js";
 
@@ -381,5 +382,39 @@ describe("JiraTaskProvider — onLoad integration in jira module", () => {
     }
 
     expect(ctx.registerProvider).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["plaintext HTTP", "http://myorg.atlassian.net", "must use HTTPS"],
+    ["a non-Atlassian destination", "https://jira.example.com", "must be a Jira Cloud"],
+    ["URL credentials", "https://user:password@myorg.atlassian.net", "must not contain URL credentials"],
+    ["a path", "https://myorg.atlassian.net/jira", "must not contain a path"],
+    ["a query", "https://myorg.atlassian.net?redirect=example.com", "must not contain a path"],
+    ["a fragment", "https://myorg.atlassian.net#fragment", "must not contain a path"],
+  ])("rejects %s before initializing the provider or invoking HTTP", async (_label, baseUrl, message) => {
+    const { JiraTaskProvider: TP } = await import("./task-provider.js");
+    const initSpy = vi.spyOn(TP.prototype, "init");
+    const requestSpy = vi.spyOn(outboundHttp, "request");
+    const { default: jiraModule } = await import("./index.js");
+    const ctx = {
+      getModuleConfig: vi.fn(() => ({
+        apiToken: "jira_token",
+        userEmail: "user@example.com",
+        baseUrl,
+        taskProvider: { enabled: true, projectKey: "ENG" },
+      })),
+      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      registerProvider: vi.fn(),
+    };
+
+    if (typeof jiraModule.onLoad === "function") {
+      await expect(jiraModule.onLoad(ctx as never)).rejects.toThrow(message);
+    }
+
+    expect(initSpy).not.toHaveBeenCalled();
+    expect(requestSpy).not.toHaveBeenCalled();
+    expect(ctx.registerProvider).not.toHaveBeenCalled();
+    initSpy.mockRestore();
+    requestSpy.mockRestore();
   });
 });

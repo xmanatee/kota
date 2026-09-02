@@ -53,6 +53,30 @@ function resolveSecret(raw: string): string {
   return raw;
 }
 
+function resolveJiraCloudBaseUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new TypeError("Jira task provider baseUrl must be a valid URL");
+  }
+
+  if (url.protocol !== "https:") {
+    throw new TypeError("Jira task provider baseUrl must use HTTPS");
+  }
+  if (!url.hostname.endsWith(".atlassian.net")) {
+    throw new TypeError("Jira task provider baseUrl must be a Jira Cloud .atlassian.net host");
+  }
+  if (url.username || url.password) {
+    throw new TypeError("Jira task provider baseUrl must not contain URL credentials");
+  }
+  if (url.pathname !== "/" || url.search || url.hash) {
+    throw new TypeError("Jira task provider baseUrl must not contain a path, query, or fragment");
+  }
+
+  return url.origin;
+}
+
 function makeJiraFetch(
   baseUrl: string,
   apiToken: string,
@@ -105,12 +129,14 @@ const jiraModule: KotaModule = {
 
     const apiToken = resolveSecret(config.apiToken);
     const userEmail = resolveSecret(config.userEmail);
-    const baseUrl = resolveSecret(config.baseUrl).replace(/\/$/, "");
+    const rawBaseUrl = resolveSecret(config.baseUrl);
 
-    if (!apiToken || !userEmail || !baseUrl) {
+    if (!apiToken || !userEmail || !rawBaseUrl) {
       ctx.log.warn("Jira task provider: one or more credentials env vars are not set — provider inactive");
       return;
     }
+
+    const baseUrl = resolveJiraCloudBaseUrl(rawBaseUrl);
 
     if (!config.taskProvider.projectKey) {
       ctx.log.warn(
