@@ -336,7 +336,6 @@ export async function continueRunIntegration(
       authorityConfigPath,
       mcpScopeConfigPolicy: "disabled",
       persistSession: false,
-      enableFileCheckpointing: true,
     },
     {
       signal: context.signal,
