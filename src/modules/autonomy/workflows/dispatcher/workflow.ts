@@ -119,34 +119,54 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           queue.inboxCount === 0 &&
           queue.actionableCount > 0 &&
           queue.actionableCount <= 2;
+        const publish = (
+          event: string,
+          payload: Record<string, unknown>,
+          intent: string,
+        ) =>
+          emit(event, payload, {
+            delivery: "on-run-success",
+            stepId: `assess-and-dispatch:${intent}`,
+          });
 
         if (queue.inboxCount > 0) {
-          emit("autonomy.inbox.available", { inboxCount: queue.inboxCount });
+          publish("autonomy.inbox.available", { inboxCount: queue.inboxCount }, "inbox");
         }
         if (queueActionable) {
-          for (const task of builderTasks) emit("autonomy.queue.available", task);
+          for (const task of builderTasks) {
+            publish("autonomy.queue.available", task, `task:${task.taskId}`);
+          }
         }
         if (queueEmpty) {
-          emit("autonomy.queue.empty", {
-            counts: queue.counts,
-            dependencyBlockedTasks: queue.dependencyBlockedTasks,
-          });
+          publish(
+            "autonomy.queue.empty",
+            {
+              counts: queue.counts,
+              dependencyBlockedTasks: queue.dependencyBlockedTasks,
+            },
+            "queue-empty",
+          );
         }
         if (blockedResearchAttemptable) {
-          emit("autonomy.blocked-research.attemptable", {
-            candidateCount: researchRetryAvailability.candidateCount,
-            attemptableCount: researchRetryAvailability.attemptableCount,
-            counts: queue.counts,
-          });
+          publish(
+            "autonomy.blocked-research.attemptable",
+            {
+              candidateCount: researchRetryAvailability.candidateCount,
+              attemptableCount: researchRetryAvailability.attemptableCount,
+              counts: queue.counts,
+            },
+            "blocked-research",
+          );
         }
         if (securityReviewDue.due) {
-          emit(SECURITY_REVIEW_DUE_EVENT, securityReviewPayload);
+          publish(SECURITY_REVIEW_DUE_EVENT, securityReviewPayload, "security-review");
         }
         if (progressBoundary.shouldEmit && progressBoundary.payload) {
-          emit(automaticProgressReviewRequested.name, progressBoundary.payload, {
-            delivery: "on-run-success",
-            stepId: "assess-and-dispatch:progress-review",
-          });
+          publish(
+            automaticProgressReviewRequested.name,
+            progressBoundary.payload,
+            "progress-review",
+          );
         }
         if (scopeBoundary.shouldEmit && scopeBoundary.payload) {
           if (scopeBoundary.nextState === null) {
@@ -157,18 +177,19 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             scopeState.revision,
             scopeBoundary.nextState,
           );
-          emit(scopeBoundaryEvent!, scopeBoundary.payload, {
-            delivery: "on-run-success",
-            stepId: "assess-and-dispatch:scope-improvement",
-          });
+          publish(scopeBoundaryEvent!, scopeBoundary.payload, "scope-improvement");
         }
         if (queueThin) {
-          emit("autonomy.queue.thin", {
-            actionableCount: queue.actionableCount,
-            dispatchableCount: queue.dispatchableCount,
-            dependencyBlockedTasks: queue.dependencyBlockedTasks,
-            counts: queue.counts,
-          });
+          publish(
+            "autonomy.queue.thin",
+            {
+              actionableCount: queue.actionableCount,
+              dispatchableCount: queue.dispatchableCount,
+              dependencyBlockedTasks: queue.dependencyBlockedTasks,
+              counts: queue.counts,
+            },
+            "queue-thin",
+          );
         }
         const emitted = [
           queue.inboxCount > 0 && "autonomy.inbox.available",

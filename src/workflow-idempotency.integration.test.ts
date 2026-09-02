@@ -171,4 +171,90 @@ describe("workflow idempotency integration", () => {
       },
     ]);
   });
+
+  it("redelivers a failed workflow intent emitted through the transactional outbox", async () => {
+    const scopeRoot = makeScopeRoot();
+    scopeRoots.push(scopeRoot);
+    const bus = new EventBus();
+    const pbus = new ScopedEventBus(bus, "scope-a");
+    const idempotencyStore = new IdempotencyStore(
+      join(scopeRoot, ".kota", "idempotency"),
+      "scope-a",
+    );
+    installEventIdempotency(bus, {
+      getDefaultScopeId: () => "scope-a",
+      resolveStore: () => idempotencyStore,
+    });
+
+    let attempts = 0;
+    const runtime = createRuntime({
+      bus,
+      pbus,
+      scopeRoot,
+      idempotencyStore,
+      idleIntervalMs: 60_000,
+      workflows: [
+        {
+          name: "semantic-intent-producer",
+          definitionPath: "src/workflow-idempotency.integration.test.ts",
+          moduleRoot: process.cwd(),
+          enabled: true,
+          repository: "none",
+          tags: [],
+          triggers: [{ event: "dispatch.requested", cooldownMs: 0, queueMode: "all" }],
+          steps: [
+            {
+              id: "emit-task",
+              type: "code",
+              run: ({ emit }) => {
+                emit(
+                  "task.ready",
+                  { idempotencyKey: "task:stable-contract" },
+                  { delivery: "on-run-success", stepId: "emit-task" },
+                );
+                return { emitted: true };
+              },
+            },
+          ],
+        },
+        {
+          name: "semantic-intent-consumer",
+          definitionPath: "src/workflow-idempotency.integration.test.ts",
+          moduleRoot: process.cwd(),
+          enabled: true,
+          repository: "none",
+          tags: [],
+          triggers: [{ event: "task.ready", cooldownMs: 0, queueMode: "all" }],
+          steps: [
+            {
+              id: "attempt",
+              type: "code",
+              run: () => {
+                attempts += 1;
+                if (attempts === 1) throw new Error("retryable failure");
+                return { delivered: true };
+              },
+            },
+          ],
+        },
+      ],
+    });
+    runtimes.push(runtime);
+    runtime.start();
+
+    bus.emit("dispatch.requested", { scopeId: "scope-a" }, "dispatch-1");
+    await waitUntil(
+      () => attempts === 1 && !runtime.isBusy(),
+      "first semantic intent did not reach a terminal failure",
+    );
+
+    bus.emit("dispatch.requested", { scopeId: "scope-a" }, "dispatch-2");
+    await waitUntil(
+      () => attempts === 2 && !runtime.isBusy(),
+      "failed semantic intent was not redelivered",
+    );
+
+    expect(attempts).toBe(2);
+    expect(idempotencyStore.list({ operation: "event-ingestion" })).toEqual([]);
+  });
 });
