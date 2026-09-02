@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Untrusted workflow-run metadata controls a recursive deletion path. A metadata id containing traversal segments can escape .kota/runs and delete the scope root or another writable ancestor during automatic lifecycle sweeps.
 
@@ -118,3 +117,28 @@ excerpt:
 
 
 > await collector.sweep({ dryRun: false });
+
+## Final verification
+
+The lifecycle collector now accepts only enumerated run metadata whose validated
+id matches its directory name. Recursive deletion resolves that validated
+directory identity as a direct child of `.kota/runs` and repeats the check
+immediately before removal. Invalid or mismatched terminal metadata is reported
+as `needs_attention` and remains available for operator repair.
+
+Targeted sweeps still rank the complete set of valid same-workflow run
+artifacts before limiting candidate emission and compaction to `targetRunId`.
+This preserves the minimum-retained policy while allowing an eligible targeted
+run outside the newest ten to be compacted.
+
+Verification completed on 2026-09-02:
+
+- The focused lifecycle traversal test passed, proving that metadata id
+  `../..` is quarantined and neither the enumerated run directory nor the scope
+  marker is deleted.
+- The focused targeted-retention test passed, proving that the oldest of eleven
+  expired builder runs is compacted while all ten non-target siblings remain.
+- A direct production-boundary probe of `LifecycleCollector.sweep` passed for
+  both scenarios.
+- Production TypeScript typechecking and focused Biome checks passed.
+- `pnpm validate-tasks` passed against the terminal task record.

@@ -9,21 +9,23 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   buildEvidencePrunedReference,
   resolveEvidenceRetention,
 } from "#core/evidence/policy.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import {
   enumerateWorkflowRunMetadata,
+  type StoredWorkflowRunDirectoryId,
+  type StoredWorkflowRunMetadata,
   workflowRunMetadataTerminalIds,
 } from "#core/workflow/run-metadata.js";
 import { allocationName } from "#core/workflow/run-sandbox.js";
 import type { StoredRun } from "#core/workflow/run-state-types.js";
 import { PRUNED_RUN_REFERENCES_FILE } from "#core/workflow/run-store-retention.js";
-import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type {
   LifecycleCandidate,
   LifecycleCandidateDecision,
@@ -166,6 +168,33 @@ function listTrackedRunIds(scopeRoot: string, runsDir: string): Set<string> {
   } catch {
     return new Set();
   }
+}
+
+function resolveRunArtifactDeletionTarget(
+  runsDir: string,
+  directoryId: StoredWorkflowRunDirectoryId,
+): string | null {
+  let validatedDirectoryId: string;
+  try {
+    validatedDirectoryId = validateWorkflowRunId(
+      directoryId,
+      "Lifecycle run artifact directory",
+    );
+  } catch {
+    return null;
+  }
+
+  const resolvedRunsDir = resolve(runsDir);
+  const resolvedTarget = resolve(resolvedRunsDir, validatedDirectoryId);
+  const child = relative(resolvedRunsDir, resolvedTarget);
+  if (
+    child !== validatedDirectoryId ||
+    isAbsolute(child) ||
+    dirname(resolvedTarget) !== resolvedRunsDir
+  ) {
+    return null;
+  }
+  return resolvedTarget;
 }
 
 export class LifecycleCollector {
@@ -1053,29 +1082,58 @@ export class LifecycleCollector {
       }
 
       type RunCandidateMeta = {
-        id: string;
+        directoryId: StoredWorkflowRunDirectoryId;
         workflow: string;
         startedAtMs: number;
         retainedFromMs: number;
-        metadata: WorkflowRunMetadata;
+        metadata: StoredWorkflowRunMetadata;
         dirSize: number;
       };
 
       const parsedRuns: RunCandidateMeta[] = [];
-
-      for (const meta of enumerateWorkflowRunMetadata(runsDir, {
+      const enumeration = enumerateWorkflowRunMetadata(runsDir, {
         authorityCriticalRunIds: authorityCriticalIds,
         operationallyActiveRunIds: operationallyActiveIds,
         terminalRunIds,
-      }).runs) {
-        const runDir = join(runsDir, meta.id);
+      });
+
+      for (const diagnostic of enumeration.diagnostics) {
+        const directoryId = basename(dirname(diagnostic.source));
+        if (ctx.targetRunId && directoryId !== ctx.targetRunId) continue;
+        ctx.candidates.push({
+          candidate: directoryId,
+          store: "run-artifacts",
+          decision: "needs_attention",
+          reason: "invalid-workflow-run-metadata",
+          age: 0,
+          owner: diagnostic.facts.workflow ?? "workflow-runtime",
+          estimatedBytes: 0,
+          remediation: diagnostic.recoveryAction,
+        });
+      }
+
+      for (const meta of enumeration.runs) {
+        const runDir = resolveRunArtifactDeletionTarget(runsDir, meta.id);
+        if (runDir === null) {
+          ctx.candidates.push({
+            candidate: meta.id,
+            store: "run-artifacts",
+            decision: "needs_attention",
+            reason: "unsafe-workflow-run-directory",
+            age: 0,
+            owner: meta.workflow,
+            estimatedBytes: 0,
+            remediation: "Repair the run directory identity before retrying lifecycle collection",
+          });
+          continue;
+        }
         const dirSize = safeGetDirectorySize(runDir);
         const startedAtMs = new Date(meta.startedAt).getTime();
         const retainedFromMs = meta.status === "running"
           ? startedAtMs
           : new Date(meta.completedAt ?? meta.startedAt).getTime();
         parsedRuns.push({
-          id: meta.id,
+          directoryId: meta.id,
           workflow: meta.workflow,
           startedAtMs,
           retainedFromMs,
@@ -1094,10 +1152,10 @@ export class LifecycleCollector {
         wfRuns.sort((a, b) => b.startedAtMs - a.startedAtMs);
         for (let i = 0; i < wfRuns.length; i++) {
           const run = wfRuns[i];
-          if (ctx.targetRunId && run.id !== ctx.targetRunId) continue;
+          if (ctx.targetRunId && run.directoryId !== ctx.targetRunId) continue;
 
           const age = Math.max(0, ctx.nowMs - run.startedAtMs);
-          const isProtected = protectedIds.has(run.id);
+          const isProtected = protectedIds.has(run.directoryId);
           const isUnderMinKeep = i < minKeepPerWorkflow;
 
           const resolved = resolveEvidenceRetention({
@@ -1110,7 +1168,7 @@ export class LifecycleCollector {
 
           if (isProtected) {
             ctx.candidates.push({
-              candidate: run.id,
+              candidate: run.directoryId,
               store: "run-artifacts",
               decision: "keep",
               reason: "protected-workflow-run",
@@ -1120,7 +1178,7 @@ export class LifecycleCollector {
             });
           } else if (isUnderMinKeep) {
             ctx.candidates.push({
-              candidate: run.id,
+              candidate: run.directoryId,
               store: "run-artifacts",
               decision: "keep",
               reason: "workflow-minimum-retained",
@@ -1130,7 +1188,7 @@ export class LifecycleCollector {
             });
           } else if (isExpired) {
             ctx.candidates.push({
-              candidate: run.id,
+              candidate: run.directoryId,
               store: "run-artifacts",
               decision: "compact",
               reason: "terminal-run-past-retention",
@@ -1164,12 +1222,21 @@ export class LifecycleCollector {
                 `${JSON.stringify(reference)}\n`,
                 "utf-8",
               );
-              rmSync(join(runsDir, run.id), { recursive: true, force: true });
+              const deletionTarget = resolveRunArtifactDeletionTarget(
+                runsDir,
+                run.directoryId,
+              );
+              if (deletionTarget === null) {
+                throw new Error(
+                  `Refusing to delete workflow run artifact outside ${runsDir}: ${run.directoryId}`,
+                );
+              }
+              rmSync(deletionTarget, { recursive: true, force: true });
               ctx.recordReclaimed("run-artifacts", 1, run.dirSize);
             }
           } else {
             ctx.candidates.push({
-              candidate: run.id,
+              candidate: run.directoryId,
               store: "run-artifacts",
               decision: "keep",
               reason: "workflow-run-within-retention",

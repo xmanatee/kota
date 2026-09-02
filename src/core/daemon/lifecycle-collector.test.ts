@@ -324,6 +324,125 @@ describe("LifecycleCollector", () => {
     expect(existsSync(join(approvalsDir, "app-old.json"))).toBe(false);
   });
 
+  it("quarantines traversal metadata without deleting outside its enumerated run directory", async () => {
+    const scopeA = scopeRegistry.list()[0]!;
+    const runsDir = join(scopeRootA, ".kota", "runs");
+    const maliciousDirectoryId = "malicious-terminal-run";
+    const maliciousRunDir = join(runsDir, maliciousDirectoryId);
+    const scopeMarker = join(scopeRootA, "must-survive.txt");
+    const now = new Date("2026-09-02T00:00:00.000Z");
+    mkdirSync(maliciousRunDir, { recursive: true });
+    writeFileSync(scopeMarker, "scope root must not be deleted\n");
+
+    const metadata = (id: string, startedAt: string) => ({
+      metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
+      id,
+      workflow: "builder",
+      definitionPath: "workflow.ts",
+      trigger: { event: "test", schemaRef: null, payload: {} },
+      startedAt,
+      completedAt: startedAt,
+      status: "success",
+      runDir: `.kota/runs/${id}`,
+      steps: [],
+    });
+
+    writeFileSync(
+      join(maliciousRunDir, "metadata.json"),
+      JSON.stringify(metadata("../..", "2026-01-01T00:00:00.000Z")),
+    );
+    for (let index = 0; index < 10; index += 1) {
+      const runId = `safe-terminal-run-${index}`;
+      const runDir = join(runsDir, runId);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(
+        join(runDir, "metadata.json"),
+        JSON.stringify(metadata(runId, `2026-08-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`)),
+      );
+    }
+
+    const collector = new LifecycleCollector({
+      stateDir,
+      scopeRegistry,
+      runState,
+      eventJournal,
+      sessions,
+      chatBindings,
+    });
+
+    const report = await collector.sweep({ scopeId: scopeA.scopeId, now });
+    expect(
+      report.candidates.find(
+        (candidate) =>
+          candidate.store === "run-artifacts" &&
+          candidate.candidate === maliciousDirectoryId,
+      ),
+    ).toMatchObject({
+      decision: "needs_attention",
+      reason: "invalid-workflow-run-metadata",
+    });
+    expect(existsSync(scopeMarker)).toBe(true);
+    expect(existsSync(maliciousRunDir)).toBe(true);
+  });
+
+  it("ranks targeted run artifact retention against its workflow siblings", async () => {
+    const scopeA = scopeRegistry.list()[0]!;
+    const runsDir = join(scopeRootA, ".kota", "runs");
+    const now = new Date("2026-09-02T00:00:00.000Z");
+    const runIds: string[] = [];
+
+    for (let index = 0; index < 11; index += 1) {
+      const runId = `terminal-run-${String(index).padStart(2, "0")}`;
+      const runDir = join(runsDir, runId);
+      runIds.push(runId);
+      mkdirSync(runDir, { recursive: true });
+      writeFileSync(
+        join(runDir, "metadata.json"),
+        JSON.stringify({
+          metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
+          id: runId,
+          workflow: "builder",
+          definitionPath: "workflow.ts",
+          trigger: { event: "test", schemaRef: null, payload: {} },
+          startedAt: `2026-01-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          completedAt: `2026-01-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`,
+          status: "success",
+          runDir: `.kota/runs/${runId}`,
+          steps: [],
+        }),
+      );
+    }
+
+    const collector = new LifecycleCollector({
+      stateDir,
+      scopeRegistry,
+      runState,
+      eventJournal,
+      sessions,
+      chatBindings,
+    });
+
+    const oldestRunId = runIds[0]!;
+    const report = await collector.sweep({
+      scopeId: scopeA.scopeId,
+      targetRunId: oldestRunId,
+      now,
+    });
+
+    expect(report.candidates).toContainEqual(
+      expect.objectContaining({
+        candidate: oldestRunId,
+        store: "run-artifacts",
+        decision: "compact",
+        reason: "terminal-run-past-retention",
+      }),
+    );
+    expect(existsSync(join(runsDir, oldestRunId))).toBe(false);
+    for (const runId of runIds.slice(1)) {
+      expect(existsSync(join(runsDir, runId))).toBe(true);
+    }
+  });
+
   it("fails closed when terminal artifact metadata belongs to an integrating run", async () => {
     const scopeA = scopeRegistry.list()[0]!;
     const runId = "2026-09-02T00-00-00-000Z-builder-integrating";
