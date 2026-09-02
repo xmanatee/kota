@@ -196,7 +196,9 @@ describe("writeCalibrationArtifact", () => {
       },
     });
 
-    const artifact = writeCalibrationArtifact(ctx);
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: runDir,
+    });
     expect(artifact.verdict).toBe("pass");
     expect(artifact.warningCount).toBe(1);
     expect(artifact.repairIterations).toBe(2);
@@ -238,7 +240,9 @@ describe("writeCalibrationArtifact", () => {
       },
     });
 
-    const artifact = writeCalibrationArtifact(ctx);
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: runDir,
+    });
     expect(artifact.criticFailureCount).toBe(2);
     expect(artifact.repairIterations).toBe(3);
   });
@@ -278,7 +282,9 @@ describe("writeCalibrationArtifact", () => {
       },
     });
 
-    const artifact = writeCalibrationArtifact(ctx);
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: runDir,
+    });
     expect(artifact.verdict).toBe("pass");
     expect(artifact.finalIterationFailures).toEqual([]);
     expect(artifact.criticFailureCount).toBe(1);
@@ -321,7 +327,9 @@ describe("writeCalibrationArtifact", () => {
       },
     });
 
-    const artifact = writeCalibrationArtifact(ctx);
+    const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: runDir,
+    });
     expect(artifact.verdict).toBe("pass");
     expect(artifact.finalIterationFailures).toEqual(["typecheck", "lint"]);
     // typecheck/lint repair is iteration noise — not a critic catch.
@@ -352,12 +360,13 @@ describe("writeCalibrationArtifact", () => {
     });
 
     const artifact = writeCalibrationArtifact(ctx, {
+      criticVerdictRunDir: runDir,
       criticPromptHash: "promptvfixed",
     });
     expect(artifact.criticPromptHash).toBe("promptvfixed");
   });
 
-  it("preserves the prompt hash captured when the critic made its verdict", () => {
+  it("uses the verdict and prompt provenance from the explicit critic source", () => {
     const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
     mkdirSync(agentRunDir, { recursive: true });
     writeFileSync(
@@ -370,6 +379,15 @@ describe("writeCalibrationArtifact", () => {
         reviewerPromptHash: "capturedhash",
       }),
     );
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "fail",
+        critical_issues: ["Stale evidence from another source."],
+        warnings: [],
+        summary: "This verdict must not be consumed.",
+      }),
+    );
 
     const artifact = writeCalibrationArtifact(
       makeStepContext({
@@ -380,7 +398,10 @@ describe("writeCalibrationArtifact", () => {
       { criticVerdictRunDir: agentRunDir },
     );
 
-    expect(artifact.criticPromptHash).toBe("capturedhash");
+    expect(artifact).toMatchObject({
+      verdict: "pass",
+      criticPromptHash: "capturedhash",
+    });
   });
 
   it("ingests the final verdict from the builder agent evidence source", () => {
@@ -468,9 +489,18 @@ describe("writeCalibrationArtifact", () => {
     ).toMatchObject({ status: "under-threshold" });
   });
 
-  it("records verdict=absent when both critic verdict locations are missing", () => {
+  it("records verdict=absent when the explicit critic verdict source is missing", () => {
     const agentRunDir = join(root, ".kota", "builder-evidence", "run-test");
     mkdirSync(agentRunDir, { recursive: true });
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "pass",
+        critical_issues: [],
+        warnings: [],
+        summary: "Stale run-root evidence must not be consumed.",
+      }),
+    );
 
     const ctx = makeStepContext({
       runDir,
@@ -533,7 +563,7 @@ describe("writeCalibrationArtifact", () => {
           verdict: "pass",
           critical_issues: [],
           warnings: [],
-          summary: "A stale fallback must not hide a malformed current payload.",
+          summary: "Stale run-root evidence must not hide malformed source evidence.",
         }),
       );
 

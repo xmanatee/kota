@@ -27,46 +27,43 @@ export type CalibrationCriticVerdict = CriticVerdict & {
 };
 
 export function readCalibrationCriticVerdict(
-  runDirs: readonly string[],
+  runDir: string,
 ): CalibrationCriticVerdict | null {
-  for (const runDir of new Set(runDirs)) {
-    const path = join(runDir, "critic-review.json");
-    if (!existsSync(path)) continue;
-    const parsed = readOptionalJsonFile<KotaJsonValue>(path);
-    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      throw new Error(`Invalid critic verdict payload in ${path}`);
-    }
-    if (
-      parsed.verdict !== "pass" &&
-      parsed.verdict !== "pass_with_warnings" &&
-      parsed.verdict !== "fail"
-    ) {
-      throw new Error(`Invalid critic verdict in ${path}: ${String(parsed.verdict)}`);
-    }
-    if (
-      !Array.isArray(parsed.critical_issues) ||
-      !parsed.critical_issues.every((issue) => typeof issue === "string") ||
-      !Array.isArray(parsed.warnings) ||
-      !parsed.warnings.every((warning) => typeof warning === "string") ||
-      typeof parsed.summary !== "string"
-    ) {
-      throw new Error(`Invalid critic verdict payload in ${path}`);
-    }
-    if (
-      parsed.reviewerPromptHash !== undefined &&
-      typeof parsed.reviewerPromptHash !== "string"
-    ) {
-      throw new Error(`Invalid critic reviewerPromptHash in ${path}`);
-    }
-    return {
-      verdict: parsed.verdict,
-      critical_issues: parsed.critical_issues,
-      warnings: parsed.warnings,
-      summary: parsed.summary,
-      reviewerPromptHash: parsed.reviewerPromptHash ?? null,
-    };
+  const path = join(runDir, "critic-review.json");
+  if (!existsSync(path)) return null;
+  const parsed = readOptionalJsonFile<KotaJsonValue>(path);
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    throw new Error(`Invalid critic verdict payload in ${path}`);
   }
-  return null;
+  if (
+    parsed.verdict !== "pass" &&
+    parsed.verdict !== "pass_with_warnings" &&
+    parsed.verdict !== "fail"
+  ) {
+    throw new Error(`Invalid critic verdict in ${path}: ${String(parsed.verdict)}`);
+  }
+  if (
+    !Array.isArray(parsed.critical_issues) ||
+    !parsed.critical_issues.every((issue) => typeof issue === "string") ||
+    !Array.isArray(parsed.warnings) ||
+    !parsed.warnings.every((warning) => typeof warning === "string") ||
+    typeof parsed.summary !== "string"
+  ) {
+    throw new Error(`Invalid critic verdict payload in ${path}`);
+  }
+  if (
+    parsed.reviewerPromptHash !== undefined &&
+    typeof parsed.reviewerPromptHash !== "string"
+  ) {
+    throw new Error(`Invalid critic reviewerPromptHash in ${path}`);
+  }
+  return {
+    verdict: parsed.verdict,
+    critical_issues: parsed.critical_issues,
+    warnings: parsed.warnings,
+    summary: parsed.summary,
+    reviewerPromptHash: parsed.reviewerPromptHash ?? null,
+  };
 }
 
 const AGENTS_BOOKKEEPING_SUFFIX = "AGENTS.md";
@@ -106,10 +103,10 @@ export function findCalibrationTaskFinalState(
 }
 
 export type WriteCalibrationArtifactOptions = {
+  /** Workspace-local directory where the critic wrote its final verdict. */
+  criticVerdictRunDir: string;
   agentStepId?: string;
   findTaskFinalState?: FindTaskFinalState;
-  /** Workspace-local directory where the critic wrote its final verdict. */
-  criticVerdictRunDir?: string;
   /** Deterministic prompt-hash override for tests. */
   criticPromptHash?: string;
 };
@@ -161,16 +158,15 @@ export function deriveCalibrationReviewSignals(
 /** Persist review signals before runtime-owned writer integration. */
 export function writeCalibrationArtifact(
   ctx: WorkflowStepContext,
-  options: WriteCalibrationArtifactOptions = {},
+  options: WriteCalibrationArtifactOptions,
 ): EvaluatorCalibrationArtifact {
   const agentStepId = options.agentStepId ?? "build";
   const findTaskFinalState = options.findTaskFinalState ?? findCalibrationTaskFinalState;
   const runDir = ctx.workflow.runDirPath;
 
-  const criticVerdict = readCalibrationCriticVerdict([
-    ...(options.criticVerdictRunDir ? [options.criticVerdictRunDir] : []),
-    runDir,
-  ]);
+  const criticVerdict = readCalibrationCriticVerdict(
+    options.criticVerdictRunDir,
+  );
   const reviewSignals = deriveCalibrationReviewSignals(
     ctx.stepOutputs[agentStepId],
     criticVerdict,

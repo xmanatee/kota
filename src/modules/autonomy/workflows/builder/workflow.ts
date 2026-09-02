@@ -1,5 +1,14 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import {
+  expectStructuredOutput,
+  typedCodeStep,
+} from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import {
+  EVALUATOR_CALIBRATION_STEP_ID,
+  type EvaluatorCalibrationArtifact,
+  writeCalibrationArtifact,
+} from "#modules/autonomy/evaluator-calibration.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
@@ -75,6 +84,26 @@ const builderWorkflow: WorkflowDefinitionInput = {
         stepSucceeded("preflight-builder-harness")(ctx),
       repairLoop: { checks: builderRepairChecks() },
     },
+    typedCodeStep<EvaluatorCalibrationArtifact>({
+      id: EVALUATOR_CALIBRATION_STEP_ID,
+      type: "code",
+      when: stepSucceeded("build"),
+      validate: (raw) =>
+        expectStructuredOutput<EvaluatorCalibrationArtifact>(raw, [
+          "runId",
+          "workflow",
+          "verdict",
+        ]),
+      run: (ctx) => {
+        const criticVerdictRunDir = ctx.runtimeResources?.agentRunDir;
+        if (criticVerdictRunDir === undefined) {
+          throw new Error(
+            "Builder calibration requires the runtime-owned critic verdict directory",
+          );
+        }
+        return writeCalibrationArtifact(ctx, { criticVerdictRunDir });
+      },
+    }),
   ],
 };
 

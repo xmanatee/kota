@@ -1,7 +1,18 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import {
+  EVALUATOR_CALIBRATION_ARTIFACT,
+  EVALUATOR_CALIBRATION_STEP_ID,
+  type EvaluatorCalibrationArtifact,
+} from "#modules/autonomy/evaluator-calibration.js";
 import {
   inspectBuilderTaskTarget,
   listBuilderTaskDispatches,
@@ -138,5 +149,79 @@ describe("targeted builder contract", () => {
         },
       } as never),
     ).toBe(false);
+  });
+
+  it("writes calibration from the builder critic directory, ignoring stale run-root evidence", async () => {
+    const root = project();
+    const runDir = join(root, ".kota", "runs", "run-builder");
+    const criticVerdictRunDir = join(
+      root,
+      ".kota",
+      "builder-evidence",
+      "run-builder",
+    );
+    mkdirSync(runDir, { recursive: true });
+    mkdirSync(criticVerdictRunDir, { recursive: true });
+    writeTask(root, "done");
+    writeFileSync(
+      join(runDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "fail",
+        critical_issues: ["Stale run-root verdict."],
+        warnings: [],
+        summary: "This verdict belongs to a different evidence source.",
+      }),
+    );
+    writeFileSync(
+      join(criticVerdictRunDir, "critic-review.json"),
+      JSON.stringify({
+        verdict: "pass",
+        critical_issues: [],
+        warnings: [],
+        summary: "The builder result passed independent review.",
+        reviewerPromptHash: "builder-critic-prompt",
+      }),
+    );
+
+    const calibration = builderWorkflow.steps.find(
+      (step) => step.id === EVALUATOR_CALIBRATION_STEP_ID,
+    );
+    if (!calibration || calibration.type !== "code") {
+      throw new Error("missing builder calibration step");
+    }
+    const taskDigest = "a".repeat(64);
+    const result = await calibration.run({
+      workspaceRoot: root,
+      runtimeResources: { agentRunDir: criticVerdictRunDir },
+      workflow: {
+        name: "builder",
+        runId: "run-builder",
+        runDirPath: runDir,
+      },
+      trigger: {
+        payload: {
+          taskId: "task-target",
+          taskPath: "data/tasks/task-target.md",
+          taskState: "open",
+          taskDigest,
+          idempotencyKey: `builder:task-target:${taskDigest}`,
+        },
+      },
+      stepOutputs: { build: { repairIterations: [] } },
+      stepResults: { build: { status: "success" } },
+    } as never) as EvaluatorCalibrationArtifact;
+
+    expect(result).toMatchObject({
+      verdict: "pass",
+      criticPromptHash: "builder-critic-prompt",
+    });
+    expect(
+      JSON.parse(
+        readFileSync(join(runDir, EVALUATOR_CALIBRATION_ARTIFACT), "utf8"),
+      ),
+    ).toMatchObject({
+      verdict: "pass",
+      criticPromptHash: "builder-critic-prompt",
+    });
   });
 });
