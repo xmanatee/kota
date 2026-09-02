@@ -25,7 +25,7 @@ export type EnqueuePendingRunResult = {
   runId?: string;
   alreadyQueued?: boolean;
   error?: string;
-  reason?: "workflow_contract_conflict";
+  reason?: "scope_not_hosted" | "workflow_contract_conflict";
 };
 
 /** Webhook trigger payload threaded through to the workflow run. */
