@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: dropped
 ---
 
 # Promote higher value backlog work before ready queue exhaustion
@@ -79,3 +78,12 @@ runtime and security precedence.
   rejected candidates, ranking factors, and task-state mutations.
 - Focused queue-routing fixtures proving useful promotion and unchanged-revision
   no-op behavior through the production dispatcher path.
+
+## Disposition
+
+Dropped because the ready/backlog boundary this task repaired no longer exists.
+Commit `726598f15` implemented the cross-frontier comparison, and the later task
+model simplification in `1ed64a267` deliberately replaced ready/backlog,
+task-class routing, and backlog promotion with one active `open` queue ordered by
+authored priority. Restoring this task's mechanism would reintroduce the retired
+parallel queue and conflict with the canonical task contract.
