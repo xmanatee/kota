@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import type { ToolDef } from "#core/modules/module-types.js";
 import { networkWriteEffect } from "#core/tools/effect.js";
 import {
 	MCP_CURRENT_PROTOCOL_VERSION,
@@ -89,12 +88,6 @@ function parseSseBody(response: { body?: string }): Record<string, unknown>[] {
 			expect(data).toBeDefined();
 			return JSON.parse(data!.slice("data: ".length)) as Record<string, unknown>;
 		});
-}
-
-function expectHttpListChangedCapabilities(capabilities: Record<string, unknown>): void {
-	expect(capabilities.tools).toEqual({});
-	expect(capabilities.resources).toMatchObject({ listChanged: true });
-	expect(capabilities.prompts).toMatchObject({ listChanged: true });
 }
 
 async function waitForAssertion(assertion: () => void, timeoutMs = 2_000): Promise<void> {
@@ -202,100 +195,6 @@ describe("Streamable HTTP MCP transport", () => {
 		});
 		expect(oldDraftPath.status).toBe(404);
 		expect(calls).toBe(0);
-	});
-
-	it("serves discover, tools/list, and tools/call through the existing MCP handlers", async () => {
-		let calls = 0;
-		const incrementTool: ToolDef = {
-			tool: {
-				name: "increment_counter",
-				description: "increments a test counter",
-				input_schema: {
-					type: "object",
-					properties: {
-						amount: { type: "number", "x-mcp-header": "Amount" },
-					},
-					required: ["amount"],
-				},
-			},
-			runner: async (input) => {
-				calls += Number(input.amount);
-				return {
-					content: `counter=${calls}`,
-					structuredContent: { calls },
-				};
-			},
-			effect: networkWriteEffect(),
-		};
-		const server = new McpServer({ log: () => {}, moduleTools: [incrementTool] });
-
-		const discover = await handleStreamableHttpRequest(server, request({
-			jsonrpc: "2.0",
-			id: 1,
-			method: "server/discover",
-			params: draftParams(),
-		}));
-		expect(discover.status).toBe(200);
-		expect(discover.headers["content-type"]).toBe("application/json");
-		const discoverResult = parseBody(discover).result as {
-			supportedVersions: string[];
-			capabilities: Record<string, unknown>;
-		};
-		expect(discoverResult.supportedVersions).toEqual([
-			MCP_CURRENT_PROTOCOL_VERSION,
-			MCP_DRAFT_PROTOCOL_VERSION,
-		]);
-		expectHttpListChangedCapabilities(discoverResult.capabilities);
-
-		const list = await handleStreamableHttpRequest(server, request({
-			jsonrpc: "2.0",
-			id: 2,
-			method: "tools/list",
-			params: draftParams(),
-		}));
-		expect(list.status).toBe(200);
-		const tools = (parseBody(list).result as { tools: Array<{ name: string }> }).tools;
-		expect(tools.some((tool) => tool.name === "increment_counter")).toBe(true);
-
-		const call = await handleStreamableHttpRequest(server, request(
-			{
-				jsonrpc: "2.0",
-				id: 3,
-				method: "tools/call",
-				params: draftParams({
-					name: "increment_counter",
-					arguments: { amount: 2 },
-				}),
-			},
-			{
-				"mcp-name": "increment_counter",
-				"mcp-param-amount": "2",
-			},
-		));
-		expect(call.status).toBe(200);
-		expect(calls).toBe(2);
-		expect(parseBody(call).result).toMatchObject({
-			content: [{ type: "text", text: "counter=2" }],
-			structuredContent: { calls: 2 },
-		});
-	});
-
-	it("advertises listen-backed list-change capabilities over HTTP initialize", async () => {
-		const server = new McpServer({ log: () => {} });
-		const initialize = await handleStreamableHttpRequest(server, request({
-			jsonrpc: "2.0",
-			id: 5,
-			method: "initialize",
-			params: draftParams({
-				protocolVersion: MCP_DRAFT_PROTOCOL_VERSION,
-				capabilities: {},
-			}),
-		}));
-		expect(initialize.status).toBe(200);
-		const result = parseBody(initialize).result as {
-			capabilities: Record<string, unknown>;
-		};
-		expectHttpListChangedCapabilities(result.capabilities);
 	});
 
 	it("rejects mismatched or missing standard headers before dispatch", async () => {

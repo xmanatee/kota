@@ -19,6 +19,7 @@ const PROTOCOL_TEST_FILES = [
   "src/core/mcp/client.test.ts",
   "src/modules/agent-client-protocol/**/*.test.ts",
   "src/modules/mcp-server/mcp-protocol-types.test.ts",
+  "src/modules/mcp-server/interoperability.test.ts",
   "src/modules/mcp-server/server-card.test.ts",
   "src/modules/mcp-server/server.test.ts",
   "src/modules/mcp-server/streamable-http.test.ts",

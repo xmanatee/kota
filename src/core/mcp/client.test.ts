@@ -25,7 +25,6 @@ import {
   jsonRpcHttpResponse,
   mockClientHttpFetch,
   privateKeyJwtTestKeyPair,
-  sseJsonRpcHttpResponse,
   verifyPrivateKeyJwtAssertion,
   waitForAssertion,
 } from "./client-http-test-helpers.js";
@@ -129,23 +128,6 @@ describe("McpClient Lifecycle & Stdio Transport", () => {
     client = new McpClient("sleep", ["30"], {}, "stuck-server");
     await expect(client.connect()).rejects.toThrow(/timed out/);
   }, 15_000);
-
-  it("connect + listTools + callTool + close lifecycle", async () => {
-    client = new McpClient("node", ["-e", BOUNDED_STDIO_MCP_PEER], {}, "lifecycle");
-    await client.connect();
-    expect(client.isConnected()).toBe(true);
-
-    const tools = await client.listTools();
-    expect(tools.length).toBeGreaterThan(0);
-    expect(tools.some((t) => t.name === "test_tool")).toBe(true);
-
-    const result = await client.callTool("test_tool", {});
-    const completed = expectCompletedResult(result);
-    expect(completed.text).toContain("Tool call completed: test_tool");
-
-    await client.close();
-    expect(client.isConnected()).toBe(false);
-  }, 10_000);
 
   it("spawns stdio MCP servers without inherited parent secrets or KOTA runtime env", async () => {
     const envSnapshot = snapshotMcpStdioEnvProbeEnv();
@@ -551,48 +533,6 @@ describe("Streamable HTTP Transport & SSE Framing", () => {
       await client.close();
       client = null;
     }
-  });
-
-  it("connects with server/discover and parses tools/list over HTTP SSE", async () => {
-    const http = mockClientHttpFetch((req) => {
-      if (req.body.method === "server/discover") {
-        return jsonRpcHttpResponse(req.body.id, {
-          supportedVersions: [MCP_CURRENT_PROTOCOL_VERSION],
-          capabilities: { tools: { listChanged: true } },
-          serverInfo: { name: "http-server" },
-        });
-      }
-      if (req.body.method === "tools/list") {
-        return sseJsonRpcHttpResponse(req.body.id, {
-          tools: [{ name: "http_tool", inputSchema: { type: "object" } }],
-        });
-      }
-      if (req.body.method === "tools/call") {
-        return jsonRpcHttpResponse(req.body.id, {
-          content: [{ type: "text", text: "http tool result" }],
-          structuredContent: { ok: true },
-        });
-      }
-      return jsonRpcHttpResponse(req.body.id, {});
-    });
-    restoreFetch = http.mockRestore;
-
-    client = new McpClient(
-      { type: "http", url: "https://mcp.example.test/mcp" },
-      "http-client",
-    );
-    await client.connect();
-    expect(client.isConnected()).toBe(true);
-    expect(client.getProtocolVersion()).toBe(MCP_CURRENT_PROTOCOL_VERSION);
-
-    const tools = await client.listTools();
-    expect(tools).toHaveLength(1);
-    expect(tools[0].name).toBe("http_tool");
-
-    const result = await client.callTool("http_tool", {});
-    const completed = expectCompletedResult(result);
-    expect(completed.text).toBe("http tool result");
-    expect(completed.structuredContent).toEqual({ ok: true });
   });
 
   it("rejects oversized Streamable HTTP JSON responses by Content-Length before reading body", async () => {
