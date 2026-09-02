@@ -6,6 +6,7 @@ import {
   createWorkflowAgentGuards,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
+import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/native-cli-workflow-rails.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { renderUntrustedContent } from "#core/util/untrusted-content.js";
@@ -206,8 +207,7 @@ function createIntegrationGitOwnershipGuard(): AgentCanUseTool {
     }
     return {
       behavior: "deny",
-      message:
-        "Integration continuation agents cannot mutate Git state or the index; the workflow runtime owns staging, rebase continuation, commits, and publication.",
+      message: WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
       decisionAttribution: "operator-deny",
     };
   };
@@ -289,8 +289,7 @@ function normalizeContinuation(
     `You are repairing integration for workflow ${context.workflow}, run ${context.run.id}.`,
     details.join("\n"),
     "Work only inside the provided workspace. Preserve both the task intent and canonical changes.",
-    "Do not run Git mutation commands, including add, rm, restore, checkout, switch, merge, rebase, or commit.",
-    "The runtime owns the Git index, rebase continuation, and commit; leave repaired files unstaged.",
+    WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
     "Run focused checks when useful and stop after the workspace is ready for runtime validation.",
   ].join("\n\n");
   return { prompt, agentWriteScope: conflictPaths ?? [] };

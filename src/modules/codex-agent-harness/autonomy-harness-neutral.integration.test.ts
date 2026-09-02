@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/index.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
@@ -173,6 +174,8 @@ describe("autonomy agent step on codex", () => {
       "--dangerously-bypass-approvals-and-sandbox",
     );
     expect(codexProcess.stdinText()).toContain("## KOTA workflow rails");
-    expect(codexProcess.stdinText()).toContain("Do not run `git commit`");
+    expect(codexProcess.stdinText()).toContain(
+      WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
+    );
   });
 });

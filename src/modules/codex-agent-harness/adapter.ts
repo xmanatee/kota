@@ -16,6 +16,7 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import {
+  buildNativeCliWorkflowRails,
   probeNativeCliAuth,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
@@ -214,10 +215,7 @@ function buildCodexPrompt(options: AgentHarnessRunOptions): string {
     parts.push("## System instructions", options.systemPrompt.trim());
   }
   parts.push(
-    "## KOTA workflow rails",
-    "Do not run `git commit`; stage changes and write the requested " +
-      "commit-message artifact instead. Do not stop, restart, signal, or " +
-      "control the daemon process that launched you.",
+    ...buildNativeCliWorkflowRails(),
     "## Task",
     options.prompt,
   );

@@ -139,7 +139,14 @@ export async function runAgentRepairLoop(
 
     const iteration: RepairIteration = { attempt, failures };
 
-    const repairPrompt = buildRepairPrompt(attempt, maxRepairAttempts, failures, step, agentRunDir);
+    const repairPrompt = buildRepairPrompt(
+      attempt,
+      maxRepairAttempts,
+      failures,
+      step,
+      agentRunDir,
+      resolvedHarness.toolControl !== "native",
+    );
     const appendRepairMessage = (message: KotaAgentMessage) => {
       trajectoryMessages.push(message);
       appendMessage(message);

@@ -68,7 +68,9 @@ eval containers that proxy chains allowed CONNECT requests through the
 eval-configured Docker-network proxy; it never opens a direct provider route.
 Effective scope policy paths are projected into the run worktree before
 launch; passive or write-confirmation runs can write only to invocation state.
-Git metadata and machine authority remain protected.
+Git metadata remains read-only and machine authority remains protected. Agents
+leave workspace changes unstaged; workflow runtime owns index staging and
+commit creation after validation.
 
 ## Model Routing
 

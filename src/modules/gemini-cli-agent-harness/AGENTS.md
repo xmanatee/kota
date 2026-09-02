@@ -49,7 +49,8 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
    allowed scope-policy paths are projected into the run worktree. Reads stay
    within system/tool runtime, workspace dependencies,
    workspace, and invocation roots; Git metadata and machine authority stay
-   read-only. Network access is restricted to declared Google model and
+   read-only, while workflow runtime owns index staging and commits. Network
+   access is restricted to declared Google model and
    authentication endpoints through KOTA's host-owned proxy.
 4. Parse newline-delimited JSON events. Normalize init, assistant text, tool,
    error, and result events into `KotaAgentMessage`; preserve unknown events as

@@ -1,5 +1,6 @@
 import "./adapter-test-support.js";
 import { describe, expect, it, vi } from "vitest";
+import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/index.js";
 import { antigravityCliAgentHarness } from "./adapter.js";
 import {
   adapterTestMocks,
@@ -90,7 +91,7 @@ describe("antigravityCliAgentHarness execution", () => {
     expect(commandArgs).not.toContain("--sandbox");
     const promptArg = commandArgs[commandArgs.indexOf("--print") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
-    expect(promptArg).toContain("Do not run `git commit`");
+    expect(promptArg).toContain(WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION);
     expect(writer.write).toHaveBeenCalledWith("all done");
     expect(onMessage.mock.calls.map(([message]) => message.type)).toEqual([
       "status",

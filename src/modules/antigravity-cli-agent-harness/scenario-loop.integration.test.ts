@@ -12,7 +12,10 @@ import { cpSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import {
+  type KotaAgentMessage,
+  WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
+} from "#core/agent-harness/index.js";
 import { loadScenario } from "#modules/harness-parity/scenario.js";
 import { antigravityCliAgentHarness } from "./adapter.js";
 import {
@@ -172,7 +175,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     const commandArgs = spawnMock.mock.calls[0][1] as string[];
     const promptArg = commandArgs[commandArgs.indexOf("--print") + 1]!;
     expect(promptArg).toContain("## KOTA workflow rails");
-    expect(promptArg).toContain("Do not run `git commit`");
+    expect(promptArg).toContain(WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION);
     expect(promptArg).toContain("Antigravity CLI owns its native tool loop");
     expect(promptArg).toContain("## Task");
     expect(promptArg).toContain(loaded.spec.prompt);

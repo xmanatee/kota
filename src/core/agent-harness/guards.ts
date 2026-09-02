@@ -24,6 +24,7 @@ import {
   isPackageBootstrapCommand,
   normalizeCommand,
 } from "./guard-command-classifiers.js";
+import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "./native-cli-workflow-rails.js";
 import type { AgentCanUseTool, AgentPermissionResult } from "./types.js";
 
 export {
@@ -35,9 +36,6 @@ export {
 
 type AgentToolInput = Parameters<AgentCanUseTool>[1];
 
-const GIT_OWNERSHIP_DENIAL_MESSAGE =
-  "Workflow agents must not run git add, git commit, mutate branches, push, or amend workflow-owned commits. Leave workspace changes unstaged and write `<run-dir>/commit-message.txt`; the workflow runtime owns Git metadata and commits after validation gates pass.";
-
 const DAEMON_DENIAL_MESSAGE =
   "Workflow agents must not control, stop, restart, or signal the daemon process that hosts them.";
 
@@ -48,7 +46,7 @@ const SCOPE_AUTHORITY_TOKEN_DENIAL_MESSAGE =
   "Workflow agents cannot read or manipulate the machine-owned scope authority operator token.";
 
 const LOCAL_WORK_TEARDOWN_DENIAL_MESSAGE =
-  "Workflow agents cannot discard local work from inside an autonomous run. Inspect, edit, or stage files instead of running destructive Git teardown commands.";
+  `Workflow agents cannot discard local work from inside an autonomous run. ${WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION}`;
 
 const INFRASTRUCTURE_DESTROY_DENIAL_MESSAGE =
   "Workflow agents cannot destroy infrastructure from inside an autonomous run. Infrastructure teardown requires an explicit operator-owned action outside the workflow agent shell.";
@@ -109,7 +107,7 @@ export function createWorkflowGitOwnershipGuard(): AgentCanUseTool {
     // agent adapt instead of losing the run.
     return {
       behavior: "deny",
-      message: GIT_OWNERSHIP_DENIAL_MESSAGE,
+      message: WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
       decisionAttribution: "operator-deny",
     };
   };

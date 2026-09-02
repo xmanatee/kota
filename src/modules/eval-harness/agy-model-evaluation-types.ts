@@ -42,10 +42,17 @@ export type AgyModelEvaluationScenario = {
 const ANTIGRAVITY_HARNESS_INSTRUCTION_TRACE_RULES = [
   {
     kind: "forbidden-command",
+    command: "git add",
+    sourceRoot: "evaluation-project",
+    sourcePath: "src/core/agent-harness/native-cli-workflow-rails.ts",
+    sourceNeedle: "do not run `git add`, `git commit`",
+  },
+  {
+    kind: "forbidden-command",
     command: "git commit",
     sourceRoot: "evaluation-project",
-    sourcePath: "src/modules/antigravity-cli-agent-harness/adapter.ts",
-    sourceNeedle: "Do not run `git commit`;",
+    sourcePath: "src/core/agent-harness/native-cli-workflow-rails.ts",
+    sourceNeedle: "do not run `git add`, `git commit`",
   },
 ] as const satisfies readonly AgyInstructionTraceRule[];
 

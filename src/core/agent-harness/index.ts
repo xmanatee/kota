@@ -88,6 +88,10 @@ export {
   buildIsolatedNativeCliEnvironment,
   buildNativeCliEnvironment,
 } from "./native-cli-environment.js";
+export {
+  buildNativeCliWorkflowRails,
+  WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
+} from "./native-cli-workflow-rails.js";
 export type {
   ProcessDisciplineAbstentionEvidence,
   ProcessDisciplineAggregate,

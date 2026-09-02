@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/index.js";
 import {
   type ProcessIdentity,
   ProcessSupervisor,
@@ -247,7 +248,7 @@ describe("codexAgentHarness", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "codex",
       expect.any(Array),
-      {
+      expect.objectContaining({
         cwd: "/repo",
         machineAuthorityOwner: "native-cli",
         authorityConfigPath: "/operator/.kota/config.json",
@@ -260,7 +261,7 @@ describe("codexAgentHarness", () => {
         ],
         readOnlyHostRoots: expect.any(Array),
         prepareEnvironment: expect.any(Function),
-      },
+      }),
       expect.any(Function),
     );
     expect(spawnMock.mock.calls[0][1]).not.toContain(
@@ -274,6 +275,9 @@ describe("codexAgentHarness", () => {
     expect(spawnEnv.OPENAI_API_KEY).toBeUndefined();
     expect(spawnEnv.KOTA_TEST_ENV).toBe("preserved");
     expect(process.stdinText()).toContain("## System instructions\n\nbe brief");
+    expect(process.stdinText()).toContain(
+      WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
+    );
     expect(process.stdinText()).toContain("## Task\n\nplease echo");
     expect(writer.write).toHaveBeenCalledWith("all done");
     expect(onMessage.mock.calls.map(([message]) => message)).toEqual([

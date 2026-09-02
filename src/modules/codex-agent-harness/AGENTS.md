@@ -65,9 +65,10 @@ live policy revision aborts the process.
 fake `ask_owner` tool. Workflows that need owner escalation should use the
 deterministic `askOwnerSteps` recipe outside the agent step.
 
-The adapter still carries KOTA's workflow rails in the prompt: agents must not
-run `git commit` and must not stop or control the daemon that launched them.
-Post-step workflow checks remain responsible for validating repo state.
+The adapter still carries KOTA's shared native workflow rails in the prompt:
+agents treat Git metadata as read-only, leave workspace changes unstaged for
+runtime-owned commits, and must not stop or control the daemon that launched
+them. Post-step workflow checks remain responsible for validating repo state.
 It uses a fresh `CODEX_HOME` and explicitly disables plugins and hooks, so
 operator-global extensions cannot affect daemon-launched workflow steps;
 Codex auth is copied into the provider-only per-invocation runtime home.

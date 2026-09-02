@@ -12,6 +12,7 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import {
+  buildNativeCliWorkflowRails,
   probeNativeCliRuntime,
 } from "#core/agent-harness/index.js";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
@@ -198,13 +199,11 @@ function buildAntigravityPrompt(options: AgentHarnessRunOptions): string {
     parts.push("## System instructions", options.systemPrompt.trim());
   }
   parts.push(
-    "## KOTA workflow rails",
-    "Do not run `git commit`; stage changes and write the requested " +
-      "commit-message artifact instead. Do not stop, restart, signal, or " +
-      "control the daemon process that launched you.",
-    "Antigravity CLI owns its native tool loop in this harness. If a task " +
-      "requires a KOTA approval, KOTA tool registry call, or KOTA file " +
-      "checkpoint that this adapter cannot provide, stop and report that boundary.",
+    ...buildNativeCliWorkflowRails([
+      "Antigravity CLI owns its native tool loop in this harness. If a task " +
+        "requires a KOTA approval, KOTA tool registry call, or KOTA file " +
+        "checkpoint that this adapter cannot provide, stop and report that boundary.",
+    ]),
     "## Task",
     options.prompt,
   );

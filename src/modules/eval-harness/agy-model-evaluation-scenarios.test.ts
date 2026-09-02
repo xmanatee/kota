@@ -113,8 +113,15 @@ describe("AGY scenario contract", () => {
         kind: "forbidden-command",
         command: "git commit",
         sourceRoot: "evaluation-project",
-        sourcePath: "src/modules/antigravity-cli-agent-harness/adapter.ts",
-        sourceNeedle: "Do not run `git commit`;",
+        sourcePath: "src/core/agent-harness/native-cli-workflow-rails.ts",
+        sourceNeedle: "do not run `git add`, `git commit`",
+      });
+      expect(scenario.instructionTraceRules).toContainEqual({
+        kind: "forbidden-command",
+        command: "git add",
+        sourceRoot: "evaluation-project",
+        sourcePath: "src/core/agent-harness/native-cli-workflow-rails.ts",
+        sourceNeedle: "do not run `git add`, `git commit`",
       });
     }
     const replayBacked = loadFixture(root, "builder-targeted-test-writing");

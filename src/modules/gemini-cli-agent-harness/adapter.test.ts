@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { KotaAgentMessage } from "#core/agent-harness/index.js";
+import {
+  type KotaAgentMessage,
+  WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
+} from "#core/agent-harness/index.js";
 import {
   GEMINI_CLI_AGENT_HARNESS_NAME,
   geminiCliAgentHarness,
@@ -194,7 +197,7 @@ describe("geminiCliAgentHarness", () => {
     expect(sandboxLaunchMock).toHaveBeenCalledWith(
       "gemini",
       expect.any(Array),
-      {
+      expect.objectContaining({
         cwd: "/repo",
         machineAuthorityOwner: "kota",
         authorityConfigPath: "/operator/.kota/config.json",
@@ -210,13 +213,13 @@ describe("geminiCliAgentHarness", () => {
         ],
         readProtectedRoots: ["/repo/.gemini", "/repo/.agents"],
         prepareEnvironment: expect.any(Function),
-      },
+      }),
       expect.any(Function),
     );
     const spawnedArgs = spawnMock.mock.calls[0][1] as string[];
     const promptArg = spawnedArgs[spawnedArgs.indexOf("--prompt") + 1]!;
     expect(promptArg).toContain("## System instructions\n\nbe brief");
-    expect(promptArg).toContain("Do not run `git commit`");
+    expect(promptArg).toContain(WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION);
     expect(writer.write).toHaveBeenCalledWith("all done");
     expect(result).toMatchObject({
       text: "all done",

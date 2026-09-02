@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/native-cli-workflow-rails.js";
 import { renderUntrustedContent } from "#core/util/untrusted-content.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
 import type { WorkflowAgentStep } from "./step-types.js";
@@ -20,6 +21,7 @@ export function buildRepairPrompt(
   failures: RepairCheckResult[],
   step: WorkflowAgentStep,
   runDirPath?: string,
+  includeGitOwnershipInstruction = true,
 ): string {
   const attemptLabel = maxRepairAttempts === undefined
     ? `${attempt}`
@@ -40,7 +42,10 @@ export function buildRepairPrompt(
     ? join(runDirPath, "commit-message.txt")
     : "<run-directory>/commit-message.txt";
   lines.push(
-    "Fix these issues now. Leave workspace changes unstaged; do not run `git add` or `git commit`.",
+    "Fix these issues now.",
+    ...(includeGitOwnershipInstruction
+      ? [WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION]
+      : []),
     `Write a short commit message to \`${commitMessagePath}\` summarizing what changed.`,
     "Finish this repair fully, then stop.",
   );

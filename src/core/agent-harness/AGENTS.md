@@ -43,6 +43,9 @@ the protocol and registry.
   Native tools lack direct host, loopback, metadata-service, or internet routes.
   KOTA native sandboxes protect `.kota`; only validated `KOTA_RUN_DIR` /
   `KOTA_RUN_TEMP_DIR` evidence and temp paths are writable.
+- Native CLI adapters compose their workflow Git and daemon instructions from
+  the shared native workflow rails. Keep Git metadata read-only for agents and
+  leave staging, rebase continuation, commits, and publication runtime-owned.
 - Runtime Probes and production proofs use the fail-closed contained-workspace sandbox; never add an unsandboxed launcher.
 
 ## Owner-questions capability

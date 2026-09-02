@@ -5,6 +5,7 @@ import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
   UNKNOWN_AGENT_USAGE,
+  WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
 } from "#core/agent-harness/index.js";
 import type { RunContext } from "./run-context.js";
 import {
@@ -107,7 +108,7 @@ describe("shared integration continuation policy", () => {
     expect(options.env?.GIT_OPTIONAL_LOCKS).toBe("0");
     expect(options.prompt).toContain('"src/shared.ts"');
     expect(options.prompt).toContain('"docs/merge notes.md"');
-    expect(options.prompt).toContain("The runtime owns the Git index, rebase continuation, and commit");
+    expect(options.prompt).toContain(WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION);
 
     const readOnly = await options.canUseTool?.(
       "Bash",
