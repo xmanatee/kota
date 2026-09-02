@@ -23,10 +23,9 @@ export const DEFAULT_TARGET_TOOLS = [
   "read_document",
   // Browser-driven content-ingest surfaces. Extracted text from a live page
   // carries the same injection risk as `web_fetch` output — same screening
-  // applies. Interactive tools (click/type/evaluate/screenshot) are not
-  // listed because they do not themselves return extracted page text;
-  // `browser_get_text`, `x_post_read`, and `rendered_article_read` are the
-  // ingestion points.
+  // applies. Navigation returns a page-controlled title, while click, type,
+  // evaluate, and screenshot do not themselves return extracted page text.
+  "browser_navigate",
   "browser_get_text",
   "x_post_read",
   "rendered_article_read",

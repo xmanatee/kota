@@ -46,6 +46,8 @@ Operators configure a persistent login session via `modules.browser`
 
 ## Content-Ingest Tools
 
+- `browser_navigate` — URL navigation whose result includes the final URL and
+  the remote page's title.
 - `browser_get_text` — raw `innerText` extraction of a page or element. Use
   it for ad-hoc inspection of already-navigated pages.
 - `x_post_read` — scoped X/Twitter status reader. Navigates until DOM content
@@ -60,7 +62,7 @@ Operators configure a persistent login session via `modules.browser`
   (or selector/body fallback). Returns a typed failure for Cloudflare/JS
   challenges that never clear.
 
-All three content-ingest tools are included in
+All four content-ingest tools are included in
 `DEFAULT_TARGET_TOOLS` for the `injection-defense` middleware, so autonomous
 runs see the standard "BEGIN UNTRUSTED CONTENT" annotation on suspicious
 payloads.

@@ -17,8 +17,7 @@
  * Config under `modules.injection-defense`:
  *   {
  *     enabled?: boolean;               // default true
- *     targetTools?: string[];          // default: web_fetch, web_search,
- *                                      //          http_request, read_document
+ *     targetTools?: string[];          // default: built-in content-ingest tools
  *     targetModes?: AutonomyMode[];    // default: ["autonomous"]
  *   }
  */

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: browser_navigate returns an externally controlled page title to the agent, but the tool is omitted from the default injection-defense targets. A navigated page can therefore place prompt-injection text in its title without the screening applied to other browser content-ingest outputs.
 
@@ -105,3 +104,13 @@ excerpt:
 >   "x_post_read",
 >   "rendered_article_read",
 > ] as const;
+
+## Outcome
+
+Added `browser_navigate` to the default injection-defense targets. Autonomous navigation output is now assessed before reaching agent context, and suspicious text in a remote page title receives the standard untrusted-content annotation.
+
+## Verification
+
+- `pnpm exec vitest run --configLoader runner --silent=true src/modules/injection-defense/defense-middleware.test.ts src/modules/injection-defense/defense-middleware-mcp-provenance.test.ts src/modules/browser/browser-interaction-tools.test.ts` — 3 files and 24 tests passed, covering the remote title producer and the autonomous middleware boundary.
+- `pnpm typecheck` — production and test TypeScript projects passed.
+- `pnpm exec biome check src/modules/injection-defense/defense-middleware.ts src/modules/injection-defense/defense-middleware.test.ts src/modules/injection-defense/index.ts` — passed.
