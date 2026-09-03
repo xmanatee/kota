@@ -10,3 +10,7 @@ module owns only operator projection and mutation surfaces. New answer or
 cancel surfaces should resolve the linked owner question through the same
 operation helpers so waiting workflows resume through the existing
 `owner.question.resolved` await-event path.
+
+Route registrations resolve the daemon scope provider through their
+`ModuleContext`; the runtime loader's provider registry is the authority for
+multi-scope reads and mutations.

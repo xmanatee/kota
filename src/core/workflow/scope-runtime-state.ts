@@ -114,27 +114,6 @@ export interface AgentBackoffStateStore {
   setAgentBackoff(value: WorkflowAgentBackoffState | null): void;
 }
 
-/** Single daemon-wide authority for the provider/runtime used by hosted scopes. */
-export class DaemonAgentBackoffStateStore implements AgentBackoffStateStore {
-  constructor(private readonly database: RunStateDatabase) {}
-
-  getAgentBackoff(): WorkflowAgentBackoffState | null {
-    return decodeAgentBackoff(
-      this.database.readDaemonStateValue(AGENT_BACKOFF_STATE_KEY).value,
-    );
-  }
-
-  setAgentBackoff(value: WorkflowAgentBackoffState | null): void {
-    const current = this.database.readDaemonStateValue(AGENT_BACKOFF_STATE_KEY);
-    this.database.compareAndSetDaemonStateValue({
-      key: AGENT_BACKOFF_STATE_KEY,
-      expectedRevision: current.revision,
-      value,
-      updatedAt: new Date().toISOString(),
-    });
-  }
-}
-
 /** Typed runtime-owned access to mutable scope state in the run database. */
 export class ScopeRuntimeStateStore implements AgentBackoffStateStore {
   constructor(

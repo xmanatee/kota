@@ -202,8 +202,10 @@ const ownerDecisionsModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  routes: () => ownerDecisionRoutes(),
-  controlRoutes: () => ownerDecisionControlRoutes(),
+  routes: (ctx) =>
+    ownerDecisionRoutes(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+  controlRoutes: (ctx) =>
+    ownerDecisionControlRoutes(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
   localClient: () => ({ ownerDecisions: localHandler() }),
   daemonClient: (link) => ({ ownerDecisions: buildDaemonHandler(link) }),
 };

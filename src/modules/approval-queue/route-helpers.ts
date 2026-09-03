@@ -10,6 +10,7 @@ import {
 } from "#core/daemon/approval-queue.js";
 import {
 	DAEMON_SCOPE_PROVIDER_TYPE,
+	type DaemonScopeProvider,
 	type DaemonScopeRuntime,
 } from "#core/daemon/scope-provider.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
@@ -41,6 +42,12 @@ const VALID_STATUSES: readonly (ApprovalStatus | "all")[] = [
 	"rejected",
 	"expired",
 ];
+
+export type ApprovalScopeProviderResolver = () => DaemonScopeProvider | null;
+
+function resolveLegacyScopeProvider(): DaemonScopeProvider | null {
+	return getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null;
+}
 
 export function readStatusFilter(req: IncomingMessage): ApprovalStatus | "all" | undefined {
 	const status = new URL(req.url ?? "", "http://localhost").searchParams.get("status");
@@ -80,9 +87,10 @@ export function resolveApprovalQueue(
 	res: ServerResponse,
 	queue?: ApprovalQueue,
 	scopeId?: string,
+	getScopeProvider: ApprovalScopeProviderResolver = resolveLegacyScopeProvider,
 ): { queue: ApprovalQueue; executionContext?: ToolRunnerContext } | null {
 	if (queue) return { queue };
-	const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+	const scopeProvider = getScopeProvider();
 	if (!scopeProvider) {
 		if (scopeId) {
 			jsonResponse(res, 404, {

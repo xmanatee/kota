@@ -8,6 +8,7 @@
 
 import { Command } from "commander";
 import type { PendingApproval } from "#core/daemon/approval-queue.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import {
@@ -64,7 +65,8 @@ const approvalQueueModule: KotaModule = {
 	},
 
 	routes: () => approvalRoutes(),
-	controlRoutes: () => approvalControlRoutes(),
+	controlRoutes: (ctx) =>
+		approvalControlRoutes(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 
 	localClient: () => ({ approvals: buildLocalApprovalsClient() }),
 

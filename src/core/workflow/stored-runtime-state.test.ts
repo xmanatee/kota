@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AGENT_BACKOFF_OPERATOR_RETRY_UNTIL } from "./agent-backoff.js";
 import { RunStateDatabase } from "./run-state-database.js";
-import { DaemonAgentBackoffStateStore } from "./scope-runtime-state.js";
+import { ScopeRuntimeStateStore } from "./scope-runtime-state.js";
 import {
   clearStoredAgentBackoff,
   readStoredWorkflowRuntimeState,
@@ -42,10 +42,10 @@ describe("stored workflow runtime state", () => {
     expect(existsSync(stateDir)).toBe(false);
   });
 
-  it("clears one daemon incident and releases preserved work in every scope", () => {
-    const stateDir = mkdtempSync(join(tmpdir(), "kota-offline-fleet-state-"));
-    const scopeA = mkdtempSync(join(tmpdir(), "kota-offline-fleet-a-"));
-    const scopeB = mkdtempSync(join(tmpdir(), "kota-offline-fleet-b-"));
+  it("clears one scope incident without releasing a sibling's preserved work", () => {
+    const stateDir = mkdtempSync(join(tmpdir(), "kota-offline-scope-state-"));
+    const scopeA = mkdtempSync(join(tmpdir(), "kota-offline-scope-a-"));
+    const scopeB = mkdtempSync(join(tmpdir(), "kota-offline-scope-b-"));
     roots.push(stateDir, scopeA, scopeB);
     const database = new RunStateDatabase(stateDir);
     database.registerScope({
@@ -70,8 +70,8 @@ describe("stored workflow runtime state", () => {
         notBeforeAt: AGENT_BACKOFF_OPERATOR_RETRY_UNTIL,
       });
     }
-    const fleetState = new DaemonAgentBackoffStateStore(database);
-    fleetState.setAgentBackoff({
+    const scopeState = new ScopeRuntimeStateStore(database, "scope-b");
+    scopeState.setAgentBackoff({
       runtimeId: "agy:antigravity-cli",
       kind: "quality",
       failureCount: 1,
@@ -83,8 +83,8 @@ describe("stored workflow runtime state", () => {
 
     expect(clearStoredAgentBackoff(scopeB, stateDir)).toBe(true);
     const verified = RunStateDatabase.openReadOnly(stateDir);
-    expect(new DaemonAgentBackoffStateStore(verified).getAgentBackoff()).toBeNull();
-    expect(verified.getRun("run-scope-a")?.notBeforeAt).not.toBe(
+    expect(new ScopeRuntimeStateStore(verified, "scope-b").getAgentBackoff()).toBeNull();
+    expect(verified.getRun("run-scope-a")?.notBeforeAt).toBe(
       AGENT_BACKOFF_OPERATOR_RETRY_UNTIL,
     );
     expect(verified.getRun("run-scope-b")?.notBeforeAt).not.toBe(

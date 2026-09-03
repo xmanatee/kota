@@ -51,6 +51,6 @@ export type RunExecutorDeps = {
   /** Host-owned harness lookup; defaults to the process registry. */
   resolveAgentHarness?: (name: string) => AgentHarness;
   createAgentCanUseTool?: (stepId: string) => AgentCanUseTool;
-  /** Daemon-owned admission gate shared by every agent call in the hosted fleet. */
+  /** Runtime-owned admission gate shared by every agent call in the hosted scope. */
   agentBackoff?: AgentBackoffManager;
 };

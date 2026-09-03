@@ -18,6 +18,7 @@ import {
 	handleRejectApproval,
 } from "./route-handlers.js";
 import {
+	type ApprovalScopeProviderResolver,
 	listApprovalsLocal,
 	readApprovalBatchDecisionBody,
 	readApprovalDecisionBody,
@@ -112,37 +113,41 @@ export function approvalRoutes(): RouteRegistration[] {
 	];
 }
 
-export function approvalControlRoutes(): ControlRouteRegistration[] {
+export function approvalControlRoutes(
+	getScopeProvider?: ApprovalScopeProviderResolver,
+): ControlRouteRegistration[] {
 	return [
 		{
 			method: "GET",
 			path: "/approvals",
 			capabilityScope: "read",
-			handler: handleListApprovalsControl,
+			handler: (req, res) => handleListApprovalsControl(req, res, getScopeProvider),
 		},
 		{
 			method: "POST",
 			path: "/approvals/approve-all",
 			capabilityScope: "control",
-			handler: handleApproveAllApprovalsControl,
+			handler: (req, res) => handleApproveAllApprovalsControl(req, res, getScopeProvider),
 		},
 		{
 			method: "POST",
 			path: "/approvals/reject-all",
 			capabilityScope: "control",
-			handler: handleRejectAllApprovalsControl,
+			handler: (req, res) => handleRejectAllApprovalsControl(req, res, getScopeProvider),
 		},
 		{
 			method: "POST",
 			path: "/approvals/:id/approve",
 			capabilityScope: "control",
-			handler: handleApproveApprovalControl,
+			handler: (req, res, params) =>
+				handleApproveApprovalControl(req, res, params, getScopeProvider),
 		},
 		{
 			method: "POST",
 			path: "/approvals/:id/reject",
 			capabilityScope: "control",
-			handler: handleRejectApprovalControl,
+			handler: (req, res, params) =>
+				handleRejectApprovalControl(req, res, params, getScopeProvider),
 		},
 	];
 }
@@ -150,10 +155,11 @@ export function approvalControlRoutes(): ControlRouteRegistration[] {
 async function handleListApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
+	getScopeProvider?: ApprovalScopeProviderResolver,
 ): Promise<void> {
 	const scopeId = readScopeId(req, res);
 	if (scopeId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, scopeId);
+	const queue = resolveApprovalQueue(res, undefined, scopeId, getScopeProvider);
 	if (!queue) return;
 	jsonResponse(res, 200, listApprovalsLocal(queue.queue, readStatusFilter(req)));
 }
@@ -162,13 +168,14 @@ async function handleApproveApprovalControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 	params: Record<string, string>,
+	getScopeProvider?: ApprovalScopeProviderResolver,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, params.id)) return;
 	const decision = await readApprovalDecisionBody(req, res);
 	if (!decision.ok) return;
 	const scopeId = readScopeId(req, res);
 	if (scopeId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, scopeId);
+	const queue = resolveApprovalQueue(res, undefined, scopeId, getScopeProvider);
 	if (!queue) return;
 	await writeApproveApprovalMutation(
 		res,
@@ -184,13 +191,14 @@ async function handleRejectApprovalControl(
 	req: IncomingMessage,
 	res: ServerResponse,
 	params: Record<string, string>,
+	getScopeProvider?: ApprovalScopeProviderResolver,
 ): Promise<void> {
 	if (rejectMalformedApprovalId(res, params.id)) return;
 	const reason = await readOptionalStringField(req, res, "reason");
 	if (!reason.ok) return;
 	const scopeId = readScopeId(req, res);
 	if (scopeId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, scopeId);
+	const queue = resolveApprovalQueue(res, undefined, scopeId, getScopeProvider);
 	if (!queue) return;
 	const item = rejectApprovalLocal(queue.queue, params.id, reason.value);
 	if (!item) {
@@ -203,12 +211,13 @@ async function handleRejectApprovalControl(
 async function handleApproveAllApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
+	getScopeProvider?: ApprovalScopeProviderResolver,
 ): Promise<void> {
 	const decision = await readApprovalBatchDecisionBody(req, res);
 	if (!decision.ok) return;
 	const scopeId = readScopeId(req, res);
 	if (scopeId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, scopeId);
+	const queue = resolveApprovalQueue(res, undefined, scopeId, getScopeProvider);
 	if (!queue) return;
 	await writeApproveAllApprovalsMutation(
 		res,
@@ -222,12 +231,13 @@ async function handleApproveAllApprovalsControl(
 async function handleRejectAllApprovalsControl(
 	req: IncomingMessage,
 	res: ServerResponse,
+	getScopeProvider?: ApprovalScopeProviderResolver,
 ): Promise<void> {
 	const reason = await readOptionalStringField(req, res, "reason");
 	if (!reason.ok) return;
 	const scopeId = readScopeId(req, res);
 	if (scopeId === null) return;
-	const queue = resolveApprovalQueue(res, undefined, scopeId);
+	const queue = resolveApprovalQueue(res, undefined, scopeId, getScopeProvider);
 	if (!queue) return;
 	jsonResponse(res, 200, rejectAllApprovalsLocal(queue.queue, reason.value));
 }

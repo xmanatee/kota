@@ -185,7 +185,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     },
     inspectImprovementRuntimeReadiness: (scopeId, posture) => {
       const enabled = new Set(
-        scopeRuntimes.get(scopeId).workflowRuntime.getDefinitions()
+        scopeRuntimes.get(scopeId).workflowRuntime.getValidatedDefinitions()
           .filter((definition) => definition.enabled)
           .map((definition) => definition.name),
       );

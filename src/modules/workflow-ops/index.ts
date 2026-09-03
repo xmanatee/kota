@@ -518,20 +518,24 @@ export function buildWorkflowDaemonHandler(
       const result = await fetchWorkflowStatus(link, `/workflow/status${query}`);
       return { ...result, pendingAbort: false };
     },
-    pause: async () => {
+    pause: async (selector) => {
       const result = await link.request<{ paused: boolean; already?: boolean }>(
         "POST",
-        "/workflow/pause",
+        `/workflow/pause${scopeSelectorQuery(selector)}`,
       );
       if (!result) throw new Error("Daemon unreachable while pausing dispatch");
       return { paused: result.paused, already: result.already ?? false };
     },
-    pauseAgentForQuality: async (reason) => {
+    pauseAgentForQuality: async (reason, selector) => {
       const result = await link.request<{
         ok: true;
         paused: true;
         already?: boolean;
-      }>("POST", "/workflow/agent/quality-pause", { reason });
+      }>(
+        "POST",
+        `/workflow/agent/quality-pause${scopeSelectorQuery(selector)}`,
+        { reason },
+      );
       if (!result) return { ok: false, reason: "daemon_required" };
       return {
         ok: true,
@@ -539,8 +543,12 @@ export function buildWorkflowDaemonHandler(
         already: result.already ?? false,
       };
     },
-    resume: async (options) => {
-      const query = options?.retryAgent === true ? "?retryAgent=true" : "";
+    resume: async (options, selector) => {
+      const params = new URLSearchParams();
+      if (options?.retryAgent === true) params.set("retryAgent", "true");
+      if (selector?.scopeId !== undefined) params.set("scopeId", selector.scopeId);
+      const encodedQuery = params.toString();
+      const query = encodedQuery.length > 0 ? `?${encodedQuery}` : "";
       const result = await link.request<{
         paused: boolean;
         already?: boolean;
@@ -558,30 +566,30 @@ export function buildWorkflowDaemonHandler(
         }),
       };
     },
-    abort: async () => {
+    abort: async (selector) => {
       const result = await link.request<{ aborted: number }>(
         "POST",
-        "/workflow/abort",
+        `/workflow/abort${scopeSelectorQuery(selector)}`,
       );
       if (!result) {
         throw new Error("Daemon unreachable while aborting active runs");
       }
       return { status: "applied", count: result.aborted };
     },
-    reload: async () => {
+    reload: async (selector) => {
       const result = await link.request<{ count: number }>(
         "POST",
-        "/workflow/reload",
+        `/workflow/reload${scopeSelectorQuery(selector)}`,
       );
       if (!result) {
         throw new Error("Daemon unreachable while reloading definitions");
       }
       return { status: "applied", count: result.count };
     },
-    enable: async (name) => {
+    enable: async (name, selector) => {
       const resp = await fetchJson(
         "POST",
-        `/workflow/definitions/${encodeURIComponent(name)}/enable`,
+        `/workflow/definitions/${encodeURIComponent(name)}/enable${scopeSelectorQuery(selector)}`,
       );
       if (!resp) {
         throw new Error(`Daemon unreachable while enabling workflow "${name}"`);
@@ -592,10 +600,10 @@ export function buildWorkflowDaemonHandler(
       }
       return { ok: true };
     },
-    disable: async (name) => {
+    disable: async (name, selector) => {
       const resp = await fetchJson(
         "POST",
-        `/workflow/definitions/${encodeURIComponent(name)}/disable`,
+        `/workflow/definitions/${encodeURIComponent(name)}/disable${scopeSelectorQuery(selector)}`,
       );
       if (!resp) {
         throw new Error(`Daemon unreachable while disabling workflow "${name}"`);
@@ -606,10 +614,10 @@ export function buildWorkflowDaemonHandler(
       }
       return { ok: true };
     },
-    cancelRun: async (id) => {
+    cancelRun: async (id, selector) => {
       const resp = await fetchJson(
         "DELETE",
-        `/workflow/runs/${encodeURIComponent(id)}`,
+        `/workflow/runs/${encodeURIComponent(id)}${scopeSelectorQuery(selector)}`,
       );
       if (!resp) {
         throw new Error(`Daemon unreachable while cancelling run "${id}"`);
@@ -627,10 +635,10 @@ export function buildWorkflowDaemonHandler(
       }
       return { ok: true };
     },
-    abortRun: async (id) => {
+    abortRun: async (id, selector) => {
       const resp = await fetchJson(
         "POST",
-        `/workflow/runs/${encodeURIComponent(id)}/abort`,
+        `/workflow/runs/${encodeURIComponent(id)}/abort${scopeSelectorQuery(selector)}`,
       );
       if (!resp) {
         throw new Error(`Daemon unreachable while aborting run "${id}"`);

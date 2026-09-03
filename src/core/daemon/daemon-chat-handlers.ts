@@ -121,12 +121,12 @@ export async function handleDaemonChat(
   }
   const clientApprovalEnabled = body.client_approval === true;
   const agentBackoffMode = body.agent_backoff;
-  if (agentBackoffMode !== undefined && agentBackoffMode !== "fleet") {
-    jsonResponse(res, 400, { error: "agent_backoff must be fleet when provided" });
+  if (agentBackoffMode !== undefined && agentBackoffMode !== "scope") {
+    jsonResponse(res, 400, { error: "agent_backoff must be scope when provided" });
     return;
   }
-  if (agentBackoffMode === "fleet" && agentAttemptBoundary === undefined) {
-    jsonResponse(res, 503, { error: "Fleet agent-attempt boundary is unavailable" });
+  if (agentBackoffMode === "scope" && agentAttemptBoundary === undefined) {
+    jsonResponse(res, 503, { error: "Scope agent-attempt boundary is unavailable" });
     return;
   }
 
@@ -134,7 +134,7 @@ export async function handleDaemonChat(
     jsonResponse(res, 409, { error: "Session is busy processing another request" });
     return;
   }
-  const attemptAbortController = agentBackoffMode === "fleet"
+  const attemptAbortController = agentBackoffMode === "scope"
     ? new AbortController()
     : undefined;
   let releaseAttempt: (() => void) | undefined;
@@ -187,10 +187,10 @@ export async function handleDaemonChat(
 
   try {
     const result = await session.agent.send(message);
-    if (agentBackoffMode === "fleet" && result.trim().length === 0) {
+    if (agentBackoffMode === "scope" && result.trim().length === 0) {
       const signal: WorkflowAgentBackoffSignal = {
         kind: "output_contract",
-        reason: "Fleet one-shot agent review returned successful empty output",
+        reason: "Scope one-shot agent review returned successful empty output",
       };
       const backoff = agentAttemptBoundary!.applyIncident(
         signal,
@@ -205,14 +205,14 @@ export async function handleDaemonChat(
       ? attemptAbortController.signal.reason
       : err;
     if (
-      agentBackoffMode === "fleet" &&
+      agentBackoffMode === "scope" &&
       !(reportedError instanceof AgentBackoffAdmissionError)
     ) {
       const classification = classifyThrownAgentError(reportedError);
       if (classification !== null) {
         const signal: WorkflowAgentBackoffSignal = {
           kind: classification.kind,
-          reason: `Fleet one-shot agent review failed: ${
+          reason: `Scope one-shot agent review failed: ${
             reportedError instanceof Error
               ? reportedError.message
               : String(reportedError)

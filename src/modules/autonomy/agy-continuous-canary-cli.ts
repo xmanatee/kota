@@ -554,7 +554,7 @@ async function observeCanary(
     try {
       const result = await ctx.client.sessions.runOneShot(
         qualityReviewPrompt(packetPath, runEvidence),
-        { autonomyMode: "passive", agentBackoff: "fleet" },
+        { autonomyMode: "passive", agentBackoff: "scope" },
       );
       if (!result.ok) {
         throw new Error("A live daemon is required for the AGY canary review");

@@ -10,6 +10,9 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
   shared handler family and registration wrappers live in focused
   `route-*` siblings so the wire contract stays local without one oversized
   file.
+- Route registrations resolve the daemon scope provider through their
+  `ModuleContext`; the runtime loader's provider registry is the authority,
+  not the legacy process-global registry.
 - `supervised` session autonomy is the main producer: the tool-runner queues
   every non-safe tool for this mode regardless of the tool's guardrail policy.
   Operators resolve queued approvals through this module's CLI and routes.

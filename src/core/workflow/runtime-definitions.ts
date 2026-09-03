@@ -21,6 +21,7 @@ export interface WorkflowRuntimeDefinitionsState extends WorkflowRuntimeDispatch
   eventBatches: WorkflowEventBatchManager;
   scopeState: ScopeRuntimeStateStore;
   definitionSourceEnabled: Map<string, boolean>;
+  validatedDefinitions?: WorkflowDefinition[];
 }
 
 export function setWorkflowInputs(
@@ -31,6 +32,7 @@ export function setWorkflowInputs(
     inputs,
     state.config?.notifications?.alertCooldownMs,
   );
+  delete state.validatedDefinitions;
 }
 
 export function reloadWorkflowDefinitions(
@@ -44,6 +46,7 @@ export function reloadWorkflowDefinitions(
   );
   state.definitionSourceEnabled.clear();
   state.definitions = defs;
+  state.validatedDefinitions = defs;
   return { count: defs.length };
 }
 
@@ -51,7 +54,16 @@ export function validateDefinitions(
   state: WorkflowRuntimeDefinitionsState,
 ): { count: number } {
   const defs = resolveDefinitions(state);
+  state.validatedDefinitions = defs;
   return { count: defs.length };
+}
+
+/** Resolve definitions for readiness inspection without opening runtime resources. */
+export function getValidatedDefinitions(
+  state: WorkflowRuntimeDefinitionsState,
+): WorkflowDefinition[] {
+  if (state.definitionsLoadedAt !== undefined) return state.definitions;
+  return state.validatedDefinitions ?? resolveDefinitions(state);
 }
 
 export function getDefinitionCount(state: WorkflowRuntimeDefinitionsState): number {

@@ -517,18 +517,6 @@ export class RunStateDatabase {
       .run(releasedAt, scopeId, deferredUntil).changes;
   }
 
-  releaseAllQueuedRunsDeferredUntil(
-    deferredUntil: string,
-    releasedAt: string,
-  ): number {
-    return this.database
-      .prepare(
-        `UPDATE runs SET not_before_at = ?
-         WHERE state = 'queued' AND not_before_at = ?`,
-      )
-      .run(releasedAt, deferredUntil).changes;
-  }
-
   startRun(runId: string, epoch: number, startedAt: string): number | null {
     const start = this.database.transaction(() => {
       this.assertCurrentEpoch(epoch);

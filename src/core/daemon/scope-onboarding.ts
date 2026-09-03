@@ -123,15 +123,6 @@ export class ScopeOnboardingService {
         message: error instanceof Error ? error.message : String(error),
       });
     }
-    for (const requirement of setup.requirements) {
-      if (requirement.required && requirement.state !== "ready") {
-        blockers.push({
-          code: `setup_${requirement.state}`,
-          capability: `${requirement.moduleName}.${requirement.requirementId}`,
-          message: requirement.message,
-        });
-      }
-    }
     const registeredAuthority = registered
       ? this.options.authority.inspect(registered.scopeId)
       : null;
@@ -1129,19 +1120,9 @@ export class ScopeOnboardingService {
     const trusted = authority !== null && "resolvedPolicy" in authority
       ? authority.trust.trusted
       : false;
-    let setup: ModuleSetupStatusResponse | null = null;
     const reasons: ScopeOnboardingReason[] = [];
     try {
-      setup = await this.options.getSetupStatus(plan.directoryRoot, registered?.scopeId);
-      for (const requirement of setup.requirements) {
-        if (requirement.required && requirement.state !== "ready") {
-          reasons.push({
-            code: `setup_${requirement.state}`,
-            capability: `${requirement.moduleName}.${requirement.requirementId}`,
-            message: requirement.message,
-          });
-        }
-      }
+      await this.options.getSetupStatus(plan.directoryRoot, registered?.scopeId);
     } catch (error) {
       reasons.push({
         code: "setup_inspection_failed",

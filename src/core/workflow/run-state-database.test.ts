@@ -131,19 +131,19 @@ describe("RunStateDatabase", () => {
     const store = createStore();
 
     store.compareAndSetDaemonStateValue({
-      key: "runtime/agent-backoff",
+      key: "runtime/daemon-health-watermark",
       expectedRevision: 0,
-      value: { kind: "provider" },
+      value: { observedAt: "2026-08-25T10:00:00.000Z" },
       updatedAt: "2026-08-25T10:00:00.000Z",
     });
 
-    expect(store.readDaemonStateValue("runtime/agent-backoff")).toEqual({
+    expect(store.readDaemonStateValue("runtime/daemon-health-watermark")).toEqual({
       revision: 1,
-      value: { kind: "provider" },
+      value: { observedAt: "2026-08-25T10:00:00.000Z" },
     });
     expect(() =>
       store.compareAndSetDaemonStateValue({
-        key: "runtime/agent-backoff",
+        key: "runtime/daemon-health-watermark",
         expectedRevision: 0,
         value: null,
         updatedAt: "2026-08-25T10:00:01.000Z",
@@ -151,7 +151,7 @@ describe("RunStateDatabase", () => {
     ).toThrow(StateValueConflictError);
   });
 
-  test("migrates mirrored scope incidents into one daemon record", () => {
+  test("migrates a legacy daemon incident back to each registered scope", () => {
     const store = createStore();
     const stateDir = dirname(store.path);
     store.registerScope({
@@ -172,7 +172,7 @@ describe("RunStateDatabase", () => {
       kind: "quality",
       until: "2026-08-25T16:00:00.000Z",
       updatedAt: "2026-08-25T10:05:00.000Z",
-      reason: "latest fleet incident",
+      reason: "latest legacy incident",
     };
     store.compareAndSetScopeStateValue({
       scopeId: "scope-a",
@@ -196,11 +196,11 @@ describe("RunStateDatabase", () => {
 
     const migrated = new RunStateDatabase(stateDir);
     expect(migrated.readDaemonStateValue("runtime/agent-backoff").value)
-      .toEqual(latest);
+      .toBeNull();
     expect(migrated.readScopeStateValue("scope-a", "runtime/agent-backoff").value)
-      .toBeNull();
+      .toEqual(latest);
     expect(migrated.readScopeStateValue("scope-b", "runtime/agent-backoff").value)
-      .toBeNull();
+      .toEqual(latest);
     migrated.close();
   });
 

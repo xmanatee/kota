@@ -5,7 +5,10 @@ import {
   type OwnerQuestionStatus,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import {
+  DAEMON_SCOPE_PROVIDER_TYPE,
+  type DaemonScopeProvider,
+} from "#core/daemon/scope-provider.js";
 import type {
   ControlRouteRegistration,
   RouteRegistration,
@@ -28,6 +31,12 @@ const VALID_STATUSES: readonly (OwnerQuestionStatus | "all")[] = [
   "expired",
 ];
 
+export type OwnerQuestionScopeProviderResolver = () => DaemonScopeProvider | null;
+
+function resolveLegacyScopeProvider(): DaemonScopeProvider | null {
+  return getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null;
+}
+
 export function readOwnerQuestionStatusFilter(
   req: IncomingMessage,
 ): OwnerQuestionStatus | "all" | undefined {
@@ -43,9 +52,10 @@ function resolveOwnerQuestionQueue(
   res: ServerResponse,
   queue?: OwnerQuestionQueue,
   selector?: ScopeSelectorArgument,
+  getScopeProvider: OwnerQuestionScopeProviderResolver = resolveLegacyScopeProvider,
 ): OwnerQuestionQueue | null {
   if (queue) return queue;
-  const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+  const scopeProvider = getScopeProvider();
   if (!scopeProvider) return getOwnerQuestionQueue();
   const resolved = scopeProvider.resolveScopeRuntime(selectedScopeSelectorId(selector));
   if (!resolved.ok) {
@@ -103,8 +113,9 @@ export async function handleListOwnerQuestions(
   queue?: OwnerQuestionQueue,
   status?: OwnerQuestionStatus | "all",
   selector?: ScopeSelectorArgument,
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
 ): Promise<void> {
-  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector, getScopeProvider);
   if (!resolvedQueue) return;
   jsonResponse(res, 200, listOwnerQuestionsLocal(resolvedQueue, status));
 }
@@ -115,13 +126,14 @@ export async function handleAnswerOwnerQuestion(
   id: string,
   queue?: OwnerQuestionQueue,
   selector?: ScopeSelectorArgument,
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
 ): Promise<void> {
   const answer = await readAnswerField(req);
   if (!answer.trim()) {
     jsonResponse(res, 400, { error: "answer is required" });
     return;
   }
-  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector, getScopeProvider);
   if (!resolvedQueue) return;
   const item = answerOwnerQuestionLocal(resolvedQueue, id, answer);
   if (!item) {
@@ -137,9 +149,10 @@ export async function handleDismissOwnerQuestion(
   id: string,
   queue?: OwnerQuestionQueue,
   selector?: ScopeSelectorArgument,
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
 ): Promise<void> {
   const reason = await readReasonField(req);
-  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector);
+  const resolvedQueue = resolveOwnerQuestionQueue(res, queue, selector, getScopeProvider);
   if (!resolvedQueue) return;
   const item = dismissOwnerQuestionLocal(resolvedQueue, id, reason);
   if (!item) {
@@ -149,7 +162,9 @@ export async function handleDismissOwnerQuestion(
   jsonResponse(res, 200, { question: item });
 }
 
-export function ownerQuestionRoutes(): RouteRegistration[] {
+export function ownerQuestionRoutes(
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
+): RouteRegistration[] {
   return [
     {
       method: "GET",
@@ -162,6 +177,7 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
           undefined,
           readOwnerQuestionStatusFilter(req),
           selector,
+          getScopeProvider,
         );
       },
     },
@@ -177,6 +193,7 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
           params.id,
           undefined,
           selector,
+          getScopeProvider,
         );
       },
     },
@@ -192,6 +209,7 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
           params.id,
           undefined,
           selector,
+          getScopeProvider,
         );
       },
     },
@@ -201,10 +219,11 @@ export function ownerQuestionRoutes(): RouteRegistration[] {
 async function handleListOwnerQuestionsControl(
   req: IncomingMessage,
   res: ServerResponse,
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
 ): Promise<void> {
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queue = resolveOwnerQuestionQueue(res, undefined, selector);
+  const queue = resolveOwnerQuestionQueue(res, undefined, selector, getScopeProvider);
   if (!queue) return;
   jsonResponse(
     res,
@@ -217,6 +236,7 @@ async function handleAnswerOwnerQuestionControl(
   req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
 ): Promise<void> {
   const answer = await readAnswerField(req);
   if (!answer.trim()) {
@@ -225,7 +245,7 @@ async function handleAnswerOwnerQuestionControl(
   }
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queue = resolveOwnerQuestionQueue(res, undefined, selector);
+  const queue = resolveOwnerQuestionQueue(res, undefined, selector, getScopeProvider);
   if (!queue) return;
   const item = answerOwnerQuestionLocal(queue, params.id, answer);
   if (!item) {
@@ -239,11 +259,12 @@ async function handleDismissOwnerQuestionControl(
   req: IncomingMessage,
   res: ServerResponse,
   params: Record<string, string>,
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
 ): Promise<void> {
   const reason = await readReasonField(req);
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queue = resolveOwnerQuestionQueue(res, undefined, selector);
+  const queue = resolveOwnerQuestionQueue(res, undefined, selector, getScopeProvider);
   if (!queue) return;
   const item = dismissOwnerQuestionLocal(queue, params.id, reason);
   if (!item) {
@@ -253,25 +274,29 @@ async function handleDismissOwnerQuestionControl(
   jsonResponse(res, 200, { question: item });
 }
 
-export function ownerQuestionControlRoutes(): ControlRouteRegistration[] {
+export function ownerQuestionControlRoutes(
+  getScopeProvider?: OwnerQuestionScopeProviderResolver,
+): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/owner-questions",
       capabilityScope: "read",
-      handler: handleListOwnerQuestionsControl,
+      handler: (req, res) => handleListOwnerQuestionsControl(req, res, getScopeProvider),
     },
     {
       method: "POST",
       path: "/owner-questions/:id/answer",
       capabilityScope: "control",
-      handler: handleAnswerOwnerQuestionControl,
+      handler: (req, res, params) =>
+        handleAnswerOwnerQuestionControl(req, res, params, getScopeProvider),
     },
     {
       method: "POST",
       path: "/owner-questions/:id/dismiss",
       capabilityScope: "control",
-      handler: handleDismissOwnerQuestionControl,
+      handler: (req, res, params) =>
+        handleDismissOwnerQuestionControl(req, res, params, getScopeProvider),
     },
   ];
 }

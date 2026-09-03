@@ -518,7 +518,7 @@ describe("agy-canary command", () => {
     expect(runOneShot).toHaveBeenCalledTimes(2);
     expect(runOneShot).toHaveBeenLastCalledWith(
       expect.any(String),
-      { autonomyMode: "passive", agentBackoff: "fleet" },
+      { autonomyMode: "passive", agentBackoff: "scope" },
     );
     const checkpoint = JSON.parse(readFileSync(join(
       root,

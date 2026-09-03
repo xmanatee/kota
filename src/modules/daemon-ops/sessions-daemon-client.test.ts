@@ -101,7 +101,7 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     expect(typeof contributed.sessions!.setAutonomyMode).toBe("function");
   });
 
-  it("marks a fleet-gated passive one-shot session and closes it", async () => {
+  it("marks a scope-gated passive one-shot session and closes it", async () => {
     const { transport, calls } = makeRecordingTransport((path, init) => {
       if (path === "/sessions" && init?.method === "POST") {
         return jsonResponse(201, { session_id: "review/session" });
@@ -135,7 +135,7 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     await expect(
       contributed.sessions!.runOneShot("Review evidence.", {
         autonomyMode: "passive",
-        agentBackoff: "fleet",
+        agentBackoff: "scope",
       }),
     ).resolves.toEqual({ ok: true, text: "reviewed" });
     expect(calls.map((call) => [call.path, call.init?.method])).toEqual([
@@ -148,7 +148,7 @@ describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
     });
     expect(JSON.parse(String(calls[1]!.init?.body))).toEqual({
       message: "Review evidence.",
-      agent_backoff: "fleet",
+      agent_backoff: "scope",
     });
   });
 

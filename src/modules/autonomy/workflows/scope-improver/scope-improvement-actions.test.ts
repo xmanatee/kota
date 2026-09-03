@@ -79,15 +79,21 @@ describe("scope improvement actions", () => {
     return dir;
   }
 
-  it("stages owner questions for post-integration publication", () => {
+  it("creates a normal task for missing guidance in a task-proposal posture", () => {
     const workspaceRoot = track("question");
     const result = runCycle(workspaceRoot, ["plans/trip.txt"]);
 
     expect(result.actions.ownerQuestionIds).toEqual([]);
     expect(result.actions.applied).toEqual(
-      expect.arrayContaining([expect.objectContaining({ kind: "owner-question-pending" })]),
+      expect.arrayContaining([expect.objectContaining({ kind: "created-task" })]),
     );
-    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
+    expect(result.actions.createdTaskIds).toHaveLength(1);
+    expect(existsSync(join(
+      workspaceRoot,
+      "data",
+      "tasks",
+      `${result.actions.createdTaskIds[0]}.md`,
+    ))).toBe(true);
   });
 
   it("turns task candidates into owner questions in observe posture", () => {

@@ -42,7 +42,7 @@ export type DaemonControlServerOptions = {
   defaultAutonomyMode?: AutonomyMode;
   /** Options forwarded to the daemon chat session pool. */
   chatPool?: DaemonChatPoolOptions;
-  /** Canonical fleet gate used by explicitly marked autonomous one-shot turns. */
+  /** Canonical scope gate used by explicitly marked autonomous one-shot turns. */
   agentAttemptBoundary?: DaemonAgentAttemptBoundary;
   /**
    * Persisted session_id -> conversationId binding. Required whenever

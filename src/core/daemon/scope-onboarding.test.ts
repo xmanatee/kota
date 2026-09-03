@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -658,9 +659,8 @@ describe("ScopeOnboardingService", () => {
         kind: "directory",
         registered: false,
         existing: { kotaState: true, scopeConfig: true, taskQueue: false },
-        blockers: expect.arrayContaining([
-          expect.objectContaining({ code: "setup_missing" }),
-        ]),
+        blockers: [],
+        setup: [expect.objectContaining({ state: "missing" })],
       });
       const emptyPlan = await fixture.service.plan(emptyDirectory);
       expect(emptyPlan.ok).toBe(true);
@@ -711,7 +711,6 @@ describe("ScopeOnboardingService", () => {
           blocked: true,
           reasons: expect.arrayContaining([
             expect.objectContaining({ code: "scope_untrusted" }),
-            expect.objectContaining({ code: "setup_missing" }),
           ]),
         },
       });
@@ -736,6 +735,43 @@ describe("ScopeOnboardingService", () => {
         provenance: { actor: "operator" },
       });
       expect(artifact).not.toContain("secretValues");
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it("keeps unrelated module setup visible without blocking the selected scope chain", async () => {
+    const fixture = await createFixture();
+    const target = join(fixture.root, "optional-capability-setup");
+    mkdirSync(target);
+    fixture.missingSetupRoots.add(realpathSync.native(target));
+
+    try {
+      const inspection = await fixture.service.inspect(target);
+      expect(inspection).toMatchObject({
+        setup: [expect.objectContaining({
+          moduleName: "fixture-provider",
+          state: "missing",
+        })],
+        blockers: [],
+      });
+      const planned = await fixture.service.plan(target, {
+        trust: true,
+        improvementPosture: "observe",
+        writes: { mode: "none" },
+      });
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+      expect(await fixture.service.apply(
+        planned.plan,
+        operatorAction(fixture.authorityConfigPath, true),
+      )).toMatchObject({
+        ok: true,
+        operation: {
+          state: "succeeded",
+          readiness: { workflowReady: true, blocked: false },
+        },
+      });
     } finally {
       await fixture.close();
     }

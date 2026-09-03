@@ -9,7 +9,10 @@ import {
   getOwnerQuestionQueue,
   type OwnerQuestionQueue,
 } from "#core/daemon/owner-question-queue.js";
-import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import {
+  DAEMON_SCOPE_PROVIDER_TYPE,
+  type DaemonScopeProvider,
+} from "#core/daemon/scope-provider.js";
 import type {
   ControlRouteRegistration,
   RouteRegistration,
@@ -43,6 +46,12 @@ type OwnerDecisionQueues = {
   questionQueue: OwnerQuestionQueue;
 };
 
+export type OwnerDecisionScopeProviderResolver = () => DaemonScopeProvider | null;
+
+function resolveLegacyScopeProvider(): DaemonScopeProvider | null {
+  return getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null;
+}
+
 type AnswerBody = {
   selectedValue?: OwnerDecisionSelectedValue;
 };
@@ -61,8 +70,9 @@ function readStatusFilter(req: IncomingMessage): OwnerDecisionStatus | "all" | u
 function resolveQueues(
   res: ServerResponse,
   selector?: NormalizedScopeSelector,
+  getScopeProvider: OwnerDecisionScopeProviderResolver = resolveLegacyScopeProvider,
 ): OwnerDecisionQueues | null {
-  const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+  const scopeProvider = getScopeProvider();
   if (!scopeProvider) {
     return {
       decisionStore: getOwnerDecisionStore(),
@@ -101,10 +111,11 @@ async function readCancelReason(req: IncomingMessage): Promise<string> {
 export async function handleListOwnerDecisions(
   req: IncomingMessage,
   res: ServerResponse,
+  getScopeProvider?: OwnerDecisionScopeProviderResolver,
 ): Promise<void> {
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector);
+  const queues = resolveQueues(res, selector, getScopeProvider);
   if (!queues) return;
   jsonResponse(res, 200, listOwnerDecisionsLocal(queues.decisionStore, readStatusFilter(req)));
 }
@@ -113,10 +124,11 @@ export async function handleShowOwnerDecision(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
+  getScopeProvider?: OwnerDecisionScopeProviderResolver,
 ): Promise<void> {
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector);
+  const queues = resolveQueues(res, selector, getScopeProvider);
   if (!queues) return;
   const decision = showOwnerDecisionLocal(queues.decisionStore, id);
   if (!decision) {
@@ -130,6 +142,7 @@ export async function handleAnswerOwnerDecision(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
+  getScopeProvider?: OwnerDecisionScopeProviderResolver,
 ): Promise<void> {
   const selectedValue = await readSelectedValue(req);
   if (!selectedValue) {
@@ -138,7 +151,7 @@ export async function handleAnswerOwnerDecision(
   }
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector);
+  const queues = resolveQueues(res, selector, getScopeProvider);
   if (!queues) return;
   try {
     const decision = answerOwnerDecisionLocal(
@@ -162,11 +175,12 @@ export async function handleCancelOwnerDecision(
   req: IncomingMessage,
   res: ServerResponse,
   id: string,
+  getScopeProvider?: OwnerDecisionScopeProviderResolver,
 ): Promise<void> {
   const reason = await readCancelReason(req);
   const selector = readScopeSelectorQueryOrErrorResponse(req, res);
   if (selector === null) return;
-  const queues = resolveQueues(res, selector);
+  const queues = resolveQueues(res, selector, getScopeProvider);
   if (!queues) return;
   const decision = cancelOwnerDecisionLocal(
     queues.decisionStore,
@@ -182,56 +196,66 @@ export async function handleCancelOwnerDecision(
   jsonResponse(res, 200, { decision });
 }
 
-export function ownerDecisionRoutes(): RouteRegistration[] {
+export function ownerDecisionRoutes(
+  getScopeProvider?: OwnerDecisionScopeProviderResolver,
+): RouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/api/owner-decisions",
-      handler: (req, res) => handleListOwnerDecisions(req, res),
+      handler: (req, res) => handleListOwnerDecisions(req, res, getScopeProvider),
     },
     {
       method: "GET",
       path: "/api/owner-decisions/:id",
-      handler: (req, res, params) => handleShowOwnerDecision(req, res, params.id),
+      handler: (req, res, params) =>
+        handleShowOwnerDecision(req, res, params.id, getScopeProvider),
     },
     {
       method: "POST",
       path: "/api/owner-decisions/:id/answer",
-      handler: (req, res, params) => handleAnswerOwnerDecision(req, res, params.id),
+      handler: (req, res, params) =>
+        handleAnswerOwnerDecision(req, res, params.id, getScopeProvider),
     },
     {
       method: "POST",
       path: "/api/owner-decisions/:id/cancel",
-      handler: (req, res, params) => handleCancelOwnerDecision(req, res, params.id),
+      handler: (req, res, params) =>
+        handleCancelOwnerDecision(req, res, params.id, getScopeProvider),
     },
   ];
 }
 
-export function ownerDecisionControlRoutes(): ControlRouteRegistration[] {
+export function ownerDecisionControlRoutes(
+  getScopeProvider?: OwnerDecisionScopeProviderResolver,
+): ControlRouteRegistration[] {
   return [
     {
       method: "GET",
       path: "/owner-decisions",
       capabilityScope: "read",
-      handler: handleListOwnerDecisions,
+      handler: (req, res) => handleListOwnerDecisions(req, res, getScopeProvider),
     },
     {
       method: "GET",
       path: "/owner-decisions/:id",
       capabilityScope: "read",
-      handler: (req, res, params) => handleShowOwnerDecision(req, res, params.id),
+      handler: (req, res, params) =>
+        handleShowOwnerDecision(req, res, params.id, getScopeProvider),
     },
     {
       method: "POST",
       path: "/owner-decisions/:id/answer",
       capabilityScope: "control",
-      handler: (req, res, params) => handleAnswerOwnerDecision(req, res, params.id),
+      handler: (req, res, params) =>
+        handleAnswerOwnerDecision(req, res, params.id, getScopeProvider),
     },
     {
       method: "POST",
       path: "/owner-decisions/:id/cancel",
       capabilityScope: "control",
-      handler: (req, res, params) => handleCancelOwnerDecision(req, res, params.id),
+      handler: (req, res, params) =>
+        handleCancelOwnerDecision(req, res, params.id, getScopeProvider),
     },
   ];
 }

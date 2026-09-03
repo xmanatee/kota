@@ -182,7 +182,8 @@ export class WorkflowQueueManager {
   }
 
   releaseAgentRunsDeferredUntil(until: string, remainingUntil?: string): number {
-    const released = this.config.runState.releaseAllQueuedRunsDeferredUntil(
+    const released = this.config.runState.releaseQueuedRunsDeferredUntil(
+      this.config.scopeId,
       until,
       remainingUntil ?? new Date().toISOString(),
     );

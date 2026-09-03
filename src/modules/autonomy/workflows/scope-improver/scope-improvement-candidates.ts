@@ -34,7 +34,21 @@ export function missingGuidanceCandidate(
     summary:
       "The scope has no AGENTS.md guidance, so improvement work lacks local constraints.",
     evidenceIds: ["policy:scope-improvement"],
-    preferredAction: "owner-question",
+    preferredAction: "create-task",
+    task: {
+      problem:
+        "This scope has no AGENTS.md guidance, so autonomous work lacks durable local constraints.",
+      desiredOutcome:
+        "Add concise root AGENTS.md guidance that states the scope's purpose and the constraints future work must preserve.",
+      constraints: [
+        "Derive the guidance from files already present in the scope.",
+        "Do not invent product requirements or widen machine-owned authority.",
+      ],
+      howWeWillKnow: [
+        "A root AGENTS.md exists and gives future work actionable, scope-specific guidance.",
+        "The guidance does not contradict the scope's resolved trust or write policy.",
+      ],
+    },
   };
 }
 

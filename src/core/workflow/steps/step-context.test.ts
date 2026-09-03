@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BusEnvelope } from "#core/events/event-bus.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { EventJournal } from "#core/events/event-journal.js";
 import {
   defineDaemonWideModuleEvent,
   initModuleEventRegistry,
@@ -172,6 +173,9 @@ describe("createStepContext", () => {
       const bus = new EventBus();
       const pbus = new ScopedEventBus(bus, "scope-a");
       const store = new WorkflowRunStore(workspaceRoot);
+      const eventJournal = new EventJournal(
+        join(workspaceRoot, "daemon-state", "events"),
+      );
       const runTool = vi.fn(async () => ({ content: "ok" }));
       const authorityConfigPath = join(workspaceRoot, "operator", "config.json");
 
@@ -189,6 +193,7 @@ describe("createStepContext", () => {
           bus,
           pbus,
           store,
+          eventJournal,
           runTool,
           authorityConfigPath,
           runAgentHarness: unexpectedWorkflowAgentHarnessRun,
@@ -201,6 +206,8 @@ describe("createStepContext", () => {
         { action: "list" },
         { stepId: "build", sessionId: "workflow-session" },
       );
+
+      expect(context.stateDir).toBe(store.rootDir);
 
       expect(runTool).toHaveBeenCalledWith(
         "composition.workspace",

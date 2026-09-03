@@ -309,6 +309,24 @@ describe("workflow-ops module daemonClient(link) — workflow namespace", () => 
     );
   });
 
+  it("routes quality pause and retry controls to the selected scope", async () => {
+    const { transport, calls } = makeRecordingTransport({
+      respondRequest: (_method, path) =>
+        path.startsWith("/workflow/agent/quality-pause")
+          ? { ok: true, paused: true }
+          : { paused: false, agentBackoffCleared: true },
+    });
+    const wf = workflowOpsModule.daemonClient!(transport).workflow!;
+
+    await wf.pauseAgentForQuality("scope correction", { scopeId: "scope-b" });
+    await wf.resume({ retryAgent: true }, { scopeId: "scope-b" });
+
+    expect(calls.map((call) => (call as { path: string }).path)).toEqual([
+      "/workflow/agent/quality-pause?scopeId=scope-b",
+      "/workflow/resume?retryAgent=true&scopeId=scope-b",
+    ]);
+  });
+
   it("resume throws byte-for-byte on transport failure", async () => {
     const { transport } = makeRecordingTransport({
       respondRequest: () => null,

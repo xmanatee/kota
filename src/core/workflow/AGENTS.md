@@ -14,8 +14,8 @@ and publication.
   SQLite API; runs stage compare-and-set mutations that commit atomically with
   success publications. `WorkflowRunStore` and run artifacts are evidence, not
   queue, summary, lease, or shared state. Persistent dispatch pause is project
-  state in that database. Fleet agent backoff is one daemon-state value in that
-  database; never mirror it through scope rows. Only the daemon database composition root migrates
+  state in that database. Agent backoff is scope state so one scope cannot halt
+  or resume a sibling. Only the daemon database composition root migrates
   schema or disposes known obsolete operational files; offline readers are
   explicit and read-only, and standalone hosts never perform cutover work.
 - `RunCoordinator` owns daemon-wide capacity, global and project admission
@@ -53,6 +53,9 @@ and publication.
   code heartbeats or typed agent progress messages.
 - Agent steps receive a thin runtime envelope. Expose prior output only when
   normal repository context and tools cannot recover it cheaply.
+- `WorkflowStepContext.stateDir` is the owning directory scope's `.kota`
+  root. The event journal may be daemon-wide and must not redirect scope-local
+  run, task, owner-state, or workflow-state inspection to the default scope.
 - Repository writers cannot approve, await owner input, restart, trigger other
   workflows, or call non-read tools before integration. Writer agent and nested
   judge contracts have owner questions disabled. Use declarative emits for
@@ -60,16 +63,17 @@ and publication.
   effects after integration.
 - Repair accounting includes initial and repair token usage, including terminal
   failures.
-- Every workflow-owned harness call crosses the daemon-wide agent-backoff gate,
+- Every workflow-owned harness call crosses its scope's agent-backoff gate,
   including agent steps, repair iterations, and code-step judges. Classified
   provider failures activate it at that boundary, cancel other in-flight agent
-  calls across every hosted scope, and deny later calls before harness launch
-  while deterministic dispatch remains eligible. Autonomous daemon one-shot
-  judgments explicitly join the same gate before sending. Shared provider
-  incidents persist stable reason codes; raw harness and provider diagnostics
-  remain in authenticated session or retained run evidence. Quality pauses
-  retain any active provider recovery horizon, and an operator retry clears
-  only the quality pause while that provider incident remains active.
+  calls in that scope, and deny later calls before harness launch while
+  deterministic dispatch remains eligible. Autonomous daemon one-shot
+  judgments explicitly join the selected scope's gate before sending. Shared
+  provider incidents persist stable reason codes; raw harness and provider
+  diagnostics remain in authenticated session or retained run evidence.
+  Quality pauses retain any active provider recovery horizon, and an operator
+  retry clears only the quality pause while that provider incident remains
+  active.
 
 ## Durable Waits
 

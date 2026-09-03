@@ -48,7 +48,8 @@ aborts workflows, and restarts before repository authority changes.
 
 External directory onboarding composes those owners through the single
 `ScopeOnboardingService` inspect/plan/apply transaction. A prepared runtime
-created by that transaction stays dispatch-closed until declared scope state and
+created by that transaction retains its validated workflow definitions for
+readiness inspection but stays dispatch-closed until declared scope state and
 machine authority commit; incomplete operations never quarantine a scope that
 predated them and recover through retry or cancel. Scope-directory effects are
 write-ahead claimed in the operation artifact before mutation, so an interrupted
@@ -67,18 +68,21 @@ write-ahead publication intent and stable dispatch identity; retries therefore
 reuse one workflow admission. Readiness follows the selected posture's complete
 production chain: review publication for every posture, the isolated task writer
 for proposals, and dispatcher, builder, plus the active builder harness/provider
-for autonomous builds.
+for autonomous builds. Module setup gaps remain visible in inspection and the
+shared setup surface, but optional capability setup does not block scope
+activation; only a dependency in the selected improvement chain can do that.
 
 Onboarding exposes one continuous-improvement posture: observe/ask, proposed
 tasks, or autonomous builds. The service resolves it into the existing scope
 autonomy and write policy and projects the resulting review and builder
-authority to clients; setup or authority blockers keep completion dispatch
-closed without unregistering the scope. Task-proposal readiness evaluates the
-resolved policy decision for the scope's task queue, including bounded paths
-and inherited local-write confirmation or denial. Only an allow decision can
-activate initial task proposals; confirmation and denial remain explainable
-onboarding blockers. For an already-hosted scope, confirmation-required
-authority resolves workflow actions to observe/ask behavior. The
+authority to clients; selected-chain readiness or authority blockers keep
+completion dispatch closed without unregistering the scope. Task-proposal
+readiness evaluates the resolved policy decision for the scope's task queue,
+including bounded paths and inherited local-write confirmation or denial. Only
+an allow decision can activate initial task proposals; confirmation and denial
+remain explainable onboarding blockers. For an already-hosted scope,
+confirmation-required authority resolves workflow actions to observe/ask
+behavior. The
 scope-improvement module contributes its
 live configuration and complete task/builder decisions through the typed
 authority provider; disabled improvement configuration parks initial activation,

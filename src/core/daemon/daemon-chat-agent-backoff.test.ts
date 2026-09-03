@@ -6,7 +6,7 @@ import { DaemonChatPool } from "./daemon-chat-pool.js";
 
 const SCOPE_ID = "test-scope";
 
-describe("daemon chat fleet agent boundary", () => {
+describe("daemon chat scope agent boundary", () => {
   it.each([
     {
       label: "successful empty output",
@@ -55,7 +55,7 @@ describe("daemon chat fleet agent boundary", () => {
     const req = Readable.from([
       Buffer.from(JSON.stringify({
         message: "Review the canary evidence.",
-        agent_backoff: "fleet",
+        agent_backoff: "scope",
       })),
     ]);
     let status = 0;

@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-replace-legacy-kota-init-with-scope-onboarding, task-expose-add-scope-through-the-shared-operator-surfa, task-activate-continuous-improvement-for-newly-onboarde]
+status: done
 ---
 
 # Prove self-service external scope onboarding end to end

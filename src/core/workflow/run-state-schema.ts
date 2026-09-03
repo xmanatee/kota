@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const RUN_STATE_SCHEMA_VERSION = 5;
+export const RUN_STATE_SCHEMA_VERSION = 6;
 
 function tableExists(database: Database.Database, table: string): boolean {
   return database
@@ -364,6 +364,22 @@ function addDaemonStateValues(database: Database.Database): void {
   `);
 }
 
+/** Restore scope ownership while conservatively preserving an active legacy pause. */
+function restoreScopedAgentBackoff(database: Database.Database): void {
+  database.exec(`
+    INSERT OR IGNORE INTO scope_state_values
+      (scope_id, state_key, revision, value_json, updated_at)
+    SELECT scopes.id, daemon.state_key, daemon.revision, daemon.value_json,
+      daemon.updated_at
+    FROM scopes
+    JOIN daemon_state_values AS daemon
+      ON daemon.state_key = 'runtime/agent-backoff';
+
+    DELETE FROM daemon_state_values
+    WHERE state_key = 'runtime/agent-backoff';
+  `);
+}
+
 const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   version: number;
   apply(database: Database.Database): void;
@@ -373,6 +389,7 @@ const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   { version: 3, apply: enforceTerminalResultStatus },
   { version: 4, apply: migrateLegacyScopeIdentity },
   { version: 5, apply: addDaemonStateValues },
+  { version: 6, apply: restoreScopedAgentBackoff },
 ];
 
 export function initializeRunStateSchema(database: Database.Database): void {

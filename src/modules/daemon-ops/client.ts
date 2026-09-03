@@ -121,8 +121,8 @@ export interface SessionsClient {
     prompt: string,
     options?: {
       autonomyMode?: AutonomyMode;
-      /** Register this autonomous command turn with the daemon-wide workflow gate. */
-      agentBackoff?: "fleet";
+      /** Register this autonomous command turn with the selected scope's workflow gate. */
+      agentBackoff?: "scope";
     },
   ): Promise<SessionsOneShotResult>;
   setAutonomyMode(id: string, mode: AutonomyMode): Promise<SessionsSetAutonomyModeResult>;

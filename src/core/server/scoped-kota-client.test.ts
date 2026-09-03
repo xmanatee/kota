@@ -8,6 +8,10 @@ describe("createScopedKotaClient", () => {
     const calls: unknown[] = [];
     const base = createKotaClientTestDouble({
       workflow: {
+        listRuns: async (filter: unknown) => {
+          calls.push(["workflow.listRuns", filter]);
+          return { runs: [] };
+        },
         status: async (filter: unknown) => {
           calls.push(["workflow.status", filter]);
           return {
@@ -20,6 +24,14 @@ describe("createScopedKotaClient", () => {
             pendingAbort: false,
             concurrency: 4,
           };
+        },
+        pauseAgentForQuality: async (reason: string, selector: unknown) => {
+          calls.push(["workflow.pauseAgentForQuality", reason, selector]);
+          return { ok: true as const, paused: true as const, already: false };
+        },
+        resume: async (options: unknown, selector: unknown) => {
+          calls.push(["workflow.resume", options, selector]);
+          return { paused: false, already: false };
         },
       },
       approvals: {
@@ -37,12 +49,22 @@ describe("createScopedKotaClient", () => {
     });
 
     const scoped = createScopedKotaClient(base, "scope-b");
+    await scoped.workflow.listRuns({ workflow: "builder" });
     await scoped.workflow.status();
+    await scoped.workflow.pauseAgentForQuality("scope-local correction");
+    await scoped.workflow.resume({ retryAgent: true });
     await scoped.approvals.list({ status: "all" });
     await scoped.tasks.list(["open"]);
 
     expect(calls).toEqual([
+      ["workflow.listRuns", { workflow: "builder", scopeId: "scope-b" }],
       ["workflow.status", { scopeId: "scope-b" }],
+      [
+        "workflow.pauseAgentForQuality",
+        "scope-local correction",
+        { scopeId: "scope-b" },
+      ],
+      ["workflow.resume", { retryAgent: true }, { scopeId: "scope-b" }],
       ["approvals.list", { status: "all", scopeId: "scope-b" }],
       ["tasks.list", ["open"], { scopeId: "scope-b" }],
     ]);
@@ -72,6 +94,9 @@ describe("createScopedKotaClient", () => {
         "ok",
         { scopeId: "scope-b" },
       ),
+    ).rejects.toBeInstanceOf(ScopeSelectorConflictError);
+    await expect(
+      scoped.workflow.pause({ scopeId: "scope-b" }),
     ).rejects.toBeInstanceOf(ScopeSelectorConflictError);
     expect(calls).toEqual([]);
   });

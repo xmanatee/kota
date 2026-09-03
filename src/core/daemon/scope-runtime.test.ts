@@ -9,7 +9,7 @@ import {
 } from "#core/modules/module-log.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
-import { DaemonAgentBackoffStateStore } from "#core/workflow/scope-runtime-state.js";
+import { ScopeRuntimeStateStore } from "#core/workflow/scope-runtime-state.js";
 import { getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 import {
   getIdempotencyStore,
@@ -216,7 +216,7 @@ describe("createScopeRuntime", () => {
   });
 });
 
-describe("ScopeRuntimeRegistry — scoped ownership and fleet controls", () => {
+describe("ScopeRuntimeRegistry — scoped ownership and controls", () => {
   beforeEach(resetSingletons);
   afterEach(resetSingletons);
 
@@ -255,18 +255,25 @@ describe("ScopeRuntimeRegistry — scoped ownership and fleet controls", () => {
     expect(a.moduleLogStore).not.toBe(b.moduleLogStore);
     expect(a.workflowRuntime).not.toBe(b.workflowRuntime);
 
-    expect(a.workflowRuntime.pauseAgentForQuality("fleet quality incident")).toBe(true);
-    expect(b.workflowRuntime.getState().agentBackoff).toMatchObject({
+    expect(a.workflowRuntime.pauseAgentForQuality("scope quality incident")).toBe(true);
+    expect(a.workflowRuntime.getState().agentBackoff).toMatchObject({
       kind: "quality",
-      reason: "fleet quality incident",
+      reason: "scope quality incident",
     });
-    expect(new DaemonAgentBackoffStateStore(
+    expect(b.workflowRuntime.getState().agentBackoff).toBeUndefined();
+    expect(new ScopeRuntimeStateStore(
       runInfrastructure.options.runState,
+      a.scope.scopeId,
     ).getAgentBackoff()).toMatchObject({ kind: "quality" });
-    expect(b.workflowRuntime.clearAgentBackoff("after fleet operator retry")).toBe(true);
-    expect(a.workflowRuntime.getState().agentBackoff).toBeUndefined();
-    expect(new DaemonAgentBackoffStateStore(
+    expect(new ScopeRuntimeStateStore(
       runInfrastructure.options.runState,
+      b.scope.scopeId,
+    ).getAgentBackoff()).toBeNull();
+    expect(a.workflowRuntime.clearAgentBackoff("after scope operator retry")).toBe(true);
+    expect(a.workflowRuntime.getState().agentBackoff).toBeUndefined();
+    expect(new ScopeRuntimeStateStore(
+      runInfrastructure.options.runState,
+      a.scope.scopeId,
     ).getAgentBackoff()).toBeNull();
 
     a.taskStore.add("alpha");

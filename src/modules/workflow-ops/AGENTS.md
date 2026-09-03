@@ -26,9 +26,10 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
   option clears a corrected quality/output pause; provider and authentication
   incidents remain parked until their recorded recovery horizon elapses.
 - Material canary quality regressions use the agent-only quality-pause control.
-  They persist in the shared backoff authority and leave deterministic workflow
-  dispatch available until an explicit agent retry. That retry clears the
-  quality pause but preserves any provider reset horizon that is still active.
+  They persist in the selected scope's backoff authority and leave deterministic
+  workflow dispatch available until an explicit agent retry. That retry clears
+  only that scope's quality pause and preserves any provider reset horizon that
+  is still active there.
 - workflow exec is the eval-harness subprocess boundary. Its paired
   --agent-harness / --agent-model override may also carry --agent-effort so
   model-matrix runs execute the requested runtime facts instead of merely

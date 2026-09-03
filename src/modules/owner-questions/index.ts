@@ -30,7 +30,11 @@ import type {
 } from "./client.js";
 import { ownerQuestionMutationRequested } from "./events.js";
 import ownerQuestionMutationWorkflow from "./mutation-workflow.js";
-import { ownerQuestionControlRoutes, ownerQuestionRoutes } from "./routes.js";
+import {
+  type OwnerQuestionScopeProviderResolver,
+  ownerQuestionControlRoutes,
+  ownerQuestionRoutes,
+} from "./routes.js";
 import { ownerQuestionsUiSurfaceSource } from "./ui-surface.js";
 
 export type {
@@ -47,8 +51,12 @@ export { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
 
 const RESOLUTION_SOURCE = "cli";
 
-function resolveLocalOwnerQuestionQueue(selector?: ScopeSelector): OwnerQuestionQueue {
-  const scopeProvider = getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
+function resolveLocalOwnerQuestionQueue(
+  selector?: ScopeSelector,
+  getScopeProvider: OwnerQuestionScopeProviderResolver = () =>
+    getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null,
+): OwnerQuestionQueue {
+  const scopeProvider = getScopeProvider();
   if (!scopeProvider) return getOwnerQuestionQueue();
   const scopeId = selectedScopeSelectorId(selector);
   const resolved = scopeProvider.resolveScopeRuntime(scopeId);
@@ -172,24 +180,27 @@ const ownerQuestionsModule: KotaModule = {
     return root.commands as Command[];
   },
 
-  routes: () => ownerQuestionRoutes(),
-  controlRoutes: () => ownerQuestionControlRoutes(),
+  routes: (ctx) =>
+    ownerQuestionRoutes(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+  controlRoutes: (ctx) =>
+    ownerQuestionControlRoutes(() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
 
-  localClient: () => {
+  localClient: (ctx) => {
+    const getScopeProvider = () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE);
     const handler: OwnerQuestionsClient = {
       async list(filter) {
-        const queue = resolveLocalOwnerQuestionQueue(filter);
+        const queue = resolveLocalOwnerQuestionQueue(filter, getScopeProvider);
         const status = filter?.status;
         if (status === undefined) return { questions: queue.list("pending") };
         if (status === "all") return { questions: queue.list() };
         return { questions: queue.list(status) };
       },
       async answer(id, answer, scopeSelector) {
-        const item = resolveLocalOwnerQuestionQueue(scopeSelector).answer(id, answer, RESOLUTION_SOURCE);
+        const item = resolveLocalOwnerQuestionQueue(scopeSelector, getScopeProvider).answer(id, answer, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
       async dismiss(id, reason, scopeSelector) {
-        const item = resolveLocalOwnerQuestionQueue(scopeSelector).dismiss(id, reason, RESOLUTION_SOURCE);
+        const item = resolveLocalOwnerQuestionQueue(scopeSelector, getScopeProvider).dismiss(id, reason, RESOLUTION_SOURCE);
         return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
       },
     };

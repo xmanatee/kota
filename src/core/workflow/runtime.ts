@@ -33,6 +33,7 @@ import {
   getDefinitionSourceEnabled,
   getDefinitions,
   getRuntimeState,
+  getValidatedDefinitions,
   reloadWorkflowDefinitions,
   setWorkflowInputs,
   validateDefinitions,
@@ -424,6 +425,11 @@ export class WorkflowRuntime {
 
   getDefinitions(): WorkflowDefinition[] {
     return getDefinitions(this.ctx);
+  }
+
+  /** Resolve validated definitions without starting dispatch or trigger resources. */
+  getValidatedDefinitions(): WorkflowDefinition[] {
+    return getValidatedDefinitions(this.ctx);
   }
 
   /** Returns the source `enabled` value for a definition that has been runtime-overridden, or undefined if no override is active. */

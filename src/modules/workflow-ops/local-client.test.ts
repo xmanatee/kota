@@ -9,7 +9,6 @@ import {
   RELOAD_SIGNAL_FILE,
 } from "#core/workflow/runtime.js";
 import {
-  DaemonAgentBackoffStateStore,
   ScopeRuntimeStateStore,
 } from "#core/workflow/scope-runtime-state.js";
 import {
@@ -72,7 +71,7 @@ describe("workflow-ops localClient — daemon-down behavior", () => {
       rootPath: scopeRoot,
       createdAt: new Date().toISOString(),
     });
-    const state = new DaemonAgentBackoffStateStore(runState);
+    const state = new ScopeRuntimeStateStore(runState, scopeId);
     state.setAgentBackoff({
       runtimeId: "antigravity-cli:antigravity-cli",
       kind: "auth",

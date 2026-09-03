@@ -229,9 +229,10 @@ export type WorkflowDefinitionsResult = {
  * local implementor sources from run artifacts and durable run state. The
  * daemon-up `status` path accepts `scopeId` so scoped clients can read the
  * selected scope's workflow runtime.
- * Dispatch-state mutations (`pause`, `resume`, `abort`, `reload`) work
- * daemon-down via signal files: the local implementor writes the signal
- * and the next daemon cycle picks it up. Definition mutations
+ * Dispatch-state mutations (`pause`, `resume`, `abort`, `reload`) accept the
+ * same scope selector as reads. They work daemon-down via signal files: the
+ * local implementor writes the signal and the next daemon cycle picks it up.
+ * Definition mutations
  * (`enable`, `disable`) and per-run mutations (`cancelRun`, `abortRun`)
  * touch in-memory daemon state and surface `daemon_required` when no
  * daemon is reachable.
@@ -255,11 +256,17 @@ export interface WorkflowClient {
    * reflects the static definition source as loaded from the workspace.
    */
   listDefinitions(selector?: ScopeSelector): Promise<WorkflowDefinitionsResult>;
-  pause(): Promise<WorkflowPauseResult>;
-  pauseAgentForQuality(reason: string): Promise<WorkflowAgentQualityPauseResult>;
-  resume(options?: WorkflowResumeOptions): Promise<WorkflowResumeResult>;
-  abort(): Promise<WorkflowAbortResult>;
-  reload(): Promise<WorkflowReloadResult>;
+  pause(selector?: ScopeSelector): Promise<WorkflowPauseResult>;
+  pauseAgentForQuality(
+    reason: string,
+    selector?: ScopeSelector,
+  ): Promise<WorkflowAgentQualityPauseResult>;
+  resume(
+    options?: WorkflowResumeOptions,
+    selector?: ScopeSelector,
+  ): Promise<WorkflowResumeResult>;
+  abort(selector?: ScopeSelector): Promise<WorkflowAbortResult>;
+  reload(selector?: ScopeSelector): Promise<WorkflowReloadResult>;
   /**
    * Enqueue a manual workflow run through the daemon's `/workflow/trigger`.
    * Offline clients return `daemon_required`.
@@ -276,14 +283,18 @@ export interface WorkflowClient {
   simulate(request: WorkflowSimulationRequest): Promise<WorkflowSimulationResult>;
   enable(
     name: string,
+    selector?: ScopeSelector,
   ): Promise<WorkflowEnableResult | WorkflowDaemonRequiredResult>;
   disable(
     name: string,
+    selector?: ScopeSelector,
   ): Promise<WorkflowDisableResult | WorkflowDaemonRequiredResult>;
   cancelRun(
     id: string,
+    selector?: ScopeSelector,
   ): Promise<WorkflowCancelRunResult | WorkflowDaemonRequiredResult>;
   abortRun(
     id: string,
+    selector?: ScopeSelector,
   ): Promise<WorkflowAbortRunResult | WorkflowDaemonRequiredResult>;
 }

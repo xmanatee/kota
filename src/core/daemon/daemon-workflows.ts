@@ -19,10 +19,15 @@ export async function startDaemonWorkflowRuntimes(ctx: DaemonRuntimeContext): Pr
     if (!(await ctx.scopeOnboarding.recoverForStartup(runtime.scope.scopeId))) {
       ctx.scopeLifecycle.restorePreparedScope(runtime.scope.scopeId);
     } else {
-      await ctx.scopeRuntimeHost.activatePrepared(
-        runtime,
-        ctx.startupDispatchPaused ? "paused" : "active",
-      );
+      // Refreshing a previously succeeded onboarding operation may activate
+      // its prepared runtime while reconciling readiness. Keep startup
+      // idempotent across that recovery path.
+      if (ctx.scopeLifecycle.getHostingState(runtime.scope.scopeId) !== "hosted") {
+        await ctx.scopeRuntimeHost.activatePrepared(
+          runtime,
+          ctx.startupDispatchPaused ? "paused" : "active",
+        );
+      }
       if (ctx.scopeOnboarding.isActivationAllowed(runtime.scope.scopeId)) {
         // Succeeded onboarding can publish only after its workflow subscriptions are active.
         await ctx.scopeOnboarding.recoverForStartup(runtime.scope.scopeId);

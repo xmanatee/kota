@@ -161,9 +161,11 @@ export function createStepContext(
   },
 ): WorkflowStepContext {
   const runDirPath = join(deps.store.runsDir, metadata.id);
-  const stateDir = deps.eventJournal
-    ? dirname(dirname(deps.eventJournal.getPath()))
-    : deps.store.rootDir;
+  // Workflow state is directory-scope owned even though the daemon event
+  // journal is shared by every hosted scope. Deriving this path from the
+  // journal would redirect external-scope run and owner-state inspection to
+  // the default scope's .kota directory.
+  const stateDir = deps.store.rootDir;
   const scopePolicySnapshot = deps.scopePolicyAuthority?.getSnapshot(
     deps.pbus.getScopeId(),
   );

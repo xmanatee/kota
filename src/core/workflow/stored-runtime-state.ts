@@ -5,7 +5,6 @@ import { deriveStoredWorkflowOperationalState } from "./run-operational-projecti
 import { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRuntimeSnapshot } from "./runtime-state-types.js";
 import {
-  DaemonAgentBackoffStateStore,
   ScopeRuntimeStateStore,
 } from "./scope-runtime-state.js";
 
@@ -47,7 +46,7 @@ export function readStoredWorkflowRuntimeState(
 ): StoredWorkflowRuntimeState {
   return withStoredScope(scopeRoot, stateDir, "read-only", (database, scopeId) => {
     const state = new ScopeRuntimeStateStore(database, scopeId);
-    const backoff = new DaemonAgentBackoffStateStore(database).getAgentBackoff();
+    const backoff = state.getAgentBackoff();
     return {
       ...database.readWorkflowSummary(scopeId),
       ...deriveStoredWorkflowOperationalState(
@@ -81,15 +80,16 @@ export function clearStoredAgentBackoff(
   scopeRoot: string,
   stateDir: string,
 ): boolean {
-  return withStoredScope(scopeRoot, stateDir, "write", (database) => {
-    const state = new DaemonAgentBackoffStateStore(database);
+  return withStoredScope(scopeRoot, stateDir, "write", (database, scopeId) => {
+    const state = new ScopeRuntimeStateStore(database, scopeId);
     const backoff = state.getAgentBackoff();
     if (backoff === null) return false;
     const retained = backoff.retainedProviderIncident;
     const remaining = retained !== undefined && Date.parse(retained.until) > Date.now()
       ? retained
       : null;
-    database.releaseAllQueuedRunsDeferredUntil(
+    database.releaseQueuedRunsDeferredUntil(
+      scopeId,
       agentBackoffQueueUntil(backoff),
       remaining === null
         ? new Date().toISOString()

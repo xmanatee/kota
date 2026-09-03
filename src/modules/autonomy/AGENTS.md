@@ -62,9 +62,10 @@ Owns KOTA's autonomous workflows and their shared policy.
   active at a later boundary carry forward until their terminal evidence can be
   attributed once. Settled runs also carry forward while an agent incident
   prevents review; the checkpoint consumes them only after a read-only reviewer
-  cites their complete collected evidence. That reviewer joins the fleet agent
-  gate atomically; a newly observed provider or successful-empty incident parks
-  later agent work and advances the window with review still pending. Canary
+  cites their complete collected evidence. That reviewer joins the selected
+  scope's agent gate atomically; a newly observed provider or successful-empty
+  incident parks later agent work in that scope and advances the window with
+  review still pending. Canary
   inputs never supply their own counters or timestamps.
 
 External research decisions live in the typed decision store with their source,
