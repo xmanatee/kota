@@ -25,7 +25,7 @@ function describeChange(change: OnboardingChange): string {
     case "update-display-name":
       return `set ${change.scopeId} display name to ${JSON.stringify(change.displayName)}`;
     case "set-authority":
-      return `set ${change.scopeId} authority to trust=${change.trust}, automation=${change.initialAutomationMode}, writes=${change.writes.mode}`;
+      return `set ${change.scopeId} authority to trust=${change.trust}, improvement=${change.improvementPosture}, writes=${change.writes.mode}`;
     case "create-runtime-directory":
       return `create ${change.path}`;
   }
