@@ -13,6 +13,7 @@ import {
   computeScopeContentFingerprint,
   isScopePolicyEvidenceRef,
 } from "./scope-fingerprint.js";
+import { resolveScopeImprovementAuthority } from "./scope-improvement-authority.js";
 import {
   missingGuidanceCandidate,
   recentChangeCandidate,
@@ -20,7 +21,6 @@ import {
 import {
   readScopeImprovementConfigFromStateDir,
 } from "./scope-improvement-state.js";
-import { resolveScopeImprovementAuthority } from "./scope-improvement-authority.js";
 import {
   SCOPE_IMPROVEMENT_MAX_CHANGED_FILES_PER_RUN,
   type ScopeImprovementCandidate,
