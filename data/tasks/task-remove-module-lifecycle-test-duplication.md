@@ -1,6 +1,6 @@
 ---
 status: open
-priority: p0
+priority: p1
 depends_on: [task-align-verification-ownership-and-cadences, task-generate-daemon-client-transport-bindings]
 ---
 
