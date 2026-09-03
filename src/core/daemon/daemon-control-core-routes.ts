@@ -9,6 +9,7 @@ import {
   readBody,
   resolveScopeIdParam,
 } from "./daemon-control-utils.js";
+import { projectPublicHealthStatus } from "./daemon-health.js";
 import { decodeScopeAuthorityMutation } from "./scope-authority-codec.js";
 import {
   SCOPE_AUTHORITY_OPERATOR_CHALLENGE_HEADER,
@@ -133,6 +134,7 @@ export function buildDaemonCoreControlRoutes(
       bypassAuth: true,
       handler: (_req, res) => {
         const health = h.getHealthStatus();
+        const publicHealth = projectPublicHealthStatus(health);
         const state = h.getDaemonLiveState();
         const uptimeMs = Date.now() - new Date(state.startedAt).getTime();
         const degraded = health.scheduler === "error" || health.modules === "error";
@@ -140,7 +142,7 @@ export function buildDaemonCoreControlRoutes(
           status: degraded ? "degraded" : "ok",
           version: "0.1.0",
           uptimeMs,
-          components: health,
+          components: publicHealth,
         });
       },
     },

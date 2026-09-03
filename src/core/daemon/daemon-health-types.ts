@@ -15,3 +15,11 @@ export type HealthStatus = {
   eventLoop?: EventLoopLatencySnapshot;
   moduleHealthChecks?: Record<string, ModuleHealthCheckResult>;
 };
+
+export type PublicHealthStatus = {
+  scheduler: ComponentStatus;
+  modules: ComponentStatus;
+  agentOperatingState?: Omit<WorkflowAgentOperatingState, "reason">;
+  eventLoop?: EventLoopLatencySnapshot;
+  moduleHealthChecks?: Record<string, Pick<ModuleHealthCheckResult, "status">>;
+};

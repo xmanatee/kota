@@ -65,7 +65,9 @@ and publication.
   provider failures activate it at that boundary, cancel other in-flight agent
   calls across every hosted scope, and deny later calls before harness launch
   while deterministic dispatch remains eligible. Autonomous daemon one-shot
-  judgments explicitly join the same gate before sending. Quality pauses
+  judgments explicitly join the same gate before sending. Shared provider
+  incidents persist stable reason codes; raw harness and provider diagnostics
+  remain in authenticated session or retained run evidence. Quality pauses
   retain any active provider recovery horizon, and an operator retry clears
   only the quality pause while that provider incident remains active.
 

@@ -14,6 +14,9 @@ sessions and channels, scheduling, scope hosting, and live state.
   registered provider seams rather than a `DaemonControlHandle`.
 - Per-request signed routes may declare `bypassAuth`; all others use daemon
   bearer authentication.
+- The unauthenticated health route exposes stable component state and timing
+  only. Free-form agent and module diagnostics stay on authenticated operator
+  or retained runtime-evidence surfaces.
 - Clients use typed daemon wrappers for URLs, decoding, authentication,
   polling, and live updates. They never read daemon runtime files directly.
 - Health diagnostics are observational; they do not become workflow state or

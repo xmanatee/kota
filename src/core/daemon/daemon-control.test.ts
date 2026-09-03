@@ -2111,7 +2111,7 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(200);
     });
 
-    it("projects the canonical agent operating state", async () => {
+    it("omits agent diagnostic text from the unauthenticated response", async () => {
       handle = makeHandle({
         getHealthStatus: vi.fn(() => ({
           scheduler: "ok" as const,
@@ -2119,7 +2119,7 @@ describe("DaemonControlServer", () => {
           agentOperatingState: {
             runtimeId: "antigravity-cli:antigravity-cli",
             state: "quality-paused" as const,
-            reason: "unrelated edits",
+            reason: "provider failed with credential sk-health-secret",
           },
         })),
       });
@@ -2128,15 +2128,17 @@ describe("DaemonControlServer", () => {
       port = await server.start();
 
       const res = await fetchNoToken(port, "/health");
-      await expect(res.json()).resolves.toMatchObject({
+      const body = await res.json();
+      expect(body).toMatchObject({
         components: {
           agentOperatingState: {
             runtimeId: "antigravity-cli:antigravity-cli",
             state: "quality-paused",
-            reason: "unrelated edits",
           },
         },
       });
+      expect(body.components.agentOperatingState).not.toHaveProperty("reason");
+      expect(JSON.stringify(body)).not.toContain("sk-health-secret");
     });
 
     it("returns 503 with degraded status when scheduler reports error", async () => {
@@ -2170,14 +2172,17 @@ describe("DaemonControlServer", () => {
       expect(body.status).toBe("degraded");
     });
 
-    it("includes moduleHealthChecks in response when present", async () => {
+    it("includes module health states without diagnostic messages", async () => {
       handle = makeHandle({
         getHealthStatus: vi.fn(() => ({
           scheduler: "ok" as const,
           modules: "ok" as const,
           moduleHealthChecks: {
             "sqlite-memory": { status: "healthy" as const },
-            "webhook": { status: "degraded" as const, message: "endpoint unreachable" },
+            "webhook": {
+              status: "degraded" as const,
+              message: "endpoint failed with credential sk-module-secret",
+            },
           },
         })),
       });
@@ -2190,8 +2195,9 @@ describe("DaemonControlServer", () => {
       const body = await res.json();
       expect(body.components.moduleHealthChecks).toEqual({
         "sqlite-memory": { status: "healthy" },
-        "webhook": { status: "degraded", message: "endpoint unreachable" },
+        "webhook": { status: "degraded" },
       });
+      expect(JSON.stringify(body)).not.toContain("sk-module-secret");
     });
   });
 

@@ -11,6 +11,12 @@ import type {
 
 const MAX_AGENT_BACKOFF_MS = 6 * 60 * 60 * 1000;
 export const AGENT_BACKOFF_OPERATOR_RETRY_UNTIL = "9999-12-31T23:59:59.999Z";
+const PROVIDER_INCIDENT_REASON_CODES = {
+  rate_limit: "provider_rate_limit",
+  auth: "provider_authentication_failed",
+  provider: "provider_unavailable",
+  runtime: "agent_runtime_failed",
+} as const satisfies Record<WorkflowProviderBackoffState["kind"], string>;
 const AGENT_BACKOFF_FACTORS: Record<
   WorkflowAgentBackoffState["kind"],
   { initialDelayMs: number; backoffFactor: number }
@@ -45,10 +51,21 @@ export class AgentBackoffManager {
     private readonly store: AgentBackoffStateStore,
     private readonly log: (msg: string) => void,
     private readonly runtimeId: string,
-  ) {}
+  ) {
+    const stored = this.store.getAgentBackoff();
+    if (stored === null) return;
+    const sanitized = sanitizeStoredBackoff(stored);
+    if (sanitized !== stored) this.store.setAgentBackoff(sanitized);
+  }
 
   private getStored(): WorkflowAgentBackoffState | null {
     return this.store.getAgentBackoff();
+  }
+
+  private setStored(backoff: WorkflowAgentBackoffState | null): void {
+    this.store.setAgentBackoff(
+      backoff === null ? null : sanitizeStoredBackoff(backoff),
+    );
   }
 
   getActive(): WorkflowAgentBackoffState | null {
@@ -114,7 +131,7 @@ export class AgentBackoffManager {
         ...current,
         retainedProviderIncident: retained,
       };
-      this.store.setAgentBackoff(backoff);
+      this.setStored(backoff);
       this.log(
         `Agent dispatch remains quality-paused; retained ${retained.kind} recovery until ${new Date(retained.until).toLocaleString()}`,
       );
@@ -178,7 +195,7 @@ export class AgentBackoffManager {
       failureCount: nextFailureCount,
       until: new Date(untilMs).toISOString(),
       updatedAt: new Date(now).toISOString(),
-      reason: signal.reason,
+      reason: storedIncidentReason(signal),
       ...((signal.kind === "quality" || signal.kind === "output_contract") &&
           current?.runtimeId === this.runtimeId &&
           current.kind !== "quality" && current.kind !== "output_contract" &&
@@ -188,7 +205,7 @@ export class AgentBackoffManager {
           ? {}
           : { retainedProviderIncident: current.retainedProviderIncident }),
     };
-    this.store.setAgentBackoff(backoff);
+    this.setStored(backoff);
     this.log(
       `Agent dispatch backed off until ${new Date(backoff.until).toLocaleString()} (${backoff.kind}, attempt ${backoff.failureCount})`,
     );
@@ -214,7 +231,7 @@ export class AgentBackoffManager {
         Date.parse(retained.until) > Date.now()
       ? retained
       : null;
-    this.store.setAgentBackoff(restored);
+    this.setStored(restored);
     this.log(
       restored === null
         ? `Cleared agent dispatch backoff ${reason} (${backoff.kind})`
@@ -258,7 +275,7 @@ export class AgentBackoffManager {
       failureCount,
       until: new Date(untilMs).toISOString(),
       updatedAt: new Date(now).toISOString(),
-      reason: signal.reason,
+      reason: storedIncidentReason(signal),
     };
     return current?.runtimeId === this.runtimeId &&
         Date.parse(current.until) > now &&
@@ -266,6 +283,39 @@ export class AgentBackoffManager {
       ? current
       : candidate;
   }
+}
+
+function storedIncidentReason(
+  signal: WorkflowAgentIncidentSignal,
+): string {
+  return signal.kind === "quality" || signal.kind === "output_contract"
+    ? signal.reason
+    : PROVIDER_INCIDENT_REASON_CODES[signal.kind];
+}
+
+function sanitizeStoredBackoff(
+  backoff: WorkflowAgentBackoffState,
+): WorkflowAgentBackoffState {
+  const reason = backoff.kind === "quality" || backoff.kind === "output_contract"
+    ? backoff.reason
+    : PROVIDER_INCIDENT_REASON_CODES[backoff.kind];
+  const retained = backoff.retainedProviderIncident;
+  const retainedReason = retained === undefined
+    ? undefined
+    : PROVIDER_INCIDENT_REASON_CODES[retained.kind];
+  if (
+    reason === backoff.reason &&
+    (retained === undefined || retained.reason === retainedReason)
+  ) {
+    return backoff;
+  }
+  return {
+    ...backoff,
+    reason,
+    ...(retained === undefined
+      ? {}
+      : { retainedProviderIncident: { ...retained, reason: retainedReason! } }),
+  };
 }
 
 function providerIncident(

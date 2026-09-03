@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: The unauthenticated health endpoint can disclose raw provider or runtime error messages. Fleet chat failures are copied verbatim into the shared backoff reason, the resulting agent operating state is added to daemon health, and the complete health object is returned by a route that bypasses authentication.
 
@@ -102,3 +101,15 @@ excerpt:
 
 
 > const health = h.getHealthStatus(); ... jsonResponse(res, degraded ? 503 : 200, { status: degraded ? "degraded" : "ok", version: "0.1.0", uptimeMs, components: health });
+
+## Verification
+
+- The unauthenticated health projection preserves stable component and agent
+  state while omitting free-form agent reasons and module health messages.
+- The shared backoff owner persists stable provider-incident reason codes
+  instead of caught provider or runtime error text.
+- `pnpm check:fast` passed, the focused `AgentBackoffManager` owner suite passed
+  all 19 tests, and a source-mode runtime probe confirmed diagnostic text is
+  absent from the public projection. The socket-backed daemon control suite
+  could not bind loopback in the builder sandbox (`listen EPERM`); its focused
+  route assertions remain updated for the normal owner-test environment.

@@ -115,6 +115,44 @@ describe("AgentBackoffManager", () => {
     expect(second.until).toBe(first.until);
   });
 
+  it("stores a stable reason code instead of provider diagnostic text", () => {
+    const manager = makeManager();
+
+    manager.apply({
+      kind: "provider",
+      reason: "request failed with credential sk-shared-backoff-secret",
+    });
+
+    expect(scopeState.getAgentBackoff()).toMatchObject({
+      kind: "provider",
+      reason: "provider_unavailable",
+    });
+    expect(JSON.stringify(scopeState.getAgentBackoff())).not.toContain(
+      "sk-shared-backoff-secret",
+    );
+  });
+
+  it("sanitizes provider text already present when the manager starts", () => {
+    scopeState.setAgentBackoff({
+      runtimeId: "codex:codex",
+      kind: "auth",
+      failureCount: 1,
+      until: "2026-05-12T12:30:00.000Z",
+      updatedAt: "2026-05-12T12:00:00.000Z",
+      reason: "authentication failed with credential sk-legacy-secret",
+    });
+
+    makeManager();
+
+    expect(scopeState.getAgentBackoff()).toMatchObject({
+      kind: "auth",
+      reason: "provider_authentication_failed",
+    });
+    expect(JSON.stringify(scopeState.getAgentBackoff())).not.toContain(
+      "sk-legacy-secret",
+    );
+  });
+
   it("aborts in-flight agent attempts and rejects later attempts", () => {
     const manager = makeManager();
     const attempt = new AbortController();
