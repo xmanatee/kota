@@ -19,7 +19,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ScopesClient } from "./client.js";
 import { buildScopeCommand } from "./scopes-cli.js";
 
-function makeCtx(scopes: ScopesClient): ModuleContext {
+function makeCtx(scopes: Partial<ScopesClient>): ModuleContext {
   return { client: { scopes } } as unknown as ModuleContext;
 }
 
@@ -321,11 +321,11 @@ describe("kota scope CLI", () => {
       },
       error: null,
     };
-    const scopes: ScopesClient = {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(),
       getOnboardingStatus: vi.fn(async () => ({ ok: true as const, operation })),
-    };
+    } satisfies Partial<ScopesClient>;
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["status", operation.operationId], {
       from: "user",
