@@ -964,7 +964,7 @@ describe("ScopeOnboardingService", () => {
     });
     const planned = await fixture.service.plan(target, {
       trust: true,
-      initialAutomationMode: "supervised",
+      improvementPosture: "propose",
       writes: { mode: "scope-directory" },
     });
     expect(planned.ok).toBe(true);
