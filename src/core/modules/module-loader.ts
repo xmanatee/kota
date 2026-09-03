@@ -7,6 +7,7 @@ import type { EventBus } from "#core/events/event-bus.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { DaemonClientHandlers, LocalClientHandlers } from "#root/client/kota-client.generated.js";
+import { assertModuleDefinition } from "./module-definition.js";
 import {
   assertModuleEventBusAuthority,
   bindModuleEventBus,
@@ -42,6 +43,7 @@ import type {
   KotaModule,
   ModuleRuntimeContext,
   ModuleSession,
+  ModuleSource,
   ModuleSummary,
   RouteRegistration,
 } from "./module-types.js";
@@ -118,6 +120,7 @@ export class ModuleLoader {
       resetBus: () => { this.bus = null; },
       verbose: this.verbose,
       providerRegistry: this.providerRegistry,
+      mode: this.mode,
     };
   }
 
@@ -158,21 +161,26 @@ export class ModuleLoader {
     );
   }
 
-  async load(mod: KotaModule): Promise<void> {
+  async load(mod: KotaModule, source: ModuleSource = "bundled"): Promise<void> {
+    assertModuleDefinition(mod);
     this.bus = resolveRuntimeModuleEventAuthority(this.isCommandsMode, this.bus);
     const state = this.state;
-    const policy: LoadPhasePolicy = { cwd: this.cwd, isCommandsMode: this.isCommandsMode };
+    const policy: LoadPhasePolicy = {
+      cwd: this.cwd,
+      isCommandsMode: this.isCommandsMode,
+      moduleSource: source,
+    };
 
     checkDuplicateModule(state, mod);
     checkDependencies(state, mod);
     try {
       registerModuleConfigSlices(state, mod);
-      registerModuleEvents(mod);
+      registerModuleEvents(state, mod);
 
       const ctx = this.createContext(mod.name);
       await runModuleLoadPhases(state, policy, mod, ctx, this.verbose);
     } catch (err) {
-      discardModuleLoadState(mod.name, state, this.providerRegistry);
+      discardModuleLoadState(mod.name, state, this.providerRegistry, this.mode);
       throw err;
     }
   }
@@ -184,7 +192,7 @@ export class ModuleLoader {
       await loadAllModules(
         this.state,
         this.loadAllEnv,
-        (mod) => this.load(mod),
+        (mod, source) => this.load(mod, source),
         () => this.getToolCount(),
         bundledModules,
         installedModules,
@@ -214,7 +222,7 @@ export class ModuleLoader {
         verbose: this.verbose,
         globalConfigPath: this.globalConfigPath,
       },
-      (mod) => this.load(mod),
+      (mod, source) => this.load(mod, source),
       (name) => this.unload(name),
     );
   }

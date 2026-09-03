@@ -19,6 +19,64 @@ export type KotaToolInputSchema = {
   [key: string]: unknown;
 };
 
+function assertJsonCompatible(
+  value: unknown,
+  label: string,
+  ancestors: WeakSet<object>,
+): void {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) return;
+  if (typeof value !== "object") throw new Error(`${label} must be JSON-compatible`);
+  if (ancestors.has(value)) throw new Error(`${label} must not contain cycles`);
+  if (!Array.isArray(value)) {
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new Error(`${label} must be JSON-compatible`);
+    }
+  }
+  ancestors.add(value);
+  try {
+    for (const [key, entry] of Array.isArray(value)
+      ? value.entries()
+      : Object.entries(value)) {
+      assertJsonCompatible(entry, `${label}.${key}`, ancestors);
+    }
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+/** Decode only the open object-schema envelope owned by this protocol. */
+export function assertKotaToolInputSchema(
+  value: unknown,
+  label: string,
+): asserts value is KotaToolInputSchema {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const record = value as Record<string, unknown>;
+  assertJsonCompatible(value, label, new WeakSet());
+  if (record.type !== "object") throw new Error(`${label}.type must be "object"`);
+  if (
+    typeof record.properties !== "object" ||
+    record.properties === null ||
+    Array.isArray(record.properties)
+  ) {
+    throw new Error(`${label}.properties must be an object`);
+  }
+  if (
+    record.required !== undefined &&
+    (!Array.isArray(record.required) ||
+      record.required.some((entry) => typeof entry !== "string"))
+  ) {
+    throw new Error(`${label}.required must be an array of strings when declared`);
+  }
+}
+
 /**
  * Neutral JSON Schema object shape for a tool's structured output. This is the
  * same strict object-schema style as `input_schema` because KOTA structured

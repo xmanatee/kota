@@ -8,7 +8,7 @@
  */
 
 import { z } from "zod";
-import { type ModuleConfigSlice, registerConfigSlice } from "#core/config/config-slice.js";
+import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 import { isWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { type DispatchWindow, validateDispatchWindow } from "#core/workflow/dispatch-window.js";
 import type { QuotaGuardPolicy } from "#core/workflow/quota-guard.js";
@@ -64,5 +64,3 @@ export const schedulerConfigSlice: ModuleConfigSlice<"scheduler"> = {
     typeName: "SchedulerConfig",
   },
 };
-
-registerConfigSlice(schedulerConfigSlice, "scheduler");

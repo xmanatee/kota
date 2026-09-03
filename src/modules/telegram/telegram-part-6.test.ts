@@ -12,7 +12,6 @@ import {
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi, } from "./client.js";
 import telegramModule from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -152,7 +151,6 @@ describe("telegramModule notifications via onLoad", () => {
   afterEach(async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
-    unloadTelegramModule();
   });
 
   it("sends Telegram message on workflow.failure.alert", async () => {

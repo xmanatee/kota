@@ -54,22 +54,6 @@ function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleRuntimeContex
   };
 }
 
-describe("slackModule", () => {
-  it("has correct metadata", () => {
-    expect(slackModule.name).toBe("slack");
-    expect(slackModule.version).toBe("1.0.0");
-    expect(slackModule.description).toBeTruthy();
-  });
-
-  it("has no tools, routes, commands, channels, or workflows", () => {
-    expect(slackModule.tools).toBeUndefined();
-    expect(slackModule.routes).toBeUndefined();
-    expect(slackModule.commands).toBeUndefined();
-    expect(slackModule.channels).toBeUndefined();
-    expect(slackModule.workflows).toBeUndefined();
-  });
-});
-
 describe("slackModule notifications", () => {
   beforeEach(() => {
     mockFetch.mockReset();

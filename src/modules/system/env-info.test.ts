@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { envInfoTool, runEnvInfo } from "./env-info.js";
-
-describe("envInfoTool", () => {
-	it("has correct tool metadata", () => {
-		expect(envInfoTool.name).toBe("env_info");
-		expect(envInfoTool.description).toContain("environment");
-		expect(envInfoTool.input_schema.required).toEqual(["query"]);
-	});
-});
+import { runEnvInfo } from "./env-info.js";
 
 describe("runEnvInfo", () => {
 	it("returns error for unknown query", async () => {
@@ -99,15 +91,4 @@ describe("runEnvInfo", () => {
 		expect(result.content).toContain("## Runtimes");
 		expect(result.content).toContain("## Resources");
 	}, 15_000);
-});
-
-describe("registration", () => {
-	it("exports valid registration", async () => {
-		const { registration } = await import("./env-info.js");
-		const { riskFromEffect } = await import("#core/tools/effect.js");
-		expect(registration.tool.name).toBe("env_info");
-		expect(typeof registration.runner).toBe("function");
-		expect(registration.effect).toBeDefined();
-		expect(riskFromEffect(registration.effect)).toBe("safe");
-	});
 });

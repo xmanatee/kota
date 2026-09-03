@@ -113,18 +113,6 @@ const SAMPLE_VALIDATE_BODY = {
 };
 
 describe("config module daemonClient(link) — config namespace", () => {
-  it("contributes a config namespace handler with five methods", () => {
-    expect(configModule.daemonClient).toBeTypeOf("function");
-    const { transport } = makeRecordingTransport({});
-    const contributed = configModule.daemonClient!(transport);
-    expect(contributed.config).toBeDefined();
-    expect(typeof contributed.config!.validate).toBe("function");
-    expect(typeof contributed.config!.get).toBe("function");
-    expect(typeof contributed.config!.set).toBe("function");
-    expect(typeof contributed.config!.schemaPath).toBe("function");
-    expect(typeof contributed.config!.schemaContent).toBe("function");
-  });
-
   it("routes validate() through GET /config/validate and decodes the success arm", async () => {
     const { transport, calls } = makeRecordingTransport({
       request: (method, path) =>

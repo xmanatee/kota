@@ -1,6 +1,7 @@
 import type { KotaConfig, LoadConfigOptions } from "#core/config/config.js";
 import { reimportBundledModule } from "./bundled-module-discovery.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
+import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
 import { topoSort } from "./module-deps.js";
 import { reimportInstalledModule } from "./module-discovery.js";
 import type { LoaderState } from "./module-loader-state.js";
@@ -26,30 +27,57 @@ export interface LoadAllEnv {
 export async function loadAllModules(
   state: LoaderState,
   env: LoadAllEnv,
-  load: (mod: KotaModule) => Promise<void>,
+  load: (mod: KotaModule, source: ModuleSource) => Promise<void>,
   getToolCount: () => number,
   bundledModules: KotaModule[],
   installedModules?: KotaModule[],
 ): Promise<void> {
-  const bundledNames = new Set(bundledModules.map((m) => m.name));
-  const allModules = [...bundledModules, ...(installedModules ?? [])];
+  const admission = admitDiscoveredModuleDefinitions(
+    bundledModules,
+    installedModules ?? [],
+  );
+  for (const failure of admission.failures) {
+    state.loadFailures.push({
+      ...failure,
+      timestamp: new Date().toISOString(),
+    });
+    if (failure.source === "bundled") {
+      printTerminalDiagnostic(
+        `[kota] Module "${failure.name}" failed declaration admission: ${failure.message}`,
+        "error",
+      );
+    } else if (env.verbose) {
+      printTerminalDiagnostic(
+        `[kota] Optional module "${failure.name}" skipped: ${failure.message}`,
+        "warn",
+      );
+    }
+  }
 
-  for (const mod of bundledModules) state.moduleSources.set(mod.name, "bundled");
-  for (const mod of installedModules ?? []) state.moduleSources.set(mod.name, "installed");
-
-  const sorted = topoSort(allModules);
+  const admittedSources = new Map(
+    admission.admitted.map(({ definition, source }) => [definition.name, source]),
+  );
+  const sorted = topoSort(
+    admission.admitted.map(({ definition }) => definition),
+  );
   for (const mod of sorted) {
+    const source = admittedSources.get(mod.name)!;
     try {
-      await load(mod);
+      await load(mod, source);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      const isBundled = bundledNames.has(mod.name);
+      const isBundled = source === "bundled";
       if (isBundled) {
         printTerminalDiagnostic(`[kota] Module "${mod.name}" failed to load: ${msg}`, "error");
       } else if (env.verbose) {
         printTerminalDiagnostic(`[kota] Optional module "${mod.name}" skipped: ${msg}`, "warn");
       }
-      state.loadFailures.set(mod.name, { message: msg, timestamp: new Date().toISOString() });
+      state.loadFailures.push({
+        name: mod.name,
+        source: isBundled ? "bundled" : "installed",
+        message: msg,
+        timestamp: new Date().toISOString(),
+      });
     }
   }
 
@@ -59,12 +87,29 @@ export async function loadAllModules(
       env.cwd,
       env.config.modules,
     );
-    for (const mod of foreign) {
-      state.moduleSources.set(mod.name, "foreign");
+    for (const candidate of foreign) {
+      const mod = candidate.definition;
       try {
-        await load(mod);
+        await load(mod, "foreign");
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
+        try {
+          await candidate.discard();
+        } catch (disposeError) {
+          const disposeMessage = disposeError instanceof Error
+            ? disposeError.message
+            : String(disposeError);
+          printTerminalDiagnostic(
+            `[kota] Foreign module "${mod.name}" cleanup failed: ${disposeMessage}`,
+            "error",
+          );
+        }
+        state.loadFailures.push({
+          name: mod.name,
+          source: "foreign",
+          message: msg,
+          timestamp: new Date().toISOString(),
+        });
         printTerminalDiagnostic(
           `[kota] Foreign module "${mod.name}" failed to register: ${msg}`,
           "error",
@@ -75,10 +120,13 @@ export async function loadAllModules(
 
   activateConfiguredProviders(env.config, env.verbose, env.providerRegistry);
 
-  const bundledFailures = [...state.loadFailures.entries()]
-    .filter(([name]) => bundledNames.has(name));
+  const bundledFailures = state.loadFailures.filter(
+    (failure) => failure.source === "bundled",
+  );
   if (bundledFailures.length > 0) {
-    const details = bundledFailures.map(([name, f]) => `  ${name}: ${f.message}`).join("\n");
+    const details = bundledFailures
+      .map((failure) => `  ${failure.name}: ${failure.message}`)
+      .join("\n");
     throw new Error(
       `${bundledFailures.length} bundled module(s) failed to load:\n${details}`,
     );
@@ -141,7 +189,7 @@ export async function reloadModule(
   moduleName: string,
   state: LoaderState,
   env: { cwd: string; verbose: boolean; globalConfigPath?: string },
-  load: (mod: KotaModule) => Promise<void>,
+  load: (mod: KotaModule, source: ModuleSource) => Promise<void>,
   unload: (name: string) => Promise<boolean>,
 ): Promise<boolean> {
   const source = state.moduleSources.get(moduleName);
@@ -159,8 +207,7 @@ export async function reloadModule(
     await unload(moduleName);
   }
 
-  await load(modToLoad);
-  if (source) state.moduleSources.set(moduleName, source);
+  await load(modToLoad, source ?? "bundled");
 
   if (env.verbose) {
     const how = freshMod ? "from disk" : "from registry";

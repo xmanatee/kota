@@ -134,17 +134,6 @@ describe("voice module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares /voice/* routes with control capability scope", () => {
-      const routes = voiceControlRoutes();
-      expect(routes.map((r) => `${r.method} ${r.path}`)).toEqual([
-        "POST /voice/transcribe",
-        "POST /voice/synthesize",
-      ]);
-      for (const r of routes) {
-        expect(r.capabilityScope).toBe("control");
-      }
-    });
-
     it("requires the daemon bearer token", async () => {
       const res = await globalThis.fetch(
         `http://127.0.0.1:${port}/voice/transcribe`,

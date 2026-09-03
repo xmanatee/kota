@@ -1,4 +1,5 @@
-import { registerConfigSlice } from "#core/config/config-slice.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import { acquireConfigSlice } from "#core/config/config-slice.js";
 import {
   getModuleEventRegistry,
   initModuleEventRegistry,
@@ -13,10 +14,16 @@ import { attachModuleMetadata } from "./module-loader-metadata-phases.js";
 import type { LoaderState } from "./module-loader-state.js";
 import { moduleToolSnapshots } from "./module-loader-tool-snapshots.js";
 import {
+  assertModuleActivation,
+  assertModuleCommandFactoryResult,
+  assertModuleControlRouteFactoryResult,
+  assertModuleRouteFactoryResult,
   type KotaModule,
   type ModuleActivation,
   type ModuleRuntimeContext,
+  type ModuleSource,
   resolveModuleChannels,
+  resolveModuleAgentHarnesses,
   resolveModuleTools,
   resolveModuleUiSurfaceSources,
   resolveModuleWorkflows,
@@ -33,6 +40,7 @@ import { printTerminalDiagnostic } from "./terminal-renderer.js";
 export interface LoadPhasePolicy {
   cwd: string;
   isCommandsMode: boolean;
+  moduleSource: ModuleSource;
 }
 
 export function checkDuplicateModule(state: LoaderState, mod: KotaModule): void {
@@ -64,17 +72,35 @@ export function registerModuleConfigSlices(
         `Module "${mod.name}" tried to register config key "${slice.key}" already claimed by "${existing}"`,
       );
     }
-    registerConfigSlice(slice, mod.name);
+  }
+  const disposers: (() => void)[] = [];
+  try {
+    for (const slice of mod.configSlices) {
+      disposers.push(acquireConfigSlice(slice, mod.name));
+    }
+  } catch (error) {
+    for (const dispose of disposers.reverse()) dispose();
+    throw error;
+  }
+  state.moduleConfigSliceDisposers.set(mod.name, disposers);
+  for (const slice of mod.configSlices) {
     state.registeredConfigKeys.set(slice.key, mod.name);
   }
 }
 
-export function registerModuleEvents(mod: KotaModule): void {
+export function registerModuleEvents(state: LoaderState, mod: KotaModule): void {
   if (!mod.events || mod.events.length === 0) return;
   const registry = getModuleEventRegistry() ?? initModuleEventRegistry();
-  for (const def of mod.events) {
-    registry.register(mod.name, def);
+  const disposers: (() => void)[] = [];
+  try {
+    for (const def of mod.events) {
+      disposers.push(registry.acquire(mod.name, def));
+    }
+  } catch (error) {
+    for (const dispose of disposers.reverse()) dispose();
+    throw error;
   }
+  state.moduleEventRegistrationDisposers.set(mod.name, disposers);
 }
 
 export function prepareModuleTools(
@@ -130,7 +156,6 @@ export async function attachModuleWorkflows(
 ): Promise<void> {
   const workflows = await resolveModuleWorkflows(mod, ctx);
   if (workflows.length === 0) return;
-  const source = state.moduleSources.get(mod.name) ?? "bundled";
   const resolvedWorkflows = workflows.map((def) => {
     const withPath =
       "definitionPath" in def
@@ -143,7 +168,7 @@ export async function attachModuleWorkflows(
     return {
       ...withRoot,
       contributingModule: withRoot.contributingModule ?? mod.name,
-      moduleSource: withRoot.moduleSource ?? source,
+      moduleSource: withRoot.moduleSource ?? policy.moduleSource,
     };
   });
   state.moduleWorkflowDefs.set(mod.name, resolvedWorkflows);
@@ -163,6 +188,23 @@ export async function attachModuleChannels(
   for (const def of channels) {
     state.contributedChannels.push(def);
   }
+}
+
+async function attachModuleAgentHarnesses(
+  state: LoaderState,
+  mod: KotaModule,
+  ctx: ModuleRuntimeContext,
+): Promise<void> {
+  const harnesses = await resolveModuleAgentHarnesses(mod, ctx);
+  if (harnesses.length === 0) return;
+  const disposers: (() => void)[] = [];
+  try {
+    for (const harness of harnesses) disposers.push(registerAgentHarness(harness));
+  } catch (error) {
+    for (const dispose of disposers.reverse()) dispose();
+    throw error;
+  }
+  state.moduleAgentHarnessDisposers.set(mod.name, disposers);
 }
 
 export async function attachModuleUiSurfaces(
@@ -186,8 +228,9 @@ export function attachModuleCommands(
   ctx: ModuleRuntimeContext,
 ): void {
   if (!mod.commands) return;
+  let commands: unknown;
   try {
-    state.moduleCommands.set(mod.name, mod.commands(ctx));
+    commands = mod.commands(ctx);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.moduleCommandErrors.set(mod.name, msg);
@@ -195,7 +238,10 @@ export function attachModuleCommands(
       `[kota] Module "${mod.name}" command registration failed: ${msg}`,
       "error",
     );
+    return;
   }
+  assertModuleCommandFactoryResult(mod.name, commands);
+  state.moduleCommands.set(mod.name, commands);
 }
 
 export function attachModuleRoutes(
@@ -204,8 +250,9 @@ export function attachModuleRoutes(
   ctx: ModuleRuntimeContext,
 ): void {
   if (!mod.routes) return;
+  let routes: unknown;
   try {
-    state.moduleRoutes.set(mod.name, [...mod.routes(ctx)]);
+    routes = mod.routes(ctx);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.moduleRouteErrors.set(mod.name, msg);
@@ -213,7 +260,10 @@ export function attachModuleRoutes(
       `[kota] Module "${mod.name}" route registration failed: ${msg}`,
       "error",
     );
+    return;
   }
+  assertModuleRouteFactoryResult(mod.name, routes);
+  state.moduleRoutes.set(mod.name, routes);
 }
 
 export function attachModuleControlRoutes(
@@ -222,8 +272,9 @@ export function attachModuleControlRoutes(
   ctx: ModuleRuntimeContext,
 ): void {
   if (!mod.controlRoutes) return;
+  let routes: unknown;
   try {
-    state.moduleControlRoutes.set(mod.name, [...mod.controlRoutes(ctx)]);
+    routes = mod.controlRoutes(ctx);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     state.moduleControlRouteErrors.set(mod.name, msg);
@@ -231,7 +282,10 @@ export function attachModuleControlRoutes(
       `[kota] Module "${mod.name}" control-route registration failed: ${msg}`,
       "error",
     );
+    return;
   }
+  assertModuleControlRouteFactoryResult(mod.name, routes);
+  state.moduleControlRoutes.set(mod.name, routes);
 }
 
 export async function runModuleOnLoad(
@@ -240,7 +294,10 @@ export async function runModuleOnLoad(
   ctx: ModuleRuntimeContext,
 ): Promise<ModuleActivation | undefined> {
   if (!mod.onLoad || policy.isCommandsMode) return undefined;
-  return (await mod.onLoad(ctx)) ?? undefined;
+  const activation: unknown = await mod.onLoad(ctx);
+  if (activation === undefined) return undefined;
+  assertModuleActivation(mod.name, activation);
+  return activation;
 }
 
 /**
@@ -257,6 +314,7 @@ export async function runModuleLoadPhases(
   verbose: boolean,
 ): Promise<void> {
   const tools = prepareModuleTools(policy, mod, ctx);
+  await attachModuleAgentHarnesses(state, mod, ctx);
   await attachModuleWorkflows(state, policy, mod, ctx);
   await attachModuleChannels(state, mod, ctx);
   await attachModuleUiSurfaces(state, mod, ctx);
@@ -273,6 +331,7 @@ export async function runModuleLoadPhases(
   const activation = await runModuleOnLoad(policy, mod, ctx);
   if (activation) state.moduleActivations.set(mod.name, activation);
 
+  state.moduleSources.set(mod.name, policy.moduleSource);
   state.modules.push(mod);
   state.moduleRegistry.set(mod.name, mod);
   if (verbose) {

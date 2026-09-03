@@ -87,10 +87,6 @@ describe("transcription-whisper module", () => {
     resetProviderRegistry();
   });
 
-  it("declares transcription as a dependency", () => {
-    expect(whisperModule.dependencies).toContain("transcription");
-  });
-
   it("stays inactive and leaves transcription unavailable when apiKey config is missing", async () => {
     await invokeOnLoad(undefined);
     expect(() => getTranscriptionProvider()).toThrow(TranscriptionProviderUnavailableError);

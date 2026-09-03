@@ -18,6 +18,7 @@ import type { ScopeOnboardingOperation } from "#core/daemon/scope-onboarding.js"
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ScopesClient } from "./client.js";
 import { buildScopeCommand } from "./scopes-cli.js";
+import { scopesLocalClient } from "./scopes-local.js";
 
 const confirmActionMock = vi.hoisted(() => vi.fn());
 
@@ -27,6 +28,10 @@ vi.mock("#core/util/confirm.js", () => ({
 
 function makeCtx(scopes: Partial<ScopesClient>): ModuleContext {
   return { client: { scopes } } as unknown as ModuleContext;
+}
+
+function makeScopesClient(overrides: Partial<ScopesClient>): ScopesClient {
+  return { ...scopesLocalClient(), ...overrides };
 }
 
 describe("kota scope CLI", () => {
@@ -58,7 +63,7 @@ describe("kota scope CLI", () => {
   });
 
   it("list --json prints scopes + active selection on a daemon-up call", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(async () => ({
         ok: true as const,
         defaultScopeId: "p1",
@@ -69,7 +74,7 @@ describe("kota scope CLI", () => {
         ],
       })),
       use: vi.fn(),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["list", "--json"], { from: "user" });
     expect(JSON.parse(logs[0]!)).toEqual({
@@ -84,10 +89,10 @@ describe("kota scope CLI", () => {
   });
 
   it("list reports daemon_required on the local-handler arm with exit code 1", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(async () => ({ ok: false as const, reason: "daemon_required" as const })),
       use: vi.fn(),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["list"], { from: "user" });
     expect(errs.join("\n")).toContain("Daemon is not running");
@@ -95,10 +100,10 @@ describe("kota scope CLI", () => {
   });
 
   it("select <id> calls scopes.use and prints the new active selection", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(),
       use: vi.fn(async () => ({ ok: true as const, activeScopeId: "p2" })),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["select", "p2"], { from: "user" });
     expect(scopes.use).toHaveBeenCalledWith("p2");
@@ -107,10 +112,10 @@ describe("kota scope CLI", () => {
   });
 
   it("select --clear calls scopes.use(null) and reports the cleared selection", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(),
       use: vi.fn(async () => ({ ok: true as const, activeScopeId: null })),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["select", "--clear"], { from: "user" });
     expect(scopes.use).toHaveBeenCalledWith(null);
@@ -118,10 +123,10 @@ describe("kota scope CLI", () => {
   });
 
   it("select rejects unknown ids with a non-zero exit code", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(),
       use: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, scopeId: "ghost" })),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["select", "ghost"], { from: "user" });
     expect(errs.join("\n")).toContain("Unknown scope");
@@ -129,10 +134,10 @@ describe("kota scope CLI", () => {
   });
 
   it("select rejects passing both <id> and --clear without calling the daemon", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(),
       use: vi.fn(),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["select", "p1", "--clear"], { from: "user" });
     expect(scopes.use).not.toHaveBeenCalled();
@@ -141,10 +146,10 @@ describe("kota scope CLI", () => {
   });
 
   it("select without an id or --clear flag is rejected", async () => {
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(),
       use: vi.fn(),
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync(["select"], { from: "user" });
     expect(scopes.use).not.toHaveBeenCalled();
@@ -158,11 +163,11 @@ describe("kota scope CLI", () => {
       reason: "invalid_choices" as const,
       message: "fixture plan response",
     }));
-    const scopes = {
+    const scopes = makeScopesClient({
       list: vi.fn(),
       use: vi.fn(),
       planOnboarding,
-    } as unknown as ScopesClient;
+    });
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync([
       "configure",

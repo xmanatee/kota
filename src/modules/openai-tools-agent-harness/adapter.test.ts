@@ -28,10 +28,7 @@ vi.mock("#core/config/secrets.js", () => ({
 }));
 
 import { runFileRead } from "#modules/filesystem/file-read.js";
-import {
-  OPENAI_TOOLS_AGENT_HARNESS_NAME,
-  openaiToolsAgentHarness,
-} from "./adapter.js";
+import { openaiToolsAgentHarness } from "./adapter.js";
 
 type StubFinalMessage = Pick<KotaModelResponse, "id" | "content" | "stop_reason"> & {
   usage?: { input_tokens: number; output_tokens: number };
@@ -155,35 +152,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.clearAllMocks();
-});
-
-describe("openaiToolsAgentHarness — registration", () => {
-  it("registers under the openai-tools name and supports multi-turn", () => {
-    expect(openaiToolsAgentHarness.name).toBe(OPENAI_TOOLS_AGENT_HARNESS_NAME);
-    expect(openaiToolsAgentHarness.name).toBe("openai-tools");
-    expect(openaiToolsAgentHarness.supportsMultiTurn).toBe(true);
-    expect(openaiToolsAgentHarness.supportedHookKinds).toEqual([
-      "preRun",
-      "postRun",
-    ]);
-    expect(openaiToolsAgentHarness.emitsAgentMessageStream).toBe(true);
-    expect(openaiToolsAgentHarness.unsupportedRunOptions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          option: "thinkingEnabled/thinkingBudget",
-          runOption: "thinking",
-        }),
-      ]),
-    );
-    expect(openaiToolsAgentHarness.unsupportedRunOptions).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          option: "onMessage",
-          runOption: "onMessage",
-        }),
-      ]),
-    );
-  });
 });
 
 describe("openaiToolsAgentHarness — happy path tool loop", () => {

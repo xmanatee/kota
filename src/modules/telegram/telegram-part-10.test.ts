@@ -10,9 +10,8 @@ import {
   type DeclaredKotaClientHandlers,
 } from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
-import { callTelegramApi, } from "./client.js";
+import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -50,8 +49,9 @@ function makeTestHarness(name: string): AgentHarness {
 }
 
 vi.mock("#core/agent-harness/index.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("#core/agent-harness/index.js")>();
+  const actual = await importOriginal<
+    typeof import("#core/agent-harness/index.js")
+  >();
   return {
     ...actual,
     resolveAgentHarness: vi.fn((name: string) => makeTestHarness(name)),
@@ -108,7 +108,7 @@ function makeStubCtx(
     getRoutes: () => [],
     getContributedWorkflows: () => [],
     getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
+    getContributedUiSurfaces: () => [],
     getContributedControlRoutes: () => [],
     getModuleSummaries: () => [],
     getModuleConfig: () => undefined,
@@ -149,7 +149,6 @@ describe("telegramModule notifications via onLoad", () => {
   afterEach(async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_ALERT_CHAT_ID;
-    unloadTelegramModule();
   });
 
   it("does not send Telegram message when credentials are missing", async () => {
@@ -168,20 +167,38 @@ describe("telegramModule notifications via onLoad", () => {
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
   });
 
-  it("unloads cleanly and stops receiving events", async () => {
-    const bus = new EventBus();
-    telegramModule.onLoad!(makeStubCtx(bus));
-    unloadTelegramModule();
-    bus.emit("workflow.failure.alert", {
+  it("disposes only the notification state owned by one host", async () => {
+    const firstBus = new EventBus();
+    const secondBus = new EventBus();
+    const firstActivation = await telegramModule.onLoad!(makeStubCtx(firstBus));
+    const secondActivation = await telegramModule.onLoad!(
+      makeStubCtx(secondBus),
+    );
+
+    await firstActivation?.dispose();
+    firstBus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",
       status: "failed",
       durationMs: 5000,
       errorSummary: "",
-      text: "alert",
+      text: "first alert",
+    });
+    secondBus.emit("workflow.failure.alert", {
+      workflow: "builder",
+      runId: "run-def",
+      status: "failed",
+      durationMs: 5000,
+      errorSummary: "",
+      text: "second alert",
     });
     await Promise.resolve();
-    expect(mockedCallTelegramApi).not.toHaveBeenCalled();
+    expect(mockedCallTelegramApi).toHaveBeenCalledOnce();
+    expect(mockedCallTelegramApi.mock.calls[0]?.[2]).toMatchObject({
+      text: "second alert",
+    });
+
+    await secondActivation?.dispose();
   });
 
   it("does not start a competing callback poll on load when credentials are present", async () => {
@@ -222,4 +239,5 @@ describe("telegramModule notifications via onLoad", () => {
     telegramModule.onLoad!(makeStubCtx(bus));
 
     expect(mockStart).not.toHaveBeenCalled();
-  });});
+  });
+});

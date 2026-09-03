@@ -30,6 +30,13 @@
  */
 
 import type { KotaToolInputSchema } from "#core/agent-harness/message-protocol.js";
+import type { KotaModule } from "./module-types.js";
+
+/** A connected foreign module awaiting transfer into ModuleLoader ownership. */
+export type PendingForeignModule = {
+  definition: KotaModule;
+  discard(): Promise<void>;
+};
 
 // ─── Outbound (KOTA → Module) ────────────────────────────────────────────────
 

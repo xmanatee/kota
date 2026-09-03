@@ -52,21 +52,6 @@ function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeCont
   };
 }
 
-describe("webhookModule", () => {
-  it("has correct metadata", () => {
-    expect(webhookModule.name).toBe("webhook");
-    expect(webhookModule.version).toBe("1.0.0");
-    expect(webhookModule.description).toBeTruthy();
-  });
-
-  it("contributes the inbound event-trigger route and no other capabilities", () => {
-    expect(webhookModule.tools).toBeUndefined();
-    expect(webhookModule.channels).toBeUndefined();
-    expect(webhookModule.workflows).toBeUndefined();
-    expect(typeof webhookModule.routes).toBe("function");
-  });
-});
-
 describe("webhookModule notifications", () => {
   const FAKE_URL = "https://hooks.example.com/notify";
 

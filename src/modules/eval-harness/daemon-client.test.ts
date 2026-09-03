@@ -58,16 +58,6 @@ import {
 import evalHarnessModule from "./index.js";
 
 describe("eval-harness module daemonClient(link)", () => {
-  it("contributes an evalHarness namespace handler", () => {
-    expect(evalHarnessModule.daemonClient).toBeTypeOf("function");
-    const link = makeRecordingTransport(() => null).transport;
-    const contributed = evalHarnessModule.daemonClient!(link);
-    expect(contributed.evalHarness).toBeDefined();
-    expect(typeof contributed.evalHarness!.list).toBe("function");
-    expect(typeof contributed.evalHarness!.run).toBe("function");
-    expect(typeof contributed.evalHarness!.calibration).toBe("function");
-  });
-
   it("routes list() through GET /eval/list via requestStrict<T> with no body", async () => {
     const fixtures: EvalFixtureSummary[] = [
       {

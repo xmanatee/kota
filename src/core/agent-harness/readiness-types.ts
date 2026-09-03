@@ -85,23 +85,27 @@ export type AgentHarnessUnsupportedOption = {
   readonly reason: string;
 };
 
+export const AGENT_HARNESS_UNSUPPORTED_RUN_OPTION_KEYS = [
+  "mcpServers",
+  "allowedTools",
+  "disallowedTools",
+  "canUseTool",
+  "askOwner",
+  "autonomyMode.passive",
+  "autonomyMode.supervised",
+  "persistSession",
+  "resumeSessionId",
+  "env",
+  "scopePolicy",
+  "harnessOverrides",
+  "enableFileCheckpointing",
+  "maxTurns",
+  "thinking",
+  "onMessage",
+] as const;
+
 export type AgentHarnessUnsupportedRunOption =
-  | "mcpServers"
-  | "allowedTools"
-  | "disallowedTools"
-  | "canUseTool"
-  | "askOwner"
-  | "autonomyMode.passive"
-  | "autonomyMode.supervised"
-  | "persistSession"
-  | "resumeSessionId"
-  | "env"
-  | "scopePolicy"
-  | "harnessOverrides"
-  | "enableFileCheckpointing"
-  | "maxTurns"
-  | "thinking"
-  | "onMessage";
+  typeof AGENT_HARNESS_UNSUPPORTED_RUN_OPTION_KEYS[number];
 
 export type AgentHarnessAuthProbe =
   | {

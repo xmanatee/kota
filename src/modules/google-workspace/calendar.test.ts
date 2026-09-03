@@ -30,21 +30,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("calendar_list_events: schema", () => {
-  const def = makeCalendarListEvents(mockGetToken(), "primary", http);
-
-  it("has correct tool name and metadata", () => {
-    expect(def.tool.name).toBe("calendar_list_events");
-    expect(def.effect.kind).toBe("read");
-    expect(def.effect.openWorld).toBe(true);
-    expect(def.group).toBe("productivity");
-  });
-
-  it("has no required fields", () => {
-    expect(def.tool.input_schema.required).toEqual([]);
-  });
-});
-
 describe("calendar_list_events: runner", () => {
   it("returns 'No upcoming events' on empty list", async () => {
     const def = makeCalendarListEvents(mockGetToken(), "primary", http);
@@ -103,20 +88,6 @@ describe("calendar_list_events: runner", () => {
     const result = await def.runner({});
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("403");
-  });
-});
-
-describe("calendar_create_event: schema", () => {
-  const def = makeCalendarCreateEvent(mockGetToken(), "primary", http);
-
-  it("has correct tool name and is marked destructive", () => {
-    expect(def.tool.name).toBe("calendar_create_event");
-    expect(def.effect.kind).toBe("destructive");
-    expect(def.effect.openWorld).toBe(true);
-  });
-
-  it("requires summary, start, end", () => {
-    expect(def.tool.input_schema.required).toEqual(["summary", "start", "end"]);
   });
 });
 

@@ -9,7 +9,6 @@ import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { TelegramBot } from "./bot.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 import { TelegramScopeSelection } from "./scope-selection.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 import {
@@ -30,8 +29,9 @@ import {
 } from "./telegram-scope-module-test-support.integration.js";
 
 vi.mock("./client.js", async () => {
-  const actual =
-    await vi.importActual<typeof import("./client.js")>("./client.js");
+  const actual = await vi.importActual<typeof import("./client.js")>(
+    "./client.js",
+  );
   return { ...actual, callTelegramApi: vi.fn() };
 });
 
@@ -68,7 +68,6 @@ describe("telegram scope integration", () => {
   let dir = "";
 
   afterEach(async () => {
-    unloadTelegramModule();
     if (dir) rmSync(dir, { recursive: true, force: true });
     resetEventBus();
     resetScheduler();
@@ -151,15 +150,27 @@ describe("telegram scope integration", () => {
     expect(scopeASpies.workflowStatus).not.toHaveBeenCalled();
     expect(scopeASpies.capture).not.toHaveBeenCalled();
     expect(scopeASpies.retract).not.toHaveBeenCalled();
-    expect(sendBodies().some((body) => body.text.includes("not bound to a KOTA scope"))).toBe(true);
-    expect(sendBodies().some((body) => body.text.includes("alpha lives only in scope A"))).toBe(true);
-    expect(sendBodies().some((body) => body.text === "No matching memory entries.")).toBe(true);
+    expect(
+      sendBodies().some((body) =>
+        body.text.includes("not bound to a KOTA scope")
+      ),
+    ).toBe(true);
+    expect(
+      sendBodies().some((body) =>
+        body.text.includes("alpha lives only in scope A")
+      ),
+    ).toBe(true);
+    expect(
+      sendBodies().some((body) => body.text === "No matching memory entries."),
+    ).toBe(true);
 
     mockedCallTelegramApi.mockClear();
     process.env.TELEGRAM_BOT_TOKEN = "token";
     process.env.TELEGRAM_ALERT_CHAT_ID = "99";
     const bus = new EventBus();
-    telegramModule.onLoad!(makeCtx(bus, client, storage));
+    const activation = await telegramModule.onLoad!(
+      makeCtx(bus, client, storage),
+    );
     bus.emit("workflow.failure.alert", {
       scopeId: SCOPE_B.scopeId,
       workflow: "builder",
@@ -171,7 +182,7 @@ describe("telegram scope integration", () => {
     });
     await waitFor(() => sendBodies().length === 1);
     expect(sendBodies()[0]?.text).toBe("[Scope B] Workflow failed: *builder*");
-    unloadTelegramModule();
+    await activation?.dispose();
 
     mockedCallTelegramApi.mockClear();
     let bot: TelegramBot;
@@ -184,7 +195,9 @@ describe("telegram scope integration", () => {
       }
       if (method === "getUpdates") {
         getUpdatesCount += 1;
-        if (getUpdatesCount === 1) return [makeUpdate(10, "hello from selected scope")];
+        if (getUpdatesCount === 1) {
+          return [makeUpdate(10, "hello from selected scope")];
+        }
         if (getUpdatesCount === 2) {
           await new Promise((resolve) => setTimeout(resolve, 50));
           return [makeUpdate(11, "/scope scope-a")];
@@ -246,7 +259,9 @@ describe("telegram scope integration", () => {
     });
     const getScopeRuntime = vi.fn(() => {
       if (getScopeRuntime.mock.calls.length > 1) {
-        throw new Error("Scope scope-b is draining and cannot accept channel work");
+        throw new Error(
+          "Scope scope-b is draining and cannot accept channel work",
+        );
       }
       return runtimeB;
     });

@@ -11,6 +11,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import {
   Daemon,
   type DaemonConfig,
@@ -22,6 +23,7 @@ import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { createTelegramModule } from "./index.js";
 
 const agentSendMock = vi.fn(async () => undefined);
@@ -52,7 +54,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   };
 });
 
-import "#modules/claude-agent-harness/index.js";
+registerAgentHarness(claudeAgentHarness);
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);

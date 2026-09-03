@@ -9,7 +9,6 @@ import {
   WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
 } from "#core/agent-harness/index.js";
 import {
-  GEMINI_CLI_AGENT_HARNESS_NAME,
   geminiCliAgentHarness,
   resolveGeminiCliIsolatedHostAuthEnv,
 } from "./adapter.js";
@@ -96,22 +95,6 @@ afterEach(() => {
 });
 
 describe("geminiCliAgentHarness", () => {
-  it("registers as the native Gemini CLI harness", () => {
-    expect(geminiCliAgentHarness.name).toBe(GEMINI_CLI_AGENT_HARNESS_NAME);
-    expect(geminiCliAgentHarness.name).toBe("gemini-cli");
-    expect(geminiCliAgentHarness.supportsMultiTurn).toBe(true);
-    expect(geminiCliAgentHarness.askOwnerToolName).toBeNull();
-    expect(geminiCliAgentHarness.emitsAgentMessageStream).toBe(true);
-    expect(geminiCliAgentHarness.toolControl).toBe("native");
-    expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option)).toEqual(
-      expect.arrayContaining(["allowedTools", "disallowedTools", "canUseTool"]),
-    );
-    expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option))
-      .not.toContain("scopePolicy");
-    expect(geminiCliAgentHarness.unsupportedRunOptions?.map((option) => option.option))
-      .not.toContain("onMessage");
-  });
-
   it("scopes only the Gemini login locator when a trusted host replaces HOME", () => {
     expect(resolveGeminiCliIsolatedHostAuthEnv({ HOME: "/operator" }))
       .toEqual({

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { getPreset } from "#core/model/preset.js";
@@ -26,7 +27,9 @@ import {
   readJson,
 } from "./production-routing-replay.integration-test-helpers.js";
 
-import "#modules/claude-agent-harness/index.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+
+registerAgentHarness(claudeAgentHarness);
 
 describe("production completion routing replay", () => {
   const tempDirs: string[] = [];

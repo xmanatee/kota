@@ -187,11 +187,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     .description("Show trust, policy, provenance, and authority audit records")
     .option("--json", "Output as JSON")
     .action(async (scopeId: string, opts: { json?: boolean }) => {
-      if (!ctx.client.scopes.inspectAuthority) {
-        printToStderr(line(span("Scope authority requires a live, current daemon.", "error")));
-        process.exitCode = 1;
-        return;
-      }
       const result = await ctx.client.scopes.inspectAuthority(scopeId);
       if (!result.ok) {
         if (opts.json) writeJson(result);
@@ -238,15 +233,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
         json?: boolean;
       },
     ) => {
-      if (
-        !ctx.client.scopes.inspectAuthority ||
-        !ctx.client.scopes.validateAuthority ||
-        !ctx.client.scopes.applyAuthority
-      ) {
-        printToStderr(line(span("Scope authority requires a live, current daemon.", "error")));
-        process.exitCode = 1;
-        return;
-      }
       if (opts.policy && opts.clearPolicy) {
         printToStderr(line(span("Cannot pass both --policy and --clear-policy.", "error")));
         process.exitCode = 1;
@@ -333,7 +319,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     .option("--json", "Output as JSON")
     .action(async (directory: string, opts: { json?: boolean }) => {
       const client = ctx.client.scopes.inspectOnboarding;
-      if (!client) return onboardingUnavailable(opts.json);
       const result = await client(directory);
       if (opts.json) writeJson(result);
       else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
@@ -351,7 +336,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     opts: OnboardingChoiceOptions & { json?: boolean },
   ) => {
     const client = ctx.client.scopes.planOnboarding;
-    if (!client) return onboardingUnavailable(opts.json);
     const choices = parseOnboardingChoices(opts);
     if (!choices.ok) return onboardingInputError(choices.message, opts.json);
     const result = await client(directory, choices.value);
@@ -376,12 +360,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       applyOnboarding,
       getOnboardingStatus,
     } = ctx.client.scopes;
-    if (
-      !inspectOnboarding ||
-      !planOnboarding ||
-      !applyOnboarding ||
-      !getOnboardingStatus
-    ) return onboardingUnavailable(opts.json);
     const choices = parseOnboardingChoices(opts);
     if (!choices.ok) return onboardingInputError(choices.message, opts.json);
     const inspected = await inspectOnboarding(directory);
@@ -500,7 +478,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     .option("--json", "Output as JSON")
     .action(async (operationId: string, opts: { json?: boolean }) => {
       const client = ctx.client.scopes.getOnboardingStatus;
-      if (!client) return onboardingUnavailable(opts.json);
       const result = await client(operationId);
       if (opts.json) writeJson(result);
       else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
@@ -514,7 +491,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     .option("--json", "Output as JSON")
     .action(async (operationId: string, opts: { json?: boolean }) => {
       const { getOnboardingStatus, retryOnboarding } = ctx.client.scopes;
-      if (!getOnboardingStatus || !retryOnboarding) return onboardingUnavailable(opts.json);
       const status = await getOnboardingStatus(operationId);
       if (!status.ok) {
         if (opts.json) writeJson(status);
@@ -554,7 +530,6 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     .option("--json", "Output as JSON")
     .action(async (operationId: string, opts: { json?: boolean }) => {
       const client = ctx.client.scopes.cancelOnboarding;
-      if (!client) return onboardingUnavailable(opts.json);
       if (!process.stdin.isTTY) {
         onboardingInputError("Cancelling scope onboarding requires an interactive terminal.", opts.json);
         return;
@@ -685,10 +660,6 @@ function matchesAcceptedChoices(
       requested.writes === undefined ||
       JSON.stringify(requested.writes) === JSON.stringify(accepted.writes)
     );
-}
-
-function onboardingUnavailable(json: boolean | undefined): void {
-  onboardingInputError("Scope onboarding requires a live, current daemon.", json);
 }
 
 function onboardingInputError(message: string, json: boolean | undefined): void {

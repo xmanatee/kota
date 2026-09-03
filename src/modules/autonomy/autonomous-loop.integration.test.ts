@@ -15,12 +15,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { loadConfig } from "#core/config/config.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { getPreset, PRESET_ENV_VAR } from "#core/model/preset.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import {
   loadAutonomyWorkflowDefinitions,
   seedAutonomousLoopFixture,
@@ -36,7 +38,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   };
 });
 
-import "#modules/claude-agent-harness/index.js";
+registerAgentHarness(claudeAgentHarness);
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 

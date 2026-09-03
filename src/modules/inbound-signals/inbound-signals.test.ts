@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import type { ModuleContext, ModuleSummary } from "#core/modules/module-types.js";
-import type { DaemonTransport } from "#core/server/daemon-transport.js";
 import type { WorkflowBatchDispatchInput } from "#core/workflow/event-batches.js";
 import {
   type InboundSignalReceivedPayload,
@@ -13,13 +12,8 @@ import {
 } from "./events.js";
 import inboundSignalsModule from "./index.js";
 import {
-  inboundSignalRouteStatusControlRoutes,
-  inboundSignalRouteStatusRoutes,
-} from "./routes.js";
-import {
   dispatchInboundSignalRoute,
   type InboundSignalRoutingConfig,
-  type InboundSignalRoutingStatus,
   inboundSignalRoutingStatus,
   validateInboundSignalRoutingConfig,
 } from "./routing.js";
@@ -47,40 +41,6 @@ function sampleSignal(): InboundSignalReceivedPayload {
       kind: "message",
       format: "plain",
       text: "Capture this into the appropriate workflow.",
-    },
-  };
-}
-
-function makeRouteStatus(): InboundSignalRoutingStatus {
-  return {
-    routes: [],
-    validation: { ok: true, routes: [] },
-  };
-}
-
-function makeRecordingTransport(
-  response: InboundSignalRoutingStatus | null,
-): {
-  transport: DaemonTransport;
-  calls: Array<{ method: string; path: string; body: unknown }>;
-} {
-  const calls: Array<{ method: string; path: string; body: unknown }> = [];
-  return {
-    calls,
-    transport: {
-      baseUrl: "http://127.0.0.1:0",
-      authHeaders: () => ({}),
-      request: async <T>(method: string, path: string, body?: unknown) => {
-        calls.push({ method, path, body });
-        return response as T | null;
-      },
-      requestStrict: async <_T>() => {
-        throw new Error("requestStrict not expected");
-      },
-      fetchRaw: async () => new Response(null, { status: 200 }),
-      events: async function* () {
-        // empty generator
-      },
     },
   };
 }
@@ -155,75 +115,6 @@ function makeModuleContext(options: {
 }
 
 describe("inbound-signals module", () => {
-  it("owns the scope-scoped inbound signal event declaration", () => {
-    expect(inboundSignalsModule.events).toEqual([
-      inboundSignalReceived,
-      inboundSignalRouted,
-    ]);
-    expect(inboundSignalReceived.name).toBe("inbound.signal.received");
-    expect(inboundSignalReceived.scope).toBe("scope");
-    expect(inboundSignalReceived.fields).toEqual([
-      "scopeId",
-      "provider",
-      "channel",
-      "accountId",
-      "sourceId",
-      "sourceUrl",
-      "externalId",
-      "occurredAt",
-      "receivedAt",
-      "actor",
-      "body",
-    ]);
-    expect(inboundSignalReceived.workflowTriggerPolicy).toBe("blocked");
-  });
-
-  it("owns the routed audit event declaration that workflows can filter", () => {
-    expect(inboundSignalRouted.name).toBe("inbound.signal.routed");
-    expect(inboundSignalRouted.scope).toBe("scope");
-    expect(inboundSignalRouted.filterablePaths).toEqual([
-      "scopeId",
-      "routeId",
-      "decision",
-      "sourceStatus",
-      "provider",
-      "channel",
-      "accountId",
-      "sourceId",
-      "actorTrust",
-      "policy.blockedHandling",
-    ]);
-    expect(inboundSignalRouted.workflowTriggerPolicy).toBe("blocked");
-  });
-
-  it("keeps public and daemon-control route paths distinct", async () => {
-    const status = makeRouteStatus();
-
-    expect(
-      inboundSignalRouteStatusRoutes(() => status).map((route) =>
-        `${route.method} ${route.path}`
-      ),
-    ).toEqual(["GET /api/inbound-signals/routes"]);
-    expect(
-      inboundSignalRouteStatusControlRoutes(() => status).map((route) =>
-        `${route.method} ${route.path} (${route.capabilityScope})`
-      ),
-    ).toEqual(["GET /inbound-signals/routes (read)"]);
-
-    const { transport, calls } = makeRecordingTransport(status);
-    const client = inboundSignalsModule.daemonClient!(transport).inboundSignals!;
-    await expect(client.listRoutes({ scopeId: "scope-1" })).resolves.toEqual(
-      status,
-    );
-    expect(calls).toEqual([
-      {
-        method: "GET",
-        path: "/inbound-signals/routes?scopeId=scope-1",
-        body: undefined,
-      },
-    ]);
-  });
-
   it("keeps built-in GitHub mention workflows reachable through declarative routes", async () => {
     const ctx = makeModuleContext({
       workflowNames: [

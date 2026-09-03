@@ -87,3 +87,103 @@ export type AgentDef = {
    */
   writeScope: AgentWriteScope;
 };
+
+function assertRecord(value: unknown, label: string): asserts value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+}
+
+function assertNonEmptyString(value: unknown, label: string): asserts value is string {
+  if (typeof value !== "string" || value.trim() !== value || value.length === 0) {
+    throw new Error(`${label} must be a non-empty trimmed string`);
+  }
+}
+
+function assertStringArray(value: unknown, label: string): asserts value is string[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  for (const entry of value) assertNonEmptyString(entry, `${label} entry`);
+}
+
+function assertKnownFields(
+  value: Record<string, unknown>,
+  fields: ReadonlySet<string>,
+  label: string,
+): void {
+  for (const key of Object.keys(value)) {
+    if (!fields.has(key)) throw new Error(`${label} has unknown field "${key}"`);
+  }
+}
+
+const AGENT_FIELDS = new Set<keyof AgentDef>([
+  "name",
+  "role",
+  "promptPath",
+  "model",
+  "effort",
+  "skills",
+  "tools",
+  "writeScope",
+]);
+
+const AGENT_TOOL_POLICY_FIELDS = new Set<keyof AgentToolPolicy>(["allowed", "disallowed"]);
+const SKILL_FIELDS = new Set<keyof SkillDef>([
+  "name",
+  "description",
+  "promptPath",
+  "roles",
+]);
+
+/** Runtime decoder for module-contributed skill declarations. */
+export function assertSkillDefinitions(
+  moduleName: string,
+  values: readonly unknown[],
+): asserts values is readonly SkillDef[] {
+  for (const [index, value] of values.entries()) {
+    const label = `Module "${moduleName}" skill[${index}]`;
+    assertRecord(value, label);
+    assertKnownFields(value, SKILL_FIELDS, label);
+    assertNonEmptyString(value.name, `${label}.name`);
+    assertNonEmptyString(value.promptPath, `${label}.promptPath`);
+    if (value.description !== undefined) {
+      assertNonEmptyString(value.description, `${label}.description`);
+    }
+    if (value.roles !== undefined) assertStringArray(value.roles, `${label}.roles`);
+  }
+}
+
+/** Runtime decoder for module-contributed agent declarations. */
+export function assertAgentDefinitions(
+  moduleName: string,
+  values: readonly unknown[],
+): asserts values is readonly AgentDef[] {
+  const efforts = new Set(["low", "medium", "high", "xhigh", "max"]);
+  for (const [index, value] of values.entries()) {
+    const label = `Module "${moduleName}" agent[${index}]`;
+    assertRecord(value, label);
+    assertKnownFields(value, AGENT_FIELDS, label);
+    assertNonEmptyString(value.name, `${label}.name`);
+    assertNonEmptyString(value.role, `${label}.role`);
+    assertNonEmptyString(value.promptPath, `${label}.promptPath`);
+    assertNonEmptyString(value.model, `${label}.model`);
+    if (typeof value.effort !== "string" || !efforts.has(value.effort)) {
+      throw new Error(`${label}.effort must be low, medium, high, xhigh, or max`);
+    }
+    if (value.skills !== undefined && value.skills !== "all") {
+      assertStringArray(value.skills, `${label}.skills`);
+    }
+    if (value.writeScope !== "deny-all") {
+      assertStringArray(value.writeScope, `${label}.writeScope`);
+    }
+    if (value.tools !== undefined) {
+      assertRecord(value.tools, `${label}.tools`);
+      assertKnownFields(value.tools, AGENT_TOOL_POLICY_FIELDS, `${label}.tools`);
+      if (value.tools.allowed !== undefined) {
+        assertStringArray(value.tools.allowed, `${label}.tools.allowed`);
+      }
+      if (value.tools.disallowed !== undefined) {
+        assertStringArray(value.tools.disallowed, `${label}.tools.disallowed`);
+      }
+    }
+  }
+}

@@ -6,26 +6,24 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  hasAgentHarness,
-  listAgentHarnessNames,
+  registerAgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
 
-import claudeHarnessModule from "../claude-agent-harness/index.js";
-import thinHarnessModule from "../thin-agent-harness/index.js";
-import openaiToolsHarnessModule, {
+import {
   OPENAI_TOOLS_AGENT_HARNESS_NAME,
-  OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME,
   openaiToolsAgentHarness,
-  openaiToolsScaffoldAgentHarness,
 } from "./index.js";
 
 const messagesStreamMock = vi.fn();
 const messagesCreateMock = vi.fn();
 
 describe("openai-tools agent harness integration", () => {
+  let disposeHarness: () => void;
+
   beforeEach(() => {
+    disposeHarness = registerAgentHarness(openaiToolsAgentHarness);
     messagesStreamMock.mockReset();
     messagesCreateMock.mockReset();
     registerModelClientFactory(({ model }) => ({
@@ -58,29 +56,8 @@ describe("openai-tools agent harness integration", () => {
   });
 
   afterEach(() => {
+    disposeHarness();
     vi.clearAllMocks();
-  });
-
-  it("registers alongside claude-agent-sdk and thin under its declared name", () => {
-    expect(claudeHarnessModule.name).toBe("claude-agent-harness");
-    expect(thinHarnessModule.name).toBe("thin-agent-harness");
-    expect(openaiToolsHarnessModule.name).toBe("openai-tools-agent-harness");
-    expect(hasAgentHarness(OPENAI_TOOLS_AGENT_HARNESS_NAME)).toBe(true);
-    expect(hasAgentHarness(OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME)).toBe(true);
-    expect(listAgentHarnessNames()).toEqual(
-      expect.arrayContaining([
-        "claude-agent-sdk",
-        "thin",
-        "openai-tools",
-        "openai-tools-scaffold",
-      ]),
-    );
-    expect(resolveAgentHarness(OPENAI_TOOLS_AGENT_HARNESS_NAME)).toBe(
-      openaiToolsAgentHarness,
-    );
-    expect(resolveAgentHarness(OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME)).toBe(
-      openaiToolsScaffoldAgentHarness,
-    );
   });
 
   it("runs end-to-end through the registry without falling back to a different harness", async () => {

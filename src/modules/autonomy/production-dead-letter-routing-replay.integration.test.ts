@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
 import { deadLetterChangedEventPayload } from "#core/daemon/dead-letter-queue-events.js";
@@ -37,7 +38,9 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+
+registerAgentHarness(claudeAgentHarness);
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 const INTEGRATION_WAIT_MS = 45_000;

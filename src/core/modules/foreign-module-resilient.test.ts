@@ -9,9 +9,8 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { StdioForeignModuleConfig } from "./foreign-module.js";
+import type { PendingForeignModule, StdioForeignModuleConfig } from "./foreign-module.js";
 import { loadForeignModules } from "./foreign-module-loader.js";
-import type { KotaModule } from "./module-types.js";
 
 const PROJECT_CWD = process.cwd();
 
@@ -22,9 +21,8 @@ vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
 beforeEach(() => { tryEmitMock.mockClear(); });
 afterEach(() => { vi.restoreAllMocks(); });
 
-async function dispose(module: KotaModule): Promise<void> {
-  const activation = await module.onLoad?.({} as never);
-  if (activation) await activation.dispose();
+async function dispose(candidate: PendingForeignModule): Promise<void> {
+  await candidate.discard();
 }
 
 type ResilienceConfig = Omit<StdioForeignModuleConfig, "transport" | "command" | "args">;
@@ -128,7 +126,8 @@ describe("KEMP resilient module — crash restart", () => {
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignModules([config], PROJECT_CWD);
+    const [candidate] = await loadForeignModules([config], PROJECT_CWD);
+    const ext = candidate.definition;
     expect(ext).toBeDefined();
 
     const tool = (ext.tools as { tool: { name: string }; runner: (i: Record<string, unknown>) => Promise<{ content: string; is_error?: boolean }> }[])
@@ -146,7 +145,7 @@ describe("KEMP resilient module — crash restart", () => {
     expect(secondResult.is_error).toBeFalsy();
     expect(secondResult.content).toBe("world");
 
-    await dispose(ext);
+    await dispose(candidate);
   }, 10_000);
 });
 
@@ -160,7 +159,8 @@ describe("KEMP resilient module — max restarts exhausted", () => {
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignModules([config], PROJECT_CWD);
+    const [candidate] = await loadForeignModules([config], PROJECT_CWD);
+    const ext = candidate.definition;
     expect(ext).toBeDefined();
 
     // Give time for initial crash → doRestart → all attempts fail
@@ -172,7 +172,7 @@ describe("KEMP resilient module — max restarts exhausted", () => {
       reason: expect.any(String),
     }));
 
-    await dispose(ext);
+    await dispose(candidate);
   }, 10_000);
 });
 
@@ -184,7 +184,8 @@ describe("KEMP resilient module — health state tracking", () => {
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignModules([config], PROJECT_CWD);
+    const [candidate] = await loadForeignModules([config], PROJECT_CWD);
+    const ext = candidate.definition;
     expect(ext).toBeDefined();
     expect(ext.getHealth).toBeDefined();
 
@@ -193,7 +194,7 @@ describe("KEMP resilient module — health state tracking", () => {
     expect(health.restartCount).toBe(0);
     expect(health.lastRestartAt).toBeUndefined();
 
-    await dispose(ext);
+    await dispose(candidate);
   }, 10_000);
 
   it("increments restartCount and sets lastRestartAt after a crash-restart cycle", async () => {
@@ -204,7 +205,8 @@ describe("KEMP resilient module — health state tracking", () => {
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignModules([config], PROJECT_CWD);
+    const [candidate] = await loadForeignModules([config], PROJECT_CWD);
+    const ext = candidate.definition;
     expect(ext).toBeDefined();
 
     // Trigger the crash via first invoke
@@ -221,7 +223,7 @@ describe("KEMP resilient module — health state tracking", () => {
     expect(typeof health.lastRestartAt).toBe("string");
     expect(health.status).toBe("ok");
 
-    await dispose(ext);
+    await dispose(candidate);
   }, 10_000);
 
   it("sets status to dead when all restarts exhausted", async () => {
@@ -232,7 +234,8 @@ describe("KEMP resilient module — health state tracking", () => {
       ...fastConfig({ maxRestarts: 2 }),
     };
 
-    const [ext] = await loadForeignModules([config], PROJECT_CWD);
+    const [candidate] = await loadForeignModules([config], PROJECT_CWD);
+    const ext = candidate.definition;
     expect(ext).toBeDefined();
 
     // Wait for all restarts to exhaust (backoffs: 50ms + 100ms = 150ms + processing)
@@ -242,7 +245,7 @@ describe("KEMP resilient module — health state tracking", () => {
     expect(health.status).toBe("dead");
     expect(health.restartCount).toBeGreaterThan(0);
 
-    await dispose(ext);
+    await dispose(candidate);
   }, 10_000);
 });
 
@@ -260,7 +263,8 @@ describe("KEMP resilient module — ping timeout", () => {
       }),
     };
 
-    const [ext] = await loadForeignModules([config], PROJECT_CWD);
+    const [candidate] = await loadForeignModules([config], PROJECT_CWD);
+    const ext = candidate.definition;
     expect(ext).toBeDefined();
 
     // Wait: pingIntervalMs(200) + pingTimeoutMs(150) + backoff(50) + processing
@@ -271,6 +275,6 @@ describe("KEMP resilient module — ping timeout", () => {
       reason: expect.stringContaining("ping"),
     }));
 
-    await dispose(ext);
+    await dispose(candidate);
   }, 15_000);
 });

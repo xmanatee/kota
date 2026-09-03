@@ -1,42 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
-  antigravityCliAgentHarness,
-  antigravityCliReadiness,
-} from "./adapter.js";
+import { antigravityCliReadiness } from "./adapter.js";
 import { antigravityCliAuthReadiness } from "./auth-readiness.js";
 
 describe("antigravityCliAgentHarness readiness", () => {
-  it("registers as the native Antigravity CLI readiness harness", () => {
-    expect(antigravityCliAgentHarness.name).toBe(
-      ANTIGRAVITY_CLI_AGENT_HARNESS_NAME,
-    );
-    expect(antigravityCliAgentHarness.name).toBe("antigravity-cli");
-    expect(antigravityCliAgentHarness.supportsMultiTurn).toBe(true);
-    expect(antigravityCliAgentHarness.askOwnerToolName).toBeNull();
-    expect(antigravityCliAgentHarness.emitsAgentMessageStream).toBe(true);
-    expect(antigravityCliAgentHarness.toolControl).toBe("native");
-    expect(
-      antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
-    ).toEqual(
-      expect.arrayContaining([
-        "allowedTools",
-        "disallowedTools",
-        "canUseTool",
-        "askOwner",
-        "mcpServers",
-      ]),
-    );
-    expect(
-      antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
-    ).not.toContain("resumeSessionId");
-    expect(
-      antigravityCliAgentHarness.unsupportedRunOptions?.map((option) => option.option),
-    ).not.toContain("scopePolicy");
-  });
-
   it("reports AGY runtime and headless model-access readiness", () => {
-    const readiness = antigravityCliAgentHarness.readiness?.();
+    const readiness = antigravityCliReadiness();
 
     expect(readiness).toMatchObject({
       adapterKind: "native-cli",

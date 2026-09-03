@@ -9,7 +9,6 @@ import {
   ProcessSupervisor,
 } from "#core/execution/process-supervisor.js";
 import {
-  CODEX_AGENT_HARNESS_NAME,
   codexAgentHarness,
   resolveCodexIsolatedHostAuthEnv,
 } from "./adapter.js";
@@ -133,25 +132,6 @@ afterEach(() => {
 });
 
 describe("codexAgentHarness", () => {
-  it("registers as the Codex CLI harness", () => {
-    expect(codexAgentHarness.name).toBe(CODEX_AGENT_HARNESS_NAME);
-    expect(codexAgentHarness.supportsMultiTurn).toBe(true);
-    expect(codexAgentHarness.askOwnerToolName).toBeNull();
-    expect(codexAgentHarness.emitsAgentMessageStream).toBe(true);
-    expect(codexAgentHarness.toolControl).toBe("native");
-    const unsupported = codexAgentHarness.unsupportedRunOptions?.map((option) => option.option);
-    expect(unsupported).toEqual(
-      expect.arrayContaining([
-        "allowedTools",
-        "disallowedTools",
-        "canUseTool",
-        'autonomyMode="passive"',
-        "maxTurns",
-      ]),
-    );
-    expect(unsupported).not.toContain("onMessage");
-  });
-
   it("preserves the Codex login locator when a trusted host replaces HOME", () => {
     const metadata = resolveCodexIsolatedHostAuthEnv({
       HOME: "/operator",

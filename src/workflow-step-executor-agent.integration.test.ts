@@ -17,6 +17,7 @@ import {
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#modules/claude-agent-harness/kota-tools-mcp.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));
@@ -35,11 +36,7 @@ vi.mock("#core/loop/system-prompt.js", () => ({
   buildKotaSystemPrompt: () => "system",
 }));
 
-// Registers the claude agent harness. After the harness refactor the step
-// executor dispatches through the registry; importing this module triggers
-// side-effect registration so `resolveAgentHarness("claude-agent-sdk")` works
-// and the adapter still routes through the mocked executeWithAgentSDK.
-import "#modules/claude-agent-harness/index.js";
+registerAgentHarness(claudeAgentHarness);
 
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";

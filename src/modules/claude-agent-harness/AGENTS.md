@@ -18,10 +18,12 @@ neutral wire-frame declarations (`KotaAgentMessage`,
 `src/core/agent-harness/` because the workflow runtime consumes them
 directly; nothing in core imports `@anthropic-ai/claude-agent-sdk`.
 
-- Registration happens as a side effect of importing this module (mirrors
-  `src/modules/model-clients/`). Tests that exercise paths depending on the
-  claude harness must import `#modules/claude-agent-harness/index.js` in
-  their setup.
+- Importing the module is side-effect free. The module declares its adapter
+  through `KotaModule.agentHarnesses`; `ModuleLoader` registers it during load
+  and withdraws that exact registration during unload. Module-lifecycle tests
+  load it through the host; isolated harness-consumer fixtures may explicitly
+  register the adapter they exercise, but must never rely on an import side
+  effect.
 - Guardrails (tool allow/deny lists, MCP servers, composed `canUseTool`) are
   passed in through `AgentHarnessRunOptions` and applied by the underlying
   SDK call. The harness-neutral commit + daemon guards live in

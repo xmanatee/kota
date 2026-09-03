@@ -28,20 +28,6 @@ import {
 } from "./scopes-daemon-client-test-support.js";
 
 describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
-  it("contributes a scopes namespace handler", () => {
-    const { transport } = makeRecordingTransport(() => jsonResponse(200, {}));
-    const contributed = daemonOpsModule.daemonClient!(transport);
-    expect(contributed.scopes).toBeDefined();
-    expect(typeof contributed.scopes!.list).toBe("function");
-    expect(typeof contributed.scopes!.use).toBe("function");
-    expect(typeof contributed.scopes!.inspectOnboarding).toBe("function");
-    expect(typeof contributed.scopes!.planOnboarding).toBe("function");
-    expect(typeof contributed.scopes!.applyOnboarding).toBe("function");
-    expect(typeof contributed.scopes!.getOnboardingStatus).toBe("function");
-    expect(typeof contributed.scopes!.retryOnboarding).toBe("function");
-    expect(typeof contributed.scopes!.cancelOnboarding).toBe("function");
-  });
-
   it("routes list() through GET /scopes with auth headers and decodes the success arm", async () => {
     const wireBody = {
       rootScopeId: "global",
@@ -188,11 +174,11 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
         }));
     const scopes = daemonOpsModule.daemonClient!(transport).scopes!;
 
-    await expect(scopes.inspectOnboarding!("/tmp/external")).resolves.toMatchObject({
+    await expect(scopes.inspectOnboarding("/tmp/external")).resolves.toMatchObject({
       ok: true,
       inspection: { operationId: "onboarding-1", directoryRoot: "/tmp/external" },
     });
-    await expect(scopes.planOnboarding!("/tmp/external", {
+    await expect(scopes.planOnboarding("/tmp/external", {
       trust: false,
       improvementPosture: "observe",
       writes: { mode: "none" },

@@ -1,4 +1,4 @@
-import { registerModuleConfigSlices } from "./module-config-slices.js";
+import { assertModuleDefinition } from "./module-definition.js";
 import type { KotaModule } from "./module-types.js";
 import {
   importModuleEntry,
@@ -22,8 +22,8 @@ export async function discoverBundledModules(): Promise<KotaModule[]> {
     const moduleUrl = new URL(`${name}/`, baseUrl);
     const module = await importModuleEntry<KotaModule>(moduleUrl, "index");
     if (!module) continue;
+    assertModuleDefinition(module);
     modules.push(module);
-    registerModuleConfigSlices(module);
   }
 
   return modules;

@@ -1,17 +1,35 @@
 import type { AgentHarness } from "./types.js";
 
-const harnesses = new Map<string, AgentHarness>();
+type HarnessRegistration = {
+  token: symbol;
+  harness: AgentHarness;
+};
 
-export function registerAgentHarness(harness: AgentHarness): void {
+const harnesses = new Map<string, HarnessRegistration[]>();
+
+/** Register an adapter and return a disposer for this exact registration. */
+export function registerAgentHarness(harness: AgentHarness): () => void {
   if (!harness.name || typeof harness.name !== "string") {
     throw new Error("Agent harness must declare a non-empty string name");
   }
-  harnesses.set(harness.name, harness);
+  const registration = { token: Symbol(harness.name), harness };
+  const registrations = harnesses.get(harness.name) ?? [];
+  registrations.push(registration);
+  harnesses.set(harness.name, registrations);
+  return () => {
+    const current = harnesses.get(harness.name);
+    if (!current) return;
+    const index = current.findIndex((entry) => entry.token === registration.token);
+    if (index < 0) return;
+    current.splice(index, 1);
+    if (current.length === 0) harnesses.delete(harness.name);
+  };
 }
 
 export function resolveAgentHarness(name: string): AgentHarness {
-  const harness = harnesses.get(name);
-  if (!harness) {
+  const registrations = harnesses.get(name);
+  const harness = registrations?.at(-1)?.harness;
+  if (harness === undefined) {
     const available = listAgentHarnessNames();
     const suffix =
       available.length > 0
@@ -23,7 +41,7 @@ export function resolveAgentHarness(name: string): AgentHarness {
 }
 
 export function hasAgentHarness(name: string): boolean {
-  return harnesses.has(name);
+  return (harnesses.get(name)?.length ?? 0) > 0;
 }
 
 export function listAgentHarnessNames(): string[] {

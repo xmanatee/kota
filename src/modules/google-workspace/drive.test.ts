@@ -47,21 +47,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("drive_list_files: schema", () => {
-  const def = makeDriveListFiles(mockGetToken(), http);
-
-  it("has correct tool name and metadata", () => {
-    expect(def.tool.name).toBe("drive_list_files");
-    expect(def.effect.kind).toBe("read");
-    expect(def.effect.openWorld).toBe(true);
-    expect(def.group).toBe("productivity");
-  });
-
-  it("has no required fields", () => {
-    expect(def.tool.input_schema.required).toEqual([]);
-  });
-});
-
 describe("drive_list_files: runner", () => {
   it("returns 'No files found' on empty result", async () => {
     const def = makeDriveListFiles(mockGetToken(), http);
@@ -118,20 +103,6 @@ describe("drive_list_files: runner", () => {
     const result = await def.runner({});
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("403");
-  });
-});
-
-describe("drive_read_file: schema", () => {
-  const def = makeDriveReadFile(mockGetToken(), http);
-
-  it("has correct tool name and metadata", () => {
-    expect(def.tool.name).toBe("drive_read_file");
-    expect(def.effect.kind).toBe("read");
-    expect(def.effect.openWorld).toBe(true);
-  });
-
-  it("requires id", () => {
-    expect(def.tool.input_schema.required).toEqual(["id"]);
   });
 });
 

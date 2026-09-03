@@ -116,16 +116,6 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("owner-questions module daemonClient(link)", () => {
-  it("contributes an ownerQuestions namespace handler", () => {
-    expect(ownerQuestionsModule.daemonClient).toBeTypeOf("function");
-    const { transport } = makeRecordingTransport({});
-    const contributed = ownerQuestionsModule.daemonClient!(transport);
-    expect(contributed.ownerQuestions).toBeDefined();
-    expect(typeof contributed.ownerQuestions!.list).toBe("function");
-    expect(typeof contributed.ownerQuestions!.answer).toBe("function");
-    expect(typeof contributed.ownerQuestions!.dismiss).toBe("function");
-  });
-
   it("routes list through GET /owner-questions with no query string when filter is absent", async () => {
     const expected: OwnerQuestionsListResult = { questions: [] };
     const { transport, calls } = makeRecordingTransport({

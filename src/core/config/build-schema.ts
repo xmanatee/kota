@@ -1,7 +1,9 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createGenerator } from "ts-json-schema-generator";
+import { admitDiscoveredModuleDefinitions } from "../modules/module-admission.js";
 import { discoverBundledModules } from "../modules/bundled-module-discovery.js";
+import { registerAdmittedModuleConfigSlices } from "../modules/module-config-slices.js";
 import { getRegisteredConfigSlices } from "./config-slice.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
@@ -66,8 +68,11 @@ if (!kotaDef) throw new Error("KotaConfig definition not found in generated sche
 const inlinedBase = resolveRefs(kotaDef, baseGenerated.definitions ?? {}) as Record<string, unknown>;
 const baseProperties = objectRecord(inlinedBase.properties) ?? {};
 
-// Discover modules to populate the global slice registry.
-await discoverBundledModules();
+// Admit declarations before exposing their structural config slices.
+const bundledModules = await discoverBundledModules();
+registerAdmittedModuleConfigSlices(
+  admitDiscoveredModuleDefinitions(bundledModules).admitted,
+);
 
 const sliceProperties: Record<string, unknown> = {};
 for (const slice of getRegisteredConfigSlices()) {
@@ -97,10 +102,9 @@ const inlined = { ...inlinedBase, properties: mergedProperties };
 const modulesSchema = objectRecord(mergedProperties.modules);
 if (modulesSchema) {
   const moduleProperties = objectRecord(modulesSchema.properties) ?? {};
-  // Walk registered modules again — discoverBundledModules above only
-  // returned the modules and triggered slice registration; we now also
-  // surface their `configSchema` fragments (for `config.modules.<name>`).
-  for (const mod of await discoverBundledModules()) {
+  // Surface each admitted module's `configSchema` fragment for
+  // `config.modules.<name>`.
+  for (const mod of bundledModules) {
     if (mod.configSchema) moduleProperties[mod.name] = mod.configSchema;
   }
   if (Object.keys(moduleProperties).length > 0) {

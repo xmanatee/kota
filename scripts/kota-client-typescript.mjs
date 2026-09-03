@@ -246,6 +246,17 @@ export function generateKotaClientAggregate() {
   const names = KOTA_CLIENT_NAMESPACE_GRAPH
     .map(([name]) => `  ${JSON.stringify(name)},`)
     .join("\n");
+  const handlerMethods = KOTA_CLIENT_NAMESPACE_GRAPH
+    .map(([name]) => {
+      const methods = [...new Set(
+        generatedOperations(name)
+          .map((operation) => operation.clientMethod),
+      )]
+        .map((method) => JSON.stringify(method))
+        .join(", ");
+      return `  ${JSON.stringify(name)}: [${methods}],`;
+    })
+    .join("\n");
   const completeDefinitions = GENERATED_DAEMON_CLIENT_GRAPH.filter(
     (definition) => definition.kind === "complete",
   );
@@ -285,6 +296,49 @@ export type ScopedKotaClientPort<K extends KotaClientNamespace> = KotaClientPort
   Readonly<Pick<KotaClient, "forScope">>;
 export type LocalClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 export type DaemonClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
+
+export const KOTA_CLIENT_HANDLER_METHODS = {
+${handlerMethods}
+} as const satisfies {
+  [K in KotaClientNamespace]: readonly (keyof KotaClient[K] & string)[];
+};
+
+const KOTA_CLIENT_NAMESPACE_SET: ReadonlySet<string> = new Set(KOTA_CLIENT_NAMESPACES);
+
+/** Decode a module client-factory result against the generated aggregate contract. */
+export function assertKotaClientHandlerMap(
+  value: unknown,
+  label: string,
+): asserts value is Partial<LocalClientHandlers> & Partial<DaemonClientHandlers> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(\`${"${label}"} must be an object\`);
+  }
+  const handlers = value as Record<string, unknown>;
+  for (const [namespace, handler] of Object.entries(handlers)) {
+    if (!KOTA_CLIENT_NAMESPACE_SET.has(namespace)) {
+      throw new Error(\`${"${label}"} contains unknown namespace "${"${namespace}"}"\`);
+    }
+    if (typeof handler !== "object" || handler === null || Array.isArray(handler)) {
+      throw new Error(\`${"${label}"}.${"${namespace}"} must be an object\`);
+    }
+    const methods = KOTA_CLIENT_HANDLER_METHODS[namespace as KotaClientNamespace];
+    const methodSet: ReadonlySet<string> = new Set(methods);
+    for (const method of Object.getOwnPropertyNames(handler)) {
+      if (!methodSet.has(method)) {
+        throw new Error(
+          \`${"${label}"}.${"${namespace}"} contains unknown method "${"${method}"}"\`,
+        );
+      }
+    }
+    for (const method of methods) {
+      if (typeof (handler as Record<string, unknown>)[method] !== "function") {
+        throw new Error(
+          \`${"${label}"}.${"${namespace}"}.${"${method}"} must be a function\`,
+        );
+      }
+    }
+  }
+}
 
 function assignKotaClientNamespaces(
   target: object,

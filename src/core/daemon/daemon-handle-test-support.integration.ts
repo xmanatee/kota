@@ -146,6 +146,7 @@ export function mockModuleMetadata(): void {
     ],
     getContributedSetupRequirements: () => [],
     getContributedWorkflows: () => [{ name: "builder", triggers: [], steps: [] }],
+    unloadAll: vi.fn(),
   } as unknown as Awaited<ReturnType<typeof loadModuleMetadata>>);
 }
 

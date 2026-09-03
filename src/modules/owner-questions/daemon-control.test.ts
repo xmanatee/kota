@@ -205,15 +205,6 @@ describe("owner-questions module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares /owner-questions routes with read/control capability scopes", () => {
-      const routes = ownerQuestionControlRoutes();
-      expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
-        "GET /owner-questions (read)",
-        "POST /owner-questions/:id/answer (control)",
-        "POST /owner-questions/:id/dismiss (control)",
-      ]);
-    });
-
     it("requires the daemon bearer token on all three routes", async () => {
       for (const init of [
         { path: "/owner-questions", method: "GET" },

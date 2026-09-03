@@ -3,7 +3,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { checkFreshness } from "#core/file-tracking/file-tracker.js";
-import { notebookTool, runNotebook } from "./notebook.js";
+import { runNotebook } from "./notebook.js";
 
 function tmpPath(name: string): string {
   return path.join(
@@ -24,15 +24,6 @@ describe("notebook tool", () => {
     }
     created.length = 0;
     createdDirs.length = 0;
-  });
-
-  it("has required fields in tool definition", () => {
-    expect(notebookTool.name).toBe("notebook");
-    expect(notebookTool.input_schema.required).toEqual([
-      "action",
-      "path",
-      "cells",
-    ]);
   });
 
   it("rejects non-.ipynb path", async () => {

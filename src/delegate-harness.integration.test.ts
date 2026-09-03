@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pricedAgentUsage } from "#core/agent-harness/usage.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 
@@ -16,7 +17,8 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   };
 });
 
-await import("#modules/claude-agent-harness/index.js");
+const { claudeAgentHarness } = await import("#modules/claude-agent-harness/adapter.js");
+registerAgentHarness(claudeAgentHarness);
 
 const { runDelegateHarness } = await import("#core/tools/delegate-harness.js");
 

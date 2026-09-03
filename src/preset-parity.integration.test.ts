@@ -67,12 +67,24 @@ import {
   isPresetHarnessReadinessReady,
   type PresetHarnessReadiness,
 } from "#core/model/preset-readiness.js";
-import "#modules/antigravity-cli-agent-harness/index.js";
-import "#modules/claude-agent-harness/index.js";
-import "#modules/codex-agent-harness/index.js";
-import "#modules/gemini-cli-agent-harness/index.js";
-import "#modules/gemini-agent-harness/index.js";
-import "#modules/openai-tools-agent-harness/index.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
+import { geminiCliAgentHarness } from "#modules/gemini-cli-agent-harness/adapter.js";
+import { geminiAgentHarness } from "#modules/gemini-agent-harness/adapter.js";
+import { openaiToolsAgentHarness } from "#modules/openai-tools-agent-harness/adapter.js";
+
+for (const harness of [
+  antigravityCliAgentHarness,
+  claudeAgentHarness,
+  codexAgentHarness,
+  geminiCliAgentHarness,
+  geminiAgentHarness,
+  openaiToolsAgentHarness,
+]) {
+  registerAgentHarness(harness);
+}
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), "..", "..");
 const CLI_PATH = join(REPO_ROOT, "dist", "cli.js");

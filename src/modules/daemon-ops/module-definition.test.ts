@@ -52,53 +52,6 @@ const stubCtx: ModuleRuntimeContext = {
 };
 
 describe("daemonModule definition", () => {
-  it("registers its metadata, dependencies, and operator commands", () => {
-    expect(daemonModule.name).toBe("daemon-ops");
-    expect(daemonModule.version).toBe("1.0.0");
-    expect(daemonModule.description).toContain("daemon runtime");
-    expect(daemonModule.dependencies).toEqual(
-      expect.arrayContaining(["repo-tasks", "rendering"]),
-    );
-
-    const commands = daemonModule.commands!(stubCtx);
-    expect(commands.map((command) => command.name())).toEqual([
-      "daemon",
-      "events",
-      "session",
-      "status",
-      "inbox",
-      "ui",
-      "scope",
-    ]);
-    const daemon = commands[0];
-    expect(daemon.options.map((option) => option.long)).toEqual(
-      expect.arrayContaining(["--verbose", "--poll-interval", "--log-format"]),
-    );
-    const start = daemon.commands.find((command) => command.name() === "start")!;
-    expect(start.options.map((option) => option.long)).toEqual(
-      expect.arrayContaining([
-        "--verbose",
-        "--preset",
-        "--poll-interval",
-        "--scope-root",
-        "--log-format",
-      ]),
-    );
-    const preset = start.options.find((option) => option.long === "--preset");
-    expect(preset?.description).toContain("openrouter-lab");
-    expect(preset?.description).toContain("KOTA_PRESET");
-    expect(preset?.description).toContain("config.defaultPreset");
-    const install = daemon.commands.find((command) => command.name() === "install")!;
-    expect(install.options.map((option) => option.long)).toContain("--dry-run");
-    expect(daemonModule.tools).toBeUndefined();
-    expect(daemonModule.routes).toBeUndefined();
-    expect(
-      typeof daemonModule.uiSurfaces === "function"
-        ? []
-        : daemonModule.uiSurfaces?.map((source) => source.sourceId),
-    ).toEqual(["status", "scopes", "inbox", "continuity"]);
-  });
-
   it("serves the unified scoped module projection from /ui/surfaces", async () => {
     const scopeRoot = mkdtempSync(join(tmpdir(), "kota-ui-route-"));
     try {

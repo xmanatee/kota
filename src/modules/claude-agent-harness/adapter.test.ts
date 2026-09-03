@@ -62,16 +62,6 @@ describe("claudeAgentHarness", () => {
     expect(passedWriter).toBe(writer);
   });
 
-  it("declares its name so the registry can resolve it", () => {
-    expect(claudeAgentHarness.name).toBe("claude-agent-sdk");
-    expect(claudeAgentHarness.unsupportedRunOptions).toEqual([
-      expect.objectContaining({
-        option: 'autonomyMode="supervised"',
-        runOption: "autonomyMode.supervised",
-      }),
-    ]);
-  });
-
   it("routes live autonomy restrictions through the SDK permission callback", async () => {
     const scopePolicy = resolveScopePolicy({
       projection: {

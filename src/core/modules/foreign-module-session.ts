@@ -9,6 +9,7 @@ import type {
   KempOutbound,
   KempTransport,
 } from "./foreign-module.js";
+import { assertModuleDefinition } from "./module-definition.js";
 import type { HealthCheckResult, ToolDef } from "./module-types.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
@@ -132,28 +133,37 @@ export async function createRawForeignModule(
 ): Promise<RawForeignModule> {
   const initId = newForeignModuleRequestId();
   const session = new ForeignModuleSession(transport, label);
-  const manifestMsg = await session.request(
-    initId,
-    { id: initId, type: "init", cwd: scopeRoot, config: moduleConfig },
-    MANIFEST_TIMEOUT_MS,
-  );
-  if (manifestMsg.type !== "manifest") {
-    await session.close();
-    throw new Error(`Expected manifest, got: ${manifestMsg.type}`);
-  }
   try {
+    const manifestMsg = await session.request(
+      initId,
+      { id: initId, type: "init", cwd: scopeRoot, config: moduleConfig },
+      MANIFEST_TIMEOUT_MS,
+    );
+    if (manifestMsg.type !== "manifest") {
+      throw new Error(`Expected manifest, got: ${manifestMsg.type}`);
+    }
+    if (!Array.isArray(manifestMsg.tools)) {
+      throw new Error('Invalid foreign module manifest: field "tools" must be an array');
+    }
+    const manifestTools = buildForeignToolDefs(manifestMsg.tools, () => session);
+    assertModuleDefinition({
+      name: manifestMsg.name,
+      version: manifestMsg.version,
+      description: manifestMsg.description,
+      tools: manifestTools,
+    });
     assertAllowedForeignToolNames(manifestMsg);
-  } catch (err) {
+    return {
+      name: manifestMsg.name,
+      version: manifestMsg.version,
+      description: manifestMsg.description,
+      session,
+      toolDefs: manifestMsg.tools,
+    };
+  } catch (error) {
     await session.close();
-    throw err;
+    throw error;
   }
-  return {
-    name: manifestMsg.name,
-    version: manifestMsg.version,
-    description: manifestMsg.description,
-    session,
-    toolDefs: manifestMsg.tools,
-  };
 }
 
 export function buildForeignToolDefs(

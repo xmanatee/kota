@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  clearRegisteredConfigSlices,
+  getRegisteredConfigSlice,
+} from "#core/config/config-slice.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
@@ -35,11 +39,13 @@ describe("discoverModules", () => {
     clearCustomTools();
     clearCustomGroups();
     resetGroups();
+    clearRegisteredConfigSlices();
     loader = createRuntimeModuleLoader({}, false, { globalConfigPath });
   });
 
   afterEach(async () => {
     await loader.unloadAll();
+    clearRegisteredConfigSlices();
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -213,6 +219,26 @@ describe("discoverModules", () => {
     const modules = await discoverModules(tmpDir);
     // adaptExport logs an error and the module is skipped
     expect(modules).toHaveLength(0);
+  });
+
+  it("rejects an invalid declaration before registering its config slices", async () => {
+    writeModule(tmpDir, "invalid-config-owner", `
+      export default {
+        name: "invalid-config-owner",
+        enabled: true,
+        configSlices: [{
+          key: "invalidSlice",
+          description: "must never register",
+          sanitize: (raw) => raw,
+          merge: (_base, override) => override,
+          scopeConfigSafety: "authority",
+          schemaSource: { relativePath: "invalid.ts", typeName: "InvalidConfig" },
+        }],
+      };
+    `);
+
+    expect(await discoverModules(tmpDir)).toEqual([]);
+    expect(getRegisteredConfigSlice("invalidSlice")).toBeUndefined();
   });
 
   it("rejects duplicate module names via ModuleLoader", async () => {

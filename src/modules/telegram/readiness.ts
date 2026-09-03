@@ -1,14 +1,27 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
-import type { CapabilityReadiness, CapabilityReadinessSource } from "#core/daemon/capability-readiness.js";
+import type {
+  CapabilityReadiness,
+  CapabilityReadinessSource,
+} from "#core/daemon/capability-readiness.js";
 import { checkPresetAuth } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { moduleOperationHealthPattern } from "#modules/autonomy/autonomy-issue-module-failure.js";
-import { autonomyHealthSignal, normalizeHealthSignal } from "#modules/autonomy/health-signal.js";
-import { apiKeyNameForProvider, resolveApiKey, resolveModelProviderName } from "#modules/model-clients/factory.js";
-import { isModelClientHarness, resolveTelegramInteractiveBackend } from "./backend.js";
+import {
+  autonomyHealthSignal,
+  normalizeHealthSignal,
+} from "#modules/autonomy/health-signal.js";
+import {
+  apiKeyNameForProvider,
+  resolveApiKey,
+  resolveModelProviderName,
+} from "#modules/model-clients/factory.js";
+import {
+  isModelClientHarness,
+  resolveTelegramInteractiveBackend,
+} from "./backend.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
 import type { TelegramChatScopeBinding } from "./scope-selection.js";
 
@@ -65,9 +78,9 @@ export const telegramSetupRequirements: ModuleSetupRequirement[] = [
   },
 ];
 
-export const reportedTelegramPollConflicts = new Set<string>();
-
-export function getCredentials(ctx: ModuleContext): { token: string; chatId: string } | null {
+export function getCredentials(
+  ctx: ModuleContext,
+): { token: string; chatId: string } | null {
   const token = ctx.getSecret("TELEGRAM_BOT_TOKEN");
   const chatId = ctx.getSecret("TELEGRAM_ALERT_CHAT_ID");
   if (!token || !chatId) return null;
@@ -87,7 +100,10 @@ export function telegramInteractiveProviderError(
     return `Telegram interactive sessions require a model provider for "${model}". Set config.modelProvider.type, use provider/model notation, or select a multi-turn harness preset that does not require ModelClient.`;
   }
   const apiKeyEnv = apiKeyNameForProvider(provider);
-  if (apiKeyEnv && !resolveApiKey(provider, explicitProvider?.apiKey, { scopeRoot: ctx.cwd })) {
+  if (
+    apiKeyEnv &&
+    !resolveApiKey(provider, explicitProvider?.apiKey, { scopeRoot: ctx.cwd })
+  ) {
     return `Telegram interactive sessions require ${apiKeyEnv} or config.modelProvider.apiKey for provider "${provider}".`;
   }
   return null;
@@ -132,7 +148,8 @@ export function telegramInteractiveBackendReadiness(
       moduleName: "telegram",
       status: "ready",
       reason: "harness_ready",
-      message: `Telegram interactive chat is ready through the "${backend.harnessName}" harness.`,
+      message:
+        `Telegram interactive chat is ready through the "${backend.harnessName}" harness.`,
       meta: {
         backend: "harness",
         harness: backend.harnessName,
@@ -146,7 +163,8 @@ export function telegramInteractiveBackendReadiness(
     moduleName: "telegram",
     status: "ready",
     reason: "model_client_ready",
-    message: "Telegram interactive chat is ready through the configured ModelClient provider.",
+    message:
+      "Telegram interactive chat is ready through the configured ModelClient provider.",
     meta: {
       backend: "model-client",
       model: backend.modelSpec,
@@ -154,7 +172,9 @@ export function telegramInteractiveBackendReadiness(
   };
 }
 
-export function createTelegramReadinessSource(ctx: ModuleContext): CapabilityReadinessSource {
+export function createTelegramReadinessSource(
+  ctx: ModuleContext,
+): CapabilityReadinessSource {
   return {
     moduleName: "telegram",
     probe: () => [telegramInteractiveBackendReadiness(ctx)],
@@ -164,11 +184,12 @@ export function createTelegramReadinessSource(ctx: ModuleContext): CapabilityRea
 export function emitTelegramPollConflictHealthSignal(
   ctx: ModuleContext,
   scopeId: string,
+  reportedPollConflicts: Set<string>,
 ): void {
   const dedupeKey = "module:telegram:getupdates-conflict";
   const reportKey = `${scopeId}:${dedupeKey}`;
-  if (reportedTelegramPollConflicts.has(reportKey)) return;
-  reportedTelegramPollConflicts.add(reportKey);
+  if (reportedPollConflicts.has(reportKey)) return;
+  reportedPollConflicts.add(reportKey);
 
   const signal = normalizeHealthSignal({
     observation: "present",
@@ -199,7 +220,9 @@ export function emitTelegramPollConflictHealthSignal(
     });
   } catch (err) {
     ctx.log.warn(
-      `Telegram getUpdates conflict health signal failed: ${(err as Error).message}`,
+      `Telegram getUpdates conflict health signal failed: ${
+        (err as Error).message
+      }`,
     );
   }
 }
@@ -207,9 +230,10 @@ export function emitTelegramPollConflictHealthSignal(
 export function reportTelegramPollRecovered(
   ctx: ModuleContext,
   scopeId: string,
+  reportedPollConflicts: Set<string>,
 ): void {
   const reportKey = `${scopeId}:module:telegram:getupdates-conflict`;
-  reportedTelegramPollConflicts.delete(reportKey);
+  reportedPollConflicts.delete(reportKey);
   ctx.log.operationRecovered?.(
     scopeId,
     "poll-loop",
@@ -258,7 +282,9 @@ export function telegramInteractiveBackendError(
   if (backend.usesPresetHarness) {
     const auth = checkPresetAuth(backend.preset);
     if (auth.missing.length > 0) {
-      return `Telegram interactive sessions require ${auth.missing.join(" or ")} for preset "${backend.preset.id}".`;
+      return `Telegram interactive sessions require ${
+        auth.missing.join(" or ")
+      } for preset "${backend.preset.id}".`;
     }
   }
 

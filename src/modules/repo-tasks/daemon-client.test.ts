@@ -67,7 +67,7 @@ describe("repo-tasks exceptional daemon transforms", () => {
         ? json(200, {})
         : json(200, { state: "open", content: "# Canonical" });
     });
-    await expect(tasks.updateBody!("task-a", "# Requested")).resolves.toEqual({
+    await expect(tasks.updateBody("task-a", "# Requested")).resolves.toEqual({
       ok: true,
       id: "task-a",
       state: "open",

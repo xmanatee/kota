@@ -88,15 +88,6 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("voice module daemonClient(link)", () => {
-  it("contributes a voice namespace handler", () => {
-    expect(voiceModule.daemonClient).toBeTypeOf("function");
-    const link = makeRecordingTransport(() => jsonResponse(200, {})).transport;
-    const contributed = voiceModule.daemonClient!(link);
-    expect(contributed.voice).toBeDefined();
-    expect(typeof contributed.voice!.transcribe).toBe("function");
-    expect(typeof contributed.voice!.synthesize).toBe("function");
-  });
-
   it("routes transcribe() with only required fields through POST /voice/transcribe with base64-encoded audio", async () => {
     const audio = new Uint8Array([0x12, 0x34, 0x56]);
     const expectedBase64 = Buffer.from(audio).toString("base64");

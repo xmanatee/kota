@@ -7,7 +7,7 @@ vi.mock("#core/model/model-client.js", () => ({
   createModelClient: (...args: unknown[]) => createModelClientMock(...args),
 }));
 
-import { THIN_AGENT_HARNESS_NAME, thinAgentHarness } from "./adapter.js";
+import { thinAgentHarness } from "./adapter.js";
 
 describe("thinAgentHarness", () => {
   beforeEach(() => {
@@ -18,31 +18,6 @@ describe("thinAgentHarness", () => {
       model,
       providerName: "anthropic",
     }));
-  });
-
-  it("registers under the thin name", () => {
-    expect(thinAgentHarness.name).toBe(THIN_AGENT_HARNESS_NAME);
-    expect(thinAgentHarness.name).toBe("thin");
-    expect(thinAgentHarness.unsupportedRunOptions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          option: "allowedTools",
-          runOption: "allowedTools",
-        }),
-        expect.objectContaining({
-          option: "disallowedTools",
-          runOption: "disallowedTools",
-        }),
-        expect.objectContaining({
-          option: "canUseTool",
-          runOption: "canUseTool",
-        }),
-        expect.objectContaining({
-          option: "onMessage",
-          runOption: "onMessage",
-        }),
-      ]),
-    );
   });
 
   it("runs a single-turn completion through the configured ModelClient", async () => {

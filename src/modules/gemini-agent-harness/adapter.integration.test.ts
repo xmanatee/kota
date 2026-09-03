@@ -6,8 +6,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  hasAgentHarness,
-  listAgentHarnessNames,
+  registerAgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 
@@ -22,10 +21,7 @@ vi.mock("@google/genai", () => ({
   },
 }));
 
-import claudeHarnessModule from "../claude-agent-harness/index.js";
-import openaiToolsHarnessModule from "../openai-tools-agent-harness/index.js";
-import thinHarnessModule from "../thin-agent-harness/index.js";
-import geminiHarnessModule, {
+import {
   GEMINI_AGENT_HARNESS_NAME,
   geminiAgentHarness,
 } from "./index.js";
@@ -37,7 +33,10 @@ function makeStream(chunks: ReadonlyArray<Record<string, unknown>>) {
 }
 
 describe("gemini agent harness integration", () => {
+  let disposeHarness: () => void;
+
   beforeEach(() => {
+    disposeHarness = registerAgentHarness(geminiAgentHarness);
     generateContentStreamMock.mockReset();
     generateContentStreamMock.mockResolvedValue(
       makeStream([
@@ -56,26 +55,8 @@ describe("gemini agent harness integration", () => {
   });
 
   afterEach(() => {
+    disposeHarness();
     vi.clearAllMocks();
-  });
-
-  it("registers alongside the other shipped harnesses under its declared name", () => {
-    expect(claudeHarnessModule.name).toBe("claude-agent-harness");
-    expect(thinHarnessModule.name).toBe("thin-agent-harness");
-    expect(openaiToolsHarnessModule.name).toBe("openai-tools-agent-harness");
-    expect(geminiHarnessModule.name).toBe("gemini-agent-harness");
-    expect(hasAgentHarness(GEMINI_AGENT_HARNESS_NAME)).toBe(true);
-    expect(listAgentHarnessNames()).toEqual(
-      expect.arrayContaining([
-        "claude-agent-sdk",
-        "thin",
-        "openai-tools",
-        "gemini",
-      ]),
-    );
-    expect(resolveAgentHarness(GEMINI_AGENT_HARNESS_NAME)).toBe(
-      geminiAgentHarness,
-    );
   });
 
   it("runs end-to-end through the registry without falling back to a different harness", async () => {

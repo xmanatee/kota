@@ -1,14 +1,17 @@
 import type { AgentDef, SkillDef } from "#core/agents/agent-types.js";
 import { getModuleToolNames } from "#core/tools/index.js";
+import {
+  decodeHealthCheckResult,
+  decodeModuleHealth,
+} from "./module-health.js";
 import type { LoaderState } from "./module-loader-state.js";
 import type { HealthCheckResult, ModuleSummary } from "./module-types.js";
 
-export function findModuleAgent(state: LoaderState, name: string): AgentDef | undefined {
-  for (const agents of state.moduleAgentDefs.values()) {
-    const found = agents.find((agent) => agent.name === name);
-    if (found) return found;
-  }
-  return undefined;
+export function findModuleAgent(
+  state: LoaderState,
+  name: string,
+): AgentDef | undefined {
+  return state.agentsByName.get(name)?.definition;
 }
 
 export async function probeModuleHealthChecks(
@@ -18,10 +21,17 @@ export async function probeModuleHealthChecks(
   for (const mod of state.modules) {
     if (!mod.healthCheck) continue;
     try {
-      results[mod.name] = await mod.healthCheck();
+      const result: unknown = await mod.healthCheck();
+      results[mod.name] = decodeHealthCheckResult(
+        result,
+        `Module "${mod.name}" healthCheck result`,
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      results[mod.name] = { status: "unhealthy", message: `healthCheck threw: ${message}` };
+      results[mod.name] = {
+        status: "unhealthy",
+        message: `healthCheck threw: ${message}`,
+      };
     }
   }
   return results;
@@ -38,7 +48,9 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
     const routeSummaries: string[] = [];
     const cachedRoutes = state.moduleRoutes.get(mod.name);
     if (cachedRoutes) {
-      for (const r of cachedRoutes) routeSummaries.push(`${r.method} ${r.path}`);
+      for (const r of cachedRoutes) {
+        routeSummaries.push(`${r.method} ${r.path}`);
+      }
     }
     const routeError = state.moduleRouteErrors.get(mod.name);
     const setupRequirements = state.moduleSetupRequirementDefs.get(mod.name);
@@ -49,10 +61,18 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
       description: mod.description,
       dependencies: mod.dependencies ?? [],
       toolNames: getModuleToolNames(mod.name),
-      workflowNames: (state.moduleWorkflowDefs.get(mod.name) ?? []).map((w) => w.name),
-      channelNames: (state.moduleChannelDefs.get(mod.name) ?? []).map((c) => c.name),
-      skillNames: (state.moduleSkillDefs.get(mod.name) ?? []).map((s) => s.name),
-      agentNames: (state.moduleAgentDefs.get(mod.name) ?? []).map((a) => a.name),
+      workflowNames: (state.moduleWorkflowDefs.get(mod.name) ?? []).map((w) =>
+        w.name
+      ),
+      channelNames: (state.moduleChannelDefs.get(mod.name) ?? []).map((c) =>
+        c.name
+      ),
+      skillNames: (state.moduleSkillDefs.get(mod.name) ?? []).map((s) =>
+        s.name
+      ),
+      agentNames: (state.moduleAgentDefs.get(mod.name) ?? []).map((a) =>
+        a.name
+      ),
       agents: [...(state.moduleAgentDefs.get(mod.name) ?? [])],
       skills: [...(state.moduleSkillDefs.get(mod.name) ?? [])],
       ...(setupRequirements !== undefined && {
@@ -62,15 +82,20 @@ export function collectModuleSummaries(state: LoaderState): ModuleSummary[] {
       routeSummaries,
       ...(commandError ? { commandError } : {}),
       ...(routeError ? { routeError } : {}),
-      health: mod.getHealth?.(),
+      ...(mod.getHealth && {
+        health: decodeModuleHealth(
+          mod.getHealth(),
+          `Module "${mod.name}" getHealth result`,
+        ),
+      }),
       manifest: state.moduleManifests.get(mod.name),
     };
   });
   const failed: ModuleSummary[] = [];
-  for (const [name, failure] of state.loadFailures) {
+  for (const failure of state.loadFailures) {
     failed.push({
-      name,
-      source: state.moduleSources.get(name) ?? "bundled",
+      name: failure.name,
+      source: failure.source,
       dependencies: [],
       toolNames: [],
       workflowNames: [],
@@ -96,7 +121,9 @@ export function formatSkillsPrompt(
 ): string {
   if (skillContentsByName.size === 0) return "";
   const names = skillNames === "all"
-    ? [...skillContentsByName.keys()].filter((name) => !explicitOnlySkillNames.has(name))
+    ? [...skillContentsByName.keys()].filter((name) =>
+      !explicitOnlySkillNames.has(name)
+    )
     : skillNames;
   const entries = names
     .filter((name) => {

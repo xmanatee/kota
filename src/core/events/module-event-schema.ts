@@ -113,15 +113,17 @@ export function buildModuleEventSchemaContract<TPayload extends object>(
 ): ModuleEventSchemaContract<TPayload> {
   const schemaVersion = normalizeSchemaVersion(options?.schemaVersion, eventName);
   const payloadSchema = options?.payloadSchema ?? payloadSchemaFromFields(fields);
+  assertPayloadSchema(payloadSchema, `Module event "${eventName}" payload schema`);
   const filterablePaths =
     options?.filterablePaths?.map((field) => field.trim()) ??
     deriveFilterablePaths(payloadSchema);
-  validateModuleEventDeclaration(eventName, fields, payloadSchema, filterablePaths);
+  const schema = {
+    currentVersion: schemaVersion,
+    payload: payloadSchema,
+  } satisfies ModuleEventSchema;
+  validateModuleEventDeclaration(eventName, fields, schema, filterablePaths);
   const base = {
-    schema: {
-      currentVersion: schemaVersion,
-      payload: payloadSchema,
-    },
+    schema,
     filterablePaths,
     sensitivity: options?.sensitivity ?? DEFAULT_EVENT_SENSITIVITY,
     compatibility: options?.compatibility ?? DEFAULT_COMPATIBILITY,
@@ -157,13 +159,28 @@ function payloadSchemaFromFields(fields: readonly string[]): ModuleEventPayloadS
   };
 }
 
-function validateModuleEventDeclaration(
-  name: string,
-  fields: readonly string[],
-  payloadSchema: ModuleEventPayloadSchema,
-  filterablePaths: readonly string[],
+/** Runtime decoder shared by declaration helpers and installed-module admission. */
+export function validateModuleEventDeclaration(
+  name: unknown,
+  fields: unknown,
+  schema: unknown,
+  filterablePaths: unknown,
 ): void {
-  if (!name.trim()) throw new Error("Module event name must be a non-empty string");
+  if (typeof name !== "string" || name.trim() !== name || name.length === 0) {
+    throw new Error("Module event name must be a non-empty trimmed string");
+  }
+  assertStringList(fields, `Module event "${name}" fields`);
+  assertRecord(schema, `Module event "${name}" schema`);
+  assertKnownKeys(
+    schema,
+    new Set(["currentVersion", "payload"]),
+    `Module event "${name}" schema`,
+  );
+  if (!Number.isInteger(schema.currentVersion) || (schema.currentVersion as number) < 1) {
+    throw new Error(`Module event "${name}" schema currentVersion must be a positive integer`);
+  }
+  assertPayloadSchema(schema.payload, `Module event "${name}" payload schema`);
+  assertStringList(filterablePaths, `Module event "${name}" filterablePaths`);
   const seenFields = new Set<string>();
   for (const field of fields) {
     if (!field) throw new Error(`Module event "${name}" fields must be non-empty strings`);
@@ -171,7 +188,7 @@ function validateModuleEventDeclaration(
       throw new Error(`Module event "${name}" declares duplicate field "${field}"`);
     }
     seenFields.add(field);
-    if (!schemaPathExists(payloadSchema, field)) {
+    if (!schemaPathExists(schema.payload, field)) {
       throw new Error(
         `Module event "${name}" field "${field}" is not present in the payload schema`,
       );
@@ -191,11 +208,243 @@ function validateModuleEventDeclaration(
       );
     }
     seenFilterPaths.add(path);
-    if (!schemaPathExists(payloadSchema, path)) {
+    if (!schemaPathExists(schema.payload, path)) {
       throw new Error(
         `Module event "${name}" filterable path "${path}" is not present in the payload schema`,
       );
     }
+  }
+}
+
+function assertStringList(
+  value: unknown,
+  label: string,
+): asserts value is readonly string[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  for (const entry of value) {
+    if (typeof entry !== "string" || entry.trim() !== entry || entry.length === 0) {
+      throw new Error(`${label} must contain non-empty trimmed strings`);
+    }
+  }
+}
+
+const EVENT_SENSITIVITIES = new Set<ModuleEventSensitivity>([
+  "public",
+  "internal",
+  "sensitive",
+  "secret",
+]);
+
+function assertRecord(
+  value: unknown,
+  label: string,
+): asserts value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+}
+
+function assertPayloadSchema(
+  value: unknown,
+  label: string,
+): asserts value is ModuleEventPayloadSchema {
+  assertRecord(value, label);
+  assertKnownKeys(value, new Set(["type", "properties", "additionalProperties"]), label);
+  if (value.type !== "object") throw new Error(`${label}.type must be "object"`);
+  assertSchemaProperties(value.properties, `${label}.properties`, new WeakSet());
+  if (
+    value.additionalProperties !== undefined &&
+    typeof value.additionalProperties !== "boolean"
+  ) {
+    throw new Error(`${label}.additionalProperties must be a boolean when declared`);
+  }
+}
+
+function assertKnownKeys(
+  value: Record<string, unknown>,
+  allowed: ReadonlySet<string>,
+  label: string,
+): void {
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) throw new Error(`${label} contains unknown field "${key}"`);
+  }
+}
+
+function assertSchemaProperties(
+  value: unknown,
+  label: string,
+  ancestors: WeakSet<object>,
+): asserts value is ModuleEventSchemaProperties {
+  assertRecord(value, label);
+  if (ancestors.has(value)) throw new Error(`${label} must not contain cycles`);
+  ancestors.add(value);
+  try {
+    for (const [name, node] of Object.entries(value)) {
+      if (name.trim() !== name || name.length === 0) {
+        throw new Error(`${label} keys must be non-empty trimmed strings`);
+      }
+      assertSchemaNode(node, `${label}.${name}`, ancestors);
+    }
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+function assertSchemaNode(
+  value: unknown,
+  label: string,
+  ancestors: WeakSet<object>,
+): asserts value is ModuleEventSchemaNode {
+  assertRecord(value, label);
+  if (ancestors.has(value)) throw new Error(`${label} must not contain cycles`);
+  ancestors.add(value);
+  try {
+    for (const field of ["required", "nullable", "filterable"] as const) {
+      if (value[field] !== undefined && typeof value[field] !== "boolean") {
+        throw new Error(`${label}.${field} must be a boolean when declared`);
+      }
+    }
+    if (value.description !== undefined && typeof value.description !== "string") {
+      throw new Error(`${label}.description must be a string when declared`);
+    }
+    if (
+      value.sensitivity !== undefined &&
+      (typeof value.sensitivity !== "string" ||
+        !EVENT_SENSITIVITIES.has(value.sensitivity as ModuleEventSensitivity))
+    ) {
+      throw new Error(`${label}.sensitivity is invalid`);
+    }
+
+    switch (value.type) {
+      case "string": {
+        assertKnownKeys(
+          value,
+          new Set([
+            "type",
+            "required",
+            "nullable",
+            "sensitivity",
+            "filterable",
+            "description",
+            "enum",
+            "format",
+          ]),
+          label,
+        );
+        if (value.enum !== undefined) {
+          if (
+            !Array.isArray(value.enum) ||
+            value.enum.some((entry) => typeof entry !== "string")
+          ) {
+            throw new Error(`${label}.enum must be an array of strings when declared`);
+          }
+        }
+        if (
+          value.format !== undefined &&
+          value.format !== "date-time" &&
+          value.format !== "uri"
+        ) {
+          throw new Error(`${label}.format is invalid`);
+        }
+        return;
+      }
+      case "number":
+      case "boolean":
+      case "json":
+        assertKnownKeys(
+          value,
+          new Set([
+            "type",
+            "required",
+            "nullable",
+            "sensitivity",
+            "filterable",
+            "description",
+          ]),
+          label,
+        );
+        return;
+      case "array":
+        assertKnownKeys(
+          value,
+          new Set([
+            "type",
+            "required",
+            "nullable",
+            "sensitivity",
+            "filterable",
+            "description",
+            "items",
+          ]),
+          label,
+        );
+        assertSchemaNode(value.items, `${label}.items`, ancestors);
+        return;
+      case "object":
+        assertKnownKeys(
+          value,
+          new Set([
+            "type",
+            "required",
+            "nullable",
+            "sensitivity",
+            "filterable",
+            "description",
+            "properties",
+            "additionalProperties",
+          ]),
+          label,
+        );
+        assertSchemaProperties(value.properties, `${label}.properties`, ancestors);
+        if (
+          value.additionalProperties !== undefined &&
+          typeof value.additionalProperties !== "boolean"
+        ) {
+          throw new Error(`${label}.additionalProperties must be a boolean when declared`);
+        }
+        return;
+      case "discriminatedUnion": {
+        assertKnownKeys(
+          value,
+          new Set([
+            "type",
+            "required",
+            "nullable",
+            "sensitivity",
+            "filterable",
+            "description",
+            "discriminator",
+            "variants",
+          ]),
+          label,
+        );
+        if (
+          typeof value.discriminator !== "string" ||
+          value.discriminator.trim() !== value.discriminator ||
+          value.discriminator.length === 0
+        ) {
+          throw new Error(`${label}.discriminator must be a non-empty trimmed string`);
+        }
+        assertRecord(value.variants, `${label}.variants`);
+        if (Object.keys(value.variants).length === 0) {
+          throw new Error(`${label}.variants must not be empty`);
+        }
+        for (const [name, variant] of Object.entries(value.variants)) {
+          if (name.trim() !== name || name.length === 0) {
+            throw new Error(`${label}.variants keys must be non-empty trimmed strings`);
+          }
+          assertSchemaNode(variant, `${label}.variants.${name}`, ancestors);
+          if (variant.type !== "object") {
+            throw new Error(`${label}.variants.${name}.type must be "object"`);
+          }
+        }
+        return;
+      }
+      default:
+        throw new Error(`${label}.type is invalid`);
+    }
+  } finally {
+    ancestors.delete(value);
   }
 }
 

@@ -3,6 +3,27 @@
 This directory owns module discovery, loading, lifecycle, provider registration,
 and foreign-module transports.
 
+Runtime-loaded declarations are decoded by `assertModuleDefinition` before
+dependency sorting or lifecycle work. Keep top-level declaration shape there;
+capability-specific validators own the contents of declared contributions.
+Event schemas are decoded by the event contract, and module client factory
+results are decoded from generated namespace and method descriptors before the
+host consumes them; do not duplicate either shape in the loader.
+Daemon transport operations are authored in the canonical contract graph and
+projected into generated clients; modules contribute handlers, not a parallel
+operation-descriptor declaration.
+Agent harness adapters are declarative `agentHarnesses` contributions; the
+loader owns their registration and exact withdrawal with module lifecycle.
+Agent and skill identities have one module owner across a loader host;
+collisions fail admission before either identity can be published.
+Config slices have one structural module owner. Composition roots register only
+declarations accepted by the shared identity admission before loading config,
+while each loader acquires and releases its own exact lease so rejection or
+shutdown cannot withdraw another host's registration.
+Health hook return values remain boundary data until the host decodes them;
+malformed checks become unhealthy and malformed lifecycle projections are not
+published in module summaries.
+
 ## Module Context Surfaces
 
 Every hook receives the same context object, but the typed protocol exposes
@@ -48,7 +69,9 @@ process singletons or let nested hosts clean up CLI state.
 - Treat `<scope>/.kota/modules/` as untrusted. Resolve persisted machine trust
   before discovery or re-import; caller `KotaConfig` is not authority.
 - Foreign modules are a transport variant of the same module model, not a
-  separate extension system.
+  separate extension system. A connected transport remains a pending candidate
+  until loader admission transfers it into normal activation ownership;
+  rejected candidates are discarded before the next admission.
 - Keep protocol details strict and code-owned. Message names, config fields,
   transport variants, health states, and generated scaffold details belong in
   types, schemas, examples, and focused tests instead of docs catalogs.
@@ -72,8 +95,9 @@ process singletons or let nested hosts clean up CLI state.
   mutations. Tests exercise the behavior of declared capabilities and rely on
   TypeScript for structural base-protocol conformance.
 - Route, command, and control-route factories are side-effect-free data
-  contributions cached once at load. Runtime warnings and subscriptions belong
-  in `onLoad` or health checks.
+  contributions decoded and cached once at load; malformed results fail
+  admission. Runtime warnings and subscriptions belong in `onLoad` or health
+  checks.
 - `mod.uiSurfaces` contributes side-effect-free live source definitions; the loader caches them,
   while `assembleUiSurfaceBundle` scopes, validates, and orders one scoped graph.
   Capability reads belong in the projector, never in the contribution factory or `onLoad`.
@@ -98,6 +122,10 @@ between cheap CLI subcommand registration and a fully-driven module runtime.
 The mode boundary prevents commands snapshots from advertising routes whose
 providers were never activated. Validation and reload may read static
 contributions; execution hydrates a runtime loader first.
+
+Every loader host owns a complete lifecycle. Metadata-only commands loaders
+must unload after taking their snapshot, including failure paths; callers do
+not retain a loader merely to keep declarative contributions registered.
 
 Tests and hosts declare their mode and bind runtime test loaders explicitly:
 commands-mode callers may read static contributions but not `getRoutes()`,

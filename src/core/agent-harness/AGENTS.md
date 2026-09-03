@@ -93,7 +93,9 @@ Owner questions are a protocol capability, not a provider field.
 ## Registry and selection
 
 - `registerAgentHarness(harness)` registers an adapter under its declared
-  `name`. Modules register during load. The core never registers adapters.
+  `name` and returns an exact-registration disposer. Modules declare adapters
+  through `KotaModule.agentHarnesses`; the module host registers during load
+  and disposes during unload. Importing a module never registers an adapter.
 - `resolveAgentHarness(name)` returns the adapter or throws with the list of
   currently registered names. There is no implicit default.
 - Workflow steps declare `harness`, or inherit from
@@ -135,6 +137,9 @@ Core interfaces use KOTA-owned neutral types from `message-protocol.ts`;
 adapters translate provider types at their seam. Biome enforces the boundary.
 `message-codec.ts` is the runtime decoder for neutral messages that cross a
 durable or foreign boundary; trusted loop code consumes the decoded type.
+Tool input and output schemas use an open JSON Schema object contract. Runtime
+admission validates that envelope and JSON compatibility without owning a
+closed keyword vocabulary.
 
 ## Per-step harness-specific options
 

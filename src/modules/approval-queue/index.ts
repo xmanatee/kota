@@ -30,15 +30,6 @@ import { buildLocalApprovalsClient } from "./local-client.js";
 import { approvalControlRoutes, approvalRoutes } from "./routes.js";
 import { approvalUiSurfaceSource } from "./ui-surface.js";
 
-export type {
-	ApprovalClockPort,
-	ApprovalPersistencePort,
-	ApprovalStatus,
-	PendingApproval,
-	StoredApproval,
-} from "#core/daemon/approval-queue.js";
-export { ApprovalQueue, getApprovalQueue, resetApprovalQueue } from "#core/daemon/approval-queue.js";
-
 function approvalListPath(filter?: ApprovalListFilter): string {
 	const params = new URLSearchParams();
 	if (filter?.status) params.set("status", filter.status);

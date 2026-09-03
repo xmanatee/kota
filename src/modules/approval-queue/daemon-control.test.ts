@@ -231,17 +231,6 @@ describe("approval-queue module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares /approvals routes with read/control capability scopes", () => {
-      const routes = approvalControlRoutes();
-      expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
-        "GET /approvals (read)",
-        "POST /approvals/approve-all (control)",
-        "POST /approvals/reject-all (control)",
-        "POST /approvals/:id/approve (control)",
-        "POST /approvals/:id/reject (control)",
-      ]);
-    });
-
     it("requires the daemon bearer token on all five routes", async () => {
       for (const init of [
         { path: "/approvals", method: "GET" },

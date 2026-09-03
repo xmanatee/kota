@@ -11,7 +11,7 @@ import {
 	clearModuleToolEffects,
 	registerModuleToolManifestProjection,
 } from "#core/tools/tool-effect-registry.js";
-import { auditTool, runAudit } from "./audit-tool.js";
+import { runAudit } from "./audit-tool.js";
 
 function makeTmpDir(): string {
 	return mkdtempSync(join(tmpdir(), "audit-tool-test-"));
@@ -32,10 +32,6 @@ describe("audit tool", () => {
 		resetAuditStore();
 		clearModuleToolEffects();
 		rmSync(tmpDir, { recursive: true, force: true });
-	});
-
-	it("tool has correct metadata", () => {
-		expect(auditTool.name).toBe("audit");
 	});
 
 	it("query returns all entries by default", async () => {

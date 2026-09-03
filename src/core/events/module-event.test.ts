@@ -2,7 +2,7 @@
  * Module-event declaration / registry tests.
  *
  * Covers the declaration helper, registry collision detection, registry
- * lifecycle (register/unregister), and integration with `EventBus.emit`
+ * lifecycle leases, and integration with `EventBus.emit`
  * via the typed-overload path.
  */
 
@@ -134,21 +134,6 @@ describe("ModuleEventRegistry", () => {
         }),
       ),
     ).toThrow(/incompatible schema/);
-  });
-
-  it("unregisterModule clears only that module's events", () => {
-    const moduleEvents = initModuleEventRegistry();
-    moduleEvents.register(
-      "alpha",
-      defineDaemonWideModuleEvent<{ x: string }>("alpha.event", ["x"]),
-    );
-    moduleEvents.register(
-      "beta",
-      defineDaemonWideModuleEvent<{ y: string }>("beta.event", ["y"]),
-    );
-    moduleEvents.unregisterModule("alpha");
-    expect(moduleEvents.has("alpha.event")).toBe(false);
-    expect(moduleEvents.has("beta.event")).toBe(true);
   });
 
   it("getModuleEventRegistry returns null before init", () => {

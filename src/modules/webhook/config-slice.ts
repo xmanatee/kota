@@ -6,7 +6,7 @@
  * HMAC signature verification on inbound deliveries.
  */
 
-import { type ModuleConfigSlice, registerConfigSlice } from "#core/config/config-slice.js";
+import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 
 export type WebhookSecretsConfig = Record<string, { secret: string }>;
 
@@ -40,8 +40,3 @@ export const webhookConfigSlice: ModuleConfigSlice<"webhooks"> = {
     typeName: "WebhookSecretsConfig",
   },
 };
-
-// Self-register on import so direct importers (operations, CLI helpers,
-// daemon routes) get sanitize/merge support without depending on module
-// discovery or loader.load to have run first.
-registerConfigSlice(webhookConfigSlice, "webhook");

@@ -18,7 +18,6 @@ import type { KotaClient } from "#root/client/kota-client.generated.js";
 import telegramModule, {
   TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
 } from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -150,51 +149,6 @@ describe("telegramModule", () => {
     );
   });
 
-  it("has correct metadata", () => {
-    expect(telegramModule.name).toBe("telegram");
-    expect(telegramModule.version).toBe("1.0.0");
-    expect(telegramModule.description).toContain("Telegram");
-  });
-
-  it("does not register a standalone CLI command", () => {
-    expect(telegramModule.commands).toBeUndefined();
-  });
-
-  it("does not register tools or routes", () => {
-    expect(telegramModule.tools).toBeUndefined();
-    expect(telegramModule.routes).toBeUndefined();
-  });
-
-  it("declares separate setup for bot credentials and interactive backend readiness", () => {
-    const setupRequirements = telegramModule.setupRequirements;
-    if (!setupRequirements || typeof setupRequirements === "function") {
-      throw new Error("telegram setup requirements must be static");
-    }
-
-    const credentialRequirement = setupRequirements.find((req) =>
-      req.id === "bot-credentials"
-    );
-    const backendRequirement = setupRequirements.find((req) =>
-      req.id === "interactive-model-backend"
-    );
-    expect(credentialRequirement?.kind).toBe("secret");
-    expect(backendRequirement).toMatchObject({
-      kind: "capability",
-      capabilityIds: [TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID],
-    });
-    const manifest = telegramModule.manifest;
-    if (!manifest || typeof manifest === "function") {
-      throw new Error("telegram manifest must be static");
-    }
-    const interactiveCapability = manifest.capabilities.find(
-      (capability) => capability.id === "telegram.interactive",
-    );
-    expect(interactiveCapability?.setupRequirementIds).toEqual([
-      "bot-credentials",
-      "interactive-model-backend",
-    ]);
-  });
-
   it("reports the default Codex backend as ready through setup capability readiness", async () => {
     const savedPreset = process.env.KOTA_PRESET;
     delete process.env.KOTA_PRESET;
@@ -211,7 +165,7 @@ describe("telegramModule", () => {
       readiness.source = provider as unknown as CapabilityReadinessSource;
     };
 
-    telegramModule.onLoad!(ctx);
+    const activation = await telegramModule.onLoad!(ctx);
     try {
       const source = readiness.source;
       if (!source) throw new Error("readiness source not registered");
@@ -227,11 +181,11 @@ describe("telegramModule", () => {
     } finally {
       if (savedPreset !== undefined) process.env.KOTA_PRESET = savedPreset;
       else delete process.env.KOTA_PRESET;
-      unloadTelegramModule();
+      await activation?.dispose();
     }
   });
 
-  it("rejects a passive Telegram session when the selected harness cannot enforce it", () => {
+  it("rejects a passive Telegram session when the selected harness cannot enforce it", async () => {
     mockedResolveAgentHarness.mockImplementation((name: string) =>
       makeTestHarness(name, [{
         runOption: "autonomyMode.passive",
@@ -252,7 +206,7 @@ describe("telegramModule", () => {
       readiness.source = provider as unknown as CapabilityReadinessSource;
     };
 
-    telegramModule.onLoad!(ctx);
+    const activation = await telegramModule.onLoad!(ctx);
     try {
       const source = readiness.source;
       if (!source) throw new Error("readiness source not registered");
@@ -265,7 +219,7 @@ describe("telegramModule", () => {
         }),
       ]);
     } finally {
-      unloadTelegramModule();
+      await activation?.dispose();
     }
   });
 });

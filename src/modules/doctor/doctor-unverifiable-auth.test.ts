@@ -35,6 +35,7 @@ vi.mock("#core/modules/module-metadata.js", () => ({
     getModuleSummaries: () => [{ name: "test-module" }],
     getContributedWorkflows: () => [],
     getAgentDef: () => undefined,
+    unloadAll: vi.fn(),
   })),
 }));
 

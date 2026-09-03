@@ -40,6 +40,7 @@ vi.mock("#core/modules/module-metadata.js", () => ({
             writeScope: [],
           }
         : undefined,
+    unloadAll: vi.fn(),
   })),
 }));
 

@@ -60,6 +60,9 @@ notification forwarding.
 - Contributes notification subscriptions for workflow events.
   Optional event filters must not suppress urgent owner/approval
   escalation notifications.
+- Notification subscriptions, pending callbacks, and poll-conflict deduplication
+  are activation-local; the returned activation disposer releases only the
+  loader host that created them.
 - Bind each approval button to its chat/message, approval id, and review digest;
   never let reused short ids reactivate stale buttons.
 - Interactive sessions use configured autonomy explicitly. Missing

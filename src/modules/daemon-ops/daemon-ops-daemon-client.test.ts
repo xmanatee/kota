@@ -114,18 +114,6 @@ describe("daemon-ops module daemonClient(link) — daemonOps namespace", () => {
     isServiceUnitInstalledMock.mockReset().mockReturnValue(false);
   });
 
-  it("contributes a daemonOps namespace handler alongside sessions", () => {
-    expect(daemonOpsModule.daemonClient).toBeTypeOf("function");
-    const { transport } = makeRecordingTransport(() => null);
-    const contributed = daemonOpsModule.daemonClient!(transport);
-    expect(contributed.sessions).toBeDefined();
-    expect(contributed.daemonOps).toBeDefined();
-    expect(typeof contributed.daemonOps!.status).toBe("function");
-    expect(typeof contributed.daemonOps!.pid).toBe("function");
-    expect(typeof contributed.daemonOps!.stop).toBe("function");
-    expect(typeof contributed.daemonOps!.reload).toBe("function");
-  });
-
   it("routes status() through GET /status and shapes the running arm", async () => {
     const { transport, calls } = makeRecordingTransport((method, path) =>
       method === "GET" && path === "/status" ? SAMPLE_DAEMON_STATUS : null,

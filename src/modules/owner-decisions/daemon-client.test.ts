@@ -30,12 +30,6 @@ function makeTransport(): { transport: DaemonTransport; requests: string[]; post
 }
 
 describe("owner-decisions daemon client", () => {
-  it("contributes the ownerDecisions namespace", () => {
-    const { transport } = makeTransport();
-    const contributed = ownerDecisionsModule.daemonClient!(transport);
-    expect(contributed.ownerDecisions).toBeDefined();
-  });
-
   it("uses owner-decision daemon-control routes", async () => {
     const { transport, requests, posts } = makeTransport();
     const client = ownerDecisionsModule.daemonClient!(transport).ownerDecisions!;

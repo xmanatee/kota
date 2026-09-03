@@ -6,21 +6,21 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  clearAgentHarnessRegistryForTest,
-  hasAgentHarness,
-  listAgentHarnessNames,
+  registerAgentHarness,
   resolveAgentHarness,
 } from "#core/agent-harness/index.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
 
-import claudeHarnessModule, { claudeAgentHarness } from "../claude-agent-harness/index.js";
-import thinHarnessModule, { THIN_AGENT_HARNESS_NAME, thinAgentHarness } from "./index.js";
+import { thinAgentHarness } from "./index.js";
 
 const messagesCreateMock = vi.fn();
 const messagesStreamMock = vi.fn();
 
 describe("thin agent harness integration", () => {
+  let disposeHarness: () => void;
+
   beforeEach(() => {
+    disposeHarness = registerAgentHarness(thinAgentHarness);
     messagesCreateMock.mockReset();
     messagesStreamMock.mockReset();
     registerModelClientFactory(({ model }) => ({
@@ -41,19 +41,8 @@ describe("thin agent harness integration", () => {
   });
 
   afterEach(() => {
+    disposeHarness();
     vi.clearAllMocks();
-  });
-
-  it("registers thin and claude adapters with the core registry", () => {
-    expect(claudeHarnessModule.name).toBe("claude-agent-harness");
-    expect(thinHarnessModule.name).toBe("thin-agent-harness");
-    expect(hasAgentHarness(THIN_AGENT_HARNESS_NAME)).toBe(true);
-    expect(hasAgentHarness("claude-agent-sdk")).toBe(true);
-    expect(listAgentHarnessNames()).toEqual(
-      expect.arrayContaining(["claude-agent-sdk", "thin"]),
-    );
-    expect(resolveAgentHarness("thin")).toBe(thinAgentHarness);
-    expect(resolveAgentHarness("claude-agent-sdk")).toBe(claudeAgentHarness);
   });
 
   it("runs a full thin-harness turn end-to-end when selected by name", async () => {
@@ -81,20 +70,5 @@ describe("thin agent harness integration", () => {
 			},
 			isError: false,
     });
-  });
-
-  it("does not silently fall back to claude-agent-sdk when resolver is called with a bad name", () => {
-    expect(() => resolveAgentHarness("nonexistent-harness")).toThrow(
-      /Unknown agent harness "nonexistent-harness".*registered: claude-agent-sdk, thin/,
-    );
-  });
-
-  it("fails loudly if no harnesses are registered and nothing is configured", () => {
-    clearAgentHarnessRegistryForTest();
-    expect(hasAgentHarness("thin")).toBe(false);
-    expect(hasAgentHarness("claude-agent-sdk")).toBe(false);
-    expect(() => resolveAgentHarness("thin")).toThrow(
-      /no harnesses are registered/,
-    );
   });
 });

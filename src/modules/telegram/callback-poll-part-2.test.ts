@@ -21,18 +21,6 @@ const hang = (): Promise<never> => new Promise(() => {});
 const stubLog = { info: () => {}, warn: vi.fn(), error: () => {}, debug: () => {} };
 const TOKEN = "test-token";
 
-const mockGetExecutionSnapshot = vi.fn();
-const mockApproveForExecution = vi.fn();
-const mockReject = vi.fn();
-
-vi.mock("#modules/approval-queue/index.js", () => ({
-  getApprovalQueue: () => ({
-    getExecutionSnapshot: mockGetExecutionSnapshot,
-    approveForExecution: mockApproveForExecution,
-    reject: mockReject,
-  }),
-}));
-
 const mockOwnerGet = vi.fn();
 const mockOwnerAnswer = vi.fn();
 const mockOwnerDismiss = vi.fn();
@@ -67,9 +55,6 @@ describe("startCallbackPoll", () => {
   beforeEach(() => {
     resetTelegramPollingOwnersForTests();
     mockedCallTelegramApi.mockReset();
-    mockGetExecutionSnapshot.mockReset();
-    mockApproveForExecution.mockReset();
-    mockReject.mockReset();
     mockOwnerGet.mockReset();
     mockOwnerAnswer.mockReset();
     mockOwnerDismiss.mockReset();

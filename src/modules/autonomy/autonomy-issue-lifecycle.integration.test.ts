@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import {
@@ -34,7 +35,9 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+
+registerAgentHarness(claudeAgentHarness);
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 const INTEGRATION_WAIT_MS = 45_000;

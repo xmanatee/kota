@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { getPreset } from "#core/model/preset.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -14,22 +15,28 @@ import autonomyModule from "#modules/autonomy/index.js";
 import {
   CLAUDE_AGENT_HARNESS_NAME,
   CLAUDE_AGENT_SDK_KNOWN_MODELS,
+  claudeAgentHarness,
 } from "#modules/claude-agent-harness/adapter.js";
-// Side-effect import: registers the claude-agent-sdk harness so the step
-// validator can resolve it when a test exercises `harnessOptions`.
-import "#modules/antigravity-cli-agent-harness/index.js";
-import "#modules/claude-agent-harness/index.js";
-// Side-effect imports: register codex and gemini harnesses so per-harness
-// validateModelId tests can verify those adapters accept arbitrary ids.
-import "#modules/codex-agent-harness/index.js";
-import "#modules/gemini-cli-agent-harness/index.js";
-import "#modules/gemini-agent-harness/index.js";
+import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
+import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
+import { geminiCliAgentHarness } from "#modules/gemini-cli-agent-harness/adapter.js";
+import { geminiAgentHarness } from "#modules/gemini-agent-harness/adapter.js";
 import {
   defineDaemonWideModuleEvent,
   initModuleEventRegistry,
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { defineScopedModuleEvent } from "#core/events/scope.js";
+
+for (const harness of [
+  antigravityCliAgentHarness,
+  claudeAgentHarness,
+  codexAgentHarness,
+  geminiCliAgentHarness,
+  geminiAgentHarness,
+]) {
+  registerAgentHarness(harness);
+}
 
 function validateWorkflowDefinitions(
   definitions: readonly RegisteredWorkflowDefinitionInput[],

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ResourceDiscoveryProvider, ResourceDiscoveryResult } from "./client.js";
-import { createResourceDiscoveryToolRunner, resourceDiscoveryTool } from "./tool.js";
+import { createResourceDiscoveryToolRunner } from "./tool.js";
 
 const sampleResult: ResourceDiscoveryResult = {
   ok: true,
@@ -34,17 +34,6 @@ function provider(): ResourceDiscoveryProvider {
 }
 
 describe("resource_discovery tool", () => {
-  it("declares a read-only advisory discovery schema", () => {
-    expect(resourceDiscoveryTool.name).toBe("resource_discovery");
-    expect(resourceDiscoveryTool.input_schema.required).toEqual(["query"]);
-    const kinds = (resourceDiscoveryTool.input_schema.properties.kinds as {
-      items: { enum: string[] };
-    }).items.enum;
-    expect(kinds).toContain("tool");
-    expect(kinds).toContain("setup-requirement");
-    expect(kinds).toContain("mcp-server");
-  });
-
   it("returns the shared provider envelope as structured tool content", async () => {
     const runner = createResourceDiscoveryToolRunner(provider);
     const result = await runner({

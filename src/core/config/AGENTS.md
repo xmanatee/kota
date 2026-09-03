@@ -18,6 +18,12 @@ Config fields, defaults, and enum values are code-owned contracts. Keep the
 TypeScript schema, JSON Schema generation, warnings, and focused tests as the
 source of truth instead of maintaining a parallel prose catalog.
 
+Module config slices register from `KotaModule.configSlices` only after shared
+module identity admission. Composition roots expose admitted slices before
+loading configuration, and loaders hold exact lifecycle leases. Slice modules
+declare and export their contract; discovery imports do not mutate the config
+registry.
+
 Tests here cover parsing, sanitization, validation, layer precedence, trust
 boundaries, and downstream propagation. Do not assert a handwritten inventory
 of config keys or copy shipped default values merely to freeze the registry;

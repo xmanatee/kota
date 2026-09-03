@@ -6,7 +6,7 @@
  * tracing; absent endpoint leaves it disabled.
  */
 
-import { type ModuleConfigSlice, registerConfigSlice } from "#core/config/config-slice.js";
+import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 
 export type TracingConfig = {
   /** OTLP HTTP endpoint (e.g. "http://localhost:4318/v1/traces"). Required to enable. */
@@ -53,5 +53,3 @@ export const tracingConfigSlice: ModuleConfigSlice<"tracing"> = {
     typeName: "TracingConfig",
   },
 };
-
-registerConfigSlice(tracingConfigSlice, "tracing");

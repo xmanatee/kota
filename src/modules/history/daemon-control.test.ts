@@ -132,17 +132,6 @@ describe("history module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares /history routes with read/control capability scopes", () => {
-      const routes = historyControlRoutes();
-      expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
-        "GET /history (read)",
-        "GET /history/discovered-scope-records (read)",
-        "POST /history/reindex (control)",
-        "GET /history/:id (read)",
-        "DELETE /history/:id (control)",
-      ]);
-    });
-
     it("requires the daemon bearer token on all history control routes", async () => {
       for (const init of [
         { path: "/history", method: "GET" },

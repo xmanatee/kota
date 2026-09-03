@@ -73,8 +73,20 @@ export function buildDaemonConfigReloadHandle(
           scopeRoot,
           config.verbose ?? false,
         );
-        config.getModuleSummaries = () => loader.getModuleSummaries();
-        const allModules = loader.getModuleSummaries().map((summary) => ({
+        let metadata: {
+          summaries: ReturnType<typeof loader.getModuleSummaries>;
+          workflows: ReturnType<typeof loader.getContributedWorkflows>;
+        };
+        try {
+          metadata = {
+            summaries: loader.getModuleSummaries(),
+            workflows: loader.getContributedWorkflows(),
+          };
+        } finally {
+          await loader.unloadAll();
+        }
+        config.getModuleSummaries = () => metadata.summaries;
+        const allModules = metadata.summaries.map((summary) => ({
           name: summary.name,
           dependencies: summary.dependencies,
         }));
@@ -89,11 +101,10 @@ export function buildDaemonConfigReloadHandle(
           refreshLiveSessionGuardrails(resolveInteractiveGuardrailsConfig(newConfig)),
           sessions,
         );
-        const inputs = loader.getContributedWorkflows();
         let aggregateCount = 0;
         for (const runtime of scopeRuntimes.list()) {
           runtime.workflowRuntime.configureQuotaGuard(loadConfig(runtime.scope.scopeRoot));
-          runtime.workflowRuntime.setWorkflowInputs(inputs);
+          runtime.workflowRuntime.setWorkflowInputs(metadata.workflows);
           aggregateCount = runtime.workflowRuntime.reloadWorkflowDefinitions().count;
         }
         bus.emit("daemon.config.reload", buildDaemonConfigReloadSuccessEvent({

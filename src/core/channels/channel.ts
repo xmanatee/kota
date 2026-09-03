@@ -179,6 +179,43 @@ export type ChannelDef = {
   create(ctx: ChannelStartContext): ChannelStartResult;
 };
 
+const CHANNEL_DEFINITION_KEYS = new Set(["name", "description", "create"]);
+
+/** Runtime decoder for module-contributed channel declarations. */
+export function assertChannelDefinitions(
+  moduleName: string,
+  values: readonly unknown[],
+): asserts values is readonly ChannelDef[] {
+  for (const [index, value] of values.entries()) {
+    const label = `Module "${moduleName}" channel[${index}]`;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      throw new Error(`${label} must be an object`);
+    }
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (!CHANNEL_DEFINITION_KEYS.has(key)) {
+        throw new Error(`${label} has unknown field "${key}"`);
+      }
+    }
+    if (
+      typeof record.name !== "string" ||
+      record.name.trim() !== record.name ||
+      record.name.length === 0
+    ) {
+      throw new Error(`${label}.name must be a non-empty trimmed string`);
+    }
+    if (
+      record.description !== undefined &&
+      (typeof record.description !== "string" || record.description.trim().length === 0)
+    ) {
+      throw new Error(`${label}.description must be a non-empty string when declared`);
+    }
+    if (typeof record.create !== "function") {
+      throw new Error(`${label}.create must be a function`);
+    }
+  }
+}
+
 /**
  * ChannelStatus — runtime posture for a single channel after the daemon
  * attempted to start it.

@@ -107,14 +107,6 @@ function socialConfig(): Record<string, unknown> {
   };
 }
 
-describe("social module metadata", () => {
-  it("has correct name, dependency, and version", () => {
-    expect(socialModule.name).toBe("social");
-    expect(socialModule.version).toBe("1.0.0");
-    expect(socialModule.dependencies).toEqual(["inbound-signals"]);
-  });
-});
-
 describe("social module inbound routes", () => {
   it("does not register routes without configured social connectors", () => {
     expect(socialModule.routes?.(makeCtx())).toEqual([]);

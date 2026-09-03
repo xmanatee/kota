@@ -35,6 +35,8 @@ import {
   resolvePreset,
 } from "./core/model/preset.js";
 import { discoverBundledModules } from "./core/modules/bundled-module-discovery.js";
+import { admitDiscoveredModuleDefinitions } from "./core/modules/module-admission.js";
+import { registerAdmittedModuleConfigSlices } from "./core/modules/module-config-slices.js";
 import { discoverModules } from "./core/modules/module-discovery.js";
 import { ModuleLoader } from "./core/modules/module-loader.js";
 import {
@@ -501,46 +503,59 @@ async function checkPipeMode() {
 
 async function main() {
   ensureCliRenderingProvider();
-  // Discover bundled and installed modules first so their registration side effects (model
-  // clients, agent harness adapters, etc.) run before any pipe path or action
-  // handler resolves something from a core registry.
+  // Every CLI path consumes module contributions through the same commands-mode
+  // lifecycle. Discovery imports declarations without activating them; loadAll
+  // admits and registers static contributions such as agent harness adapters.
   const bundledModules = await discoverBundledModules();
   const modules = await discoverModules(undefined, false);
+  const admission = admitDiscoveredModuleDefinitions(bundledModules, modules);
+  const disposeConfigSlices = registerAdmittedModuleConfigSlices(
+    admission.admitted,
+  );
+  let loader: ModuleLoader | undefined;
+  try {
+    const config = loadConfig();
+    const processProviders = getProviderRegistry();
+    if (!processProviders) {
+      throw new Error("CLI provider authority was not initialized");
+    }
+    const commandLoader = new ModuleLoader(config, false, {
+      mode: "commands",
+      providerRegistry: processProviders,
+    });
+    loader = commandLoader;
+    await commandLoader.loadAll(bundledModules, modules);
+    const wasPiped = await checkPipeMode();
+    if (wasPiped) return;
 
-  const wasPiped = await checkPipeMode();
-  if (wasPiped) return;
+    // Resolve the active KotaClient exactly once: daemon when reachable,
+    // otherwise a LocalKotaClient assembled from the namespace handlers
+    // modules registered during load. CLI subcommands consume this through
+    // ctx.client and never re-decide the daemon-vs-local policy. On the
+    // daemon-up path the selector also queries the loader's daemonClient
+    // factories so module-contributed handlers can override the core stub.
+    await resolveKotaClient({
+      localHandlers: commandLoader.getLocalClientHandlers(),
+      assembleDaemonHandlers: (transport) =>
+        commandLoader.assembleDaemonClientHandlers(transport),
+    });
+    for (const cmd of commandLoader.getCommands()) {
+      program.addCommand(cmd);
+    }
 
-  const config = loadConfig();
-  const processProviders = getProviderRegistry();
-  if (!processProviders) {
-    throw new Error("CLI provider authority was not initialized");
+    if (shouldLaunchDefaultOperatorConsole(process.argv, process.stdin.isTTY === true)) {
+      await program.parseAsync(["navigate"], { from: "user" });
+      return;
+    }
+
+    await program.parseAsync();
+  } finally {
+    try {
+      if (loader) await loader.unloadAll();
+    } finally {
+      disposeConfigSlices();
+    }
   }
-  const loader = new ModuleLoader(config, false, {
-    mode: "commands",
-    providerRegistry: processProviders,
-  });
-  await loader.loadAll(bundledModules, modules);
-  // Resolve the active KotaClient exactly once: daemon when reachable,
-  // otherwise a LocalKotaClient assembled from the namespace handlers
-  // modules registered during load. CLI subcommands consume this through
-  // ctx.client and never re-decide the daemon-vs-local policy. On the
-  // daemon-up path the selector also queries the loader's daemonClient
-  // factories so module-contributed handlers can override the core stub.
-  await resolveKotaClient({
-    localHandlers: loader.getLocalClientHandlers(),
-    assembleDaemonHandlers: (transport) =>
-      loader.assembleDaemonClientHandlers(transport),
-  });
-  for (const cmd of loader.getCommands()) {
-    program.addCommand(cmd);
-  }
-
-  if (shouldLaunchDefaultOperatorConsole(process.argv, process.stdin.isTTY === true)) {
-    await program.parseAsync(["navigate"], { from: "user" });
-    return;
-  }
-
-  await program.parseAsync();
 }
 
 export function shouldLaunchDefaultOperatorConsole(argv: string[], stdinIsTty: boolean): boolean {

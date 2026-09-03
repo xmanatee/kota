@@ -139,17 +139,21 @@ async function checkWorkflowDefinitions(scopeRoot: string): Promise<CheckResult>
   try {
     const config = loadConfig(scopeRoot);
     const loader = await loadModuleMetadata(config, scopeRoot, false);
-    const defs = loader.getContributedWorkflows();
-    const runtime = resolveAgentRuntime(config);
-    const validated = validateWorkflowDefinitions(defs, scopeRoot, {
-      defaultAgentHarness: runtime.harness,
-      defaultAgentEffort: runtime.effort,
-      preset: runtime.preset,
-      modelTiers: runtime.tiers,
-      agentModels: config.agentModels,
-      resolveAgentDef: (name) => loader.getAgentDef(name),
-    });
-    return pass("Workflows: discoverable definitions", `${validated.length} valid`);
+    try {
+      const defs = loader.getContributedWorkflows();
+      const runtime = resolveAgentRuntime(config);
+      const validated = validateWorkflowDefinitions(defs, scopeRoot, {
+        defaultAgentHarness: runtime.harness,
+        defaultAgentEffort: runtime.effort,
+        preset: runtime.preset,
+        modelTiers: runtime.tiers,
+        agentModels: config.agentModels,
+        resolveAgentDef: (name) => loader.getAgentDef(name),
+      });
+      return pass("Workflows: discoverable definitions", `${validated.length} valid`);
+    } finally {
+      await loader.unloadAll();
+    }
   } catch (err) {
     if (err instanceof WorkflowDefinitionError) {
       return fail("Workflows: discoverable definitions", err.message);
@@ -162,8 +166,12 @@ async function checkModules(scopeRoot: string): Promise<CheckResult[]> {
   const results: CheckResult[] = [];
   try {
     const loader = await loadModuleMetadata(loadConfig(scopeRoot), scopeRoot, false);
-    const summaries = loader.getModuleSummaries();
-    results.push(pass("Modules: loaded", `${summaries.length} module(s)`));
+    try {
+      const summaries = loader.getModuleSummaries();
+      results.push(pass("Modules: loaded", `${summaries.length} module(s)`));
+    } finally {
+      await loader.unloadAll();
+    }
   } catch (err) {
     results.push(fail("Modules: loaded", `Load error: ${err instanceof Error ? err.message : String(err)}`));
   }

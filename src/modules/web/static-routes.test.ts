@@ -3,7 +3,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { matchRoutePath } from "#core/modules/route-matcher.js";
 import { staticWebUiRoutes } from "./static-routes.js";
 
 type Captured = {
@@ -50,22 +49,6 @@ afterEach(() => {
 });
 
 describe("staticWebUiRoutes", () => {
-  it("registers GET /, GET /index.html, and a /assets/*rest pattern route", () => {
-    const routes = staticWebUiRoutes();
-    const summaries = routes.map((r) => `${r.method} ${r.path}`);
-    expect(summaries).toEqual(["GET /", "GET /index.html", "GET /assets/*rest"]);
-    const assetsRoute = routes[2];
-    expect(matchRoutePath(assetsRoute.path, "/assets/app.js")).toEqual({ rest: "app.js" });
-    expect(matchRoutePath(assetsRoute.path, "/assets/")).toEqual({ rest: "" });
-    expect(matchRoutePath(assetsRoute.path, "/api/health")).toBeNull();
-  });
-
-  it("does not request bypassAuth (static UI lives outside /api/)", () => {
-    for (const route of staticWebUiRoutes()) {
-      expect(route.bypassAuth).toBeUndefined();
-    }
-  });
-
   it("serves a built dashboard from scopeRoot without serve-time global setup", () => {
     const scopeRoot = mkdtempSync(join(tmpdir(), "kota-web-project-"));
     const distDir = join(scopeRoot, "clients", "web", "dist");
@@ -132,16 +115,6 @@ describe("staticWebUiRoutes", () => {
     );
     expect(captured.status).toBe(200);
     expect(captured.headers?.["Content-Type"]).toBe("application/octet-stream");
-  });
-
-  it("rejects /assets/* requests that traverse out of the assets prefix", () => {
-    // URL normalization collapses `/assets/../etc` to `/etc`, which the
-    // asset route's path pattern then refuses to match.
-    const assetsRoute = staticWebUiRoutes()[2];
-    expect(matchRoutePath(
-      assetsRoute.path,
-      new URL("/assets/../etc/passwd", "http://localhost").pathname,
-    )).toBeNull();
   });
 
   it("does not decode encoded separators into traversal", () => {

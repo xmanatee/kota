@@ -52,11 +52,19 @@ export async function loadRuntimeModules(
   });
   loader.setCwd(options.cwd);
   loader.setBus(options.eventBus);
-  const bundledModules = await discoverBundledModules();
-  const installedModuleSourceDir = options.installedModuleSourceDir ?? options.cwd;
-  const installedModules = await discoverModules(installedModuleSourceDir, verbose, {
-    globalConfigPath: options.globalConfigPath,
-  });
-  await loader.loadAll(bundledModules, installedModules);
-  return loader;
+  try {
+    const bundledModules = await discoverBundledModules();
+    const installedModuleSourceDir = options.installedModuleSourceDir ?? options.cwd;
+    const installedModules = await discoverModules(installedModuleSourceDir, verbose, {
+      globalConfigPath: options.globalConfigPath,
+    });
+    await loader.loadAll(bundledModules, installedModules);
+    return loader;
+  } catch (error) {
+    // `loadAll` isolates optional installed-module failures, but a bundled
+    // failure can arrive after earlier modules activated. The helper does not
+    // return a loader on rejection, so it must withdraw the whole host here.
+    await loader.unloadAll();
+    throw error;
+  }
 }

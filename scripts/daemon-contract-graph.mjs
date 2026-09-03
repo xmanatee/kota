@@ -4,6 +4,8 @@
  * Shapes are references to their TypeScript domain owners through
  * `DaemonWireContract`; this graph owns transport identity (method/path),
  * binding names, capability ids, and the generated KotaClient aggregate.
+ * Every operation is a required client-handler method. Optional capabilities
+ * belong in module declarations rather than in this transport graph.
  */
 
 export const DAEMON_CONTRACT_VERSION = "daemon.contract.v1";
@@ -272,6 +274,7 @@ export const DAEMON_OPERATION_DESCRIPTORS = [
   { id: "workflow.getRun", namespace: "workflow", clientMethod: "getRun", method: "GET", path: "/workflow/runs/:id", classification: "exception", exceptionReason: "semantic-transform: 404 to found:false domain union" },
   { id: "workflow.listDefinitions", namespace: "workflow", clientMethod: "listDefinitions", method: "GET", path: "/workflow/definitions", classification: "routine", responseType: "WorkflowDefinitionsResult" },
   { id: "workflow.pause", namespace: "workflow", clientMethod: "pause", method: "POST", path: "/workflow/pause", classification: "routine", responseType: "WorkflowPauseResult" },
+  { id: "workflow.pauseAgentForQuality", namespace: "workflow", clientMethod: "pauseAgentForQuality", method: "POST", path: "/workflow/agent/quality-pause", classification: "exception", exceptionReason: "semantic-transform: daemon-required failure union and agent-only quality backoff state" },
   { id: "workflow.resume", namespace: "workflow", clientMethod: "resume", method: "POST", path: "/workflow/resume", classification: "routine", responseType: "WorkflowResumeResult" },
   { id: "workflow.abort", namespace: "workflow", clientMethod: "abort", method: "POST", path: "/workflow/abort", classification: "routine", responseType: "WorkflowAbortResult" },
   { id: "workflow.reload", namespace: "workflow", clientMethod: "reload", method: "POST", path: "/workflow/reload", classification: "routine", responseType: "WorkflowReloadResult" },
@@ -290,18 +293,19 @@ export const DAEMON_OPERATION_DESCRIPTORS = [
   { id: "daemonOps.stop", namespace: "daemonOps", clientMethod: "stop", method: "POST", path: "/status", classification: "exception", exceptionReason: "protocol-limit: local process PID signaling and stop attempt recording" },
   { id: "daemonOps.reload", namespace: "daemonOps", clientMethod: "reload", method: "POST", path: "/reload", classification: "routine", responseType: "DaemonOpsReloadResult" },
   { id: "sessions.list", namespace: "sessions", clientMethod: "list", method: "GET", path: "/sessions", classification: "routine", responseType: "SessionsListResult" },
+  { id: "sessions.runOneShot", namespace: "sessions", clientMethod: "runOneShot", method: "POST", path: "/sessions", classification: "exception", exceptionReason: "semantic-transform: create, streamed chat, and guaranteed session close compose one client operation" },
   { id: "sessions.setAutonomyMode", namespace: "sessions", clientMethod: "setAutonomyMode", method: "PATCH", path: "/sessions/:id", classification: "exception", exceptionReason: "semantic-transform: 404 not_found mapping and autonomy mode wire translation" },
   { id: "scopes.list", namespace: "scopes", clientMethod: "list", method: "GET", path: "/scopes", classification: "routine", responseType: "ScopesListResult" },
   { id: "scopes.use", namespace: "scopes", clientMethod: "use", method: "PATCH", path: "/scopes/active", classification: "exception", exceptionReason: "semantic-transform: 404 not_found mapping and active scope projection" },
   { id: "scopes.inspectAuthority", namespace: "scopes", clientMethod: "inspectAuthority", method: "GET", path: "/scopes/:scopeId/authority", classification: "exception", exceptionReason: "semantic-transform: non-ok body parsing into ScopeAuthorityFailure" },
   { id: "scopes.validateAuthority", namespace: "scopes", clientMethod: "validateAuthority", method: "POST", path: "/scopes/:scopeId/authority/validate", classification: "routine", responseType: "ScopeAuthorityValidationResult" },
   { id: "scopes.applyAuthority", namespace: "scopes", clientMethod: "applyAuthority", method: "PUT", path: "/scopes/:scopeId/authority", classification: "exception", exceptionReason: "security: interactive client challenge-response header negotiation and mutual signing" },
-  { id: "scopes.inspectOnboarding", namespace: "scopes", clientMethod: "inspectOnboarding", method: "POST", path: "/scope-onboarding/inspect", classification: "exception", exceptionReason: "semantic-transform: inspection response wrapper and typed invalid-directory failure" },
-  { id: "scopes.planOnboarding", namespace: "scopes", clientMethod: "planOnboarding", method: "POST", path: "/scope-onboarding/plan", classification: "exception", exceptionReason: "semantic-transform: directory and choices arguments form the canonical plan request" },
-  { id: "scopes.applyOnboarding", namespace: "scopes", clientMethod: "applyOnboarding", method: "PUT", path: "/scope-onboarding/apply", classification: "exception", exceptionReason: "security: accepted-plan projection and interactive challenge-response signing" },
-  { id: "scopes.getOnboardingStatus", namespace: "scopes", clientMethod: "getOnboardingStatus", method: "GET", path: "/scope-onboarding/:operationId", classification: "exception", exceptionReason: "semantic-transform: typed not-found response" },
-  { id: "scopes.retryOnboarding", namespace: "scopes", clientMethod: "retryOnboarding", method: "POST", path: "/scope-onboarding/:operationId/retry", classification: "exception", exceptionReason: "security: retained scope identity and interactive challenge-response signing" },
-  { id: "scopes.cancelOnboarding", namespace: "scopes", clientMethod: "cancelOnboarding", method: "DELETE", path: "/scope-onboarding/:operationId", classification: "exception", exceptionReason: "semantic-transform: typed transaction cancellation result" },
+  { id: "scopes.inspectOnboarding", namespace: "scopes", clientMethod: "inspectOnboarding", method: "POST", path: "/scope-onboarding/inspect", classification: "exception", exceptionReason: "semantic-transform: wraps successful inspections and preserves typed invalid-directory failures" },
+  { id: "scopes.planOnboarding", namespace: "scopes", clientMethod: "planOnboarding", method: "POST", path: "/scope-onboarding/plan", classification: "exception", exceptionReason: "semantic-transform: applies default choices and preserves typed planning failures" },
+  { id: "scopes.applyOnboarding", namespace: "scopes", clientMethod: "applyOnboarding", method: "PUT", path: "/scope-onboarding/apply", classification: "exception", exceptionReason: "security: canonical accepted-plan serialization and interactive operator signing" },
+  { id: "scopes.getOnboardingStatus", namespace: "scopes", clientMethod: "getOnboardingStatus", method: "GET", path: "/scope-onboarding/:operationId", classification: "exception", exceptionReason: "semantic-transform: typed not-found result preservation" },
+  { id: "scopes.retryOnboarding", namespace: "scopes", clientMethod: "retryOnboarding", method: "POST", path: "/scope-onboarding/:operationId/retry", classification: "exception", exceptionReason: "security: interactive operator signing bound to the accepted scope plan" },
+  { id: "scopes.cancelOnboarding", namespace: "scopes", clientMethod: "cancelOnboarding", method: "DELETE", path: "/scope-onboarding/:operationId", classification: "exception", exceptionReason: "semantic-transform: typed rollback and cancellation result preservation" },
   { id: "scopes.drain", namespace: "scopes", clientMethod: "drain", method: "POST", path: "/scopes/:scopeId/drain", classification: "exception", exceptionReason: "semantic-transform: lifecycle blockers remain typed non-success results" },
   { id: "scopes.remove", namespace: "scopes", clientMethod: "remove", method: "DELETE", path: "/scopes/:scopeId", classification: "exception", exceptionReason: "semantic-transform: safe removal failures remain typed non-success results" },
   { id: "ui.listSurfaces", namespace: "ui", clientMethod: "listSurfaces", method: "GET", path: "/ui/surfaces", classification: "routine", responseType: "UiSurfaceBundle" },

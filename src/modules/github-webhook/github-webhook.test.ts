@@ -8,7 +8,6 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
-import { githubPullRequestEvent } from "./events.js";
 import githubWebhookModule from "./index.js";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -149,44 +148,6 @@ async function invokeHandler(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("githubWebhookModule metadata", () => {
-  it("has correct name and version", () => {
-    expect(githubWebhookModule.name).toBe("github-webhook");
-    expect(githubWebhookModule.version).toBe("1.0.0");
-    expect(githubWebhookModule.description).toBeTruthy();
-  });
-
-  it("contributes routes, typed event declarations, and a one-time onLoad warning", () => {
-    expect(githubWebhookModule.tools).toBeUndefined();
-    expect(githubWebhookModule.commands).toBeUndefined();
-    expect(githubWebhookModule.channels).toBeUndefined();
-    expect(githubWebhookModule.workflows).toBeUndefined();
-    expect(githubWebhookModule.events).toEqual([githubPullRequestEvent]);
-    expect(githubWebhookModule.dependencies).toEqual(["inbound-signals"]);
-    expect(typeof githubWebhookModule.onLoad).toBe("function");
-  });
-
-  it("declares every pull-request field required for actor-integrity gating", () => {
-    expect(githubPullRequestEvent.name).toBe("github.pull_request");
-    expect(githubPullRequestEvent.fields).toEqual([
-      "repo",
-      "action",
-      "number",
-      "title",
-      "state",
-      "merged",
-      "headBranch",
-      "baseBranch",
-      "headRepo",
-      "isFork",
-      "headSha",
-      "sender",
-      "prAuthor",
-      "authorAssociation",
-      "actorIntegrity",
-      "actorIntegrityReason",
-    ]);
-  });
-
   it("sets bypassAuth:true on its route so GitHub deliveries work without KOTA auth", () => {
     const bus = new EventBus();
     const ctx = makeStubCtx(bus, { secret: SECRET });

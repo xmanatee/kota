@@ -1,13 +1,17 @@
 import { resolve } from "node:path";
 import { tryEmit } from "#core/events/event-bus.js";
-import type { KempInit, StdioForeignModuleConfig } from "./foreign-module.js";
+import type {
+  KempInit,
+  PendingForeignModule,
+  StdioForeignModuleConfig,
+} from "./foreign-module.js";
 import {
   buildForeignToolDefs,
   createRawForeignModule,
   HEALTH_CHECK_TIMEOUT_MS,
 } from "./foreign-module-session.js";
 import { StdioTransport } from "./foreign-module-stdio.js";
-import type { KotaModule, ModuleHealth } from "./module-types.js";
+import type { ModuleHealth } from "./module-types.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export const DEFAULT_MAX_RESTARTS = 3;
@@ -20,7 +24,7 @@ export async function startResilientStdioModule(
   config: StdioForeignModuleConfig,
   scopeRoot: string,
   moduleConfig?: KempInit["config"],
-): Promise<KotaModule> {
+): Promise<PendingForeignModule> {
   const maxRestarts = config.maxRestarts ?? DEFAULT_MAX_RESTARTS;
   const pingTimeoutMs = config.pingTimeoutMs ?? DEFAULT_PING_TIMEOUT_MS;
   const pingIntervalMs = config.pingIntervalMs ?? DEFAULT_PING_INTERVAL_MS;
@@ -142,7 +146,12 @@ export async function startResilientStdioModule(
   watchDeath();
   startPing();
 
-  return {
+  const dispose = async (): Promise<void> => {
+    stopped = true;
+    clearPingTimer();
+    await session.close();
+  };
+  const definition = {
     name: raw.name,
     version: raw.version,
     description: raw.description,
@@ -153,12 +162,7 @@ export async function startResilientStdioModule(
       lastRestartAt,
     }),
     healthCheck: () => session.healthCheck(HEALTH_CHECK_TIMEOUT_MS),
-    onLoad: () => ({
-      dispose: async () => {
-        stopped = true;
-        clearPingTimer();
-        await session.close();
-      },
-    }),
+    onLoad: () => ({ dispose }),
   };
+  return { definition, discard: dispose };
 }

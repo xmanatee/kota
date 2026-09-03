@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { runSqlite, sqliteTool } from "./sqlite.js";
+import { runSqlite } from "./sqlite.js";
 
 // Check if sqlite3 CLI is available
 let hasSqlite3 = false;
@@ -32,25 +32,6 @@ function setupTestDb(): void {
 }
 
 describe("sqlite tool", () => {
-	describe("tool definition", () => {
-		it("has correct name and required fields", () => {
-			expect(sqliteTool.name).toBe("sqlite");
-			expect(sqliteTool.description).toBeTruthy();
-			expect(sqliteTool.input_schema.type).toBe("object");
-			const required = sqliteTool.input_schema.required as string[];
-			expect(required).toContain("database");
-			expect(required).toContain("action");
-		});
-
-		it("defines three actions", () => {
-			const props = sqliteTool.input_schema.properties as Record<
-				string,
-				{ enum?: string[] }
-			>;
-			expect(props.action.enum).toEqual(["query", "tables", "schema"]);
-		});
-	});
-
 	describe("input validation", () => {
 		it("requires database path", async () => {
 			const result = await runSqlite({ action: "query" });

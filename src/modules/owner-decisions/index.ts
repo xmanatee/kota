@@ -31,21 +31,6 @@ import {
 } from "./operations.js";
 import { ownerDecisionControlRoutes, ownerDecisionRoutes } from "./routes.js";
 
-export type {
-  OwnerConfirmedActionMetadata,
-  OwnerDecisionClientProjection,
-  OwnerDecisionRecord,
-  OwnerDecisionRequest,
-  OwnerDecisionSelectedValue,
-  OwnerDecisionStatus,
-} from "#core/daemon/owner-decision-store.js";
-export {
-  getOwnerDecisionStore,
-  OwnerDecisionStore,
-  projectOwnerDecisionForClient,
-  resetOwnerDecisionStore,
-} from "#core/daemon/owner-decision-store.js";
-
 const RESOLUTION_SOURCE = "cli";
 
 type OwnerDecisionRouteError = {

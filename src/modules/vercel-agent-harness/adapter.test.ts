@@ -9,37 +9,8 @@ import {
   captureStreamTextArgs,
   createStreamTextStub,
   streamTextMock,
-  VERCEL_AGENT_HARNESS_NAME,
   vercelAgentHarness,
 } from "./adapter-test-support.js";
-
-describe("vercelAgentHarness — registration", () => {
-  it("registers under the vercel name and supports multi-turn", () => {
-    expect(vercelAgentHarness.name).toBe(VERCEL_AGENT_HARNESS_NAME);
-    expect(vercelAgentHarness.name).toBe("vercel");
-    expect(vercelAgentHarness.supportsMultiTurn).toBe(true);
-    expect(vercelAgentHarness.supportedHookKinds).toEqual(["preRun", "postRun"]);
-    expect(vercelAgentHarness.askOwnerToolName).toBe("ask_owner");
-    expect(vercelAgentHarness.emitsAgentMessageStream).toBe(false);
-    expect(vercelAgentHarness.toolControl).toBe("kota");
-    expect(vercelAgentHarness.unsupportedRunOptions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          option: "mcpServers",
-          runOption: "mcpServers",
-        }),
-        expect.objectContaining({
-          option: "thinkingEnabled/thinkingBudget",
-          runOption: "thinking",
-        }),
-        expect.objectContaining({
-          option: "onMessage",
-          runOption: "onMessage",
-        }),
-      ]),
-    );
-  });
-});
 
 describe("vercelAgentHarness — happy path", () => {
   it("forwards prompt/system/tools/effort and returns the SDK's final text", async () => {

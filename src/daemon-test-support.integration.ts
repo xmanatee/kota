@@ -3,6 +3,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import {
   Daemon,
   type DaemonConfig,
@@ -10,6 +11,7 @@ import {
 } from "#core/daemon/index.js";
 import { resetEventBus } from "#core/events/event-bus.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
@@ -23,7 +25,7 @@ vi.mock("#core/daemon/task-store.js", async (importOriginal) => {
   return { ...actual, initTaskStore: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+registerAgentHarness(claudeAgentHarness);
 
 export const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 export let scopeRoot = "";

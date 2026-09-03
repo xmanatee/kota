@@ -9,7 +9,7 @@
  *   unhealthy. Consumed by the failover client wrapper.
  */
 
-import { type ModuleConfigSlice, registerConfigSlice } from "#core/config/config-slice.js";
+import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 
 export type ModelProviderConfig = {
   type?: string;
@@ -88,6 +88,3 @@ export const failoverConfigSlice: ModuleConfigSlice<"failover"> = {
     typeName: "FailoverConfig",
   },
 };
-
-registerConfigSlice(modelProviderConfigSlice, "model-clients");
-registerConfigSlice(failoverConfigSlice, "model-clients");

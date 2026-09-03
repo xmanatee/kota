@@ -1,9 +1,10 @@
-import type { HarnessHookKind } from "./hooks.js";
+import { ALL_HARNESS_HOOK_KINDS, type HarnessHookKind } from "./hooks.js";
 import type { ReadWeeklyQuota } from "./quota.js";
-import type {
-  AgentHarnessReadinessProbe,
-  AgentHarnessUnsupportedOption,
-} from "./readiness.js";
+import {
+  AGENT_HARNESS_UNSUPPORTED_RUN_OPTION_KEYS,
+  type AgentHarnessReadinessProbe,
+  type AgentHarnessUnsupportedOption,
+} from "./readiness-types.js";
 import type {
   AgentHarnessResult,
   AgentHarnessRunOptions,
@@ -144,3 +145,146 @@ export type AgentHarness = {
     writer?: AgentHarnessWriter,
   ): Promise<AgentHarnessResult>;
 };
+
+const AGENT_HARNESS_DEFINITION_FIELDS = {
+  readWeeklyQuota: true,
+  name: true,
+  description: true,
+  supportsMultiTurn: true,
+  supportedHookKinds: true,
+  askOwnerToolName: true,
+  emitsAgentMessageStream: true,
+  toolControl: true,
+  nativeAbortQuarantine: true,
+  readiness: true,
+  resolveIsolatedHostAuthEnv: true,
+  unsupportedRunOptions: true,
+  validateStepOptions: true,
+  validateModelId: true,
+  run: true,
+} as const satisfies Record<keyof AgentHarness, true>;
+
+const AGENT_HARNESS_DEFINITION_KEYS = new Set<string>(
+  Object.keys(AGENT_HARNESS_DEFINITION_FIELDS),
+);
+const AGENT_HARNESS_UNSUPPORTED_OPTION_FIELDS = {
+  runOption: true,
+  option: true,
+  reason: true,
+} as const satisfies Record<keyof AgentHarnessUnsupportedOption, true>;
+const AGENT_HARNESS_UNSUPPORTED_OPTION_KEYS = new Set<string>(
+  Object.keys(AGENT_HARNESS_UNSUPPORTED_OPTION_FIELDS),
+);
+const HARNESS_HOOK_KINDS = new Set<string>(ALL_HARNESS_HOOK_KINDS);
+const HARNESS_UNSUPPORTED_RUN_OPTION_KEYS = new Set<string>(
+  AGENT_HARNESS_UNSUPPORTED_RUN_OPTION_KEYS,
+);
+
+function assertNonEmptyTrimmedString(
+  value: unknown,
+  label: string,
+): asserts value is string {
+  if (typeof value !== "string" || value.trim() !== value || value.length === 0) {
+    throw new Error(`${label} must be a non-empty trimmed string`);
+  }
+}
+
+function assertOptionalFunction(
+  value: unknown,
+  label: string,
+): void {
+  if (value !== undefined && typeof value !== "function") {
+    throw new Error(`${label} must be a function when declared`);
+  }
+}
+
+function assertUnsupportedRunOptions(value: unknown, label: string): void {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array when declared`);
+  }
+  for (const [index, entry] of value.entries()) {
+    const entryLabel = `${label}[${index}]`;
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new Error(`${entryLabel} must be an object`);
+    }
+    const record = entry as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (!AGENT_HARNESS_UNSUPPORTED_OPTION_KEYS.has(key)) {
+        throw new Error(`${entryLabel} has unknown field "${key}"`);
+      }
+    }
+    assertNonEmptyTrimmedString(record.option, `${entryLabel}.option`);
+    assertNonEmptyTrimmedString(record.reason, `${entryLabel}.reason`);
+    if (
+      record.runOption !== undefined &&
+      (typeof record.runOption !== "string" ||
+        !HARNESS_UNSUPPORTED_RUN_OPTION_KEYS.has(record.runOption))
+    ) {
+      throw new Error(`${entryLabel}.runOption is invalid`);
+    }
+  }
+}
+
+/** Runtime decoder for module-contributed harness adapters. */
+export function assertAgentHarnessDefinitions(
+  moduleName: string,
+  values: readonly unknown[],
+): asserts values is readonly AgentHarness[] {
+  for (const [index, value] of values.entries()) {
+    const label = `Module "${moduleName}" agentHarness[${index}]`;
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      throw new Error(`${label} must be an object`);
+    }
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (!AGENT_HARNESS_DEFINITION_KEYS.has(key)) {
+        throw new Error(`${label} has unknown field "${key}"`);
+      }
+    }
+    for (const field of ["name", "description"] as const) {
+      assertNonEmptyTrimmedString(record[field], `${label}.${field}`);
+    }
+    for (const field of ["supportsMultiTurn", "emitsAgentMessageStream"] as const) {
+      if (typeof record[field] !== "boolean") throw new Error(`${label}.${field} must be a boolean`);
+    }
+    if (
+      !Array.isArray(record.supportedHookKinds) ||
+      record.supportedHookKinds.some((kind) =>
+        typeof kind !== "string" || !HARNESS_HOOK_KINDS.has(kind),
+      )
+    ) {
+      throw new Error(`${label}.supportedHookKinds contains an unsupported hook kind`);
+    }
+    if (new Set(record.supportedHookKinds).size !== record.supportedHookKinds.length) {
+      throw new Error(`${label}.supportedHookKinds must not contain duplicates`);
+    }
+    if (
+      record.askOwnerToolName !== null &&
+      (typeof record.askOwnerToolName !== "string" ||
+        record.askOwnerToolName.trim() !== record.askOwnerToolName ||
+        record.askOwnerToolName.length === 0)
+    ) {
+      throw new Error(`${label}.askOwnerToolName must be null or a non-empty trimmed string`);
+    }
+    if (record.toolControl !== "kota" && record.toolControl !== "native") {
+      throw new Error(`${label}.toolControl must be "kota" or "native"`);
+    }
+    if (
+      record.nativeAbortQuarantine !== undefined &&
+      record.nativeAbortQuarantine !== "confirmed-stop"
+    ) {
+      throw new Error(`${label}.nativeAbortQuarantine must be "confirmed-stop" when declared`);
+    }
+    assertOptionalFunction(record.readWeeklyQuota, `${label}.readWeeklyQuota`);
+    assertOptionalFunction(record.readiness, `${label}.readiness`);
+    assertOptionalFunction(
+      record.resolveIsolatedHostAuthEnv,
+      `${label}.resolveIsolatedHostAuthEnv`,
+    );
+    assertUnsupportedRunOptions(record.unsupportedRunOptions, `${label}.unsupportedRunOptions`);
+    assertOptionalFunction(record.validateStepOptions, `${label}.validateStepOptions`);
+    assertOptionalFunction(record.validateModelId, `${label}.validateModelId`);
+    if (typeof record.run !== "function") throw new Error(`${label}.run must be a function`);
+  }
+}

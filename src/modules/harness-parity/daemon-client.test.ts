@@ -77,16 +77,6 @@ function makeRecordingTransport(
 }
 
 describe("harness-parity module daemonClient(link)", () => {
-  it("contributes a harnessParity namespace handler", () => {
-    expect(harnessParityModule.daemonClient).toBeTypeOf("function");
-    const link = makeRecordingTransport({}, {}).transport;
-    const contributed = harnessParityModule.daemonClient!(link);
-    expect(contributed.harnessParity).toBeDefined();
-    expect(typeof contributed.harnessParity!.list).toBe("function");
-    expect(typeof contributed.harnessParity!.run).toBe("function");
-    expect(typeof contributed.harnessParity!.matrix).toBe("function");
-  });
-
   it("routes list through GET /harness-parity/scenarios via requestStrict", async () => {
     const { transport, calls } = makeRecordingTransport(
       {},

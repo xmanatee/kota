@@ -50,14 +50,6 @@ function makeRecordingTransport(): DaemonTransport {
 }
 
 describe("mcp-server module daemonClient(link)", () => {
-  it("contributes an mcpServer namespace handler with a start method", () => {
-    expect(mcpServerModule.daemonClient).toBeTypeOf("function");
-    const transport = makeRecordingTransport();
-    const contributed = mcpServerModule.daemonClient!(transport);
-    expect(contributed.mcpServer).toBeDefined();
-    expect(typeof contributed.mcpServer!.start).toBe("function");
-  });
-
   it("returns { ok: false, reason: 'daemon_required' } for the default options shape", async () => {
     const transport = makeRecordingTransport();
     const contributed = mcpServerModule.daemonClient!(transport);

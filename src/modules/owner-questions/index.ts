@@ -37,18 +37,6 @@ import {
 } from "./routes.js";
 import { ownerQuestionsUiSurfaceSource } from "./ui-surface.js";
 
-export type {
-  OwnerQuestionEnqueueInput,
-  OwnerQuestionStatus,
-  PendingOwnerQuestion,
-} from "#core/daemon/owner-question-queue.js";
-export {
-  getOwnerQuestionQueue,
-  OwnerQuestionQueue,
-  resetOwnerQuestionQueue,
-} from "#core/daemon/owner-question-queue.js";
-export { reviewOwnerQuestion } from "#core/daemon/owner-question-review.js";
-
 const RESOLUTION_SOURCE = "cli";
 
 function resolveLocalOwnerQuestionQueue(

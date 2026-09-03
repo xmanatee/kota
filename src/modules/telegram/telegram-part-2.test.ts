@@ -19,7 +19,6 @@ import type { KotaClient } from "#root/client/kota-client.generated.js";
 import telegramModule, {
   TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
 } from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -203,18 +202,9 @@ describe("telegramModule", () => {
         }),
       ]);
     } finally {
-      unloadTelegramModule();
       if (savedOpenAiKey !== undefined) process.env.OPENAI_API_KEY = savedOpenAiKey;
       else delete process.env.OPENAI_API_KEY;
     }
-  });
-
-  it("contributes telegram-status and telegram-interactive channels", async () => {
-    const channels = await resolveModuleChannels(telegramModule, makeStubCtx());
-    const names = channels.map((c) => c.name);
-    expect(names).toContain("telegram-status");
-    expect(names).toContain("telegram-interactive");
-    expect(channels).toHaveLength(2);
   });
 
   it("telegram-status channel reports unavailable when env vars are missing", async () => {

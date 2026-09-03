@@ -1,8 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import "#modules/antigravity-cli-agent-harness/index.js";
+import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
+
+registerAgentHarness(antigravityCliAgentHarness);
 import { runAgyModelsCommand } from "./agy-model-availability.js";
 import {
   AGY_OPTIONS,

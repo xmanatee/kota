@@ -7,9 +7,12 @@ import {
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildKotaAgentCommandTrace } from "#core/agent-harness/index.js";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { projectKotaAgentMessageForStorage } from "#core/workflow/run-evidence.js";
-import "#modules/antigravity-cli-agent-harness/index.js";
+import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
+
+registerAgentHarness(antigravityCliAgentHarness);
 import {
   type AgyModelEvaluationDependencies,
   runAgyModelEvaluationSuite,

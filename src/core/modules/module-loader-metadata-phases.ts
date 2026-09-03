@@ -31,11 +31,35 @@ async function attachModuleSkills(
 ): Promise<void> {
   const skills = await resolveModuleSkills(mod, ctx);
   if (skills.length === 0) return;
+  const existingOwners = new Map<string, string>();
+  for (const [owner, definitions] of state.moduleSkillDefs) {
+    for (const definition of definitions) {
+      existingOwners.set(definition.name, owner);
+    }
+  }
+  const ownNames = new Set<string>();
+  for (const skill of skills) {
+    const existingOwner = existingOwners.get(skill.name);
+    if (existingOwner) {
+      throw new Error(
+        `Module "${mod.name}" tried to register skill "${skill.name}" already owned by "${existingOwner}"`,
+      );
+    }
+    if (ownNames.has(skill.name)) {
+      throw new Error(
+        `Module "${mod.name}" declares duplicate skill "${skill.name}"`,
+      );
+    }
+    ownNames.add(skill.name);
+  }
   state.moduleSkillDefs.set(mod.name, skills);
   for (const skill of skills) {
     let raw: string;
     try {
-      raw = readFileSync(resolveModuleSkillPromptPath(policy, skill.promptPath), "utf8");
+      raw = readFileSync(
+        resolveModuleSkillPromptPath(policy, skill.promptPath),
+        "utf8",
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       printTerminalDiagnostic(
@@ -52,7 +76,10 @@ async function attachModuleSkills(
   }
 }
 
-function resolveModuleSkillPromptPath(policy: LoadPhasePolicy, promptPath: string): string {
+function resolveModuleSkillPromptPath(
+  policy: LoadPhasePolicy,
+  promptPath: string,
+): string {
   const projectPath = resolve(policy.cwd, promptPath);
   if (existsSync(projectPath)) return projectPath;
   if (!promptPath.startsWith("src/")) return projectPath;
@@ -66,7 +93,26 @@ async function attachModuleAgents(
   ctx: ModuleRuntimeContext,
 ): Promise<void> {
   const agents = await resolveModuleAgents(mod, ctx);
-  if (agents.length > 0) state.moduleAgentDefs.set(mod.name, agents);
+  if (agents.length === 0) return;
+  const ownNames = new Set<string>();
+  for (const agent of agents) {
+    if (ownNames.has(agent.name)) {
+      throw new Error(
+        `Module "${mod.name}" declares duplicate agent "${agent.name}"`,
+      );
+    }
+    const existing = state.agentsByName.get(agent.name);
+    if (existing) {
+      throw new Error(
+        `Module "${mod.name}" tried to register agent "${agent.name}" already owned by "${existing.owner}"`,
+      );
+    }
+    ownNames.add(agent.name);
+  }
+  state.moduleAgentDefs.set(mod.name, agents);
+  for (const agent of agents) {
+    state.agentsByName.set(agent.name, { owner: mod.name, definition: agent });
+  }
 }
 
 async function attachModuleSetupRequirements(
@@ -91,10 +137,14 @@ function workflowTriggerLabels(
     for (const trigger of workflow.triggers) {
       if (trigger.event) labels.push(`event:${trigger.event}`);
       if (trigger.schedule) labels.push(`cron:${trigger.schedule}`);
-      if (trigger.intervalMs !== undefined) labels.push(`interval:${trigger.intervalMs}`);
+      if (trigger.intervalMs !== undefined) {
+        labels.push(`interval:${trigger.intervalMs}`);
+      }
       if (trigger.webhook) labels.push("webhook");
       if (trigger.watch) {
-        const patterns = Array.isArray(trigger.watch) ? trigger.watch : [trigger.watch];
+        const patterns = Array.isArray(trigger.watch)
+          ? trigger.watch
+          : [trigger.watch];
         labels.push(`watch:${patterns.join(",")}`);
       }
     }
@@ -109,45 +159,65 @@ function attachModuleManifest(
   tools: readonly ToolDef[],
   effects: Awaited<ReturnType<typeof resolveModuleEffects>>,
 ): void {
-  const setupRequirements = (state.moduleSetupRequirementDefs.get(mod.name) ?? [])
-    .map(({ requirement }) => ({
-      id: requirement.id,
-      kind: requirement.kind,
-      setupMode: requirement.setup.mode,
-      sensitivity: requirement.sensitivity,
-      required: requirement.required,
-      healthCapabilityIds: requirement.health?.capabilityIds ?? [],
-      statusLinks: buildModuleManifestSetupStatusLinks({
-        moduleName: mod.name,
-        requirementId: requirement.id,
+  const setupRequirements =
+    (state.moduleSetupRequirementDefs.get(mod.name) ?? [])
+      .map(({ requirement }) => ({
+        id: requirement.id,
         kind: requirement.kind,
         setupMode: requirement.setup.mode,
-      }),
-    }));
+        sensitivity: requirement.sensitivity,
+        required: requirement.required,
+        healthCapabilityIds: requirement.health?.capabilityIds ?? [],
+        statusLinks: buildModuleManifestSetupStatusLinks({
+          moduleName: mod.name,
+          requirementId: requirement.id,
+          kind: requirement.kind,
+          setupMode: requirement.setup.mode,
+        }),
+      }));
   const workflows = state.moduleWorkflowDefs.get(mod.name) ?? [];
-  const manifestInput = typeof mod.manifest === "function" ? mod.manifest(ctx) : mod.manifest;
-  const projection = buildModuleCapabilityManifestProjection(mod.name, manifestInput, {
-    dependencies: mod.dependencies ?? [],
-    tools: moduleToolSnapshots(tools),
-    effects,
-    workflows: workflows.map((workflow) => workflow.name),
-    workflowTriggers: workflowTriggerLabels(workflows),
-    channels: (state.moduleChannelDefs.get(mod.name) ?? []).map((channel) => channel.name),
-    skills: (state.moduleSkillDefs.get(mod.name) ?? []).map((skill) => skill.name),
-    agents: (state.moduleAgentDefs.get(mod.name) ?? []).map((agent) => agent.name),
-    commands: (state.moduleCommands.get(mod.name) ?? []).map((command) => command.name()),
-    routes: (state.moduleRoutes.get(mod.name) ?? []).map((route) => `${route.method} ${route.path}`),
-    controlRoutes: (state.moduleControlRoutes.get(mod.name) ?? []).map((route) => `${route.method} ${route.path}`),
-    events: (mod.events ?? []).map((event) => event.name),
-    eventFlows: buildModuleManifestEventFlows({
-      declaredEventNames: (mod.events ?? []).map((event) => event.name),
-      workflows,
-    }),
-    localClientNamespaces: state.moduleLocalClientNamespaces.get(mod.name) ?? [],
-    hasDaemonClientFactory: mod.daemonClient !== undefined,
-    setupRequirements,
-    hasHealthCheck: mod.healthCheck !== undefined,
-  });
+  const manifestInput = typeof mod.manifest === "function"
+    ? mod.manifest(ctx)
+    : mod.manifest;
+  const projection = buildModuleCapabilityManifestProjection(
+    mod.name,
+    manifestInput,
+    {
+      dependencies: mod.dependencies ?? [],
+      tools: moduleToolSnapshots(tools),
+      effects,
+      workflows: workflows.map((workflow) => workflow.name),
+      workflowTriggers: workflowTriggerLabels(workflows),
+      channels: (state.moduleChannelDefs.get(mod.name) ?? []).map((channel) =>
+        channel.name
+      ),
+      skills: (state.moduleSkillDefs.get(mod.name) ?? []).map((skill) =>
+        skill.name
+      ),
+      agents: (state.moduleAgentDefs.get(mod.name) ?? []).map((agent) =>
+        agent.name
+      ),
+      commands: (state.moduleCommands.get(mod.name) ?? []).map((command) =>
+        command.name()
+      ),
+      routes: (state.moduleRoutes.get(mod.name) ?? []).map((route) =>
+        `${route.method} ${route.path}`
+      ),
+      controlRoutes: (state.moduleControlRoutes.get(mod.name) ?? []).map((
+        route,
+      ) => `${route.method} ${route.path}`),
+      events: (mod.events ?? []).map((event) => event.name),
+      eventFlows: buildModuleManifestEventFlows({
+        declaredEventNames: (mod.events ?? []).map((event) => event.name),
+        workflows,
+      }),
+      localClientNamespaces: state.moduleLocalClientNamespaces.get(mod.name) ??
+        [],
+      hasDaemonClientFactory: mod.daemonClient !== undefined,
+      setupRequirements,
+      hasHealthCheck: mod.healthCheck !== undefined,
+    },
+  );
   state.moduleManifests.set(mod.name, projection);
 }
 
@@ -161,5 +231,11 @@ export async function attachModuleMetadata(
   await attachModuleSkills(state, policy, mod, ctx);
   await attachModuleAgents(state, mod, ctx);
   await attachModuleSetupRequirements(state, mod, ctx);
-  attachModuleManifest(state, mod, ctx, tools, await resolveModuleEffects(mod, ctx));
+  attachModuleManifest(
+    state,
+    mod,
+    ctx,
+    tools,
+    await resolveModuleEffects(mod, ctx),
+  );
 }

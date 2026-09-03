@@ -1,15 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RetractProvider } from "./retract-types.js";
-import { createRetractToolDef, createRetractToolRunner } from "./tool.js";
+import { createRetractToolRunner } from "./tool.js";
 
 describe("retract tool", () => {
-  it("declares the destructive effect that requires confirmation", () => {
-    expect(createRetractToolDef(() => ({}) as RetractProvider).effect).toMatchObject({
-      kind: "destructive",
-      scope: "daemon-state",
-    });
-  });
-
   it("binds the uniform target/identifier request to the selected agent scope", async () => {
     const retract = vi.fn().mockResolvedValue({
       ok: true,

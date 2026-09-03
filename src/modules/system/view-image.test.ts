@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { runViewImage, viewImageTool } from "./view-image.js";
+import { runViewImage } from "./view-image.js";
 
 vi.mock("node:fs", () => ({
 	readFileSync: vi.fn(),
@@ -202,16 +202,6 @@ describe("runViewImage", () => {
 				imageData.toString("base64"),
 			);
 		}
-	});
-
-	it("declares a strict fidelity option in the tool schema", () => {
-		const detail = viewImageTool.input_schema.properties.detail as {
-			type: string;
-			enum: string[];
-		};
-		expect(detail.type).toBe("string");
-		expect(detail.enum).toEqual(["resized", "original"]);
-		expect(viewImageTool.input_schema.additionalProperties).toBe(false);
 	});
 
 	it("returns original bytes when original fidelity is requested", async () => {

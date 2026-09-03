@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveModuleSkills } from "#core/modules/module-types.js";
 import { getToolMiddleware, resetToolMiddleware } from "#core/tools/tool-middleware.js";
 import toolRetryModule from "./index.js";
 import { resetRetryStats } from "./tool-retry.js";
@@ -56,9 +55,4 @@ describe("tool-retry module", () => {
 		// Stats reset (middleware removal is handled by module loader)
 	});
 
-	it("declares a skill for retry guidance", async () => {
-		const [skill] = await resolveModuleSkills(toolRetryModule, ctx as any);
-		expect(skill.name).toBe("tool-retry");
-		expect(skill.promptPath).toContain("tool-retry.md");
-	});
 });

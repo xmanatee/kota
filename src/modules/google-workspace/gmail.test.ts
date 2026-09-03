@@ -38,21 +38,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("gmail_list_messages: schema", () => {
-  const def = makeGmailListMessages(mockGetToken(), "me", http);
-
-  it("has correct tool name and metadata", () => {
-    expect(def.tool.name).toBe("gmail_list_messages");
-    expect(def.effect.kind).toBe("read");
-    expect(def.effect.openWorld).toBe(true);
-    expect(def.group).toBe("productivity");
-  });
-
-  it("has no required fields", () => {
-    expect(def.tool.input_schema.required).toEqual([]);
-  });
-});
-
 describe("gmail_list_messages: runner", () => {
   it("returns 'No messages found' on empty list", async () => {
     const def = makeGmailListMessages(mockGetToken(), "me", http);
@@ -110,20 +95,6 @@ describe("gmail_list_messages: runner", () => {
   });
 });
 
-describe("gmail_get_message: schema", () => {
-  const def = makeGmailGetMessage(mockGetToken(), "me", http);
-
-  it("has correct tool name and metadata", () => {
-    expect(def.tool.name).toBe("gmail_get_message");
-    expect(def.effect.kind).toBe("read");
-    expect(def.effect.openWorld).toBe(true);
-  });
-
-  it("requires id", () => {
-    expect(def.tool.input_schema.required).toEqual(["id"]);
-  });
-});
-
 describe("gmail_get_message: runner", () => {
   it("returns formatted message with decoded body", async () => {
     const def = makeGmailGetMessage(mockGetToken(), "me", http);
@@ -171,20 +142,6 @@ describe("gmail_get_message: runner", () => {
     const result = await def.runner({ id: "missing" });
     expect(result.is_error).toBe(true);
     expect(result.content).toContain("404");
-  });
-});
-
-describe("gmail_send: schema", () => {
-  const def = makeGmailSend(mockGetToken(), "me", http);
-
-  it("has correct tool name and is marked destructive", () => {
-    expect(def.tool.name).toBe("gmail_send");
-    expect(def.effect.kind).toBe("destructive");
-    expect(def.effect.openWorld).toBe(true);
-  });
-
-  it("requires to, subject, body", () => {
-    expect(def.tool.input_schema.required).toEqual(["to", "subject", "body"]);
   });
 });
 

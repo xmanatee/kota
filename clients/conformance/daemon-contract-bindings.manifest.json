@@ -9,11 +9,11 @@
     },
     {
       "path": "scripts/daemon-contract-graph.mjs",
-      "sha256": "bf361088a83dd1b6a16894ab2d43316deb34f494268c40295d1dd7b40721dce7"
+      "sha256": "21880e66bb63354793703885877fd96fd8bf6c54f7c8ca5b1d6dcdd08c8048fe"
     },
     {
       "path": "scripts/kota-client-typescript.mjs",
-      "sha256": "078d709204d6700b79e3539dc4a8f303475cb1cdae0cc7cba94fa8a172ce0ab3"
+      "sha256": "4df514883e371d64b7f4596d5ccca552d2c3ec4408bafebb6ed1965d9ac78a9c"
     }
   ],
   "routes": [
@@ -177,7 +177,7 @@
     },
     {
       "path": "src/client/kota-client.generated.ts",
-      "sha256": "8ea3a1ac5e1162199da37b00d04cf9a3d71ba3d747eb69ee4bdc07a9eba85303"
+      "sha256": "8b02a2bceb1ba920c8e3fb21769b0a3dc7be58201e29c5226146c0fffb5f5191"
     }
   ]
 }

@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -7,8 +13,22 @@ import {
   listHarnessHooks,
   resetHarnessHooks,
 } from "#core/agent-harness/hooks.js";
-import { clearRegisteredConfigSlices, type ModuleConfigSlice } from "#core/config/config-slice.js";
+import {
+  clearAgentHarnessRegistryForTest,
+  hasAgentHarness,
+} from "#core/agent-harness/registry.js";
+import {
+  clearRegisteredConfigSlices,
+  getRegisteredConfigSlice,
+  type ModuleConfigSlice,
+  registerConfigSlice,
+} from "#core/config/config-slice.js";
 import { EventBus } from "#core/events/event-bus.js";
+import {
+  defineDaemonWideModuleEvent,
+  getModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
 import {
   collectDynamicState,
   resetDynamicStateProviders,
@@ -19,9 +39,26 @@ import {
   operatorSurfaceEffect,
   readOnlyLocalEffect,
 } from "#core/tools/effect.js";
-import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
-import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
+import {
+  clearCustomTools,
+  executeTool,
+  getAllTools,
+} from "#core/tools/index.js";
+import {
+  getToolMiddleware,
+  resetToolMiddleware,
+} from "#core/tools/tool-middleware.js";
+import {
+  clearCustomGroups,
+  enableGroup,
+  filterTools,
+  resetGroups,
+  TOOL_GROUPS,
+} from "#core/tools/tool-groups.js";
+import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
+import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
 import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
+import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
 import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 import {
@@ -42,8 +79,10 @@ function fakeSlice(key: string, description = "test"): ModuleConfigSlice {
   return {
     key: key as never,
     description,
-    sanitize: (raw) => (typeof raw === "object" && raw !== null ? raw : undefined) as never,
-    merge: (base, override) => ({ ...(base as object), ...(override as object) }) as never,
+    sanitize: (raw) =>
+      (typeof raw === "object" && raw !== null ? raw : undefined) as never,
+    merge: (base, override) =>
+      ({ ...(base as object), ...(override as object) }) as never,
     scopeConfigSafety: "authority",
     schemaSource: { relativePath: "test", typeName: "TestConfig" },
   };
@@ -72,6 +111,125 @@ function makeToolWithoutMeta(name: string) {
   };
 }
 
+function makeAgent(name: string) {
+  return {
+    name,
+    role: "fixture",
+    promptPath: "src/core/modules/AGENTS.md",
+    model: "fixture-model",
+    effort: "low" as const,
+    writeScope: "deny-all" as const,
+  };
+}
+
+function makeRuntimeEvent(overrides: Record<string, unknown> = {}) {
+  return {
+    name: "fixture.event",
+    fields: ["id"],
+    scope: "daemon",
+    schema: {
+      currentVersion: 1,
+      payload: {
+        type: "object",
+        properties: { id: { type: "string" } },
+      },
+    },
+    filterablePaths: ["id"],
+    sensitivity: "internal",
+    compatibility: "backward",
+    workflowTriggerPolicy: "allowed",
+    examples: [],
+    ...overrides,
+  };
+}
+
+function makeAgentHarness(overrides: Record<string, unknown> = {}) {
+  return {
+    name: "fixture-harness",
+    description: "Fixture harness",
+    supportsMultiTurn: false,
+    supportedHookKinds: [],
+    askOwnerToolName: null,
+    emitsAgentMessageStream: false,
+    toolControl: "kota",
+    run: async () => {
+      throw new Error("not invoked");
+    },
+    ...overrides,
+  };
+}
+
+const malformedHarnessCases: [string, Record<string, unknown>, RegExp][] = [
+  ["an unknown field", { login: () => undefined }, /unknown field "login"/],
+  [
+    "a malformed native abort quarantine",
+    { nativeAbortQuarantine: "eventual-stop" },
+    /nativeAbortQuarantine must be "confirmed-stop"/,
+  ],
+  [
+    "a non-callable readiness probe",
+    { readiness: "not-callable" },
+    /readiness must be a function/,
+  ],
+  [
+    "a non-callable isolated auth resolver",
+    { resolveIsolatedHostAuthEnv: {} },
+    /resolveIsolatedHostAuthEnv must be a function/,
+  ],
+  [
+    "a non-array unsupported option declaration",
+    { unsupportedRunOptions: {} },
+    /unsupportedRunOptions must be an array/,
+  ],
+  [
+    "a non-object unsupported option",
+    { unsupportedRunOptions: [null] },
+    /unsupportedRunOptions\[0\] must be an object/,
+  ],
+  [
+    "an unknown unsupported run option",
+    {
+      unsupportedRunOptions: [{
+        option: "future",
+        reason: "unsupported",
+        runOption: "future",
+      }],
+    },
+    /unsupportedRunOptions\[0\]\.runOption is invalid/,
+  ],
+  [
+    "an unknown unsupported option field",
+    {
+      unsupportedRunOptions: [{
+        option: "mcpServers",
+        reason: "unsupported",
+        runOptions: "mcpServers",
+      }],
+    },
+    /unsupportedRunOptions\[0\] has unknown field "runOptions"/,
+  ],
+  [
+    "a malformed unsupported option label",
+    { unsupportedRunOptions: [{ option: " ", reason: "unsupported" }] },
+    /unsupportedRunOptions\[0\]\.option must be a non-empty trimmed string/,
+  ],
+  [
+    "a malformed unsupported option reason",
+    { unsupportedRunOptions: [{ option: "custom", reason: 42 }] },
+    /unsupportedRunOptions\[0\]\.reason must be a non-empty trimmed string/,
+  ],
+  [
+    "a non-callable step options validator",
+    { validateStepOptions: true },
+    /validateStepOptions must be a function/,
+  ],
+  [
+    "a non-callable model validator",
+    { validateModelId: [] },
+    /validateModelId must be a function/,
+  ],
+];
+
 const noopChrome: ReplChrome = {
   announceHarness: () => {},
   showHelp: () => {},
@@ -86,7 +244,11 @@ function installRenderingCapture(chunks: string[]): void {
     createAgentTransport: () => new NullTransport(),
     createReplChrome: () => noopChrome,
     printDiagnostic: (diagnostic) => {
-      chunks.push(diagnostic.detail ? `${diagnostic.message}\n${diagnostic.detail}` : diagnostic.message);
+      chunks.push(
+        diagnostic.detail
+          ? `${diagnostic.message}\n${diagnostic.detail}`
+          : diagnostic.message,
+      );
     },
     printPrompt: (prompt) => {
       chunks.push(prompt.kind);
@@ -106,6 +268,9 @@ describe("ModuleLoader", () => {
     resetProviderRegistry();
     resetDynamicStateProviders();
     resetHarnessHooks();
+    clearAgentHarnessRegistryForTest();
+    resetModuleEventRegistry();
+    resetToolMiddleware();
   });
 
   afterEach(() => {
@@ -115,6 +280,9 @@ describe("ModuleLoader", () => {
     resetProviderRegistry();
     resetDynamicStateProviders();
     resetHarnessHooks();
+    clearAgentHarnessRegistryForTest();
+    resetModuleEventRegistry();
+    resetToolMiddleware();
   });
 
   it("loads a module with tools", async () => {
@@ -159,8 +327,514 @@ describe("ModuleLoader", () => {
       tools: [makeToolWithoutMeta("no_effect_tool") as any],
     };
 
-    await expect(loader.load(mod)).rejects.toThrow("missing required metadata: effect");
+    await expect(loader.load(mod)).rejects.toThrow(
+      "missing required metadata: effect",
+    );
   });
+
+  it.each([
+    ["a non-object", null],
+    ["a missing name", { description: "missing identity" }],
+    ["a blank name", { name: " " }],
+    ["an unknown compatibility field", { name: "legacy", enabled: true }],
+    ["an obsolete operation declaration", {
+      name: "legacy-operation",
+      operations: [],
+    }],
+    ["a non-factory route contribution", { name: "bad-routes", routes: [] }],
+    ["a channel without identity or a factory", {
+      name: "bad-channel",
+      channels: [{}],
+    }],
+    ["an agent without its required contract", {
+      name: "bad-agent",
+      agents: [{}],
+    }],
+    ["an event without its required policy", {
+      name: "bad-event",
+      events: [{
+        name: "bad.event",
+        fields: [],
+        scope: "daemon",
+        schema: {
+          currentVersion: 1,
+          payload: { type: "object", properties: {} },
+        },
+        filterablePaths: [],
+        examples: [],
+      }],
+    }],
+    ["duplicate dependencies", {
+      name: "duplicate-deps",
+      dependencies: ["base", "base"],
+    }],
+    ["a self dependency", { name: "self-dep", dependencies: ["self-dep"] }],
+  ])("rejects %s before lifecycle admission", async (_label, declaration) => {
+    const loader = new ModuleLoader({});
+
+    await expect(loader.load(declaration as never)).rejects.toThrow(
+      /Invalid module declaration/,
+    );
+    expect(loader.getLoadedModules()).toEqual([]);
+  });
+
+  it.each(malformedHarnessCases)(
+    "rejects an agent harness with %s before lifecycle admission",
+    async (_label, overrides, message) => {
+      const loader = new ModuleLoader({});
+
+      await expect(loader.load({
+        name: "bad-agent-harness",
+        agentHarnesses: [makeAgentHarness(overrides)],
+      } as never)).rejects.toThrow(message);
+      expect(loader.getLoadedModules()).toEqual([]);
+      expect(hasAgentHarness("fixture-harness")).toBe(false);
+    },
+  );
+
+  it.each([
+    [
+      "an unknown agent field",
+      { schedule: "daily" },
+      /agent\[0\] has unknown field "schedule"/,
+    ],
+    [
+      "an unknown tool-policy field",
+      { tools: { allowd: ["shell"] } },
+      /agent\[0\]\.tools has unknown field "allowd"/,
+    ],
+  ])("rejects an agent with %s", async (_label, overrides, message) => {
+    const loader = new ModuleLoader({});
+
+    await expect(loader.load({
+      name: "bad-agent-contract",
+      agents: [{
+        name: "fixture-agent",
+        role: "fixture",
+        promptPath: "src/core/modules/AGENTS.md",
+        model: "fixture-model",
+        effort: "low",
+        writeScope: "deny-all",
+        ...overrides,
+      }],
+    } as never)).rejects.toThrow(message);
+    expect(loader.getLoadedModules()).toEqual([]);
+  });
+
+  it("rejects duplicate agent identities atomically across and within modules", async () => {
+    const loader = new ModuleLoader({});
+    const original = makeAgent("shared-agent");
+    await loader.load({ name: "agent-owner", agents: [original] });
+
+    await expect(loader.load({
+      name: "agent-collider",
+      agents: [makeAgent("shared-agent")],
+    })).rejects.toThrow(
+      'Module "agent-collider" tried to register agent "shared-agent" already owned by "agent-owner"',
+    );
+    expect(loader.getAgentDef("shared-agent")).toBe(original);
+    expect(loader.getLoadedModules()).toEqual(["agent-owner"]);
+
+    await expect(loader.load({
+      name: "duplicate-agent-owner",
+      agents: [makeAgent("duplicate-agent"), makeAgent("duplicate-agent")],
+    })).rejects.toThrow(
+      'Module "duplicate-agent-owner" declares duplicate agent "duplicate-agent"',
+    );
+    expect(loader.getAgentDef("duplicate-agent")).toBeUndefined();
+
+    await loader.unload("agent-owner");
+    expect(loader.getAgentDef("shared-agent")).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "channel",
+      {
+        channels: [{
+          name: "fixture-channel",
+          create: () => null,
+          enabled: false,
+        }],
+      },
+      /channel\[0\] has unknown field "enabled"/,
+    ],
+    [
+      "route",
+      {
+        routes: () => [{
+          method: "GET",
+          path: "/fixture",
+          handler: () => undefined,
+          enabled: false,
+        }],
+      },
+      /routes\[0\] has unknown field "enabled"/,
+    ],
+    [
+      "control route",
+      {
+        controlRoutes: () => [{
+          method: "GET",
+          path: "/fixture",
+          capabilityScope: "read",
+          handler: () => undefined,
+          enabled: false,
+        }],
+      },
+      /controlRoutes\[0\] has unknown field "enabled"/,
+    ],
+  ])(
+    "rejects unknown fields on a nested %s declaration",
+    async (_label, contribution, message) => {
+      const loader = new ModuleLoader({});
+
+      await expect(loader.load({
+        name: "bad-nested-declaration",
+        ...contribution,
+      } as never)).rejects.toThrow(message);
+      expect(loader.getLoadedModules()).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["skill", {
+      skills: [{ name: "fixture", promptPath: "fixture.md", enabled: false }],
+    }],
+    ["event", { events: [makeRuntimeEvent({ enabled: false })] }],
+    ["config slice", {
+      configSlices: [{ ...fakeSlice("fixture"), enabled: false }],
+    }],
+    ["tool", { tools: [{ ...makeTool("fixture_tool"), enabled: false }] }],
+    ["UI surface", {
+      uiSurfaces: [{ sourceId: "fixture", scope: () => [], enabled: false }],
+    }],
+    ["effect", {
+      effects: [{
+        id: "fixture.read",
+        description: "Fixture read",
+        source: "lifecycle",
+        effect: readOnlyLocalEffect(),
+        enabled: false,
+      }],
+    }],
+  ])(
+    "rejects obsolete metadata on a %s capability envelope",
+    async (_label, contribution) => {
+      const loader = new ModuleLoader({});
+
+      await expect(loader.load({
+        name: "obsolete-capability-metadata",
+        ...contribution,
+      } as never)).rejects.toThrow(/unknown field "enabled"/);
+      expect(loader.getLoadedModules()).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["an empty config schema", {}, /configSchema\.type must be "object"/],
+    [
+      "a non-JSON config schema extension",
+      { type: "object", properties: {}, extension: () => undefined },
+      /configSchema\.extension must be JSON-compatible/,
+    ],
+  ])("rejects %s", async (_label, configSchema, message) => {
+    const loader = new ModuleLoader({});
+
+    await expect(loader.load({
+      name: "bad-config-schema",
+      configSchema,
+    } as never)).rejects.toThrow(message);
+    expect(loader.getLoadedModules()).toEqual([]);
+  });
+
+  it("admits open JSON Schema keywords on config and tool schemas", async () => {
+    const openSchema = {
+      type: "object" as const,
+      properties: {
+        token: {
+          type: "string",
+          readOnly: true,
+          $comment: "owned by the installed module's schema vocabulary",
+        },
+      },
+      definitions: {
+        token: { type: "string" },
+      },
+    };
+    const openTool = makeTool("open_schema_tool");
+    const loader = new ModuleLoader({});
+
+    await loader.load({
+      name: "open-json-schema",
+      configSchema: openSchema,
+      tools: [{
+        ...openTool,
+        tool: {
+          ...openTool.tool,
+          input_schema: openSchema,
+          output_schema: openSchema,
+        },
+      }],
+    });
+
+    expect(loader.getLoadedModules()).toEqual(["open-json-schema"]);
+  });
+
+  it.each([
+    [
+      "an input schema without an object type",
+      { properties: {} },
+      undefined,
+      /input_schema\.type must be "object"/,
+    ],
+    [
+      "an input schema without properties",
+      { type: "object" },
+      undefined,
+      /input_schema\.properties must be an object/,
+    ],
+    [
+      "a non-object output schema",
+      { type: "object", properties: {} },
+      [],
+      /output_schema must be an object/,
+    ],
+    [
+      "an output schema without properties",
+      { type: "object", properties: {} },
+      { type: "object" },
+      /output_schema\.properties must be an object/,
+    ],
+    [
+      "a non-JSON input schema extension",
+      { type: "object", properties: { value: { transform: () => undefined } } },
+      undefined,
+      /input_schema\.properties\.value\.transform must be JSON-compatible/,
+    ],
+  ])(
+    "rejects a tool with %s",
+    async (_label, inputSchema, outputSchema, message) => {
+      const loader = new ModuleLoader({});
+
+      await expect(loader.load({
+        name: "bad-tool-contract",
+        tools: [{
+          tool: {
+            name: "fixture_tool",
+            description: "fixture",
+            input_schema: inputSchema,
+            ...(outputSchema === undefined
+              ? {}
+              : { output_schema: outputSchema }),
+          },
+          runner: async () => ({ content: "unused" }),
+          effect: readOnlyLocalEffect(),
+        }],
+      } as never)).rejects.toThrow(message);
+      expect(loader.getLoadedModules()).toEqual([]);
+    },
+  );
+
+  it.each([
+    [
+      "duplicate fields",
+      makeRuntimeEvent({ fields: ["id", "id"] }),
+      /duplicate field "id"/,
+    ],
+    [
+      "a field absent from its schema",
+      makeRuntimeEvent({ fields: ["missing"] }),
+      /field "missing" is not present/,
+    ],
+    [
+      "duplicate filterable paths",
+      makeRuntimeEvent({ filterablePaths: ["id", "id"] }),
+      /duplicate filterable path "id"/,
+    ],
+    [
+      "a malformed nested schema node",
+      makeRuntimeEvent({
+        schema: {
+          currentVersion: 1,
+          payload: {
+            type: "object",
+            properties: { id: { type: "array", items: { type: "unknown" } } },
+          },
+        },
+      }),
+      /properties\.id\.items\.type is invalid/,
+    ],
+  ])("rejects an event with %s", async (_label, event, message) => {
+    const loader = new ModuleLoader({});
+
+    await expect(
+      loader.load({ name: "bad-event-contract", events: [event] } as never),
+    )
+      .rejects.toThrow(message);
+    expect(loader.getLoadedModules()).toEqual([]);
+  });
+
+  it("leaves workflow capability decoding to the canonical workflow validator", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "workflow-trigger-capabilities",
+      workflows: [
+        {
+          name: "watch-capability",
+          repository: "read",
+          triggers: [{ watch: "src/**/*.ts" }],
+          steps: [{ id: "noop", type: "code", run: () => undefined }],
+        },
+        {
+          name: "webhook-capability",
+          repository: "none",
+          triggers: [{ webhook: true }],
+          steps: [{ id: "noop", type: "code", run: () => undefined }],
+        },
+      ],
+    });
+
+    expect(validateWorkflowDefinitions(loader.getContributedWorkflows()))
+      .toHaveLength(2);
+  });
+
+  it.each([
+    ["commands", { commands: () => ({}) }],
+    ["command entries", { commands: () => [{}] }],
+    ["routes", { routes: () => ({}) }],
+    ["route entries", { routes: () => [{ method: "GET", path: "/bad" }] }],
+    ["control routes", {
+      controlRoutes: () => [{
+        method: "POST",
+        path: "/bad",
+        handler: () => undefined,
+      }],
+    }],
+    ["activation", { onLoad: () => ({}) }],
+  ])(
+    "rejects malformed %s factory results before host admission",
+    async (name, contribution) => {
+      const loader = new ModuleLoader({});
+
+      await expect(
+        loader.load(
+          {
+            name: `bad-${name.replaceAll(" ", "-")}`,
+            ...contribution,
+          } as never,
+        ),
+      )
+        .rejects.toThrow(/Invalid module declaration/);
+      expect(loader.getLoadedModules()).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["a non-object result", () => null, /localClient result must be an object/],
+    [
+      "an unknown namespace",
+      () => ({ invented: {} }),
+      /unknown namespace "invented"/,
+    ],
+    [
+      "a malformed namespace handler",
+      () => ({ recall: {} }),
+      /recall\.recall must be a function/,
+    ],
+    [
+      "an unknown namespace method",
+      () => ({
+        recall: new Proxy(
+          { retiredRecall: () => undefined },
+          {
+            get: (target, property) =>
+              property === "recall"
+                ? () => undefined
+                : Reflect.get(target, property),
+          },
+        ),
+      }),
+      /recall contains unknown method "retiredRecall"/,
+    ],
+  ])(
+    "rejects localClient factory results with %s",
+    async (_label, localClient, message) => {
+      const loader = new ModuleLoader({});
+
+      await expect(
+        loader.load({ name: "bad-local-client", localClient } as never),
+      )
+        .rejects.toThrow(message);
+      expect(loader.getLoadedModules()).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["workflow", "pauseAgentForQuality"],
+    ["sessions", "runOneShot"],
+    ["scopes", "inspectAuthority"],
+    ["tasks", "updateBody"],
+  ])(
+    "rejects a %s client handler missing required %s",
+    async (namespace, missingMethod) => {
+      const loader = new ModuleLoader({});
+      const handler = new Proxy({}, {
+        get: (_target, property) =>
+          property === missingMethod ? undefined : () => undefined,
+      });
+
+      await expect(loader.load({
+        name: `incomplete-${namespace}-client`,
+        localClient: () => ({ [namespace]: handler }),
+      } as never)).rejects.toThrow(
+        new RegExp(`${namespace}\\.${missingMethod} must be a function`),
+      );
+    },
+  );
+
+  it.each([
+    [
+      "a non-object result",
+      () => null,
+      /daemonClient result must be an object/,
+    ],
+    [
+      "an unknown namespace",
+      () => ({ invented: {} }),
+      /unknown namespace "invented"/,
+    ],
+    [
+      "a malformed namespace handler",
+      () => ({ recall: {} }),
+      /recall\.recall must be a function/,
+    ],
+    [
+      "an unknown namespace method",
+      () => ({
+        recall: new Proxy(
+          { retiredRecall: () => undefined },
+          {
+            get: (target, property) =>
+              property === "recall"
+                ? () => undefined
+                : Reflect.get(target, property),
+          },
+        ),
+      }),
+      /recall contains unknown method "retiredRecall"/,
+    ],
+  ])(
+    "rejects daemonClient factory results with %s",
+    async (_label, daemonClient, message) => {
+      const loader = new ModuleLoader({});
+      await loader.load({ name: "bad-daemon-client", daemonClient } as never);
+
+      expect(() => loader.assembleDaemonClientHandlers({} as never)).toThrow(
+        message,
+      );
+    },
+  );
 
   it("loads a tool with complete metadata", async () => {
     const loader = new ModuleLoader({});
@@ -171,6 +845,73 @@ describe("ModuleLoader", () => {
 
     await loader.load(mod);
     expect(loader.getToolCount()).toBe(1);
+  });
+
+  it("registers and unregisters declarative agent harnesses with module lifecycle", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "harness-owner",
+      agentHarnesses: [makeAgentHarness({ name: "owned-harness" })],
+    });
+
+    expect(hasAgentHarness("owned-harness")).toBe(true);
+    await loader.unload("harness-owner");
+    expect(hasAgentHarness("owned-harness")).toBe(false);
+  });
+
+  it.each([
+    [
+      "a malformed capability",
+      { name: "bad-installed", channels: [{}] },
+      "bad-installed",
+      "channel[0]",
+    ],
+    ["a null declaration", null, "<invalid-installed-1>", "expected an object"],
+    [
+      "an undefined declaration",
+      undefined,
+      "<invalid-installed-1>",
+      "expected an object",
+    ],
+  ])(
+    "isolates %s while loading bundled modules",
+    async (_label, declaration, name, error) => {
+      const loader = new ModuleLoader({});
+
+      await loader.loadAll(
+        [{ name: "valid-bundled" }],
+        [declaration] as never,
+      );
+
+      expect(loader.getLoadedModules()).toEqual(["valid-bundled"]);
+      expect(loader.getModuleSummaries()).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          name,
+          source: "installed",
+          loadError: expect.stringContaining(error),
+        }),
+      ]));
+    },
+  );
+
+  it("keeps a bundled module loaded when a malformed installed declaration reuses its name", async () => {
+    const loader = new ModuleLoader({});
+
+    await loader.loadAll(
+      [{ name: "shared-name" }],
+      [{ name: "shared-name", channels: [{}] }] as never,
+    );
+
+    expect(loader.getLoadedModules()).toEqual(["shared-name"]);
+    const summaries = loader.getModuleSummaries()
+      .filter((summary) => summary.name === "shared-name");
+    expect(summaries).toHaveLength(2);
+    expect(summaries[0]).toMatchObject({ source: "bundled" });
+    expect(summaries[0].loadError).toBeUndefined();
+    expect(summaries[1]).toMatchObject({
+      source: "installed",
+      loadError: expect.stringContaining("channel[0]"),
+    });
   });
 
   it("projects a module capability manifest from cached contributions and tool effects", async () => {
@@ -214,7 +955,11 @@ describe("ModuleLoader", () => {
           secretRefs: [{ name: "MANIFEST_MOD_TOKEN", scope: "scope" }],
         },
       ],
-      routes: () => [{ method: "GET", path: "/api/manifest", handler: () => undefined }],
+      routes: () => [{
+        method: "GET",
+        path: "/api/manifest",
+        handler: () => undefined,
+      }],
       controlRoutes: () => [
         {
           method: "GET",
@@ -313,7 +1058,8 @@ describe("ModuleLoader", () => {
             list: "/setup/requirements",
             refresh: "/setup/requirements/manifest-mod/api-credential/refresh",
             revoke: "/setup/requirements/manifest-mod/api-credential",
-            storeSecret: "/setup/requirements/manifest-mod/api-credential/secret",
+            storeSecret:
+              "/setup/requirements/manifest-mod/api-credential/secret",
             start: "/setup/requirements/manifest-mod/api-credential/start",
           },
         }),
@@ -367,14 +1113,15 @@ describe("ModuleLoader", () => {
         },
       },
     ]);
-    expect(withSetupStatus.contributions.setupRequirements[0]?.availability).toMatchObject({
-      state: "pending",
-      reason: "url_setup_pending",
-      pendingAction: {
-        actionId: "manifest-mod.api-credential.1",
-        complete: "/setup/actions/manifest-mod.api-credential.1/complete",
-      },
-    });
+    expect(withSetupStatus.contributions.setupRequirements[0]?.availability)
+      .toMatchObject({
+        state: "pending",
+        reason: "url_setup_pending",
+        pendingAction: {
+          actionId: "manifest-mod.api-credential.1",
+          complete: "/setup/actions/manifest-mod.api-credential.1/complete",
+        },
+      });
   });
 
   it("rejects manifest effects that reference unknown capability ids", async () => {
@@ -430,7 +1177,9 @@ describe("ModuleLoader", () => {
           simulation: { support: "full", blockedReasons: [] },
         } as unknown as KotaModule["manifest"],
       }),
-    ).rejects.toThrow(/capability "bad-scope.api" scope has unknown value "workspace"/);
+    ).rejects.toThrow(
+      /capability "bad-scope.api" scope has unknown value "workspace"/,
+    );
 
     await expect(
       new ModuleLoader({}).load({
@@ -457,7 +1206,9 @@ describe("ModuleLoader", () => {
           simulation: { support: "full", blockedReasons: [] },
         } as unknown as KotaModule["manifest"],
       }),
-    ).rejects.toThrow(/data class "bad-data.payload" sensitivity has unknown value "raw-token"/);
+    ).rejects.toThrow(
+      /data class "bad-data.payload" sensitivity has unknown value "raw-token"/,
+    );
 
     await expect(
       new ModuleLoader({}).load({
@@ -493,7 +1244,9 @@ describe("ModuleLoader", () => {
           },
         } as unknown as KotaModule["manifest"],
       }),
-    ).rejects.toThrow(/effect "bad-effect.send" tool effect scope has unknown value "operator"/);
+    ).rejects.toThrow(
+      /effect "bad-effect.send" tool effect scope has unknown value "operator"/,
+    );
 
     await expect(
       new ModuleLoader({}).load({
@@ -596,6 +1349,67 @@ describe("ModuleLoader", () => {
     expect(failedSummary?.loadError).toMatch(/must declare a manifest/);
   });
 
+  it("preserves earlier workflow and channel owners when a later module rolls back", async () => {
+    const loader = new ModuleLoader({});
+    const ownerWorkflow = {
+      repository: "read" as const,
+      name: "shared/workflow",
+      triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
+      steps: [{ id: "noop", type: "code" as const, run: () => undefined }],
+    };
+    const ownerChannel = {
+      name: "shared-channel",
+      create: () => ({ status: "disabled" as const, reason: "fixture" }),
+    };
+    await loader.load({
+      name: "valid-owner",
+      workflows: [ownerWorkflow],
+      channels: [ownerChannel],
+    });
+
+    await expect(loader.load({
+      name: "rejected-owner",
+      workflows: [{ ...ownerWorkflow }],
+      channels: [{ ...ownerChannel }],
+      effects: [{
+        id: "rejected-owner.notify",
+        description: "Notify an operator",
+        source: "notification",
+        effect: operatorSurfaceEffect(),
+      }],
+    })).rejects.toThrow(/must declare a manifest/);
+
+    expect(loader.getContributedWorkflows()).toEqual([
+      expect.objectContaining({
+        name: ownerWorkflow.name,
+        contributingModule: "valid-owner",
+      }),
+    ]);
+    expect(loader.getContributedChannels()).toEqual([ownerChannel]);
+  });
+
+  it("does not leak an earlier local-client namespace when a later namespace collides", async () => {
+    const loader = new ModuleLoader({});
+    const modulesHandler = { list: async () => [] };
+    await loader.load({
+      name: "modules-client-owner",
+      localClient: () => ({ modules: modulesHandler }) as never,
+    });
+
+    await expect(loader.load({
+      name: "rejected-client-owner",
+      localClient: () =>
+        ({
+          recall: { recall: async () => ({}) },
+          modules: { list: async () => [] },
+        }) as never,
+    })).rejects.toThrow(/local client handler for "modules"/);
+
+    expect(loader.getLocalClientHandlers()).toEqual({
+      modules: modulesHandler,
+    });
+  });
+
   it("rejects explicit manifests that omit simulation blocking for projected effects", async () => {
     await expect(
       new ModuleLoader({}).load({
@@ -628,7 +1442,9 @@ describe("ModuleLoader", () => {
           simulation: { support: "full", blockedReasons: [] },
         },
       }),
-    ).rejects.toThrow(/simulation support "full" conflicts with blocked effects: tool\.send_without_blocking/);
+    ).rejects.toThrow(
+      /simulation support "full" conflicts with blocked effects: tool\.send_without_blocking/,
+    );
   });
 
   it("rejects duplicate module names", async () => {
@@ -656,12 +1472,16 @@ describe("ModuleLoader", () => {
 
     const dep: KotaModule = {
       name: "base",
-      onLoad: () => { loadOrder.push("base"); },
+      onLoad: () => {
+        loadOrder.push("base");
+      },
     };
     const dependent: KotaModule = {
       name: "ext",
       dependencies: ["base"],
-      onLoad: () => { loadOrder.push("ext"); },
+      onLoad: () => {
+        loadOrder.push("ext");
+      },
     };
 
     // Intentionally pass in wrong order
@@ -736,7 +1556,11 @@ describe("ModuleLoader", () => {
 
     await loader.load({
       name: "channel-provider",
-      channels: [{ name: "test-channel", description: "A test channel", create: mockCreate }],
+      channels: [{
+        name: "test-channel",
+        description: "A test channel",
+        create: mockCreate,
+      }],
     });
 
     const channels = loader.getContributedChannels();
@@ -776,9 +1600,30 @@ describe("ModuleLoader", () => {
     const loader = new ModuleLoader({});
 
     await loader.loadAll([
-      { name: "first", onLoad: () => ({ dispose: () => { unloadOrder.push("first"); } }) },
-      { name: "second", onLoad: () => ({ dispose: () => { unloadOrder.push("second"); } }) },
-      { name: "third", onLoad: () => ({ dispose: () => { unloadOrder.push("third"); } }) },
+      {
+        name: "first",
+        onLoad: () => ({
+          dispose: () => {
+            unloadOrder.push("first");
+          },
+        }),
+      },
+      {
+        name: "second",
+        onLoad: () => ({
+          dispose: () => {
+            unloadOrder.push("second");
+          },
+        }),
+      },
+      {
+        name: "third",
+        onLoad: () => ({
+          dispose: () => {
+            unloadOrder.push("third");
+          },
+        }),
+      },
     ]);
 
     await loader.unloadAll();
@@ -843,7 +1688,9 @@ describe("ModuleLoader", () => {
       loader.loadAll([
         {
           name: "bad-mod",
-          onLoad: () => { throw new Error("boom"); },
+          onLoad: () => {
+            throw new Error("boom");
+          },
         },
         { name: "good-mod" },
       ]),
@@ -867,7 +1714,9 @@ describe("ModuleLoader", () => {
       [{ name: "good-mod" }],
       [{
         name: "bad-installed",
-        onLoad: () => { throw new Error("missing creds"); },
+        onLoad: () => {
+          throw new Error("missing creds");
+        },
       }],
     );
 
@@ -886,7 +1735,9 @@ describe("ModuleLoader", () => {
       [{ name: "good-mod" }],
       [{
         name: "bad-installed",
-        onLoad: () => { throw new Error("missing creds"); },
+        onLoad: () => {
+          throw new Error("missing creds");
+        },
       }],
     );
 
@@ -906,7 +1757,9 @@ describe("ModuleLoader", () => {
       [{ name: "good-mod" }],
       [{
         name: "bad-installed",
-        onLoad: () => { throw new Error("it broke"); },
+        onLoad: () => {
+          throw new Error("it broke");
+        },
       }],
     );
 
@@ -926,7 +1779,7 @@ describe("ModuleLoader", () => {
     errSpy.mockRestore();
   });
 
-  it("\"commands\" mode skips tool registration and onLoad", async () => {
+  it('"commands" mode skips tool registration and onLoad', async () => {
     const onLoad = vi.fn();
     const loader = new ModuleLoader({}, false, { mode: "commands" });
     const { Command } = await import("commander");
@@ -955,7 +1808,62 @@ describe("ModuleLoader", () => {
     expect(cmds[0].name()).toBe("my-cmd");
   });
 
-  it("\"commands\" mode rejects route/control-route/health-check accessors but exposes static contributions", async () => {
+  it("commands-loader teardown preserves registrations owned by an active runtime loader", async () => {
+    const event = defineDaemonWideModuleEvent<{ id: string }>(
+      "concurrent-owner.event",
+      ["id"],
+    );
+    const mod: KotaModule = {
+      name: "concurrent-owner",
+      events: [event],
+      tools: [makeTool("concurrent_owner_tool")],
+      onLoad: (ctx) => {
+        ctx.registerMiddleware(
+          "concurrent-owner-middleware",
+          async (_call, next) => next(),
+        );
+        ctx.registerDynamicStateProvider(
+          "concurrent-owner-state",
+          () => "runtime-active",
+        );
+        ctx.registerHarnessHook({
+          kind: "preRun",
+          name: "concurrent-owner-hook",
+          handler: () => {},
+        });
+      },
+    };
+    const runtime = new ModuleLoader({}, false, { mode: "runtime" });
+    const commands = new ModuleLoader({}, false, { mode: "commands" });
+    await runtime.load(mod);
+    await commands.load(mod);
+
+    await commands.unloadAll();
+
+    expect((await executeTool("concurrent_owner_tool", {})).content)
+      .toBe("result from concurrent_owner_tool");
+    expect(getModuleEventRegistry()?.has(event.name)).toBe(true);
+    expect(getToolMiddleware().list()).toContain("concurrent-owner-middleware");
+    expect(collectDynamicState({ activeTools: new Set() })).toBe(
+      "runtime-active",
+    );
+    expect(listHarnessHooks("preRun").map((hook) => hook.name))
+      .toContain("concurrent-owner-hook");
+
+    await runtime.unloadAll();
+    expect((await executeTool("concurrent_owner_tool", {})).is_error).toBe(
+      true,
+    );
+    expect(getModuleEventRegistry()?.has(event.name)).toBe(false);
+    expect(getToolMiddleware().list()).not.toContain(
+      "concurrent-owner-middleware",
+    );
+    expect(collectDynamicState({ activeTools: new Set() })).toBe("");
+    expect(listHarnessHooks("preRun").map((hook) => hook.name))
+      .not.toContain("concurrent-owner-hook");
+  });
+
+  it('"commands" mode rejects route/control-route/health-check accessors but exposes static contributions', async () => {
     const loader = new ModuleLoader({}, false, { mode: "commands" });
 
     // Load a module that contributes routes, control routes, workflows, channels,
@@ -981,29 +1889,53 @@ describe("ModuleLoader", () => {
           steps: [{ id: "noop", type: "code", run: () => {} }],
         },
       ],
-      channels: [{ name: "everything-mod.chan", description: "x", create: () => null } as never],
-      agents: [{ name: "everything-mod.agent", role: "test", skills: [] } as never],
+      channels: [
+        {
+          name: "everything-mod.chan",
+          description: "x",
+          create: () => null,
+        } as never,
+      ],
+      agents: [{
+        name: "everything-mod.agent",
+        role: "test",
+        promptPath: "src/core/modules/AGENTS.md",
+        model: "test-model",
+        effort: "low",
+        skills: [],
+        writeScope: "deny-all",
+      }],
       healthCheck: () => ({ status: "healthy" }),
     });
 
     expect(() => loader.getRoutes()).toThrow(/lifecycle mode "runtime"/);
-    expect(() => loader.getContributedControlRoutes()).toThrow(/lifecycle mode "runtime"/);
-    await expect(loader.probeHealthChecks()).rejects.toThrow(/lifecycle mode "runtime"/);
+    expect(() => loader.getContributedControlRoutes()).toThrow(
+      /lifecycle mode "runtime"/,
+    );
+    await expect(loader.probeHealthChecks()).rejects.toThrow(
+      /lifecycle mode "runtime"/,
+    );
 
     // Static-data accessors remain safe — they are populated from the module
     // definition during load() regardless of mode.
     expect(loader.getContributedWorkflows()).toHaveLength(1);
-    expect(loader.getContributedWorkflows()[0].name).toBe("everything-mod/workflow");
+    expect(loader.getContributedWorkflows()[0].name).toBe(
+      "everything-mod/workflow",
+    );
     expect(loader.getContributedChannels()).toHaveLength(1);
     expect(loader.getContributedChannels()[0].name).toBe("everything-mod.chan");
-    expect(loader.getAgentDef("everything-mod.agent")?.name).toBe("everything-mod.agent");
+    expect(loader.getAgentDef("everything-mod.agent")?.name).toBe(
+      "everything-mod.agent",
+    );
     // No skill files registered in this fixture, so the prompt is empty —
     // not a silent partial, just an empty contribution set.
     expect(loader.getSkillsPrompt()).toBe("");
 
     // Commands and module summaries remain readable in commands mode.
     expect(loader.getCommands()).toEqual([]);
-    expect(loader.getModuleSummaries().map((s) => s.name)).toEqual(["everything-mod"]);
+    expect(loader.getModuleSummaries().map((s) => s.name)).toEqual([
+      "everything-mod",
+    ]);
   });
 
   it("runtime mode permits every runtime-only contribution getter", async () => {
@@ -1032,13 +1964,19 @@ describe("ModuleLoader", () => {
 
     await loader.load({
       name: "bad-unload",
-      onLoad: () => ({ dispose: () => { throw new Error("cleanup failed"); } }),
+      onLoad: () => ({
+        dispose: () => {
+          throw new Error("cleanup failed");
+        },
+      }),
     });
 
     await loader.unloadAll();
     expect(chunks).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('Module "bad-unload" unload error: cleanup failed'),
+        expect.stringContaining(
+          'Module "bad-unload" unload error: cleanup failed',
+        ),
       ]),
     );
   });
@@ -1128,7 +2066,10 @@ describe("ModuleLoader", () => {
     const loader = new ModuleLoader({});
     await loader.load({
       name: "grouped-unload-mod",
-      tools: [{ ...makeTool("grouped_unload_tool"), group: "test_unload_group" }],
+      tools: [{
+        ...makeTool("grouped_unload_tool"),
+        group: "test_unload_group",
+      }],
     });
 
     expect(TOOL_GROUPS.test_unload_group).toContain("grouped_unload_tool");
@@ -1141,10 +2082,15 @@ describe("ModuleLoader", () => {
     const loader = new ModuleLoader({});
     await loader.load({
       name: "grouped-unload-all-mod",
-      tools: [{ ...makeTool("grouped_unload_all_tool"), group: "test_unload_all_group" }],
+      tools: [{
+        ...makeTool("grouped_unload_all_tool"),
+        group: "test_unload_all_group",
+      }],
     });
 
-    expect(TOOL_GROUPS.test_unload_all_group).toContain("grouped_unload_all_tool");
+    expect(TOOL_GROUPS.test_unload_all_group).toContain(
+      "grouped_unload_all_tool",
+    );
 
     await loader.unloadAll();
     expect(TOOL_GROUPS.test_unload_all_group).toBeUndefined();
@@ -1262,7 +2208,10 @@ describe("source reimport", () => {
     resetGroups();
     tmpDir = mkdtempSync(join(tmpdir(), "kota-reimport-"));
     globalConfigPath = join(tmpDir, "machine-config.json");
-    writeFileSync(globalConfigPath, JSON.stringify({ trustedScopes: [tmpDir] }));
+    writeFileSync(
+      globalConfigPath,
+      JSON.stringify({ trustedScopes: [tmpDir] }),
+    );
   });
 
   afterEach(() => {
@@ -1368,7 +2317,9 @@ describe("route discovery caches snapshots", () => {
   it("calls each module's routes() factory exactly once during load", async () => {
     const loader = new ModuleLoader({});
     const handler = vi.fn();
-    const routesFactory = vi.fn(() => [{ method: "GET" as const, path: "/a", handler }]);
+    const routesFactory = vi.fn(
+      () => [{ method: "GET" as const, path: "/a", handler }],
+    );
 
     await loader.load({ name: "route-a", routes: routesFactory });
 
@@ -1440,7 +2391,9 @@ describe("route discovery caches snapshots", () => {
 
     await loader.load({
       name: "throws-mod",
-      routes: () => { throw new Error("bad routes"); },
+      routes: () => {
+        throw new Error("bad routes");
+      },
     });
     await loader.load({
       name: "good-mod",
@@ -1450,7 +2403,9 @@ describe("route discovery caches snapshots", () => {
     expect(loader.getRoutes()).toHaveLength(1);
     expect(loader.getRoutes()).toHaveLength(1);
 
-    const throwsSummary = loader.getModuleSummaries().find((s) => s.name === "throws-mod");
+    const throwsSummary = loader.getModuleSummaries().find((s) =>
+      s.name === "throws-mod"
+    );
     expect(throwsSummary?.routeError).toBe("bad routes");
 
     errSpy.mockRestore();
@@ -1485,7 +2440,7 @@ describe("module discovery is side-effect free across repeated reads", () => {
     expect(routesFactory).toHaveBeenCalledOnce();
   });
 
-  it("invokes routes() exactly once during \"commands\" mode load too", async () => {
+  it('invokes routes() exactly once during "commands" mode load too', async () => {
     const loader = new ModuleLoader({}, false, { mode: "commands" });
     const routesFactory = vi.fn(() => [
       { method: "GET" as const, path: "/x", handler: () => {} },
@@ -1588,7 +2543,10 @@ describe("Module SDK — storage, config, skills", () => {
     loader.setCwd(tmpDir);
     await loader.load({
       name: "knowledge-guidance-mod",
-      skills: [{ name: "knowledge-guidance", promptPath: "src/modules/knowledge/knowledge.md" }],
+      skills: [{
+        name: "knowledge-guidance",
+        promptPath: "src/modules/knowledge/knowledge.md",
+      }],
     });
 
     const prompt = loader.getSkillsPrompt();
@@ -1608,7 +2566,9 @@ describe("Module SDK — storage, config, skills", () => {
     expect(loader.getSkillsPrompt()).toBe("");
     expect(chunks).toEqual(
       expect.arrayContaining([
-        expect.stringContaining('Module "broken-mod" skill "missing" failed to load'),
+        expect.stringContaining(
+          'Module "broken-mod" skill "missing" failed to load',
+        ),
       ]),
     );
   });
@@ -1677,7 +2637,7 @@ describe("Module SDK — storage, config, skills", () => {
     expect(loader.getModuleStorage("cleanup-storage")).toBeUndefined();
   });
 
-  it("\"commands\" mode loads skill prompt content so getSkillsPrompt returns the same text as runtime mode", async () => {
+  it('"commands" mode loads skill prompt content so getSkillsPrompt returns the same text as runtime mode', async () => {
     const skillPath = join(tmpDir, "skill.md");
     writeFileSync(skillPath, "Should appear in commands mode too.");
     const loader = new ModuleLoader({}, false, { mode: "commands" });
@@ -1719,7 +2679,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     let capturedCtx: any;
     await loader.load({
       name: "tool-caller",
-      onLoad: (ctx) => { capturedCtx = ctx; },
+      onLoad: (ctx) => {
+        capturedCtx = ctx;
+      },
     });
 
     const result = await capturedCtx.callTool("helper_tool", {});
@@ -1732,7 +2694,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     let capturedCtx: any;
     await loader.load({
       name: "caller",
-      onLoad: (ctx) => { capturedCtx = ctx; },
+      onLoad: (ctx) => {
+        capturedCtx = ctx;
+      },
     });
 
     const result = await capturedCtx.callTool("nonexistent_tool", {});
@@ -1750,7 +2714,9 @@ describe("ctx.callTool — direct tool invocation", () => {
           description: "Throws",
           input_schema: { type: "object" as const, properties: {} },
         },
-        runner: async () => { throw new Error("boom"); },
+        runner: async () => {
+          throw new Error("boom");
+        },
         effect: readOnlyLocalEffect(),
       }],
     });
@@ -1758,7 +2724,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     let capturedCtx: any;
     await loader.load({
       name: "caller",
-      onLoad: (ctx) => { capturedCtx = ctx; },
+      onLoad: (ctx) => {
+        capturedCtx = ctx;
+      },
     });
 
     const result = await capturedCtx.callTool("throws_tool", {});
@@ -1801,7 +2769,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     let capturedCtx: any;
     await loader.load({
       name: "caller",
-      onLoad: (ctx) => { capturedCtx = ctx; },
+      onLoad: (ctx) => {
+        capturedCtx = ctx;
+      },
     });
 
     // Multiple sequential calls should all succeed (depth resets)
@@ -1821,9 +2791,14 @@ describe("ctx.callTool — direct tool invocation", () => {
         tool: {
           name: "echo_tool",
           description: "Echoes input",
-          input_schema: { type: "object" as const, properties: { msg: { type: "string" } } },
+          input_schema: {
+            type: "object" as const,
+            properties: { msg: { type: "string" } },
+          },
         },
-        runner: async (input: Record<string, unknown>) => ({ content: `echo: ${input.msg}` }),
+        runner: async (input: Record<string, unknown>) => ({
+          content: `echo: ${input.msg}`,
+        }),
         effect: readOnlyLocalEffect(),
       }],
     });
@@ -1831,7 +2806,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     let capturedCtx: any;
     await loader.load({
       name: "caller",
-      onLoad: (ctx) => { capturedCtx = ctx; },
+      onLoad: (ctx) => {
+        capturedCtx = ctx;
+      },
     });
 
     const result = await capturedCtx.callTool("echo_tool", { msg: "hello" });
@@ -1872,7 +2849,9 @@ describe("ctx.callTool — direct tool invocation", () => {
     let capturedCtx: any;
     await loader.load({
       name: "caller",
-      onLoad: (c) => { capturedCtx = c; },
+      onLoad: (c) => {
+        capturedCtx = c;
+      },
     });
 
     const result = await capturedCtx.callTool("tool_a", {});
@@ -1914,13 +2893,19 @@ describe("ctx.callTool — direct tool invocation", () => {
     });
     await loader.load({
       name: "degraded-mod",
-      healthCheck: async () => ({ status: "degraded", message: "token expiring" }),
+      healthCheck: async () => ({
+        status: "degraded",
+        message: "token expiring",
+      }),
     });
     await loader.load({ name: "no-check-mod" });
 
     const results = await loader.probeHealthChecks();
     expect(results["healthy-mod"]).toEqual({ status: "healthy" });
-    expect(results["degraded-mod"]).toEqual({ status: "degraded", message: "token expiring" });
+    expect(results["degraded-mod"]).toEqual({
+      status: "degraded",
+      message: "token expiring",
+    });
     expect(results["no-check-mod"]).toBeUndefined();
   });
 
@@ -1928,12 +2913,40 @@ describe("ctx.callTool — direct tool invocation", () => {
     const loader = new ModuleLoader({});
     await loader.load({
       name: "broken-mod",
-      healthCheck: () => { throw new Error("boom"); },
+      healthCheck: () => {
+        throw new Error("boom");
+      },
     });
 
     const results = await loader.probeHealthChecks();
     expect(results["broken-mod"].status).toBe("unhealthy");
     expect(results["broken-mod"].message).toContain("boom");
+  });
+
+  it("probeHealthChecks converts malformed results to unhealthy", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "malformed-health-check",
+      healthCheck: () => ({ status: "future" }) as never,
+    });
+
+    const results = await loader.probeHealthChecks();
+    expect(results["malformed-health-check"]).toEqual({
+      status: "unhealthy",
+      message: expect.stringContaining("healthCheck result.status is invalid"),
+    });
+  });
+
+  it("rejects malformed lifecycle health before publishing module summaries", async () => {
+    const loader = new ModuleLoader({});
+    await loader.load({
+      name: "malformed-lifecycle-health",
+      getHealth: () => ({ status: "ok", restartCount: -1 }) as never,
+    });
+
+    expect(() => loader.getModuleSummaries()).toThrow(
+      'Module "malformed-lifecycle-health" getHealth result.restartCount must be a non-negative safe integer',
+    );
   });
 
   it("collects configSlices from loaded modules", async () => {
@@ -1956,9 +2969,10 @@ describe("ctx.callTool — direct tool invocation", () => {
   it("rejects duplicate configSlices across modules", async () => {
     clearRegisteredConfigSlices();
     const loader = new ModuleLoader({});
+    const ownerSlice = fakeSlice("shared");
     await loader.load({
       name: "mod-a",
-      configSlices: [fakeSlice("shared")],
+      configSlices: [ownerSlice],
     });
     await expect(
       loader.load({
@@ -1966,6 +2980,82 @@ describe("ctx.callTool — direct tool invocation", () => {
         configSlices: [fakeSlice("shared")],
       }),
     ).rejects.toThrow(/already claimed by "mod-a"/);
+    expect(getRegisteredConfigSlice("shared")).toBe(ownerSlice);
+  });
+
+  it("preserves a config-slice lease while another loader host still owns it", async () => {
+    clearRegisteredConfigSlices();
+    const slice = fakeSlice("sharedHostKey");
+    const first = new ModuleLoader({}, false, { mode: "commands" });
+    const second = new ModuleLoader({}, false, { mode: "commands" });
+
+    await first.load({ name: "shared-config-owner", configSlices: [slice] });
+    await second.load({ name: "shared-config-owner", configSlices: [slice] });
+    await first.unload("shared-config-owner");
+
+    expect(getRegisteredConfigSlice("sharedHostKey")).toBe(slice);
+    await second.unload("shared-config-owner");
+    expect(getRegisteredConfigSlice("sharedHostKey")).toBeUndefined();
+  });
+
+  it("adopts a re-imported config slice after the previous host releases its lease", async () => {
+    clearRegisteredConfigSlices();
+    const original = fakeSlice("reloadableKey");
+    const disposeStructuralRegistration = registerConfigSlice(
+      original,
+      "reloadable-owner",
+    );
+    const loader = new ModuleLoader({}, false, { mode: "commands" });
+    await loader.load({ name: "reloadable-owner", configSlices: [original] });
+    await loader.unload("reloadable-owner");
+
+    const reimported = fakeSlice("reloadableKey", "updated declaration");
+    await loader.load({ name: "reloadable-owner", configSlices: [reimported] });
+
+    expect(getRegisteredConfigSlice("reloadableKey")).toBe(reimported);
+    await loader.unload("reloadable-owner");
+    disposeStructuralRegistration();
+    expect(getRegisteredConfigSlice("reloadableKey")).toBeUndefined();
+  });
+
+  it("keeps rejected duplicate identities out of structural config admission", () => {
+    clearRegisteredConfigSlices();
+    const bundledSlice = fakeSlice("identityOwnedKey", "bundled declaration");
+    const installedSlice = fakeSlice("identityOwnedKey", "installed duplicate");
+    const admission = admitDiscoveredModuleDefinitions(
+      [{ name: "identity-owner", configSlices: [bundledSlice] }],
+      [{ name: "identity-owner", configSlices: [installedSlice] }],
+    );
+
+    const dispose = registerAdmittedModuleConfigSlices(admission.admitted);
+    expect(admission.failures).toMatchObject([
+      {
+        name: "identity-owner",
+        source: "installed",
+      },
+    ]);
+    expect(getRegisteredConfigSlice("identityOwnedKey")).toBe(bundledSlice);
+
+    dispose();
+    expect(getRegisteredConfigSlice("identityOwnedKey")).toBeUndefined();
+  });
+
+  it("does not let a rejected loader host withdraw another module's config slice", async () => {
+    clearRegisteredConfigSlices();
+    const ownerSlice = fakeSlice("crossHostKey");
+    const owner = new ModuleLoader({}, false, { mode: "commands" });
+    const rejected = new ModuleLoader({}, false, { mode: "commands" });
+    await owner.load({
+      name: "valid-config-owner",
+      configSlices: [ownerSlice],
+    });
+
+    await expect(rejected.load({
+      name: "rejected-config-owner",
+      configSlices: [fakeSlice("crossHostKey")],
+    })).rejects.toThrow(/already claimed by module "valid-config-owner"/);
+
+    expect(getRegisteredConfigSlice("crossHostKey")).toBe(ownerSlice);
   });
 
   it("returns empty set when no modules declare configSlices", async () => {

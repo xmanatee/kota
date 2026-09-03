@@ -41,7 +41,12 @@ export interface LoaderState {
   moduleUiSurfaceSources: Map<string, readonly UiSurfaceSource[]>;
   moduleSkillDefs: Map<string, readonly SkillDef[]>;
   moduleAgentDefs: Map<string, readonly AgentDef[]>;
-  moduleSetupRequirementDefs: Map<string, readonly ModuleSetupRequirementContribution[]>;
+  agentsByName: Map<string, { owner: string; definition: AgentDef }>;
+  moduleAgentHarnessDisposers: Map<string, readonly (() => void)[]>;
+  moduleSetupRequirementDefs: Map<
+    string,
+    readonly ModuleSetupRequirementContribution[]
+  >;
   moduleManifests: Map<string, ModuleCapabilityManifestProjection>;
   moduleRoutes: Map<string, RouteRegistration[]>;
   moduleCommands: Map<string, Command[]>;
@@ -51,7 +56,9 @@ export interface LoaderState {
   moduleCommandErrors: Map<string, string>;
   moduleControlRouteErrors: Map<string, string>;
   moduleEventSubscriptions: Map<string, Set<() => void>>;
+  moduleEventRegistrationDisposers: Map<string, readonly (() => void)[]>;
   registeredConfigKeys: Map<string, string>;
+  moduleConfigSliceDisposers: Map<string, readonly (() => void)[]>;
   moduleSources: Map<string, ModuleSource>;
   skillContentsByName: Map<string, string>;
   skillDefsByName: Map<string, SkillDef>;
@@ -59,7 +66,7 @@ export interface LoaderState {
   explicitOnlySkillNames: Set<string>;
   contributedWorkflows: RegisteredWorkflowDefinitionInput[];
   contributedChannels: ChannelDef[];
-  loadFailures: Map<string, ModuleLoadFailure>;
+  loadFailures: ModuleLoadFailure[];
   localClientHandlers: Partial<LocalClientHandlers>;
   daemonClientFactories: DaemonClientFactoryEntry[];
 }
@@ -77,6 +84,8 @@ export function createLoaderState(): LoaderState {
     moduleUiSurfaceSources: new Map(),
     moduleSkillDefs: new Map(),
     moduleAgentDefs: new Map(),
+    agentsByName: new Map(),
+    moduleAgentHarnessDisposers: new Map(),
     moduleSetupRequirementDefs: new Map(),
     moduleManifests: new Map(),
     moduleRoutes: new Map(),
@@ -87,7 +96,9 @@ export function createLoaderState(): LoaderState {
     moduleCommandErrors: new Map(),
     moduleControlRouteErrors: new Map(),
     moduleEventSubscriptions: new Map(),
+    moduleEventRegistrationDisposers: new Map(),
     registeredConfigKeys: new Map(),
+    moduleConfigSliceDisposers: new Map(),
     moduleSources: new Map(),
     skillContentsByName: new Map(),
     skillDefsByName: new Map(),
@@ -95,7 +106,7 @@ export function createLoaderState(): LoaderState {
     explicitOnlySkillNames: new Set(),
     contributedWorkflows: [],
     contributedChannels: [],
-    loadFailures: new Map(),
+    loadFailures: [],
     localClientHandlers: {},
     daemonClientFactories: [],
   };

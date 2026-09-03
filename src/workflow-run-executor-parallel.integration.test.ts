@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { RunContext } from "#core/workflow/run-context.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
@@ -14,6 +15,7 @@ import {
   type ExecutorResult,
   executeWithAgentSDK,
 } from "#modules/claude-agent-harness/executor.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
@@ -22,7 +24,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+registerAgentHarness(claudeAgentHarness);
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 

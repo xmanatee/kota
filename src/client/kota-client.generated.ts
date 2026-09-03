@@ -114,6 +114,81 @@ export type ScopedKotaClientPort<K extends KotaClientNamespace> = KotaClientPort
 export type LocalClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 export type DaemonClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 
+export const KOTA_CLIENT_HANDLER_METHODS = {
+  "workflow": ["listRuns", "listDeadLetters", "getDeadLetter", "dismissDeadLetter", "redriveDeadLetter", "exportDeadLetterDiagnostics", "status", "getRun", "listDefinitions", "pause", "pauseAgentForQuality", "resume", "abort", "reload", "triggerByName", "trial", "explain", "simulate", "enable", "disable", "cancelRun", "abortRun"],
+  "approvals": ["list", "approve", "reject"],
+  "secrets": ["list", "get", "set", "remove"],
+  "tasks": ["list", "show", "move", "updateBody", "create", "capture", "search", "reindex"],
+  "memory": ["list", "add", "delete", "search", "reindex"],
+  "ownerDecisions": ["list", "show", "answer", "cancel"],
+  "ownerQuestions": ["list", "answer", "dismiss"],
+  "history": ["list", "listDiscoveredScopeRecords", "show", "delete", "search", "reindex"],
+  "inboundSignals": ["listRoutes", "validateRoutes"],
+  "knowledge": ["list", "show", "search", "add", "delete", "reindex"],
+  "sessions": ["list", "runOneShot", "setAutonomyMode"],
+  "modules": ["list"],
+  "agents": ["list", "inspect"],
+  "skills": ["list", "import"],
+  "harnessParity": ["list", "run", "matrix"],
+  "webhook": ["list", "secretGenerate", "secretRemove"],
+  "voice": ["transcribe", "synthesize"],
+  "web": ["start"],
+  "mcpServer": ["start"],
+  "audit": ["list"],
+  "config": ["validate", "get", "set", "schemaPath", "schemaContent"],
+  "modulesAdmin": ["inspect", "reload"],
+  "daemonOps": ["status", "pid", "stop", "reload"],
+  "scopes": ["list", "use", "inspectAuthority", "validateAuthority", "applyAuthority", "inspectOnboarding", "planOnboarding", "applyOnboarding", "getOnboardingStatus", "retryOnboarding", "cancelOnboarding"],
+  "ui": ["listSurfaces", "executeAction", "watchEvents"],
+  "doctor": ["run", "fix"],
+  "evalHarness": ["list", "run", "runAgyModels", "calibration"],
+  "recall": ["recall"],
+  "resourceDiscovery": ["discover"],
+  "answer": ["answer", "log", "show"],
+  "capture": ["capture"],
+  "retract": ["retract"],
+  "setup": ["list", "submitForm", "storeSecret", "start", "complete", "refresh", "revoke"],
+} as const satisfies {
+  [K in KotaClientNamespace]: readonly (keyof KotaClient[K] & string)[];
+};
+
+const KOTA_CLIENT_NAMESPACE_SET: ReadonlySet<string> = new Set(KOTA_CLIENT_NAMESPACES);
+
+/** Decode a module client-factory result against the generated aggregate contract. */
+export function assertKotaClientHandlerMap(
+  value: unknown,
+  label: string,
+): asserts value is Partial<LocalClientHandlers> & Partial<DaemonClientHandlers> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object`);
+  }
+  const handlers = value as Record<string, unknown>;
+  for (const [namespace, handler] of Object.entries(handlers)) {
+    if (!KOTA_CLIENT_NAMESPACE_SET.has(namespace)) {
+      throw new Error(`${label} contains unknown namespace "${namespace}"`);
+    }
+    if (typeof handler !== "object" || handler === null || Array.isArray(handler)) {
+      throw new Error(`${label}.${namespace} must be an object`);
+    }
+    const methods = KOTA_CLIENT_HANDLER_METHODS[namespace as KotaClientNamespace];
+    const methodSet: ReadonlySet<string> = new Set(methods);
+    for (const method of Object.getOwnPropertyNames(handler)) {
+      if (!methodSet.has(method)) {
+        throw new Error(
+          `${label}.${namespace} contains unknown method "${method}"`,
+        );
+      }
+    }
+    for (const method of methods) {
+      if (typeof (handler as Record<string, unknown>)[method] !== "function") {
+        throw new Error(
+          `${label}.${namespace}.${method} must be a function`,
+        );
+      }
+    }
+  }
+}
+
 function assignKotaClientNamespaces(
   target: object,
   handlers: LocalClientHandlers | DaemonClientHandlers,

@@ -7,11 +7,10 @@
  * during `loadConfig()` so adding a module's config field is a strictly
  * module-local edit.
  *
- * Modules contribute slices declaratively via `KotaModule.configSlices`. The
- * loader and the dynamic-discovery layer both register declared slices in
- * the global registry so `loadConfig()` works whether modules are loaded
- * through `ModuleLoader.load()` or whether the CLI has only imported the
- * module's `index.ts` for command-discovery.
+ * Modules contribute slices declaratively via `KotaModule.configSlices`.
+ * Composition roots expose slices from identity-admitted declarations before
+ * `loadConfig()`, and each loader borrows the same declaration through an
+ * exact lifecycle lease.
  *
  * The slice's TypeScript shape is wired into `KotaConfig` via declaration
  * merging on `KotaModuleConfigRegistry`: each owning module augments the
@@ -78,66 +77,151 @@ export type ModuleConfigSlice<
   schemaSource: ModuleConfigSliceSchemaSource;
 };
 
-const _slices = new Map<string, ModuleConfigSlice>();
-const _slicesByOwner = new Map<string, Set<string>>();
+type ConfigSliceRegistration = {
+  slice: ModuleConfigSlice;
+  owner: string;
+  structural: boolean;
+  leases: Set<symbol>;
+};
+
+const _registrations = new Map<string, ConfigSliceRegistration>();
 
 /**
- * Register a module-owned config slice. Idempotent for the same slice
- * object; rejects a second slice for an already-claimed key. Pass `owner`
- * (the module name) so unloads can deregister the slice.
+ * Register a module-owned config slice structurally. Repeated registration is
+ * idempotent for the same declaration. A re-imported declaration from the same
+ * owner replaces the structural slice only while no loader host holds a lease.
+ * The returned disposer rolls back this call when it changed the registration,
+ * which lets discovery register a multi-slice declaration atomically.
  */
 export function registerConfigSlice<K extends KotaModuleConfigKey>(
   slice: ModuleConfigSlice<K>,
-  owner?: string,
-): void {
-  const existing = _slices.get(slice.key);
+  owner: string,
+): () => void {
+  const existing = _registrations.get(slice.key);
   if (existing) {
-    if (owner) addOwner(owner, slice.key);
-    return;
+    const previousSlice = adoptCompatibleSlice(existing, slice, owner);
+    if (existing.structural && previousSlice) {
+      return replacementRegistrationDisposer(
+        slice.key,
+        existing,
+        slice as ModuleConfigSlice,
+        previousSlice,
+      );
+    }
+    if (existing.structural) return () => {};
+    existing.structural = true;
+    return structuralRegistrationDisposer(slice.key, existing);
   }
-  _slices.set(slice.key, slice as ModuleConfigSlice);
-  if (owner) addOwner(owner, slice.key);
+  const registration: ConfigSliceRegistration = {
+    slice: slice as ModuleConfigSlice,
+    owner,
+    structural: true,
+    leases: new Set(),
+  };
+  _registrations.set(slice.key, registration);
+  return structuralRegistrationDisposer(slice.key, registration);
 }
 
-function addOwner(owner: string, key: string): void {
-  let keys = _slicesByOwner.get(owner);
-  if (!keys) {
-    keys = new Set();
-    _slicesByOwner.set(owner, keys);
-  }
-  keys.add(key);
+/** Borrow a registered slice for one loader lifecycle. */
+export function acquireConfigSlice<K extends KotaModuleConfigKey>(
+  slice: ModuleConfigSlice<K>,
+  owner: string,
+): () => void {
+  const existing = _registrations.get(slice.key);
+  if (existing) adoptCompatibleSlice(existing, slice, owner);
+  const registration = existing ?? {
+    slice: slice as ModuleConfigSlice,
+    owner,
+    structural: false,
+    leases: new Set<symbol>(),
+  };
+  if (!existing) _registrations.set(slice.key, registration);
+  const lease = Symbol(`${owner}:${slice.key}`);
+  registration.leases.add(lease);
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    const current = _registrations.get(slice.key);
+    if (current !== registration) return;
+    current.leases.delete(lease);
+    if (!current.structural && current.leases.size === 0) {
+      _registrations.delete(slice.key);
+    }
+  };
 }
 
-/**
- * Deregister all slices owned by `moduleName`. Called from the module
- * lifecycle when a module is unloaded.
- */
-export function unregisterConfigSlicesForOwner(moduleName: string): void {
-  const keys = _slicesByOwner.get(moduleName);
-  if (!keys) return;
-  for (const key of keys) _slices.delete(key);
-  _slicesByOwner.delete(moduleName);
+function adoptCompatibleSlice<K extends KotaModuleConfigKey>(
+  existing: ConfigSliceRegistration,
+  slice: ModuleConfigSlice<K>,
+  owner: string,
+): ModuleConfigSlice | undefined {
+  if (existing.owner !== owner) {
+    throw new Error(
+      `Config key "${slice.key}" is already claimed by module "${existing.owner}"`,
+    );
+  }
+  if (existing.slice === slice) return undefined;
+  if (existing.leases.size > 0) {
+    throw new Error(
+      `Config key "${slice.key}" cannot change while module "${owner}" is loaded`,
+    );
+  }
+  const previous = existing.slice;
+  existing.slice = slice as ModuleConfigSlice;
+  return previous;
+}
+
+function replacementRegistrationDisposer(
+  key: string,
+  registration: ConfigSliceRegistration,
+  replacement: ModuleConfigSlice,
+  previous: ModuleConfigSlice,
+): () => void {
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    const current = _registrations.get(key);
+    if (current === registration && current.slice === replacement) {
+      current.slice = previous;
+    }
+  };
+}
+
+function structuralRegistrationDisposer(
+  key: string,
+  registration: ConfigSliceRegistration,
+): () => void {
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    const current = _registrations.get(key);
+    if (current !== registration) return;
+    current.structural = false;
+    if (current.leases.size === 0) _registrations.delete(key);
+  };
 }
 
 /** Snapshot of the currently registered slices. */
 export function getRegisteredConfigSlices(): readonly ModuleConfigSlice[] {
-  return [..._slices.values()];
+  return [..._registrations.values()].map(({ slice }) => slice);
 }
 
 /** Snapshot of the keys of currently registered slices. */
 export function getRegisteredConfigSliceKeys(): ReadonlySet<string> {
-  return new Set(_slices.keys());
+  return new Set(_registrations.keys());
 }
 
 /** Look up a registered slice by key. */
 export function getRegisteredConfigSlice(
   key: string,
 ): ModuleConfigSlice | undefined {
-  return _slices.get(key);
+  return _registrations.get(key)?.slice;
 }
 
 /** Test helper: drop every registered slice. */
 export function clearRegisteredConfigSlices(): void {
-  _slices.clear();
-  _slicesByOwner.clear();
+  _registrations.clear();
 }

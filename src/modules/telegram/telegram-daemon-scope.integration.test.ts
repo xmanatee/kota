@@ -12,7 +12,6 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 import { TelegramScopeSelection } from "./scope-selection.js";
 import { startTelegramStatusPoll } from "./status-poll.js";
 import {
@@ -40,7 +39,6 @@ describe("telegram scope integration", () => {
   let dir = "";
 
   afterEach(async () => {
-    unloadTelegramModule();
     if (dir) rmSync(dir, { recursive: true, force: true });
     resetEventBus();
     resetScheduler();

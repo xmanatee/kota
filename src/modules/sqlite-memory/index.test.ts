@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { resolveModuleSkills } from "#core/modules/module-types.js";
 import sqliteMemoryModule from "./index.js";
 
 const hasSqlite = spawnSync("sqlite3", ["--version"], { stdio: "pipe" }).status === 0;
@@ -52,23 +51,6 @@ function makeStubCtx(storageDir: string): ModuleRuntimeContext {
 	};
 }
 
-describe("sqliteMemoryModule metadata", () => {
-	it("has correct name, version, and dependencies", () => {
-		expect(sqliteMemoryModule.name).toBe("sqlite-memory");
-		expect(sqliteMemoryModule.version).toBe("1.0.0");
-		expect(sqliteMemoryModule.description).toBeTruthy();
-		expect(sqliteMemoryModule.dependencies).toEqual(["memory"]);
-	});
-
-	it("contributes a sqlite-memory skill", async () => {
-		const ctx = makeStubCtx(tmpdir());
-		const skills = await resolveModuleSkills(sqliteMemoryModule, ctx);
-		expect(skills).toHaveLength(1);
-		expect(skills[0].name).toBe("sqlite-memory");
-		expect(skills[0].promptPath).toContain("sqlite-memory.md");
-	});
-});
-
 describeIfSqlite("sqliteMemoryModule onLoad", () => {
 	const testDir = join(tmpdir(), `kota-sqlite-mem-module-test-${Date.now()}`);
 
@@ -78,17 +60,6 @@ describeIfSqlite("sqliteMemoryModule onLoad", () => {
 
 	afterAll(() => {
 		rmSync(testDir, { recursive: true, force: true });
-	});
-
-	it("registers a memory provider via ctx.registerProvider", () => {
-		const dir = join(testDir, `run-${Date.now()}`);
-		mkdirSync(dir, { recursive: true });
-		const ctx = makeStubCtx(dir);
-
-		sqliteMemoryModule.onLoad!(ctx);
-
-		expect(ctx.registerProvider).toHaveBeenCalledTimes(1);
-		expect(ctx.registerProvider).toHaveBeenCalledWith("memory", expect.any(Object));
 	});
 
 	it("save and list round-trip", () => {

@@ -13,7 +13,6 @@ import { createKotaClientTestDouble } from "#core/server/daemon-client-test-supp
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi } from "./client.js";
 import telegramModule from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 import {
   buildDaemonScopeClient,
   readControlAddress,
@@ -68,7 +67,6 @@ describe("telegram scope integration", () => {
   let dir = "";
 
   afterEach(async () => {
-    unloadTelegramModule();
     if (dir) rmSync(dir, { recursive: true, force: true });
     resetEventBus();
     resetScheduler();

@@ -97,9 +97,6 @@ export async function materializeAgyCanaryFindingTask(
   if (!task.found || task.state === "done" || task.state === "dropped") {
     return result;
   }
-  if (ctx.client.tasks.updateBody === undefined) {
-    throw new Error("Repo-task body updates are unavailable for AGY canary findings");
-  }
   const update = await ctx.client.tasks.updateBody(
     taskId,
     findingTaskBody(finding),

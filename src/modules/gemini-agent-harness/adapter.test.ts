@@ -1,42 +1,11 @@
 import "./adapter-test-support.js";
 import { describe, expect, it, vi } from "vitest";
-import {
-  GEMINI_AGENT_HARNESS_NAME,
-  geminiAgentHarness,
-} from "./adapter.js";
+import { geminiAgentHarness } from "./adapter.js";
 import {
   captureLastCallArgs,
   generateContentStreamMock,
   makeStreamFromChunks,
 } from "./adapter-test-support.js";
-
-describe("geminiAgentHarness — registration", () => {
-  it("registers under the gemini name and supports multi-turn", () => {
-    expect(geminiAgentHarness.name).toBe(GEMINI_AGENT_HARNESS_NAME);
-    expect(geminiAgentHarness.name).toBe("gemini");
-    expect(geminiAgentHarness.supportsMultiTurn).toBe(true);
-    expect(geminiAgentHarness.supportedHookKinds).toEqual(["preRun", "postRun"]);
-    expect(geminiAgentHarness.askOwnerToolName).toBe("ask_owner");
-    expect(geminiAgentHarness.emitsAgentMessageStream).toBe(false);
-    expect(geminiAgentHarness.toolControl).toBe("kota");
-    expect(geminiAgentHarness.unsupportedRunOptions).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          option: "mcpServers",
-          runOption: "mcpServers",
-        }),
-        expect.objectContaining({
-          option: "thinkingEnabled/thinkingBudget",
-          runOption: "thinking",
-        }),
-        expect.objectContaining({
-          option: "onMessage",
-          runOption: "onMessage",
-        }),
-      ]),
-    );
-  });
-});
 
 describe("geminiAgentHarness — happy path", () => {
   it("forwards prompt/system/tools/effort and returns the streamed text", async () => {

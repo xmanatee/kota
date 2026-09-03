@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RecallHit, RecallResult } from "#modules/recall/client.js";
-import { RECALL_SOURCE_ORDER } from "#modules/recall/recall-types.js";
 import type { AnswerHistoryStore } from "./answer-history-store.js";
 import { AnswerProviderImpl } from "./answer-provider.js";
 import type { AnswerRecallSeam, Synthesizer } from "./answer-types.js";
 import type { AnswerHistoryRecord } from "./client.js";
-import { answerTool, createAnswerToolRunner } from "./tool.js";
+import { createAnswerToolRunner } from "./tool.js";
 
 function fixedRecall(result: RecallResult): AnswerRecallSeam {
   return {
@@ -51,17 +50,6 @@ const sampleHits: RecallHit[] = [
     priority: "p1",
   },
 ];
-
-describe("answer tool — schema", () => {
-  it("declares a JSON schema with `query` required and every recall source enumerated", () => {
-    expect(answerTool.name).toBe("answer");
-    expect(answerTool.input_schema.required).toEqual(["query"]);
-    const props = answerTool.input_schema.properties as Record<string, unknown>;
-    expect(props.query).toBeDefined();
-    const sources = (props.sources as { items: { enum: string[] } }).items;
-    expect(sources.enum).toEqual(RECALL_SOURCE_ORDER);
-  });
-});
 
 describe("answer tool — runner success arms", () => {
   it("renders a synthesized answer with the citation block via the shared chat renderer", async () => {

@@ -5,8 +5,7 @@ import type {
   RecallContributor,
   RecallSource,
 } from "./recall-types.js";
-import { RECALL_SOURCE_ORDER } from "./recall-types.js";
-import { createRecallToolRunner, recallTool } from "./tool.js";
+import { createRecallToolRunner } from "./tool.js";
 
 function fixedContributor(
   source: RecallSource,
@@ -32,17 +31,6 @@ function memoryHit(id: string, nativeScore: number): RawRecallEntry {
     payload: { preview: `mem-preview-${id}`, created: "2026-04-02" },
   };
 }
-
-describe("recall tool — schema", () => {
-  it("declares a JSON schema with `query` required and every recall source enumerated", () => {
-    expect(recallTool.name).toBe("recall");
-    expect(recallTool.input_schema.required).toEqual(["query"]);
-    const props = recallTool.input_schema.properties as Record<string, unknown>;
-    expect(props.query).toBeDefined();
-    const sources = (props.sources as { items: { enum: string[] } }).items;
-    expect(sources.enum).toEqual(RECALL_SOURCE_ORDER);
-  });
-});
 
 describe("recall tool — runner success arms", () => {
   it("renders hits across multiple sources via the shared plain-text renderer", async () => {

@@ -228,8 +228,12 @@ export class CompletionHandler {
 				scopeRoot,
 				false,
 			);
-			const defs = loader.getContributedWorkflows();
-			return filterCompletionValues(defs.map((d) => d.name), argument.value);
+			try {
+				const defs = loader.getContributedWorkflows();
+				return filterCompletionValues(defs.map((d) => d.name), argument.value);
+			} finally {
+				await loader.unloadAll();
+			}
 		}
 		if (promptName === "kota-summarize-run" && argument.name === "run_id") {
 			const store = new WorkflowRunStore(scopeRoot);

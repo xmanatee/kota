@@ -16,14 +16,13 @@ import {
   streamCallSnapshots,
   streamReturnQueue,
 } from "./adapter-scaffold-test-support.js";
-import { OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME } from "./constants.js";
 
 function textBlock(text: string): KotaContentBlock {
   return { type: "text", text, citations: null } as KotaContentBlock;
 }
 
 describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
-  it("registers scaffold identity, tools, and guidance", async () => {
+  it("adds scaffold guidance to the run", async () => {
     queueEnd("done");
 
     await openaiToolsScaffoldAgentHarness.run({
@@ -34,22 +33,9 @@ describe("openaiToolsScaffoldAgentHarness scaffold mode", () => {
       systemPrompt: "base instructions",
     });
 
-    expect(openaiToolsScaffoldAgentHarness.name).toBe(
-      OPENAI_TOOLS_SCAFFOLD_AGENT_HARNESS_NAME,
-    );
-    expect(openaiToolsScaffoldAgentHarness.supportsMultiTurn).toBe(true);
-    expect(openaiToolsScaffoldAgentHarness.emitsAgentMessageStream).toBe(true);
     const firstStreamParams = messagesStreamMock.mock.calls[0]?.[0];
     expect(firstStreamParams?.system).toContain("base instructions");
     expect(firstStreamParams?.system).toContain("KOTA scaffold mode is active");
-    expect(streamCallSnapshots[0]?.tools?.map((tool) => tool.name)).toEqual([
-      "scaffold_inspect",
-      "scaffold_search_read",
-      "scaffold_edit",
-      "scaffold_apply_patch",
-      "scaffold_run",
-      "scaffold_verify",
-    ]);
   });
 
   it("completes a constrained edit-and-verify fixture through scaffold tools and JSON-action fallback", async () => {

@@ -17,7 +17,6 @@ import {
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { callTelegramApi, TelegramApiError } from "./client.js";
 import telegramModule from "./index.js";
-import { unloadTelegramModule } from "./notification-subscriptions.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -250,7 +249,6 @@ describe("telegramModule", () => {
       else delete process.env.TELEGRAM_BOT_TOKEN;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
       else delete process.env.TELEGRAM_ALERT_CHAT_ID;
-      unloadTelegramModule();
     }
   });
 

@@ -140,13 +140,6 @@ describe("tracing module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares GET /metrics with read capability scope", () => {
-      const routes = tracingControlRoutes();
-      expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
-        "GET /metrics (read)",
-      ]);
-    });
-
     it("requires the daemon bearer token", async () => {
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/metrics`);
       expect(res.status).toBe(401);

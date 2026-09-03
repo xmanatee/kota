@@ -16,22 +16,7 @@ beforeEach(() => {
   clearSessions();
 });
 
-// ─── Module metadata ────────────────────────────────────────────────────────
-
 describe("webhookChannelModule metadata", () => {
-  it("has correct name and version", () => {
-    expect(webhookChannelModule.name).toBe("webhook-channel");
-    expect(webhookChannelModule.version).toBe("1.0.0");
-    expect(webhookChannelModule.description).toBeTruthy();
-  });
-
-  it("contributes a webhook-channel channel def", async () => {
-    const ctx = makeStubCtx();
-    const channels = await resolveModuleChannels(webhookChannelModule, ctx);
-    expect(channels).toHaveLength(1);
-    expect(channels[0].name).toBe("webhook-channel");
-  });
-
   it("registers POST /api/channels/webhook route with bypassAuth", () => {
     const ctx = makeStubCtx();
     const routes = webhookChannelModule.routes!(ctx);

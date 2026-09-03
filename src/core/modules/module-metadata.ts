@@ -10,8 +10,13 @@ export async function loadModuleMetadata(
 ): Promise<ModuleLoader> {
   const loader = new ModuleLoader(config, verbose, { mode: "commands" });
   loader.setCwd(scopeRoot);
-  const bundledModules = await discoverBundledModules();
-  const userModules = await discoverModules(scopeRoot, verbose);
-  await loader.loadAll(bundledModules, userModules);
-  return loader;
+  try {
+    const bundledModules = await discoverBundledModules();
+    const userModules = await discoverModules(scopeRoot, verbose);
+    await loader.loadAll(bundledModules, userModules);
+    return loader;
+  } catch (error) {
+    await loader.unloadAll();
+    throw error;
+  }
 }

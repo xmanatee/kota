@@ -24,7 +24,7 @@ import {
 import type { ModuleManifest } from "#core/manifest/index.js";
 import { manifestToModule, validateManifest } from "#core/manifest/index.js";
 import { adaptExport } from "#core/tools/tool-adapters.js";
-import { registerModuleConfigSlices } from "./module-config-slices.js";
+import { assertModuleDefinition } from "./module-definition.js";
 import type { KotaModule } from "./module-types.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
@@ -66,8 +66,8 @@ export async function discoverModules(
     try {
       const module = await loadModuleDirectory(moduleDir, name);
       if (module) {
+        assertModuleDefinition(module);
         modules.push(module);
-        registerModuleConfigSlices(module);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

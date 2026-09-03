@@ -55,17 +55,6 @@ function makeRecordingTransport(
 }
 
 describe("secrets module daemonClient(link)", () => {
-  it("contributes a secrets namespace handler", () => {
-    expect(secretsModule.daemonClient).toBeTypeOf("function");
-    const link = makeRecordingTransport(() => null).transport;
-    const contributed = secretsModule.daemonClient!(link);
-    expect(contributed.secrets).toBeDefined();
-    expect(typeof contributed.secrets!.list).toBe("function");
-    expect(typeof contributed.secrets!.get).toBe("function");
-    expect(typeof contributed.secrets!.set).toBe("function");
-    expect(typeof contributed.secrets!.remove).toBe("function");
-  });
-
   it("routes list() through strict GET /api/secrets", async () => {
     const expected: SecretListResult = { secrets: [] };
     const { transport, calls } = makeRecordingTransport(() => expected);

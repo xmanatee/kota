@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import { resolveScopePolicy, type ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ScopeRegistryProjection } from "#core/daemon/scope-registry.js";
-import { codexAgentHarness } from "./adapter.js";
 
 const PROJECTION: ScopeRegistryProjection = {
   rootScopeId: "global",
@@ -27,12 +26,6 @@ function policy(fragment?: ScopePolicyFragment) {
 }
 
 describe("Codex agent harness scope policy boundary", () => {
-  it("honors scope policy through the native sandbox", () => {
-    expect(
-      codexAgentHarness.unsupportedRunOptions?.map((option) => option.option),
-    ).not.toContain("scopePolicy");
-  });
-
   it("scopes policy paths into the run worktree", () => {
     expect(projectNativeCliScope({
       cwd: "/worktrees/run",

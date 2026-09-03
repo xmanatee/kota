@@ -89,18 +89,18 @@ describe("daemon-ops scopes authority client", () => {
       trust: false,
     };
 
-    await expect(scopes.inspectAuthority!("p1")).resolves.toMatchObject({
+    await expect(scopes.inspectAuthority("p1")).resolves.toMatchObject({
       ok: true,
       authority: { scopeId: "p1", revision: 2 },
     });
-    await expect(scopes.validateAuthority!("p1", mutation)).resolves.toMatchObject({
+    await expect(scopes.validateAuthority("p1", mutation)).resolves.toMatchObject({
       ok: false,
       reason: "parent_policy_conflict",
     });
     await withInteractiveOperator((verifier) => {
       operatorVerifier = verifier;
       return expect(
-        scopes.applyAuthority!("p1", mutation, "confirm-dangerous"),
+        scopes.applyAuthority("p1", mutation, "confirm-dangerous"),
       ).resolves.toMatchObject({
         ok: true,
         authority: { scopeId: "p1", revision: 2 },
@@ -132,7 +132,7 @@ describe("daemon-ops scopes authority client", () => {
     const scopes = daemonOpsModule.daemonClient!(transport).scopes!;
 
     await withInteractiveOperator(() =>
-      expect(scopes.applyAuthority!("p1", {
+      expect(scopes.applyAuthority("p1", {
         expectedRevision: 2,
         reason: "A fake project endpoint must not receive machine authority",
         trust: true,
@@ -154,7 +154,7 @@ describe("daemon-ops scopes authority client", () => {
     const priorSessionId = process.env.KOTA_SESSION_ID;
     process.env.KOTA_SESSION_ID = "workflow-agent";
     try {
-      await expect(scopes.applyAuthority!("p1", {
+      await expect(scopes.applyAuthority("p1", {
         expectedRevision: 4,
         reason: "Programmatic mutation must not reach the daemon",
         trust: true,

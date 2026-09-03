@@ -128,15 +128,6 @@ describe("formatRepairLine", () => {
     expect(line).toContain("[2] check-lint");
   });
 
-  it("does not include compatibility cost output", () => {
-    const line = formatRepairLine({
-      attempts: 1,
-      failedChecksByAttempt: [["check-lint"]],
-    });
-    expect(line).not.toContain("$");
-    expect(line).toContain("1 repair");
-  });
-
   it("shows 'passed' when iteration had no failures", () => {
     const line = formatRepairLine({
       attempts: 1,

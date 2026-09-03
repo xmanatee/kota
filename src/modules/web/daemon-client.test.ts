@@ -53,14 +53,6 @@ function makeRecordingTransport(): DaemonTransport {
 }
 
 describe("web module daemonClient(link)", () => {
-  it("contributes a web namespace handler with a start method", () => {
-    expect(webModule.daemonClient).toBeTypeOf("function");
-    const transport = makeRecordingTransport();
-    const contributed = webModule.daemonClient!(transport);
-    expect(contributed.web).toBeDefined();
-    expect(typeof contributed.web!.start).toBe("function");
-  });
-
   it("returns { ok: false, reason: 'daemon_required' } for the port-only options shape", async () => {
     const transport = makeRecordingTransport();
     const contributed = webModule.daemonClient!(transport);

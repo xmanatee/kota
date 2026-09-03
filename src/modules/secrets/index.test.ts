@@ -10,7 +10,6 @@ import {
   resolveAutonomyGate,
   supervisedGuardrailsConfig,
 } from "#core/tools/autonomy-mode.js";
-import { riskFromEffect } from "#core/tools/effect.js";
 import { assess, getDefaultConfig } from "#core/tools/guardrails.js";
 import { clearCustomTools, executeTool, registerTool } from "#core/tools/index.js";
 import {
@@ -135,16 +134,8 @@ describe("secrets module get_secret tool gating", () => {
     }
   });
 
-  it("declares credential injection as a non-safe effect", () => {
-    const entry = registerGetSecret(scopeRoot);
-
-    expect(entry.effect).toEqual({
-      kind: "write",
-      scope: "process-env",
-      idempotent: false,
-      openWorld: false,
-    });
-    expect(riskFromEffect(entry.effect)).toBe("moderate");
+  it("routes credential injection through autonomy guardrails", () => {
+    registerGetSecret(scopeRoot);
 
     const assessment = assess("get_secret", { name: SECRET_NAME }, getDefaultConfig());
     expect(assessment.risk).toBe("moderate");

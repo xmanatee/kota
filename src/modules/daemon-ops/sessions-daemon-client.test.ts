@@ -1,41 +1,6 @@
 /**
- * Sessions namespace daemon-side handler test.
- *
- * The sessions namespace migrated out of the core stub into
- * `daemonClient(link)` on the daemon-ops module. This test pins the
- * invariants the migration relies on:
- *
- *  1. The daemon-ops module exposes a `daemonClient(link)` factory and the
- *     factory contributes the `sessions` namespace with `list` and
- *     `setAutonomyMode` methods.
- *  2. `list()` is wired through `link.fetchRaw` with method `GET`, path
- *     `/sessions`, headers from `link.authHeaders()`, and no body — and
- *     decodes the success arm correctly: a `200 + { sessions: [...] }`
- *     response collapses to `{ sessions: [<the same entries>] }`.
- *  3. `list()` throws on non-ok HTTP response (the daemon's body error
- *     surfaces in the thrown error message).
- *  4. `setAutonomyMode(id, mode)` is wired through `link.fetchRaw` with
- *     method `PATCH`, path `/sessions/<encodeURIComponent(id)>`, headers
- *     `{ "Content-Type": "application/json", ...link.authHeaders() }`, and
- *     body `{ autonomy_mode: mode }` — pinned byte-for-byte to detect
- *     unintended camelCase regressions on the wire.
- *  5. `setAutonomyMode` decodes the success arm correctly: a `200 + {
- *     autonomy_mode, source, serveOwned }` response collapses to `{ ok:
- *     true, autonomyMode, source, serveOwned }`.
- *  6. `setAutonomyMode` defaults `source` to `"daemon"` and `serveOwned` to
- *     `false` when the daemon response omits either.
- *  7. `setAutonomyMode` decodes the not_found arm correctly: a `404`
- *     response collapses to `{ ok: false, reason: "not_found" }`.
- *  8. `setAutonomyMode` leaves transport and malformed protocol failures
- *     visible to the caller.
- *  9. `setAutonomyMode` throws daemon-supplied errors from non-ok responses.
- * 10. `serveOwned: true` is honored: a `200 + { autonomy_mode, source:
- *     "serve", serveOwned: true }` response collapses to `{ ok: true,
- *     autonomyMode, source: "serve", serveOwned: true }`.
- * 11. Supplying the contribution to the assembly path satisfies coverage.
- * 12. Removing the daemon-ops module's sessions contribution makes the
- *     assembled client fail loudly with a clear "sessions" missing-handler
- *     error.
+ * Behavioral coverage for the daemon-side sessions transport: one-shot
+ * lifecycle, request mapping, response decoding, and visible failures.
  */
 
 import { describe, expect, it } from "vitest";
@@ -90,17 +55,6 @@ function malformedJsonResponse(status: number, body: string): Response {
 }
 
 describe("daemon-ops module daemonClient(link) — sessions namespace", () => {
-  it("contributes a sessions namespace handler", () => {
-    expect(daemonOpsModule.daemonClient).toBeTypeOf("function");
-    const link = makeRecordingTransport(() => jsonResponse(200, { sessions: [] }))
-      .transport;
-    const contributed = daemonOpsModule.daemonClient!(link);
-    expect(contributed.sessions).toBeDefined();
-    expect(typeof contributed.sessions!.list).toBe("function");
-    expect(typeof contributed.sessions!.runOneShot).toBe("function");
-    expect(typeof contributed.sessions!.setAutonomyMode).toBe("function");
-  });
-
   it("marks a scope-gated passive one-shot session and closes it", async () => {
     const { transport, calls } = makeRecordingTransport((path, init) => {
       if (path === "/sessions" && init?.method === "POST") {

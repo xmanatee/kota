@@ -2,7 +2,10 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
+import {
+  registerAgentHarness,
+  UNKNOWN_AGENT_USAGE,
+} from "#core/agent-harness/index.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import { Daemon } from "#core/daemon/daemon.js";
 import { resetScheduler, Scheduler } from "#core/daemon/scheduler.js";
@@ -22,7 +25,9 @@ vi.mock("./client.js", async (importOriginal) => {
   return { ...actual, callTelegramApi: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+
+registerAgentHarness(claudeAgentHarness);
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);

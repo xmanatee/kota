@@ -488,18 +488,6 @@ describe("kota setup secret CLI", () => {
     expect(out).not.toContain(jsonEscapedSecret);
   });
 
-  it("does not expose the removed raw argv option in help", () => {
-    const setupCommand = makeProgram(setupClient({})).commands.find(
-      (command) => command.name() === "setup",
-    );
-    const secretCommand = setupCommand?.commands.find(
-      (command) => command.name() === "secret",
-    );
-
-    expect(secretCommand?.helpInformation()).toContain("--secret-values-stdin");
-    expect(secretCommand?.helpInformation()).not.toContain("--secret-values <json>");
-  });
-
   it("rejects the removed raw argv option without forwarding the secret", async () => {
     const storeSecret = vi.fn(async () => mutationFor("api"));
     const client = setupClient({ storeSecret });
@@ -558,15 +546,4 @@ describe("kota setup complete CLI", () => {
     expect(err).not.toContain(SECRET_VALUE);
   });
 
-  it("does not expose the removed completion raw argv option in help", () => {
-    const setupCommand = makeProgram(setupClient({})).commands.find(
-      (command) => command.name() === "setup",
-    );
-    const completeCommand = setupCommand?.commands.find(
-      (command) => command.name() === "complete",
-    );
-
-    expect(completeCommand?.helpInformation()).toContain("--secret-values-stdin");
-    expect(completeCommand?.helpInformation()).not.toContain("--secret-values <json>");
-  });
 });

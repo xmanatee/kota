@@ -1,5 +1,9 @@
 import { vi } from "vitest";
-import { pricedAgentUsage, resolveAgentHarness } from "#core/agent-harness/index.js";
+import {
+  pricedAgentUsage,
+  registerAgentHarness,
+  resolveAgentHarness,
+} from "#core/agent-harness/index.js";
 import type { AgentHarness } from "#core/agent-harness/types.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
@@ -16,6 +20,7 @@ import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(
@@ -24,7 +29,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+registerAgentHarness(claudeAgentHarness);
 
 const fixtureAgentHarness = resolveAgentHarness("claude-agent-sdk");
 if (fixtureAgentHarness === undefined) {

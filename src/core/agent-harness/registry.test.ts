@@ -69,4 +69,16 @@ describe("agent harness registry", () => {
     registerAgentHarness(replacement);
     expect(resolveAgentHarness("thin")).toBe(replacement);
   });
+
+  it("disposes only the exact registration and restores the prior adapter", () => {
+    const original = stubHarness("thin");
+    const replacement = stubHarness("thin");
+    const disposeOriginal = registerAgentHarness(original);
+    const disposeReplacement = registerAgentHarness(replacement);
+
+    disposeOriginal();
+    expect(resolveAgentHarness("thin")).toBe(replacement);
+    disposeReplacement();
+    expect(hasAgentHarness("thin")).toBe(false);
+  });
 });

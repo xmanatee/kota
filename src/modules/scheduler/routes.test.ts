@@ -55,12 +55,6 @@ describe("scheduler routes", () => {
     resetNotificationHub();
   });
 
-  it("registers /api/schedules and /api/notifications GET routes", () => {
-    const routes = schedulerRoutes();
-    const paths = routes.map((r) => `${r.method} ${r.path}`);
-    expect(paths).toEqual(["GET /api/schedules", "GET /api/notifications"]);
-  });
-
   it("/api/schedules returns the scheduler's pending items", () => {
     const scheduler = getScheduler();
     scheduler.add("Reminder one", new Date(Date.now() + 60_000));

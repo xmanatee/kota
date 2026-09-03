@@ -1,16 +1,33 @@
 import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
-import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
+import {
+  outboundHttp,
+  type OutboundHttpRequestPort,
+} from "#core/outbound-http/index.js";
 import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
-import { createTelegramCallbackHandler, type PendingApprovalMessage } from "./callback-poll.js";
+import { createTelegramCallbackHandler } from "./callback-poll.js";
 import { callTelegramApi } from "./client.js";
 import { renderScopeLabelPrefix } from "./notification-delivery.js";
-import { type PendingMessage, tryHandleOwnerQuestionReply } from "./owner-question-reply.js";
-import { emitTelegramPollConflictHealthSignal, getCredentials, reportTelegramPollRecovered, type TelegramConfig, telegramInteractiveBackendError } from "./readiness.js";
-import { resolveTelegramScopeRouting, tryResolveTelegramClient } from "./scope-routing.js";
+import { tryHandleOwnerQuestionReply } from "./owner-question-reply.js";
+import {
+  emitTelegramPollConflictHealthSignal,
+  getCredentials,
+  reportTelegramPollRecovered,
+  type TelegramConfig,
+  telegramInteractiveBackendError,
+} from "./readiness.js";
+import type { TelegramRuntimeState } from "./runtime-state.js";
+import {
+  resolveTelegramScopeRouting,
+  tryResolveTelegramClient,
+} from "./scope-routing.js";
 import type { TelegramChatScopeBinding } from "./scope-selection.js";
-import { buildStatusText, handleTelegramStatusCommand, type TelegramStatusScope } from "./status-poll.js";
+import {
+  buildStatusText,
+  handleTelegramStatusCommand,
+  type TelegramStatusScope,
+} from "./status-poll.js";
 
 export function makeTelegramStatusChannel(
   moduleCtx: ModuleContext,
@@ -32,7 +49,8 @@ export function makeTelegramStatusChannel(
       if (!client) {
         return {
           status: "unavailable",
-          reason: "KotaClient is not resolved; Telegram status commands require a daemon or local client",
+          reason:
+            "KotaClient is not resolved; Telegram status commands require a daemon or local client",
         };
       }
       return {
@@ -50,17 +68,20 @@ export function makeTelegramStatusChannel(
 export function makeTelegramInteractiveChannel(
   ctx: ModuleContext,
   chatScopeBindings: TelegramChatScopeBinding[],
+  runtimeState: TelegramRuntimeState,
   http: OutboundHttpRequestPort = outboundHttp,
 ): ChannelDef {
   return {
     name: "telegram-interactive",
-    description: "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
+    description:
+      "Hosts the interactive Telegram bot as a daemon channel (one session per chat)",
     create(channelCtx) {
       const credentials = getCredentials(ctx);
       if (!credentials) {
         return {
           status: "unavailable",
-          reason: "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
+          reason:
+            "TELEGRAM_BOT_TOKEN and TELEGRAM_ALERT_CHAT_ID secret refs are required",
         };
       }
       const { token } = credentials;
@@ -98,6 +119,7 @@ export function makeTelegramInteractiveChannel(
         onPollHealthy: () => reportTelegramPollRecovered(
           ctx,
           channelCtx.getDefaultScopeRuntime().scope.scopeId,
+          runtimeState.reportedPollConflicts,
         ),
         defaultScopeRuntime: channelCtx.getDefaultScopeRuntime(),
         getScopeRuntime: channelCtx.getScopeRuntime,
@@ -106,9 +128,9 @@ export function makeTelegramInteractiveChannel(
         scopeSelection: scopeRouting?.selection,
         inboundSignals: telegramConfig?.inboundSignals
           ? {
-              config: telegramConfig.inboundSignals,
-              events: ctx.events,
-            }
+            config: telegramConfig.inboundSignals,
+            events: ctx.events,
+          }
           : undefined,
         onChatReply: (chatId, replyToMessageId, text) =>
           tryHandleOwnerQuestionReply({
@@ -116,15 +138,15 @@ export function makeTelegramInteractiveChannel(
             chatId,
             replyToMessageId,
             text,
-            pending: pendingOwnerQuestionMessages,
+            pending: runtimeState.pendingOwnerQuestionMessages,
             allowedChatIds,
             log: ctx.log,
             client: tryResolveTelegramClient(ctx),
           }),
         onCallbackQuery: createTelegramCallbackHandler(
           token,
-          pendingApprovalMessages,
-          pendingOwnerQuestionMessages,
+          runtimeState.pendingApprovalMessages,
+          runtimeState.pendingOwnerQuestionMessages,
           tryResolveTelegramClient(ctx),
           ctx.log,
         ),
@@ -162,20 +184,28 @@ export function makeTelegramInteractiveChannel(
         },
       });
 
-      const unsubscribeSchedule = ctx.events.subscribe("schedule.fire", (payload) => {
-        const description = typeof payload.description === "string"
-          ? payload.description
-          : JSON.stringify(payload);
-        const scopeId = typeof payload.scopeId === "string" ? payload.scopeId : undefined;
-        void (async () => {
-          const prefix = await renderScopeLabelPrefix(
-            scopeId,
-            scopeRouting?.selection,
-            ctx.log,
-          );
-          bot.broadcastToChats(`${prefix}⏰ Reminder: ${description}`, scopeId);
-        })();
-      });
+      const unsubscribeSchedule = ctx.events.subscribe(
+        "schedule.fire",
+        (payload) => {
+          const description = typeof payload.description === "string"
+            ? payload.description
+            : JSON.stringify(payload);
+          const scopeId = typeof payload.scopeId === "string"
+            ? payload.scopeId
+            : undefined;
+          void (async () => {
+            const prefix = await renderScopeLabelPrefix(
+              scopeId,
+              scopeRouting?.selection,
+              ctx.log,
+            );
+            bot.broadcastToChats(
+              `${prefix}⏰ Reminder: ${description}`,
+              scopeId,
+            );
+          })();
+        },
+      );
       const unsubscribeScopeLifecycle = ctx.events.subscribe(
         "scope.lifecycle.changed",
         (payload) => {
@@ -185,9 +215,15 @@ export function makeTelegramInteractiveChannel(
             payload.previousDefaultScopeId === undefined
           ) return;
           bot.setDefaultScopeRuntime(channelCtx.getDefaultScopeRuntime());
-          void bot.closeScopeSessions(payload.previousDefaultScopeId).catch((error) => {
-            ctx.log.warn(`Failed to close Telegram sessions: ${(error as Error).message}`);
-          });
+          void bot.closeScopeSessions(payload.previousDefaultScopeId).catch(
+            (error) => {
+              ctx.log.warn(
+                `Failed to close Telegram sessions: ${
+                  (error as Error).message
+                }`,
+              );
+            },
+          );
         },
       );
 
@@ -203,6 +239,7 @@ export function makeTelegramInteractiveChannel(
                 emitTelegramPollConflictHealthSignal(
                   ctx,
                   channelCtx.getDefaultScopeRuntime().scope.scopeId,
+                  runtimeState.reportedPollConflicts,
                 );
                 ctx.log.error(
                   `telegram-interactive channel poll loop exited: ${message}`,
@@ -232,6 +269,3 @@ export function makeTelegramInteractiveChannel(
     },
   };
 }
-
-export const pendingApprovalMessages = new Map<string, PendingApprovalMessage>();
-export const pendingOwnerQuestionMessages = new Map<string, PendingMessage>();

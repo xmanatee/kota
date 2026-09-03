@@ -181,34 +181,73 @@ export type ModuleEventRegistration = {
 };
 
 class ModuleEventRegistry {
-  private events = new Map<string, ModuleEventRegistration>();
+  private events = new Map<string, {
+    registration: ModuleEventRegistration;
+    structural: boolean;
+    leases: Set<symbol>;
+  }>();
 
   register(moduleName: string, def: ModuleEventDef): void {
     const next = registrationFromDef(moduleName, def);
     const prior = this.events.get(def.name);
-    if (prior && prior.module !== moduleName) {
-      throw new Error(
-        `Module event "${def.name}" already declared by module "${prior.module}"; ` +
-          `module "${moduleName}" cannot redeclare it. Each module event has a single owner.`,
-      );
+    if (prior) this.assertCompatible(prior.registration, next);
+    if (prior) {
+      prior.structural = true;
+      return;
     }
-    if (prior && !sameRegistrationContract(prior, next)) {
-      throw new Error(
-        `Module event "${def.name}" already declared by module "${moduleName}" with an incompatible schema. ` +
-          `Existing version: ${prior.currentVersion}; new version: ${next.currentVersion}.`,
-      );
-    }
-    this.events.set(def.name, next);
+    this.events.set(def.name, {
+      registration: next,
+      structural: true,
+      leases: new Set(),
+    });
   }
 
-  unregisterModule(moduleName: string): void {
-    for (const [name, reg] of this.events) {
-      if (reg.module === moduleName) this.events.delete(name);
+  /** Borrow one declaration for an exact loader lifecycle. */
+  acquire(moduleName: string, def: ModuleEventDef): () => void {
+    const next = registrationFromDef(moduleName, def);
+    const prior = this.events.get(def.name);
+    if (prior) this.assertCompatible(prior.registration, next);
+    const entry = prior ?? {
+      registration: next,
+      structural: false,
+      leases: new Set<symbol>(),
+    };
+    if (!prior) this.events.set(def.name, entry);
+    const lease = Symbol(`${moduleName}:${def.name}`);
+    entry.leases.add(lease);
+    let disposed = false;
+    return () => {
+      if (disposed) return;
+      disposed = true;
+      const current = this.events.get(def.name);
+      if (current !== entry) return;
+      current.leases.delete(lease);
+      if (!current.structural && current.leases.size === 0) {
+        this.events.delete(def.name);
+      }
+    };
+  }
+
+  private assertCompatible(
+    prior: ModuleEventRegistration,
+    next: ModuleEventRegistration,
+  ): void {
+    if (prior.module !== next.module) {
+      throw new Error(
+        `Module event "${next.name}" already declared by module "${prior.module}"; ` +
+          `module "${next.module}" cannot redeclare it. Each module event has a single owner.`,
+      );
+    }
+    if (!sameRegistrationContract(prior, next)) {
+      throw new Error(
+        `Module event "${next.name}" already declared by module "${next.module}" with an incompatible schema. ` +
+          `Existing version: ${prior.currentVersion}; new version: ${next.currentVersion}.`,
+      );
     }
   }
 
   get(name: string): ModuleEventRegistration | undefined {
-    return this.events.get(name);
+    return this.events.get(name)?.registration;
   }
 
   has(name: string): boolean {
@@ -216,7 +255,9 @@ class ModuleEventRegistry {
   }
 
   all(): ReadonlyMap<string, ModuleEventRegistration> {
-    return this.events;
+    return new Map(
+      [...this.events].map(([name, entry]) => [name, entry.registration] as const),
+    );
   }
 
   clear(): void {

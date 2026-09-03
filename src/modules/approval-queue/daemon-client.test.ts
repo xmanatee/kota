@@ -47,16 +47,6 @@ import {
 import approvalQueueModule from "./index.js";
 
 describe("approval-queue module daemonClient(link)", () => {
-  it("contributes an approvals namespace handler", () => {
-    expect(approvalQueueModule.daemonClient).toBeTypeOf("function");
-    const link = makeRecordingTransport(() => null).transport;
-    const contributed = approvalQueueModule.daemonClient!(link);
-    expect(contributed.approvals).toBeDefined();
-    expect(typeof contributed.approvals!.list).toBe("function");
-    expect(typeof contributed.approvals!.approve).toBe("function");
-    expect(typeof contributed.approvals!.reject).toBe("function");
-  });
-
   it("routes list() with no filter through GET /approvals (no query string) with no body", async () => {
     const expected: ApprovalsListResult = { approvals: [] };
     const { transport, calls } = makeRecordingTransport(() => expected);

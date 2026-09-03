@@ -132,13 +132,6 @@ describe("push-notification module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares POST /push-tokens with control capability scope", () => {
-      const routes = pushNotificationControlRoutes(scopeRoot);
-      expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
-        "POST /push-tokens (control)",
-      ]);
-    });
-
     it("requires the daemon bearer token", async () => {
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/push-tokens`, {
         method: "POST",

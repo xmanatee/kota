@@ -153,7 +153,7 @@ export interface RepoTasksClient {
     scopeSelector?: RepoTaskScopeSelection,
   ): Promise<RepoTaskMoveResult>;
   /** Replace the markdown body of one non-terminal task while preserving its front matter. */
-  updateBody?(
+  updateBody(
     id: string,
     body: string,
     scopeSelector?: RepoTaskScopeSelection,

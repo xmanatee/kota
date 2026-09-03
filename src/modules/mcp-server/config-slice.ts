@@ -8,7 +8,7 @@
  * server for MCP clients).
  */
 
-import { type ModuleConfigSlice, registerConfigSlice } from "#core/config/config-slice.js";
+import type { ModuleConfigSlice } from "#core/config/config-slice.js";
 
 export type McpSamplingConfig = {
   /** Enable the sampling/createMessage handler. Default: false. */
@@ -50,5 +50,3 @@ export const mcpConfigSlice: ModuleConfigSlice<"mcp"> = {
     typeName: "McpConfig",
   },
 };
-
-registerConfigSlice(mcpConfigSlice, "mcp-server");

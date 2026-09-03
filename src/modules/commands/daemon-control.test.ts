@@ -220,14 +220,6 @@ describe("commands module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
-    it("declares /commands routes with read/control capability scopes", () => {
-      const routes = commandsControlRoutes();
-      expect(routes.map((r) => `${r.method} ${r.path} (${r.capabilityScope})`)).toEqual([
-        "GET /commands (read)",
-        "POST /commands/invoke (control)",
-      ]);
-    });
-
     it("requires the daemon bearer token on both routes", async () => {
       registerCatalog(scopeRoot, {});
       const list = await globalThis.fetch(`http://127.0.0.1:${port}/commands`);

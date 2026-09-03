@@ -1,7 +1,8 @@
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import type {
-  DaemonClientHandlers,
-  LocalClientHandlers,
+import {
+  assertKotaClientHandlerMap,
+  type DaemonClientHandlers,
+  type LocalClientHandlers,
 } from "#root/client/kota-client.generated.js";
 import type { KotaModule, ModuleRuntimeContext } from "./module-types.js";
 
@@ -58,7 +59,8 @@ export function collectLocalClientHandlers(
   ctx: ModuleRuntimeContext,
 ): LocalClientNamespace[] {
   if (!mod.localClient) return [];
-  const handlers = mod.localClient(ctx) as Partial<LocalClientHandlers>;
+  const handlers: unknown = mod.localClient(ctx);
+  assertKotaClientHandlerMap(handlers, `Module "${mod.name}" localClient result`);
   const namespaces: LocalClientNamespace[] = [];
   for (const namespace of Object.keys(handlers) as (keyof LocalClientHandlers)[]) {
     const impl = handlers[namespace];
@@ -69,8 +71,11 @@ export function collectLocalClientHandlers(
           `"${namespace}" but one is already registered. Each KotaClient namespace has a single owner.`,
       );
     }
-    assignLocalClientHandler(target, namespace, impl);
     namespaces.push(namespace as LocalClientNamespace);
+  }
+  for (const namespace of namespaces) {
+    const impl = handlers[namespace];
+    if (impl) assignLocalClientHandler(target, namespace, impl);
   }
   return namespaces;
 }
@@ -101,7 +106,8 @@ export function assembleDaemonClientHandlers(
 ): Partial<DaemonClientHandlers> {
   const handlers: Partial<DaemonClientHandlers> = {};
   for (const { moduleName, factory } of factories) {
-    const partial = factory(transport) as Partial<DaemonClientHandlers>;
+    const partial: unknown = factory(transport);
+    assertKotaClientHandlerMap(partial, `Module "${moduleName}" daemonClient result`);
     for (const namespace of Object.keys(partial) as (keyof DaemonClientHandlers)[]) {
       const impl = partial[namespace];
       if (!impl) continue;

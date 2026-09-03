@@ -7,7 +7,11 @@
  */
 
 import { resolve } from "node:path";
-import type { ForeignModuleConfig, KempTransport } from "./foreign-module.js";
+import type {
+  ForeignModuleConfig,
+  KempTransport,
+  PendingForeignModule,
+} from "./foreign-module.js";
 import { HttpTransport } from "./foreign-module-http.js";
 import {
   DEFAULT_MAX_RESTARTS,
@@ -19,14 +23,13 @@ import {
   HEALTH_CHECK_TIMEOUT_MS,
 } from "./foreign-module-session.js";
 import { StdioTransport } from "./foreign-module-stdio.js";
-import type { KotaModule } from "./module-types.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 async function startForeignModule(
   config: ForeignModuleConfig,
   scopeRoot: string,
   moduleConfig?: Record<string, unknown>,
-): Promise<KotaModule> {
+): Promise<PendingForeignModule> {
   const resolvedCwd = resolve(scopeRoot);
 
   if (config.transport === "stdio" && (config.maxRestarts ?? DEFAULT_MAX_RESTARTS) > 0) {
@@ -42,22 +45,24 @@ async function startForeignModule(
   const raw = await createRawForeignModule(transport, label, resolvedCwd, moduleConfig);
   const tools = buildForeignToolDefs(raw.toolDefs, () => raw.session);
 
-  return {
+  const dispose = () => raw.session.close();
+  const definition = {
     name: raw.name,
     version: raw.version,
     description: raw.description,
     tools,
     healthCheck: () => raw.session.healthCheck(HEALTH_CHECK_TIMEOUT_MS),
-    onLoad: () => ({ dispose: () => raw.session.close() }),
+    onLoad: () => ({ dispose }),
   };
+  return { definition, discard: dispose };
 }
 
 export async function loadForeignModules(
   configs: ForeignModuleConfig[],
   scopeRoot: string,
   moduleConfigs?: Record<string, Record<string, unknown>>,
-): Promise<KotaModule[]> {
-  const results: KotaModule[] = [];
+): Promise<PendingForeignModule[]> {
+  const results: PendingForeignModule[] = [];
   for (const config of configs) {
     const label = config.transport === "http" ? config.url : config.command;
     try {

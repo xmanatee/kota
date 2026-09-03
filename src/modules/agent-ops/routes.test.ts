@@ -58,18 +58,6 @@ function makeContext(): ModuleContext {
 }
 
 describe("agentControlRoutes", () => {
-  it("registers read-only list and inspect routes", () => {
-    const routes = agentControlRoutes(makeContext());
-    expect(routes.map((route) => ({
-      method: route.method,
-      path: route.path,
-      capabilityScope: route.capabilityScope,
-    }))).toEqual([
-      { method: "GET", path: "/agents", capabilityScope: "read" },
-      { method: "GET", path: "/agents/:name", capabilityScope: "read" },
-    ]);
-  });
-
   it("returns the shared listAgents payload from the list route", async () => {
     const [route] = agentControlRoutes(makeContext());
     const { res, result } = mockResponse();

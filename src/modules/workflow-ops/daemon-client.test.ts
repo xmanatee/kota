@@ -97,31 +97,6 @@ function jsonResponse(status: number, body: unknown): Response {
 }
 
 describe("workflow-ops module daemonClient(link) — workflow namespace", () => {
-  it("contributes a workflow namespace handler", () => {
-    expect(workflowOpsModule.daemonClient).toBeTypeOf("function");
-    const { transport } = makeRecordingTransport();
-    const contributed = workflowOpsModule.daemonClient!(transport);
-    expect(contributed.workflow).toBeDefined();
-    const wf = contributed.workflow!;
-    expect(typeof wf.listRuns).toBe("function");
-    expect(typeof wf.status).toBe("function");
-    expect(typeof wf.pause).toBe("function");
-    expect(typeof wf.pauseAgentForQuality).toBe("function");
-    expect(typeof wf.resume).toBe("function");
-    expect(typeof wf.abort).toBe("function");
-    expect(typeof wf.reload).toBe("function");
-    expect(typeof wf.enable).toBe("function");
-    expect(typeof wf.disable).toBe("function");
-    expect(typeof wf.cancelRun).toBe("function");
-    expect(typeof wf.abortRun).toBe("function");
-    expect(typeof wf.getRun).toBe("function");
-    expect(typeof wf.listDefinitions).toBe("function");
-    expect(typeof wf.triggerByName).toBe("function");
-    expect(typeof wf.trial).toBe("function");
-    expect(typeof wf.explain).toBe("function");
-    expect(typeof wf.simulate).toBe("function");
-  });
-
   it("listRuns routes through GET /workflow/runs with no filter", async () => {
     const { transport, calls } = makeRecordingTransport({
       respondRequest: () => ({ runs: [] }),

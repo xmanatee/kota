@@ -1,9 +1,3 @@
-/**
- * Smoke tests for the `mcp-server` module's command surface. The actual
- * `start` operation lives in `mcp-server-operations.test.ts`; here we
- * just verify the CLI registers the expected command and option shape.
- */
-
 import { describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
@@ -59,22 +53,6 @@ function makeStubCtx(start: McpServerStart = vi.fn(async () => ({ ok: true as co
 }
 
 describe("mcp-server commands", () => {
-
-	it("accepts --tools, --name, and Streamable HTTP options", () => {
-		const ctx = makeStubCtx();
-		const cmd = mcpServerModule.commands!(ctx)[0];
-		const toolsOpt = cmd.options.find((o) => o.long === "--tools");
-		const nameOpt = cmd.options.find((o) => o.long === "--name");
-		const httpOpt = cmd.options.find((o) => o.long === "--http");
-		const hostOpt = cmd.options.find((o) => o.long === "--host");
-		const portOpt = cmd.options.find((o) => o.long === "--port");
-		expect(toolsOpt).toBeDefined();
-		expect(nameOpt).toBeDefined();
-		expect(httpOpt).toBeDefined();
-		expect(hostOpt).toBeDefined();
-		expect(portOpt).toBeDefined();
-	});
-
 	it("prints the local endpoint when started in Streamable HTTP mode", async () => {
 		const start = vi.fn(async () => ({
 			ok: true as const,
