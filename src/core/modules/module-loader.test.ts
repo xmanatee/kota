@@ -151,7 +151,7 @@ function makeAgentHarness(overrides: Record<string, unknown> = {}) {
     supportedHookKinds: [],
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
-    toolControl: "kota",
+    toolControl: "kota" as const,
     run: async () => {
       throw new Error("not invoked");
     },

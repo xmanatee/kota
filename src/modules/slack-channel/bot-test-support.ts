@@ -137,6 +137,7 @@ export function makeStubClients(): {
       list: vi.fn(),
       show: vi.fn(),
       move: vi.fn(),
+      updateBody: vi.fn(),
       create: vi.fn(),
       capture: vi.fn(),
       search: vi.fn(),

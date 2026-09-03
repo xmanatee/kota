@@ -30,7 +30,7 @@ describe("runtime loader failure cleanup", () => {
       {
         name: "activated-before-failure",
         onLoad: (ctx) => {
-          ctx.registerProvider(TEST_PROVIDER, { ready: true });
+          ctx.registerProvider(TEST_PROVIDER, { ready: true as const });
           ctx.events.subscribeExternal("runtime-loader.cleanup", () => {});
           return { dispose };
         },
