@@ -1,21 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  ApprovalQueue,
-  resetApprovalQueue,
-  setApprovalQueueInstance,
-} from "#core/daemon/approval-queue.js";
+import { vi } from "vitest";
+import { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
-import {
-  resetIdempotencyStore,
-  setIdempotencyStoreInstance,
-} from "#core/daemon/idempotency-singleton.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
-import { type EventBus, initEventBus, resetEventBus } from "#core/events/event-bus.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { confirmedOwnerActionStep } from "./owner-confirmed-action-step.js";
@@ -31,9 +23,13 @@ import { createTestTransactionalRunState } from "./testing/run-context-fixture.j
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
-const TRIGGER: WorkflowRunTrigger = { event: "manual", schemaRef: null, payload: {} };
+export const OWNER_DECISION_TRIGGER: WorkflowRunTrigger = {
+  event: "manual",
+  schemaRef: null,
+  payload: {},
+};
 
-const ACTION = {
+export const OWNER_ACTION = {
   actionId: "book-court",
   adapterName: "sports-booking",
   description: "Book the selected sports slot",
@@ -43,62 +39,28 @@ const ACTION = {
   authorizingSelection: { kind: "single-choice" as const, optionId: "yes" },
 };
 
-type ConfirmedActionFixtureOptions = {
+export type ConfirmedActionFixtureOptions = {
   includeApproval: boolean;
   failAdapter?: boolean;
 };
 
-describe("owner decision workflow helpers", () => {
-  let workspaceRoot: string;
-  let decisionDir: string;
-  let questionDir: string;
-  let approvalDir: string;
-  let deadLetterDir: string;
-  let idempotencyDir: string;
-  let bus: EventBus;
-  let pbus: ScopedEventBus;
-  let store: WorkflowRunStore;
-  let decisionStore: OwnerDecisionStore;
-  let questionQueue: OwnerQuestionQueue;
-  let approvalQueue: ApprovalQueue;
-  let _deadLetterQueue: DeadLetterQueueStore;
-  let idempotencyStore: IdempotencyStore;
-  const log = vi.fn();
+export type OwnerDecisionWorkflowFixture = ReturnType<
+  typeof createOwnerDecisionWorkflowFixture
+>;
 
-  beforeEach(() => {
-    workspaceRoot = mkdtempSync(join(tmpdir(), "owner-decision-workflow-"));
-    decisionDir = mkdtempSync(join(tmpdir(), "owner-decision-store-"));
-    questionDir = mkdtempSync(join(tmpdir(), "owner-decision-question-"));
-    approvalDir = mkdtempSync(join(tmpdir(), "owner-decision-approval-"));
-    deadLetterDir = mkdtempSync(join(tmpdir(), "owner-decision-dlq-"));
-    idempotencyDir = mkdtempSync(join(tmpdir(), "owner-decision-idempotency-"));
-    resetEventBus();
-    bus = initEventBus();
-    pbus = new ScopedEventBus(bus, "scope-a");
-    store = new WorkflowRunStore(workspaceRoot);
-    decisionStore = new OwnerDecisionStore(decisionDir, "scope-a", pbus);
-    questionQueue = new OwnerQuestionQueue(questionDir, pbus);
-    approvalQueue = new ApprovalQueue(approvalDir, pbus);
-    _deadLetterQueue = new DeadLetterQueueStore(deadLetterDir);
-    idempotencyStore = new IdempotencyStore(idempotencyDir, "scope-a");
-    setApprovalQueueInstance(approvalQueue);
-    setIdempotencyStoreInstance(idempotencyStore);
-    log.mockReset();
-  });
+export function createOwnerDecisionWorkflowFixture() {
+  const root = mkdtempSync(join(tmpdir(), "owner-decision-workflow-"));
+  const bus = new EventBus();
+  const pbus = new ScopedEventBus(bus, "scope-a");
+  const store = new WorkflowRunStore(root);
+  const decisionStore = new OwnerDecisionStore(join(root, "decisions"), "scope-a", pbus);
+  const questionQueue = new OwnerQuestionQueue(join(root, "questions"), pbus);
+  const approvalQueue = new ApprovalQueue(join(root, "approvals"), pbus);
+  const deadLetterQueue = new DeadLetterQueueStore(join(root, "dead-letters"));
+  const idempotencyStore = new IdempotencyStore(join(root, "idempotency"), "scope-a");
+  const log = vi.fn<(message: string) => void>();
 
-  afterEach(() => {
-    resetApprovalQueue();
-    resetIdempotencyStore();
-    resetEventBus();
-    rmSync(workspaceRoot, { recursive: true, force: true });
-    rmSync(decisionDir, { recursive: true, force: true });
-    rmSync(questionDir, { recursive: true, force: true });
-    rmSync(approvalDir, { recursive: true, force: true });
-    rmSync(deadLetterDir, { recursive: true, force: true });
-    rmSync(idempotencyDir, { recursive: true, force: true });
-  });
-
-  function _makeDataOnlyWorkflow(): WorkflowDefinition {
+  function makeDataOnlyWorkflow(): WorkflowDefinition {
     const decision = ownerDecisionSteps({
       idPrefix: "choose",
       decisionStore: () => decisionStore,
@@ -130,8 +92,8 @@ describe("owner decision workflow helpers", () => {
 
   function makeConfirmedActionWorkflow(
     calls: string[],
-    decisionAction: typeof ACTION = ACTION,
-    adapterAction: typeof ACTION = decisionAction,
+    decisionAction: typeof OWNER_ACTION = OWNER_ACTION,
+    adapterAction: typeof OWNER_ACTION = decisionAction,
     options: ConfirmedActionFixtureOptions = { includeApproval: true },
   ): WorkflowDefinition {
     const decision = ownerDecisionSteps({
@@ -158,17 +120,17 @@ describe("owner decision workflow helpers", () => {
       reason: "Execute the confirmed sports-booking action",
       defaultResolution: "deny",
     };
-    const approvalIdResolver =
-      options.includeApproval
-        ? (ctx: WorkflowStepContext) => (ctx.stepOutputs.approval as { approvalId: string }).approvalId
-        : undefined;
+    const approvalId = options.includeApproval
+      ? (ctx: WorkflowStepContext) =>
+          (ctx.stepOutputs.approval as { approvalId: string }).approvalId
+      : undefined;
     const action = confirmedOwnerActionStep({
       id: "book",
       decisionStore: () => decisionStore,
       approvalQueue: () => approvalQueue,
       idempotencyStore: () => idempotencyStore,
       decisionId: (ctx) => decision.consume.outputRequired(ctx).decisionId,
-      ...(approvalIdResolver === undefined ? {} : { approvalId: approvalIdResolver }),
+      ...(approvalId === undefined ? {} : { approvalId }),
       input: { slot: "7pm" },
       adapter: {
         metadata: adapterAction,
@@ -185,7 +147,7 @@ describe("owner decision workflow helpers", () => {
       name: "owner-decision-action-fixture",
       enabled: true,
       repository: "none",
-      definitionPath: "src/core/workflow/owner-decision-step.test.ts",
+      definitionPath: "src/core/workflow/owner-confirmed-action-step.test.ts",
       moduleRoot: "/test-module-root",
       triggers: [],
       steps: [
@@ -234,27 +196,27 @@ describe("owner decision workflow helpers", () => {
     const runId = `owner-decision-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     return {
       run: { id: runId, attempt: 1, daemonEpoch: 1 },
-      scope: { id: "scope-a", root: workspaceRoot },
+      scope: { id: "scope-a", root },
       workflow: "owner-decision-fixture",
-      trigger: TRIGGER,
+      trigger: OWNER_DECISION_TRIGGER,
       sandbox: {
         runId,
         repository: "none",
-        rootDir: workspaceRoot,
-        workspaceDir: workspaceRoot,
-        tempDir: workspaceRoot,
-        artifactDir: workspaceRoot,
+        rootDir: root,
+        workspaceDir: root,
+        tempDir: root,
+        artifactDir: root,
       },
       resources: {
         runId,
         attempt: 1,
         daemonEpoch: 1,
-        workspaceDir: workspaceRoot,
-        runDir: workspaceRoot,
-        tempDir: workspaceRoot,
-        artifactDir: workspaceRoot,
-        agentDir: workspaceRoot,
-        packageCacheDir: workspaceRoot,
+        workspaceDir: root,
+        runDir: root,
+        tempDir: root,
+        artifactDir: root,
+        agentDir: root,
+        packageCacheDir: root,
         ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
         env: {},
       },
@@ -265,7 +227,6 @@ describe("owner decision workflow helpers", () => {
       state: createTestTransactionalRunState(),
     };
   }
-
 
   function runExecutorDeps(
     overrides: Partial<RunExecutorDeps> = {},
@@ -283,26 +244,26 @@ describe("owner decision workflow helpers", () => {
     };
   }
 
-  it("confirmed external action fixture rejects a non-authorizing owner answer before executing", async () => {
-    const calls: string[] = [];
-    const definition = makeConfirmedActionWorkflow(calls);
-    const { promise } = executeWorkflowRun(
-      definition,
-      TRIGGER,
-      runExecutorDeps(),
-    );
-
-    await answerPendingQuestion("no");
-    await approvePendingApproval();
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("failed");
-    expect(calls).toEqual([]);
-    const action = result.metadata.steps.find((step) => step.id === "book")!;
-    expect(action.status).toBe("failed");
-    expect(action.error).toContain("selected value does not authorize action book-court");
-    expect(decisionStore.list("consumed")).toEqual([]);
-    expect(decisionStore.list("answered").map((decision) => decision.selectedValue)).toEqual([
-      { kind: "single-choice", optionId: "no" },
-    ]);
-  });});
+  return {
+    root,
+    approvalQueue,
+    deadLetterQueue,
+    decisionStore,
+    idempotencyStore,
+    makeDataOnlyWorkflow,
+    makeConfirmedActionWorkflow,
+    answerPendingQuestion,
+    approvePendingApproval,
+    runExecutorDeps,
+    execute(
+      definition: WorkflowDefinition,
+      trigger = OWNER_DECISION_TRIGGER,
+      overrides: Partial<RunExecutorDeps> = {},
+    ) {
+      return executeWorkflowRun(definition, trigger, runExecutorDeps(overrides));
+    },
+    dispose() {
+      rmSync(root, { recursive: true, force: true });
+    },
+  };
+}

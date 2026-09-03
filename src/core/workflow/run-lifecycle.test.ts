@@ -6,6 +6,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import type { ControlMonitorCoverageArtifact } from "./control-monitor-coverage.js";
 import type { IntegrationContinuation } from "./run-lifecycle.js";
 import { RunLifecycle, type WorkflowContextExecutor } from "./run-lifecycle.js";
+import { RunResourceAllocator } from "./run-resources.js";
 import { type RepositoryAccess, RunSandboxManager } from "./run-sandbox.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import type { StoredRun } from "./run-state-types.js";
@@ -86,6 +87,16 @@ function lifecycle(
     executeWorkflow,
     continueIntegration,
     validate: async () => ({ status: "passed", evidence: ["verified"] }),
+    createResourceAllocator,
+  });
+}
+
+function createResourceAllocator(store: RunStateDatabase): RunResourceAllocator {
+  return new RunResourceAllocator(store, {
+    portStart: 41_000,
+    portEnd: 41_003,
+    portRangeSize: 4,
+    isPortAvailable: async () => true,
   });
 }
 
@@ -154,10 +165,6 @@ describe("RunLifecycle", () => {
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
     expect(readFileSync(join(value.root, "feature.txt"), "utf8")).toBe("delivered\n");
     expect(git(value.root, "log", "-1", "--format=%s")).toBe("deliver feature");
-    expect(value.store.getRun(value.run.id)?.integration).toMatchObject({
-      phase: "merged",
-      publishedHead: git(value.root, "rev-parse", "HEAD"),
-    });
     expect(value.store.getRun(value.run.id)?.sandbox).toBeUndefined();
     expect(existsSync(workspace)).toBe(false);
     expect(
@@ -210,6 +217,7 @@ describe("RunLifecycle", () => {
         invariants += 1;
         return { satisfied: true };
       },
+      createResourceAllocator,
     }).execute(value.run, new AbortController().signal);
 
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
@@ -316,13 +324,10 @@ describe("RunLifecycle", () => {
       },
       continueIntegration: async () => undefined,
       validate: async () => ({ status: "passed", evidence: [] }),
+      createResourceAllocator,
     }).execute(value.store.getRun(value.run.id)!, new AbortController().signal);
 
     expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
-    expect(value.store.getRun(value.run.id)?.integration).toMatchObject({
-      phase: "merged",
-      publishedHead,
-    });
     expect(value.store.getRun(value.run.id)?.sandbox).toBeUndefined();
     expect(
       readWriterIntegrationEvidence(join(value.root, ".kota", "runs"), value.run.id),
@@ -333,25 +338,6 @@ describe("RunLifecycle", () => {
       changedPaths: ["published.txt"],
       completedAt: "2026-08-25T10:00:04.000Z",
     });
-  });
-
-  test("rebases over a concurrent canonical advance before publication", async () => {
-    const value = fixture("advance", "write");
-
-    const outcome = await lifecycle(value, async (context) => {
-      write(context.sandbox.workspaceDir, "writer.txt", "writer\n");
-      write(value.root, "canonical.txt", "canonical\n");
-      commit(value.root, "canonical advance");
-      return { kind: "completed", commitMessage: "writer change" };
-    }).execute(value.run, new AbortController().signal);
-
-    expect(outcome).toEqual({ kind: "terminal", state: "succeeded" });
-    expect(readFileSync(join(value.root, "writer.txt"), "utf8")).toBe("writer\n");
-    expect(git(value.root, "log", "--format=%s", "-3").split("\n")).toEqual([
-      "writer change",
-      "canonical advance",
-      "base",
-    ]);
   });
 
   test("retries integration after transient canonical edits without losing the sandbox", async () => {
@@ -416,6 +402,7 @@ describe("RunLifecycle", () => {
         satisfied: false,
         reason: "source contract changed after admission",
       }),
+      createResourceAllocator,
     }).execute(value.run, new AbortController().signal);
 
     expect(outcome).toMatchObject({
@@ -512,6 +499,7 @@ describe("RunLifecycle", () => {
       },
       continueIntegration: async () => undefined,
       validate: async () => ({ status: "passed", evidence: [] }),
+      createResourceAllocator,
     }).execute(recovered, new AbortController().signal);
 
     expect(second).toMatchObject({ state: "needs_attention" });

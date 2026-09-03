@@ -1,1305 +1,471 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { registerAgentHarness } from "#core/agent-harness/registry.js";
-import type {
-  AgentHarness,
-  AgentHarnessResult,
-} from "#core/agent-harness/types.js";
-import { EventBus } from "#core/events/event-bus.js";
-import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
-import type { RunContext } from "../run-context.js";
-import { executeWorkflowRun } from "../run-executor.js";
-import { WorkflowRunStore } from "../run-store.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import {
+  AGENT_OK_RESULT,
+  createRunExecutorTestFixture,
+  makeAgentStep,
+  makeDefinition,
+  type RunExecutorTestFixture,
+  registerWorkflowScenarioDriver,
+} from "../run-executor-test-fixture.js";
 import type { WorkflowForeachStepInput } from "../step-input-control-flow.js";
-import type { WorkflowAgentStep } from "../step-types.js";
-import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
-import type { WorkflowDefinition } from "../types.js";
 import { validateWorkflowDefinitions } from "../validation.js";
 
-function makeRetryTrigger(retryOf: string): WorkflowRunTrigger {
-  return { event: "runtime.idle", schemaRef: null, payload: { retryOf, triggeredAt: new Date().toISOString() } };
-}
-
-function makeDefinition(
-  steps: WorkflowDefinition["steps"],
-  overrides: Partial<WorkflowDefinition> = {},
-): WorkflowDefinition {
+function retryTrigger(retryOf: string): WorkflowRunTrigger {
   return {
-    name: "test",
-    enabled: true,
-    repository: "none",
-    definitionPath: "src/modules/test/workflows/test/workflow.ts",
-    moduleRoot: "/test-module-root",
-    triggers: [],
-    steps,
-    ...overrides,
-    tags: overrides.tags ?? [],
+    event: "runtime.idle",
+    schemaRef: null,
+    payload: { retryOf, triggeredAt: new Date().toISOString() },
   };
 }
-
-const TRIGGER: WorkflowRunTrigger = { event: "runtime.idle", schemaRef: null, payload: {} };
-
-function makeRunContext(
-  workspaceRoot: string,
-  trigger: WorkflowRunTrigger = TRIGGER,
-): RunContext {
-  const runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  return {
-    run: { id: runId, attempt: 1, daemonEpoch: 1 },
-    scope: { id: "test-scope", root: workspaceRoot },
-    workflow: "test",
-    trigger,
-    sandbox: {
-      runId,
-      repository: "none",
-      rootDir: workspaceRoot,
-      workspaceDir: workspaceRoot,
-      tempDir: workspaceRoot,
-      artifactDir: workspaceRoot,
-    },
-    resources: {
-      runId,
-      attempt: 1,
-      daemonEpoch: 1,
-      workspaceDir: workspaceRoot,
-      runDir: workspaceRoot,
-      tempDir: workspaceRoot,
-      artifactDir: workspaceRoot,
-      agentDir: workspaceRoot,
-      packageCacheDir: workspaceRoot,
-      ports: { start: 41_000, end: 41_000, size: 1, values: [41_000] },
-      env: {},
-    },
-    signal: new AbortController().signal,
-    processes: { register: vi.fn() },
-    effects: { execute: (effect) => effect.execute() },
-    publications: { stageEmit: vi.fn() },
-    state: createTestTransactionalRunState(),
-  };
-}
-
-
-const AGENT_OK_RESULT: AgentHarnessResult = {
-  text: "done",
-  streamedText: "done",
-  turns: 1,
-  usage: {
-    tokens: { state: "unknown" },
-    cost: { state: "unknown" },
-  },
-  isError: false,
-};
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function uniqueHarnessName(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function registerWorkflowScenarioDriver(
-  name: string,
-  run: AgentHarness["run"],
-): void {
-  registerAgentHarness({
-    name,
-    description: "foreach workflow test harness",
-    supportsMultiTurn: false,
-    supportedHookKinds: [],
-    askOwnerToolName: null,
-    emitsAgentMessageStream: false,
-    toolControl: "kota",
-    run,
-  });
-}
-
-function makeAgentStep(
-  workspaceRoot: string,
-  harness: string,
-  overrides: Partial<WorkflowAgentStep> = {},
-): WorkflowAgentStep {
-  writeFileSync(join(workspaceRoot, "prompt.md"), "# Prompt\nRun the item.\n", "utf-8");
-  return {
-    id: "agent-process",
-    type: "agent",
-    promptPath: "prompt.md",
-    moduleRoot: workspaceRoot,
-    harness,
-    model: "test-model",
-    effort: "low",
-    autonomyMode: "autonomous",
-    ...overrides,
-  };
-}
-
-describe("foreach step – executor", () => {
-  let workspaceRoot: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
+describe("foreach execution", () => {
+  let fixture: RunExecutorTestFixture;
 
   beforeEach(() => {
-    workspaceRoot = join(
-      tmpdir(),
-      `kota-foreach-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(workspaceRoot, { recursive: true });
-    store = new WorkflowRunStore(workspaceRoot);
-    bus = new EventBus();
-    log.mockReset();
+    fixture = createRunExecutorTestFixture();
   });
 
   afterEach(() => {
-    rmSync(workspaceRoot, { recursive: true, force: true });
+    fixture.dispose();
   });
 
-  it("runs inner steps for each item in sequence and records output", async () => {
-    const processed: unknown[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        items: () => ["a", "b", "c"],
-        as: "item",
+  it("exposes each item, preserves ordered results, and publishes the last inner output", async () => {
+    const processed: string[] = [];
+    let downstream: unknown;
+    const result = await fixture.execute(
+      makeDefinition({
         steps: [
           {
-            id: "process",
+            id: "iterate",
+            type: "foreach",
+            items: ["a", "b", "c"],
+            as: "item",
+            steps: [
+              {
+                id: "process",
+                type: "code",
+                run: (ctx) => {
+                  const item = String(ctx.foreach?.item);
+                  processed.push(item);
+                  return { item };
+                },
+              },
+            ],
+          },
+          {
+            id: "observe",
             type: "code",
             run: (ctx) => {
-              processed.push(ctx.foreach?.item);
-              return `processed:${String(ctx.foreach?.item)}`;
+              downstream = ctx.stepOutputs.process;
+              return downstream;
             },
           },
         ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
+      }),
+    ).promise;
 
     expect(result.metadata.status).toBe("success");
     expect(processed).toEqual(["a", "b", "c"]);
-
-    const groupResult = result.metadata.steps[0];
-    expect(groupResult.id).toBe("iterate");
-    expect(groupResult.type).toBe("foreach");
-    expect(groupResult.status).toBe("success");
-
-    const output = groupResult.output as { items: number; results: Array<{ index: number; status: string }> };
-    expect(output.items).toBe(3);
-    expect(output.results).toHaveLength(3);
-    expect(output.results[0].status).toBe("success");
-    expect(output.results[1].status).toBe("success");
-    expect(output.results[2].status).toBe("success");
-  });
-
-  it("is a no-op for an empty list", async () => {
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        items: () => [],
-        as: "item",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: () => "should not run",
-          },
-        ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    const output = result.metadata.steps[0].output as { items: number; results: unknown[] };
-    expect(output.items).toBe(0);
-    expect(output.results).toHaveLength(0);
-  });
-
-  it("fails on first item failure when continueOnFailure is false", async () => {
-    const processed: number[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        items: () => [0, 1, 2],
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              if (idx === 1) throw new Error("item 1 failed");
-              return `ok:${idx}`;
-            },
-          },
-        ],
-      },
-      {
-        id: "after",
-        type: "code",
-        run: () => "after",
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("failed");
-    // Only items 0 and 1 were processed; item 2 was not reached
-    expect(processed).toEqual([0, 1]);
-    // "after" step should not have run
-    const afterStep = result.metadata.steps.find((s) => s.id === "after");
-    expect(afterStep).toBeUndefined();
-  });
-
-  it("continues past item failures when continueOnFailure is true", async () => {
-    const processed: number[] = [];
-    const afterRan: string[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        continueOnFailure: true,
-        items: () => [0, 1, 2],
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              if (idx === 1) throw new Error("item 1 failed");
-              return `ok:${idx}`;
-            },
-          },
-        ],
-      },
-      {
-        id: "after",
-        type: "code",
-        run: () => {
-          afterRan.push("ran");
-          return "done";
-        },
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    // Workflow continues but has warnings
-    expect(result.metadata.status).toBe("completed-with-warnings");
-    // All items processed
-    expect(processed).toEqual([0, 1, 2]);
-    // "after" step ran
-    expect(afterRan).toEqual(["ran"]);
-
-    const groupResult = result.metadata.steps[0];
-    expect(groupResult.status).toBe("failed");
-    expect(groupResult.continueOnFailure).toBe(true);
-    const output = groupResult.output as { items: number; results: Array<{ index: number; status: string }> };
-    expect(output.items).toBe(3);
-    expect(output.results[0].status).toBe("success");
-    expect(output.results[1].status).toBe("failed");
-    expect(output.results[2].status).toBe("success");
-  });
-
-  it("skips the foreach step when outer when predicate returns false", async () => {
-    const processed: unknown[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        when: () => false,
-        items: () => ["a", "b"],
-        as: "item",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              processed.push(ctx.foreach?.item);
-              return "done";
-            },
-          },
-        ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    expect(processed).toHaveLength(0);
-    expect(result.metadata.steps[0].status).toBe("skipped");
-  });
-
-  it("exposes the current item via ctx.foreach and runs multiple inner steps per item", async () => {
-    const log1: unknown[] = [];
-    const log2: unknown[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        items: () => [10, 20],
-        as: "n",
-        steps: [
-          {
-            id: "step-a",
-            type: "code",
-            run: (ctx) => {
-              log1.push(ctx.foreach?.n);
-              return `a:${String(ctx.foreach?.n)}`;
-            },
-          },
-          {
-            id: "step-b",
-            type: "code",
-            run: (ctx) => {
-              log2.push(ctx.foreach?.n);
-              return `b:${String(ctx.foreach?.n)}`;
-            },
-          },
-        ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    expect(log1).toEqual([10, 20]);
-    expect(log2).toEqual([10, 20]);
-  });
-
-  it("downstream steps can access the last iteration output via stepOutputs", async () => {
-    let capturedOutput: unknown;
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        items: () => [1, 2, 3],
-        as: "n",
-        steps: [
-          {
-            id: "compute",
-            type: "code",
-            run: (ctx) => ({ value: ctx.foreach?.n }),
-          },
-        ],
-      },
-      {
-        id: "downstream",
-        type: "code",
-        run: (ctx) => {
-          capturedOutput = ctx.stepOutputs.compute;
-          return "done";
-        },
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    // Last iteration output is accessible
-    expect(capturedOutput).toEqual({ value: 3 });
-  });
-});
-
-describe("foreach step – maxConcurrency", () => {
-  let workspaceRoot: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
-  beforeEach(() => {
-    workspaceRoot = join(
-      tmpdir(),
-      `kota-foreach-conc-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(workspaceRoot, { recursive: true });
-    store = new WorkflowRunStore(workspaceRoot);
-    bus = new EventBus();
-    log.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(workspaceRoot, { recursive: true, force: true });
-  });
-
-  it("runs items concurrently up to maxConcurrency and preserves result order", async () => {
-    const order: number[] = [];
-    // Stagger completions: item 0 resolves later than item 1 via async yielding
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 3,
-        items: () => [0, 1, 2],
-        as: "n",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: async (ctx) => {
-              const n = ctx.foreach?.n as number;
-              // yield to event loop so items interleave
-              await new Promise((r) => setTimeout(r, n === 0 ? 10 : 0));
-              order.push(n);
-              return `result:${n}`;
-            },
-          },
-        ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    // All items processed
-    expect(order.sort()).toEqual([0, 1, 2]);
-
-    const groupResult = result.metadata.steps[0];
-    expect(groupResult.status).toBe("success");
-    const output = groupResult.output as { items: number; results: Array<{ index: number; status: string }> };
-    expect(output.items).toBe(3);
-    // Results are in item-index order regardless of completion order
-    expect(output.results[0].index).toBe(0);
-    expect(output.results[1].index).toBe(1);
-    expect(output.results[2].index).toBe(2);
-    expect(output.results.every((r) => r.status === "success")).toBe(true);
-  });
-
-  it("stops after the failing batch when continueOnFailure is false", async () => {
-    const processed: number[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 2,
-        items: () => [0, 1, 2, 3],
-        as: "n",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const n = ctx.foreach?.n as number;
-              processed.push(n);
-              if (n === 1) throw new Error("item 1 failed");
-              return `ok:${n}`;
-            },
-          },
-        ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("failed");
-    // First batch [0, 1] completes; second batch [2, 3] is skipped
-    expect(processed).toEqual(expect.arrayContaining([0, 1]));
-    expect(processed).not.toContain(2);
-    expect(processed).not.toContain(3);
-  });
-
-  it("processes all items when continueOnFailure is true", async () => {
-    const processed: number[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 2,
-        continueOnFailure: true,
-        items: () => [0, 1, 2, 3],
-        as: "n",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const n = ctx.foreach?.n as number;
-              processed.push(n);
-              if (n === 1) throw new Error("item 1 failed");
-              return `ok:${n}`;
-            },
-          },
-        ],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("completed-with-warnings");
-    expect(processed.sort()).toEqual([0, 1, 2, 3]);
-  });
-
-  it("runs agent iterations concurrently up to the foreach cap", async () => {
-    const harness = uniqueHarnessName("foreach-agent-cap");
-    let active = 0;
-    let maxActive = 0;
-    let calls = 0;
-    registerWorkflowScenarioDriver(harness, async () => {
-      calls++;
-      active++;
-      maxActive = Math.max(maxActive, active);
-      await delay(20);
-      active--;
-      return { ...AGENT_OK_RESULT };
+    expect(downstream).toEqual({ item: "c" });
+    expect(result.metadata.steps[0]?.output).toMatchObject({
+      items: 3,
+      results: [
+        { index: 0, status: "success" },
+        { index: 1, status: "success" },
+        { index: 2, status: "success" },
+      ],
     });
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 3,
-        items: () => [0, 1, 2, 3],
-        as: "n",
-        steps: [makeAgentStep(workspaceRoot, harness)],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot),
-      bus,
-      store,
-      log,
-    });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    expect(calls).toBe(4);
-    expect(maxActive).toBe(3);
   });
 
-  it("serializes agent iterations when maxConcurrency is 1", async () => {
-    const harness = uniqueHarnessName("foreach-agent-serial");
-    let active = 0;
-    let maxActive = 0;
-    registerWorkflowScenarioDriver(harness, async () => {
-      active++;
-      maxActive = Math.max(maxActive, active);
-      await delay(10);
-      active--;
-      return { ...AGENT_OK_RESULT };
-    });
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 1,
-        items: () => [0, 1, 2],
-        as: "n",
-        steps: [makeAgentStep(workspaceRoot, harness)],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot),
-      bus,
-      store,
-      log,
-    });
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    expect(maxActive).toBe(1);
-  });
-
-  it("serializes repair-loop agent iterations through maxConcurrency", async () => {
-    const harness = uniqueHarnessName("foreach-agent-repair-serial");
-    let active = 0;
-    let maxActive = 0;
-    let calls = 0;
-    registerWorkflowScenarioDriver(harness, async (options) => {
-      calls++;
-      active++;
-      maxActive = Math.max(maxActive, active);
-      try {
-        const isRepair = options.prompt.includes("Post-check repair attempt");
-        await delay(isRepair ? 30 : 20);
-        return { ...AGENT_OK_RESULT, text: isRepair ? "repaired" : "initial" };
-      } finally {
-        active--;
-      }
-    });
-    const checkCounts = new Map<unknown, number>();
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 1,
-        items: () => [0, 1],
-        as: "n",
-        steps: [
-          makeAgentStep(workspaceRoot, harness, {
-            repairLoop: {
-              maxRepairAttempts: 1,
-              checks: [
+  it.each([
+    {
+      continueOnFailure: false,
+      expectedStatus: "failed",
+      expectedProcessed: [0, 1],
+    },
+    {
+      continueOnFailure: true,
+      expectedStatus: "completed-with-warnings",
+      expectedProcessed: [0, 1, 2],
+    },
+  ])(
+    "applies continueOnFailure=$continueOnFailure to remaining items and the durable outcome",
+    async ({ continueOnFailure, expectedStatus, expectedProcessed }) => {
+      const processed: number[] = [];
+      const result = await fixture.execute(
+        makeDefinition({
+          steps: [
+            {
+              id: "iterate",
+              type: "foreach",
+              continueOnFailure,
+              items: [0, 1, 2],
+              as: "item",
+              steps: [
                 {
-                  id: "needs-repair",
+                  id: "process",
                   type: "code",
-                  run: (context) => {
-                    const key = context.foreach?.n;
-                    const count = checkCounts.get(key) ?? 0;
-                    checkCounts.set(key, count + 1);
-                    if (count === 0) throw new Error(`item ${String(key)} needs repair`);
-                    return "ok";
+                  run: (ctx) => {
+                    const item = ctx.foreach?.item as number;
+                    processed.push(item);
+                    if (item === 1) throw new Error("representative item failure");
+                    return item;
                   },
                 },
               ],
             },
-          }),
-        ],
-      },
-    ]);
+          ],
+        }),
+      ).promise;
 
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot),
-      bus,
-      store,
-      log,
-    });
-    const result = await promise;
+      expect(result.metadata.status).toBe(expectedStatus);
+      expect(processed).toEqual(expectedProcessed);
+    },
+  );
+
+  it("honors maxConcurrency while retaining item-index result order", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const result = await fixture.execute(
+      makeDefinition({
+        steps: [
+          {
+            id: "iterate",
+            type: "foreach",
+            maxConcurrency: 2,
+            items: [0, 1, 2, 3],
+            as: "item",
+            steps: [
+              {
+                id: "process",
+                type: "code",
+                run: async (ctx) => {
+                  active += 1;
+                  maxActive = Math.max(maxActive, active);
+                  const item = ctx.foreach?.item as number;
+                  await delay(item % 2 === 0 ? 15 : 1);
+                  active -= 1;
+                  return item;
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    ).promise;
+
+    expect(result.metadata.status).toBe("success");
+    expect(maxActive).toBe(2);
+    const output = result.metadata.steps[0]?.output as {
+      results: Array<{ index: number }>;
+    };
+    expect(output.results.map((item) => item.index)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("keeps repair-loop agent attempts inside the foreach concurrency cap", async () => {
+    const harness = `foreach-repair-${Date.now()}`;
+    let active = 0;
+    let maxActive = 0;
+    let calls = 0;
+    registerWorkflowScenarioDriver(
+      harness,
+      async (_options: AgentHarnessRunOptions) => {
+        calls += 1;
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        try {
+          await delay(10);
+          return AGENT_OK_RESULT;
+        } finally {
+          active -= 1;
+        }
+      },
+    );
+    const checks = new Map<unknown, number>();
+    const result = await fixture.execute(
+      makeDefinition({
+        moduleRoot: fixture.workspaceRoot,
+        steps: [
+          {
+            id: "iterate",
+            type: "foreach",
+            maxConcurrency: 1,
+            items: [0, 1],
+            as: "item",
+            steps: [
+              makeAgentStep(fixture.workspaceRoot, harness, {
+                repairLoop: {
+                  maxRepairAttempts: 1,
+                  checks: [
+                    {
+                      id: "needs-repair",
+                      type: "code",
+                      run: (ctx) => {
+                        const item = ctx.foreach?.item;
+                        const count = checks.get(item) ?? 0;
+                        checks.set(item, count + 1);
+                        if (count === 0) throw new Error("repair once");
+                        return "ok";
+                      },
+                    },
+                  ],
+                },
+              }),
+            ],
+          },
+        ],
+      }),
+    ).promise;
 
     expect(result.metadata.status).toBe("success");
     expect(calls).toBe(4);
-    expect([...checkCounts.values()]).toEqual([2, 2]);
     expect(maxActive).toBe(1);
+    expect([...checks.values()]).toEqual([2, 2]);
   });
 
-  it("preserves ordered agent item results and continues after agent item failures", async () => {
-    const harness = uniqueHarnessName("foreach-agent-failure");
-    let nextCallIndex = 0;
-    registerWorkflowScenarioDriver(harness, async () => {
-      const callIndex = nextCallIndex++;
-      await delay(callIndex === 0 ? 20 : 0);
-      if (callIndex === 1) throw new Error("agent item 1 failed");
-      return { ...AGENT_OK_RESULT, text: `call:${callIndex}` };
+  it("retries only failed items and merges their outputs with prior successes", async () => {
+    const processed: number[] = [];
+    const definition = makeDefinition({
+      steps: [
+        {
+          id: "iterate",
+          type: "foreach",
+          continueOnFailure: true,
+          retryFailedItems: true,
+          items: [0, 1, 2],
+          as: "item",
+          steps: [
+            {
+              id: "process",
+              type: "code",
+              run: (ctx) => {
+                const item = ctx.foreach?.item as number;
+                processed.push(item);
+                if (item === 1) throw new Error("first attempt fails");
+                return `first:${item}`;
+              },
+            },
+          ],
+        },
+      ],
     });
+    const first = await fixture.execute(definition).promise;
+    processed.length = 0;
 
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 3,
-        continueOnFailure: true,
-        items: () => [0, 1, 2],
-        as: "n",
-        steps: [makeAgentStep(workspaceRoot, harness)],
-      },
-    ]);
-
-    const { promise } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot),
-      bus,
-      store,
-      log,
+    const fixed = makeDefinition({
+      steps: [
+        {
+          id: "iterate",
+          type: "foreach",
+          continueOnFailure: true,
+          retryFailedItems: true,
+          items: [0, 1, 2],
+          as: "item",
+          steps: [
+            {
+              id: "process",
+              type: "code",
+              run: (ctx) => {
+                const item = ctx.foreach?.item as number;
+                processed.push(item);
+                return `retry:${item}`;
+              },
+            },
+          ],
+        },
+      ],
     });
-    const result = await promise;
+    const retried = await fixture.execute(fixed, {
+      trigger: retryTrigger(first.metadata.id),
+    }).promise;
 
-    expect(result.metadata.status).toBe("completed-with-warnings");
-    const output = result.metadata.steps[0].output as {
-      results: Array<{
-        index: number;
-        status: string;
-        steps: Record<string, { status: string; output?: { content?: string } }>;
-      }>;
-    };
-    expect(output.results.map((item) => item.index)).toEqual([0, 1, 2]);
-    expect(output.results.map((item) => item.status)).toEqual([
-      "success",
-      "failed",
-      "success",
-    ]);
-    expect(output.results[0].steps["agent-process"]?.output?.content).toBe("call:0");
-    expect(output.results[2].steps["agent-process"]?.output?.content).toBe("call:2");
-  });
-
-  it("re-runs only failed agent items on retry when retryFailedItems is true", async () => {
-    const harness = uniqueHarnessName("foreach-agent-retry");
-    let nextCallIndex = 0;
-    registerWorkflowScenarioDriver(harness, async () => {
-      const callIndex = nextCallIndex++;
-      if (callIndex === 1) throw new Error("agent item 1 failed");
-      return { ...AGENT_OK_RESULT, text: `first:${callIndex}` };
-    });
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        maxConcurrency: 3,
-        continueOnFailure: true,
-        retryFailedItems: true,
-        items: () => [0, 1, 2],
-        as: "n",
-        steps: [makeAgentStep(workspaceRoot, harness)],
-      },
-    ]);
-
-    const { promise: firstRun } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot),
-      bus,
-      store,
-      log,
-    });
-    const first = await firstRun;
     expect(first.metadata.status).toBe("completed-with-warnings");
+    expect(retried.metadata.status).toBe("success");
+    expect(processed).toEqual([1]);
+    expect(retried.metadata.steps[0]?.output).toMatchObject({
+      results: [
+        { index: 0, status: "success" },
+        { index: 1, status: "success" },
+        { index: 2, status: "success" },
+      ],
+    });
+  });
 
-    let retryCalls = 0;
-    registerWorkflowScenarioDriver(harness, async () => {
-      const callIndex = retryCalls++;
-      return { ...AGENT_OK_RESULT, text: `retry:${callIndex}` };
+  it("falls back to a full retry when the item set changes", async () => {
+    const firstDefinition = makeDefinition({
+      steps: [
+        {
+          id: "iterate",
+          type: "foreach",
+          continueOnFailure: true,
+          retryFailedItems: true,
+          items: [0, 1],
+          as: "item",
+          steps: [
+            {
+              id: "process",
+              type: "code",
+              run: (ctx) => {
+                if (ctx.foreach?.item === 1) throw new Error("first attempt fails");
+                return ctx.foreach?.item;
+              },
+            },
+          ],
+        },
+      ],
+    });
+    const first = await fixture.execute(firstDefinition).promise;
+    const processed: number[] = [];
+    const expanded = makeDefinition({
+      steps: [
+        {
+          id: "iterate",
+          type: "foreach",
+          continueOnFailure: true,
+          retryFailedItems: true,
+          items: [0, 1, 2],
+          as: "item",
+          steps: [
+            {
+              id: "process",
+              type: "code",
+              run: (ctx) => {
+                const item = ctx.foreach?.item as number;
+                processed.push(item);
+                return item;
+              },
+            },
+          ],
+        },
+      ],
     });
 
-    const retryTrigger = makeRetryTrigger(first.metadata.id);
-    const { promise: retryRun } = executeWorkflowRun(
-      definition,
-      retryTrigger,
-      {
-        readRuntimeState: readEmptyTestWorkflowRuntimeState,
-        runContext: makeRunContext(workspaceRoot, retryTrigger),
-        bus,
-        store,
-        log,
-      },
-    );
-    const retried = await retryRun;
+    await fixture.execute(expanded, {
+      trigger: retryTrigger(first.metadata.id),
+    }).promise;
 
-    expect(retryCalls).toBe(1);
-    expect(retried.metadata.status).toBe("success");
-    const output = retried.metadata.steps[0].output as {
-      results: Array<{
-        status: string;
-        steps: Record<string, { output?: { content?: string } }>;
-      }>;
-    };
-    expect(output.results.map((item) => item.status)).toEqual([
-      "success",
-      "success",
-      "success",
-    ]);
-    expect(output.results[0].steps["agent-process"]?.output?.content).toBe("first:0");
-    expect(output.results[1].steps["agent-process"]?.output?.content).toBe("retry:0");
-    expect(output.results[2].steps["agent-process"]?.output?.content).toBe("first:2");
+    expect(processed).toEqual([0, 1, 2]);
   });
 });
 
-describe("foreach step – validation", () => {
-  function makeInput(steps: WorkflowForeachStepInput["steps"] = [{ id: "s", type: "code", run: () => 1 }]) {
-    return validateWorkflowDefinitions([
+describe("foreach validation", () => {
+  function validate(step: WorkflowForeachStepInput): void {
+    validateWorkflowDefinitions([
       {
         repository: "read",
-        definitionPath: "test.ts",
-        name: "test",
+        definitionPath: "foreach-validation.test.ts",
+        name: "foreach-validation",
         triggers: [{ event: "runtime.idle" }],
-        steps: [
-          {
-            id: "loop",
-            type: "foreach",
-            items: () => [],
-            as: "item",
-            steps,
-          } satisfies WorkflowForeachStepInput,
-        ],
+        steps: [step],
       },
     ]);
   }
 
-  it("accepts a valid foreach step", () => {
-    const defs = makeInput();
-    expect(defs[0].steps[0].type).toBe("foreach");
-  });
-
-  it("rejects missing items", () => {
-    expect(() =>
-      validateWorkflowDefinitions([
-        {
-          repository: "read",
-          definitionPath: "test.ts",
-          name: "test",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
+  it("accepts concurrent agent items", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-foreach-validation-"));
+    const promptPath = join(root, "prompt.md");
+    writeFileSync(promptPath, "Run.\n", "utf8");
+    try {
+      expect(() =>
+        validateWorkflowDefinitions(
+          [
             {
-              id: "loop",
-              type: "foreach",
-              items: undefined as unknown as () => [],
-              as: "item",
-              steps: [{ id: "s", type: "code", run: () => 1 }],
-            } satisfies WorkflowForeachStepInput,
-          ],
-        },
-      ]),
-    ).toThrow("items is required");
-  });
-
-  it("rejects non-function non-array items", () => {
-    expect(() =>
-      validateWorkflowDefinitions([
-        {
-          repository: "read",
-          definitionPath: "test.ts",
-          name: "test",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
-            {
-              id: "loop",
-              type: "foreach",
-              items: "not-valid" as unknown as () => [],
-              as: "item",
-              steps: [{ id: "s", type: "code", run: () => 1 }],
-            } satisfies WorkflowForeachStepInput,
-          ],
-        },
-      ]),
-    ).toThrow("items must be a function or array");
-  });
-
-  it("rejects empty steps array", () => {
-    expect(() => makeInput([])).toThrow("steps must be a non-empty array");
-  });
-
-  it("rejects unsupported inner step types", () => {
-    expect(() =>
-      validateWorkflowDefinitions([
-        {
-          repository: "read",
-          definitionPath: "test.ts",
-          name: "test",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
-            {
-              id: "loop",
-              type: "foreach",
-              items: () => [],
-              as: "item",
+              repository: "read",
+              definitionPath: "foreach-validation.test.ts",
+              moduleRoot: root,
+              name: "foreach-validation",
+              triggers: [{ event: "runtime.idle" }],
               steps: [
                 {
-                  id: "inner-emit",
-                  type: "emit",
-                  event: "some.event",
-                } as unknown as { id: string; type: "code"; run: () => void },
+                  id: "loop",
+                  type: "foreach",
+                  maxConcurrency: 2,
+                  items: [],
+                  as: "item",
+                  steps: [
+                    {
+                      id: "agent",
+                      type: "agent",
+                      promptPath: "prompt.md",
+                      harness: "test",
+                      model: "test-model",
+                      effort: "low",
+                      autonomyMode: "autonomous",
+                    },
+                  ],
+                },
               ],
-            } satisfies WorkflowForeachStepInput,
+            },
           ],
-        },
-      ]),
-    ).toThrow(/must be "code" or "agent"/);
-  });
-
-  it("accepts maxConcurrency: 1", () => {
-    const defs = validateWorkflowDefinitions([
-      {
-        repository: "read",
-        definitionPath: "test.ts",
-        name: "test",
-        triggers: [{ event: "runtime.idle" }],
-        steps: [
-          {
-            id: "loop",
-            type: "foreach",
-            maxConcurrency: 1,
-            items: () => [],
-            as: "item",
-            steps: [{ id: "s", type: "code", run: () => 1 }],
-          } satisfies WorkflowForeachStepInput,
-        ],
-      },
-    ]);
-    expect((defs[0].steps[0] as { maxConcurrency?: number }).maxConcurrency).toBe(1);
-  });
-
-  it("accepts maxConcurrency > 1 with agent inner steps", () => {
-    const validationScopeRoot = join(
-      tmpdir(),
-      `kota-foreach-validation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(validationScopeRoot, { recursive: true });
-    writeFileSync(join(validationScopeRoot, "prompt.md"), "# Prompt\nRun.\n", "utf-8");
-    try {
-      const defs = validateWorkflowDefinitions(
-        [
-          {
-            repository: "read",
-            definitionPath: "test.ts",
-            name: "test",
-            triggers: [{ event: "runtime.idle" }],
-            steps: [
-              {
-                id: "loop",
-                type: "foreach",
-                maxConcurrency: 2,
-                items: () => [],
-                as: "item",
-                steps: [
-                  {
-                    id: "agent-step",
-                    type: "agent",
-                    promptPath: "prompt.md",
-                    harness: "foreach-validation-harness",
-                    model: "test-model",
-                    effort: "low",
-                    autonomyMode: "autonomous",
-                  },
-                ],
-              } satisfies WorkflowForeachStepInput,
-            ],
-          },
-        ],
-        validationScopeRoot,
-      );
-      expect((defs[0].steps[0] as { maxConcurrency?: number }).maxConcurrency).toBe(2);
+          root,
+        )
+      ).not.toThrow();
     } finally {
-      rmSync(validationScopeRoot, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("rejects unsupported inner step types even when maxConcurrency > 1", () => {
-    expect(() =>
-      validateWorkflowDefinitions([
-        {
-          repository: "read",
-          definitionPath: "test.ts",
-          name: "test",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
-            {
-              id: "loop",
-              type: "foreach",
-              maxConcurrency: 2,
-              items: () => [],
-              as: "item",
-              steps: [
-                {
-                  id: "inner-trigger",
-                  type: "trigger",
-                  workflow: "other",
-                } as unknown as { id: string; type: "code"; run: () => void },
-              ],
-            } satisfies WorkflowForeachStepInput,
-          ],
-        },
-      ]),
-    ).toThrow(/must be "code" or "agent"/);
-  });
-
-  it("rejects non-integer maxConcurrency", () => {
-    expect(() =>
-      validateWorkflowDefinitions([
-        {
-          repository: "read",
-          definitionPath: "test.ts",
-          name: "test",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
-            {
-              id: "loop",
-              type: "foreach",
-              maxConcurrency: 1.5 as unknown as number,
-              items: () => [],
-              as: "item",
-              steps: [{ id: "s", type: "code", run: () => 1 }],
-            } satisfies WorkflowForeachStepInput,
-          ],
-        },
-      ]),
-    ).toThrow(/maxConcurrency must be an integer/);
-  });
-
-  it("rejects duplicate step IDs between foreach inner steps and outer steps", () => {
-    expect(() =>
-      validateWorkflowDefinitions([
-        {
-          repository: "read",
-          definitionPath: "test.ts",
-          name: "test",
-          triggers: [{ event: "runtime.idle" }],
-          steps: [
-            {
-              id: "loop",
-              type: "foreach",
-              items: () => [],
-              as: "item",
-              steps: [{ id: "dup", type: "code", run: () => 1 }],
-            } satisfies WorkflowForeachStepInput,
-            { id: "dup", type: "code", run: () => 2 },
-          ],
-        },
-      ]),
-    ).toThrow('duplicate step id "dup"');
-  });
-});
-
-describe("foreach step – retryFailedItems partial-resume", () => {
-  let workspaceRoot: string;
-  let store: WorkflowRunStore;
-  let bus: EventBus;
-  const log = vi.fn();
-
-  beforeEach(() => {
-    workspaceRoot = join(
-      tmpdir(),
-      `kota-foreach-retry-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    );
-    mkdirSync(workspaceRoot, { recursive: true });
-    store = new WorkflowRunStore(workspaceRoot);
-    bus = new EventBus();
-    log.mockReset();
-  });
-
-  afterEach(() => {
-    rmSync(workspaceRoot, { recursive: true, force: true });
-  });
-
-  it("re-runs only failed items on retry when retryFailedItems is true", async () => {
-    const processed: number[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
+  it.each([
+    {
+      name: "missing items",
+      step: {
+        id: "loop",
         type: "foreach",
-        continueOnFailure: true,
-        retryFailedItems: true,
-        items: () => [0, 1, 2],
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              if (idx === 1) throw new Error("item 1 failed");
-              return `ok:${idx}`;
-            },
-          },
-        ],
+        items: undefined,
+        as: "item",
+        steps: [{ id: "inner", type: "code", run: () => null }],
       },
-    ]);
-
-    // First run: items 0 and 2 succeed, item 1 fails
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const first = await p1;
-    expect(first.metadata.status).toBe("completed-with-warnings");
-    const firstId = first.metadata.id;
-    processed.length = 0;
-
-    // Retry: item 1 is fixed — should only re-run item 1
-    const fixedDefinition = makeDefinition([
-      {
-        id: "iterate",
+      error: "items is required",
+    },
+    {
+      name: "non-collection items",
+      step: {
+        id: "loop",
         type: "foreach",
-        continueOnFailure: true,
-        retryFailedItems: true,
-        items: () => [0, 1, 2],
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              return `ok:${idx}`;
-            },
-          },
-        ],
+        items: "invalid",
+        as: "item",
+        steps: [{ id: "inner", type: "code", run: () => null }],
       },
-    ]);
-
-    const retryTrigger = makeRetryTrigger(firstId);
-    const { promise: p2 } = executeWorkflowRun(fixedDefinition, retryTrigger, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot, retryTrigger),
-      bus,
-      store,
-      log,
-    });
-    const retried = await p2;
-
-    // Only item 1 should have been re-run
-    expect(processed).toEqual([1]);
-    expect(retried.metadata.status).toBe("success");
-
-    const foreachResult = retried.metadata.steps.find((s) => s.id === "iterate");
-    expect(foreachResult?.status).toBe("success");
-    const output = foreachResult?.output as { items: number; results: Array<{ index: number; status: string }> };
-    expect(output.items).toBe(3);
-    expect(output.results).toHaveLength(3);
-    expect(output.results[0].status).toBe("success");
-    expect(output.results[1].status).toBe("success"); // re-run and now succeeds
-    expect(output.results[2].status).toBe("success");
-  });
-
-  it("falls back to a full re-run when item count changes between runs", async () => {
-    const processed: number[] = [];
-
-    const definition = makeDefinition([
-      {
-        id: "iterate",
+      error: "items must be a function or array",
+    },
+    {
+      name: "empty inner steps",
+      step: { id: "loop", type: "foreach", items: [], as: "item", steps: [] },
+      error: "steps must be a non-empty array",
+    },
+    {
+      name: "unsupported inner step",
+      step: {
+        id: "loop",
         type: "foreach",
-        continueOnFailure: true,
-        retryFailedItems: true,
-        items: () => [0, 1],
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              if (idx === 1) throw new Error("item 1 failed");
-              return `ok:${idx}`;
-            },
-          },
-        ],
+        items: [],
+        as: "item",
+        steps: [{ id: "inner", type: "emit", event: "example.event" }],
       },
-    ]);
-
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const first = await p1;
-    const firstId = first.metadata.id;
-    processed.length = 0;
-
-    // Retry with MORE items — count mismatch triggers full re-run
-    const expandedDefinition = makeDefinition([
-      {
-        id: "iterate",
+      error: 'must be "code" or "agent"',
+    },
+    {
+      name: "fractional concurrency",
+      step: {
+        id: "loop",
         type: "foreach",
-        continueOnFailure: true,
-        retryFailedItems: true,
-        items: () => [0, 1, 2], // 3 items now
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              return `ok:${idx}`;
-            },
-          },
-        ],
+        maxConcurrency: 1.5,
+        items: [],
+        as: "item",
+        steps: [{ id: "inner", type: "code", run: () => null }],
       },
-    ]);
-
-    const retryTrigger = makeRetryTrigger(firstId);
-    const { promise: p2 } = executeWorkflowRun(expandedDefinition, retryTrigger, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot, retryTrigger),
-      bus,
-      store,
-      log,
-    });
-    await p2;
-
-    // All 3 items run (full re-run due to count mismatch)
-    expect(processed.sort()).toEqual([0, 1, 2]);
-  });
-
-  it("does not activate partial-resume when retryFailedItems is absent", async () => {
-    const processed: number[] = [];
-
-    // A foreach WITHOUT retryFailedItems but WITH continueOnFailure.
-    // On retry the foreach step is NOT treated as a retry point, so it is
-    // replayed from the prior run result without re-running any items.
-    const definition = makeDefinition([
-      {
-        id: "iterate",
-        type: "foreach",
-        continueOnFailure: true,
-        // no retryFailedItems
-        items: () => [0, 1, 2],
-        as: "idx",
-        steps: [
-          {
-            id: "process",
-            type: "code",
-            run: (ctx) => {
-              const idx = ctx.foreach?.idx as number;
-              processed.push(idx);
-              if (idx === 1) throw new Error("item 1 failed");
-              return `ok:${idx}`;
-            },
-          },
-        ],
-      },
-      {
-        id: "after",
-        type: "code",
-        run: () => "after",
-      },
-    ]);
-
-    const { promise: p1 } = executeWorkflowRun(definition, TRIGGER, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState, runContext: makeRunContext(workspaceRoot), bus, store, log });
-    const first = await p1;
-    expect(first.metadata.status).toBe("completed-with-warnings");
-    const firstId = first.metadata.id;
-    processed.length = 0;
-
-    // Retry: the foreach step is replayed (not re-run). The "after" step is the retry point
-    // because findRetryFromIndex skips continueOnFailure failures without retryFailedItems.
-    // However, "after" succeeded in the first run, so retryFromIndex goes past it too —
-    // the whole workflow is considered fully complete and retryFromIndex = steps.length.
-    const retryTrigger = makeRetryTrigger(firstId);
-    const { promise: p2 } = executeWorkflowRun(definition, retryTrigger, {
-      readRuntimeState: readEmptyTestWorkflowRuntimeState,
-      runContext: makeRunContext(workspaceRoot, retryTrigger),
-      bus,
-      store,
-      log,
-    });
-    const retried = await p2;
-
-    // No items were processed — the foreach was not re-run
-    expect(processed).toEqual([]);
-    // The retry run has both steps replayed
-    expect(retried.metadata.steps).toHaveLength(2);
+      error: "maxConcurrency must be an integer",
+    },
+  ])("rejects $name", ({ step, error }) => {
+    expect(() => validate(step as WorkflowForeachStepInput)).toThrow(error);
   });
 });

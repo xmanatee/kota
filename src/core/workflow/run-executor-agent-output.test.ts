@@ -2,8 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import { createAgentBackoffTestFixture } from "#core/workflow/testing/agent-backoff-test-fixture.js";
 import {
-  createPrimaryAgentBackoffFixture,
   createRunExecutorTestFixture,
   makeAgentStep,
   makeDefinition,
@@ -189,7 +189,7 @@ describe("agent output validation and retry", () => {
         subtype: "error_during_execution",
       };
     });
-    const backoff = createPrimaryAgentBackoffFixture();
+    const backoff = createAgentBackoffTestFixture();
     const definition = makeDefinition({
       moduleRoot: fixture.workspaceRoot,
       steps: [
@@ -199,13 +199,20 @@ describe("agent output validation and retry", () => {
       ],
     });
 
-    const result = await fixture.execute(definition, { agentBackoff: backoff.manager }).promise;
+    try {
+      const result = await fixture.execute(definition, {
+        agentBackoff: backoff.manager,
+      }).promise;
 
-    expect(result.metadata.status).toBe("failed");
-    expect(result.agentBackoff).toMatchObject({ kind: "provider" });
-    expect(attempts).toBe(1);
-    expect(backoff.registerAttempt).toHaveBeenCalledTimes(1);
-    expect(backoff.apply).toHaveBeenCalledTimes(1);
+      expect(result.metadata.status).toBe("failed");
+      expect(result.agentBackoff).toMatchObject({ kind: "provider" });
+      expect(backoff.state.getAgentBackoff()).toMatchObject({
+        kind: "provider",
+      });
+      expect(attempts).toBe(1);
+    } finally {
+      backoff.dispose();
+    }
   });
 
   it("retries missing fenced JSON output with a targeted correction prompt", async () => {

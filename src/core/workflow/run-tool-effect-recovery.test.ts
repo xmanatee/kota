@@ -22,6 +22,7 @@ import {
   type RunContext,
 } from "./run-context.js";
 import { RunLifecycle } from "./run-lifecycle.js";
+import { RunResourceAllocator } from "./run-resources.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import type { StoredRun } from "./run-state-types.js";
 import { WorkflowRunStore } from "./run-store.js";
@@ -316,6 +317,13 @@ describe("declarative workflow tool effects", () => {
       },
       validate: async () => ({ status: "passed", evidence: [] }),
       continueIntegration: async () => undefined,
+      createResourceAllocator: (store) =>
+        new RunResourceAllocator(store, {
+          portStart: 45_000,
+          portEnd: 45_000,
+          portRangeSize: 1,
+          isPortAvailable: async () => true,
+        }),
     });
 
     await expect(

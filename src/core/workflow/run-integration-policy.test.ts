@@ -7,15 +7,13 @@ import {
   UNKNOWN_AGENT_USAGE,
   WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION,
 } from "#core/agent-harness/index.js";
-import {
-  AgentBackoffAdmissionError,
-  type AgentBackoffManager,
-} from "./agent-backoff.js";
+import { AgentBackoffAdmissionError } from "./agent-backoff.js";
 import type { RunContext } from "./run-context.js";
 import {
   continueRunIntegration,
   validateRunIntegration,
 } from "./run-integration-policy.js";
+import { createAgentBackoffTestFixture } from "./testing/agent-backoff-test-fixture.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
 
 const HARNESS_NAME = "integration-policy-fixture";
@@ -133,36 +131,30 @@ describe("shared integration continuation policy", () => {
 
   it("denies integration repair before harness launch while agent work is parked", async () => {
     const captured = captureHarness();
-    const active = {
-      runtimeId: "agy:antigravity-cli",
-      kind: "rate_limit" as const,
-      failureCount: 1,
-      until: "2026-09-02T18:00:00.000Z",
-      updatedAt: "2026-09-02T17:55:00.000Z",
+    const backoff = createAgentBackoffTestFixture();
+    backoff.manager.apply({
+      kind: "rate_limit",
       reason: "provider quota reset pending",
-    };
-    const agentBackoff = {
-      registerAttempt: (controller: AbortController) => {
-        const error = new AgentBackoffAdmissionError(active);
-        controller.abort(error);
-        throw error;
-      },
-    } as unknown as AgentBackoffManager;
+    });
 
-    await expect(
-      continueRunIntegration(
-        context(),
-        {
-          kind: "conflict",
-          fingerprint: "conflict-parked",
-          conflictPaths: ["src/shared.ts"],
-        },
-        { defaultAgentHarness: HARNESS_NAME },
-        undefined,
-        agentBackoff,
-      ),
-    ).rejects.toBeInstanceOf(AgentBackoffAdmissionError);
-    expect(captured).toThrow("Harness was not launched");
+    try {
+      await expect(
+        continueRunIntegration(
+          context(),
+          {
+            kind: "conflict",
+            fingerprint: "conflict-parked",
+            conflictPaths: ["src/shared.ts"],
+          },
+          { defaultAgentHarness: HARNESS_NAME },
+          undefined,
+          backoff.manager,
+        ),
+      ).rejects.toBeInstanceOf(AgentBackoffAdmissionError);
+      expect(captured).toThrow("Harness was not launched");
+    } finally {
+      backoff.dispose();
+    }
   });
 
   it.each([

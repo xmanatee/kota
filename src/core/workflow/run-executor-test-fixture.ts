@@ -6,20 +6,13 @@ import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import type { AgentHarness, AgentHarnessResult } from "#core/agent-harness/types.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
-import {
-  AgentBackoffAdmissionError,
-  type AgentBackoffManager,
-} from "./agent-backoff.js";
+import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { RunContext } from "./run-context.js";
 import { executeWorkflowRun } from "./run-executor.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowAgentStep } from "./step-types.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
-import type {
-  WorkflowAgentBackoffSignal,
-  WorkflowAgentBackoffState,
-  WorkflowRunTrigger,
-} from "./trigger-types.js";
+import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 
 export const TRIGGER: WorkflowRunTrigger = {
@@ -58,6 +51,7 @@ export interface RunExecutorTestFixture {
     options?: {
       runContext?: RunContext;
       agentBackoff?: AgentBackoffManager;
+      trigger?: WorkflowRunTrigger;
     },
   ): ReturnType<typeof executeWorkflowRun>;
   dispose(): void;
@@ -79,15 +73,25 @@ export function createRunExecutorTestFixture(): RunExecutorTestFixture {
     bus,
     runContext,
     log,
-    execute: (definition, options = {}) =>
-      executeWorkflowRun(definition, TRIGGER, {
+    execute: (definition, options = {}) => {
+      const trigger = options.trigger ?? TRIGGER;
+      return executeWorkflowRun(definition, trigger, {
         readRuntimeState: readEmptyTestWorkflowRuntimeState,
-        runContext: options.runContext ?? runContext,
+        runContext: options.runContext ??
+          (options.trigger === undefined
+            ? runContext
+            : makeRunContext(
+                workspaceRoot,
+                1,
+                trigger,
+                `test-run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              )),
         bus,
         store,
         log,
         agentBackoff: options.agentBackoff,
-      }),
+      });
+    },
     dispose: () => rmSync(workspaceRoot, { recursive: true, force: true }),
   };
 }
@@ -141,43 +145,12 @@ export function registerWorkflowScenarioDriver(
   });
 }
 
-export function createPrimaryAgentBackoffFixture(): {
-  manager: AgentBackoffManager;
-  apply: ReturnType<typeof vi.fn>;
-  registerAttempt: ReturnType<typeof vi.fn>;
-} {
-  let active: WorkflowAgentBackoffState | null = null;
-  const attempts = new Set<AbortController>();
-  const registerAttempt = vi.fn((controller: AbortController) => {
-    if (active !== null) throw new AgentBackoffAdmissionError(active);
-    attempts.add(controller);
-    return () => attempts.delete(controller);
-  });
-  const apply = vi.fn((signal: WorkflowAgentBackoffSignal) => {
-    const next: WorkflowAgentBackoffState = {
-      runtimeId: "agy:antigravity-cli",
-      kind: signal.kind,
-      failureCount: 1,
-      until: "2026-09-02T18:00:00.000Z",
-      updatedAt: "2026-09-02T17:55:00.000Z",
-      reason: signal.reason,
-    };
-    active = next;
-    for (const controller of attempts) {
-      controller.abort(new AgentBackoffAdmissionError(next, signal));
-    }
-    attempts.clear();
-    return next;
-  });
-  return {
-    manager: { registerAttempt, apply } as unknown as AgentBackoffManager,
-    apply,
-    registerAttempt,
-  };
-}
-
-export function makeRunContext(workspaceRoot: string, attempt = 1): RunContext {
-  const runId = "test-run";
+export function makeRunContext(
+  workspaceRoot: string,
+  attempt = 1,
+  trigger: WorkflowRunTrigger = TRIGGER,
+  runId = "test-run",
+): RunContext {
   const rootDir = join(workspaceRoot, ".kota", "runtime", runId);
   const workspaceDir = join(rootDir, "workspace");
   const tempDir = join(rootDir, "tmp");
@@ -192,7 +165,7 @@ export function makeRunContext(workspaceRoot: string, attempt = 1): RunContext {
     run: { id: runId, attempt, daemonEpoch: 1 },
     scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",
-    trigger: TRIGGER,
+    trigger,
     sandbox: {
       runId,
       repository: "none",

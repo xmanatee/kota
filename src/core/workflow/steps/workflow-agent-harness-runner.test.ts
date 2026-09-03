@@ -1,41 +1,21 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { AgentHarness } from "#core/agent-harness/types.js";
+import { AgentBackoffAdmissionError } from "../agent-backoff.js";
 import {
-  AgentBackoffAdmissionError,
-  type AgentBackoffManager,
-} from "../agent-backoff.js";
-import type {
-  WorkflowAgentBackoffState,
-  WorkflowAgentIncidentSignal,
-} from "../trigger-types.js";
+  type AgentBackoffTestFixture,
+  createAgentBackoffTestFixture,
+} from "../testing/agent-backoff-test-fixture.js";
 import { createWorkflowAgentHarnessRunner } from "./workflow-agent-harness-runner.js";
 
-function testBackoffGate(): AgentBackoffManager {
-  let active: WorkflowAgentBackoffState | null = null;
-  const attempts = new Set<AbortController>();
-  return {
-    registerAttempt(controller: AbortController) {
-      if (active !== null) throw new AgentBackoffAdmissionError(active);
-      attempts.add(controller);
-      return () => attempts.delete(controller);
-    },
-    apply(signal: WorkflowAgentIncidentSignal) {
-      active = {
-        runtimeId: "agy:antigravity-cli",
-        kind: signal.kind,
-        failureCount: 1,
-        until: "2026-09-02T18:00:00.000Z",
-        updatedAt: "2026-09-02T17:55:00.000Z",
-        reason: signal.reason,
-      };
-      for (const controller of attempts) {
-        controller.abort(new AgentBackoffAdmissionError(active));
-      }
-      attempts.clear();
-      return active;
-    },
-  } as unknown as AgentBackoffManager;
-}
+let backoff: AgentBackoffTestFixture;
+
+beforeEach(() => {
+  backoff = createAgentBackoffTestFixture();
+});
+
+afterEach(() => {
+  backoff.dispose();
+});
 
 describe("workflow agent harness backoff boundary", () => {
   it("activates on a classified judge failure and denies another launch", async () => {
@@ -65,7 +45,7 @@ describe("workflow agent harness backoff boundary", () => {
     };
     const runner = createWorkflowAgentHarnessRunner(
       undefined,
-      testBackoffGate(),
+      backoff.manager,
     );
 
     await expect(
@@ -107,7 +87,7 @@ describe("workflow agent harness backoff boundary", () => {
     };
     const runner = createWorkflowAgentHarnessRunner(
       undefined,
-      testBackoffGate(),
+      backoff.manager,
     );
 
     await expect(
@@ -142,7 +122,7 @@ describe("workflow agent harness backoff boundary", () => {
     };
     const runner = createWorkflowAgentHarnessRunner(
       undefined,
-      testBackoffGate(),
+      backoff.manager,
     );
 
     await expect(runner(
