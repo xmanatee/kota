@@ -67,12 +67,13 @@ export function SharedUiAction({
 
   const run = async (
     parameters: Readonly<Record<string, UiJsonValue>> | undefined,
+    confirmed = false,
   ) => {
     setWorking(true);
     setError(null);
     setResult(null);
     try {
-      const response = await executeUiAction(action, parameters);
+      const response = await executeUiAction(action, parameters, confirmed);
       setResult(response.message);
       if (!response.ok) setError(response.message);
       setPendingParameters(null);
@@ -182,7 +183,7 @@ export function SharedUiAction({
                   ]}
                   accessibilityRole="button"
                   accessibilityLabel={action.confirmation.confirmLabel}
-                  onPress={() => void run(pendingParameters)}
+                  onPress={() => void run(pendingParameters, true)}
                 >
                   <Text style={styles.buttonLabel}>
                     {action.confirmation.confirmLabel}

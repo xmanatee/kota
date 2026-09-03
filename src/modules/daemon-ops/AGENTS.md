@@ -57,11 +57,11 @@ Do not reinvent selection per command.
   round trip. Other CLIs that need to render a scope selector consume
   this same shape; do not call `getScopeRegistryProjection()` and
   `/scopes/active` separately just to splice them client-side.
-- Writes come through `client.scopes.use(id | null)`. The daemon
+- Selection writes come through `client.scopes.use(id | null)`. The daemon
   persists the selection in-memory only — restarting the daemon clears
   the selection back to the registry default — and routes that take
   `?scopeId=` use the active selection when the parameter is omitted.
-  `kota scope use` is the canonical entry point; `null` clears the
+  `kota scope select` is the canonical entry point; `null` clears the
   selection, an unknown id surfaces `not_found`.
 - Per-command `--scope <id>` flags override the active selection for
   one call. `daemon-ops` subcommands (`status`, `session`, `events`)
@@ -71,6 +71,11 @@ Do not reinvent selection per command.
   `events tail --all-scopes`) — never the default. New operator
   surfaces should follow the same shape rather than introducing a
   parallel "all scopes" or per-scope flag set.
+- External folders enter through the same `client.scopes` onboarding
+  operations used by the shared `ui.surface.v1` graph. `kota scope inspect`,
+  `configure`, `add`, `status`, `retry`, and `cancel` are terminal renderings
+  of that contract. `drain` closes admission before `remove` stops hosting;
+  removal never deletes the directory.
 - Single-scope setups never render a selector. The presence threshold
   in `daemon-ops` views (e.g. the `Active scope` line in `kota
   status`) is "registry hosts more than one scope," so KOTA-on-itself

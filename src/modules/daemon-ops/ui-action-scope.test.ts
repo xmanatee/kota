@@ -158,6 +158,7 @@ describe("daemon UI action scope", () => {
       actionId: "workflow.launch",
       scopeId: "scope-b",
       parameters: { workflow: "builder" },
+      confirmed: true,
     })).resolves.toEqual({ ok: true, message: "Workflow queued." });
 
     expect(calls).toEqual([

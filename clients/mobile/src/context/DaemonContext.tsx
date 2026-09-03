@@ -77,6 +77,7 @@ interface DaemonContextValue {
   executeUiAction: (
     action: UiAction,
     parameters?: UiJsonValue,
+    confirmed?: boolean,
   ) => Promise<UiActionExecutionResult>;
 }
 
@@ -310,9 +311,9 @@ export function DaemonProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const executeUiAction = useCallback(
-    async (action: UiAction, parameters?: UiJsonValue) => {
+    async (action: UiAction, parameters?: UiJsonValue, confirmed = false) => {
       if (!client) throw new Error('Daemon connection is unavailable.');
-      const result = await client.executeUiAction(action, parameters);
+      const result = await client.executeUiAction(action, parameters, confirmed);
       if (result.ok) await fetchUiSurfaces();
       return result;
     },

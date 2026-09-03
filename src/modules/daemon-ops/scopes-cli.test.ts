@@ -1,14 +1,14 @@
 /**
- * `kota scope ls` / `kota scope use` command surface tests.
+ * `kota scope list` / `kota scope select` command surface tests.
  *
  * Pins the operator-facing behaviour:
- *  - `ls` prints the configured scopes, marks the active one, and falls
+ *  - `list` prints the configured scopes, marks the active one, and falls
  *    back gracefully when the daemon is offline.
- *  - `use <id>` calls `client.scopes.use(id)` and reports the new
+ *  - `select <id>` calls `client.scopes.use(id)` and reports the new
  *    selection.
- *  - `use --clear` calls `client.scopes.use(null)` and reports the
+ *  - `select --clear` calls `client.scopes.use(null)` and reports the
  *    cleared selection.
- *  - `use` rejects unknown ids with a non-zero exit code.
+ *  - `select` rejects unknown ids with a non-zero exit code.
  *  - The CLI rejects mutually exclusive `<id>` + `--clear` and missing
  *    arguments without round-tripping through the daemon.
  */
@@ -49,8 +49,29 @@ describe("kota scope CLI", () => {
     process.exitCode = originalExitCode;
   });
 
-  it("ls --json prints scopes + active selection on a daemon-up call", async () => {
-    const scopes: ScopesClient = {
+  it("exposes canonical scope verbs without retired aliases", () => {
+    const command = buildScopeCommand({ client: { scopes: {} } } as never);
+    const names = command.commands.map((child) => child.name());
+    expect(names).toEqual([
+      "list",
+      "select",
+      "authority",
+      "inspect",
+      "configure",
+      "add",
+      "status",
+      "retry",
+      "cancel",
+      "drain",
+      "remove",
+    ]);
+    expect(names).not.toContain("ls");
+    expect(names).not.toContain("use");
+    expect(names).not.toContain("onboarding");
+  });
+
+  it("list --json prints scopes + active selection on a daemon-up call", async () => {
+    const scopes = {
       list: vi.fn(async () => ({
         ok: true as const,
         defaultScopeId: "p1",
@@ -61,9 +82,9 @@ describe("kota scope CLI", () => {
         ],
       })),
       use: vi.fn(),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["ls", "--json"], { from: "user" });
+    await cmd.parseAsync(["list", "--json"], { from: "user" });
     expect(JSON.parse(logs[0]!)).toEqual({
       defaultScopeId: "p1",
       activeScopeId: "p2",
@@ -75,90 +96,89 @@ describe("kota scope CLI", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("ls reports daemon_required on the local-handler arm with exit code 1", async () => {
-    const scopes: ScopesClient = {
+  it("list reports daemon_required on the local-handler arm with exit code 1", async () => {
+    const scopes = {
       list: vi.fn(async () => ({ ok: false as const, reason: "daemon_required" as const })),
       use: vi.fn(),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["ls"], { from: "user" });
+    await cmd.parseAsync(["list"], { from: "user" });
     expect(errs.join("\n")).toContain("Daemon is not running");
     expect(process.exitCode).toBe(1);
   });
 
-  it("use <id> calls scopes.use and prints the new active selection", async () => {
-    const scopes: ScopesClient = {
+  it("select <id> calls scopes.use and prints the new active selection", async () => {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(async () => ({ ok: true as const, activeScopeId: "p2" })),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["use", "p2"], { from: "user" });
+    await cmd.parseAsync(["select", "p2"], { from: "user" });
     expect(scopes.use).toHaveBeenCalledWith("p2");
     expect(logs.join("\n")).toContain("Active scope → p2");
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("use --clear calls scopes.use(null) and reports the cleared selection", async () => {
-    const scopes: ScopesClient = {
+  it("select --clear calls scopes.use(null) and reports the cleared selection", async () => {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(async () => ({ ok: true as const, activeScopeId: null })),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["use", "--clear"], { from: "user" });
+    await cmd.parseAsync(["select", "--clear"], { from: "user" });
     expect(scopes.use).toHaveBeenCalledWith(null);
     expect(logs.join("\n")).toContain("Active selection cleared");
   });
 
-  it("use rejects unknown ids with a non-zero exit code", async () => {
-    const scopes: ScopesClient = {
+  it("select rejects unknown ids with a non-zero exit code", async () => {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(async () => ({ ok: false as const, reason: "not_found" as const, scopeId: "ghost" })),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["use", "ghost"], { from: "user" });
+    await cmd.parseAsync(["select", "ghost"], { from: "user" });
     expect(errs.join("\n")).toContain("Unknown scope");
     expect(process.exitCode).toBe(1);
   });
 
-  it("use rejects passing both <id> and --clear without calling the daemon", async () => {
-    const scopes: ScopesClient = {
+  it("select rejects passing both <id> and --clear without calling the daemon", async () => {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["use", "p1", "--clear"], { from: "user" });
+    await cmd.parseAsync(["select", "p1", "--clear"], { from: "user" });
     expect(scopes.use).not.toHaveBeenCalled();
     expect(errs.join("\n")).toContain("Cannot pass both");
     expect(process.exitCode).toBe(1);
   });
 
-  it("use without an id or --clear flag is rejected", async () => {
-    const scopes: ScopesClient = {
+  it("select without an id or --clear flag is rejected", async () => {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(),
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
-    await cmd.parseAsync(["use"], { from: "user" });
+    await cmd.parseAsync(["select"], { from: "user" });
     expect(scopes.use).not.toHaveBeenCalled();
     expect(errs.join("\n")).toContain("Pass <scopeId> to switch");
     expect(process.exitCode).toBe(1);
   });
 
-  it("onboarding plan delegates explicit operator choices to the scopes client", async () => {
+  it("configure delegates explicit operator choices to the scopes client", async () => {
     const planOnboarding = vi.fn(async () => ({
       ok: false as const,
       reason: "invalid_choices" as const,
       message: "fixture plan response",
     }));
-    const scopes: ScopesClient = {
+    const scopes = {
       list: vi.fn(),
       use: vi.fn(),
       planOnboarding,
-    };
+    } as unknown as ScopesClient;
     const cmd = buildScopeCommand(makeCtx(scopes));
     await cmd.parseAsync([
-      "onboarding",
-      "plan",
+      "configure",
       "/tmp/external",
       "--trusted",
       "--automation",
@@ -178,5 +198,45 @@ describe("kota scope CLI", () => {
       reason: "invalid_choices",
       message: "fixture plan response",
     });
+  });
+
+  it("status renders durable progress, readiness reasons, mutations, and errors", async () => {
+    const scopes = {
+      getOnboardingStatus: vi.fn(async () => ({
+        ok: true as const,
+        operation: {
+          operationId: "operation-1",
+          state: "incomplete",
+          attempts: 2,
+          readiness: {
+            registered: true,
+            configured: false,
+            trusted: false,
+            workflowReady: false,
+            blocked: true,
+            partiallyApplied: true,
+            reasons: [{ code: "setup_missing", message: "GitHub token is required." }],
+          },
+          mutations: [{
+            kind: "set-authority",
+            target: "scope-external",
+            status: "failed",
+            message: "Authority store unavailable.",
+          }],
+          error: { code: "apply_failed", message: "Authority store unavailable." },
+        },
+      })),
+    } as unknown as ScopesClient;
+    const cmd = buildScopeCommand(makeCtx(scopes));
+
+    await cmd.parseAsync(["status", "operation-1"], { from: "user" });
+
+    const output = logs.join("\n");
+    expect(output).toContain("state=incomplete; attempts=2");
+    expect(output).toContain("Readiness reasons: [setup_missing] GitHub token is required.");
+    expect(output).toContain(
+      "Mutations: set-authority scope-external=failed: Authority store unavailable.",
+    );
+    expect(output).toContain("Error: [apply_failed] Authority store unavailable.");
   });
 });

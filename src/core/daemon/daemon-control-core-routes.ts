@@ -76,6 +76,12 @@ function onboardingFailureStatus(reason: string): number {
   return 409;
 }
 
+function scopeLifecycleFailureStatus(reason: string): number {
+  if (reason === "unknown_scope") return 404;
+  if (reason === "persistence_failed" || reason === "rollback_failed") return 500;
+  return 409;
+}
+
 function parseJson(raw: Buffer): { ok: true; value: unknown } | { ok: false; message: string } {
   try {
     return { ok: true, value: JSON.parse(raw.toString("utf8")) as unknown };
@@ -357,6 +363,32 @@ export function buildDaemonCoreControlRoutes(
         }
         const result = await h.cancelScopeOnboarding(params.operationId);
         jsonResponse(res, result.ok ? 200 : onboardingFailureStatus(result.reason), result);
+      },
+    },
+    {
+      method: "POST",
+      path: "/scopes/:scopeId/drain",
+      capabilityScope: "control",
+      handler: async (_req, res, params) => {
+        if (!h.drainScope) {
+          jsonResponse(res, 501, { error: "Scope lifecycle is unavailable" });
+          return;
+        }
+        const result = await h.drainScope(params.scopeId);
+        jsonResponse(res, result.ok ? 200 : scopeLifecycleFailureStatus(result.reason), result);
+      },
+    },
+    {
+      method: "DELETE",
+      path: "/scopes/:scopeId",
+      capabilityScope: "control",
+      handler: async (_req, res, params) => {
+        if (!h.removeScope) {
+          jsonResponse(res, 501, { error: "Scope lifecycle is unavailable" });
+          return;
+        }
+        const result = await h.removeScope(params.scopeId);
+        jsonResponse(res, result.ok ? 200 : scopeLifecycleFailureStatus(result.reason), result);
       },
     },
     {

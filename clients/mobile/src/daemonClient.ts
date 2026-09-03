@@ -29,8 +29,9 @@ export class DaemonClient {
   executeUiAction(
     action: UiAction,
     parameters?: UiJsonValue,
+    confirmed = false,
   ): Promise<UiActionExecutionResult> {
-    return ui.executeUiAction(this.http, action, parameters);
+    return ui.executeUiAction(this.http, action, parameters, confirmed);
   }
 
   getUiDaemonRoute(path: string): Promise<UiDaemonRouteDocument> {

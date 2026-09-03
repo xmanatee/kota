@@ -202,6 +202,8 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     scopeOnboarding,
     scopeRuntimes,
     getScopeHostingState: (scopeId) => scopeLifecycle.getHostingState(scopeId),
+    drainScope: (scopeId) => scopeLifecycle.drainScope(scopeId),
+    removeScope: (scopeId) => scopeLifecycle.removeScope(scopeId),
     config,
     refreshLiveSessionGuardrails: (guardrailsConfig) =>
       ctx.controlServer.refreshChatSessionGuardrails(guardrailsConfig),
@@ -256,6 +258,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
     registry.register(DAEMON_SCOPE_PROVIDER_TYPE, "daemon", {
       getScopeRegistryProjection: () => handle.getScopeRegistryProjection(),
       getActiveScopeId: () => handle.getActiveScopeId(),
+      setActiveScopeId: (scopeId) => handle.setActiveScopeId(scopeId),
       resolveScopeRuntime: (scopeId) => {
         const requested = scopeId?.trim();
         const resolvedScopeId =
@@ -276,6 +279,25 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
           return { ok: true, runtime: scopeRuntimes.get(resolvedScopeId) };
         }
         return { ok: true, runtime: scopeRuntimes.getDefault() };
+      },
+      operator: {
+        inspectOnboarding: (directoryRoot) => scopeOnboarding.inspect(directoryRoot),
+        planOnboarding: (directoryRoot, choices) =>
+          scopeOnboarding.plan(directoryRoot, choices),
+        applyOnboarding: (plan, operatorAction) =>
+          scopeOnboarding.apply(
+            plan,
+            scopeAuthorityOperatorVerifier.authorizeDaemonControlAction(operatorAction),
+          ),
+        getOnboardingStatus: (operationId) => scopeOnboarding.status(operationId),
+        retryOnboarding: (operationId, operatorAction) =>
+          scopeOnboarding.retry(
+            operationId,
+            scopeAuthorityOperatorVerifier.authorizeDaemonControlAction(operatorAction),
+          ),
+        cancelOnboarding: (operationId) => scopeOnboarding.cancel(operationId),
+        drain: (scopeId) => scopeLifecycle.drainScope(scopeId),
+        remove: (scopeId) => scopeLifecycle.removeScope(scopeId),
       },
     });
     registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "daemon", {

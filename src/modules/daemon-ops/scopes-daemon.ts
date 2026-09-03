@@ -103,6 +103,21 @@ export function buildScopesDaemonHandler(link: DaemonTransport): ScopesClient {
           scopeId: body.scopeId ?? (scopeId ?? ""),
         };
       }
+      if (res.status === 409) {
+        const body = (await res.json()) as {
+          reason?: string;
+          scopeId?: string;
+          state?: "inactive" | "draining" | "drained";
+        };
+        if (body.reason === "scope_not_hosted" && body.state !== undefined) {
+          return {
+            ok: false,
+            reason: "not_hosted",
+            scopeId: body.scopeId ?? (scopeId ?? ""),
+            state: body.state,
+          };
+        }
+      }
       if (!res.ok) throw await daemonResponseError(res);
       const body = (await res.json()) as { activeScopeId: ScopeId | null };
       return { ok: true, activeScopeId: body.activeScopeId };
@@ -248,6 +263,24 @@ export function buildScopesDaemonHandler(link: DaemonTransport): ScopesClient {
         { method: "DELETE", headers: link.authHeaders() },
       );
       return await res.json() as ScopeOnboardingApplyResult;
+    },
+    drain: async (scopeId) => {
+      const res = await link.fetchRaw(
+        `/scopes/${encodeURIComponent(scopeId)}/drain`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...link.authHeaders() },
+          body: "{}",
+        },
+      );
+      return await res.json() as Awaited<ReturnType<ScopesClient["drain"]>>;
+    },
+    remove: async (scopeId) => {
+      const res = await link.fetchRaw(
+        `/scopes/${encodeURIComponent(scopeId)}`,
+        { method: "DELETE", headers: link.authHeaders() },
+      );
+      return await res.json() as Awaited<ReturnType<ScopesClient["remove"]>>;
     },
   };
 }

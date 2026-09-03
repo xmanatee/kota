@@ -399,7 +399,8 @@ public final class AppState: ObservableObject {
 
     func executeUiAction(
         _ action: UiAction,
-        parameters: [String: UiJsonValue]? = nil
+        parameters: [String: UiJsonValue]? = nil,
+        confirmed: Bool = false
     ) async -> UiActionExecutionResult {
         guard let token = synchronizeRequestSource(),
               action.scopeId == token.source.scopeId else {
@@ -412,7 +413,11 @@ public final class AppState: ObservableObject {
         }
         let result: UiActionExecutionResult
         do {
-            result = try await client.executeUiAction(action, parameters: parameters)
+            result = try await client.executeUiAction(
+                action,
+                parameters: parameters,
+                confirmed: confirmed
+            )
         } catch {
             result = UiActionExecutionResult(
                 ok: false,

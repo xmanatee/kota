@@ -129,6 +129,25 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
     expect(result).toEqual({ ok: false, reason: "not_found", scopeId: "ghost" });
   });
 
+  it("use(id) preserves a known scope's unavailable hosting state", async () => {
+    const { transport } = makeRecordingTransport(() =>
+      jsonResponse(409, {
+        error: "Scope p2 is drained",
+        reason: "scope_not_hosted",
+        scopeId: "p2",
+        state: "drained",
+      }),
+    );
+    const contributed = daemonOpsModule.daemonClient!(transport);
+
+    await expect(contributed.scopes!.use("p2")).resolves.toEqual({
+      ok: false,
+      reason: "not_hosted",
+      scopeId: "p2",
+      state: "drained",
+    });
+  });
+
   it("use(id) surfaces transport failure", async () => {
     const { transport } = makeRecordingTransport(() => {
       throw new TypeError("fetch failed");
@@ -195,5 +214,40 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
         writes: { mode: "none" },
       },
     });
+  });
+
+  it("routes drain and safe removal through the canonical scope lifecycle endpoints", async () => {
+    const { transport, calls } = makeRecordingTransport((path) =>
+      path.endsWith("/drain")
+        ? jsonResponse(409, {
+            ok: false,
+            reason: "scope_busy",
+            message: "Scope has active resources",
+            scopeId: "scope-external",
+            blockers: [],
+          })
+        : jsonResponse(200, {
+            ok: true,
+            status: "removed",
+            scope: {
+              scopeId: "scope-external",
+              directoryRoot: "/tmp/external",
+              displayName: "External",
+            },
+          }));
+    const scopes = daemonOpsModule.daemonClient!(transport).scopes!;
+
+    await expect(scopes.drain("scope-external")).resolves.toMatchObject({
+      ok: false,
+      reason: "scope_busy",
+    });
+    await expect(scopes.remove("scope-external")).resolves.toMatchObject({
+      ok: true,
+      status: "removed",
+    });
+    expect(calls.map((call) => [call.init?.method, call.path])).toEqual([
+      ["POST", "/scopes/scope-external/drain"],
+      ["DELETE", "/scopes/scope-external"],
+    ]);
   });
 });

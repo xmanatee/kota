@@ -46,6 +46,7 @@ struct UiActionExecuteRequest: Encodable, Equatable {
     let actionId: String
     let scopeId: String
     let parameters: [String: UiJsonValue]?
+    let confirmed: Bool?
 }
 
 struct UiActionExecutionResult: Decodable, Equatable {

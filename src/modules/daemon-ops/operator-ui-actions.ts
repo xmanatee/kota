@@ -1,3 +1,8 @@
+import type {
+  ScopeOnboardingChoices,
+  ScopeOnboardingOperation,
+} from "#core/daemon/scope-onboarding.js";
+import { decodeScopeOnboardingPlanRequest } from "#core/daemon/scope-onboarding-codec.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { executeCapabilityUiAction } from "./operator-ui-capability-actions.js";
@@ -7,6 +12,11 @@ import type {
   UiJsonValue,
   UiSurfaceBundle,
 } from "./operator-ui-types.js";
+import {
+  describeOnboardingInspection,
+  describeOnboardingOperation,
+  describeOnboardingPlan,
+} from "./scope-onboarding-presentation.js";
 
 export type UiActionExecutionPayload = {
   kind: "external-url";
@@ -61,6 +71,195 @@ function booleanParameter(
   const obj = objectParameters(parameters);
   const value = obj?.[key];
   return typeof value === "boolean" ? value : false;
+}
+
+function onboardingRequest(
+  parameters: UiJsonValue | undefined,
+):
+  | { ok: true; directoryRoot: string; choices: ScopeOnboardingChoices }
+  | { ok: false; result: UiActionExecutionResult } {
+  const obj = objectParameters(parameters);
+  const writes = obj?.writes;
+  if (
+    writes === "paths" &&
+    (!Array.isArray(obj?.writePaths) || obj.writePaths.length === 0)
+  ) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        reason: "invalid-input",
+        message: "Selected paths requires at least one allowed path.",
+      },
+    };
+  }
+  const canonicalWrites = writes === undefined
+    ? undefined
+    : writes === "paths"
+      ? { mode: writes, paths: obj?.writePaths }
+      : typeof writes === "string"
+        ? { mode: writes }
+        : writes;
+  const decoded = decodeScopeOnboardingPlanRequest({
+    directoryRoot: obj?.directoryRoot,
+    choices: {
+      ...(obj?.displayName !== undefined ? { displayName: obj.displayName } : {}),
+      ...(obj?.trusted !== undefined ? { trust: obj.trusted } : {}),
+      ...(obj?.initialAutomationMode !== undefined
+        ? { initialAutomationMode: obj.initialAutomationMode }
+        : {}),
+      ...(canonicalWrites !== undefined ? { writes: canonicalWrites } : {}),
+    },
+  });
+  if (!decoded.ok) {
+    return {
+      ok: false,
+      result: {
+        ok: false,
+        reason: "invalid-input",
+        message: decoded.error,
+      },
+    };
+  }
+  return {
+    ok: true,
+    directoryRoot: decoded.value.directoryRoot,
+    choices: decoded.value.choices,
+  };
+}
+
+function scopeFailure(
+  result: { reason: string; message?: string },
+): Extract<UiActionExecutionResult, { ok: false }> {
+  return {
+    ok: false,
+    reason: result.reason,
+    message: result.message ?? `Scope operation failed: ${result.reason}.`,
+  };
+}
+
+function onboardingFailure(result: {
+  reason: string;
+  message?: string;
+  operation?: ScopeOnboardingOperation;
+}): UiActionExecutionResult {
+  const failure = scopeFailure(result);
+  if (!result.operation) return failure;
+  return {
+    ...failure,
+    message: `${failure.message} ${describeOnboardingOperation(result.operation).join(" ")}`,
+  };
+}
+
+export async function executeScopesUiAction(
+  scopes: KotaClient["scopes"],
+  method: string,
+  parameters: UiJsonValue | undefined,
+): Promise<UiActionExecutionResult | null> {
+  if (method === "list") {
+    const result = await scopes.list();
+    return result.ok
+      ? { ok: true, message: `${result.scopes.length} scope(s) available.` }
+      : scopeFailure(result);
+  }
+  if (method === "use") {
+    const scopeId = stringParameter(parameters, "scopeId");
+    const result = await scopes.use(booleanParameter(parameters, "clear") ? null : scopeId ?? null);
+    return result.ok
+      ? {
+          ok: true,
+          message: result.activeScopeId === null
+            ? "Active scope cleared."
+            : `Active scope set to ${result.activeScopeId}.`,
+        }
+      : scopeFailure(result);
+  }
+  if (method === "inspectOnboarding") {
+    const directoryRoot = stringParameter(parameters, "directoryRoot");
+    if (!directoryRoot) return { ok: false, reason: "invalid-input", message: "directoryRoot is required." };
+    const result = await scopes.inspectOnboarding(directoryRoot);
+    if (!result.ok) return scopeFailure(result);
+    const inspection = result.inspection;
+    return { ok: true, message: describeOnboardingInspection(inspection).join(" ") };
+  }
+  if (method === "planOnboarding" || method === "addOnboarding") {
+    const request = onboardingRequest(parameters);
+    if (!request.ok) return request.result;
+    const planned = await scopes.planOnboarding(request.directoryRoot, request.choices);
+    if (!planned.ok) return scopeFailure(planned);
+    const plan = planned.plan;
+    if (method === "planOnboarding") {
+      return { ok: true, message: describeOnboardingPlan(plan).join(" ") };
+    }
+    if (plan.blockers.length > 0) {
+      return {
+        ok: false,
+        reason: "blocked",
+        message: describeOnboardingPlan(plan).join(" "),
+      };
+    }
+    const dangerous = plan.choices.trust ||
+      plan.choices.initialAutomationMode !== "passive" ||
+      plan.choices.writes.mode !== "none";
+    const applied = await scopes.applyOnboarding(
+      plan,
+      dangerous ? "confirm-dangerous" : "apply",
+    );
+    if (!applied.ok) return onboardingFailure(applied);
+    const operation = applied.operation;
+    return { ok: true, message: describeOnboardingOperation(operation).join(" ") };
+  }
+  if (method === "getOnboardingStatus") {
+    const operationId = stringParameter(parameters, "operationId");
+    if (!operationId) return { ok: false, reason: "invalid-input", message: "operationId is required." };
+    const result = await scopes.getOnboardingStatus(operationId);
+    if (!result.ok) return scopeFailure(result);
+    const operation = result.operation;
+    return { ok: true, message: describeOnboardingOperation(operation).join(" ") };
+  }
+  if (method === "retryOnboarding") {
+    const operationId = stringParameter(parameters, "operationId");
+    if (!operationId) return { ok: false, reason: "invalid-input", message: "operationId is required." };
+    const status = await scopes.getOnboardingStatus(operationId);
+    if (!status.ok) return scopeFailure(status);
+    const plan = status.operation.acceptedPlan;
+    const dangerous = plan.choices.trust ||
+      plan.choices.initialAutomationMode !== "passive" ||
+      plan.choices.writes.mode !== "none";
+    const result = await scopes.retryOnboarding(
+      operationId,
+      plan.scopeId,
+      dangerous ? "confirm-dangerous" : "apply",
+    );
+    return result.ok
+      ? { ok: true, message: describeOnboardingOperation(result.operation).join(" ") }
+      : onboardingFailure(result);
+  }
+  if (method === "cancelOnboarding") {
+    const operationId = stringParameter(parameters, "operationId");
+    if (!operationId) return { ok: false, reason: "invalid-input", message: "operationId is required." };
+    const result = await scopes.cancelOnboarding(operationId);
+    return result.ok
+      ? { ok: true, message: `Operation ${operationId} cancelled and rolled back.` }
+      : onboardingFailure(result);
+  }
+  if (method === "drain") {
+    const scopeId = stringParameter(parameters, "scopeId");
+    if (!scopeId) return { ok: false, reason: "invalid-input", message: "scopeId is required." };
+    const result = await scopes.drain(scopeId);
+    return result.ok
+      ? { ok: true, message: `Scope ${scopeId} is drained and no longer accepts work.` }
+      : scopeFailure(result);
+  }
+  if (method === "remove") {
+    const scopeId = stringParameter(parameters, "scopeId");
+    if (!scopeId) return { ok: false, reason: "invalid-input", message: "scopeId is required." };
+    const result = await scopes.remove(scopeId);
+    return result.ok
+      ? { ok: true, message: `Scope ${scopeId} is no longer hosted. Its folder was not deleted.` }
+      : scopeFailure(result);
+  }
+  return null;
 }
 
 async function triggerRunFollowUp(args: {
@@ -152,78 +351,20 @@ export async function executeUiAction(args: {
       message: "This UI action requires a KotaClient namespace executor.",
     };
   }
+  if (action.operation.namespace === "scopes") {
+    const result = await executeScopesUiAction(
+      client.scopes,
+      action.operation.method,
+      parameters,
+    );
+    if (result) return result;
+  }
   if (action.operation.namespace === "daemonOps" && action.operation.method === "status") {
     const status = await client.daemonOps.status();
     if (status.state === "running") {
       return { ok: true, message: `Daemon running pid ${status.status.pid}.` };
     }
     return { ok: true, message: `Daemon ${status.state.replace(/_/g, " ")}.` };
-  }
-  if (action.operation.namespace === "scopes" && action.operation.method === "list") {
-    const result = await client.scopes.list();
-    if (!result.ok) return { ok: false, reason: result.reason, message: "Daemon project registry is unavailable." };
-    return { ok: true, message: `${result.scopes.length} project(s) available.` };
-  }
-  if (action.operation.namespace === "scopes" && action.operation.method === "use") {
-    const scopeId = stringParameter(parameters, "scopeId");
-    const clear = booleanParameter(parameters, "clear");
-    const result = await client.scopes.use(clear ? null : scopeId ?? null);
-    if (!result.ok) {
-      return {
-        ok: false,
-        reason: result.reason,
-        message: result.reason === "not_found"
-          ? `Unknown scope: ${result.scopeId}.`
-          : "Daemon project registry is unavailable.",
-      };
-    }
-    return {
-      ok: true,
-      message: result.activeScopeId === null
-        ? "Active scope cleared."
-        : `Active scope set to ${result.activeScopeId}.`,
-    };
-  }
-  if (action.operation.namespace === "scopes" && action.operation.method === "planOnboarding") {
-    const directoryRoot = stringParameter(parameters, "directoryRoot");
-    if (!directoryRoot || !client.scopes.planOnboarding) {
-      return {
-        ok: false,
-        reason: directoryRoot ? "daemon_required" : "invalid-input",
-        message: directoryRoot
-          ? "Scope onboarding requires a live daemon."
-          : "directoryRoot is required.",
-      };
-    }
-    const initialAutomationMode = stringParameter(parameters, "initialAutomationMode");
-    const writes = stringParameter(parameters, "writes");
-    const result = await client.scopes.planOnboarding(directoryRoot, {
-      ...(stringParameter(parameters, "displayName") !== undefined
-        ? { displayName: stringParameter(parameters, "displayName") }
-        : {}),
-      trust: booleanParameter(parameters, "trusted"),
-      ...(initialAutomationMode === "passive" ||
-        initialAutomationMode === "supervised" ||
-        initialAutomationMode === "autonomous"
-        ? { initialAutomationMode }
-        : {}),
-      ...(writes === "none" || writes === "scope-directory" || writes === "unrestricted"
-        ? { writes: { mode: writes } }
-        : {}),
-    });
-    if (!result.ok) return {
-      ok: false,
-      reason: result.reason,
-      message: "message" in result
-        ? result.message
-        : "Scope onboarding plan is unavailable.",
-    };
-    return {
-      ok: true,
-      message:
-        `Plan ${result.plan.planId}: ${result.plan.changes.length} change(s), ` +
-        `${result.plan.blockers.length} blocker(s).`,
-    };
   }
   if (action.operation.namespace === "workflow" && action.operation.method === "status") {
     const result = await client.workflow.status();

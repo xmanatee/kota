@@ -163,6 +163,20 @@ describe("scope authority operator token", () => {
     )).toBeUndefined();
   });
 
+  it("mints an opaque capability for a daemon-resolved confirmed UI action", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-authority-ui-control-"));
+    roots.push(root);
+    const verifier = createScopeAuthorityOperatorTokenVerifier(join(root, "config.json"));
+
+    const action = verifier.authorizeDaemonControlAction("confirm-dangerous");
+
+    expect(isVerifiedScopeAuthorityOperatorAction(action)).toBe(true);
+    expect(action).toMatchObject({
+      source: "daemon-control-surface",
+      confirmedDangerousChange: true,
+    });
+  });
+
   it("refuses to sign for a project-selected endpoint with the wrong machine credential", () => {
     const operatorRoot = mkdtempSync(join(tmpdir(), "kota-authority-operator-"));
     const foreignRoot = mkdtempSync(join(tmpdir(), "kota-authority-foreign-"));

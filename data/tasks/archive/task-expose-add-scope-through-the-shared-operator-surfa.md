@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-add-one-transactional-external-scope-onboarding-se]
+status: done
 ---
 
 # Expose Add Scope through the shared operator surface

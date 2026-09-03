@@ -32,6 +32,11 @@ import type {
   ScopeAuthorityView,
 } from "#core/daemon/scope-authority-types.js";
 import type {
+  ScopeDrainResult,
+  ScopeHostingState,
+  ScopeRemovalResult,
+} from "#core/daemon/scope-lifecycle.js";
+import type {
   ScopeOnboardingApplyResult,
   ScopeOnboardingChoices,
   ScopeOnboardingInspection,
@@ -53,6 +58,7 @@ export type UiActionExecuteInput = ScopeSelector & {
   surfaceId: string;
   actionId: string;
   parameters?: UiJsonValue;
+  confirmed?: boolean;
 };
 
 export type UiEventWatchInput = {
@@ -199,12 +205,19 @@ export type ScopesListResult =
 
 /**
  * Result of `scopes.use(scopeId | null)`. The success arm echoes the
- * new active selection; `not_found` rejects unknown ids; `daemon_required`
- * surfaces when no daemon is reachable to mutate.
+ * new active selection; `not_found` rejects unknown ids; `not_hosted`
+ * rejects a known scope whose lifecycle has stopped accepting selection;
+ * `daemon_required` surfaces when no daemon is reachable to mutate.
  */
 export type ScopesUseResult =
   | { ok: true; activeScopeId: ScopeId | null }
   | { ok: false; reason: "not_found"; scopeId: string }
+  | {
+      ok: false;
+      reason: "not_hosted";
+      scopeId: string;
+      state: Exclude<ScopeHostingState, "hosted">;
+    }
   | { ok: false; reason: "daemon_required" };
 
 export type ScopeAuthorityInspectResult =
@@ -236,6 +249,14 @@ export type ScopeOnboardingStatusClientResult =
   | { ok: true; operation: ScopeOnboardingOperation }
   | { ok: false; reason: "not_found" | "daemon_required"; message?: string };
 
+export type ScopeDrainClientResult =
+  | ScopeDrainResult
+  | { ok: false; reason: "daemon_required"; message?: string };
+
+export type ScopeRemovalClientResult =
+  | ScopeRemovalResult
+  | { ok: false; reason: "daemon_required"; message?: string };
+
 /**
  * Scope-selection operations exposed to operator CLIs and clients.
  *
@@ -244,36 +265,38 @@ export type ScopeOnboardingStatusClientResult =
  * every client (CLI, native app, web dashboard) reaches for both reads
  * and the typed switch call. Routes that take optional `?scopeId=` fall
  * back to the active selection when the parameter is absent, so a
- * `kota scopes use <id>` selection scopes subsequent inspection commands
+ * `kota scope select <id>` selection scopes subsequent inspection commands
  * without each one re-passing `--scope`.
  */
 export interface ScopesClient {
   list(): Promise<ScopesListResult>;
   use(scopeId: string | null): Promise<ScopesUseResult>;
-  inspectAuthority?(scopeId: string): Promise<ScopeAuthorityInspectResult>;
-  validateAuthority?(
+  inspectAuthority(scopeId: string): Promise<ScopeAuthorityInspectResult>;
+  validateAuthority(
     scopeId: string,
     mutation: ScopeAuthorityMutation,
   ): Promise<ScopeAuthorityClientValidationResult>;
-  applyAuthority?(
+  applyAuthority(
     scopeId: string,
     mutation: ScopeAuthorityMutation,
     operatorAction: ScopeAuthorityOperatorActionValue,
   ): Promise<ScopeAuthorityClientMutationResult>;
-  inspectOnboarding?(directoryRoot: string): Promise<ScopeOnboardingInspectClientResult>;
-  planOnboarding?(
+  inspectOnboarding(directoryRoot: string): Promise<ScopeOnboardingInspectClientResult>;
+  planOnboarding(
     directoryRoot: string,
     choices?: ScopeOnboardingChoices,
   ): Promise<ScopeOnboardingPlanClientResult>;
-  applyOnboarding?(
+  applyOnboarding(
     plan: ScopeOnboardingPlan,
     operatorAction: ScopeAuthorityOperatorActionValue,
   ): Promise<ScopeOnboardingApplyClientResult>;
-  getOnboardingStatus?(operationId: string): Promise<ScopeOnboardingStatusClientResult>;
-  retryOnboarding?(
+  getOnboardingStatus(operationId: string): Promise<ScopeOnboardingStatusClientResult>;
+  retryOnboarding(
     operationId: string,
     scopeId: string,
     operatorAction: ScopeAuthorityOperatorActionValue,
   ): Promise<ScopeOnboardingApplyClientResult>;
-  cancelOnboarding?(operationId: string): Promise<ScopeOnboardingApplyClientResult>;
+  cancelOnboarding(operationId: string): Promise<ScopeOnboardingApplyClientResult>;
+  drain(scopeId: string): Promise<ScopeDrainClientResult>;
+  remove(scopeId: string): Promise<ScopeRemovalClientResult>;
 }

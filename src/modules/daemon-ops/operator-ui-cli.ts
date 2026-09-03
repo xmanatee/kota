@@ -112,7 +112,12 @@ export function buildUiCommand(ctx: ModuleContext): Command {
         return;
       }
 
-      const result = await ctx.client.ui.executeAction({ surfaceId, actionId, parameters });
+      const result = await ctx.client.ui.executeAction({
+        surfaceId,
+        actionId,
+        parameters,
+        ...(selected.confirmation.mode === "required" ? { confirmed: true } : {}),
+      });
       if (opts.json === true) {
         writeJson(result, { pretty: true });
         if (!result.ok) process.exitCode = 1;

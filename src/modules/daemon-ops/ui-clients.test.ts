@@ -79,7 +79,7 @@ function localClient(scopeRoot: string) {
   } as unknown as ModuleContext;
   return {
     client: buildLocalUiClient(ctx),
-    input: { surfaceId: "status", actionId: "daemon.start", scopeId },
+    input: { surfaceId: "status", actionId: "daemon.start", scopeId, confirmed: true },
   };
 }
 

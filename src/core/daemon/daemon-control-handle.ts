@@ -48,7 +48,11 @@ import type {
   ScopeAuthorityValidationResult,
   ScopeAuthorityView,
 } from "./scope-authority-types.js";
-import type { ScopeHostingState } from "./scope-lifecycle-types.js";
+import type {
+  ScopeDrainResult,
+  ScopeHostingState,
+  ScopeRemovalResult,
+} from "./scope-lifecycle-types.js";
 import type {
   ScopeOnboardingApplyResult,
   ScopeOnboardingChoices,
@@ -117,6 +121,8 @@ export type DaemonControlHandle = {
     operatorAction?: ScopeAuthorityOperatorAction,
   ): Promise<ScopeOnboardingApplyResult>;
   cancelScopeOnboarding?(operationId: string): Promise<ScopeOnboardingApplyResult>;
+  drainScope?(scopeId: ScopeId): Promise<ScopeDrainResult>;
+  removeScope?(scopeId: ScopeId): Promise<ScopeRemovalResult>;
   inspectScopeAuthority?(scopeId: string): ScopeAuthorityView | ScopeAuthorityFailure;
   validateScopeAuthority?(
     scopeId: string,

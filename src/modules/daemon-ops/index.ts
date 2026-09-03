@@ -71,7 +71,7 @@ const daemonModule: KotaModule = {
     return {
       sessions: sessionsLocalClient(),
       daemonOps,
-      scopes: scopesLocalClient(),
+      scopes: scopesLocalClient(ctx),
       ui: buildLocalUiClient(ctx),
     };
   },

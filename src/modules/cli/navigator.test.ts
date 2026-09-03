@@ -174,6 +174,7 @@ describe("runtime navigator", () => {
       surfaceId: "operator-control",
       actionId: "workflow.launch",
       parameters: { name: "builder" },
+      confirmed: true,
     });
     expect(output.frames.join("\n")).toMatch(/UI action executed/);
   });
@@ -197,6 +198,7 @@ describe("runtime navigator", () => {
       surfaceId: "operator-control",
       actionId: "workflow.launch",
       parameters: undefined,
+      confirmed: true,
     });
     expect(output.frames.join("\n")).toMatch(/UI action executed/);
   });

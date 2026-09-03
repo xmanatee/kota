@@ -78,7 +78,11 @@ function ActionForm({
 
   const mutation = useMutation({
     mutationFn: (parameters: Parameters | undefined) =>
-      api.executeUiAction(action, parameters),
+      api.executeUiAction(
+        action,
+        parameters,
+        action.confirmation.mode === "required",
+      ),
     onSuccess: (result) => {
       setConfirmationParameters(null);
       if (result.ok) {

@@ -46,7 +46,12 @@ function scopeUseParameters(): UiActionParameterSpec {
 function scopeOnboardingPlanParameters(): UiActionParameterSpec {
   return {
     fields: [
-      { id: "directoryRoot", label: "Folder", input: "text", required: true },
+      {
+        id: "directoryRoot",
+        label: "Daemon host folder",
+        input: "path",
+        required: true,
+      },
       { id: "displayName", label: "Display name", input: "text", required: false },
       { id: "trusted", label: "Trust this scope", input: "boolean", required: false },
       {
@@ -68,15 +73,27 @@ function scopeOnboardingPlanParameters(): UiActionParameterSpec {
         options: [
           { label: "No writes", value: "none" },
           { label: "Scope folder", value: "scope-directory" },
+          { label: "Selected paths", value: "paths" },
           { label: "Unrestricted", value: "unrestricted" },
         ],
+      },
+      {
+        id: "writePaths",
+        label: "Allowed paths (JSON array; used with Selected paths)",
+        input: "multiline",
+        required: false,
       },
     ],
     schema: {
       type: "object",
       required: ["directoryRoot", "initialAutomationMode", "writes"],
       properties: {
-        directoryRoot: { type: "string" },
+        directoryRoot: {
+          type: "string",
+          format: "path",
+          description:
+            "Absolute path on the daemon host. Browsers enter it explicitly; local native clients may use a folder picker.",
+        },
         displayName: { type: "string" },
         trusted: { type: "boolean", default: false },
         initialAutomationMode: {
@@ -86,10 +103,63 @@ function scopeOnboardingPlanParameters(): UiActionParameterSpec {
         },
         writes: {
           type: "string",
-          enum: ["none", "scope-directory", "unrestricted"],
+          enum: ["none", "scope-directory", "paths", "unrestricted"],
           default: "none",
         },
+        writePaths: {
+          type: "array",
+          description: "Required only when the write boundary is Selected paths.",
+          items: { type: "string", format: "path" },
+        },
       },
+      additionalProperties: false,
+    },
+  };
+}
+
+function onboardingInspectParameters(): UiActionParameterSpec {
+  return {
+    fields: [{
+      id: "directoryRoot",
+      label: "Daemon host folder",
+      input: "path",
+      required: true,
+    }],
+    schema: {
+      type: "object",
+      required: ["directoryRoot"],
+      properties: {
+        directoryRoot: {
+          type: "string",
+          format: "path",
+          description:
+            "Inspection is read-only. The path must identify a folder visible to the daemon host.",
+        },
+      },
+      additionalProperties: false,
+    },
+  };
+}
+
+function operationIdParameters(): UiActionParameterSpec {
+  return {
+    fields: [{ id: "operationId", label: "Operation id", input: "text", required: true }],
+    schema: {
+      type: "object",
+      required: ["operationId"],
+      properties: { operationId: { type: "string" } },
+      additionalProperties: false,
+    },
+  };
+}
+
+function lifecycleScopeParameters(): UiActionParameterSpec {
+  return {
+    fields: [{ id: "scopeId", label: "Scope id", input: "text", required: true }],
+    schema: {
+      type: "object",
+      required: ["scopeId"],
+      properties: { scopeId: { type: "string" } },
       additionalProperties: false,
     },
   };
@@ -196,7 +266,7 @@ export function buildScopeUiSurface(args: {
     }),
     action({
       surfaceId: "scopes",
-      actionId: "scope.use",
+      actionId: "scope.select",
       scopeId,
       label: "Switch active scope",
       effect: "write",
@@ -213,9 +283,22 @@ export function buildScopeUiSurface(args: {
     }),
     action({
       surfaceId: "scopes",
-      actionId: "scope.onboarding.plan",
+      actionId: "scope.onboarding.inspect",
       scopeId,
-      label: "Preview external folder onboarding",
+      label: "Inspect folder",
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "inspectOnboarding",
+      },
+      parameters: onboardingInspectParameters(),
+      result: resultSpec("Folder inspection loaded."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.configure",
+      scopeId,
+      label: "Configure Add Scope plan",
       operation: {
         kind: "client-namespace",
         namespace: "scopes",
@@ -223,6 +306,118 @@ export function buildScopeUiSurface(args: {
       },
       parameters: scopeOnboardingPlanParameters(),
       result: resultSpec("Scope onboarding plan prepared."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.apply",
+      scopeId,
+      label: "Add scope",
+      effect: "write",
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "addOnboarding",
+      },
+      parameters: scopeOnboardingPlanParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Apply Add Scope",
+        detail:
+          "KOTA will apply the displayed trust, automation, and write choices. Elevated trust or writes are never inferred.",
+        confirmLabel: "Add scope",
+        risk: "high",
+      },
+      result: resultSpec("Scope onboarding operation applied."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.status",
+      scopeId,
+      label: "Check add operation",
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "getOnboardingStatus",
+      },
+      parameters: operationIdParameters(),
+      result: resultSpec("Scope onboarding operation loaded."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.retry",
+      scopeId,
+      label: "Retry add operation",
+      effect: "write",
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "retryOnboarding",
+      },
+      parameters: operationIdParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Retry Add Scope",
+        detail: "Retry the durable operation from its last safe checkpoint.",
+        confirmLabel: "Retry operation",
+        risk: "medium",
+      },
+      result: resultSpec("Scope onboarding operation retried."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.cancel",
+      scopeId,
+      label: "Cancel add operation",
+      effect: "write",
+      operation: {
+        kind: "client-namespace",
+        namespace: "scopes",
+        method: "cancelOnboarding",
+      },
+      parameters: operationIdParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Cancel Add Scope",
+        detail: "Roll back changes owned by this incomplete onboarding operation.",
+        confirmLabel: "Cancel operation",
+        risk: "medium",
+      },
+      result: resultSpec("Scope onboarding operation cancelled."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.drain",
+      scopeId,
+      label: "Drain scope",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "scopes", method: "drain" },
+      parameters: lifecycleScopeParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Drain scope",
+        detail: "Stop accepting work and report any live resources that block safe removal.",
+        confirmLabel: "Drain scope",
+        risk: "medium",
+      },
+      result: resultSpec("Scope drained."),
+    }),
+    action({
+      surfaceId: "scopes",
+      actionId: "scope.remove",
+      scopeId,
+      label: "Remove scope",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "scopes", method: "remove" },
+      parameters: lifecycleScopeParameters(),
+      confirmation: {
+        mode: "required",
+        title: "Stop hosting scope",
+        detail:
+          "The scope must already be drained. This removes it from KOTA and never deletes the folder.",
+        confirmLabel: "Remove from KOTA",
+        risk: "high",
+      },
+      result: resultSpec("Scope removed from KOTA without deleting its folder."),
     }),
     action({
       surfaceId: "scopes",
@@ -281,6 +476,12 @@ export function buildScopeUiSurface(args: {
         ],
       },
       { kind: "table", title: "Directory scopes", columns: NAME_STATE_DETAIL_COLUMNS, rows: scopeRows },
+      {
+        kind: "detail",
+        title: "Add Scope",
+        body:
+          "Inspect first, configure untrusted/passive/no-write defaults, then apply. Save the operation id to reconnect, check readiness, retry, or cancel.",
+      },
       { kind: "table", title: "Live sessions", columns: NAME_STATE_DETAIL_COLUMNS, rows: sessionRows },
       ...sessionLinks,
       { kind: "action-list", title: "Scope actions", actions },

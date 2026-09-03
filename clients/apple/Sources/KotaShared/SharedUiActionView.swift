@@ -80,7 +80,7 @@ struct SharedUiActionView: View {
                case .required = action.confirmation {
                 SharedUiConfirmationView(
                     action: action,
-                    onConfirm: { execute(pendingConfirmation) },
+                    onConfirm: { execute(pendingConfirmation, confirmed: true) },
                     onCancel: { self.pendingConfirmation = nil }
                 )
             }
@@ -144,13 +144,14 @@ struct SharedUiActionView: View {
         }
     }
 
-    private func execute(_ parameters: [String: UiJsonValue]) {
+    private func execute(_ parameters: [String: UiJsonValue], confirmed: Bool = false) {
         pendingConfirmation = nil
         isExecuting = true
         Task {
             result = await appState.executeUiAction(
                 action,
-                parameters: parameters.isEmpty ? nil : parameters
+                parameters: parameters.isEmpty ? nil : parameters,
+                confirmed: confirmed
             )
             isExecuting = false
         }

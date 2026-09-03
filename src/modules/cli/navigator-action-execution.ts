@@ -161,6 +161,7 @@ async function executeActionRequest(args: {
     surfaceId: surface.surfaceId,
     actionId: action.actionId,
     parameters: args.parameters,
+    ...(action.confirmation.mode === "required" ? { confirmed: true } : {}),
   });
   return actionResultMessage(result);
 }

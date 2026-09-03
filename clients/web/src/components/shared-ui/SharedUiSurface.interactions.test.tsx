@@ -181,8 +181,9 @@ describe("SharedUiSurface interactions", () => {
           body: JSON.stringify({
             scopeId: operatorSurface.scopeId,
             surfaceId: "operator-control",
-            actionId: "workflow.launch",
-            parameters: { name: "builder", payload: { source: "web" } },
+          actionId: "workflow.launch",
+          parameters: { name: "builder", payload: { source: "web" } },
+          confirmed: true,
           }),
         }),
       ),
@@ -190,6 +191,91 @@ describe("SharedUiSurface interactions", () => {
     expect(await within(form).findByRole("status")).toHaveTextContent(
       "Workflow queued.",
     );
+  });
+
+  it("submits an explicit daemon-host path for Add Scope", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        ok: true,
+        message: "Operation operation-1 succeeded; workflow-ready=false.",
+      }),
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const addAction = {
+      surfaceId: "scopes",
+      actionId: "scope.onboarding.apply",
+      scopeId: operatorSurface.scopeId,
+      label: "Add scope",
+      effect: "write",
+      operation: { kind: "client-namespace", namespace: "scopes", method: "addOnboarding" },
+      parameters: {
+        fields: [{
+          id: "directoryRoot",
+          label: "Daemon host folder",
+          input: "path",
+          required: true,
+        }],
+        schema: {
+          type: "object",
+          required: ["directoryRoot"],
+          properties: {
+            directoryRoot: {
+              type: "string",
+              format: "path",
+              description: "Absolute path on the daemon host.",
+            },
+          },
+          additionalProperties: false,
+        },
+      },
+      confirmation: {
+        mode: "required",
+        title: "Apply Add Scope",
+        detail: "Apply the daemon-owned onboarding plan.",
+        confirmLabel: "Add scope",
+        risk: "high",
+      },
+      readiness: { state: "ready" },
+      result: { success: { message: "Scope added." }, errors: [] },
+    } as const;
+    const surface: UiSurface = {
+      ...operatorSurface,
+      surfaceId: "scopes",
+      extensionId: "core.scopes",
+      title: "Scopes",
+      nodes: [{
+        kind: "form",
+        title: "Add Scope",
+        fields: addAction.parameters.fields,
+        submit: addAction,
+      }],
+      actions: [addAction],
+    };
+    renderSurface(surface);
+
+    const form = screen.getByRole("form", { name: "Add scope" });
+    fireEvent.change(within(form).getByLabelText("Daemon host folder *"), {
+      target: { value: "/srv/operator-selected" },
+    });
+    fireEvent.click(within(form).getByRole("button", { name: "Add scope" }));
+    expect(within(form).getByRole("alert")).toHaveTextContent("daemon-owned onboarding plan");
+    const confirm = within(form).getAllByRole("button", { name: "Add scope" }).at(-1);
+    if (!confirm) throw new Error("missing Add Scope confirmation");
+    fireEvent.click(confirm);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/ui/actions/execute",
+      expect.objectContaining({
+        body: JSON.stringify({
+          scopeId: operatorSurface.scopeId,
+          surfaceId: "scopes",
+          actionId: "scope.onboarding.apply",
+          parameters: { directoryRoot: "/srv/operator-selected" },
+          confirmed: true,
+        }),
+      }),
+    ));
   });
 
   it("submits an unconfirmed graph-declared form", async () => {

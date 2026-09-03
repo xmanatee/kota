@@ -178,6 +178,16 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     setSessionAutonomyMode: vi.fn(() => ({ ok: false, notFound: true })),
     getActiveScopeId: vi.fn(() => null),
     setActiveScopeId: vi.fn((id: string | null) => (id === null ? { ok: true as const, activeScopeId: null } : id === "test-scope-id" ? { ok: true as const, activeScopeId: id } : { ok: false as const, reason: "not_found" as const, scopeId: id })),
+    drainScope: vi.fn(async (scopeId: string) => ({
+      ok: true as const,
+      status: "drained" as const,
+      scope: { scopeId, directoryRoot: "/tmp/external", displayName: "External" },
+    })),
+    removeScope: vi.fn(async (scopeId: string) => ({
+      ok: true as const,
+      status: "removed" as const,
+      scope: { scopeId, directoryRoot: "/tmp/external", displayName: "External" },
+    })),
     reloadConfig: vi.fn(async () => ({ workflows: 3, changedModules: [] as string[], sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] } })),
     probeCapabilityReadiness: vi.fn(async () => ({
       capabilities: [],
@@ -831,6 +841,28 @@ describe("DaemonControlServer", () => {
         replacementPlan.choices,
       );
       expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(replacementPlan, undefined);
+    });
+  });
+
+  describe("scope drain and removal", () => {
+    it("routes safe lifecycle mutations without implying directory deletion", async () => {
+      const drained = await fetchWithToken(port, "/scopes/scope-external/drain", {
+        method: "POST",
+      });
+      expect(drained.status).toBe(200);
+      expect(await drained.json()).toMatchObject({ ok: true, status: "drained" });
+      expect(handle.drainScope).toHaveBeenCalledWith("scope-external");
+
+      const removed = await fetchWithToken(port, "/scopes/scope-external", {
+        method: "DELETE",
+      });
+      expect(removed.status).toBe(200);
+      expect(await removed.json()).toMatchObject({
+        ok: true,
+        status: "removed",
+        scope: { directoryRoot: "/tmp/external" },
+      });
+      expect(handle.removeScope).toHaveBeenCalledWith("scope-external");
     });
   });
 

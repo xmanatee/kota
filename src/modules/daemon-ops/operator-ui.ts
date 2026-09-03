@@ -4,7 +4,11 @@ export type {
   UiClientNamespaceExecutor,
   UiRouteExecutor,
 } from "./operator-ui-actions.js";
-export { executeUiAction, findUiAction } from "./operator-ui-actions.js";
+export {
+  executeScopesUiAction,
+  executeUiAction,
+  findUiAction,
+} from "./operator-ui-actions.js";
 export {
   buildContinuityProjection,
   buildContinuityUiSurface,

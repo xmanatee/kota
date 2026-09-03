@@ -28,6 +28,7 @@ describe("runtime navigator shared UI actions", () => {
       surfaceId: "runs",
       actionId: "workflow.pause",
       parameters: undefined,
+      confirmed: true,
     });
     expect(listSurfaces).toHaveBeenCalledTimes(2);
     expect(output.frames.join("\n")).toMatch(/UI action executed: Workflow dispatch paused/);
@@ -52,6 +53,7 @@ describe("runtime navigator shared UI actions", () => {
       surfaceId: "runs",
       actionId: "run.abort",
       parameters: { runId: "run-active-1" },
+      confirmed: true,
     });
     expect(output.frames.join("\n")).toMatch(/Run run-active-1 aborted/);
   });
@@ -75,6 +77,7 @@ describe("runtime navigator shared UI actions", () => {
       surfaceId: "runs",
       actionId: "run.cancel-queued",
       parameters: { runId: "queued-run-1" },
+      confirmed: true,
     });
   });
 
@@ -97,6 +100,7 @@ describe("runtime navigator shared UI actions", () => {
       surfaceId: "runs",
       actionId: "run.retry",
       parameters: { runId: "run-failed-1" },
+      confirmed: true,
     });
   });
 

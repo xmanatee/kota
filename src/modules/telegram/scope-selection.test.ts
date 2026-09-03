@@ -22,7 +22,7 @@ function makeClient(): KotaClientPort<"scopes"> {
       })),
       use: vi.fn(),
     },
-  };
+  } as unknown as KotaClientPort<"scopes">;
 }
 
 describe("TelegramScopeSelection", () => {
@@ -80,7 +80,7 @@ describe("TelegramScopeSelection", () => {
         list: vi.fn(async () => ({ ok: false as const, reason: "daemon_required" as const })),
         use: vi.fn(),
       },
-    };
+    } as unknown as KotaClientPort<"scopes">;
     const scopeSource = {
       list: vi.fn(async () => ({
         ok: true as const,
@@ -129,7 +129,7 @@ describe("TelegramScopeSelection", () => {
         })),
         use: vi.fn(),
       },
-    };
+    } as unknown as KotaClientPort<"scopes">;
 
     expect(
       await new TelegramScopeSelection(makeClient(), storage(), [])

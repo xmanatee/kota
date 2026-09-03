@@ -48,11 +48,11 @@ export type ScopeAuthorityOperatorRequest = {
 
 /** Opaque capability created only after a one-time machine request proof is verified. */
 export class ScopeAuthorityOperatorAction {
-  readonly source = "interactive-operator-client" as const;
-
   constructor(
     capability: symbol,
     readonly confirmedDangerousChange: boolean,
+    readonly source: "interactive-operator-client" | "daemon-control-surface" =
+      "interactive-operator-client",
   ) {
     if (capability !== VERIFIED_OPERATOR_ACTION) {
       throw new Error("Scope authority operator actions must be verified by the daemon");
@@ -110,6 +110,22 @@ export class ScopeAuthorityOperatorTokenVerifier {
     return new ScopeAuthorityOperatorAction(
       VERIFIED_OPERATOR_ACTION,
       request.value === "confirm-dangerous",
+    );
+  }
+
+  /**
+   * Mint the same opaque capability for an authenticated daemon control
+   * action. The control route has already resolved the canonical UI action
+   * and its confirmation contract, so no machine credential crosses into a
+   * browser or native client.
+   */
+  authorizeDaemonControlAction(
+    value: ScopeAuthorityOperatorActionValue,
+  ): ScopeAuthorityOperatorAction {
+    return new ScopeAuthorityOperatorAction(
+      VERIFIED_OPERATOR_ACTION,
+      value === "confirm-dangerous",
+      "daemon-control-surface",
     );
   }
 }

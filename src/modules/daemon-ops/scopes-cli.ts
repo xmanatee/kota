@@ -1,9 +1,9 @@
 /**
  * `kota scope` operator subcommands.
  *
- * `ls` lists configured scopes, marks the default, and points at the
+ * `list` lists configured scopes, marks the default, and points at the
  * currently active selection (or "—" when no selection is in force).
- * `use` switches the daemon's active selection so subsequent inspection
+ * `select` switches the daemon's active selection so subsequent inspection
  * calls without `--scope` use that scope. Pass `--clear` to
  * reset the selection back to the registry default.
  *
@@ -12,16 +12,22 @@
  */
 
 import { Command } from "commander";
-import type {
-  ScopeOnboardingChoices,
-  ScopeOnboardingPlan,
-} from "#core/daemon/scope-onboarding.js";
+import type { ScopeOnboardingChoices } from "#core/daemon/scope-onboarding.js";
 import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { columns, line, plain, type RenderNode, span, stack } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type { ScopesListResult } from "./client.js";
+import {
+  describeOnboardingInspection,
+  describeOnboardingOperation,
+  describeOnboardingPlan,
+} from "./scope-onboarding-presentation.js";
+
+function onboardingLines(lines: readonly string[]): RenderNode {
+  return stack(...lines.map((text) => line(plain(text))));
+}
 
 function buildScopesListNode(result: Extract<ScopesListResult, { ok: true }>): RenderNode {
   if (result.scopes.length === 0) {
@@ -60,7 +66,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
   );
 
   cmd
-    .command("ls")
+    .command("list")
     .description("List configured scopes and mark the active one")
     .option("--json", "Output as JSON")
     .action(async (opts: { json?: boolean }) => {
@@ -86,7 +92,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     });
 
   cmd
-    .command("use [scopeId]")
+    .command("select [scopeId]")
     .description(
       "Switch the daemon's active scope. Pass --clear to reset to the registry default.",
     )
@@ -113,8 +119,13 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
           writeJson(result);
         } else if (result.reason === "not_found") {
           printToStderr(line(span(`Unknown scope: "${result.scopeId}".`, "error")));
+        } else if (result.reason === "not_hosted") {
+          printToStderr(line(span(
+            `Scope "${result.scopeId}" cannot be selected while it is ${result.state}.`,
+            "error",
+          )));
         } else {
-          printToStderr(line(span("Daemon is not running. `kota scope use` requires a live daemon.", "error")));
+          printToStderr(line(span("Daemon is not running. `kota scope select` requires a live daemon.", "error")));
         }
         process.exitCode = 1;
         return;
@@ -279,11 +290,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       if (!result.ok) process.exitCode = 1;
     });
 
-  const onboarding = cmd
-    .command("onboarding")
-    .description("Inspect, plan, apply, and recover external-folder onboarding");
-
-  onboarding
+  cmd
     .command("inspect <directory>")
     .description("Inspect a folder without changing it")
     .option("--json", "Output as JSON")
@@ -293,19 +300,13 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       const result = await client(directory);
       if (opts.json) writeJson(result);
       else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
-      else print(stack(
-        line(plain("Directory: "), span(result.inspection.directoryRoot, "accent")),
-        line(plain("Scope: "), span(result.inspection.scopeId, "muted")),
-        line(plain("Kind: "), plain(result.inspection.kind)),
-        line(plain("Registered: "), plain(result.inspection.registered ? "yes" : "no")),
-        line(plain("Blockers: "), span(String(result.inspection.blockers.length), "muted")),
-      ));
+      else print(onboardingLines(describeOnboardingInspection(result.inspection)));
       if (!result.ok) process.exitCode = 1;
     });
 
   addOnboardingChoiceOptions(
-    onboarding
-      .command("plan <directory>")
+    cmd
+      .command("configure <directory>")
       .description("Return the exact onboarding changes and readiness blockers")
       .option("--json", "Output as JSON"),
   ).action(async (
@@ -319,13 +320,13 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     const result = await client(directory, choices.value);
     if (opts.json) writeJson(result);
     else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
-    else printOnboardingPlan(result.plan);
+    else print(onboardingLines(describeOnboardingPlan(result.plan)));
     if (!result.ok) process.exitCode = 1;
   });
 
   addOnboardingChoiceOptions(
-    onboarding
-      .command("apply <directory>")
+    cmd
+      .command("add <directory>")
       .description("Plan, confirm, and transactionally onboard a folder")
       .option("--json", "Output as JSON"),
   ).action(async (
@@ -350,7 +351,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       );
       return;
     }
-    if (!opts.json) printOnboardingPlan(planned.plan);
+    if (!opts.json) print(onboardingLines(describeOnboardingPlan(planned.plan)));
     const confirmed = await confirmAction(
       `Apply onboarding plan ${planned.plan.planId} for ${planned.plan.directoryRoot}?`,
     );
@@ -366,19 +367,16 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       dangerous ? "confirm-dangerous" : "apply",
     );
     if (opts.json) writeJson(result);
-    else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
-    else print(stack(
-      line(span("Scope onboarding completed.", "success")),
-      line(plain("Operation: "), span(result.operation.operationId, "muted")),
-      line(plain("Workflow ready: "), span(
-        result.operation.readiness.workflowReady ? "yes" : "no",
-        result.operation.readiness.workflowReady ? "success" : "warn",
-      )),
-    ));
+    else if (!result.ok) {
+      printToStderr(line(span(onboardingError(result), "error")));
+      if ("operation" in result && result.operation) {
+        printToStderr(onboardingLines(describeOnboardingOperation(result.operation)));
+      }
+    } else print(onboardingLines(describeOnboardingOperation(result.operation)));
     if (!result.ok) process.exitCode = 1;
   });
 
-  onboarding
+  cmd
     .command("status <operationId>")
     .description("Show a durable onboarding operation")
     .option("--json", "Output as JSON")
@@ -388,15 +386,11 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       const result = await client(operationId);
       if (opts.json) writeJson(result);
       else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
-      else print(stack(
-        line(plain("Operation: "), span(result.operation.operationId, "accent")),
-        line(plain("State: "), plain(result.operation.state)),
-        line(plain("Attempts: "), span(String(result.operation.attempts), "muted")),
-      ));
+      else print(onboardingLines(describeOnboardingOperation(result.operation)));
       if (!result.ok) process.exitCode = 1;
     });
 
-  onboarding
+  cmd
     .command("retry <operationId>")
     .description("Retry an incomplete onboarding transaction")
     .option("--json", "Output as JSON")
@@ -436,7 +430,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       if (!result.ok) process.exitCode = 1;
     });
 
-  onboarding
+  cmd
     .command("cancel <operationId>")
     .description("Roll back and cancel an incomplete onboarding transaction")
     .option("--json", "Output as JSON")
@@ -455,6 +449,47 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
         result.ok ? "Scope onboarding cancelled." : onboardingError(result),
         result.ok ? "success" : "error",
       )));
+      if (!result.ok) process.exitCode = 1;
+    });
+
+  cmd
+    .command("drain <scopeId>")
+    .description("Stop a scope accepting work and report removal blockers")
+    .option("--json", "Output as JSON")
+    .action(async (scopeId: string, opts: { json?: boolean }) => {
+      if (!process.stdin.isTTY) {
+        onboardingInputError("Draining a scope requires an interactive terminal.", opts.json);
+        return;
+      }
+      const confirmed = await confirmAction(`Drain scope ${scopeId}?`);
+      if (!confirmed) return onboardingInputError("Scope drain was not confirmed.", opts.json);
+      const result = await ctx.client.scopes.drain(scopeId);
+      if (opts.json) writeJson(result);
+      else if (result.ok) print(line(span(`Scope ${scopeId} drained.`, "success")));
+      else printToStderr(line(span(onboardingError(result), "error")));
+      if (!result.ok) process.exitCode = 1;
+    });
+
+  cmd
+    .command("remove <scopeId>")
+    .description("Stop hosting a drained scope without deleting its folder")
+    .option("--json", "Output as JSON")
+    .action(async (scopeId: string, opts: { json?: boolean }) => {
+      if (!process.stdin.isTTY) {
+        onboardingInputError("Removing a scope requires an interactive terminal.", opts.json);
+        return;
+      }
+      const confirmed = await confirmAction(
+        `Remove scope ${scopeId} from KOTA? Its folder will not be deleted.`,
+      );
+      if (!confirmed) return onboardingInputError("Scope removal was not confirmed.", opts.json);
+      const result = await ctx.client.scopes.remove(scopeId);
+      if (opts.json) writeJson(result);
+      else if (result.ok) print(line(span(
+        `Scope ${scopeId} is no longer hosted. Its folder was not deleted.`,
+        "success",
+      )));
+      else printToStderr(line(span(onboardingError(result), "error")));
       if (!result.ok) process.exitCode = 1;
     });
 
@@ -514,19 +549,6 @@ function parseOnboardingChoices(
       ...(writes !== undefined ? { writes } : {}),
     },
   };
-}
-
-function printOnboardingPlan(plan: ScopeOnboardingPlan): void {
-  print(stack(
-    line(plain("Plan: "), span(plan.planId, "accent")),
-    line(plain("Directory: "), span(plan.directoryRoot, "muted")),
-    line(plain("Changes: "), plain(String(plan.changes.length))),
-    line(plain("Blockers: "), span(String(plan.blockers.length), plan.blockers.length > 0 ? "warn" : "success")),
-    line(plain("Permissions: "), plain(
-      `${plan.permissions.trusted ? "trusted" : "untrusted"}, ` +
-      `${plan.permissions.autonomy}, writes=${plan.permissions.writes.mode}`,
-    )),
-  ));
 }
 
 function onboardingUnavailable(json: boolean | undefined): void {

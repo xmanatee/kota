@@ -34,6 +34,9 @@ export async function parseUiActionRequest(
   if (body.scopeId !== undefined && typeof body.scopeId !== "string") {
     return { ok: false, message: "scopeId must be a string." };
   }
+  if (body.confirmed !== undefined && typeof body.confirmed !== "boolean") {
+    return { ok: false, message: "confirmed must be a boolean." };
+  }
 
   try {
     const selector = normalizeScopeSelector({
@@ -46,6 +49,7 @@ export async function parseUiActionRequest(
         surfaceId: body.surfaceId,
         actionId: body.actionId,
         parameters: body.parameters as UiJsonValue | undefined,
+        ...(body.confirmed === true ? { confirmed: true } : {}),
       },
     };
   } catch (err) {

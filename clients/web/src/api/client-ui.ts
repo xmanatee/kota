@@ -42,6 +42,7 @@ export const uiApi = {
   executeUiAction: async (
     action: UiAction,
     parameters?: UiJsonValue,
+    confirmed = false,
   ): Promise<UiActionExecutionResult> => {
     const raw = await apiJson<unknown>("/ui/actions/execute", {
       method: "POST",
@@ -51,6 +52,7 @@ export const uiApi = {
         surfaceId: action.surfaceId,
         actionId: action.actionId,
         ...(parameters === undefined ? {} : { parameters }),
+        ...(confirmed ? { confirmed: true } : {}),
       }),
     });
     return parseUiActionExecutionResult(raw);

@@ -28,6 +28,16 @@ final class SharedUiRendererTests: XCTestCase {
         super.tearDown()
     }
 
+    func testNativeFolderPickerHandsAHostPathToSharedUiForms() async throws {
+        let platform = RecordingPlatform()
+        let state = AppState(client: DaemonClient(), platform: platform)
+
+        let selected = await state.pickUiPath()
+
+        XCTAssertEqual(selected?.path, "/tmp/kota-shared-ui")
+        XCTAssertTrue(platform.supportsNativeScopePicker)
+    }
+
     func testInventoryUsesOnlyDaemonSurfaceOrderAndIntent() throws {
         let bundle = try Self.bundle()
         let inventory = SharedUiInventory(bundle: bundle)

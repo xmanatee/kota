@@ -7,13 +7,15 @@ extension DaemonClient {
 
     func executeUiAction(
         _ action: UiAction,
-        parameters: [String: UiJsonValue]? = nil
+        parameters: [String: UiJsonValue]? = nil,
+        confirmed: Bool = false
     ) async throws -> UiActionExecutionResult {
         let body = try JSONEncoder().encode(UiActionExecuteRequest(
             surfaceId: action.surfaceId,
             actionId: action.actionId,
             scopeId: action.scopeId,
-            parameters: parameters
+            parameters: parameters,
+            confirmed: confirmed ? true : nil
         ))
         return try await post("/ui/actions/execute", body: body)
     }

@@ -29,7 +29,11 @@ import type {
 } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import type { ScopeAuthorityMutation } from "./scope-authority-types.js";
-import type { ScopeHostingState } from "./scope-lifecycle-types.js";
+import type {
+  ScopeDrainResult,
+  ScopeHostingState,
+  ScopeRemovalResult,
+} from "./scope-lifecycle-types.js";
 import type { ScopeOnboardingService } from "./scope-onboarding.js";
 import {
   defaultScopePolicyDecisionExamples,
@@ -56,6 +60,8 @@ export type DaemonHandleContext = {
   scopeOnboarding?: ScopeOnboardingService;
   scopeRuntimes: ScopeRuntimeRegistry;
   getScopeHostingState: (scopeId: ScopeId) => ScopeHostingState;
+  drainScope?: (scopeId: ScopeId) => Promise<ScopeDrainResult>;
+  removeScope?: (scopeId: ScopeId) => Promise<ScopeRemovalResult>;
   config: DaemonConfig;
   refreshLiveSessionGuardrails: (config: GuardrailsConfig) => {
     refreshed: number;
@@ -120,6 +126,8 @@ export function buildDaemonHandle(ctx: DaemonHandleContext): DaemonControlHandle
       setupService.revoke(moduleName, requirementId),
     getScopeRegistryProjection: (): ScopeRegistryProjection => scopeRegistry.toProjection(),
     getScopeHostingState: (scopeId: ScopeId) => ctx.getScopeHostingState(scopeId),
+    ...(ctx.drainScope ? { drainScope: (scopeId: ScopeId) => ctx.drainScope!(scopeId) } : {}),
+    ...(ctx.removeScope ? { removeScope: (scopeId: ScopeId) => ctx.removeScope!(scopeId) } : {}),
     getScopePolicy: (scopeId: string): ScopePolicyRouteResponse => {
       if (!ctx.scopeAuthority) throw new Error("Scope policy authority is unavailable");
       const snapshot = ctx.scopeAuthority.getSnapshot(scopeId);

@@ -35,6 +35,7 @@ export async function executeUiAction(
   http: DaemonHttp,
   action: UiAction,
   parameters?: UiJsonValue,
+  confirmed = false,
 ): Promise<UiActionExecutionResult> {
   const raw = await daemonRequest<unknown>(http, '/ui/actions/execute', {
     method: 'POST',
@@ -43,6 +44,7 @@ export async function executeUiAction(
       surfaceId: action.surfaceId,
       actionId: action.actionId,
       ...(parameters === undefined ? {} : { parameters }),
+      ...(confirmed ? { confirmed: true } : {}),
     }),
   });
   return parseUiActionExecutionResult(raw);

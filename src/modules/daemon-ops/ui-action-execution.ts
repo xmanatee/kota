@@ -1,5 +1,10 @@
 import type { WorkflowRunDetail } from "#core/daemon/daemon-control.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
+import {
+  type JsonSchemaObject,
+  type JsonSchemaValue,
+  validateJsonSchemaValue,
+} from "#core/util/json-schema-validator.js";
 import { buildOperatorTriggerRequestBody } from "#core/workflow/operator-trigger.js";
 import { buildRetriggerOptions } from "#core/workflow/retrigger.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
@@ -12,9 +17,13 @@ import type {
   UiRouteExecutor,
   UiSurfaceBundle,
 } from "./operator-ui.js";
-import { executeUiAction, findUiAction } from "./operator-ui.js";
 import {
-  booleanUiParameter,
+  executeScopesUiAction,
+  executeUiAction,
+  findUiAction,
+} from "./operator-ui.js";
+import { buildScopesDaemonHandler } from "./scopes-daemon.js";
+import {
   scopedUiActionClient,
   scopedUiActionPath,
   stringUiParameter,
@@ -24,48 +33,6 @@ function routeForUiNamespaceOperation(
   operation: Parameters<UiClientNamespaceExecutor>[0],
   parameters: UiJsonValue | undefined,
 ): { method: string; path: string; body?: UiJsonValue; message: string } | null {
-  if (operation.namespace === "scopes" && operation.method === "list") {
-    return { method: "GET", path: "/scopes", message: "Scope registry loaded." };
-  }
-  if (operation.namespace === "scopes" && operation.method === "use") {
-    const scopeId = booleanUiParameter(parameters, "clear")
-      ? null
-      : stringUiParameter(parameters, "scopeId") ?? null;
-    return {
-      method: "PATCH",
-      path: "/scopes/active",
-      body: { scopeId },
-      message: scopeId === null ? "Active scope cleared." : `Active scope set to ${scopeId}.`,
-    };
-  }
-  if (operation.namespace === "scopes" && operation.method === "planOnboarding") {
-    const directoryRoot = stringUiParameter(parameters, "directoryRoot");
-    if (!directoryRoot) {
-      return {
-        method: "POST",
-        path: "/scope-onboarding/plan",
-        body: {},
-        message: "directoryRoot is required.",
-      };
-    }
-    const displayName = stringUiParameter(parameters, "displayName");
-    const initialAutomationMode = stringUiParameter(parameters, "initialAutomationMode");
-    const writes = stringUiParameter(parameters, "writes");
-    return {
-      method: "POST",
-      path: "/scope-onboarding/plan",
-      body: {
-        directoryRoot,
-        choices: {
-          ...(displayName !== undefined ? { displayName } : {}),
-          trust: booleanUiParameter(parameters, "trusted"),
-          ...(initialAutomationMode !== undefined ? { initialAutomationMode } : {}),
-          ...(writes !== undefined ? { writes: { mode: writes } } : {}),
-        },
-      },
-      message: "Scope onboarding plan prepared.",
-    };
-  }
   const staticRoutes: Record<string, { method: string; path: string; message: string }> = {
     "workflow:status": { method: "GET", path: "/workflow/status", message: "Workflow status loaded." },
     "workflow:pause": { method: "POST", path: "/workflow/pause", message: "Workflow dispatch paused." },
@@ -170,6 +137,14 @@ export function daemonUiNamespaceExecutor(
     if (operation.namespace === "workflow" && operation.method === "resumeRun") {
       return executeDaemonRunFollowUp(link, scopeId, parameters, "resume");
     }
+    if (operation.namespace === "scopes") {
+      const result = await executeScopesUiAction(
+        buildScopesDaemonHandler(link),
+        operation.method,
+        parameters,
+      );
+      if (result) return result;
+    }
     const route = routeForUiNamespaceOperation(operation, parameters);
     if (!route) return null;
     if (route.path === "/workflow/runs//abort" || route.path === "/workflow/runs/") {
@@ -200,6 +175,34 @@ export async function executeActionFromBundle(args: {
       ok: false,
       reason: "not_found",
       message: `No UI action ${args.input.surfaceId}/${args.input.actionId} exists in the shared surface bundle.`,
+    };
+  }
+  if (action.parameters === undefined && args.input.parameters !== undefined) {
+    return {
+      ok: false,
+      reason: "invalid-input",
+      message: `${action.label} does not accept parameters.`,
+    };
+  }
+  if (action.parameters !== undefined) {
+    const validationError = validateJsonSchemaValue(
+      action.parameters.schema as unknown as JsonSchemaObject,
+      (args.input.parameters ?? {}) as JsonSchemaValue,
+      "parameters",
+    );
+    if (validationError !== null) {
+      return {
+        ok: false,
+        reason: "invalid-input",
+        message: `Invalid action parameters: ${validationError}`,
+      };
+    }
+  }
+  if (action.confirmation.mode === "required" && args.input.confirmed !== true) {
+    return {
+      ok: false,
+      reason: "confirmation_required",
+      message: `${action.label} requires explicit confirmation.`,
     };
   }
   const client = args.client ? scopedUiActionClient(args.client, action.scopeId) : undefined;
