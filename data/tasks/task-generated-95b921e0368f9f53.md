@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Repair repeated evaluator-calibration monitor execution dead letters
@@ -16,6 +16,23 @@ Resolve autonomy issue autonomy-issue-65f82f71f370a705956a at semantic revision 
 
 - Preserve the stable issue identity and cited provenance.
 - Implement through builder; this proposal is not evidence that the issue is fixed.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/evaluator-calibration-monitor-dlq-capture/diagnostics.json
+description: operator-provided exports from `kota workflow dlq export <id>` for all seven cited ids, including each exact failure reason, failed run, and failing step, plus authenticated access to redrive or dismiss those canonical items after same-shape verification
+```
+
+An operator-controlled canonical diagnostic capture is required for the seven
+cited dead letters. This builder sandbox cannot read the canonical
+`.kota/dead-letter-queue/items.json`, enter the canonical scope as a process
+working directory, or authenticate to its daemon control API. Provide exports
+from `kota workflow dlq export <id>` for all seven cited ids, including each
+item's exact failure reason, failed run, and failing step, plus a mutation path
+that can redrive or dismiss the canonical items after verification. The task
+must not infer the shared execution fingerprint from the issue summary.
 
 ## How We Will Know
 
