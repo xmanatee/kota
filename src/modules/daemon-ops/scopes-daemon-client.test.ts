@@ -194,7 +194,7 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
     });
     await expect(scopes.planOnboarding!("/tmp/external", {
       trust: false,
-      initialAutomationMode: "passive",
+      improvementPosture: "observe",
       writes: { mode: "none" },
     })).resolves.toEqual({
       ok: false,
@@ -210,7 +210,7 @@ describe("daemon-ops module daemonClient(link) — scopes namespace", () => {
       directoryRoot: "/tmp/external",
       choices: {
         trust: false,
-        initialAutomationMode: "passive",
+        improvementPosture: "observe",
         writes: { mode: "none" },
       },
     });

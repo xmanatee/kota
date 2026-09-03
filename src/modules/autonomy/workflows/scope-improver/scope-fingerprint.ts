@@ -141,7 +141,9 @@ export function computeScopeContentFingerprint(
     hash.update("\0");
   }
   hash.update("scope-improvement-config\0");
-  hash.update(JSON.stringify(readScopeImprovementConfigFromStateDir(canonicalStateDir)));
+  hash.update(JSON.stringify(
+    readScopeImprovementConfigFromStateDir(canonicalStateDir, scopePolicy),
+  ));
   hash.update("\0resolved-scope-policy\0");
   hash.update(JSON.stringify(scopePolicyMaterial(scopePolicy)));
   hash.update("\0");

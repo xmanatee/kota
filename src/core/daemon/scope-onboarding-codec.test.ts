@@ -11,7 +11,7 @@ describe("scope onboarding control decoder", () => {
       choices: {
         displayName: "External",
         trust: true,
-        initialAutomationMode: "supervised",
+        improvementPosture: "propose",
         writes: { mode: "scope-directory" },
       },
     })).toEqual({
@@ -21,7 +21,7 @@ describe("scope onboarding control decoder", () => {
         choices: {
           displayName: "External",
           trust: true,
-          initialAutomationMode: "supervised",
+          improvementPosture: "propose",
           writes: { mode: "scope-directory" },
         },
       },
@@ -38,7 +38,7 @@ describe("scope onboarding control decoder", () => {
       choices: {
         displayName: "External",
         trust: true,
-        initialAutomationMode: "autonomous",
+        improvementPosture: "build",
         writes: { mode: "unrestricted" },
         bypassAuthority: true,
       },

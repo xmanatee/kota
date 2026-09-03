@@ -8,7 +8,17 @@ export function decideScopeImprovementConsumption(input: {
   recommendationCount: number;
   worktreeClean: boolean;
   actionApplied: boolean;
+  parkedReason: string | null;
 }): ScopeImprovementConsumptionDecision {
+  if (
+    input.inputs.semanticInput.automatic &&
+    (input.parkedReason !== null || !input.inputs.config.enabled)
+  ) {
+    return {
+      disposition: "defer",
+      reason: input.parkedReason ?? "scope improvement is disabled",
+    };
+  }
   if (
     input.inputs.semanticInput.automatic &&
     !input.inputs.alreadyConsumed &&

@@ -55,14 +55,14 @@ function scopeOnboardingPlanParameters(): UiActionParameterSpec {
       { id: "displayName", label: "Display name", input: "text", required: false },
       { id: "trusted", label: "Trust this scope", input: "boolean", required: false },
       {
-        id: "initialAutomationMode",
-        label: "Initial automation",
+        id: "improvementPosture",
+        label: "Continuous improvement",
         input: "select",
         required: true,
         options: [
-          { label: "Passive", value: "passive" },
-          { label: "Supervised", value: "supervised" },
-          { label: "Autonomous", value: "autonomous" },
+          { label: "Observe and ask", value: "observe" },
+          { label: "Create proposed tasks", value: "propose" },
+          { label: "Build autonomously", value: "build" },
         ],
       },
       {
@@ -86,7 +86,7 @@ function scopeOnboardingPlanParameters(): UiActionParameterSpec {
     ],
     schema: {
       type: "object",
-      required: ["directoryRoot", "initialAutomationMode", "writes"],
+      required: ["directoryRoot", "improvementPosture", "writes"],
       properties: {
         directoryRoot: {
           type: "string",
@@ -96,10 +96,10 @@ function scopeOnboardingPlanParameters(): UiActionParameterSpec {
         },
         displayName: { type: "string" },
         trusted: { type: "boolean", default: false },
-        initialAutomationMode: {
+        improvementPosture: {
           type: "string",
-          enum: ["passive", "supervised", "autonomous"],
-          default: "passive",
+          enum: ["observe", "propose", "build"],
+          default: "observe",
         },
         writes: {
           type: "string",

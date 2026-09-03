@@ -9,6 +9,8 @@ import type { ScopeId } from "./scope-registry.js";
 
 export type ScopeOnboardingDirectoryKind = "git-repository" | "directory";
 
+export type ScopeImprovementPosture = "observe" | "propose" | "build";
+
 export type ScopeOnboardingReason = {
   code: string;
   message: string;
@@ -42,14 +44,14 @@ export type ScopeOnboardingInspection = {
 export type ScopeOnboardingChoices = {
   displayName?: string;
   trust?: boolean;
-  initialAutomationMode?: AutonomyMode;
+  improvementPosture?: ScopeImprovementPosture;
   writes?: ScopeWriteBoundary;
 };
 
 export type ScopeOnboardingNormalizedChoices = {
   displayName: string;
   trust: boolean;
-  initialAutomationMode: AutonomyMode;
+  improvementPosture: ScopeImprovementPosture;
   writes: ScopeWriteBoundary;
 };
 
@@ -75,7 +77,7 @@ export type ScopeOnboardingChange =
       kind: "set-authority";
       scopeId: ScopeId;
       trust: boolean;
-      initialAutomationMode: AutonomyMode;
+      improvementPosture: ScopeImprovementPosture;
       writes: ScopeWriteBoundary;
     }
   | {
@@ -85,7 +87,7 @@ export type ScopeOnboardingChange =
     };
 
 export type ScopeOnboardingPlan = {
-  schema: 1;
+  schema: 2;
   planId: string;
   operationId: string;
   inspectionId: string;
@@ -108,6 +110,11 @@ export type ScopeOnboardingPlan = {
     trusted: boolean;
     autonomy: AutonomyMode;
     writes: ScopeWriteBoundary;
+    improvement: {
+      posture: ScopeImprovementPosture;
+      review: "disabled" | "owner-questions" | "task-proposals";
+      builder: "disabled" | "enabled";
+    };
   };
   blockers: readonly ScopeOnboardingReason[];
 };
@@ -136,6 +143,13 @@ export type ScopeOnboardingReadiness = {
   workflowReady: boolean;
   blocked: boolean;
   partiallyApplied: boolean;
+  improvement: {
+    posture: ScopeImprovementPosture;
+    review: "disabled" | "owner-questions" | "task-proposals";
+    builder: "disabled" | "enabled";
+    autonomyMode: AutonomyMode;
+    writes: ScopeWriteBoundary;
+  };
   reasons: readonly ScopeOnboardingReason[];
 };
 
@@ -160,7 +174,7 @@ export type ScopeOnboardingOperationState =
   | "cancelled";
 
 export type ScopeOnboardingOperation = {
-  schema: 1;
+  schema: 2;
   operationId: string;
   state: ScopeOnboardingOperationState;
   acceptedPlan: ScopeOnboardingPlan;

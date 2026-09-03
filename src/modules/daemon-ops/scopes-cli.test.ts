@@ -14,6 +14,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ScopeOnboardingOperation } from "#core/daemon/scope-onboarding.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ScopesClient } from "./client.js";
 import { buildScopeCommand } from "./scopes-cli.js";
@@ -181,8 +182,8 @@ describe("kota scope CLI", () => {
       "configure",
       "/tmp/external",
       "--trusted",
-      "--automation",
-      "supervised",
+      "--improvement",
+      "propose",
       "--writes",
       "scope-directory",
       "--json",
@@ -190,7 +191,7 @@ describe("kota scope CLI", () => {
 
     expect(planOnboarding).toHaveBeenCalledWith("/tmp/external", {
       trust: true,
-      initialAutomationMode: "supervised",
+      improvementPosture: "propose",
       writes: { mode: "scope-directory" },
     });
     expect(JSON.parse(logs[0]!)).toEqual({
@@ -215,6 +216,13 @@ describe("kota scope CLI", () => {
             workflowReady: false,
             blocked: true,
             partiallyApplied: true,
+            improvement: {
+              posture: "observe",
+              review: "disabled",
+              builder: "disabled",
+              autonomyMode: "passive",
+              writes: { mode: "none" },
+            },
             reasons: [{ code: "setup_missing", message: "GitHub token is required." }],
           },
           mutations: [{
@@ -238,5 +246,100 @@ describe("kota scope CLI", () => {
       "Mutations: set-authority scope-external=failed: Authority store unavailable.",
     );
     expect(output).toContain("Error: [apply_failed] Authority store unavailable.");
+  });
+
+  it("onboarding status explains live improvement authority and readiness blockers", async () => {
+    const operation: ScopeOnboardingOperation = {
+      schema: 2,
+      operationId: "onboard_fixture",
+      state: "succeeded",
+      acceptedPlan: {
+        schema: 2,
+        planId: "plan_fixture",
+        operationId: "onboard_fixture",
+        inspectionId: "inspection_fixture",
+        scopeId: "scope_fixture",
+        directoryRoot: "/tmp/external",
+        createdAt: "2026-09-03T00:00:00.000Z",
+        choices: {
+          displayName: "External",
+          trust: true,
+          improvementPosture: "build",
+          writes: { mode: "scope-directory" },
+        },
+        registrationBaseline: {
+          registered: false,
+          displayName: "External",
+          hostingState: null,
+        },
+        authorityBaseline: { revision: 0, trusted: false, policyFragment: null },
+        changes: [],
+        permissions: {
+          trusted: true,
+          autonomy: "autonomous",
+          writes: { mode: "scope-directory" },
+          improvement: {
+            posture: "build",
+            review: "task-proposals",
+            builder: "enabled",
+          },
+        },
+        blockers: [],
+      },
+      attempts: 1,
+      registeredByOperation: true,
+      authorityRevision: 2,
+      authorityApplied: { revision: 1, auditId: "audit_fixture" },
+      displayNameBefore: null,
+      mutations: [],
+      readiness: {
+        scopeId: "scope_fixture",
+        directoryRoot: "/tmp/external",
+        registered: true,
+        configured: true,
+        trusted: true,
+        workflowReady: false,
+        blocked: true,
+        partiallyApplied: false,
+        improvement: {
+          posture: "observe",
+          review: "owner-questions",
+          builder: "disabled",
+          autonomyMode: "autonomous",
+          writes: { mode: "scope-directory" },
+        },
+        reasons: [{
+          code: "scope_improver_write_confirmation_required",
+          capability: "scope-improvement-actions",
+          message: "Owner confirmation is required for task-queue writes.",
+        }],
+      },
+      provenance: {
+        actor: "operator",
+        acceptedAt: "2026-09-03T00:00:00.000Z",
+        lastUpdatedAt: "2026-09-03T00:01:00.000Z",
+      },
+      error: null,
+    };
+    const scopes: ScopesClient = {
+      list: vi.fn(),
+      use: vi.fn(),
+      getOnboardingStatus: vi.fn(async () => ({ ok: true as const, operation })),
+    };
+    const cmd = buildScopeCommand(makeCtx(scopes));
+    await cmd.parseAsync(["status", operation.operationId], {
+      from: "user",
+    });
+
+    const output = logs.join("\n");
+    expect(output).toContain(
+      "Improvement: observe, review=owner-questions, builder=disabled, " +
+      "autonomy=autonomous, writes=scope-directory",
+    );
+    expect(output).toContain("Readiness blockers: 1");
+    expect(output).toContain(
+      "scope_improver_write_confirmation_required (scope-improvement-actions): " +
+      "Owner confirmation is required for task-queue writes.",
+    );
   });
 });

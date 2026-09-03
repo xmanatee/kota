@@ -1,4 +1,3 @@
-import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type {
   ScopeOnboardingAcceptedPlan,
   ScopeOnboardingChoices,
@@ -85,17 +84,17 @@ function parseChoices(
   requireComplete: boolean,
 ): ScopeOnboardingChoices {
   const obj = objectValue(raw, path);
-  assertKeys(obj, path, ["displayName", "trust", "initialAutomationMode", "writes"]);
+  assertKeys(obj, path, ["displayName", "trust", "improvementPosture", "writes"]);
   if (requireComplete) {
-    for (const field of ["displayName", "trust", "initialAutomationMode", "writes"] as const) {
+    for (const field of ["displayName", "trust", "improvementPosture", "writes"] as const) {
       if (obj[field] === undefined) throw new Error(`${path}.${field} is required`);
     }
   }
   if (obj.trust !== undefined && typeof obj.trust !== "boolean") {
     throw new Error(`${path}.trust must be a boolean`);
   }
-  if (obj.initialAutomationMode !== undefined && !isAutonomyMode(obj.initialAutomationMode)) {
-    throw new Error(`${path}.initialAutomationMode must be passive, supervised, or autonomous`);
+  if (obj.improvementPosture !== undefined && !isImprovementPosture(obj.improvementPosture)) {
+    throw new Error(`${path}.improvementPosture must be observe, propose, or build`);
   }
   let writes: ScopeOnboardingChoices["writes"];
   if (obj.writes !== undefined) {
@@ -114,11 +113,15 @@ function parseChoices(
       ? { displayName: requiredString(obj.displayName, `${path}.displayName`) }
       : {}),
     ...(typeof obj.trust === "boolean" ? { trust: obj.trust } : {}),
-    ...(isAutonomyMode(obj.initialAutomationMode)
-      ? { initialAutomationMode: obj.initialAutomationMode }
+    ...(isImprovementPosture(obj.improvementPosture)
+      ? { improvementPosture: obj.improvementPosture }
       : {}),
     ...(writes !== undefined ? { writes } : {}),
   };
+}
+
+function isImprovementPosture(value: unknown): value is "observe" | "propose" | "build" {
+  return value === "observe" || value === "propose" || value === "build";
 }
 
 function decode<T>(parse: () => T): ScopeOnboardingDecodeResult<T> {

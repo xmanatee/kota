@@ -40,6 +40,7 @@ export {
 	setSchedulerInstance,
 } from "./scheduler.js";
 export type {
+	ScopeImprovementPosture,
 	ScopeOnboardingApplyResult,
 	ScopeOnboardingChoices,
 	ScopeOnboardingInspection,

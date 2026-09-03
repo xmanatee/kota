@@ -61,8 +61,36 @@ Daemon routes, the typed `scopes` client namespace, terminal commands, and UI
 planning actions delegate to that service. Successful onboarding publishes the
 committed lifecycle boundary for the initial improvement workflow through a
 write-ahead publication intent and stable dispatch identity; retries therefore
-reuse one workflow admission. Readiness requires both that workflow and
-`scope-improver`, not only the worker.
+reuse one workflow admission. Readiness follows the selected posture's complete
+production chain: review publication for every posture, the isolated task writer
+for proposals, and dispatcher, builder, plus the active builder harness/provider
+for autonomous builds.
+
+Onboarding exposes one continuous-improvement posture: observe/ask, proposed
+tasks, or autonomous builds. The service resolves it into the existing scope
+autonomy and write policy and projects the resulting review and builder
+authority to clients; setup or authority blockers keep completion dispatch
+closed without unregistering the scope. Task-proposal readiness evaluates the
+resolved policy decision for the scope's task queue, including bounded paths
+and inherited local-write confirmation or denial. Only an allow decision can
+activate initial task proposals; confirmation and denial remain explainable
+onboarding blockers. For an already-hosted scope, confirmation-required
+authority resolves workflow actions to observe/ask behavior. The
+scope-improvement module contributes its
+live configuration and complete task/builder decisions through the typed
+authority provider; disabled improvement configuration parks initial activation,
+and successful operations project later authority changes instead of replaying
+their accepted choices. Path-bounded build authority is resolved from the
+individual writable roots enforced by agent harnesses, while task-proposal
+readiness independently requires authority over the task queue.
+
+Durable schema-one onboarding operations migrate at the store boundary before
+recovery. Their passive, supervised, or autonomous choice maps to observe,
+propose, or build without widening the persisted autonomy or write boundary.
+
+Observe onboarding does not require a Git repository because its improvement
+review is repository-free. Task-proposal postures retain the Git-backed writer
+requirement and report that capability blocker explicitly.
 
 Scope-owned handlers resolve the live runtime through the runtime-scope
 provider. Invalid selectors fail without cwd/default fallback. The daemon owns

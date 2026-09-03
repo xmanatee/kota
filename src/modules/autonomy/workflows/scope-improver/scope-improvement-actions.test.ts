@@ -90,6 +90,81 @@ describe("scope improvement actions", () => {
     expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
   });
 
+  it("turns task candidates into owner questions in observe posture", () => {
+    const workspaceRoot = track("observe");
+    const inputs = collectScopeImprovementInputs({
+      workspaceRoot,
+      state: emptyScopeImprovementState(deriveDirectoryScopeId(workspaceRoot)),
+      trigger: trigger(["src/feature.ts"]),
+      now: NOW,
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot, [{
+        scopeId: deriveDirectoryScopeId(workspaceRoot),
+        reason: "Observe-only onboarding posture",
+        autonomy: { defaultMode: "passive", maxMode: "passive" },
+        writes: { mode: "none" },
+      }]),
+    });
+    const recommendations = recommendScopeImprovements({
+      inputs,
+      evidence: {
+        generatedAt: inputs.generatedAt,
+        scope: inputs.scope,
+        triggerKind: inputs.triggerKind,
+        triggerEvent: inputs.triggerEvent,
+        evidence: [],
+        candidates: [{
+          id: "candidate",
+          signature: "candidate-signature",
+          title: "Improve the scope",
+          summary: "Evidence supports a scoped improvement.",
+          evidenceIds: [],
+          preferredAction: "create-task",
+          task: {
+            problem: "The scope has a gap.",
+            desiredOutcome: "The gap is addressed.",
+            constraints: [],
+            howWeWillKnow: [],
+          },
+        }],
+      },
+    });
+
+    expect(inputs.config.posture).toBe("observe");
+    expect(recommendations).toEqual([
+      expect.objectContaining({ kind: "owner-question" }),
+    ]);
+    const actions = applyScopeImprovementRecommendations({
+      workspaceRoot,
+      runId: "observe-run",
+      inputs,
+      recommendations,
+    });
+    expect(actions).toMatchObject({
+      requiresCommit: false,
+      parkedReason: null,
+      applied: [expect.objectContaining({ kind: "owner-question-pending" })],
+    });
+  });
+
+  it("resolves write-denied supervised policy to observe posture", () => {
+    const workspaceRoot = track("write-denied-supervised");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const inputs = collectScopeImprovementInputs({
+      workspaceRoot,
+      state: emptyScopeImprovementState(scopeId),
+      trigger: trigger(["src/feature.ts"]),
+      now: NOW,
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot, [{
+        scopeId,
+        reason: "Repository writes were revoked after onboarding.",
+        autonomy: { defaultMode: "supervised", maxMode: "supervised" },
+        writes: { mode: "none" },
+      }]),
+    });
+
+    expect(inputs.config.posture).toBe("observe");
+  });
+
   it("commits the task drop when one proposal changes to an owner question", () => {
     const workspaceRoot = track("task-to-question");
     const inputs = collectScopeImprovementInputs({

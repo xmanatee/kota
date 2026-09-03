@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   SCOPE_IMPROVEMENT_CONFIG_FILE,
@@ -13,12 +14,46 @@ import {
 export const SCOPE_IMPROVEMENT_STATE_KEY =
   "autonomy/scope-improvement/semantic-state";
 
-type ConfigFile = Partial<ScopeImprovementConfig>;
+type ConfigFile = Partial<Omit<ScopeImprovementConfig, "posture">>;
+
+function decodeConfigFile(value: unknown): ConfigFile {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("scope improvement config must be an object");
+  }
+  const raw = value as Record<string, unknown>;
+  for (const field of Object.keys(raw)) {
+    if (field !== "enabled" && field !== "maxActionsPerRun") {
+      throw new Error(`scope improvement config has unknown field ${field}`);
+    }
+  }
+  if (raw.enabled !== undefined && typeof raw.enabled !== "boolean") {
+    throw new Error("scope improvement config enabled must be a boolean");
+  }
+  if (
+    raw.maxActionsPerRun !== undefined &&
+    (
+      typeof raw.maxActionsPerRun !== "number" ||
+      !Number.isSafeInteger(raw.maxActionsPerRun) ||
+      raw.maxActionsPerRun <= 0
+    )
+  ) {
+    throw new Error(
+      "scope improvement config maxActionsPerRun must be a positive integer",
+    );
+  }
+  return {
+    ...(raw.enabled !== undefined ? { enabled: raw.enabled as boolean } : {}),
+    ...(raw.maxActionsPerRun !== undefined
+      ? { maxActionsPerRun: raw.maxActionsPerRun as number }
+      : {}),
+  };
+}
 
 function defaultConfig(): ScopeImprovementConfig {
   return {
     enabled: true,
     maxActionsPerRun: SCOPE_IMPROVEMENT_DEFAULT_MAX_ACTIONS_PER_RUN,
+    posture: "build",
   };
 }
 
@@ -28,19 +63,25 @@ export function readScopeImprovementConfig(workspaceRoot: string): ScopeImprovem
 
 export function readScopeImprovementConfigFromStateDir(
   stateDir: string,
+  policy?: ResolvedScopePolicy,
 ): ScopeImprovementConfig {
-  const raw = readOptionalJsonFile<ConfigFile>(
+  const stored = readOptionalJsonFile<unknown>(
     join(stateDir, SCOPE_IMPROVEMENT_CONFIG_FILE),
   );
   const base = defaultConfig();
-  if (!raw) return base;
+  const raw = stored === null ? {} : decodeConfigFile(stored);
   return {
-    enabled: typeof raw.enabled === "boolean" ? raw.enabled : base.enabled,
-    maxActionsPerRun:
-      typeof raw.maxActionsPerRun === "number" && raw.maxActionsPerRun > 0
-        ? Math.floor(raw.maxActionsPerRun)
-        : base.maxActionsPerRun,
+    enabled: raw.enabled ?? base.enabled,
+    maxActionsPerRun: raw.maxActionsPerRun ?? base.maxActionsPerRun,
+    posture: policy === undefined ? base.posture : postureForPolicy(policy),
   };
+}
+
+function postureForPolicy(policy: ResolvedScopePolicy): ScopeImprovementConfig["posture"] {
+  if (policy.writes.mode === "none") return "observe";
+  if (policy.autonomy.maxMode === "passive") return "observe";
+  if (policy.autonomy.maxMode === "supervised") return "propose";
+  return "build";
 }
 
 export function emptyScopeImprovementState(scopeId: string): ScopeImprovementState {

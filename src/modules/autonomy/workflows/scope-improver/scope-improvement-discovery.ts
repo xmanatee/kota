@@ -20,6 +20,7 @@ import {
 import {
   readScopeImprovementConfigFromStateDir,
 } from "./scope-improvement-state.js";
+import { resolveScopeImprovementAuthority } from "./scope-improvement-authority.js";
 import {
   SCOPE_IMPROVEMENT_MAX_CHANGED_FILES_PER_RUN,
   type ScopeImprovementCandidate,
@@ -90,7 +91,19 @@ export function collectScopeImprovementInputs(args: {
   const scopeRoot = args.scopeRoot ?? args.workspaceRoot;
   const stateDir = args.stateDir ?? join(scopeRoot, ".kota");
   const scopeId = deriveDirectoryScopeId(scopeRoot);
-  const config = readScopeImprovementConfigFromStateDir(stateDir);
+  const configured = readScopeImprovementConfigFromStateDir(
+    stateDir,
+    args.scopePolicySnapshot.policy,
+  );
+  const authority = resolveScopeImprovementAuthority({
+    scopeRoot,
+    stateDir,
+    policy: args.scopePolicySnapshot.policy,
+  });
+  const config = {
+    ...configured,
+    posture: authority.posture,
+  };
   const state = args.state;
   if (state.scopeId !== scopeId) {
     throw new Error("scope improvement state does not belong to its runtime scope");
@@ -140,7 +153,10 @@ export function collectScopeImprovementInputs(args: {
     {
       id: "policy:scope-improvement",
       kind: "policy",
-      summary: `enabled=${config.enabled} maxActionsPerRun=${config.maxActionsPerRun}`,
+      summary:
+        `enabled=${config.enabled} configuredPosture=${authority.configuredPosture} ` +
+        `posture=${config.posture} ` +
+        `maxActionsPerRun=${config.maxActionsPerRun}`,
     },
   ];
   return {
@@ -153,6 +169,7 @@ export function collectScopeImprovementInputs(args: {
       directoryRoot: scopeRoot,
     },
     config,
+    taskProposalAuthority: authority.taskProposalDecision,
     state,
     instructions,
     changedFiles: files,

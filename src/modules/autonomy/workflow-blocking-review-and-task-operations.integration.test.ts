@@ -121,6 +121,11 @@ describe("autonomy workflow blocking review and task operations", () => {
         config: {
           enabled: true,
           maxActionsPerRun: 1,
+          posture: "build",
+        },
+        taskProposalAuthority: {
+          outcome: "allow",
+          reason: "The boundary fixture permits task proposals.",
         },
         state: {
           scopeId: "root",

@@ -23,6 +23,7 @@ export type ScopeImprovementTriggerKind =
 export type ScopeImprovementConfig = {
   enabled: boolean;
   maxActionsPerRun: number;
+  posture: "observe" | "propose" | "build";
 };
 
 export type ScopeImprovementState = {
@@ -58,6 +59,10 @@ export type ScopeImprovementInputs = {
     directoryRoot: string;
   };
   config: ScopeImprovementConfig;
+  taskProposalAuthority: {
+    outcome: "allow" | "confirm" | "deny";
+    reason: string;
+  };
   state: ScopeImprovementState;
   instructions: ScopeInstruction[];
   changedFiles: string[];
@@ -150,6 +155,7 @@ export type ScopeImprovementActionResult = {
   ownerQuestionIds: string[];
   applied: ScopeImprovementAppliedAction[];
   requiresCommit: boolean;
+  parkedReason: string | null;
 };
 
 export type ScopeImprovementPreflight = {

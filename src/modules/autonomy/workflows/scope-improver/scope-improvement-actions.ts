@@ -254,6 +254,12 @@ export function applyScopeImprovementRecommendations(
       return [writeTask({ workspaceRoot: args.workspaceRoot, runId: args.runId, recommendation })];
     }
     if (recommendation.kind === "owner-question") {
+      if (args.inputs.config.posture === "observe") {
+        return [{
+          kind: "owner-question-pending",
+          signature: recommendation.signature,
+        }];
+      }
       return stageOwnerQuestion({ workspaceRoot: args.workspaceRoot, recommendation });
     }
     return [skipped(recommendation.signature, recommendation.reason)];
@@ -290,6 +296,7 @@ function summarizeActions(
         action.kind === "updated-task" ||
         action.kind === "dropped-task"
       ),
+    parkedReason: null,
   };
 }
 

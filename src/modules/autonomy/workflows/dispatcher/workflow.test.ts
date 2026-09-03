@@ -1,8 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   WorkflowScenarioDriver,
@@ -113,6 +114,8 @@ describe("dispatcher workflow", () => {
     return new WorkflowScenarioDriver(dispatcherWorkflow, {
       ...options,
       workspaceRoot,
+      scopePolicySnapshot:
+        options.scopePolicySnapshot ?? scopePolicySnapshotForTest(workspaceRoot),
     }).run();
   }
 
@@ -145,6 +148,59 @@ describe("dispatcher workflow", () => {
     );
   }
 
+  it("runs the ongoing semantic observer without a Git repository", async () => {
+    expect(dispatcherWorkflow.repository).toBe("none");
+    const directoryRoot = mkdtempSync(join(tmpdir(), "kota-dispatcher-observe-"));
+    try {
+      const scopeId = deriveDirectoryScopeId(directoryRoot);
+      const scopePolicySnapshot = scopePolicySnapshotForTest(directoryRoot, [{
+        scopeId,
+        reason: "Repository-free observe posture.",
+        autonomy: { defaultMode: "passive", maxMode: "passive" },
+        writes: { mode: "none" },
+      }]);
+      writeFileSync(join(directoryRoot, "AGENTS.md"), "# Scope\n\n- Initial guidance.\n");
+      const initial = computeScopeContentFingerprint(
+        directoryRoot,
+        scopePolicySnapshot.policy,
+      );
+      const state = createTestTransactionalRunState();
+      state.compareAndSet(
+        SCOPE_IMPROVEMENT_STATE_KEY,
+        0,
+        {
+          ...emptyScopeImprovementState(scopeId),
+          lastRunAt: "2026-06-19T00:00:00.000Z",
+          consumedFingerprint: initial.fingerprint,
+        },
+      );
+      writeFileSync(join(directoryRoot, "AGENTS.md"), "# Scope\n\n- Revised guidance.\n");
+
+      const result = await new WorkflowScenarioDriver(dispatcherWorkflow, {
+        workspaceRoot: directoryRoot,
+        scopePolicySnapshot,
+        ports: { state },
+      }).run();
+
+      expect(result.error).toBeUndefined();
+      expect(result).toMatchObject({
+        status: "success",
+        steps: { "assess-and-dispatch": { status: "success" } },
+      });
+      expect(result.emitted).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          event: scopeImprovementChanged.name,
+          payload: expect.objectContaining({
+            automatic: true,
+            boundary: "content-policy-changed",
+          }),
+        }),
+      ]));
+    } finally {
+      rmSync(directoryRoot, { recursive: true, force: true });
+    }
+  });
+
   it("emits one targeted autonomy.queue.available event per open task", async () => {
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-foo.md"),
@@ -175,6 +231,85 @@ describe("dispatcher workflow", () => {
         ),
     ).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
+  });
+
+  it("keeps proposed tasks visible without admitting builder execution", async () => {
+    writeFileSync(
+      join(workspaceRoot, "data", "tasks", "task-proposed.md"),
+      taskFixture("task-proposed", "open"),
+    );
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const result = await runDispatcherScenario({
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot, [{
+        scopeId,
+        reason: "Proposed-task onboarding posture",
+        autonomy: { defaultMode: "supervised", maxMode: "supervised" },
+        writes: { mode: "scope-directory" },
+      }]),
+    });
+
+    const output = result.steps["assess-and-dispatch"].output as {
+      actionableCount: number;
+      builderTaskIds: string[];
+    };
+    expect(output.actionableCount).toBe(1);
+    expect(output.builderTaskIds).toEqual([]);
+    expect(result.emitted.some((event) =>
+      event.event === "autonomy.queue.available"
+    )).toBe(false);
+  });
+
+  it("does not admit builder work when the complete write decision denies it", async () => {
+    writeFileSync(
+      join(workspaceRoot, "data", "tasks", "task-policy-denied.md"),
+      taskFixture("task-policy-denied", "open"),
+    );
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const result = await runDispatcherScenario({
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot, [{
+        scopeId,
+        reason: "Autonomy remains selected but local writes now require denial.",
+        autonomy: { defaultMode: "autonomous", maxMode: "autonomous" },
+        writes: { mode: "scope-directory" },
+        ownerConfirmation: { localWrite: "deny" },
+      }]),
+    });
+
+    const output = result.steps["assess-and-dispatch"].output as {
+      actionableCount: number;
+      builderTaskIds: string[];
+    };
+    expect(output.actionableCount).toBe(1);
+    expect(output.builderTaskIds).toEqual([]);
+    expect(result.emitted.some((event) =>
+      event.event === "autonomy.queue.available"
+    )).toBe(false);
+  });
+
+  it("parks malformed improvement config and keeps builder work undispatched", async () => {
+    writeFileSync(
+      join(workspaceRoot, "data", "tasks", "task-malformed-config.md"),
+      taskFixture("task-malformed-config", "open"),
+    );
+    writeProjectFile(
+      ".kota/scope-improvement/config.json",
+      '{"enabled":"false"}\n',
+    );
+
+    const result = await runDispatcherScenario();
+    const output = result.steps["assess-and-dispatch"].output as {
+      builderTaskIds: string[];
+      scopeBoundary: { shouldEmit: boolean; reason: string };
+    };
+
+    expect(output.builderTaskIds).toEqual([]);
+    expect(output.scopeBoundary).toMatchObject({
+      shouldEmit: false,
+      reason: expect.stringContaining("authority cannot be inspected"),
+    });
+    expect(result.emitted.some((event) =>
+      event.event === "autonomy.queue.available"
+    )).toBe(false);
   });
 
 

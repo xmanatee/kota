@@ -1,4 +1,5 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -30,6 +31,15 @@ describe("scope-improver semantic consumption", () => {
   function track(label: string): string {
     const workspaceRoot = makeScopeFixture(label);
     scopeRoots.push(workspaceRoot);
+    return workspaceRoot;
+  }
+
+  function trackDirectory(label: string): string {
+    const workspaceRoot = mkdtempSync(
+      join(tmpdir(), `kota-scope-semantic-directory-${label}-`),
+    );
+    scopeRoots.push(workspaceRoot);
+    mkdirSync(join(workspaceRoot, ".kota"), { recursive: true });
     return workspaceRoot;
   }
 
@@ -83,6 +93,38 @@ describe("scope-improver semantic consumption", () => {
         pendingBoundary: "content-policy-changed",
         pendingDelivery: "queued",
       },
+    });
+  });
+
+  it("observes later guidance changes in a non-Git observe scope", () => {
+    const workspaceRoot = trackDirectory("observe");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const policySnapshot = scopePolicySnapshotForTest(workspaceRoot, [{
+      scopeId,
+      reason: "Repository-free observe posture.",
+      autonomy: { defaultMode: "passive", maxMode: "passive" },
+      writes: { mode: "none" },
+    }]);
+    writeFileSync(join(workspaceRoot, "AGENTS.md"), "# Scope\n\n- Initial guidance.\n");
+    const initial = computeScopeContentFingerprint(workspaceRoot, policySnapshot.policy);
+    const consumed = {
+      ...emptyScopeImprovementState(scopeId),
+      lastRunAt: SCOPE_TEST_NOW.toISOString(),
+      consumedFingerprint: initial.fingerprint,
+    };
+    writeFileSync(join(workspaceRoot, "AGENTS.md"), "# Scope\n\n- Revised guidance.\n");
+
+    expect(inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: policySnapshot,
+      state: consumed,
+    })).toMatchObject({
+      shouldEmit: true,
+      payload: { boundary: "content-policy-changed", automatic: true },
+      nextState: { pendingDelivery: "queued" },
     });
   });
 
@@ -186,6 +228,83 @@ describe("scope-improver semantic consumption", () => {
       consumedFingerprint: fingerprint.fingerprint,
       pendingFingerprint: null,
       pendingDelivery: null,
+    });
+  });
+
+  it("keeps disabled input parked until the configuration fingerprint changes", () => {
+    const workspaceRoot = track("disabled-auto");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const configDir = join(workspaceRoot, ".kota", "scope-improvement");
+    mkdirSync(configDir, { recursive: true });
+    const configPath = join(configDir, "config.json");
+    writeFileSync(configPath, '{"enabled":false,"maxActionsPerRun":2}\n');
+    const policySnapshot = scopePolicySnapshotForTest(workspaceRoot);
+    const disabledFingerprint = computeScopeContentFingerprint(
+      workspaceRoot,
+      policySnapshot.policy,
+    );
+    const deferred = reserveScopeImprovementInput(
+      emptyScopeImprovementState(scopeId),
+      {
+        fingerprint: disabledFingerprint.fingerprint,
+        boundary: "initial-onboarding",
+        delivery: "deferred",
+        deliveryAttempt: 1,
+      },
+    );
+
+    expect(inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: policySnapshot,
+      state: deferred,
+    })).toMatchObject({
+      shouldEmit: false,
+      reason: expect.stringContaining("scope improvement is disabled"),
+    });
+
+    writeFileSync(configPath, '{"enabled":true,"maxActionsPerRun":2}\n');
+    expect(inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: policySnapshot,
+      state: deferred,
+    })).toMatchObject({
+      shouldEmit: true,
+      payload: {
+        boundary: "initial-onboarding",
+        deliveryAttempt: 1,
+      },
+      nextState: {
+        pendingDelivery: "queued",
+        pendingDeliveryAttempt: 1,
+      },
+    });
+  });
+
+  it("parks malformed configuration without admitting a semantic request", () => {
+    const workspaceRoot = track("malformed-config");
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const configDir = join(workspaceRoot, ".kota", "scope-improvement");
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, "config.json"), '{"enabled":"false"}\n');
+
+    expect(inspectScopeSemanticBoundary({
+      workspaceRoot,
+      scopeRoot: workspaceRoot,
+      scopeId,
+      stateDir: join(workspaceRoot, ".kota"),
+      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
+      state: emptyScopeImprovementState(scopeId),
+    })).toMatchObject({
+      shouldEmit: false,
+      reason: expect.stringContaining("authority cannot be inspected"),
+      payload: null,
+      nextState: null,
     });
   });
 });

@@ -12,7 +12,11 @@
  */
 
 import { Command } from "commander";
-import type { ScopeOnboardingChoices } from "#core/daemon/scope-onboarding.js";
+import type {
+  ScopeOnboardingChoices,
+  ScopeOnboardingOperation,
+  ScopeOnboardingPlan,
+} from "#core/daemon/scope-onboarding.js";
 import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { confirmAction } from "#core/util/confirm.js";
@@ -27,6 +31,33 @@ import {
 
 function onboardingLines(lines: readonly string[]): RenderNode {
   return stack(...lines.map((text) => line(plain(text))));
+}
+
+function onboardingPlanLines(plan: ScopeOnboardingPlan): readonly string[] {
+  const improvement = plan.permissions.improvement;
+  return [
+    ...describeOnboardingPlan(plan),
+    `Improvement: ${improvement.posture}, review=${improvement.review}, ` +
+      `builder=${improvement.builder}, autonomy=${plan.permissions.autonomy}, ` +
+      `writes=${plan.permissions.writes.mode}.`,
+  ];
+}
+
+function onboardingOperationLines(
+  operation: ScopeOnboardingOperation,
+): readonly string[] {
+  const readiness = operation.readiness;
+  const improvement = readiness.improvement;
+  return [
+    ...describeOnboardingOperation(operation),
+    `Improvement: ${improvement.posture}, review=${improvement.review}, ` +
+      `builder=${improvement.builder}, autonomy=${improvement.autonomyMode}, ` +
+      `writes=${improvement.writes.mode}.`,
+    `Readiness blockers: ${readiness.reasons.length}.`,
+    ...readiness.reasons.map((reason) =>
+      `${reason.code}${reason.capability ? ` (${reason.capability})` : ""}: ${reason.message}`
+    ),
+  ];
 }
 
 function buildScopesListNode(result: Extract<ScopesListResult, { ok: true }>): RenderNode {
@@ -320,7 +351,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     const result = await client(directory, choices.value);
     if (opts.json) writeJson(result);
     else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
-    else print(onboardingLines(describeOnboardingPlan(result.plan)));
+    else print(onboardingLines(onboardingPlanLines(result.plan)));
     if (!result.ok) process.exitCode = 1;
   });
 
@@ -351,7 +382,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       );
       return;
     }
-    if (!opts.json) print(onboardingLines(describeOnboardingPlan(planned.plan)));
+    if (!opts.json) print(onboardingLines(onboardingPlanLines(planned.plan)));
     const confirmed = await confirmAction(
       `Apply onboarding plan ${planned.plan.planId} for ${planned.plan.directoryRoot}?`,
     );
@@ -360,7 +391,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       return;
     }
     const dangerous = planned.plan.choices.trust ||
-      planned.plan.choices.initialAutomationMode !== "passive" ||
+      planned.plan.choices.improvementPosture !== "observe" ||
       planned.plan.choices.writes.mode !== "none";
     const result = await applyOnboarding(
       planned.plan,
@@ -370,9 +401,9 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     else if (!result.ok) {
       printToStderr(line(span(onboardingError(result), "error")));
       if ("operation" in result && result.operation) {
-        printToStderr(onboardingLines(describeOnboardingOperation(result.operation)));
+        printToStderr(onboardingLines(onboardingOperationLines(result.operation)));
       }
-    } else print(onboardingLines(describeOnboardingOperation(result.operation)));
+    } else print(onboardingLines(onboardingOperationLines(result.operation)));
     if (!result.ok) process.exitCode = 1;
   });
 
@@ -386,7 +417,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       const result = await client(operationId);
       if (opts.json) writeJson(result);
       else if (!result.ok) printToStderr(line(span(onboardingError(result), "error")));
-      else print(onboardingLines(describeOnboardingOperation(result.operation)));
+      else print(onboardingLines(onboardingOperationLines(result.operation)));
       if (!result.ok) process.exitCode = 1;
     });
 
@@ -415,7 +446,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       if (!confirmed) return onboardingInputError("Scope onboarding retry was not confirmed.", opts.json);
       const plan = status.operation.acceptedPlan;
       const dangerous = plan.choices.trust ||
-        plan.choices.initialAutomationMode !== "passive" ||
+        plan.choices.improvementPosture !== "observe" ||
         plan.choices.writes.mode !== "none";
       const result = await retryOnboarding(
         operationId,
@@ -499,7 +530,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
 type OnboardingChoiceOptions = {
   name?: string;
   trusted?: boolean;
-  automation?: string;
+  improvement?: string;
   writes?: string;
   writePath?: string[];
 };
@@ -508,7 +539,7 @@ function addOnboardingChoiceOptions(command: Command): Command {
   return command
     .option("--name <displayName>", "Scope display name")
     .option("--trusted", "Explicitly trust the scope")
-    .option("--automation <mode>", "Initial automation mode: passive, supervised, or autonomous")
+    .option("--improvement <posture>", "Continuous improvement: observe, propose, or build")
     .option("--writes <mode>", "Write boundary: none, scope-directory, paths, or unrestricted")
     .option("--write-path <path...>", "Allowed path(s) when --writes paths is selected");
 }
@@ -517,11 +548,11 @@ function parseOnboardingChoices(
   opts: OnboardingChoiceOptions,
 ): { ok: true; value: ScopeOnboardingChoices } | { ok: false; message: string } {
   if (
-    opts.automation !== undefined &&
-    opts.automation !== "passive" &&
-    opts.automation !== "supervised" &&
-    opts.automation !== "autonomous"
-  ) return { ok: false, message: "--automation must be passive, supervised, or autonomous." };
+    opts.improvement !== undefined &&
+    opts.improvement !== "observe" &&
+    opts.improvement !== "propose" &&
+    opts.improvement !== "build"
+  ) return { ok: false, message: "--improvement must be observe, propose, or build." };
   if (
     opts.writes !== undefined &&
     opts.writes !== "none" &&
@@ -545,7 +576,7 @@ function parseOnboardingChoices(
     value: {
       ...(opts.name !== undefined ? { displayName: opts.name } : {}),
       ...(opts.trusted === true ? { trust: true } : {}),
-      ...(opts.automation !== undefined ? { initialAutomationMode: opts.automation } : {}),
+      ...(opts.improvement !== undefined ? { improvementPosture: opts.improvement } : {}),
       ...(writes !== undefined ? { writes } : {}),
     },
   };

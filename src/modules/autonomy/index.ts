@@ -1,11 +1,15 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
+import { SCOPE_IMPROVEMENT_AUTHORITY_PROVIDER_TYPE } from "#core/daemon/scope-improvement-authority-provider.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import {
   importModuleExports,
   listModuleDirectories,
 } from "#core/modules/runtime-module-discovery.js";
 import { kotaRuntimeAssetRoot } from "#core/util/kota-install-paths.js";
-import type { RegisteredWorkflowDefinitionInput, WorkflowDefinitionInput } from "#core/workflow/types.js";
+import type {
+  RegisteredWorkflowDefinitionInput,
+  WorkflowDefinitionInput,
+} from "#core/workflow/types.js";
 import { buildAgyCanaryCommand } from "./agy-continuous-canary-cli.js";
 import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
@@ -24,6 +28,9 @@ import {
   scopeImprovementChanged,
   scopeImprovementRequested,
 } from "./workflows/scope-improver/events.js";
+import {
+  resolveScopeImprovementAuthority,
+} from "./workflows/scope-improver/scope-improvement-authority.js";
 
 type AutonomyWorkflowModule = {
   default: WorkflowDefinitionInput;
@@ -112,6 +119,9 @@ const autonomyModule: KotaModule = {
   agents: async () => await discoverAutonomyAgents(),
   uiSurfaces: [dailyDigestUiSurfaceSource],
   onLoad: (ctx) => {
+    ctx.registerProvider(SCOPE_IMPROVEMENT_AUTHORITY_PROVIDER_TYPE, {
+      inspect: resolveScopeImprovementAuthority,
+    });
     subscribeAutonomyIssueSources(ctx);
   },
   commands: (ctx) => [

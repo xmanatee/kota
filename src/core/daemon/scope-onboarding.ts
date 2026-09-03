@@ -3,13 +3,14 @@ import { createHash } from "node:crypto";
 import { lstatSync, mkdirSync, realpathSync, rmdirSync } from "node:fs";
 import { join } from "node:path";
 import type { ModuleSetupStatusResponse } from "#core/modules/setup-requirements.js";
-import { isAutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { ScopeAuthorityOperatorAction } from "./scope-authority-operator-token.js";
 import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import { resolveLiveDirectoryScope } from "./scope-directory.js";
+import type { ScopeImprovementAuthorityProjection } from "./scope-improvement-authority-provider.js";
 import type { ScopeLifecycleService } from "./scope-lifecycle.js";
 import { ScopeOnboardingOperationStore } from "./scope-onboarding-store.js";
 import type {
+  ScopeImprovementPosture,
   ScopeOnboardingApplyResult,
   ScopeOnboardingChange,
   ScopeOnboardingChoices,
@@ -23,10 +24,16 @@ import type {
   ScopeOnboardingReason,
   ScopeOnboardingRuntimeDirectory,
 } from "./scope-onboarding-types.js";
-import type { ScopePolicyFragment, ScopeWriteBoundary } from "./scope-policy.js";
+import type {
+  ResolvedScopePolicy,
+  ScopePolicyFragment,
+  ScopeWriteBoundary,
+} from "./scope-policy.js";
+import { decideScopePolicy } from "./scope-policy-decisions.js";
 import type { ScopeRegistry } from "./scope-registry.js";
 
 export type {
+  ScopeImprovementPosture,
   ScopeOnboardingApplyResult,
   ScopeOnboardingChange,
   ScopeOnboardingChoices,
@@ -46,7 +53,15 @@ export type ScopeOnboardingServiceOptions = {
     directoryRoot: string,
     scopeId: string | undefined,
   ) => Promise<ModuleSetupStatusResponse>;
-  isInitialImprovementAvailable: (scopeId: string) => boolean;
+  inspectImprovementRuntimeReadiness: (
+    scopeId: string,
+    posture: ScopeImprovementPosture,
+  ) => readonly ScopeOnboardingReason[];
+  getImprovementAuthority?: (
+    scopeRoot: string,
+    stateDir: string,
+    policy: ResolvedScopePolicy,
+  ) => ScopeImprovementAuthorityProjection | null;
   isDispatchAvailable?: () => boolean;
   createRuntimeDirectory?: (path: string) => void;
   now?: () => Date;
@@ -194,8 +209,18 @@ export class ScopeOnboardingService {
         message: repositoryRootBlocker.message,
       };
     }
-    if (inspection.kind !== "git-repository") {
+    if (
+      inspection.kind !== "git-repository" &&
+      onboardingImprovement(normalized.choices.improvementPosture).review ===
+        "task-proposals"
+    ) {
       blockers.push(repositoryWriteUnavailable());
+    } else if (
+      onboardingImprovement(normalized.choices.improvementPosture).review ===
+        "task-proposals" &&
+      !gitRepositoryHasCommit(inspection.directoryRoot)
+    ) {
+      blockers.push(repositoryCommitUnavailable());
     }
     const changes: ScopeOnboardingChange[] = [];
     if (!inspection.registered) {
@@ -221,11 +246,11 @@ export class ScopeOnboardingService {
       kind: "set-authority",
       scopeId: inspection.scopeId,
       trust: normalized.choices.trust,
-      initialAutomationMode: normalized.choices.initialAutomationMode,
+      improvementPosture: normalized.choices.improvementPosture,
       writes: normalized.choices.writes,
     });
     const stablePlan = {
-      schema: 1 as const,
+      schema: 2 as const,
       operationId: inspection.operationId,
       inspectionId: inspection.inspectionId,
       scopeId: inspection.scopeId,
@@ -250,8 +275,9 @@ export class ScopeOnboardingService {
       createdAt: this.#now().toISOString(),
       permissions: {
         trusted: normalized.choices.trust,
-        autonomy: normalized.choices.initialAutomationMode,
+        autonomy: postureAutonomyMode(normalized.choices.improvementPosture),
         writes: normalized.choices.writes,
+        improvement: onboardingImprovement(normalized.choices.improvementPosture),
       },
     };
     return { ok: true, plan };
@@ -264,7 +290,7 @@ export class ScopeOnboardingService {
     const resolved = resolveLiveDirectoryScope({ scopeRoot: plan.directoryRoot });
     if (
       !resolved.ok ||
-      plan.schema !== 1 ||
+      plan.schema !== 2 ||
       plan.scopeId !== resolved.scope.scopeId ||
       plan.operationId !== operationId(resolved.scope.scopeRoot)
     ) {
@@ -315,7 +341,7 @@ export class ScopeOnboardingService {
       };
       const acceptedAt = this.#now().toISOString();
       const operation: ScopeOnboardingOperation = {
-        schema: 1,
+        schema: 2,
         operationId: acceptedPlan.operationId,
         state: "planned",
         acceptedPlan,
@@ -362,7 +388,10 @@ export class ScopeOnboardingService {
     if (!scope) return false;
     const operation = this.#store.read(operationId(scope.scopeRoot));
     return operation === null ||
-      operation.state === "succeeded" ||
+      (
+        operation.state === "succeeded" &&
+        readinessAllowsActivation(operation.readiness)
+      ) ||
       operation.state === "cancelled";
   }
 
@@ -375,10 +404,8 @@ export class ScopeOnboardingService {
       let operation = this.#store.read(operationIdInput);
       if (operation === null || operation.state === "cancelled") return true;
       if (operation.state === "succeeded") {
-        if (this.options.lifecycle.getHostingState(scopeId) === "hosted") {
-          await this.#refreshSucceeded(operation);
-        }
-        return true;
+        operation = await this.#refreshSucceeded(operation);
+        return readinessAllowsActivation(operation.readiness);
       }
 
       operation = this.#reconcileAuthorityCheckpoint(operation);
@@ -711,7 +738,11 @@ export class ScopeOnboardingService {
         });
       }
 
-      if (operation.registeredByOperation) {
+      let readiness = await this.#readiness(operation, false);
+      if (
+        operation.registeredByOperation &&
+        readinessAllowsActivation(readiness)
+      ) {
         const activated = await this.options.lifecycle.activatePreparedScope(
           operation.acceptedPlan.scopeId,
         );
@@ -722,8 +753,8 @@ export class ScopeOnboardingService {
           status: activated.status === "unchanged" ? "unchanged" : "applied",
           at: this.#now().toISOString(),
         });
+        readiness = await this.#readiness(operation, false);
       }
-      const readiness = await this.#readiness(operation, false);
       operation = this.#update(operation, {
         state: "succeeded",
         readiness,
@@ -1020,33 +1051,86 @@ export class ScopeOnboardingService {
         message: "The scope remains untrusted until an operator explicitly grants trust.",
       });
     }
+    let liveImprovement: ScopeImprovementAuthorityProjection | null = null;
+    if (authority !== null && "resolvedPolicy" in authority) {
+      try {
+        liveImprovement = this.options.getImprovementAuthority?.(
+          plan.directoryRoot,
+          join(plan.directoryRoot, ".kota"),
+          authority.resolvedPolicy,
+        ) ?? null;
+      } catch (error) {
+        reasons.push({
+          code: "scope_improvement_inspection_failed",
+          capability: "scope-improver",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    const improvement = liveImprovement ??
+      (authority !== null && "resolvedPolicy" in authority
+        ? improvementForPolicy(authority.resolvedPolicy)
+        : onboardingImprovement(plan.choices.improvementPosture));
+    const readinessPosture = liveImprovement?.configuredPosture ?? improvement.posture;
+    const initialImprovementPending = !operation.mutations.some((mutation) =>
+      mutation.kind === "complete-onboarding" && mutation.status === "applied"
+    );
     if (
-      authority !== null &&
-      "resolvedPolicy" in authority &&
-      authority.resolvedPolicy.writes.mode === "none"
+      initialImprovementPending &&
+      liveImprovement !== null &&
+      !liveImprovement.enabled
     ) {
       reasons.push({
-        code: "scope_improver_write_denied",
+        code: "scope_improvement_disabled",
         capability: "scope-improver",
-        message: "The resolved scope policy denies the repository writes required by scope-improver.",
+        message: "Continuous scope improvement is disabled by the current scope configuration.",
       });
     }
     if (
+      initialImprovementPending &&
+      readinessPosture !== "observe" &&
       authority !== null &&
-      "resolvedPolicy" in authority &&
-      authority.resolvedPolicy.autonomy.maxMode === "passive"
+      "resolvedPolicy" in authority
     ) {
-      reasons.push({
-        code: "scope_improver_passive",
-        capability: "scope-improver",
-        message: "Passive autonomy is read-only; choose supervised or autonomous mode to run scope-improver.",
-      });
+      const taskWrite = liveImprovement?.taskProposalDecision ??
+        decideScopePolicy(authority.resolvedPolicy, {
+          kind: "tool-effect",
+          toolName: "scope-improvement-actions",
+          effectKind: "write",
+          effectScope: "local-fs",
+          targetPath: join(plan.directoryRoot, "data", "tasks"),
+        });
+      if (taskWrite.outcome !== "allow") {
+        reasons.push({
+          code: taskWrite.outcome === "confirm"
+            ? "scope_improver_write_confirmation_required"
+            : "scope_improver_write_denied",
+          capability: "scope-improvement-actions",
+          message:
+            taskWrite.outcome === "confirm"
+              ? `The resolved scope policy requires owner confirmation for task-queue writes ` +
+                `by scope-improvement-actions: ${taskWrite.reason}`
+              : `The resolved scope policy denies task-queue writes required by ` +
+                `scope-improvement-actions: ${taskWrite.reason}`,
+        });
+      }
     }
     const repositoryRoot = gitRepositoryRoot(plan.directoryRoot);
-    if (repositoryRoot === null) {
+    if (
+      repositoryRoot === null &&
+      initialImprovementPending &&
+      readinessPosture !== "observe"
+    ) {
       reasons.push(repositoryWriteUnavailable());
-    } else if (repositoryRoot !== plan.directoryRoot) {
+    } else if (repositoryRoot !== null && repositoryRoot !== plan.directoryRoot) {
       reasons.push(repositoryRootRequired(repositoryRoot));
+    } else if (
+      repositoryRoot !== null &&
+      initialImprovementPending &&
+      readinessPosture !== "observe" &&
+      !gitRepositoryHasCommit(plan.directoryRoot)
+    ) {
+      reasons.push(repositoryCommitUnavailable());
     }
     const configured = isRealDirectory(join(plan.directoryRoot, ".kota"));
     if (!configured) {
@@ -1063,26 +1147,33 @@ export class ScopeOnboardingService {
         message: "The registered scope runtime is dispatch-closed until onboarding completes.",
       });
     }
-    let workflowAvailable = false;
+    let runtimeReasons: readonly ScopeOnboardingReason[] = [];
     if (registered !== undefined) {
       try {
-        workflowAvailable = this.options.isInitialImprovementAvailable(plan.scopeId);
+        runtimeReasons = this.options.inspectImprovementRuntimeReadiness(
+          plan.scopeId,
+          readinessPosture,
+        );
       } catch (error) {
-        reasons.push({
+        runtimeReasons = [{
           code: "workflow_inspection_failed",
           capability: "scope-improver",
           message: error instanceof Error ? error.message : String(error),
-        });
+        }, {
+          code: "workflow_unavailable",
+          capability: "scope-improvement-onboarding",
+          message: "The scope-improvement runtime could not be verified.",
+        }];
       }
     }
-    if (!workflowAvailable) {
-      reasons.push({
+    if (registered === undefined) {
+      runtimeReasons = [{
         code: "workflow_unavailable",
-        capability: "scope-improver",
-        message:
-          "The initial scope-improvement onboarding chain and scope-improver must both be enabled.",
-      });
+        capability: "scope-improvement-onboarding",
+        message: "The scope must be registered before its improvement runtime can be inspected.",
+      }];
     }
+    reasons.push(...runtimeReasons);
     if (this.options.isDispatchAvailable?.() === false) {
       reasons.push({
         code: "daemon_dispatch_paused",
@@ -1102,7 +1193,7 @@ export class ScopeOnboardingService {
       registered: registered !== undefined,
       configured,
       trusted,
-      workflowReady: hosted && configured && trusted && workflowAvailable && reasons.length === 0,
+      workflowReady: hosted && configured && trusted && reasons.length === 0,
       blocked: reasons.length > 0,
       partiallyApplied: incomplete && (
         operation.registeredByOperation ||
@@ -1112,6 +1203,17 @@ export class ScopeOnboardingService {
           change.owner === "scope" && ownsRuntimeDirectory(operation, change.path)
         )
       ),
+      improvement: {
+        posture: improvement.posture,
+        review: improvement.review,
+        builder: improvement.builder,
+        autonomyMode: authority !== null && "resolvedPolicy" in authority
+          ? authority.resolvedPolicy.autonomy.defaultMode
+          : postureAutonomyMode(plan.choices.improvementPosture),
+        writes: authority !== null && "resolvedPolicy" in authority
+          ? scopeWriteBoundary(authority.resolvedPolicy)
+          : plan.choices.writes,
+      },
       reasons,
     };
   }
@@ -1121,6 +1223,37 @@ export class ScopeOnboardingService {
   ): Promise<ScopeOnboardingOperation> {
     let next = operation;
     let readiness = await this.#readiness(next, false);
+    if (
+      next.registeredByOperation &&
+      this.options.lifecycle.getHostingState(next.acceptedPlan.scopeId) !== "hosted" &&
+      readinessAllowsActivation(readiness)
+    ) {
+      const activated = await this.options.lifecycle.activatePreparedScope(
+        next.acceptedPlan.scopeId,
+      );
+      if (activated.ok) {
+        next = this.#append(next, {
+          kind: "activate-scope",
+          target: next.acceptedPlan.scopeId,
+          status: activated.status === "unchanged" ? "unchanged" : "applied",
+          at: this.#now().toISOString(),
+        });
+        readiness = await this.#readiness(next, false);
+      } else {
+        readiness = {
+          ...readiness,
+          workflowReady: false,
+          blocked: true,
+          reasons: readiness.reasons.filter((reason) =>
+            reason.code !== "scope_not_active"
+          ).concat({
+            code: activated.reason,
+            capability: "scope-runtime",
+            message: activated.message,
+          }),
+        };
+      }
+    }
     const completionPublished = next.mutations.some((mutation) =>
       mutation.kind === "complete-onboarding" && mutation.status === "applied"
     );
@@ -1228,6 +1361,22 @@ export class ScopeOnboardingService {
       operation.acceptedPlan.changes.some((change) =>
         change.owner === "scope" && ownsRuntimeDirectory(operation, change.path)
       );
+    let liveImprovement: ScopeImprovementAuthorityProjection | null = null;
+    if (authority !== null && "resolvedPolicy" in authority) {
+      try {
+        liveImprovement = this.options.getImprovementAuthority?.(
+          plan.directoryRoot,
+          join(plan.directoryRoot, ".kota"),
+          authority.resolvedPolicy,
+        ) ?? null;
+      } catch {
+        // The full asynchronous readiness pass records the actionable reason.
+      }
+    }
+    const improvement = liveImprovement ??
+      (authority !== null && "resolvedPolicy" in authority
+        ? improvementForPolicy(authority.resolvedPolicy)
+        : onboardingImprovement(plan.choices.improvementPosture));
     return {
       scopeId: plan.scopeId,
       directoryRoot: plan.directoryRoot,
@@ -1237,6 +1386,17 @@ export class ScopeOnboardingService {
       workflowReady: false,
       blocked: true,
       partiallyApplied,
+      improvement: {
+        posture: improvement.posture,
+        review: improvement.review,
+        builder: improvement.builder,
+        autonomyMode: authority !== null && "resolvedPolicy" in authority
+          ? authority.resolvedPolicy.autonomy.defaultMode
+          : postureAutonomyMode(plan.choices.improvementPosture),
+        writes: authority !== null && "resolvedPolicy" in authority
+          ? scopeWriteBoundary(authority.resolvedPolicy)
+          : plan.choices.writes,
+      },
       reasons: [
         ...plan.blockers,
         {
@@ -1344,25 +1504,39 @@ function normalizeChoices(
   if (!displayName) {
     return { ok: false, reason: "invalid_choices", message: "Display name must not be empty" };
   }
-  const initialAutomationMode = choices.initialAutomationMode ?? "passive";
-  if (!isAutonomyMode(initialAutomationMode)) {
-    return { ok: false, reason: "invalid_choices", message: "Invalid automation mode" };
+  const improvementPosture = choices.improvementPosture ?? "observe";
+  if (!isImprovementPosture(improvementPosture)) {
+    return { ok: false, reason: "invalid_choices", message: "Invalid improvement posture" };
   }
   const writes = choices.writes ?? { mode: "none" };
   if (!isWriteBoundary(writes)) {
     return { ok: false, reason: "invalid_choices", message: "Invalid scope write boundary" };
   }
   const trust = choices.trust ?? false;
-  if (initialAutomationMode === "autonomous" && writes.mode !== "none" && !trust) {
+  if (improvementPosture === "observe" && writes.mode !== "none") {
     return {
       ok: false,
       reason: "invalid_choices",
-      message: "Autonomous writes require an explicit trusted choice",
+      message: "Observe posture does not grant repository writes",
+    };
+  }
+  if (improvementPosture !== "observe" && writes.mode === "none") {
+    return {
+      ok: false,
+      reason: "invalid_choices",
+      message: "Propose and build postures require an explicit write boundary",
+    };
+  }
+  if (improvementPosture !== "observe" && !trust) {
+    return {
+      ok: false,
+      reason: "invalid_choices",
+      message: "Task proposals and autonomous builds require an explicitly trusted scope",
     };
   }
   return {
     ok: true,
-    choices: { displayName, trust, initialAutomationMode, writes },
+    choices: { displayName, trust, improvementPosture, writes },
   };
 }
 
@@ -1448,6 +1622,18 @@ function gitRepositoryRoot(directoryRoot: string): string | null {
   }
 }
 
+function gitRepositoryHasCommit(directoryRoot: string): boolean {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "HEAD^{commit}"], {
+      cwd: directoryRoot,
+      stdio: ["ignore", "ignore", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function repositoryRootRequired(repositoryRoot: string): ScopeOnboardingReason {
   return {
     code: "repository_root_required",
@@ -1464,6 +1650,15 @@ function repositoryWriteUnavailable(): ScopeOnboardingReason {
     capability: "scope-improver",
     message:
       "scope-improver requires Git-backed repository writes; other directory capabilities remain available.",
+  };
+}
+
+function repositoryCommitUnavailable(): ScopeOnboardingReason {
+  return {
+    code: "repository_commit_unavailable",
+    capability: "scope-improvement-actions",
+    message:
+      "Proposed-task and builder postures require a Git repository with an initial commit so runtime-owned read and write sandboxes can be created.",
   };
 }
 
@@ -1501,25 +1696,78 @@ function readinessBeforeApply(plan: ScopeOnboardingPlan): ScopeOnboardingReadine
     workflowReady: false,
     blocked: plan.blockers.length > 0,
     partiallyApplied: false,
+    improvement: {
+      ...onboardingImprovement(plan.choices.improvementPosture),
+      autonomyMode: postureAutonomyMode(plan.choices.improvementPosture),
+      writes: plan.choices.writes,
+    },
     reasons: plan.blockers,
   };
 }
 
 function onboardingAuthorityPolicy(plan: ScopeOnboardingPlan): ScopePolicyFragment {
+  const autonomyMode = postureAutonomyMode(plan.choices.improvementPosture);
   return {
     ...(plan.authorityBaseline.policyFragment ?? {}),
     scopeId: plan.scopeId,
     reason: `Accepted onboarding plan ${plan.planId}`,
     autonomy: {
-      defaultMode: plan.choices.initialAutomationMode,
-      maxMode: plan.choices.initialAutomationMode,
+      defaultMode: autonomyMode,
+      maxMode: autonomyMode,
     },
     writes: plan.choices.writes,
   };
 }
 
+function isImprovementPosture(value: string): value is "observe" | "propose" | "build" {
+  return value === "observe" || value === "propose" || value === "build";
+}
+
+function postureAutonomyMode(
+  posture: ScopeOnboardingPlan["choices"]["improvementPosture"],
+): "passive" | "supervised" | "autonomous" {
+  if (posture === "observe") return "passive";
+  if (posture === "propose") return "supervised";
+  return "autonomous";
+}
+
+function onboardingImprovement(
+  posture: ScopeOnboardingPlan["choices"]["improvementPosture"],
+): ScopeOnboardingPlan["permissions"]["improvement"] {
+  return {
+    posture,
+    review: posture === "observe" ? "owner-questions" : "task-proposals",
+    builder: posture === "build" ? "enabled" : "disabled",
+  };
+}
+
+function improvementForPolicy(
+  policy: ResolvedScopePolicy,
+): ScopeOnboardingPlan["permissions"]["improvement"] {
+  const posture = policy.writes.mode === "none" || policy.autonomy.maxMode === "passive"
+    ? "observe"
+    : policy.autonomy.maxMode === "supervised"
+      ? "propose"
+      : "build";
+  return onboardingImprovement(posture);
+}
+
+function scopeWriteBoundary(policy: ResolvedScopePolicy): ScopeWriteBoundary {
+  if (policy.writes.mode === "paths") {
+    return { mode: "paths", paths: policy.writes.paths };
+  }
+  return { mode: policy.writes.mode };
+}
+
 function onboardingCompletionId(operationIdInput: string): string {
   return `scope-onboarding:${operationIdInput}:completed`;
+}
+
+function readinessAllowsActivation(readiness: ScopeOnboardingReadiness): boolean {
+  return readiness.registered &&
+    readiness.configured &&
+    readiness.trusted &&
+    readiness.reasons.every((reason) => reason.code === "scope_not_active");
 }
 
 function operationId(directoryRoot: string): string {

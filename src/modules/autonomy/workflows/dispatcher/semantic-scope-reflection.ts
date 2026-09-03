@@ -2,6 +2,7 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import type { ScopeImprovementRequest } from "../scope-improver/events.js";
 import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
+import { resolveScopeImprovementAuthority } from "../scope-improver/scope-improvement-authority.js";
 import { reserveScopeImprovementInput } from "../scope-improver/scope-improvement-state.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
 import { scopeImprovementDispatchKey } from "../scope-improver/semantic-request.js";
@@ -26,11 +27,38 @@ export function inspectScopeSemanticBoundary(args: {
   }
   const scopeId = args.scopeId;
   const state = args.state;
-  const worktree = getRepoWorktreeStatus(args.scopeRoot);
-  if (!worktree.available || worktree.dirty) {
+  let authority: ReturnType<typeof resolveScopeImprovementAuthority>;
+  try {
+    authority = resolveScopeImprovementAuthority({
+      scopeRoot: args.scopeRoot,
+      stateDir: args.stateDir,
+      policy: args.scopePolicySnapshot.policy,
+    });
+  } catch (error) {
     return {
       shouldEmit: false,
-      reason: "semantic scope input is parked until the canonical worktree is clean",
+      reason:
+        "semantic scope input is parked because scope improvement authority cannot be " +
+        `inspected: ${error instanceof Error ? error.message : String(error)}`,
+      payload: null,
+      nextState: null,
+    };
+  }
+  if (!authority.enabled) {
+    return {
+      shouldEmit: false,
+      reason: "semantic scope input is parked while scope improvement is disabled",
+      payload: null,
+      nextState: null,
+    };
+  }
+  const worktree = getRepoWorktreeStatus(args.scopeRoot);
+  if (worktree.dirty || (!worktree.available && authority.posture !== "observe")) {
+    return {
+      shouldEmit: false,
+      reason: worktree.available
+        ? "semantic scope input is parked until the canonical worktree is clean"
+        : "semantic scope input requiring repository writes is parked because Git is unavailable",
       payload: null,
       nextState: null,
     };
@@ -41,6 +69,20 @@ export function inspectScopeSemanticBoundary(args: {
     args.stateDir,
     args.scopeRoot,
   );
+  if (
+    state.pendingDelivery === "deferred" &&
+    authority.taskProposalDecision.outcome === "deny" &&
+    authority.configuredPosture !== "observe"
+  ) {
+    return {
+      shouldEmit: false,
+      reason:
+        `semantic scope input is parked while task-queue writes are denied: ` +
+        authority.taskProposalDecision.reason,
+      payload: null,
+      nextState: null,
+    };
+  }
   if (!state.consumedFingerprint) {
     if (state.pendingFingerprint && state.pendingDelivery === "deferred") {
       return scopePendingDelivery({

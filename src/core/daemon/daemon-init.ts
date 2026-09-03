@@ -1,5 +1,15 @@
+import {
+  buildHarnessCapabilitySnapshot,
+  findRequiredHarnessReadinessFailures,
+  formatRequiredHarnessReadinessFailures,
+  resolveAgentHarness,
+} from "#core/agent-harness/index.js";
+import { getScopeSecretStore } from "#core/config/secrets.js";
 import type { Transport } from "#core/loop/transport.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import {
+  resolveActivePresetFromConfig,
+  resolveAgentRuntime,
+} from "#core/model/preset.js";
 import { moduleSetupRequirementsFromSummaries } from "#core/modules/module-setup-status.js";
 import {
   HISTORY_PROVIDER_TOKEN,
@@ -41,12 +51,33 @@ import {
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "./runtime-scope-provider.js";
 import { inspectChannelScopeDrainBlockers } from "./scope-channel-drain-inspection.js";
 import { inspectExternalScopeDrainBlockers } from "./scope-drain-inspection.js";
+import { SCOPE_IMPROVEMENT_AUTHORITY_PROVIDER_TYPE } from "./scope-improvement-authority-provider.js";
 import { ScopeLifecycleService } from "./scope-lifecycle.js";
 import { ScopeOnboardingService } from "./scope-onboarding.js";
+import type {
+  ScopeImprovementPosture,
+  ScopeOnboardingReason,
+} from "./scope-onboarding-types.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "./scope-provider.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
 
 export type { BuildDaemonInitParams, DaemonRuntimeContext } from "./daemon-runtime-context.js";
+
+function requiredImprovementWorkflowNames(
+  posture: ScopeImprovementPosture,
+): readonly string[] {
+  const reviewChain = [
+    "scope-improvement-onboarding",
+    "scope-improver",
+    "scope-improvement-publication",
+    "dispatcher",
+  ];
+  if (posture === "observe") return reviewChain;
+  const proposalChain = [...reviewChain, "scope-improvement-actions"];
+  return posture === "propose"
+    ? proposalChain
+    : [...proposalChain, "builder"];
+}
 
 /**
  * Build the daemon's lifecycle context: construct the workflow runtime,
@@ -152,14 +183,70 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
       });
       return setupService.inspect();
     },
-    isInitialImprovementAvailable: (scopeId) => {
+    inspectImprovementRuntimeReadiness: (scopeId, posture) => {
       const enabled = new Set(
         scopeRuntimes.get(scopeId).workflowRuntime.getDefinitions()
           .filter((definition) => definition.enabled)
           .map((definition) => definition.name),
       );
-      return enabled.has("scope-improvement-onboarding") && enabled.has("scope-improver");
+      const reasons = requiredImprovementWorkflowNames(posture)
+        .filter((workflowName) => !enabled.has(workflowName))
+        .map((workflowName): ScopeOnboardingReason => ({
+          code: "workflow_unavailable",
+          capability: workflowName,
+          message: `Required ${posture} posture workflow "${workflowName}" is not enabled.`,
+        }));
+      if (posture !== "build") return reasons;
+
+      try {
+        const agentRuntime = resolveAgentRuntime(config.config);
+        const harness = resolveAgentHarness(agentRuntime.harness);
+        const credentialNames = agentRuntime.preset.authEnv;
+        if (credentialNames.length > 0) {
+          const secretStore = getScopeSecretStore(
+            scopeRuntimes.get(scopeId).scope.scopeRoot,
+          );
+          const providerReady = credentialNames.some((name) =>
+            secretStore.get(name) !== null
+          );
+          if (!providerReady) {
+            reasons.push({
+              code: "builder_provider_unavailable",
+              capability: `builder.${agentRuntime.preset.id}`,
+              message:
+                `The active builder preset "${agentRuntime.preset.id}" requires one configured ` +
+                `credential (${credentialNames.join(" or ")}).`,
+            });
+          }
+        }
+        const snapshot = buildHarnessCapabilitySnapshot(harness, {
+          model: agentRuntime.tiers.capable,
+          effort: agentRuntime.effort,
+          unattended: true,
+        });
+        const failures = findRequiredHarnessReadinessFailures(snapshot);
+        if (failures.length > 0) {
+          reasons.push({
+            code: "builder_harness_unavailable",
+            capability: `builder.${harness.name}`,
+            message: formatRequiredHarnessReadinessFailures(harness.name, failures),
+          });
+        }
+      } catch (error) {
+        reasons.push({
+          code: "builder_harness_inspection_failed",
+          capability: "builder",
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return reasons;
     },
+    getImprovementAuthority: (scopeRoot, stateDir, policy) =>
+      providerRegistry?.get(SCOPE_IMPROVEMENT_AUTHORITY_PROVIDER_TYPE)?.inspect({
+        scopeRoot,
+        stateDir,
+        policy,
+      }) ?? null,
     isDispatchAvailable: () => !startupDispatchPaused && !ctx.restartRequested,
   });
   const chatBindings = new DaemonChatBindingStore(stateDir);

@@ -82,7 +82,7 @@ function completedOnboardingFixture(): {
   operation: ScopeOnboardingOperation;
 } {
   const plan: ScopeOnboardingPlan = {
-    schema: 1,
+    schema: 2,
     planId: "plan_completed",
     operationId: "onboard_111111111111111111111111",
     inspectionId: "inspection_completed",
@@ -92,7 +92,7 @@ function completedOnboardingFixture(): {
     choices: {
       displayName: "External",
       trust: false,
-      initialAutomationMode: "passive",
+      improvementPosture: "observe",
       writes: { mode: "none" },
     },
     registrationBaseline: {
@@ -102,13 +102,22 @@ function completedOnboardingFixture(): {
     },
     authorityBaseline: { revision: 0, trusted: false, policyFragment: null },
     changes: [],
-    permissions: { trusted: false, autonomy: "passive", writes: { mode: "none" } },
+    permissions: {
+      trusted: false,
+      autonomy: "passive",
+      writes: { mode: "none" },
+      improvement: {
+        posture: "observe",
+        review: "owner-questions",
+        builder: "disabled",
+      },
+    },
     blockers: [],
   };
   return {
     plan,
     operation: {
-      schema: 1,
+      schema: 2,
       operationId: plan.operationId,
       state: "succeeded",
       acceptedPlan: plan,
@@ -127,6 +136,13 @@ function completedOnboardingFixture(): {
         workflowReady: false,
         blocked: true,
         partiallyApplied: false,
+        improvement: {
+          posture: "observe",
+          review: "owner-questions",
+          builder: "disabled",
+          autonomyMode: "passive",
+          writes: { mode: "none" },
+        },
         reasons: [{ code: "scope_untrusted", message: "Scope remains untrusted." }],
       },
       provenance: {

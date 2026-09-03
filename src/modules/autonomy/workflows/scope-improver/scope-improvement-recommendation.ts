@@ -33,6 +33,19 @@ export function recommendScopeImprovements(args: {
       const unhandled: never = candidate;
       throw new Error(`Unhandled scope-improvement action: ${String(unhandled)}`);
     }
+    if (args.inputs.config.posture === "observe") {
+      return {
+        kind: "owner-question",
+        signature: candidate.signature,
+        question: `Should KOTA create the proposed improvement task for ${args.inputs.scope.displayName}?`,
+        reason: candidate.summary,
+        evidenceIds: candidate.evidenceIds,
+        proposedAnswers: [
+          "Enable proposed tasks for this scope.",
+          "Keep this scope in observe/ask posture.",
+        ],
+      };
+    }
     return {
       kind: "create-task",
       signature: candidate.signature,

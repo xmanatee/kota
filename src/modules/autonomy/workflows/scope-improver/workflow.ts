@@ -1,9 +1,9 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
+import {
+  expectStructuredOutput,
+  typedCodeStep,
+} from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
-import { taskQueueValidationOperation } from "#modules/repo-tasks/task-queue-validation-operation.js";
 import {
   collectInputs,
   discoverCandidates,
@@ -31,7 +31,6 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
   type: "code",
   when: (ctx) => {
     if (!stepSucceeded("recommend-improvements")(ctx)) return false;
-    if (inspectWorktree.output(ctx)?.dirty !== false) return false;
     return recommend.outputRequired(ctx).recommendations.length > 0;
   },
   validate: (raw) =>
@@ -40,14 +39,54 @@ const applyRecommendations = typedCodeStep<ScopeImprovementActionResult>({
       "ownerQuestionIds",
       "applied",
       "requiresCommit",
+      "parkedReason",
     ]),
-  run: (ctx) =>
-    ctx.runBlocking(applyScopeImprovementRecommendationsOperation, {
-      workspaceRoot: ctx.workspaceRoot,
-      runId: ctx.workflow.runId,
-      inputs: collectInputs.outputRequired(ctx),
-      recommendations: recommend.outputRequired(ctx).recommendations,
-    }),
+  run: async (ctx) => {
+    const inputs = collectInputs.outputRequired(ctx);
+    const recommendations = recommend.outputRequired(ctx).recommendations;
+    if (inputs.config.posture === "observe") {
+      return ctx.runBlocking(applyScopeImprovementRecommendationsOperation, {
+        workspaceRoot: ctx.scopeRoot,
+        runId: ctx.workflow.runId,
+        inputs,
+        recommendations,
+      });
+    }
+    if (inputs.taskProposalAuthority.outcome !== "allow") {
+      return {
+        ...emptyActions(),
+        parkedReason:
+          inputs.taskProposalAuthority.outcome === "confirm"
+            ? `scope-improvement actions are parked because the current scope policy requires ` +
+              `owner confirmation for task-queue writes: ${inputs.taskProposalAuthority.reason}`
+            : `scope-improvement actions are parked because the current scope policy denies ` +
+              `task-queue writes: ${inputs.taskProposalAuthority.reason}`,
+      };
+    }
+    const result = await ctx.triggerWorkflow(
+      "scope-improvement-actions",
+      { sourceRunId: ctx.workflow.runId, inputs, recommendations },
+      "completed",
+      undefined,
+      "apply-recommendations",
+    ) as {
+      status: "queued" | "completed" | "failed";
+      childOutput?: unknown;
+    };
+    if (result.status !== "completed") {
+      throw new Error("scope-improvement task actions did not complete");
+    }
+    return expectStructuredOutput<ScopeImprovementActionResult>(
+      result.childOutput,
+      [
+        "createdTaskIds",
+        "ownerQuestionIds",
+        "applied",
+        "requiresCommit",
+        "parkedReason",
+      ],
+    );
+  },
 });
 
 function emptyActions(): ScopeImprovementActionResult {
@@ -56,6 +95,7 @@ function emptyActions(): ScopeImprovementActionResult {
     ownerQuestionIds: [],
     applied: [],
     requiresCommit: false,
+    parkedReason: null,
   };
 }
 
@@ -99,6 +139,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
         recommendationCount: recommendations.length,
         worktreeClean: inspectWorktree.output(ctx)?.dirty === false,
         actionApplied: applyRecommendations.output(ctx) !== undefined,
+        parkedReason: actions.parkedReason,
       }),
     };
     return {
@@ -108,54 +149,9 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
   },
 });
 
-const writeCommitMessage = typedCodeStep<{ written: boolean }>({
-  id: "write-commit-message",
-  type: "code",
-  when: (ctx) => applyRecommendations.output(ctx)?.requiresCommit === true,
-  validate: (raw) => expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
-  run: (ctx) => {
-    const actions = applyRecommendations.outputRequired(ctx);
-    const lines = [
-      "scope-improver: apply scoped improvement action(s)",
-      "",
-      ...actions.createdTaskIds.map((id) => `- create ${id}`),
-    ];
-    mkdirSync(ctx.workflow.runDirPath, { recursive: true });
-    writeFileSync(
-      join(ctx.workflow.runDirPath, "commit-message.txt"),
-      `${lines.join("\n")}\n`,
-      "utf-8",
-    );
-    return { written: true };
-  },
-});
-
-const validateChanges = typedCodeStep<{ ok: true }>({
-  id: "validate-changes",
-  type: "code",
-  when: (ctx) => writeCommitMessage.output(ctx)?.written === true,
-  validate: (raw) => {
-    const obj = expectStructuredOutput<{ ok: true }>(raw, ["ok"]);
-    if (obj.ok !== true) throw new Error(`expected ok: true, got ${String(obj.ok)}`);
-    return obj;
-  },
-  run: async (ctx) => {
-    await ctx.runBlocking(taskQueueValidationOperation, {
-      workspaceRoot: ctx.workspaceRoot,
-    });
-    await ctx.runCommand({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: ctx.workspaceRoot,
-    });
-    return { ok: true } as const;
-  },
-});
-
 const scopeImproverWorkflow: WorkflowDefinitionInput = {
   name: "scope-improver",
-  repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  repository: "none",
   description:
     "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
   tags: ["scope-improvement"],
@@ -169,8 +165,6 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
     recommend,
     applyRecommendations,
     writeArtifact,
-    writeCommitMessage,
-    validateChanges,
     {
       id: "emit-scope-improvement-publication",
       type: "emit",

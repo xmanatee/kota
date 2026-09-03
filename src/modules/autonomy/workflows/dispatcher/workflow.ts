@@ -27,7 +27,12 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
   name: "dispatcher",
   description:
     "Assess repo state on idle and emit condition-based events for other autonomy workflows.",
-  repository: "read",
+  // Dispatcher observes canonical state and never mutates it. Builder binds
+  // task dispatches to immutable digests and revalidates them in its writer
+  // sandbox, while semantic boundaries use durable compare-and-set state.
+  // Keeping this repository-free also lets observe-only directory scopes
+  // continue reflecting after their initial onboarding request.
+  repository: "none",
   triggers: [
     {
       event: "runtime.idle",
@@ -39,7 +44,6 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
       id: "assess-and-dispatch",
       type: "code",
       run: async ({
-        workspaceRoot,
         scopeRoot,
         stateDir,
         state,
@@ -60,14 +64,14 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         );
         const scopeId = deriveDirectoryScopeId(scopeRoot);
         const securityReviewGitEvidence = await collectSecurityReviewGitEvidence({
-          workspaceRoot,
+          workspaceRoot: scopeRoot,
           scopeRoot,
           stateDir,
           runCommand,
         });
         const [inspection, progressBoundary] = await Promise.all([
           runBlocking(dispatcherInspectionOperation, {
-            workspaceRoot,
+            workspaceRoot: scopeRoot,
             scopeRoot,
             scopeId,
             stateDir,
@@ -77,7 +81,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             securityReviewGitEvidence,
           }),
           inspectProgressSemanticBoundary({
-            workspaceRoot,
+            workspaceRoot: scopeRoot,
             scopeRoot,
             stateDir,
             progressBoundaryState: progressState.value,

@@ -105,8 +105,8 @@ function onboardingRequest(
     choices: {
       ...(obj?.displayName !== undefined ? { displayName: obj.displayName } : {}),
       ...(obj?.trusted !== undefined ? { trust: obj.trusted } : {}),
-      ...(obj?.initialAutomationMode !== undefined
-        ? { initialAutomationMode: obj.initialAutomationMode }
+      ...(obj?.improvementPosture !== undefined
+        ? { improvementPosture: obj.improvementPosture }
         : {}),
       ...(canonicalWrites !== undefined ? { writes: canonicalWrites } : {}),
     },
@@ -199,7 +199,7 @@ export async function executeScopesUiAction(
       };
     }
     const dangerous = plan.choices.trust ||
-      plan.choices.initialAutomationMode !== "passive" ||
+      plan.choices.improvementPosture !== "observe" ||
       plan.choices.writes.mode !== "none";
     const applied = await scopes.applyOnboarding(
       plan,
@@ -224,7 +224,7 @@ export async function executeScopesUiAction(
     if (!status.ok) return scopeFailure(status);
     const plan = status.operation.acceptedPlan;
     const dangerous = plan.choices.trust ||
-      plan.choices.initialAutomationMode !== "passive" ||
+      plan.choices.improvementPosture !== "observe" ||
       plan.choices.writes.mode !== "none";
     const result = await scopes.retryOnboarding(
       operationId,

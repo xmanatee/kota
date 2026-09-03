@@ -12,6 +12,7 @@ import {
   inspectResearchRetryAvailability,
   type ResearchRetryAvailability,
 } from "../research-retry/precondition.js";
+import { resolveScopeImprovementAuthority } from "../scope-improver/scope-improvement-authority.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
 import {
   inspectSecurityReviewDue,
@@ -46,9 +47,22 @@ export function inspectDispatcherStateInWorker(
   input: DispatcherInspectionInput,
 ): DispatcherInspection {
   const now = new Date(input.nowIso);
+  let builderEnabled = false;
+  if (input.scopePolicySnapshot !== null) {
+    try {
+      builderEnabled = resolveScopeImprovementAuthority({
+        scopeRoot: input.scopeRoot,
+        stateDir: input.stateDir,
+        policy: input.scopePolicySnapshot.policy,
+      }).builder === "enabled";
+    } catch {
+      // Malformed scope-owned configuration is surfaced by scopeBoundary and
+      // must fail closed for builder admission without stopping other routing.
+    }
+  }
   return {
     queue: getRepoTaskQueueSnapshot(input.workspaceRoot),
-    builderTasks: listBuilderTaskDispatches(input.workspaceRoot),
+    builderTasks: builderEnabled ? listBuilderTaskDispatches(input.workspaceRoot) : [],
     researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot),
     securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,
