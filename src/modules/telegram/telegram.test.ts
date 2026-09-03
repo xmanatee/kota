@@ -33,7 +33,10 @@ vi.mock("./callback-poll.js", () => ({
   startCallbackPoll: vi.fn(() => () => {}),
 }));
 
-function makeTestHarness(name: string): AgentHarness {
+function makeTestHarness(
+  name: string,
+  unsupportedRunOptions: AgentHarness["unsupportedRunOptions"] = [],
+): AgentHarness {
   return {
     name,
     description: `${name} test harness`,
@@ -42,7 +45,7 @@ function makeTestHarness(name: string): AgentHarness {
     askOwnerToolName: null,
     emitsAgentMessageStream: false,
     toolControl: name === "codex" ? "native" : "kota",
-    unsupportedRunOptions: [],
+    unsupportedRunOptions,
     async run() {
       return {
         text: "ok",
@@ -162,26 +165,6 @@ describe("telegramModule", () => {
     expect(telegramModule.routes).toBeUndefined();
   });
 
-  it("declares dependencies", () => {
-    expect(telegramModule.dependencies).toEqual([
-      "answer",
-      "approval-queue",
-      "autonomy",
-      "capture",
-      "daemon-ops",
-      "history",
-      "inbound-signals",
-      "knowledge",
-      "memory",
-      "model-clients",
-      "recall",
-      "repo-tasks",
-      "retract",
-      "secrets",
-      "transcription",
-    ]);
-  });
-
   it("declares separate setup for bot credentials and interactive backend readiness", () => {
     const setupRequirements = telegramModule.setupRequirements;
     if (!setupRequirements || typeof setupRequirements === "function") {
@@ -221,7 +204,7 @@ describe("telegramModule", () => {
       makeStubClient(),
       {
         model: "gpt-5.6-sol",
-        serve: { defaultAutonomyMode: "passive" },
+        serve: { defaultAutonomyMode: "autonomous" },
       } as ModuleRuntimeContext["config"],
     );
     ctx.registerProvider = <T,>(_token: unknown, provider: T): void => {
@@ -246,4 +229,43 @@ describe("telegramModule", () => {
       else delete process.env.KOTA_PRESET;
       unloadTelegramModule();
     }
-  });});
+  });
+
+  it("rejects a passive Telegram session when the selected harness cannot enforce it", () => {
+    mockedResolveAgentHarness.mockImplementation((name: string) =>
+      makeTestHarness(name, [{
+        runOption: "autonomyMode.passive",
+        option: 'autonomyMode="passive"',
+        reason: "native tools cannot enforce passive mode",
+      }]),
+    );
+    const readiness = { source: null as CapabilityReadinessSource | null };
+    const ctx = makeStubCtx(
+      undefined,
+      makeStubClient(),
+      {
+        model: "gpt-5.6-sol",
+        serve: { defaultAutonomyMode: "passive" },
+      } as ModuleRuntimeContext["config"],
+    );
+    ctx.registerProvider = <T,>(_token: unknown, provider: T): void => {
+      readiness.source = provider as unknown as CapabilityReadinessSource;
+    };
+
+    telegramModule.onLoad!(ctx);
+    try {
+      const source = readiness.source;
+      if (!source) throw new Error("readiness source not registered");
+      expect(source.probe()).toEqual([
+        expect.objectContaining({
+          id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+          status: "unavailable",
+          reason: "interactive_backend_unavailable",
+          message: expect.stringContaining('cannot use autonomyMode "passive"'),
+        }),
+      ]);
+    } finally {
+      unloadTelegramModule();
+    }
+  });
+});

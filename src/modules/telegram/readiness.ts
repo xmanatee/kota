@@ -226,12 +226,17 @@ export function telegramInteractiveBackendError(
     return `Telegram interactive sessions require a multi-turn agent harness; "${harness.name}" does not support multi-turn conversation.`;
   }
 
-  if (autonomyMode === "supervised") {
+  const unsupportedAutonomyOption = autonomyMode === "passive"
+    ? "autonomyMode.passive"
+    : autonomyMode === "supervised"
+    ? "autonomyMode.supervised"
+    : null;
+  if (unsupportedAutonomyOption) {
     const unsupported = harness.unsupportedRunOptions?.find(
-      (entry) => entry.runOption === "autonomyMode.supervised",
+      (entry) => entry.runOption === unsupportedAutonomyOption,
     );
     if (unsupported) {
-      return `Telegram interactive sessions cannot use autonomyMode "supervised" with harness "${harness.name}": ${unsupported.reason}`;
+      return `Telegram interactive sessions cannot use autonomyMode "${autonomyMode}" with harness "${harness.name}": ${unsupported.reason}`;
     }
   }
 
