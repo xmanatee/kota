@@ -32,6 +32,7 @@ import type {
   KotaModelResponse,
   KotaTool,
 } from "#core/agent-harness/message-protocol.js";
+import { runAgentHarness } from "#core/agent-harness/runner.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { ToolDef } from "#core/modules/module-types.js";
 import type {
@@ -320,6 +321,7 @@ export type ScriptedTurn = (
 export async function runScriptedAgentSession(opts: {
   prompt: string;
   pickStream: ScriptedTurn;
+  scopeRoot: string;
   snapshots: StreamCallSnapshot[];
 }): Promise<void> {
   const streamMock = vi.fn(
@@ -336,10 +338,11 @@ export async function runScriptedAgentSession(opts: {
     model,
     providerName: "stub",
   }));
-  await openaiToolsAgentHarness.run({
+  await runAgentHarness(openaiToolsAgentHarness, {
     prompt: opts.prompt,
     model: "openai/gpt-5.6-luna",
     effort: "xhigh",
+    scopeRoot: opts.scopeRoot,
     systemPrompt: "be terse",
     clientApprovalResolver: async () => ({ outcome: "allow" }),
   });

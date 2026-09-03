@@ -47,12 +47,12 @@ describe("parseCitations", () => {
     expect(parsed.unknownMarkers).toEqual(["[tasks:task-fake-id]"]);
   });
 
-  it("ignores tokens that do not match the strict marker shape", () => {
+  it("rejects unsupported sources even when a valid citation is also present", () => {
     const text =
-      "[other:something] looks like a citation but other is not a recall source. [knowledge: k1] has whitespace and is rejected.";
+      "Supported [knowledge:k1], unsupported [other:something], and malformed [knowledge: k1].";
     const parsed = parseCitations(text, hits);
-    expect(parsed.citations).toEqual([]);
-    expect(parsed.unknownMarkers).toEqual([]);
+    expect(parsed.citations).toEqual([{ source: "knowledge", id: "k1" }]);
+    expect(parsed.unknownMarkers).toEqual(["[other:something]"]);
   });
 
   it("supports task ids that contain dashes", () => {

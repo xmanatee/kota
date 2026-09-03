@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-generate-daemon-client-transport-bindings, task-centralize-semantic-index-lifecycle]
+status: done
 ---
 
 # Consolidate recall, answer, and read adapters
@@ -38,9 +36,9 @@ Provide the behavior/owner/file/disposition matrix and before/after production, 
 | Scope selection | Recall and answer domain providers | `recall-provider.ts`, `answer-provider.ts`, co-located `scope-context.ts` | Moved selection behind each provider; routes and local clients only pass `scopeId`. Typed selection errors are the HTTP mapping seam. |
 | Semantic availability | `RecallProviderImpl` | `recall-provider.ts` | Provider now returns `RecallResult` and solely emits `semantic_unavailable`; removed route, local-client, and tool contributor pre-checks. |
 | Recall query execution, normalization, and ranking | `RecallProviderImpl` | `recall-provider.ts` | Retained domain behavior and direct result; callers no longer wrap hit arrays into parallel result envelopes. |
-| Answer failure classification and assembly | `AnswerProviderImpl` | `answer-provider.ts`, `citation-parser.ts` | Provider implements the complete `AnswerClient`, including answer/log/show. Recall-unavailable, no-hits, synthesis failure, and not-found are no longer rebuilt by routes or local adapters. |
+| Answer failure classification and assembly | `AnswerProviderImpl` | `answer-provider.ts`, `citation-parser.ts` | Provider implements the complete `AnswerClient`, including answer/log/show. Citation parsing consumes recall's canonical source decoder, and unsupported source-shaped markers trigger the bounded synthesis retry. Recall-unavailable, no-hits, synthesis failure, and not-found are no longer rebuilt by routes or local adapters. |
 | Citation validation and persisted provenance | Answer domain/history | `answer-provider.ts`, `answer-history-store.ts`, `recall-contributor.ts` | Retained typed citation resolution and records. Answer recall hits now expose only query/preview/citation count/time; deleted their copied `AnswerResult` union. |
-| Answer failure wording and hit rendering | Rendering owner | answer/recall `render.ts`, CLIs/tools/channel consumers, `clients/conformance/recall-render-fixture.json` | Retained meaningful render transforms and one answer-failure wording catalog; removed per-surface result matrices and JSON/render parity tests. |
+| Answer failure wording and hit rendering | Rendering owner | answer/recall `render.ts`, CLIs/tools/channel consumers, `clients/conformance/recall-render-fixture.json` | Retained meaningful render transforms and one answer-failure wording catalog. Telegram proves the generic render-to-reply bridge with one representative failure. The recall fixture contains presentation inputs and outputs only, not domain result envelopes. |
 | Routine local/daemon transport | Generated client contract | `scripts/daemon-contract-graph.mjs`, `scripts/daemon-contract-typescript.mjs`, generated daemon bindings | Recall and all answer operations use generated routine descriptors and direct domain response types. Removed the obsolete generated `RecallAnswerHitResult` alias and local forwarding/store replicas. |
 | Provider lifecycle | Module provider registry | recall/answer `index.ts` | Removed ambient active-provider/history globals and reset fixtures. Late-bound tools, routes, and local clients resolve typed registered providers; only the meaningful cross-module contributor unregister remains. |
 | Document format selection and extraction failures | Read-document extractor map/tool boundary | `read-document.ts`, `read-document-extractors.ts` | Retained request/path validation, provider mapping, output provenance, and failure translation. Consolidated two suites into scenarios for distinct public failures; removed copied provider cases and host-platform resets. |
@@ -62,9 +60,9 @@ authored LOC and checked by their generator.
 
 | Category | Before | After | Change |
 | --- | ---: | ---: | ---: |
-| Production | 4,590 | 4,460 | -130 |
-| Executable tests | 3,627 | 2,635 | -992 |
-| Authored support | 1,710 | 226 | -1,484 |
+| Production | 4,590 | 4,446 | -144 |
+| Executable tests | 3,627 | 2,618 | -1,009 |
+| Authored support | 1,710 | 216 | -1,494 |
 
 ## Initiative
 

@@ -5,21 +5,16 @@
  * this file declares the answer-namespace types (filter, citation, result,
  * persisted record/entry, history list/show shapes), the `AnswerClient`
  * interface that the `KotaClient` aggregate composes, and the strict
- * decoders the daemon-side handler runs over the daemon-up wire shape
- * for `GET /answers` and `GET /answers/:id`.
+ * decoders the generated remote binding runs over daemon responses for
+ * `GET /answers` and `GET /answers/:id`.
  *
- * Both the local-side handler (`localClient(ctx)` in `index.ts`) and the
- * daemon-side handler (`daemonClient(link)` in `index.ts`) realize this
- * contract; the `kota answer` CLI, the `answer` agent tool, the route
- * handlers, the answer-history store, the answer provider, the recall
- * contributor, and the renderer all consume it through `ctx.client.answer`
- * or by importing these types from `#modules/answer/client.js`.
- *
- * `RecallFilter`, `RecallHit`, and `RecallSource` are imported from
- * `#root/client/kota-client.generated.js` because the recall namespace is not yet
- * migrated. Once the recall migration lands, these imports follow the
- * "each migration moves only its own namespace types" rule and shift on
- * their own.
+ * The module's `localClient(ctx)` handler realizes the in-process contract;
+ * the generated routine daemon bindings realize remote transport. The
+ * `kota answer` CLI, the `answer` agent tool, route handlers, answer-history
+ * store, answer provider, recall contributor, and renderer all consume it
+ * through `ctx.client.answer` or by importing these types from
+ * `#modules/answer/client.js`. Shared recall types come directly from the
+ * recall module's domain contract.
  */
 
 import type { ScopeSelector } from "#core/server/scope-selector.js";

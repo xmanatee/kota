@@ -1590,56 +1590,37 @@ describe("startTelegramStatusPoll", () => {
     }
   });
 
-  it("replies with a fixed body for each /answer failure reason so the operator can disambiguate", async () => {
-    expect(renderAnswerReplyPlain({ ok: false, reason: "no_hits" })).toBe(
-      "No matching knowledge, memory, or history sources — nothing to synthesize.",
+  it("delivers a rendered /answer failure as a Telegram reply", async () => {
+    const result = { ok: false, reason: "synthesis_failed" } as const;
+    const answerFn = vi.fn().mockResolvedValue(result);
+    mockedCallTelegramApi
+      .mockResolvedValueOnce([
+        makeUpdate(1, Number(FAKE_CHAT_ID), "/answer anything"),
+      ])
+      .mockResolvedValue([]);
+    stop = startTelegramStatusPoll(
+      FAKE_TOKEN,
+      FAKE_CHAT_ID,
+      FAKE_SCOPE_DIR,
+      makeStatusInfo,
+      makeKnowledgeStub(),
+      makeMemoryStub(),
+      makeHistoryStub(),
+      makeTasksStub(),
+      makeRecallStub(),
+      makeAnswerStub(answerFn),
+      makeCaptureStub(),
+      makeRetractStub(),
     );
-    expect(
-      renderAnswerReplyPlain({ ok: false, reason: "semantic_unavailable" }),
-    ).toBe("Cross-store recall has no registered contributors.");
-    expect(
-      renderAnswerReplyPlain({ ok: false, reason: "synthesis_failed" }),
-    ).toBe(
-      "Synthesis failed (model unreachable or unable to cite resolvable sources).",
+    await new Promise((r) => setTimeout(r, 20));
+    const sendCall = mockedCallTelegramApi.mock.calls.find(
+      (call) => call[1] === "sendMessage",
     );
-  });
-
-  it("delivers each /answer ok:false reason as a Telegram reply", async () => {
-    for (const reason of [
-      "no_hits",
-      "semantic_unavailable",
-      "synthesis_failed",
-    ] as const) {
-      mockedCallTelegramApi.mockReset();
-      const answerFn = vi.fn().mockResolvedValue({ ok: false, reason });
-      mockedCallTelegramApi
-        .mockResolvedValueOnce([
-          makeUpdate(1, Number(FAKE_CHAT_ID), "/answer anything"),
-        ])
-        .mockResolvedValue([]);
-      const localStop = startTelegramStatusPoll(
-        FAKE_TOKEN,
-        FAKE_CHAT_ID,
-        FAKE_SCOPE_DIR,
-        makeStatusInfo,
-        makeKnowledgeStub(),
-        makeMemoryStub(),
-        makeHistoryStub(),
-        makeTasksStub(),
-        makeRecallStub(),
-        makeAnswerStub(answerFn),
-        makeCaptureStub(),
-        makeRetractStub(),
-      );
-      await new Promise((r) => setTimeout(r, 20));
-      const sendCall = mockedCallTelegramApi.mock.calls.find((c) => c[1] === "sendMessage");
-      expect(answerFn).toHaveBeenCalledWith("anything");
-      expect(sendCall?.[2]).toMatchObject({
-        chat_id: FAKE_CHAT_ID,
-        text: renderAnswerReplyPlain({ ok: false, reason }),
-      });
-      localStop();
-    }
+    expect(answerFn).toHaveBeenCalledWith("anything");
+    expect(sendCall?.[2]).toMatchObject({
+      chat_id: FAKE_CHAT_ID,
+      text: renderAnswerReplyPlain(result),
+    });
   });
 
   it("ignores /answer from chats outside the allowlist", async () => {

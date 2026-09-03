@@ -170,12 +170,12 @@ describe("AnswerProviderImpl", () => {
     expect(synthesizer).not.toHaveBeenCalled();
   });
 
-  it("retries synthesis once when an unknown citation marker appears", async () => {
+  it("retries synthesis once when an unsupported citation source appears", async () => {
     const calls: Array<{ retry: boolean }> = [];
     const synthesizer: Synthesizer = async (input) => {
       calls.push({ retry: input.retry });
       if (calls.length === 1) {
-        return "Initial answer cites a phantom [knowledge:phantom-id] and a real one [tasks:task-add-recall].";
+        return "Initial answer cites an unsupported source [other:phantom-id] and a real one [tasks:task-add-recall].";
       }
       return "Retry answer [knowledge:k1] also [tasks:task-add-recall].";
     };

@@ -91,6 +91,7 @@ describe("conversational agent tools — capture / recall / answer round trip", 
     ];
     await runScriptedAgentSession({
       prompt: "exercise the cross-store agent tools",
+      scopeRoot: fixture.scopeRoot,
       snapshots,
       pickStream: () => {
         const next = queue.shift();
@@ -189,6 +190,7 @@ describe("conversational agent tools — prior answers surface as recall hits", 
     ];
     await runScriptedAgentSession({
       prompt: "verify prior cited answers surface through recall",
+      scopeRoot: fixture.scopeRoot,
       snapshots,
       pickStream: () => {
         const next = queue.shift();
@@ -268,6 +270,7 @@ describe("conversational agent tools — answer-then-answer chain (prior cited a
       ];
       await runScriptedAgentSession({
         prompt: "anchor the answer-then-answer chain through the agent loop",
+        scopeRoot: fixture.scopeRoot,
         snapshots,
         pickStream: () => {
           const next = queue.shift();
@@ -378,6 +381,7 @@ describe("conversational agent tools — answer-then-answer chain (prior cited a
       ];
       await runScriptedAgentSession({
         prompt: "anchor the negative arm of the answer-then-answer chain",
+        scopeRoot: fixture.scopeRoot,
         snapshots,
         pickStream: () => {
           const next = queue.shift();
@@ -453,6 +457,7 @@ describe("conversational agent tools — retract round trip", () => {
 
     await runScriptedAgentSession({
       prompt: "retract the prior memory entry and confirm it is gone",
+      scopeRoot: fixture.scopeRoot,
       snapshots,
       pickStream: (snaps) => {
         const turn = snaps.length - 1;
@@ -460,7 +465,7 @@ describe("conversational agent tools — retract round trip", () => {
           case 0:
             return toolUseTurn("msg_retract", "call_retract", "retract", {
               target: "memory",
-              id: retractedMemoryId,
+              identifier: retractedMemoryId,
             });
           case 1:
             return toolUseTurn(
@@ -562,7 +567,7 @@ describe("conversational agent tools — post-retract answer settles", () => {
       const queue = [
         toolUseTurn("msg_retract_pre_answer", "call_retract_pre_answer", "retract", {
           target: "memory",
-          id: retractedMemoryId,
+          identifier: retractedMemoryId,
         }),
         toolUseTurn(
           "msg_post_retract_answer",
@@ -574,6 +579,7 @@ describe("conversational agent tools — post-retract answer settles", () => {
       ];
       await runScriptedAgentSession({
         prompt: "anchor the post-retract answer settling chain",
+        scopeRoot: fixture.scopeRoot,
         snapshots,
         pickStream: () => {
           const next = queue.shift();
@@ -681,6 +687,7 @@ describe("conversational agent tools — post-retract answer settles", () => {
       ];
       await runScriptedAgentSession({
         prompt: "anchor the negative arm of the post-retract answer chain",
+        scopeRoot: fixture.scopeRoot,
         snapshots,
         pickStream: () => {
           const next = queue.shift();

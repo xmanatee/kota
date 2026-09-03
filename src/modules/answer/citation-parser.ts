@@ -12,21 +12,12 @@
  * decides whether to retry the synthesis or surface `synthesis_failed`.
  */
 
-import type { RecallHit, RecallSource } from "#modules/recall/client.js";
+import type { RecallHit } from "#modules/recall/client.js";
+import { isRecallSource } from "#modules/recall/recall-types.js";
 import { ANSWER_MAX_CITATIONS, type ParsedSynthesis } from "./answer-types.js";
 import type { AnswerCitation } from "./client.js";
 
-const RECALL_SOURCES: ReadonlyArray<RecallSource> = [
-  "knowledge",
-  "memory",
-  "history",
-  "tasks",
-  "answer",
-];
-
-const SOURCE_PATTERN = RECALL_SOURCES.join("|");
-
-const CITATION_RE = new RegExp(`\\[(${SOURCE_PATTERN}):([^\\]\\s]+)\\]`, "g");
+const CITATION_RE = /\[([^\]:\s]+):([^\]\s]+)\]/g;
 
 function citationKey(c: AnswerCitation): string {
   return `${c.source}:${c.id}`;
@@ -42,13 +33,13 @@ export function parseCitations(
   const unknownMarkers: string[] = [];
 
   for (const match of text.matchAll(CITATION_RE)) {
-    const source = match[1] as RecallSource;
+    const source = match[1];
     const id = match[2];
-    if (!id) continue;
+    if (!source || !id) continue;
     const key = `${source}:${id}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    if (!allowed.has(key)) {
+    if (!isRecallSource(source) || !allowed.has(key)) {
       unknownMarkers.push(`[${key}]`);
       continue;
     }

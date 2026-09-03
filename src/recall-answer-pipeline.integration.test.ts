@@ -41,14 +41,12 @@ import type {
   AnswerHistoryRecord,
   AnswerResult,
 } from "#modules/answer/client.js";
-import answerModule from "#modules/answer/index.js";
 import { createAnswerHistoryRouteHandler, createAnswerRouteHandler } from "#modules/answer/routes.js";
 import type {
   RecallHit,
   RecallResult,
   RecallSource,
 } from "#modules/recall/client.js";
-import recallModule from "#modules/recall/index.js";
 import { RecallProviderImpl } from "#modules/recall/recall-provider.js";
 import {
   type RawRecallEntry,
@@ -56,6 +54,7 @@ import {
   type RecallContributor,
 } from "#modules/recall/recall-types.js";
 import { createRecallRouteHandler } from "#modules/recall/routes.js";
+import { createRoutineDaemonClientHandlers } from "#root/client/kota-client.generated.js";
 
 /**
  * Hit pile per source. Native scores are picked so per-source min-max
@@ -288,17 +287,12 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
       startedAt: new Date().toISOString(),
       token: "",
     });
-    // Migrated namespaces normally land on the assembled client through their
-    // owning module's `daemonClient(link)` factory. The pipeline test does not
-    // load modules, so build the participating namespace handlers against the
-    // test transport explicitly; undeclared namespaces fail if invoked.
-    const answerDaemonHandler = answerModule.daemonClient!(transport);
-    const recallDaemonHandler = recallModule.daemonClient!(transport);
+    // Routine namespaces are generated from the authored route graph. Fill
+    // unrelated namespaces with inert test handlers so this scenario can
+    // exercise recall and answer through their production transport binding.
+    const routineHandlers = createRoutineDaemonClientHandlers(transport);
     client = DaemonControlClient.fromTransport(transport, {
-      ...completeDaemonClientHandlers({
-        ...answerDaemonHandler,
-        ...recallDaemonHandler,
-      }),
+      ...completeDaemonClientHandlers(routineHandlers),
     });
   });
 
@@ -459,7 +453,7 @@ describe("recall + cited-answer + answer-history pipeline (HTTP)", () => {
       });
       const localClient = DaemonControlClient.fromTransport(
         transport,
-        completeDaemonClientHandlers(recallModule.daemonClient!(transport)),
+        completeDaemonClientHandlers(createRoutineDaemonClientHandlers(transport)),
       );
       const result: RecallResult = await localClient.recall.recall("anything");
       expect(result.ok).toBe(false);

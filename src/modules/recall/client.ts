@@ -4,12 +4,12 @@
  * The recall module owns its KotaClient namespace surface end-to-end:
  * this file declares the source/hit/filter/result types and the
  * `RecallClient` interface that the `KotaClient` aggregate composes.
- * Both the local-side handler (`localClient(ctx)` in `index.ts`) and the
- * daemon-side handler (`daemonClient(link)` in `index.ts`) realize this
- * contract; the `kota recall` CLI, the `recall` agent tool, the route
- * handler, the contributors, the system-prompt provider, and the
- * provider implementation all consume it through `ctx.client.recall` or
- * by importing these types from `#modules/recall/client.js`.
+ * The module's `localClient(ctx)` handler realizes the in-process contract;
+ * the generated routine daemon binding realizes the remote transport. The
+ * `kota recall` CLI, the `recall` agent tool, the route handler, contributors,
+ * system-prompt provider, and provider implementation all consume it through
+ * `ctx.client.recall` or by importing these types from
+ * `#modules/recall/client.js`.
  */
 
 import type {

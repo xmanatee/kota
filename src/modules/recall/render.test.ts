@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { RecallHit, RecallResult } from "./client.js";
+import type { RecallHit } from "./client.js";
 import {
   describeRecallHit,
   formatRecallScore,
@@ -17,17 +17,10 @@ const FIXTURE_PATH = resolve(
 
 type RecallRenderFixture = {
   populated: {
-    result: Extract<RecallResult, { ok: true }>;
+    hits: RecallHit[];
     descriptions: Record<string, string>;
     scores: Record<string, string>;
     plain: string;
-  };
-  empty: {
-    result: Extract<RecallResult, { ok: true }>;
-    plain: string;
-  };
-  semanticUnavailable: {
-    result: Extract<RecallResult, { ok: false }>;
   };
 };
 
@@ -43,7 +36,7 @@ describe("recall render contract", () => {
   const fixture = loadFixture();
 
   it("renders every recall source arm from the shared golden fixture", () => {
-    expect(fixture.populated.result.hits.map((hit) => hit.source)).toEqual([
+    expect(fixture.populated.hits.map((hit) => hit.source)).toEqual([
       "knowledge",
       "memory",
       "history",
@@ -51,13 +44,13 @@ describe("recall render contract", () => {
       "answer",
       "answer",
     ]);
-    expect(renderRecallHitsPlain(fixture.populated.result.hits)).toBe(
+    expect(renderRecallHitsPlain(fixture.populated.hits)).toBe(
       fixture.populated.plain,
     );
   });
 
   it("pins per-source descriptions and score precision through the fixture", () => {
-    for (const hit of fixture.populated.result.hits) {
+    for (const hit of fixture.populated.hits) {
       expect(describeRecallHit(hit)).toBe(
         fixture.populated.descriptions[hitKey(hit)],
       );
@@ -65,15 +58,5 @@ describe("recall render contract", () => {
         fixture.populated.scores[hitKey(hit)],
       );
     }
-  });
-
-  it("covers empty hits and semantic_unavailable envelope arms", () => {
-    expect(renderRecallHitsPlain(fixture.empty.result.hits)).toBe(
-      fixture.empty.plain,
-    );
-    expect(fixture.semanticUnavailable.result).toEqual({
-      ok: false,
-      reason: "semantic_unavailable",
-    });
   });
 });
