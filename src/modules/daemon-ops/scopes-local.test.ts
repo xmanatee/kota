@@ -42,6 +42,9 @@ describe("daemon-local scopes client", () => {
       }),
       getActiveScopeId: () => "scope-current",
       setActiveScopeId,
+      resolveScopeRuntime: () => {
+        throw new Error("not used");
+      },
       operator,
     } as DaemonScopeProvider;
     const client = scopesLocalClient({
