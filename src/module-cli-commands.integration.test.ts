@@ -38,6 +38,8 @@ describe("CLI module commands (compiled binary)", () => {
     expect(stdout).toContain("tools");
     expect(stdout).toContain("run");
     expect(stdout).toContain("history");
+    expect(stdout).toMatch(/\n {2}scope\s/);
+    expect(stdout).not.toMatch(/\n {2}init(?:\s|$)/);
   }, SINGLE_CLI_TEST_TIMEOUT);
 
   it("module commands have working --help", () => {
@@ -49,6 +51,10 @@ describe("CLI module commands (compiled binary)", () => {
     const { stdout: daemonHelp, exitCode: daemonExit } = runCli("daemon", "--help");
     expect(daemonExit).toBe(0);
     expect(daemonHelp).toContain("--verbose");
+
+    const { stdout: scopeHelp, exitCode: scopeExit } = runCli("scope", "--help");
+    expect(scopeExit).toBe(0);
+    expect(scopeHelp).toMatch(/\n {2}add \[options\] <directory>\s/);
   }, DOUBLE_CLI_TEST_TIMEOUT);
 
   it("tools subcommand from registry module works", () => {

@@ -267,7 +267,10 @@ export function buildDaemonCoreControlRoutes(
           return;
         }
         const existing = await h.getScopeOnboardingStatus(decoded.value.operationId);
-        const reusableExisting = existing?.state === "cancelled" ? null : existing;
+        const reusableExisting = existing?.state === "cancelled" ||
+            (existing?.state === "succeeded" && !existing.readiness.registered)
+          ? null
+          : existing;
         const canonical = reusableExisting === null
           ? await h.planScopeOnboarding(decoded.value.directoryRoot, decoded.value.choices)
           : { ok: true as const, plan: reusableExisting.acceptedPlan };

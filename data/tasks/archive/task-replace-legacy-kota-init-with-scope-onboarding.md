@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-add-one-transactional-external-scope-onboarding-se]
+status: done
 ---
 
 # Replace legacy kota init with scope onboarding

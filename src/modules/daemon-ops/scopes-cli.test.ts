@@ -201,6 +201,163 @@ describe("kota scope CLI", () => {
     });
   });
 
+  it("add --json keeps discovered existing state beside an idempotent operation", async () => {
+    const directoryRoot = "/tmp/external";
+    const inspection = {
+      inspectionId: "inspection-1",
+      operationId: "operation-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      displayName: "external",
+      kind: "directory",
+      registered: true,
+      hostingState: "hosted",
+      trust: { trusted: false, source: "default-untrusted" },
+      policyRevision: 1,
+      policyFragment: null,
+      policy: null,
+      existing: {
+        kotaState: true,
+        scopeConfig: true,
+        taskQueue: true,
+        inbox: true,
+        guidance: ["AGENTS.md"],
+      },
+      setup: [],
+      blockers: [],
+    } as never;
+    const plan = {
+      planId: "plan-1",
+      operationId: "operation-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      choices: {
+        trust: false,
+        initialAutomationMode: "passive",
+        writes: { mode: "none" },
+      },
+    } as never;
+    const operation = {
+      operationId: "operation-1",
+      state: "succeeded",
+      acceptedPlan: plan,
+      attempts: 1,
+      mutations: [{
+        kind: "register-scope",
+        target: "scope-external",
+        status: "applied",
+      }],
+      readiness: {
+        registered: true,
+        configured: true,
+        trusted: false,
+        workflowReady: false,
+        blocked: true,
+        partiallyApplied: false,
+        reasons: [{
+          code: "scope_untrusted",
+          message: "Scope remains untrusted.",
+        }],
+      },
+      error: null,
+    } as never;
+    const scopes = {
+      inspectOnboarding: vi.fn(async () => ({ ok: true as const, inspection })),
+      getOnboardingStatus: vi.fn(async () => ({ ok: true as const, operation })),
+      planOnboarding: vi.fn(),
+      applyOnboarding: vi.fn(),
+    } as unknown as ScopesClient;
+
+    await buildScopeCommand(makeCtx(scopes)).parseAsync(
+      ["add", directoryRoot, "--json"],
+      { from: "user" },
+    );
+
+    expect(scopes.planOnboarding).not.toHaveBeenCalled();
+    expect(scopes.applyOnboarding).not.toHaveBeenCalled();
+    expect(JSON.parse(logs[0]!)).toEqual({
+      ok: true,
+      operation,
+      inspection,
+    });
+  });
+
+  it("add replans a removed scope with its accepted choices and current inspection", async () => {
+    const directoryRoot = "/tmp/external";
+    const acceptedChoices = {
+      displayName: "External scope",
+      trust: true,
+      initialAutomationMode: "supervised" as const,
+      writes: { mode: "scope-directory" as const },
+    };
+    const inspection = {
+      inspectionId: "inspection-current",
+      operationId: "operation-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      displayName: "external",
+      kind: "directory",
+      registered: false,
+      hostingState: null,
+      trust: { trusted: true, source: "machine-config" },
+      policyRevision: 2,
+      policyFragment: null,
+      policy: null,
+      existing: {
+        kotaState: true,
+        scopeConfig: true,
+        taskQueue: false,
+        inbox: false,
+        guidance: [],
+      },
+      setup: [],
+      blockers: [],
+    } as never;
+    const acceptedPlan = {
+      planId: "plan-original",
+      operationId: "operation-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      choices: acceptedChoices,
+    };
+    const currentPlan = {
+      ...acceptedPlan,
+      planId: "plan-current",
+      inspectionId: "inspection-current",
+    };
+    const planOnboarding = vi.fn(async () => ({
+      ok: true as const,
+      plan: currentPlan,
+    }));
+    const scopes = {
+      inspectOnboarding: vi.fn(async () => ({ ok: true as const, inspection })),
+      getOnboardingStatus: vi.fn(async () => ({
+        ok: true as const,
+        operation: {
+          state: "succeeded",
+          acceptedPlan,
+          readiness: { registered: false },
+        },
+      })),
+      planOnboarding,
+      applyOnboarding: vi.fn(),
+    } as unknown as ScopesClient;
+
+    await buildScopeCommand(makeCtx(scopes)).parseAsync(
+      ["add", directoryRoot, "--json"],
+      { from: "user" },
+    );
+
+    expect(planOnboarding).toHaveBeenCalledWith(directoryRoot, acceptedChoices);
+    expect(scopes.applyOnboarding).not.toHaveBeenCalled();
+    expect(JSON.parse(logs[0]!)).toMatchObject({
+      ok: false,
+      reason: "invalid_input",
+      inspection: { inspectionId: "inspection-current" },
+      plan: { planId: "plan-current" },
+    });
+  });
+
   it("status renders durable progress, readiness reasons, mutations, and errors", async () => {
     const scopes = {
       getOnboardingStatus: vi.fn(async () => ({

@@ -14,6 +14,7 @@
 import { Command } from "commander";
 import type {
   ScopeOnboardingChoices,
+  ScopeOnboardingInspection,
   ScopeOnboardingOperation,
   ScopeOnboardingPlan,
 } from "#core/daemon/scope-onboarding.js";
@@ -364,40 +365,121 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
     directory: string,
     opts: OnboardingChoiceOptions & { json?: boolean },
   ) => {
-    const { planOnboarding, applyOnboarding } = ctx.client.scopes;
-    if (!planOnboarding || !applyOnboarding) return onboardingUnavailable(opts.json);
+    const {
+      inspectOnboarding,
+      planOnboarding,
+      applyOnboarding,
+      getOnboardingStatus,
+    } = ctx.client.scopes;
+    if (
+      !inspectOnboarding ||
+      !planOnboarding ||
+      !applyOnboarding ||
+      !getOnboardingStatus
+    ) return onboardingUnavailable(opts.json);
     const choices = parseOnboardingChoices(opts);
     if (!choices.ok) return onboardingInputError(choices.message, opts.json);
-    const planned = await planOnboarding(directory, choices.value);
-    if (!planned.ok) {
-      if (opts.json) writeJson(planned);
-      else printToStderr(line(span(onboardingError(planned), "error")));
+    const inspected = await inspectOnboarding(directory);
+    if (!inspected.ok) {
+      if (opts.json) writeJson(inspected);
+      else printToStderr(line(span(onboardingError(inspected), "error")));
       process.exitCode = 1;
       return;
     }
+    if (!opts.json) {
+      print(onboardingLines(describeOnboardingInspection(inspected.inspection)));
+    }
+    const existing = await getOnboardingStatus(inspected.inspection.operationId);
+    let plan: ScopeOnboardingPlan;
+    if (existing.ok && existing.operation.state === "succeeded") {
+      if (
+        !matchesAcceptedChoices(
+          choices.value,
+          existing.operation.acceptedPlan.choices,
+        )
+      ) {
+        onboardingAddInputError(
+          "This scope is already onboarded with different choices. " +
+            "Use `kota scope authority set` to change its trust or policy.",
+          opts.json,
+          inspected.inspection,
+        );
+        return;
+      }
+      if (inspected.inspection.registered && existing.operation.readiness.registered) {
+        if (opts.json) writeJson({ ...existing, inspection: inspected.inspection });
+        else print(onboardingLines(describeOnboardingOperation(existing.operation)));
+        return;
+      }
+      const planned = await planOnboarding(
+        directory,
+        existing.operation.acceptedPlan.choices,
+      );
+      if (!planned.ok) {
+        if (opts.json) writeJson({ ...planned, inspection: inspected.inspection });
+        else printToStderr(line(span(onboardingError(planned), "error")));
+        process.exitCode = 1;
+        return;
+      }
+      plan = planned.plan;
+    } else {
+      if (existing.ok && existing.operation.state !== "cancelled") {
+        if (opts.json) writeJson({ ...existing, inspection: inspected.inspection });
+        else {
+          printToStderr(onboardingLines(describeOnboardingOperation(existing.operation)));
+          printToStderr(line(span(
+            `Resume this onboarding transaction with \`kota scope retry ${existing.operation.operationId}\`.`,
+            "warn",
+          )));
+        }
+        process.exitCode = 1;
+        return;
+      }
+      if (!existing.ok && existing.reason !== "not_found") {
+        if (opts.json) writeJson({ ...existing, inspection: inspected.inspection });
+        else printToStderr(line(span(onboardingError(existing), "error")));
+        process.exitCode = 1;
+        return;
+      }
+      const planned = await planOnboarding(directory, choices.value);
+      if (!planned.ok) {
+        if (opts.json) writeJson({ ...planned, inspection: inspected.inspection });
+        else printToStderr(line(span(onboardingError(planned), "error")));
+        process.exitCode = 1;
+        return;
+      }
+      plan = planned.plan;
+    }
     if (process.env.KOTA_SESSION_ID !== undefined || !process.stdin.isTTY) {
-      onboardingInputError(
+      onboardingAddInputError(
         "Applying scope onboarding requires an interactive operator terminal.",
         opts.json,
+        inspected.inspection,
+        plan,
       );
       return;
     }
-    if (!opts.json) print(onboardingLines(onboardingPlanLines(planned.plan)));
+    if (!opts.json) print(onboardingLines(onboardingPlanLines(plan)));
     const confirmed = await confirmAction(
-      `Apply onboarding plan ${planned.plan.planId} for ${planned.plan.directoryRoot}?`,
+      `Apply onboarding plan ${plan.planId} for ${plan.directoryRoot}?`,
     );
     if (!confirmed) {
-      onboardingInputError("Scope onboarding was not confirmed.", opts.json);
+      onboardingAddInputError(
+        "Scope onboarding was not confirmed.",
+        opts.json,
+        inspected.inspection,
+        plan,
+      );
       return;
     }
-    const dangerous = planned.plan.choices.trust ||
-      planned.plan.choices.improvementPosture !== "observe" ||
-      planned.plan.choices.writes.mode !== "none";
+    const dangerous = plan.choices.trust ||
+      plan.choices.improvementPosture !== "observe" ||
+      plan.choices.writes.mode !== "none";
     const result = await applyOnboarding(
-      planned.plan,
+      plan,
       dangerous ? "confirm-dangerous" : "apply",
     );
-    if (opts.json) writeJson(result);
+    if (opts.json) writeJson({ ...result, inspection: inspected.inspection });
     else if (!result.ok) {
       printToStderr(line(span(onboardingError(result), "error")));
       if ("operation" in result && result.operation) {
@@ -582,6 +664,22 @@ function parseOnboardingChoices(
   };
 }
 
+function matchesAcceptedChoices(
+  requested: ScopeOnboardingChoices,
+  accepted: ScopeOnboardingChoices,
+): boolean {
+  return (requested.displayName === undefined || requested.displayName === accepted.displayName) &&
+    (requested.trust === undefined || requested.trust === accepted.trust) &&
+    (
+      requested.improvementPosture === undefined ||
+      requested.improvementPosture === accepted.improvementPosture
+    ) &&
+    (
+      requested.writes === undefined ||
+      JSON.stringify(requested.writes) === JSON.stringify(accepted.writes)
+    );
+}
+
 function onboardingUnavailable(json: boolean | undefined): void {
   onboardingInputError("Scope onboarding requires a live, current daemon.", json);
 }
@@ -590,6 +688,26 @@ function onboardingInputError(message: string, json: boolean | undefined): void 
   if (json) writeJson({ ok: false, reason: "invalid_input", message });
   else printToStderr(line(span(message, "error")));
   process.exitCode = 1;
+}
+
+function onboardingAddInputError(
+  message: string,
+  json: boolean | undefined,
+  inspection: ScopeOnboardingInspection,
+  plan?: ScopeOnboardingPlan,
+): void {
+  if (json) {
+    writeJson({
+      ok: false,
+      reason: "invalid_input",
+      message,
+      inspection,
+      ...(plan === undefined ? {} : { plan }),
+    });
+    process.exitCode = 1;
+    return;
+  }
+  onboardingInputError(message, false);
 }
 
 function onboardingError(result: { reason: string; message?: string }): string {

@@ -120,7 +120,7 @@ export function scopeAuthorityViewFor(
     scopeId: scope.scopeId,
     directoryRoot: scope.scopeRoot,
     revision: state.metadata.revision,
-    trust: trustDecision(scope.scopeRoot, state.trustedScopes),
+    trust: scopeTrustDecisionForDirectory(scope.scopeRoot, state.trustedScopes),
     policyFragment,
     resolvedPolicy: resolveScopePolicy({
       projection: registry.toProjection(),
@@ -195,7 +195,10 @@ function invalidRequest(scopeId: ScopeId, message: string): ScopeAuthorityFailur
   return { ok: false, reason: "invalid_request", message, scopeId };
 }
 
-function trustDecision(scopeRoot: string, trustedScopes: readonly string[]): ScopeTrustDecision {
+export function scopeTrustDecisionForDirectory(
+  scopeRoot: string,
+  trustedScopes: readonly string[],
+): ScopeTrustDecision {
   const decision = resolveScopeConfigTrust(scopeRoot, { trustedScopes: [...trustedScopes] });
   if (decision.reason === "kota-self-scope") return { trusted: true, source: "kota-self-scope" };
   if (decision.trusted) return { trusted: true, source: "machine-config" };

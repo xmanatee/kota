@@ -157,6 +157,7 @@ export type ScopeOnboardingMutation = {
   kind:
     | ScopeOnboardingChange["kind"]
     | "activate-scope"
+    | "reactivate-scope"
     | "complete-onboarding"
     | "rollback-authority"
     | "rollback";

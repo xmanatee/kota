@@ -132,11 +132,25 @@ export class ScopeOnboardingService {
         });
       }
     }
-    const authority = registered
+    const registeredAuthority = registered
       ? this.options.authority.inspect(registered.scopeId)
       : null;
-    const authorityView = authority && "resolvedPolicy" in authority ? authority : null;
-    const policyRevision = authorityView?.revision ?? this.options.authority.currentRevision();
+    const authorityView = registeredAuthority && "resolvedPolicy" in registeredAuthority
+      ? registeredAuthority
+      : null;
+    const detachedAuthority = registered === undefined
+      ? this.options.authority.inspectDetached(scope.scopeId, scope.scopeRoot)
+      : null;
+    const detachedAuthorityView = detachedAuthority !== null && !("ok" in detachedAuthority) &&
+        (
+          detachedAuthority.trust.source !== "default-untrusted" ||
+          detachedAuthority.policyFragment !== null
+        )
+      ? detachedAuthority
+      : null;
+    const policyRevision = authorityView?.revision ??
+      detachedAuthorityView?.revision ??
+      this.options.authority.currentRevision();
     const hostingState = registered
       ? this.options.lifecycle.getHostingState(registered.scopeId)
       : null;
@@ -147,13 +161,25 @@ export class ScopeOnboardingService {
       kind,
       registered: registered !== undefined,
       hostingState,
-      authority: authorityView === null
-        ? { revision: policyRevision, trusted: false, policyFragment: null, resolvedPolicy: null }
-        : {
+      authority: authorityView !== null
+        ? {
             revision: authorityView.revision,
             trusted: authorityView.trust.trusted,
             policyFragment: authorityView.policyFragment,
             resolvedPolicy: authorityView.resolvedPolicy,
+          }
+        : detachedAuthorityView !== null
+        ? {
+            revision: detachedAuthorityView.revision,
+            trusted: detachedAuthorityView.trust.trusted,
+            policyFragment: detachedAuthorityView.policyFragment,
+            resolvedPolicy: null,
+          }
+        : {
+            revision: policyRevision,
+            trusted: false,
+            policyFragment: null,
+            resolvedPolicy: null,
           },
       existing: existingState(scope.scopeRoot),
       setup: setup.requirements.map((entry) => ({
@@ -172,9 +198,9 @@ export class ScopeOnboardingService {
       kind,
       registered: registered !== undefined,
       hostingState,
-      trust: authorityView?.trust ?? null,
+      trust: authorityView?.trust ?? detachedAuthorityView?.trust ?? null,
       policyRevision,
-      policyFragment: authorityView?.policyFragment ?? null,
+      policyFragment: authorityView?.policyFragment ?? detachedAuthorityView?.policyFragment ?? null,
       policy: authorityView?.resolvedPolicy ?? null,
       existing: inspectionFacts.existing,
       setup: setup.requirements,
@@ -222,6 +248,11 @@ export class ScopeOnboardingService {
     ) {
       blockers.push(repositoryCommitUnavailable());
     }
+    const authorityBaseline = {
+      revision: inspection.policyRevision,
+      trusted: inspection.trust?.trusted ?? false,
+      policyFragment: inspection.policyFragment,
+    };
     const changes: ScopeOnboardingChange[] = [];
     if (!inspection.registered) {
       changes.push({
@@ -261,11 +292,7 @@ export class ScopeOnboardingService {
         displayName: inspection.displayName,
         hostingState: inspection.hostingState,
       },
-      authorityBaseline: {
-        revision: inspection.policyRevision,
-        trusted: inspection.trust?.trusted ?? false,
-        policyFragment: inspection.policyFragment,
-      },
+      authorityBaseline,
       changes,
       blockers,
     };
@@ -305,15 +332,43 @@ export class ScopeOnboardingService {
     return this.#serialize(plan.operationId, async () => {
       const current = this.#store.read(plan.operationId);
       if (current !== null && current.state !== "cancelled") {
+        if (current.state === "succeeded") {
+          const refreshed = await this.#refreshSucceeded(current);
+          if (refreshed.readiness.registered) {
+            return sameAcceptedPlan(refreshed.acceptedPlan, plan)
+              ? { ok: true, operation: refreshed }
+              : {
+                  ok: false,
+                  reason: "plan_changed",
+                  message: "A different onboarding plan is already recorded for this directory",
+                };
+          }
+          const canonical = await this.plan(plan.directoryRoot, plan.choices);
+          if (
+            !canonical.ok ||
+            canonical.plan.planId !== plan.planId ||
+            canonical.plan.inspectionId !== plan.inspectionId
+          ) {
+            return {
+              ok: false,
+              reason: "plan_changed",
+              message: canonical.ok
+                ? "Scope state changed after this reactivation plan was created"
+                : canonical.message,
+            };
+          }
+          const acceptedPlan = { ...canonical.plan, createdAt: plan.createdAt };
+          return this.#execute(
+            this.#prepareReactivation(refreshed, acceptedPlan),
+            operatorAction,
+          );
+        }
         if (!sameAcceptedPlan(current.acceptedPlan, plan)) {
           return {
             ok: false,
             reason: "plan_changed",
             message: "A different onboarding plan is already recorded for this directory",
           };
-        }
-        if (current.state === "succeeded") {
-          return { ok: true, operation: await this.#refreshSucceeded(current) };
         }
         return this.#execute(current, operatorAction);
       }
@@ -466,7 +521,14 @@ export class ScopeOnboardingService {
         return { ok: false, reason: "not_found", message: "Onboarding operation not found" };
       }
       if (operation.state === "succeeded") {
-        return { ok: true, operation: await this.#refreshSucceeded(operation) };
+        const refreshed = await this.#refreshSucceeded(operation);
+        if (refreshed.readiness.registered) return { ok: true, operation: refreshed };
+        return {
+          ok: false,
+          reason: "plan_changed",
+          message: "The removed scope must be inspected and accepted through a fresh onboarding plan",
+          operation: refreshed,
+        };
       }
       if (operation.state === "cancelled") {
         return {
@@ -755,6 +817,14 @@ export class ScopeOnboardingService {
         });
         readiness = await this.#readiness(operation, false);
       }
+      if (isReactivation(operation)) {
+        operation = this.#append(operation, {
+          kind: "reactivate-scope",
+          target: operation.acceptedPlan.scopeId,
+          status: "applied",
+          at: this.#now().toISOString(),
+        });
+      }
       operation = this.#update(operation, {
         state: "succeeded",
         readiness,
@@ -801,6 +871,39 @@ export class ScopeOnboardingService {
         operation: incomplete,
       };
     }
+  }
+
+  #prepareReactivation(
+    operation: ScopeOnboardingOperation,
+    acceptedPlan: ScopeOnboardingPlan,
+  ): ScopeOnboardingOperation {
+    const at = this.#now().toISOString();
+    const releasedRuntimeDirectories = SCOPE_RUNTIME_DIRECTORIES
+      .filter((path) => ownsRuntimeDirectory(operation, path))
+      .map((path) => ({
+        kind: "rollback" as const,
+        target: `runtime-directory:${path}`,
+        status: "rolled-back" as const,
+        at,
+        message: "Released completed onboarding ownership before scope reactivation",
+      }));
+    return this.#update(operation, {
+      acceptedPlan,
+      registeredByOperation: false,
+      authorityRevision: acceptedPlan.authorityBaseline.revision,
+      authorityApplied: null,
+      displayNameBefore: null,
+      mutations: [
+        ...operation.mutations,
+        ...releasedRuntimeDirectories,
+        {
+          kind: "reactivate-scope",
+          target: acceptedPlan.scopeId,
+          status: "prepared",
+          at,
+        },
+      ],
+    });
   }
 
   async #rollback(operation: ScopeOnboardingOperation): Promise<{
@@ -1589,6 +1692,10 @@ function ownsRuntimeDirectory(
   path: ScopeOnboardingRuntimeDirectory,
 ): boolean {
   return runtimeDirectoryOwnership(operation, path) !== "unclaimed";
+}
+
+function isReactivation(operation: ScopeOnboardingOperation): boolean {
+  return operation.mutations.some((mutation) => mutation.kind === "reactivate-scope");
 }
 
 function runtimeDirectoryOwnership(

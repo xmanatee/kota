@@ -46,8 +46,10 @@ export function describeOnboardingInspection(
   inspection: ScopeOnboardingInspection,
 ): string[] {
   const setupGaps = inspection.setup.filter((requirement) => requirement.state !== "ready");
+  const existing = inspection.existing;
   return [
     `Scope: ${inspection.displayName} (${inspection.scopeId}); operationId=${inspection.operationId}; directory=${inspection.directoryRoot}; kind=${inspection.kind}; registered=${inspection.registered}; hosting=${inspection.hostingState ?? "not-hosted"}; trust=${inspection.trust?.trusted === true ? "trusted" : "untrusted"}.`,
+    `Existing: .kota=${existing.kotaState}; config=${existing.scopeConfig}; task-queue=${existing.taskQueue}; inbox=${existing.inbox}; guidance=${existing.guidance.length > 0 ? existing.guidance.join(", ") : "none"}.`,
     `Setup gaps: ${describeMany(setupGaps, describeSetup)}.`,
     `Blockers: ${describeMany(inspection.blockers, describeReason)}.`,
   ];

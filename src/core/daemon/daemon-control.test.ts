@@ -858,6 +858,53 @@ describe("DaemonControlServer", () => {
       );
       expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(replacementPlan, undefined);
     });
+
+    it("validates a fresh accepted plan after the completed scope was removed", async () => {
+      const { plan, operation } = completedOnboardingFixture();
+      const reactivationPlan = {
+        ...plan,
+        planId: "plan_reactivation",
+        inspectionId: "inspection_reactivation",
+        createdAt: "2026-09-02T02:00:00.000Z",
+        registrationBaseline: {
+          registered: false,
+          displayName: "external",
+          hostingState: null,
+        },
+      };
+      handle.getScopeOnboardingStatus = vi.fn(async () => ({
+        ...operation,
+        readiness: { ...operation.readiness, registered: false },
+      }));
+      handle.planScopeOnboarding = vi.fn(async () => ({
+        ok: true as const,
+        plan: reactivationPlan,
+      }));
+      handle.applyScopeOnboarding = vi.fn(async () => ({
+        ok: true as const,
+        operation: { ...operation, acceptedPlan: reactivationPlan },
+      }));
+
+      const res = await fetchWithToken(port, "/scope-onboarding/apply", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId: reactivationPlan.planId,
+          operationId: reactivationPlan.operationId,
+          inspectionId: reactivationPlan.inspectionId,
+          directoryRoot: reactivationPlan.directoryRoot,
+          createdAt: reactivationPlan.createdAt,
+          choices: reactivationPlan.choices,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      expect(handle.planScopeOnboarding).toHaveBeenCalledWith(
+        reactivationPlan.directoryRoot,
+        reactivationPlan.choices,
+      );
+      expect(handle.applyScopeOnboarding).toHaveBeenCalledWith(reactivationPlan, undefined);
+    });
   });
 
   describe("scope drain and removal", () => {

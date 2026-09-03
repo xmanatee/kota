@@ -5,6 +5,7 @@ import {
 } from "./scope-authority-operator-token.js";
 import { ScopeAuthorityRevisionConflictError } from "./scope-authority-store.js";
 import type {
+  DetachedScopeAuthorityView,
   ScopeAuthorityCompensation,
   ScopeAuthorityFailure,
   ScopeAuthorityMutation,
@@ -22,6 +23,7 @@ import {
   revisionConflict,
   type ScopeAuthorityValidationContext,
   scopeAuthorityViewFor,
+  scopeTrustDecisionForDirectory,
   unknownScope,
 } from "./scope-authority-validation.js";
 import type {
@@ -55,6 +57,25 @@ export class ScopeAuthorityService implements ScopePolicyAuthority {
     if (!scope) return unknownScope(scopeId);
     try {
       return scopeAuthorityViewFor(this.registry, scope, this.persistence.read());
+    } catch (error) {
+      return persistenceFailure(scopeId, error);
+    }
+  }
+
+  /** Read retained machine authority while a directory scope is not registered. */
+  inspectDetached(
+    scopeId: ScopeId,
+    directoryRoot: string,
+  ): DetachedScopeAuthorityView | ScopeAuthorityFailure {
+    try {
+      const state = this.persistence.read();
+      return {
+        scopeId,
+        directoryRoot,
+        revision: state.metadata.revision,
+        trust: scopeTrustDecisionForDirectory(directoryRoot, state.trustedScopes),
+        policyFragment: state.scopePolicies.find((entry) => entry.scopeId === scopeId) ?? null,
+      };
     } catch (error) {
       return persistenceFailure(scopeId, error);
     }

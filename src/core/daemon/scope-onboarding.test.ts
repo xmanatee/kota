@@ -944,6 +944,128 @@ describe("ScopeOnboardingService", () => {
     await fixture.close();
   });
 
+  it("reactivates from a fresh plan after removing an originally registered partial scope", async () => {
+    const fixture = await createFixture();
+    const target = join(fixture.root, "removed-scope");
+    mkdirSync(target);
+    fixture.missingSetupRoots.add(target);
+    const existingRegistration = await fixture.lifecycle.registerDirectoryScope({
+      directoryRoot: target,
+      displayName: "Existing scope",
+    });
+    expect(existingRegistration).toMatchObject({ ok: true, status: "registered" });
+    if (!existingRegistration.ok) return;
+    await vi.waitFor(() => {
+      const runs = fixture.runState.listRuns(existingRegistration.scope.scopeId);
+      expect(runs.length).toBeGreaterThan(0);
+      expect(runs.filter((run) =>
+        ["queued", "running", "waiting", "integrating", "needs_attention"].includes(run.state)
+      )).toEqual([]);
+    });
+    const planned = await fixture.service.plan(target, {
+      trust: true,
+      initialAutomationMode: "supervised",
+      writes: { mode: "scope-directory" },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+    fixture.workflowProbeFailureScopes.add(planned.plan.scopeId);
+    expect(planned.plan.registrationBaseline).toMatchObject({
+      registered: true,
+      displayName: "Existing scope",
+      hostingState: "hosted",
+    });
+
+    expect(await fixture.service.apply(
+      planned.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    )).toMatchObject({
+      ok: true,
+      operation: { state: "succeeded", attempts: 1 },
+    });
+    const retainedState = join(target, ".kota", "retained.json");
+    writeFileSync(retainedState, "operator-owned\n");
+    await vi.waitFor(() => {
+      expect(fixture.runState.listRuns(
+        planned.plan.scopeId,
+        ["queued", "running", "integrating"],
+      )).toEqual([]);
+    });
+    expect(fixture.disableWorkflow(
+      planned.plan.scopeId,
+      "scope-improvement-onboarding",
+    )).toEqual({ ok: true });
+    const drained = await fixture.lifecycle.drainScope(planned.plan.scopeId);
+    if (!drained.ok) throw new Error(JSON.stringify(drained));
+    expect(drained).toMatchObject({
+      ok: true,
+      status: "drained",
+    });
+    expect(await fixture.lifecycle.removeScope(planned.plan.scopeId)).toMatchObject({
+      ok: true,
+      status: "removed",
+    });
+    expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
+      state: "succeeded",
+      readiness: { registered: false },
+    });
+    expect(await fixture.service.inspect(target)).toMatchObject({
+      registered: false,
+      trust: { trusted: true, source: "machine-config" },
+      policyRevision: planned.plan.authorityBaseline.revision + 1,
+      policyFragment: {
+        scopeId: planned.plan.scopeId,
+        autonomy: { defaultMode: "supervised", maxMode: "supervised" },
+        writes: { mode: "scope-directory" },
+      },
+    });
+    const missingAfterRemoval = join(target, ".kota", "owner-questions");
+    rmSync(missingAfterRemoval, { recursive: true, force: true });
+
+    expect(await fixture.service.apply(
+      planned.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    )).toMatchObject({
+      ok: false,
+      reason: "plan_changed",
+    });
+    const reactivation = await fixture.service.plan(target, planned.plan.choices);
+    expect(reactivation.ok).toBe(true);
+    if (!reactivation.ok) return;
+    expect(reactivation.plan.registrationBaseline).toMatchObject({
+      registered: false,
+      displayName: "removed-scope",
+      hostingState: null,
+    });
+    expect(reactivation.plan.changes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "register-scope" }),
+      expect.objectContaining({
+        kind: "create-runtime-directory",
+        path: ".kota/owner-questions",
+      }),
+    ]));
+
+    expect(await fixture.service.apply(
+      reactivation.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    )).toMatchObject({
+      ok: true,
+      operation: {
+        state: "succeeded",
+        attempts: 2,
+        readiness: { registered: true },
+        mutations: expect.arrayContaining([
+          expect.objectContaining({ kind: "reactivate-scope", status: "applied" }),
+        ]),
+      },
+    });
+    expect(fixture.registry.get(planned.plan.scopeId)?.scopeRoot).toBe(target);
+    expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("hosted");
+    expect(existsSync(missingAfterRemoval)).toBe(true);
+    expect(readFileSync(retainedState, "utf8")).toBe("operator-owned\n");
+    await fixture.close();
+  });
+
   it.each(["file", "symlink"] as const)(
     "rejects and cleanly cancels a runtime-path %s conflict",
     async (kind) => {
@@ -1930,6 +2052,10 @@ async function createFixture(
   missingSetupRoots: Set<string>;
   workflowProbeFailureScopes: Set<string>;
   onboardingTransitions: string[];
+  disableWorkflow: (
+    scopeId: string,
+    workflowName: string,
+  ) => { ok: boolean; notFound?: boolean };
   restartService: () => ScopeOnboardingService;
   close: () => Promise<void>;
 }> {
@@ -2065,6 +2191,8 @@ async function createFixture(
     missingSetupRoots,
     workflowProbeFailureScopes,
     onboardingTransitions,
+    disableWorkflow: (scopeId, workflowName) =>
+      runtimes.get(scopeId).workflowRuntime.disableWorkflow(workflowName),
     restartService: () => new ScopeOnboardingService(serviceOptions),
     close: async () => {
       await host.stopAll(runtimes, 0);

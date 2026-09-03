@@ -53,6 +53,11 @@ export type ScopeAuthorityView = {
   audit: readonly ScopeAuthorityAuditRecord[];
 };
 
+export type DetachedScopeAuthorityView = Pick<
+  ScopeAuthorityView,
+  "scopeId" | "directoryRoot" | "revision" | "trust" | "policyFragment"
+>;
+
 export type ScopeAuthorityMutation = {
   expectedRevision: number;
   reason: string;
