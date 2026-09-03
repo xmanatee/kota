@@ -138,7 +138,7 @@ export const KOTA_CLIENT_HANDLER_METHODS = {
   "config": ["validate", "get", "set", "schemaPath", "schemaContent"],
   "modulesAdmin": ["inspect", "reload"],
   "daemonOps": ["status", "pid", "stop", "reload"],
-  "scopes": ["list", "use", "inspectAuthority", "validateAuthority", "applyAuthority", "inspectOnboarding", "planOnboarding", "applyOnboarding", "getOnboardingStatus", "retryOnboarding", "cancelOnboarding"],
+  "scopes": ["list", "use", "inspectAuthority", "validateAuthority", "applyAuthority", "inspectOnboarding", "planOnboarding", "applyOnboarding", "getOnboardingStatus", "retryOnboarding", "cancelOnboarding", "drain", "remove"],
   "ui": ["listSurfaces", "executeAction", "watchEvents"],
   "doctor": ["run", "fix"],
   "evalHarness": ["list", "run", "runAgyModels", "calibration"],
