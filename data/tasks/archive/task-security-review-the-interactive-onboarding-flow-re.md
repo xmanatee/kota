@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: The interactive onboarding flow renders filesystem-derived names, paths, setup messages, and the confirmation path without terminal-control sanitization. A directory or diagnostic containing ANSI, OSC, bidi, or line-control characters can spoof the operator-facing plan or confirmation prompt.
 
@@ -116,3 +115,10 @@ excerpt:
 
 
 > rl.question(`${message} [y/N] `, (answer) => {
+
+## Verification
+
+- The public `scope inspect` command and the `scope add` confirmation boundary now pass all onboarding text through `safeTerminalLineText` before rendering or prompting.
+- `src/modules/daemon-ops/scopes-cli.test.ts` passes 15 focused owner tests, including CSI, OSC, C1 CSI, bidi, newline, carriage-return, and C0-control payloads in directory, display-name, guidance, setup, blocker, and plan fields.
+- `pnpm check:fast` passes, covering production/test types, repository lint, task integrity, and generated client-binding freshness.
+- A production-renderer command probe is retained at `$KOTA_RUN_DIR/scope-onboarding-terminal-sanitization-transcript.md`; it shows safe visible output from adversarial daemon data.

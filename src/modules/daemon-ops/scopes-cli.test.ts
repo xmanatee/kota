@@ -19,6 +19,12 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ScopesClient } from "./client.js";
 import { buildScopeCommand } from "./scopes-cli.js";
 
+const confirmActionMock = vi.hoisted(() => vi.fn());
+
+vi.mock("#core/util/confirm.js", () => ({
+  confirmAction: confirmActionMock,
+}));
+
 function makeCtx(scopes: Partial<ScopesClient>): ModuleContext {
   return { client: { scopes } } as unknown as ModuleContext;
 }
@@ -41,6 +47,7 @@ describe("kota scope CLI", () => {
       errs.push(String(data));
       return true;
     });
+    confirmActionMock.mockReset();
     process.exitCode = undefined;
   });
 
@@ -199,6 +206,143 @@ describe("kota scope CLI", () => {
       reason: "invalid_choices",
       message: "fixture plan response",
     });
+  });
+
+  it("sanitizes untrusted onboarding fields before terminal rendering", async () => {
+    const directoryRoot = "/tmp/scope\x1b]8;;https://evil.invalid\x07\nchild";
+    const inspection = {
+      inspectionId: "inspection-1",
+      operationId: "operation-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      displayName: "exter\x1b[31mnal\u202e",
+      kind: "directory",
+      registered: false,
+      hostingState: null,
+      trust: null,
+      policyRevision: 0,
+      policyFragment: null,
+      policy: null,
+      existing: {
+        kotaState: false,
+        scopeConfig: false,
+        taskQueue: false,
+        inbox: false,
+        guidance: ["AG\x9b31mENTS.md"],
+      },
+      setup: [{
+        moduleName: "provider",
+        requirementId: "token",
+        state: "missing",
+        message: "Need token\r\nforged\x01",
+      }],
+      blockers: [{
+        code: "setup_missing",
+        message: "Blocked\x1b[2J\nready",
+      }],
+    } as never;
+    const scopes = {
+      inspectOnboarding: vi.fn(async () => ({ ok: true as const, inspection })),
+    } as unknown as ScopesClient;
+
+    await buildScopeCommand(makeCtx(scopes)).parseAsync(
+      ["inspect", directoryRoot],
+      { from: "user" },
+    );
+
+    const output = logs.join("");
+    expect(output).toContain("Scope: external");
+    expect(output).toContain("directory=/tmp/scope child");
+    expect(output).toContain("guidance=AGENTS.md");
+    expect(output).toContain("provider.token=missing: Need token forged");
+    expect(output).toContain("[setup_missing] Blocked ready");
+    for (const unsafe of ["\x1b", "\x9b", "\u202e", "\x01", "\r"]) {
+      expect(output).not.toContain(unsafe);
+    }
+  });
+
+  it("sanitizes the directory and plan id before the onboarding confirmation prompt", async () => {
+    const directoryRoot = "/tmp/visible\x1b]0;spoof\x07\nconfirmed\u202e";
+    const inspection = {
+      inspectionId: "inspection-1",
+      operationId: "operation-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      displayName: "external",
+      kind: "directory",
+      registered: false,
+      hostingState: null,
+      trust: null,
+      existing: {
+        kotaState: false,
+        scopeConfig: false,
+        taskQueue: false,
+        inbox: false,
+        guidance: [],
+      },
+      setup: [],
+      blockers: [],
+    } as never;
+    const plan = {
+      planId: "plan\x1b[31m-safe",
+      operationId: "operation-1",
+      inspectionId: "inspection-1",
+      scopeId: "scope-external",
+      directoryRoot,
+      choices: {
+        trust: false,
+        improvementPosture: "observe",
+        writes: { mode: "none" },
+      },
+      changes: [{ kind: "create-runtime-directory", path: `${directoryRoot}/.kota` }],
+      permissions: {
+        trusted: false,
+        autonomy: "passive",
+        writes: { mode: "none" },
+        improvement: {
+          posture: "observe",
+          review: "disabled",
+          builder: "disabled",
+        },
+      },
+      blockers: [],
+    } as never;
+    const applyOnboarding = vi.fn();
+    const scopes = {
+      inspectOnboarding: vi.fn(async () => ({ ok: true as const, inspection })),
+      getOnboardingStatus: vi.fn(async () => ({
+        ok: false as const,
+        reason: "not_found" as const,
+      })),
+      planOnboarding: vi.fn(async () => ({ ok: true as const, plan })),
+      applyOnboarding,
+    } as unknown as ScopesClient;
+    confirmActionMock.mockResolvedValue(false);
+    const originalSessionId = process.env.KOTA_SESSION_ID;
+    delete process.env.KOTA_SESSION_ID;
+    Object.defineProperty(process.stdin, "isTTY", {
+      configurable: true,
+      value: true,
+    });
+
+    try {
+      await buildScopeCommand(makeCtx(scopes)).parseAsync(
+        ["add", directoryRoot],
+        { from: "user" },
+      );
+    } finally {
+      Reflect.deleteProperty(process.stdin, "isTTY");
+      if (originalSessionId !== undefined) {
+        process.env.KOTA_SESSION_ID = originalSessionId;
+      }
+    }
+
+    expect(confirmActionMock).toHaveBeenCalledWith(
+      "Apply onboarding plan plan-safe for /tmp/visible confirmed?",
+    );
+    expect(applyOnboarding).not.toHaveBeenCalled();
+    expect(logs.join("")).not.toContain("\x1b");
+    expect(logs.join("")).not.toContain("\u202e");
   });
 
   it("add --json keeps discovered existing state beside an idempotent operation", async () => {

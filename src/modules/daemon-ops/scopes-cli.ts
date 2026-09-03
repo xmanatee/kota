@@ -22,6 +22,7 @@ import type { ScopePolicyFragment } from "#core/daemon/scope-policy.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { columns, line, plain, type RenderNode, span, stack } from "#modules/rendering/primitives.js";
+import { safeTerminalLineText } from "#modules/rendering/safe-terminal-text.js";
 import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type { ScopesListResult } from "./client.js";
 import {
@@ -31,7 +32,11 @@ import {
 } from "./scope-onboarding-presentation.js";
 
 function onboardingLines(lines: readonly string[]): RenderNode {
-  return stack(...lines.map((text) => line(plain(text))));
+  return stack(...lines.map((text) => line(plain(safeTerminalLineText(text)))));
+}
+
+function confirmTerminalAction(message: string): Promise<boolean> {
+  return confirmAction(safeTerminalLineText(message));
 }
 
 function onboardingPlanLines(plan: ScopeOnboardingPlan): readonly string[] {
@@ -299,7 +304,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       }
       let confirmedDangerousChange = false;
       if (preview.confirmationRequired) {
-        confirmedDangerousChange = await confirmAction(
+        confirmedDangerousChange = await confirmTerminalAction(
           `Apply trust or dangerous policy widening to scope ${scopeId}?`,
         );
         if (!confirmedDangerousChange) {
@@ -460,7 +465,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
       return;
     }
     if (!opts.json) print(onboardingLines(onboardingPlanLines(plan)));
-    const confirmed = await confirmAction(
+    const confirmed = await confirmTerminalAction(
       `Apply onboarding plan ${plan.planId} for ${plan.directoryRoot}?`,
     );
     if (!confirmed) {
@@ -524,7 +529,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
         );
         return;
       }
-      const confirmed = await confirmAction(`Retry onboarding operation ${operationId}?`);
+      const confirmed = await confirmTerminalAction(`Retry onboarding operation ${operationId}?`);
       if (!confirmed) return onboardingInputError("Scope onboarding retry was not confirmed.", opts.json);
       const plan = status.operation.acceptedPlan;
       const dangerous = plan.choices.trust ||
@@ -554,7 +559,9 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
         onboardingInputError("Cancelling scope onboarding requires an interactive terminal.", opts.json);
         return;
       }
-      const confirmed = await confirmAction(`Cancel and roll back onboarding operation ${operationId}?`);
+      const confirmed = await confirmTerminalAction(
+        `Cancel and roll back onboarding operation ${operationId}?`,
+      );
       if (!confirmed) return onboardingInputError("Scope onboarding cancellation was not confirmed.", opts.json);
       const result = await client(operationId);
       if (opts.json) writeJson(result);
@@ -574,7 +581,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
         onboardingInputError("Draining a scope requires an interactive terminal.", opts.json);
         return;
       }
-      const confirmed = await confirmAction(`Drain scope ${scopeId}?`);
+      const confirmed = await confirmTerminalAction(`Drain scope ${scopeId}?`);
       if (!confirmed) return onboardingInputError("Scope drain was not confirmed.", opts.json);
       const result = await ctx.client.scopes.drain(scopeId);
       if (opts.json) writeJson(result);
@@ -592,7 +599,7 @@ export function buildScopeCommand(ctx: ModuleContext): Command {
         onboardingInputError("Removing a scope requires an interactive terminal.", opts.json);
         return;
       }
-      const confirmed = await confirmAction(
+      const confirmed = await confirmTerminalAction(
         `Remove scope ${scopeId} from KOTA? Its folder will not be deleted.`,
       );
       if (!confirmed) return onboardingInputError("Scope removal was not confirmed.", opts.json);
@@ -712,7 +719,9 @@ function onboardingAddInputError(
 
 function onboardingError(result: { reason: string; message?: string }): string {
   if (result.reason === "daemon_required") return "Daemon is not running.";
-  return result.message ?? `Scope onboarding failed: ${result.reason}`;
+  return safeTerminalLineText(
+    result.message ?? `Scope onboarding failed: ${result.reason}`,
+  );
 }
 
 function parseTrust(value: string | undefined): boolean | undefined {
