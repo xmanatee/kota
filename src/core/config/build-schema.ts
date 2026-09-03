@@ -1,8 +1,8 @@
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createGenerator } from "ts-json-schema-generator";
-import { admitDiscoveredModuleDefinitions } from "../modules/module-admission.js";
 import { discoverBundledModules } from "../modules/bundled-module-discovery.js";
+import { admitDiscoveredModuleDefinitions } from "../modules/module-admission.js";
 import { registerAdmittedModuleConfigSlices } from "../modules/module-config-slices.js";
 import { getRegisteredConfigSlices } from "./config-slice.js";
 

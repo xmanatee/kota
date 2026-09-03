@@ -2,8 +2,8 @@ import type { ChannelDef } from "#core/channels/channel.js";
 import { resolveChannelAutonomyMode } from "#core/config/autonomy-mode-resolver.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
-  outboundHttp,
   type OutboundHttpRequestPort,
+  outboundHttp,
 } from "#core/outbound-http/index.js";
 import { TelegramBot, TelegramGetUpdatesConflictError } from "./bot.js";
 import { createTelegramCallbackHandler } from "./callback-poll.js";

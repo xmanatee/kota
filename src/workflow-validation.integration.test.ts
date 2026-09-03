@@ -3,6 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import {
+  defineDaemonWideModuleEvent,
+  initModuleEventRegistry,
+  resetModuleEventRegistry,
+} from "#core/events/module-event.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 import { getPreset } from "#core/model/preset.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
@@ -11,22 +17,16 @@ import {
   WorkflowDefinitionError,
   type WorkflowValidationOptions,
 } from "#core/workflow/validation.js";
+import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
 import autonomyModule from "#modules/autonomy/index.js";
 import {
   CLAUDE_AGENT_HARNESS_NAME,
   CLAUDE_AGENT_SDK_KNOWN_MODELS,
   claudeAgentHarness,
 } from "#modules/claude-agent-harness/adapter.js";
-import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
 import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
-import { geminiCliAgentHarness } from "#modules/gemini-cli-agent-harness/adapter.js";
 import { geminiAgentHarness } from "#modules/gemini-agent-harness/adapter.js";
-import {
-  defineDaemonWideModuleEvent,
-  initModuleEventRegistry,
-  resetModuleEventRegistry,
-} from "#core/events/module-event.js";
-import { defineScopedModuleEvent } from "#core/events/scope.js";
+import { geminiCliAgentHarness } from "#modules/gemini-cli-agent-harness/adapter.js";
 
 for (const harness of [
   antigravityCliAgentHarness,

@@ -6,7 +6,6 @@ import {
   type InboundSignalReceivedPayload,
   type InboundSignalRoutedPayload,
   inboundSignalReceived,
-  inboundSignalRouted,
   normalizeInboundSignalInput,
   validateInboundSignalPayload,
 } from "./events.js";

@@ -45,20 +45,20 @@ import {
   getAllTools,
 } from "#core/tools/index.js";
 import {
-  getToolMiddleware,
-  resetToolMiddleware,
-} from "#core/tools/tool-middleware.js";
-import {
   clearCustomGroups,
   enableGroup,
   filterTools,
   resetGroups,
   TOOL_GROUPS,
 } from "#core/tools/tool-groups.js";
+import {
+  getToolMiddleware,
+  resetToolMiddleware,
+} from "#core/tools/tool-middleware.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import { admitDiscoveredModuleDefinitions } from "./module-admission.js";
-import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
 import { registerAdmittedModuleConfigSlices } from "./module-config-slices.js";
+import { ModuleLoader as RuntimeModuleLoader } from "./module-loader.js";
 import { scopeSetupStatusOntoManifest } from "./module-manifest.js";
 import type { KotaModule } from "./module-types.js";
 import {

@@ -1,7 +1,7 @@
 import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import {
-  outboundHttp,
   type OutboundHttpRequestPort,
+  outboundHttp,
 } from "#core/outbound-http/index.js";
 import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";

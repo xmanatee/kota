@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import { pricedAgentUsage } from "#core/agent-harness/usage.js";
 import type { CostTracker } from "#core/loop/cost.js";
 import type { Transport } from "#core/loop/transport.js";
 

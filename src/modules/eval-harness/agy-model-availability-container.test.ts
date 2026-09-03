@@ -6,6 +6,7 @@ import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
 
 registerAgentHarness(antigravityCliAgentHarness);
+
 import { runAgyModelsCommand } from "./agy-model-availability.js";
 import {
   AGY_OPTIONS,

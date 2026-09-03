@@ -13,6 +13,7 @@ import { projectKotaAgentMessageForStorage } from "#core/workflow/run-evidence.j
 import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
 
 registerAgentHarness(antigravityCliAgentHarness);
+
 import {
   type AgyModelEvaluationDependencies,
   runAgyModelEvaluationSuite,

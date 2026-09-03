@@ -58,6 +58,7 @@ import {
   expect,
   it,
 } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import {
   listShippedPresets,
   type Preset,
@@ -67,12 +68,11 @@ import {
   isPresetHarnessReadinessReady,
   type PresetHarnessReadiness,
 } from "#core/model/preset-readiness.js";
-import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { antigravityCliAgentHarness } from "#modules/antigravity-cli-agent-harness/adapter.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
-import { geminiCliAgentHarness } from "#modules/gemini-cli-agent-harness/adapter.js";
 import { geminiAgentHarness } from "#modules/gemini-agent-harness/adapter.js";
+import { geminiCliAgentHarness } from "#modules/gemini-cli-agent-harness/adapter.js";
 import { openaiToolsAgentHarness } from "#modules/openai-tools-agent-harness/adapter.js";
 
 for (const harness of [

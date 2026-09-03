@@ -19,8 +19,8 @@ import {
 import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
-import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(

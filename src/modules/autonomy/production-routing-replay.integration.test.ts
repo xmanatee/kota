@@ -15,6 +15,7 @@ import { ScopeRuntimeStateStore } from "#core/workflow/scope-runtime-state.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import {
   autonomyWorkflowInputs,
   CAPTURE_DIR,
@@ -26,8 +27,6 @@ import {
   type RoutedInvocation,
   readJson,
 } from "./production-routing-replay.integration-test-helpers.js";
-
-import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 registerAgentHarness(claudeAgentHarness);
 

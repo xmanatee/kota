@@ -10,8 +10,8 @@ import {
   resetScheduler,
 } from "#core/daemon/index.js";
 import { resetEventBus } from "#core/events/event-bus.js";
-import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(

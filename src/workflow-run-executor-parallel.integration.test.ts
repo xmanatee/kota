@@ -11,11 +11,11 @@ import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 import {
   type ExecutorResult,
   executeWithAgentSDK,
 } from "#modules/claude-agent-harness/executor.js";
-import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual<typeof import("#modules/claude-agent-harness/executor.js")>(

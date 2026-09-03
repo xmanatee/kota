@@ -16,8 +16,8 @@ import {
   UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#modules/claude-agent-harness/kota-tools-mcp.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "#modules/claude-agent-harness/kota-tools-mcp.js";
 
 const tryEmitMock = vi.hoisted(() => vi.fn());
 vi.mock("#core/events/event-bus.js", () => ({ tryEmit: tryEmitMock }));

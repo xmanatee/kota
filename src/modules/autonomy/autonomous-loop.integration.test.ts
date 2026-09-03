@@ -21,8 +21,8 @@ import { EventBus } from "#core/events/event-bus.js";
 import { getPreset, PRESET_ENV_VAR } from "#core/model/preset.js";
 import { enqueueMatchingWorkflows } from "#core/workflow/run-executor-utils.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
-import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import {
   loadAutonomyWorkflowDefinitions,
   seedAutonomousLoopFixture,

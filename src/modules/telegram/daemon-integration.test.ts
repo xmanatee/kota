@@ -22,8 +22,8 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
-import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
+import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { createTelegramModule } from "./index.js";
 
 const agentSendMock = vi.fn(async () => undefined);
@@ -55,6 +55,7 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
 });
 
 registerAgentHarness(claudeAgentHarness);
+
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
