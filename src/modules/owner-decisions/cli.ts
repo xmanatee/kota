@@ -6,6 +6,7 @@ import type {
   OwnerDecisionStatus,
 } from "#core/daemon/owner-decision-store.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { formatAge } from "#modules/rendering/format-age.js";
 import {
   blank,
   line,
@@ -25,16 +26,6 @@ type AnswerOptions = {
   text?: string;
   form?: string;
 };
-
-function formatAge(createdAt: string): string {
-  const ageMs = Date.now() - new Date(createdAt).getTime();
-  const minutes = Math.floor(ageMs / 60_000);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(ageMs / 3_600_000);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(ageMs / 86_400_000);
-  return `${days}d ago`;
-}
 
 function statusRole(status: OwnerDecisionStatus): "success" | "error" | "warn" | "muted" | "accent" {
   switch (status) {

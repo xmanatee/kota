@@ -1,287 +1,106 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type OwnerQuestionEnqueueInput,
-  OwnerQuestionQueue,
-  type OwnerQuestionStatus,
-  resetOwnerQuestionQueue,
-} from "#core/daemon/owner-question-queue.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { setStderrTransport, setTerminalTransport, TerminalTransport } from "#modules/rendering/transport.js";
 import { registerOwnerQuestionCommands } from "./cli.js";
+import type { OwnerQuestionsClient } from "./client.js";
 
-vi.mock("#core/events/event-bus.js", () => ({
-  tryEmit: vi.fn(),
-  getEventBus: () => null,
-}));
+const question: PendingOwnerQuestion = {
+  id: "question-1", seq: 0, context: "The decision depends on the full migration history and exact timeout semantics.",
+  question: "Should the timeout be 10 minutes?", reason: "Workflow waiting time", source: "session-42",
+  answerBehavior: "record-only", origin: { kind: "session", sessionId: "session-42" },
+  createdAt: "2026-09-07T10:00:00.000Z", status: "pending",
+};
 
-let testQueue: OwnerQuestionQueue;
-
-function stubCtx(): ModuleContext {
-  return {
-    client: {
-      ownerQuestions: {
-        async list(filter?: { status?: OwnerQuestionStatus | "all" }) {
-          const status = filter?.status;
-          if (status === undefined) return { questions: testQueue.list("pending") };
-          if (status === "all") return { questions: testQueue.list() };
-          return { questions: testQueue.list(status) };
-        },
-        async answer(id: string, answer: string) {
-          const item = testQueue.answer(id, answer, "cli");
-          return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
-        },
-        async dismiss(id: string, reason?: string) {
-          const item = testQueue.dismiss(id, reason, "cli");
-          return item ? { ok: true, question: item } : { ok: false, reason: "not_found" };
-        },
-      },
-    },
-  } as unknown as ModuleContext;
-}
-
-function makeProgram(): Command {
-  const program = new Command();
-  program.exitOverride();
-  registerOwnerQuestionCommands(program, stubCtx());
-  return program;
-}
-
-async function run(program: Command, ...args: string[]): Promise<void> {
-  await program.parseAsync(["node", "cli", ...args]);
-}
-
-async function captureOutput(fn: () => Promise<void>): Promise<string> {
-  const lines: string[] = [];
-  const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
-    lines.push(`${args.join(" ")}\n`);
+function cli(items: PendingOwnerQuestion[] = []) {
+  const client = {
+    list: vi.fn<OwnerQuestionsClient["list"]>().mockResolvedValue({ questions: items }),
+    answer: vi.fn<OwnerQuestionsClient["answer"]>(),
+    dismiss: vi.fn<OwnerQuestionsClient["dismiss"]>(),
+  } satisfies OwnerQuestionsClient;
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const transport = (chunks: string[]) => new TerminalTransport({ theme: NO_COLOR_THEME,
+    stream: { isTTY: false, write: (chunk) => { chunks.push(chunk); return true; } },
   });
-  const stdoutSpy = vi.spyOn(process.stdout, "write").mockImplementation((data) => {
-    lines.push(String(data));
-    return true;
-  });
-  try {
-    await fn();
-  } finally {
-    logSpy.mockRestore();
-    stdoutSpy.mockRestore();
-  }
-  return lines.join("");
+  setTerminalTransport(transport(stdout));
+  setStderrTransport(transport(stderr));
+  vi.spyOn(process, "exit").mockImplementation((code) => { throw new Error(`exit:${code}`); });
+  return { client, stderr, async run(...args: string[]) {
+    const program = new Command().exitOverride();
+    registerOwnerQuestionCommands(program, { client: { ownerQuestions: client } } as unknown as ModuleContext);
+    await program.parseAsync(["node", "kota", "owner-question", ...args]);
+    return stdout.join("");
+  } };
 }
 
-async function captureStderr(fn: () => Promise<void>): Promise<string> {
-  const lines: string[] = [];
-  const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation((data) => {
-    lines.push(String(data));
-    return true;
-  });
-  try {
-    await fn();
-  } catch {
-    // Expected in tests that mock process.exit for validation failures.
-  } finally {
-    stderrSpy.mockRestore();
-  }
-  return lines.join("");
-}
-
-function seed(
-  queue: OwnerQuestionQueue,
-  overrides: Partial<OwnerQuestionEnqueueInput> = {},
-) {
-  return queue.enqueue({
-    context: "Working on the escalation flow for autonomous runs.",
-    question: "Should the timeout default to 10 minutes or 1 hour?",
-    reason: "The default affects how long workflow steps block on owner input.",
-    source: "session-42",
-    answerBehavior: "record-only",
-    origin: { kind: "session", sessionId: "session-42" },
-    ...overrides,
-  });
-}
+afterEach(() => { setTerminalTransport(null); setStderrTransport(null); vi.restoreAllMocks(); });
 
 describe("owner-question CLI", () => {
-  let dir: string;
-
-  beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "owner-question-cli-"));
-    testQueue = new OwnerQuestionQueue(dir);
+  it("prints empty wording and a machine-readable pending count", async () => {
+    expect(await cli().run("list")).toContain("No pending owner questions");
+    expect(await cli([question]).run("count")).toBe("1\n");
   });
 
-  afterEach(() => {
-    rmSync(dir, { recursive: true, force: true });
-    resetOwnerQuestionQueue();
-    vi.clearAllMocks();
-  });
-
-  it("list prints empty message when no pending questions", async () => {
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "list");
-    });
-    expect(output).toContain("No pending owner questions");
-  });
-
-  it("list prints pending questions", async () => {
-    seed(testQueue);
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "list");
-    });
-    expect(output).toContain("1 pending owner question(s)");
+  it("lists the answer behavior and the detail command", async () => {
+    const output = await cli([question]).run("list");
     expect(output).toContain("session-42");
-    expect(output).toContain("Should the timeout default");
+    expect(output).toContain("Should the timeout");
     expect(output).toContain("kota owner-question show");
     expect(output).toContain("Answer is recorded only");
   });
 
-  it("show prints full pending details without truncating context", async () => {
-    const longContext =
-      "The owner needs the entire detail body because the decision depends on " +
-      "the migration history, the failed recovery path, the current run metadata, " +
-      "and the exact operator-facing timeout semantics that would be hidden by a list preview.";
-    const item = seed(testQueue, {
-      context: longContext,
-      source: "blocked-promoter",
-      answerBehavior: "workflow-resume",
-      origin: {
-        kind: "workflow",
-        workflowName: "blocked-promoter",
-        runId: "run-123",
-        stepId: "blocked-promoter-ask-ask",
-        taskId: "task-owner-decision",
-      },
-      proposedAnswers: ["unblock", "refresh marker"],
-      timeoutMs: 10 * 60 * 1000,
-      defaultResolution: "dismiss",
-    });
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "show", item.id);
-    });
-    expect(output).toContain("The owner needs the entire detail body");
-    expect(output).toContain("exact operator-facing timeout semantics");
-    expect(output).not.toContain("...");
-    expect(output).toContain("Workflow: blocked-promoter");
+  it("shows full context and workflow-resume instructions", async () => {
+    const output = await cli([{ ...question, answerBehavior: "workflow-resume",
+      origin: { kind: "workflow", workflowName: "blocked-promoter", runId: "run-123", stepId: "ask", taskId: "task-one" },
+      proposedAnswers: ["unblock"], timeoutMs: 600_000, defaultResolution: "dismiss",
+    }]).run("show", question.id);
+    expect(output).toContain(question.context);
     expect(output).toContain("Run:      run-123");
-    expect(output).toContain("Task:     task-owner-decision");
+    expect(output).toContain("Task:     task-one");
     expect(output).toContain("Answer resumes the waiting workflow");
     expect(output).toContain("Proposed 1: unblock");
     expect(output).toContain("Timeout:  10m");
-    expect(output).toContain(`kota owner-question answer ${item.id}`);
   });
 
-  it("show and history render not-recorded metadata for legacy persisted questions", async () => {
-    writeFileSync(join(dir, "legacy1.json"), JSON.stringify({
-      id: "legacy1",
-      seq: 0,
-      context: "Legacy context should remain readable even though the stored record predates new metadata.",
-      question: "Should this old owner question still be auditable?",
-      reason: "The queue directory is the source of truth for existing owner questions.",
-      source: "blocked-promoter",
-      createdAt: "2026-05-08T03:46:22.179Z",
-      status: "answered",
-      resolvedAt: "2026-05-08T03:56:51.427Z",
-      answer: "yes",
-      resolutionSource: "http",
-    }, null, 2));
-
-    const detail = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "show", "legacy1");
-    });
-    expect(detail).toContain("Origin:   not recorded");
-    expect(detail).toContain("Answer behavior was not recorded");
-    expect(detail).toContain("Legacy context should remain readable");
-
-    const history = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "history");
-    });
-    expect(history).toContain("Origin:   not recorded");
-    expect(history).toContain("Answer behavior was not recorded");
-    expect(history).toContain("Should this old owner question still be auditable?");
+  it("renders missing historical metadata explicitly", async () => {
+    const output = await cli([{ ...question, origin: { kind: "manual", source: "not recorded" }, answerBehavior: "unknown", status: "answered", answer: "yes" }]).run("show", question.id);
+    expect(output).toContain("Origin:   not recorded");
+    expect(output).toContain("Answer behavior was not recorded");
   });
 
-  it("count prints the pending count", async () => {
-    seed(testQueue);
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "count");
-    });
-    expect(output.trim()).toBe("1");
+  it("forwards the answer as one argument and renders the response", async () => {
+    const view = cli();
+    view.client.answer.mockResolvedValue({ ok: true, question: { ...question, status: "answered", answer: "10 minutes" } });
+    expect(await view.run("answer", question.id, "10 minutes")).toContain("10 minutes");
+    expect(view.client.answer).toHaveBeenCalledWith(question.id, "10 minutes");
   });
 
-  it("answer marks a pending question answered", async () => {
-    const item = seed(testQueue);
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "answer", item.id, "10 minutes");
-    });
-    expect(output).toContain("10 minutes");
-    expect(testQueue.get(item.id)?.status).toBe("answered");
-    expect(testQueue.get(item.id)?.answer).toBe("10 minutes");
+  it("forwards --reason and renders a dismissal", async () => {
+    const view = cli();
+    view.client.dismiss.mockResolvedValue({ ok: true, question: { ...question, status: "dismissed", dismissalReason: "scope change" } });
+    expect(await view.run("dismiss", question.id, "--reason", "scope change")).toContain("scope change");
+    expect(view.client.dismiss).toHaveBeenCalledWith(question.id, "scope change");
   });
 
-  it("show prints resolved details and resolution source after answer", async () => {
-    const item = seed(testQueue, {
-      context: "Resolved detail context should remain visible after the answer.",
-    });
-    await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "answer", item.id, "10 minutes");
-    });
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "show", item.id);
-    });
-    expect(output).toContain("status=answered");
-    expect(output).toContain("Resolved detail context should remain visible");
-    expect(output).toContain("Resolved by: cli");
-    expect(output).toContain("Final answer: 10 minutes");
+  it("reports a missing answer target with exit status 1", async () => {
+    const view = cli();
+    view.client.answer.mockResolvedValue({ ok: false, reason: "not_found" });
+    await expect(view.run("answer", "missing", "yes")).rejects.toThrow("exit:1");
+    expect(view.stderr.join("")).toContain("not found");
   });
 
-  it("answer errors on nonexistent id", async () => {
-    const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => {
-      throw new Error("exit");
-    });
-    const err = await captureStderr(() => run(makeProgram(), "owner-question", "answer", "nonexistent", "yes"));
-    expect(err).toContain("not found");
-    exitSpy.mockRestore();
-  });
-
-  it("dismiss marks a pending question dismissed", async () => {
-    const item = seed(testQueue);
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "dismiss", item.id, "--reason", "scope change");
-    });
-    expect(output).toContain("scope change");
-    expect(testQueue.get(item.id)?.status).toBe("dismissed");
-    expect(testQueue.get(item.id)?.dismissalReason).toBe("scope change");
-  });
-
-  it("history shows resolved questions", async () => {
-    const item = seed(testQueue);
-    testQueue.answer(item.id, "10 minutes");
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "history");
-    });
-    expect(output).toContain("status=answered");
-    expect(output).toContain("10 minutes");
-    expect(output).toContain("Working on the escalation flow");
-    expect(output).toContain("The default affects how long workflow steps block");
-    expect(output).toContain("Answer is recorded only");
-  });
-
-  it("history --status filters", async () => {
-    const a = seed(testQueue);
-    testQueue.answer(a.id, "yes");
-    const b = testQueue.enqueue({
-      context: "Another context for another decision at hand right now.",
-      question: "Some completely different question for the owner?",
-      reason: "Another reason that is distinct from the first for dedup.",
-      source: "session",
-      answerBehavior: "record-only",
-      origin: { kind: "session", sessionId: "session" },
-    });
-    testQueue.dismiss(b.id, "not needed");
-    const output = await captureOutput(async () => {
-      await run(makeProgram(), "owner-question", "history", "--status", "answered");
-    });
+  it("filters history by status and retains resolved context and answer attribution", async () => {
+    const view = cli([
+      { ...question, status: "answered", answer: "10 minutes", resolutionSource: "cli" },
+      { ...question, id: "dismissed", status: "dismissed", dismissalReason: "not needed" },
+    ]);
+    const output = await view.run("history", "--status", "answered");
     expect(output).toContain("status=answered");
     expect(output).not.toContain("status=dismissed");
+    expect(output).toContain("10 minutes");
+    expect(output).toContain(question.context);
   });
 });

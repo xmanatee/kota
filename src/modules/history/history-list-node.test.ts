@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildHistoryListNode } from "./cli-commands.js";
 
@@ -27,25 +27,21 @@ const SAMPLE: ConversationRecord[] = [
 ];
 
 describe("buildHistoryListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders id/updated/msgs/title columns in ${name} theme at wide width`, () => {
+
+    it(`renders id/updated/msgs/title columns in no-color theme at wide width`, () => {
       const out = renderToString(
         buildHistoryListNode(SAMPLE),
-        renderContext({ theme, width: 120 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 120 }),
       );
       expect(out).toContain("conv-001");
       expect(out).toContain("Sketch the Phase 2 surface migration plan");
       expect(out).toContain("Updated");
     });
 
-    it(`compresses cleanly within a narrow width in ${name} theme`, () => {
+    it(`compresses cleanly within a narrow width in no-color theme`, () => {
       const out = renderToString(
         buildHistoryListNode(SAMPLE),
-        renderContext({ theme, width: 60 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 60 }),
       );
       // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping
       const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
@@ -53,11 +49,4 @@ describe("buildHistoryListNode", () => {
         expect(stripAnsi(raw).length).toBeLessThanOrEqual(60);
       }
     });
-  }
-
-  it("declares Title with a maxWidth so long titles do not overflow", () => {
-    const node = buildHistoryListNode(SAMPLE);
-    const titleSpec = node.columns.find((c) => c.header === "Title")!;
-    expect(titleSpec.maxWidth).toBeDefined();
-  });
 });

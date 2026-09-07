@@ -9,22 +9,15 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
 import type { RecallFilter, RecallSource } from "./client.js";
 import { isRecallSource, RECALL_SOURCE_ORDER } from "./recall-types.js";
 import { renderRecallHitsPlain } from "./render.js";
 
-let stderrRenderer: TerminalTransport | null = null;
-function stderrTransport(): TerminalTransport {
-  if (!stderrRenderer) {
-    stderrRenderer = new TerminalTransport({ stream: process.stderr });
-  }
-  return stderrRenderer;
-}
 
 function collectSources(value: string, previous: RecallSource[]): RecallSource[] {
   if (!isRecallSource(value)) {
-    stderrTransport().write(line(span(`Unknown source "${value}". Valid: ${RECALL_SOURCE_ORDER.join(", ")}`, "error")));
+    printToStderr(line(span(`Unknown source "${value}". Valid: ${RECALL_SOURCE_ORDER.join(", ")}`, "error")));
     process.exit(1);
   }
   return [...previous, value];
@@ -60,14 +53,14 @@ export function registerRecallCommand(
       ) => {
         const trimmed = query.trim();
         if (!trimmed) {
-          stderrTransport().write(
+          printToStderr(
             line(span("Usage: kota recall <query>", "warn")),
           );
           process.exit(1);
         }
         const limit = Number.parseInt(opts.limit, 10);
         if (!Number.isFinite(limit) || limit <= 0) {
-          stderrTransport().write(
+          printToStderr(
             line(
               span(
                 `Error: --limit must be a positive integer, got "${opts.limit}"`,
@@ -82,7 +75,7 @@ export function registerRecallCommand(
         if (opts.minScore !== undefined) {
           const minScore = Number.parseFloat(opts.minScore);
           if (!Number.isFinite(minScore) || minScore < 0 || minScore > 1) {
-            stderrTransport().write(
+            printToStderr(
               line(
                 span(
                   `Error: --min-score must be a number in [0, 1], got "${opts.minScore}"`,
@@ -104,7 +97,7 @@ export function registerRecallCommand(
         }
 
         if (!result.ok) {
-          stderrTransport().write(
+          printToStderr(
             line(
               span(
                 "Cross-store recall has no registered contributors.",

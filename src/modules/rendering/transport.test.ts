@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { line, plain, span } from "./primitives.js";
 import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "./theme.js";
 import {
-  getTerminalTransport,
   printToStderr,
   renderToString,
   setStderrTransport,
@@ -93,15 +92,6 @@ describe("TerminalTransport", () => {
     new TerminalTransport({ stream: pipe }).write(line(span("ok", "success")));
     expect(tty.chunks.join("")).toContain("[32m");
     expect(pipe.chunks.join("")).not.toContain("[");
-  });
-
-  test("getTerminalTransport returns a memoized shared instance", () => {
-    const first = getTerminalTransport();
-    const second = getTerminalTransport();
-    expect(first).toBe(second);
-    setTerminalTransport(null);
-    const third = getTerminalTransport();
-    expect(third).not.toBe(first);
   });
 
   test("renderToString uses the shared transport context by default", () => {

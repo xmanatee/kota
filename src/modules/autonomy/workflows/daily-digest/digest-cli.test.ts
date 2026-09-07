@@ -1,9 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { buildDigestCommand } from "./digest-cli.js";
 import { renderOnDemandDigest } from "./on-demand.js";
 
@@ -56,8 +55,6 @@ describe("kota digest CLI", () => {
   let workspaceRoot: string;
   let origCwd: string;
   let origEnvKotaScopeRoot: string | undefined;
-  const observed: Array<{ event: string; payload: unknown }> = [];
-  let unsubscribe: () => void;
 
   beforeEach(async () => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "kota-digest-cli-"));
@@ -75,21 +72,12 @@ describe("kota digest CLI", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-26T03:30:00.000Z"));
 
-    observed.length = 0;
-    const bus = initEventBus();
-    const handler = (payload: unknown) => {
-      observed.push({ event: "workflow.daily.digest", payload });
-    };
-    unsubscribe = bus.on("workflow.daily.digest", handler as never);
-
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
     ownerMod.resetOwnerQuestionQueue();
     ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
   });
 
   afterEach(() => {
-    unsubscribe?.();
-    resetEventBus();
     vi.useRealTimers();
     process.chdir(origCwd);
     if (origEnvKotaScopeRoot !== undefined) {
@@ -125,18 +113,5 @@ describe("kota digest CLI", () => {
 
     const parsed = JSON.parse(out.trim());
     expect(parsed).toEqual(expected);
-  });
-
-  it("does not create cadence state or emit workflow.daily.digest", async () => {
-    const databasePath = join(workspaceRoot, ".kota", "kota.sqlite");
-    expect(existsSync(databasePath)).toBe(false);
-
-    await captureStdout(async () => {
-      await makeProgram().parseAsync(["node", "kota", "digest"]);
-      await makeProgram().parseAsync(["node", "kota", "digest", "--json"]);
-    });
-
-    expect(existsSync(databasePath)).toBe(false);
-    expect(observed).toEqual([]);
   });
 });

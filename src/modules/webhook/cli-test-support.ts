@@ -1,5 +1,4 @@
 import {
-  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -104,10 +103,6 @@ export function readScopeConfig(scopeRoot: string): JsonFixture {
   return JSON.parse(
     readFileSync(join(scopeRoot, ".kota", "config.json"), "utf-8"),
   );
-}
-
-export function scopeConfigExists(scopeRoot: string): boolean {
-  return existsSync(join(scopeRoot, ".kota", "config.json"));
 }
 
 export function makeProgram(ctx: ModuleContext): Command {

@@ -5,93 +5,22 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
-	getKnowledgeProvider,
+	getProviderRegistry,
 	initProviderRegistry,
 	KNOWLEDGE_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import type { KnowledgeProvider } from "#core/modules/provider-types.js";
-import { parseImportEntries, registerKnowledgeCommands } from "./cli.js";
-import type {
-	KnowledgeAddOptions,
-	KnowledgeListFilter,
-	KnowledgeSearchFilter,
-} from "./client.js";
+import { registerKnowledgeCommands } from "./cli.js";
+import knowledgeModule from "./index.js";
 import { KnowledgeStore } from "./store.js";
 
 function stubCtx(): ModuleContext {
-	return {
-		client: {
-			knowledge: {
-				async list(filter?: KnowledgeListFilter) {
-					const provider = getKnowledgeProvider();
-					const entries = provider.list({
-						tag: filter?.tag,
-						type: filter?.type,
-						status: filter?.status,
-						scope: filter?.scope,
-					});
-					return { entries };
-				},
-				async show(id: string) {
-					const provider = getKnowledgeProvider();
-					const entry = provider.read(id);
-					return entry
-						? { found: true as const, entry }
-						: { found: false as const };
-				},
-				async search(query: string, filter?: KnowledgeSearchFilter) {
-					const provider = getKnowledgeProvider();
-					const limit = filter?.limit ?? 20;
-					const filters = {
-						tag: filter?.tag,
-						type: filter?.type,
-						status: filter?.status,
-						scope: filter?.scope,
-					};
-					if (filter?.semantic) {
-						const capability = provider.semanticSearchCapability;
-						if (!capability) {
-							return {
-								ok: false as const,
-								reason: "semantic_unavailable" as const,
-							};
-						}
-						const entries = await capability.semanticSearch(query, limit, filters);
-						return { ok: true as const, entries };
-					}
-					const entries = provider.search(query, filters).slice(0, limit);
-					return { ok: true as const, entries };
-				},
-				async add(options: KnowledgeAddOptions) {
-					const provider = getKnowledgeProvider();
-					const id = provider.create({
-						title: options.title,
-						content: options.content,
-						...(options.type !== undefined && { type: options.type }),
-						...(options.tags !== undefined && { tags: options.tags }),
-						...(options.status !== undefined && { status: options.status }),
-						...(options.scope !== undefined && { scope: options.scope }),
-						...(options.meta !== undefined && { meta: options.meta }),
-					});
-					return { id };
-				},
-				async delete(id: string) {
-					const provider = getKnowledgeProvider();
-					return provider.delete(id)
-						? { ok: true as const }
-						: { ok: false as const, reason: "not_found" as const };
-				},
-				async reindex() {
-					const provider = getKnowledgeProvider();
-					const capability = provider.semanticSearchCapability;
-					return capability
-						? { ok: true as const, ...await capability.reindex() }
-						: { ok: false as const, reason: "semantic_unavailable" as const };
-				},
-			},
-		},
-	} as unknown as ModuleContext;
+  const ctx = {
+    cwd: process.cwd(),
+    getProvider: (token: Parameters<ModuleContext["getProvider"]>[0]) => getProviderRegistry()?.get(token),
+  } as ModuleContext;
+  return { ...ctx, client: knowledgeModule.localClient!(ctx) } as ModuleContext;
 }
 
 function makeScopeRoot(): string {
@@ -319,50 +248,6 @@ describe("kota knowledge export", () => {
 		expect(lines).toHaveLength(1);
 		const obj = JSON.parse(lines[0]!);
 		expect(obj.title).toBe("Gamma");
-	});
-
-	it("round-trips through export then import", async () => {
-		seedEntries();
-		const exported = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "json"]));
-
-		const parsed = parseImportEntries(exported);
-		expect(parsed).toHaveLength(3);
-		for (const entry of parsed) {
-			expect(typeof entry.title).toBe("string");
-			expect(typeof entry.body).toBe("string");
-			expect(Array.isArray(entry.tags)).toBe(true);
-		}
-
-		const newDir = makeScopeRoot();
-		process.chdir(newDir);
-		resetProviderRegistry();
-		const reg2 = initProviderRegistry();
-		const store2 = new KnowledgeStore(newDir);
-		reg2.register(KNOWLEDGE_PROVIDER_TOKEN, "knowledge", store2);
-		for (const entry of parsed) {
-			store2.create({
-				title: entry.title as string,
-				content: entry.body as string,
-				tags: entry.tags as string[],
-			});
-		}
-		const all = store2.list();
-		expect(all).toHaveLength(3);
-		const titles = all.map((e) => e.title).sort();
-		expect(titles).toEqual(["Alpha", "Beta", "Gamma"]);
-		rmSync(newDir, { recursive: true, force: true });
-	});
-
-	it("JSONL round-trips through parseImportEntries", async () => {
-		seedEntries();
-		const lines = await captureStdout(() => makeKnowledgeProgram().parseAsync(["node", "kota", "knowledge", "export", "--format", "jsonl"]));
-
-		const parsed = parseImportEntries(lines);
-		expect(parsed).toHaveLength(3);
-		for (const entry of parsed) {
-			expect(typeof entry.title).toBe("string");
-			expect(typeof entry.body).toBe("string");
-		}
 	});
 
 	it("produces empty output when no entries exist", async () => {

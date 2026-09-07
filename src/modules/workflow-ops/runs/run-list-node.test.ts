@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildHistoryNode, buildRunListNode } from "./run-list.js";
 
@@ -35,15 +35,11 @@ const RUNS = [
 ];
 
 describe("buildRunListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders id/workflow/status/cost columns in ${name} theme at wide width`, () => {
+
+    it(`renders id/workflow/status/cost columns in no-color theme at wide width`, () => {
       const out = renderToString(
         buildRunListNode(RUNS),
-        renderContext({ theme, width: 140 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 140 }),
       );
       expect(out).toContain("builder");
       expect(out).toContain("dispatcher");
@@ -54,10 +50,10 @@ describe("buildRunListNode", () => {
       expect(out).not.toContain("$0.000");
     });
 
-    it(`fits within a narrow terminal width in ${name} theme`, () => {
+    it(`fits within a narrow terminal width in no-color theme`, () => {
       const out = renderToString(
         buildRunListNode(RUNS),
-        renderContext({ theme, width: 60 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 60 }),
       );
       // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping
       const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
@@ -65,7 +61,7 @@ describe("buildRunListNode", () => {
         expect(stripAnsi(raw).length).toBeLessThanOrEqual(60);
       }
     });
-  }
+
 });
 
 const HISTORY_ROWS = [

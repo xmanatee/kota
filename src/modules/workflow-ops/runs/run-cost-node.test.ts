@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentUsage } from "#core/agent-harness/usage.js";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildRunBreakdownNode, buildSummaryTableNode, type WorkflowCostRow } from "./run-cost.js";
 
@@ -58,20 +58,15 @@ const RUN_ENTRIES: Array<{
 ];
 
 describe("buildSummaryTableNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders the per-workflow cost table in ${name} theme`, () => {
+
+    it(`renders the per-workflow cost table in no-color theme`, () => {
       const node = buildSummaryTableNode(ROWS);
       expect(node).not.toBeNull();
-      const out = renderToString(node!, renderContext({ theme, width: 120 }));
+      const out = renderToString(node!, renderContext({ theme: NO_COLOR_THEME, width: 120 }));
       expect(out).toContain("builder");
       expect(out).toContain("explorer");
       expect(out).toContain("$1.2340");
     });
-  }
 
   it("returns null when given an empty rows array", () => {
     expect(buildSummaryTableNode([])).toBeNull();

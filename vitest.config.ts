@@ -6,7 +6,6 @@ const SRC_CORE = fileURLToPath(new URL("./src/core", import.meta.url));
 const SRC_MODULES = fileURLToPath(new URL("./src/modules", import.meta.url));
 const CLI_TEST_FILES = [
   "src/cli.test.ts",
-  "src/module-cli-commands.integration.test.ts",
 ];
 const EVAL_TEST_FILES = "src/modules/eval-harness/**/*.test.ts";
 const INTEGRATION_TEST_FILES = "src/**/*.integration.test.ts";
@@ -37,7 +36,7 @@ const CLI_PROJECT_EXCLUDES = [
   ...TEST_EXCLUDES,
   "src/core/**/*.test.ts",
   "src/modules/**/*.test.ts",
-  "src/!(cli|module-cli-commands.integration).test.ts",
+  "src/!(cli).test.ts",
 ];
 const OWNER_PROJECT_EXCLUDES = [
   ...TEST_EXCLUDES,

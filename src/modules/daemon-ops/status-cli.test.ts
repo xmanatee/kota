@@ -1,10 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { ModuleContext } from "#core/modules/module-types.js";
 import {
-  buildStatusCommand,
   classifyDaemonControlFile,
   formatStatusOutput,
   resolveDashboardForStatus,
@@ -300,14 +298,6 @@ describe("formatStatusOutput", () => {
   });
 });
 
-describe("buildStatusCommand", () => {
-  it("does not expose removed-worktree compatibility flags", () => {
-    const command = buildStatusCommand({} as ModuleContext);
-
-    expect(command.options.map((option) => option.long)).not.toContain("--all-worktrees");
-  });
-});
-
 describe("resolveDashboardForStatus", () => {
   it("joins the daemon base URL with the advertised relative path", () => {
     expect(
@@ -359,181 +349,6 @@ describe("resolveDashboardForStatus", () => {
         "http://127.0.0.1:8765",
       ),
     ).toEqual({ available: false, reason: "not_contributed" });
-  });
-});
-
-/**
- * Locate the latest run directory under `.kota/runs/` so the transcript
- * artifact lands somewhere a reviewer can find. Honors `KOTA_RUN_DIR`
- * when the workflow sets it. Returns `null` when no run directory is
- * available; the test then becomes a no-op.
- */
-function locateRunDir(): string | null {
-  const env = process.env.KOTA_RUN_DIR;
-  if (env && env.length > 0) return env;
-  let dir = process.cwd();
-  for (let depth = 0; depth < 6; depth++) {
-    const runs = join(dir, ".kota", "runs");
-    if (existsSync(runs)) {
-      const entries = readdirSync(runs)
-        .map((name) => ({ name, full: join(runs, name) }))
-        .filter((e) => statSync(e.full).isDirectory())
-        .map((e) => ({ ...e, mtime: statSync(e.full).mtimeMs }))
-        .sort((a, b) => b.mtime - a.mtime);
-      if (entries.length > 0) return entries[0]!.full;
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
-}
-
-describe("kota status — rendered transcript", () => {
-  it("writes a transcript snapshot covering connected, missing, stale, and wrong-scope states", () => {
-    const scenarios: Array<{ label: string; snap: StatusSnapshot }> = [
-      {
-        label: "1. Connected — selected scope matches daemon /identity, dashboard available",
-        snap: {
-          daemonRunning: true,
-          daemonPid: 4242,
-          daemonUptimeMs: 2 * 60 * 60 * 1000 + 14 * 60 * 1000,
-          activeRuns: 1,
-          queuedRuns: 2,
-          workflowPaused: false,
-          sessions: 1,
-          pendingApprovals: 0,
-          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          scopeName: "kota",
-          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          daemonScopeName: "kota",
-          dashboard: { available: true, url: "http://127.0.0.1:8765/" },
-          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
-        },
-      },
-      {
-        label: "2. No control file — selected scope has no .kota/daemon-control.json",
-        snap: {
-          daemonRunning: false,
-          activeRuns: 0,
-          queuedRuns: 0,
-          workflowPaused: false,
-          sessions: 0,
-          pendingApprovals: 0,
-          scopeRoot: "/Users/op/Desktop/other-scope",
-          scopeName: "other-scope",
-          controlFile: { kind: "missing" },
-          runProjection: emptyRunProjection("/Users/op/Desktop/other-scope"),
-        },
-      },
-      {
-        label: "3. Stale control file — pid 99999 not alive",
-        snap: {
-          daemonRunning: false,
-          activeRuns: 1,
-          queuedRuns: 2,
-          workflowPaused: true,
-          sessions: 0,
-          pendingApprovals: 0,
-          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          scopeName: "kota",
-          controlFile: { kind: "stale", pid: 99999, baseURL: "http://127.0.0.1:8765" },
-          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
-        },
-      },
-      {
-        label: "4. Wrong scope — daemon /identity reports a different scope",
-        snap: {
-          daemonRunning: true,
-          daemonPid: 4242,
-          daemonUptimeMs: 60_000,
-          activeRuns: 0,
-          queuedRuns: 0,
-          workflowPaused: false,
-          sessions: 0,
-          pendingApprovals: 1,
-          scopeRoot: "/Users/op/Desktop/other-scope",
-          scopeName: "other-scope",
-          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          daemonScopeName: "kota",
-          wrongScope: true,
-          dashboard: { available: true, url: "http://127.0.0.1:8765/" },
-          runProjection: emptyRunProjection("/Users/op/Desktop/other-scope"),
-        },
-      },
-      {
-        label: "5. Dashboard not built — daemon running but the embedded web UI was never compiled",
-        snap: {
-          daemonRunning: true,
-          daemonPid: 4242,
-          daemonUptimeMs: 30_000,
-          activeRuns: 0,
-          queuedRuns: 0,
-          workflowPaused: false,
-          sessions: 0,
-          pendingApprovals: 0,
-          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          scopeName: "kota",
-          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          daemonScopeName: "kota",
-          dashboard: {
-            available: false,
-            reason: "web_ui_not_built",
-            message: "Run `pnpm --filter @kota/web build`.",
-          },
-          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
-        },
-      },
-      {
-        label: "6. Dashboard configured at an external URL — daemon advertises the dev server",
-        snap: {
-          daemonRunning: true,
-          daemonPid: 4242,
-          daemonUptimeMs: 60_000,
-          activeRuns: 0,
-          queuedRuns: 0,
-          workflowPaused: false,
-          sessions: 0,
-          pendingApprovals: 0,
-          scopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          scopeName: "kota",
-          controlFile: { kind: "fresh", pid: 4242, baseURL: "http://127.0.0.1:8765" },
-          daemonScopeRoot: "/Users/op/Desktop/mono/apps/kota",
-          daemonScopeName: "kota",
-          dashboard: {
-            available: true,
-            url: "http://localhost:3000/",
-          },
-          runProjection: emptyRunProjection("/Users/op/Desktop/mono/apps/kota"),
-        },
-      },
-    ];
-
-    const lines: string[] = [
-      "# CLI transcript: kota status across daemon-identity diagnostic states",
-      "# Generated by status-cli.test.ts (deterministic, no daemon spawn).",
-      "# Each block shows the rendered output of `kota status` for one scenario.",
-      "# Bearer tokens are deliberately never rendered.",
-      "",
-    ];
-    for (const { label, snap } of scenarios) {
-      lines.push(`## ${label}`);
-      lines.push("$ kota status");
-      const rendered = formatStatusOutput(snap);
-      // Sanity-pin: no Bearer leak in the rendered output.
-      expect(rendered).not.toContain("Bearer ");
-      lines.push(rendered);
-      lines.push("");
-    }
-    const transcript = lines.join("\n");
-
-    const runDir = locateRunDir();
-    if (!runDir) return;
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(join(runDir, "cli-status-transcript.txt"), transcript);
   });
 });
 

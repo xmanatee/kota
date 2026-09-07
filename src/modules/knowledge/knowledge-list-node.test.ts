@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildKnowledgeListNode, buildKnowledgeSearchNode } from "./cli.js";
 
@@ -25,21 +25,16 @@ const ROWS = [
 ];
 
 describe("buildKnowledgeListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders id/type/status/updated/title columns in ${name} theme`, () => {
+
+    it(`renders id/type/status/updated/title columns in no-color theme`, () => {
       const out = renderToString(
         buildKnowledgeListNode(ROWS),
-        renderContext({ theme, width: 140 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 140 }),
       );
       expect(out).toContain("k1");
       expect(out).toContain("Phase 2 surface migration plan");
       expect(out).toContain("Status");
     });
-  }
 
   it("fits within a narrow terminal", () => {
     const out = renderToString(

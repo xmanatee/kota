@@ -19,23 +19,16 @@ import { resolveActivePresetFromConfig } from "#core/model/preset.js";
 import type { ConversationRecord } from "#core/modules/provider-types.js";
 import { expandUserPromptReferences } from "#core/prompt-input/index.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport } from "#modules/rendering/transport.js";
+import { getStderrTransport, print } from "#modules/rendering/transport.js";
 import type { ScopedKotaClientPort } from "#root/client/kota-client.generated.js";
 
 export { registerHistoryCommands } from "./cli-commands.js";
-
-let stderrRenderer: TerminalTransport | null = null;
-
-function stderrTransport(): TerminalTransport {
-  if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
-  return stderrRenderer;
-}
 
 /** Parse a CLI numeric option, exiting with a clear message on invalid input. */
 export function parseIntOption(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n <= 0) {
-    stderrTransport().write(
+    getStderrTransport().write(
       line(span(`Error: --${name} must be a positive integer, got "${value}"`, "error")),
     );
     process.exit(1);
@@ -140,7 +133,7 @@ export async function resolveConversationRecord(
 ): Promise<ConversationRecord> {
   const trimmed = idOrPrefix.trim();
   if (!trimmed) {
-    stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
+    getStderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
     process.exit(1);
   }
   const { conversations } = await client.history.list({ limit: 10_000 });
@@ -170,7 +163,7 @@ export async function resolveConversationRecord(
     }
   }
 
-  stderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
+  getStderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
   process.exit(1);
 }
 
@@ -195,7 +188,7 @@ export async function resolveExplicitConversationResume(
   }
   const validation = validateConversationResumeCwd(record);
   if (!validation.ok) {
-    stderrTransport().write(line(span(validation.message, "error")));
+    getStderrTransport().write(line(span(validation.message, "error")));
     process.exit(1);
   }
   return {
@@ -226,7 +219,7 @@ function resolveRecordFromList(
 }
 
 function exitAmbiguousConversationPrefix(trimmed: string, ids: string[]): never {
-  stderrTransport().write(line(span(
+  getStderrTransport().write(line(span(
     `Ambiguous ID prefix "${trimmed}" matches ${ids.length} conversations: ${ids.join(", ")}`,
     "error",
   )));
@@ -270,7 +263,7 @@ export function reportResumeCwdSelection(
   selection: ResumeConversationSelection | undefined,
 ): void {
   if (!selection?.explicit) return;
-  const stderr = stderrTransport();
+  const stderr = getStderrTransport();
   if (selection.cwdOverridden) {
     stderr.write(
       line(
@@ -302,7 +295,7 @@ async function handleReplCommand(
   options: LoopOptions,
   resetSession: () => Promise<void>,
 ): Promise<boolean> {
-  const stderr = stderrTransport();
+  const stderr = getStderrTransport();
   switch (command) {
     case "/help": {
       const items = Object.entries(REPL_COMMANDS).map(([cmd, desc]) =>
@@ -356,7 +349,7 @@ async function handleReplCommand(
  */
 export async function interactiveMode(options: LoopOptions, config?: KotaConfig) {
   let session = new AgentSession(options);
-  const stderr = stderrTransport();
+  const stderr = getStderrTransport();
 
   const resetSession = async () => {
     await session.dispose();
@@ -458,7 +451,7 @@ export async function resolveRunContinue(
       explicit: false,
     };
   }
-  stderrTransport().write(
+  getStderrTransport().write(
     line(span("No previous conversation found for this directory.", "error")),
   );
   process.exit(1);

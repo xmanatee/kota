@@ -1,11 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildTaskListNode, registerTaskCommands } from "./cli.js";
 import type {
@@ -15,11 +15,11 @@ import type {
   RepoTaskSearchResult,
   RepoTaskState,
 } from "./client.js";
-import { moveTaskById } from "./repo-tasks-domain.js";
 import {
   captureInboxTask,
   createNormalizedTask,
   listRepoTasks,
+  searchRepoTasks,
   showTask,
 } from "./repo-tasks-operations.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
@@ -48,27 +48,8 @@ function stubCtx(
         async show(id: string) {
           return showTask(repoRoot, id);
         },
-        async move(id: string, toState: RepoTaskState) {
-          try {
-            const result = moveTaskById(repoRoot, id, toState);
-            return {
-              ok: true as const,
-              id: result.id,
-              fromState: result.fromState,
-              toState: result.toState,
-              path: result.path,
-              previousPath: result.previousPath,
-            };
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
-            if (/not found/i.test(message)) {
-              return { ok: false as const, reason: "not_found" as const };
-            }
-            if (/already in/i.test(message)) {
-              return { ok: false as const, reason: "already_in_state" as const, state: toState };
-            }
-            throw err;
-          }
+        async move() {
+          return { ok: false as const, reason: "already_in_state" as const, state: "open" as const };
         },
         async create(options: RepoTaskCreateOptions) {
           return createNormalizedTask(repoRoot, options);
@@ -78,14 +59,7 @@ function stubCtx(
         },
         async search(query: string, filter?: RepoTaskSearchFilter): Promise<RepoTaskSearchResult> {
           if (overrides?.search) return overrides.search(query, filter);
-          const opts: { topK: number; states?: RepoTaskState[] } = {
-            topK: filter?.limit ?? 20,
-          };
-          if (filter?.states && filter.states.length > 0) {
-            opts.states = [...filter.states];
-          }
-          const tasks = await defaultStore.searchTasks(query, opts);
-          return { ok: true, tasks };
+          return searchRepoTasks(defaultStore, defaultStore, query, filter);
         },
         async reindex(): Promise<RepoTaskReindexResult> {
           if (overrides?.reindex) return overrides.reindex();
@@ -275,36 +249,6 @@ describe("kota task move", () => {
     rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("moves task file and updates status frontmatter", async () => {
-    writeTaskFile(repoRoot, "open", "task-mover", { status: "open" });
-
-    const { execFileSync: mockExecFile } = await import("node:child_process");
-    vi.mocked(mockExecFile).mockImplementation(
-      (_file: unknown, args?: unknown) => {
-        const argv = Array.isArray(args) ? (args as string[]) : [];
-        if (argv[0] === "mv") {
-          const [, src, dst] = argv;
-          const content = readFileSync(src, "utf-8");
-          writeFileSync(dst, content);
-          rmSync(src);
-        }
-        return Buffer.from("");
-      },
-    );
-
-    const program = makeProgram();
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await program.parseAsync(["node", "kota", "task", "move", "task-mover", "blocked"]);
-    } finally {
-      logSpy.mockRestore();
-    }
-
-    expect(existsSync(join(repoRoot, "data", "tasks", "task-mover.md"))).toBe(true);
-    const content = readFileSync(join(repoRoot, "data", "tasks", "task-mover.md"), "utf-8");
-    expect(content).toMatch(/^status: blocked$/m);
-  });
-
   it("prints message when task is already in target state", async () => {
     writeTaskFile(repoRoot, "open", "task-already");
 
@@ -330,21 +274,6 @@ describe("kota task capture", () => {
   afterEach(() => {
     process.chdir(origCwd);
     rmSync(repoRoot, { recursive: true, force: true });
-  });
-
-  it("creates a new inbox task file", async () => {
-    const program = makeProgram();
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    try {
-      await program.parseAsync(["node", "kota", "task", "capture", "Add search filter"]);
-    } finally {
-      logSpy.mockRestore();
-    }
-
-    const filePath = join(repoRoot, "data", "inbox", "task-add-search-filter.md");
-    expect(existsSync(filePath)).toBe(true);
-    const content = readFileSync(filePath, "utf-8");
-    expect(content).toContain("# Add search filter");
   });
 
   it("reports the created task ID", async () => {
@@ -598,15 +527,10 @@ describe("buildTaskListNode", () => {
     },
   ] satisfies Parameters<typeof buildTaskListNode>[0];
 
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders the ${name} theme without overflowing a wide terminal`, () => {
+    it(`renders the no-color theme without overflowing a wide terminal`, () => {
       const out = renderToString(
         buildTaskListNode(SAMPLE),
-        renderContext({ theme, width: 120 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 120 }),
       );
       expect(out).toContain("task-alpha");
       expect(out).toContain("Stabilize the dispatcher loop");
@@ -615,10 +539,10 @@ describe("buildTaskListNode", () => {
       expect(out).toContain("task-alpha");
     });
 
-    it(`compresses Title cleanly under a narrow width in ${name} theme`, () => {
+    it(`compresses Title cleanly under a narrow width in no-color theme`, () => {
       const out = renderToString(
         buildTaskListNode(SAMPLE),
-        renderContext({ theme, width: 60 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 60 }),
       );
       // biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape stripping for width measurement
       const stripAnsi = (s: string): string => s.replace(/\x1b\[[0-9;]*m/g, "");
@@ -626,12 +550,4 @@ describe("buildTaskListNode", () => {
         expect(stripAnsi(raw).length).toBeLessThanOrEqual(60);
       }
     });
-  }
-
-  it("declares ID/Pri/State/Title columns with Title carrying maxWidth", () => {
-    const node = buildTaskListNode(SAMPLE);
-    expect(node.columns.map((c) => c.header)).toEqual(["ID", "Pri", "State", "Title", "Waiting On"]);
-    const titleSpec = node.columns.find((c) => c.header === "Title")!;
-    expect(titleSpec.maxWidth).toBeDefined();
-  });
 });

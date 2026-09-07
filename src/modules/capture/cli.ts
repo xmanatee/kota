@@ -11,22 +11,15 @@ import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
 import { CAPTURE_TARGET_ORDER } from "./capture-types.js";
 import type { CaptureFilter, CaptureTarget } from "./client.js";
 import { renderCaptureResultPlain } from "./render.js";
 
-let stderrRenderer: TerminalTransport | null = null;
-function stderrTransport(): TerminalTransport {
-  if (!stderrRenderer) {
-    stderrRenderer = new TerminalTransport({ stream: process.stderr });
-  }
-  return stderrRenderer;
-}
 
 function parseTarget(value: string): CaptureTarget {
   if (!(CAPTURE_TARGET_ORDER as readonly string[]).includes(value)) {
-    stderrTransport().write(line(span(`Unknown target "${value}". Valid: ${CAPTURE_TARGET_ORDER.join(", ")}`, "error")));
+    printToStderr(line(span(`Unknown target "${value}". Valid: ${CAPTURE_TARGET_ORDER.join(", ")}`, "error")));
     process.exit(1);
   }
   return value as CaptureTarget;
@@ -57,7 +50,7 @@ export function registerCaptureCommand(
       ) => {
         const text = textParts.join(" ").trim();
         if (text === "") {
-          stderrTransport().write(
+          printToStderr(
             line(span("Usage: kota capture <text>", "warn")),
           );
           process.exit(1);
@@ -79,7 +72,7 @@ export function registerCaptureCommand(
         }
 
         if (!result.ok) {
-          stderrTransport().write(
+          printToStderr(
             line(span(renderCaptureResultPlain(result), "error")),
           );
           process.exit(1);

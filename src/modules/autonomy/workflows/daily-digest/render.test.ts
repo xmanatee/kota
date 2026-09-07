@@ -1,23 +1,6 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { DailyDigestData } from "./aggregate.js";
 import { renderDailyDigest } from "./render.js";
-
-const FIXTURES_DIR = join(
-  import.meta.dirname,
-  "__fixtures__",
-);
-
-function loadFixture(name: string): DailyDigestData {
-  return JSON.parse(
-    readFileSync(join(FIXTURES_DIR, `${name}.json`), "utf-8"),
-  );
-}
-
-function loadFixtureRendered(name: string): string {
-  return readFileSync(join(FIXTURES_DIR, `${name}.txt`), "utf-8");
-}
 
 const baseWindow = {
   windowStartedAt: "2026-04-25T08:00:00.000Z",
@@ -128,28 +111,8 @@ describe("renderDailyDigest", () => {
     expect(text).toContain("Queue state");
     expect(text).toContain("open: 8");
     expect(text).toContain("(=)");
+    // Shared notification text must remain safe to display without a terminal.
+    expect(text).not.toContain(String.fromCharCode(27));
   });
 
-  it("is deterministic for the same input", () => {
-    const a = renderDailyDigest(emptyDigest);
-    const b = renderDailyDigest(emptyDigest);
-    expect(a).toBe(b);
-  });
-
-  it("contains no ANSI escape sequences (chat-channel safe)", () => {
-    const text = renderDailyDigest(loadFixture("sample-active"));
-    // ESC sequences would render as garbage on Telegram/Slack/email.
-    const ansiPattern = new RegExp(`${String.fromCharCode(27)}\\[`);
-    expect(text).not.toMatch(ansiPattern);
-  });
-
-  it("matches the committed sample-active fixture", () => {
-    const text = renderDailyDigest(loadFixture("sample-active"));
-    expect(`${text}\n`).toBe(loadFixtureRendered("sample-active"));
-  });
-
-  it("matches the committed sample-quiet fixture", () => {
-    const text = renderDailyDigest(loadFixture("sample-quiet"));
-    expect(`${text}\n`).toBe(loadFixtureRendered("sample-quiet"));
-  });
 });

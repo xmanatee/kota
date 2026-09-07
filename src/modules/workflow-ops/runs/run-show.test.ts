@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { extractRepairSummary } from "#core/workflow/run-store-snapshot.js";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildChainNode, type ChainNode, formatRepairLine, formatWarningsSection } from "./run-show.js";
 
@@ -154,7 +154,7 @@ describe("buildChainNode", () => {
   const renderInTheme = (
     node: ChainNode,
     currentId: string,
-    theme: typeof DEFAULT_THEME,
+    theme: typeof NO_COLOR_THEME,
     width: number,
   ): string => renderToString(buildChainNode(node, currentId), renderContext({ theme, width }));
 
@@ -211,17 +211,12 @@ describe("buildChainNode", () => {
     expect(leadingSpaces(lines[2]!)).toBeGreaterThan(leadingSpaces(lines[1]!));
   });
 
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders chain tree in ${name} theme without overflowing width`, () => {
+    it(`renders chain tree in no-color theme without overflowing width`, () => {
       const child: ChainNode = { id: "child-1", workflow: "notifier", status: "success", children: [] };
       const root: ChainNode = { id: "root-1", workflow: "builder", status: "success", children: [child] };
-      const out = renderInTheme(root, "root-1", theme, 60);
+      const out = renderInTheme(root, "root-1", NO_COLOR_THEME, 60);
       expect(out).toContain("builder/root-1");
       expect(out).toContain("notifier/child-1");
     });
-  }
+
 });

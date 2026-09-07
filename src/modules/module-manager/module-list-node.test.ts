@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import type { ModuleListEntry } from "./client.js";
 import { buildModuleListNode } from "./index.js";
@@ -35,21 +35,16 @@ const MODULES: ModuleListEntry[] = [
 ];
 
 describe("buildModuleListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders the modules table in ${name} theme`, () => {
+
+    it(`renders the modules table in no-color theme`, () => {
       const out = renderToString(
         buildModuleListNode(MODULES),
-        renderContext({ theme, width: 140 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 140 }),
       );
       expect(out).toContain("rendering");
       expect(out).toContain("autonomy");
       expect(out).toContain("Description");
     });
-  }
 
   it("compresses cleanly under a narrow terminal width", () => {
     const out = renderToString(

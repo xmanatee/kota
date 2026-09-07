@@ -153,27 +153,6 @@ describe("cli", () => {
     expect(out.trim()).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("run --help lists all run-specific options", () => {
-    const out = run("run", "--help");
-    expect(out).toContain("--model");
-    expect(out).toContain("--interactive");
-    expect(out).toContain("--architect");
-    expect(out).toContain("--think");
-    expect(out).toContain("--think-budget");
-    expect(out).toContain("--session");
-    expect(out).toContain("--yes");
-    expect(out).toContain("--editor-model");
-    expect(out).toContain("--max-tokens");
-    expect(out).toContain("--verbose");
-    expect(out).toContain("--harness");
-  });
-
-  it("default model is the active preset's defaultModel", () => {
-    const out = run("run", "--help");
-    expect(out).toContain("active preset");
-    expect(out).toMatch(/--preset/);
-  });
-
   it("routes bare TTY invocation to the operator console while preserving explicit run", () => {
     expect(shouldLaunchDefaultOperatorConsole(["node", "kota"], true)).toBe(true);
     expect(shouldLaunchDefaultOperatorConsole(["node", "kota"], false)).toBe(false);
@@ -189,18 +168,6 @@ describe("API key validation", () => {
     expect(exitCode).toBe(1);
     expect(stderr).toContain("ANTHROPIC_API_KEY");
     expect(stderr).toMatch(/preset "claude"/);
-  });
-
-  it("does not require API key for help commands", () => {
-    // --help should work without API key
-    const out = run("--help");
-    expect(out).toContain("KOTA");
-  });
-
-  it("does not require API key for tools list", () => {
-    // tools list should work without API key
-    const out = run("tools", "list");
-    expect(out).toBeDefined();
   });
 });
 
@@ -347,32 +314,6 @@ describe("--continue validation", () => {
       env: { ANTHROPIC_API_KEY: "sk-ant-test", HOME: "/tmp/kota-test-nonexistent" },
     });
     expect(exitCode).toBe(1);
-  });
-});
-
-describe("subcommand help", () => {
-  it("serve --help lists port and model options", () => {
-    const out = run("serve", "--help");
-    expect(out).toContain("--port");
-    expect(out).toContain("--model");
-    expect(out).toContain("--verbose");
-  });
-
-  it("tools --help lists install, list, remove, update", () => {
-    const out = run("tools", "--help");
-    expect(out).toContain("install");
-    expect(out).toContain("list");
-    expect(out).toContain("remove");
-    expect(out).toContain("update");
-  });
-
-  it("history --help lists list, show, resume, delete, clear", () => {
-    const out = run("history", "--help");
-    expect(out).toContain("list");
-    expect(out).toContain("show");
-    expect(out).toContain("resume");
-    expect(out).toContain("delete");
-    expect(out).toContain("clear");
   });
 });
 

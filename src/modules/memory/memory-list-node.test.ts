@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildMemoryListNode } from "./cli.js";
 
@@ -15,21 +15,16 @@ const ROWS = [
 ];
 
 describe("buildMemoryListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders id/date/content columns in ${name} theme`, () => {
+
+    it(`renders id/date/content columns in no-color theme`, () => {
       const out = renderToString(
         buildMemoryListNode(ROWS),
-        renderContext({ theme, width: 120 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 120 }),
       );
       expect(out).toContain("m1");
       expect(out).toContain("First memory entry");
       expect(out).toContain("Content");
     });
-  }
 
   it("compresses content cleanly under a narrow terminal width", () => {
     const out = renderToString(

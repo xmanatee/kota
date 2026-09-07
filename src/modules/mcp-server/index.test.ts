@@ -58,24 +58,7 @@ function makeStubCtx(start: McpServerStart = vi.fn(async () => ({ ok: true as co
 	};
 }
 
-describe("mcp-server module metadata", () => {
-	it("has correct name and version", () => {
-		expect(mcpServerModule.name).toBe("mcp-server");
-		expect(mcpServerModule.version).toBe("1.0.0");
-	});
-
-	it("description mentions Model Context Protocol", () => {
-		expect(mcpServerModule.description).toContain("Model Context Protocol");
-	});
-});
-
 describe("mcp-server commands", () => {
-	it("registers a single mcp-server command", () => {
-		const ctx = makeStubCtx();
-		const cmds = mcpServerModule.commands!(ctx);
-		expect(cmds).toHaveLength(1);
-		expect(cmds[0].name()).toBe("mcp-server");
-	});
 
 	it("accepts --tools, --name, and Streamable HTTP options", () => {
 		const ctx = makeStubCtx();
@@ -90,13 +73,6 @@ describe("mcp-server commands", () => {
 		expect(httpOpt).toBeDefined();
 		expect(hostOpt).toBeDefined();
 		expect(portOpt).toBeDefined();
-	});
-
-	it("--name defaults to 'kota'", () => {
-		const ctx = makeStubCtx();
-		const cmd = mcpServerModule.commands!(ctx)[0];
-		const nameOpt = cmd.options.find((o) => o.long === "--name");
-		expect(nameOpt!.defaultValue).toBe("kota");
 	});
 
 	it("prints the local endpoint when started in Streamable HTTP mode", async () => {

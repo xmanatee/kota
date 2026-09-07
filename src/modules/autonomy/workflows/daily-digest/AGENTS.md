@@ -81,6 +81,5 @@ its body in-band.
   bias in autonomy).
 - Aggregation is pure: it reads only what is already on disk and the
   in-process owner-question queue. There is no parallel run-summary store.
-- Fixtures under `__fixtures__/` document representative active and quiet
-  rendered outputs. Tests assert the renderer matches the committed text
-  so a renderer change either updates the fixtures or fails CI.
+- Renderer checks retain owner-visible activity, queue, and escalation wording.
+  Incidental whitespace does not require a second full-output snapshot.

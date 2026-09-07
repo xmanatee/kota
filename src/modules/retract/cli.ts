@@ -14,21 +14,14 @@ import type { Command } from "commander";
 import { ensureCliProvidersFor } from "#core/modules/cli-providers.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport, writeJson } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeJson } from "#modules/rendering/transport.js";
 import type { RetractRequest, RetractTarget } from "./client.js";
 import { renderRetractResultPlain } from "./render.js";
 import { RETRACT_TARGET_ORDER } from "./retract-types.js";
 
-let stderrRenderer: TerminalTransport | null = null;
-function stderrTransport(): TerminalTransport {
-  if (!stderrRenderer) {
-    stderrRenderer = new TerminalTransport({ stream: process.stderr });
-  }
-  return stderrRenderer;
-}
 
 function failUsage(message: string): never {
-  stderrTransport().write(line(span(message, "warn")));
+  printToStderr(line(span(message, "warn")));
   process.exit(1);
 }
 
@@ -84,7 +77,7 @@ export function registerRetractCommand(
         }
 
         if (!result.ok) {
-          stderrTransport().write(
+          printToStderr(
             line(span(renderRetractResultPlain(result), "error")),
           );
           process.exit(1);

@@ -186,7 +186,7 @@ portfolios have explicit membership and no accidental overlap.
 | resilience | `pnpm test:resilience` | `foreign-module-resilient.test.ts`, `module-error-resilience.integration.test.ts` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
 | component integration | `pnpm test:integration` | `src/**/*.integration.test.ts` (excluding CLI, resilience) | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
 | evaluation | `pnpm test:eval` | `src/modules/eval-harness/**/*.test.ts` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
-| CLI | `pnpm test:cli` | `src/cli.test.ts`, `src/module-cli-commands.integration.test.ts` | Exercise CLI subcommands, argument parsing, and terminal interface commands. |
+| CLI | `pnpm test:cli` | `src/cli.test.ts` | Exercise CLI subcommands, argument parsing, and terminal interface commands. |
 | broad confidence | `pnpm check` | Full build + all non-overlapping test partitions | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
 
 Tests without an explicit cadence stay with their behavior owner. Security and

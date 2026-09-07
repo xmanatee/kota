@@ -1,119 +1,45 @@
-import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-	ARABIC_LETTER_MARK,
-	approvePendingForTest,
-	C1_CSI_GREEN,
-	C1_OSC_TITLE,
-	CSI_RED,
-	CSI_RESET,
-	captureNoColorOutput,
-	captureOutput,
-	captureStderr,
-	LEFT_TO_RIGHT_ISOLATE,
-	LEFT_TO_RIGHT_OVERRIDE,
-	makeProgram,
-	OSC_TITLE,
-	POP_DIRECTIONAL_ISOLATE,
-	RAW_TERMINAL_CONTROL_PATTERN,
-	RIGHT_TO_LEFT_MARK,
-	RIGHT_TO_LEFT_OVERRIDE,
-	run,
-	setupApprovalCliTest,
-	teardownApprovalCliTest,
-	testDir,
-	testQueue,
-	UNICODE_BIDI_CONTROL_PATTERN,
-} from "./cli-test-support.integration.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { approval, cleanup, cli } from "./cli-test-support.integration.js";
+
+afterEach(cleanup);
 
 describe("approval CLI history", () => {
-	beforeEach(setupApprovalCliTest);
-	afterEach(teardownApprovalCliTest);
+  it("prints the empty history message", async () => {
+    expect(await cli().run("history")).toContain("No resolved approvals");
+  });
 
-	it("prints empty history and excludes pending approvals", async () => {
-		expect(await captureOutput(() => run(makeProgram(), "approval", "history")))
-			.toContain("No resolved approvals");
-		testQueue.enqueue("shell", { command: "rm" }, "dangerous", "reason");
-		expect(await captureOutput(() => run(makeProgram(), "approval", "history")))
-			.toContain("No resolved approvals");
-	});
+  it("applies status, duration and limit options to the displayed history", async () => {
+    const view = cli();
+    view.client.list.mockResolvedValue({ approvals: [
+      approval({ tool: "old", status: "approved", resolvedAt: new Date(Date.now() - 7_200_000).toISOString() }),
+      approval({ id: "aaaaaaaa", tool: "pending" }),
+      approval({ id: "bbbbbbbb", tool: "rejected", status: "rejected", resolvedAt: new Date().toISOString() }),
+      approval({ id: "cccccccc", tool: "recent", status: "approved", resolvedAt: new Date().toISOString() }),
+    ] });
+    const output = await view.run("history", "--status", "approved", "--since", "1h", "-n", "1");
+    expect(output).toContain("recent");
+    expect(output).not.toContain("old");
+    expect(output).not.toContain("pending");
+    expect(output).not.toContain("rejected");
+    expect(output).toContain("1 resolved approval(s)");
+  });
 
-	it("lists and filters approved and rejected items", async () => {
-		const approved = testQueue.enqueue("shell", { command: "ls" }, "moderate", "reason");
-		approvePendingForTest(approved.id);
-		const rejected = testQueue.enqueue("git", { command: "push" }, "dangerous", "reason");
-		testQueue.reject(rejected.id, "too risky");
-		const all = await captureOutput(() => run(makeProgram(), "approval", "history"));
-		expect(all).toContain("2 resolved approval(s)");
-		expect(all).toContain("status=approved");
-		expect(all).toContain("status=rejected");
-		expect(all).toContain("too risky");
-		const filtered = await captureOutput(() =>
-			run(makeProgram(), "approval", "history", "--status", "approved"),
-		);
-		expect(filtered).toContain("shell");
-		expect(filtered).not.toContain("git");
-	});
+  it("sanitizes resolved notes and rejection reasons", async () => {
+    const view = cli();
+    view.client.list.mockResolvedValue({ approvals: [
+      approval({ status: "approved", approvalNote: "operator \x1b[31m\u202enote", source: "\x1b]0;title\x07source" }),
+      approval({ id: "aaaaaaaa", status: "rejected", rejectionReason: "reject \x9b32m\u2066reason" }),
+    ] });
+    const output = await view.run("history");
+    expect(output).toContain("operator note");
+    expect(output).toContain("reject reason");
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: terminal injection regression
+    expect(output).not.toMatch(/[\x00-\x09\x0b-\x1f\x7f-\x9f\u202e\u2066]/u);
+  });
 
-	it("strips terminal and bidi controls from resolved queue text", async () => {
-		const approved = testQueue.enqueue(
-			`shell${RIGHT_TO_LEFT_OVERRIDE}`,
-			{ command: "ls" },
-			"moderate",
-			"reason",
-			`${OSC_TITLE}${LEFT_TO_RIGHT_ISOLATE}approved-source${POP_DIRECTIONAL_ISOLATE}`,
-		);
-		approvePendingForTest(approved.id, `operator ${CSI_RED}${RIGHT_TO_LEFT_MARK}note${CSI_RESET}`);
-		const rejected = testQueue.enqueue(
-			`git${LEFT_TO_RIGHT_OVERRIDE}`,
-			{ command: "push" },
-			"dangerous",
-			"reason",
-			`${C1_OSC_TITLE}${ARABIC_LETTER_MARK}rejected-source`,
-		);
-		testQueue.reject(rejected.id, `reject ${C1_CSI_GREEN}${RIGHT_TO_LEFT_OVERRIDE}reason${CSI_RESET}`);
-		const output = await captureNoColorOutput(() => run(makeProgram(), "approval", "history"));
-		expect(output).toContain("operator note");
-		expect(output).toContain("reject reason");
-		expect(output).toContain("approved-source");
-		expect(output).toContain("rejected-source");
-		expect(output).not.toMatch(RAW_TERMINAL_CONTROL_PATTERN);
-		expect(output).not.toMatch(UNICODE_BIDI_CONTROL_PATTERN);
-	});
-
-	it("limits results", async () => {
-		for (let index = 0; index < 5; index += 1) {
-			const item = testQueue.enqueue("shell", { command: `cmd${index}` }, "moderate", "reason");
-			approvePendingForTest(item.id);
-		}
-		expect(await captureOutput(() => run(makeProgram(), "approval", "history", "-n", "2")))
-			.toContain("2 resolved approval(s)");
-	});
-
-	it("rejects an invalid status", async () => {
-		const exitSpy = vi.spyOn(process, "exit").mockImplementation(() => { throw new Error("exit"); });
-		const error = await captureStderr(() =>
-			run(makeProgram(), "approval", "history", "--status", "bogus"),
-		);
-		expect(error).toContain("invalid --status");
-		exitSpy.mockRestore();
-	});
-
-	it("filters by duration", async () => {
-		const old = testQueue.enqueue("git", { command: "push" }, "dangerous", "reason");
-		testQueue.reject(old.id);
-		const oldItem = JSON.parse(
-			readFileSync(join(testDir, `${old.id}.json`), "utf8"),
-		);
-		oldItem.resolvedAt = new Date(Date.now() - 2 * 3_600_000).toISOString();
-		writeFileSync(join(testDir, `${old.id}.json`), JSON.stringify(oldItem, null, 2));
-		const recent = testQueue.enqueue("shell", { command: "ls" }, "moderate", "reason");
-		approvePendingForTest(recent.id);
-		const output = await captureOutput(() =>
-			run(makeProgram(), "approval", "history", "--since", "1h"),
-		);
-		expect(output).toContain("shell");
-		expect(output).not.toContain("git");
-	});
+  it("rejects an invalid status with exit status 1", async () => {
+    const view = cli();
+    await expect(view.run("history", "--status", "bogus")).rejects.toThrow("exit:1");
+    expect(view.stderr.join("")).toContain("invalid --status");
+  });
 });

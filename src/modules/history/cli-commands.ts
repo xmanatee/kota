@@ -25,7 +25,7 @@ import {
   span,
 } from "#modules/rendering/primitives.js";
 import { createRenderingProvider } from "#modules/rendering/rendering-provider.js";
-import { print, TerminalTransport, writeJson } from "#modules/rendering/transport.js";
+import { getStderrTransport, print, writeJson } from "#modules/rendering/transport.js";
 import { runHarnessRepl } from "#modules/repl/index.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
@@ -43,12 +43,6 @@ import type {
 } from "./client.js";
 import { openHarnessResumeConversation } from "./harness-resume.js";
 import { renderHistorySearchPlain } from "./render.js";
-
-let stderrRenderer: TerminalTransport | null = null;
-function stderr(): TerminalTransport {
-  if (!stderrRenderer) stderrRenderer = new TerminalTransport({ stream: process.stderr });
-  return stderrRenderer;
-}
 
 function isModelClientHarness(harnessName: string): boolean {
   return harnessName === "openai-tools" || harnessName === "thin";
@@ -112,7 +106,7 @@ export function registerHistoryCommands(program: Command) {
     }) => {
       const trimmed = query.trim();
       if (!trimmed) {
-        stderr().write(line(span("Usage: kota history search <query>", "warn")));
+        getStderrTransport().write(line(span("Usage: kota history search <query>", "warn")));
         process.exit(1);
       }
 
@@ -132,7 +126,7 @@ export function registerHistoryCommands(program: Command) {
       }
 
       if (!result.ok) {
-        stderr().write(line(span(
+        getStderrTransport().write(line(span(
           "Semantic conversation search requires an embedding-backed history provider.",
           "error",
         )));
@@ -166,7 +160,7 @@ export function registerHistoryCommands(program: Command) {
       const showOptions = buildShowOptions(opts);
       const result = await client.history.show(fullId, showOptions);
       if (!result.found) {
-        stderr().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
+        getStderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
         process.exit(1);
       }
       renderHistoryDetail(result.detail);
@@ -265,7 +259,7 @@ export function registerHistoryCommands(program: Command) {
           span(" deleted.", "success"),
         ));
       } else {
-        stderr().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
+        getStderrTransport().write(line(span(`Conversation "${idOrPrefix}" not found.`, "error")));
         process.exit(1);
       }
     });
@@ -342,7 +336,7 @@ function buildShowOptions(opts: {
   const hasLimit = opts.limit !== undefined;
   const hasContentLimit = opts.contentLimit !== undefined;
   if (view !== "window" && (hasOffset || hasLimit || hasContentLimit)) {
-    stderr().write(line(span(
+    getStderrTransport().write(line(span(
       "--offset, --limit, and --content-limit are only valid with --view window",
       "error",
     )));
@@ -365,7 +359,7 @@ function buildShowOptions(opts: {
 function parseDetailView(value: string | undefined): HistoryDetailView {
   if (value === undefined) return "window";
   if (value === "metadata" || value === "window" || value === "full") return value;
-  stderr().write(line(span(
+  getStderrTransport().write(line(span(
     `Error: --view must be one of metadata, window, full, got "${value}"`,
     "error",
   )));
@@ -375,7 +369,7 @@ function parseDetailView(value: string | undefined): HistoryDetailView {
 function parseWindowOffset(value: string): number {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n < 0 || String(n) !== value) {
-    stderr().write(
+    getStderrTransport().write(
       line(span(`Error: --offset must be a non-negative integer, got "${value}"`, "error")),
     );
     process.exit(1);
@@ -386,7 +380,7 @@ function parseWindowOffset(value: string): number {
 function parseWindowPositiveInteger(value: string, name: string): number {
   const n = Number.parseInt(value, 10);
   if (!Number.isFinite(n) || n <= 0 || String(n) !== value) {
-    stderr().write(
+    getStderrTransport().write(
       line(span(`Error: --${name} must be a positive integer, got "${value}"`, "error")),
     );
     process.exit(1);

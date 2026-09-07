@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildSkillListNode } from "./index.js";
 
@@ -29,15 +29,11 @@ const ROWS = [
 ];
 
 describe("buildSkillListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders the skill table in ${name} theme`, () => {
+
+    it(`renders the skill table in no-color theme`, () => {
       const out = renderToString(
         buildSkillListNode(ROWS),
-        renderContext({ theme, width: 120 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 120 }),
       );
       expect(out).toContain("audit");
       expect(out).toContain("Src");
@@ -45,5 +41,5 @@ describe("buildSkillListNode", () => {
       expect(out).toContain("Resources");
       expect(out).toContain("Description");
     });
-  }
+
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildAgentInspectEntries, buildAgentListNode } from "./index.js";
 
@@ -50,21 +50,16 @@ const ROWS = [
 ];
 
 describe("buildAgentListNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders the agents table in ${name} theme`, () => {
+
+    it(`renders the agents table in no-color theme`, () => {
       const out = renderToString(
         buildAgentListNode(ROWS),
-        renderContext({ theme, width: 140 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 140 }),
       );
       expect(out).toContain("builder");
       expect(out).toContain("critic");
       expect(out).toContain("Model");
     });
-  }
 
   it("compresses cleanly under a narrow terminal width", () => {
     const out = renderToString(

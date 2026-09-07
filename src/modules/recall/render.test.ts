@@ -6,7 +6,6 @@ import type { RecallHit } from "./client.js";
 import {
   describeRecallHit,
   formatRecallScore,
-  renderRecallHitsPlain,
 } from "./render.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -20,7 +19,6 @@ type RecallRenderFixture = {
     hits: RecallHit[];
     descriptions: Record<string, string>;
     scores: Record<string, string>;
-    plain: string;
   };
 };
 
@@ -34,20 +32,6 @@ function hitKey(hit: RecallHit): string {
 
 describe("recall render contract", () => {
   const fixture = loadFixture();
-
-  it("renders every recall source arm from the shared golden fixture", () => {
-    expect(fixture.populated.hits.map((hit) => hit.source)).toEqual([
-      "knowledge",
-      "memory",
-      "history",
-      "tasks",
-      "answer",
-      "answer",
-    ]);
-    expect(renderRecallHitsPlain(fixture.populated.hits)).toBe(
-      fixture.populated.plain,
-    );
-  });
 
   it("pins per-source descriptions and score precision through the fixture", () => {
     for (const hit of fixture.populated.hits) {

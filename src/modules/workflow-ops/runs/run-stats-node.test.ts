@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderContext } from "#modules/rendering/render.js";
-import { ASCII_THEME, DEFAULT_THEME, NO_COLOR_THEME } from "#modules/rendering/theme.js";
+import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildStatsNode } from "./run-stats.js";
 
@@ -24,22 +24,17 @@ const ROWS = [
 ];
 
 describe("buildStatsNode", () => {
-  for (const { name, theme } of [
-    { name: "default", theme: DEFAULT_THEME },
-    { name: "ascii", theme: ASCII_THEME },
-    { name: "no-color", theme: NO_COLOR_THEME },
-  ]) {
-    it(`renders headings + per-workflow rows in ${name} theme at wide width`, () => {
+
+    it(`renders headings + per-workflow rows in no-color theme at wide width`, () => {
       const out = renderToString(
         buildStatsNode(ROWS, 7),
-        renderContext({ theme, width: 120 }),
+        renderContext({ theme: NO_COLOR_THEME, width: 120 }),
       );
       expect(out).toContain("Workflow");
       expect(out).toContain("builder");
       expect(out).toContain("dispatcher");
       expect(out).toContain("(7-day window)");
     });
-  }
 
   it("compresses cleanly in a narrow terminal width", () => {
     const out = renderToString(

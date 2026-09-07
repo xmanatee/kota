@@ -5,93 +5,22 @@ import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import {
-	getMemoryProvider,
+	getProviderRegistry,
 	initProviderRegistry,
 	MEMORY_PROVIDER_TOKEN,
 	resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import type { MemoryProvider } from "#core/modules/provider-types.js";
 import { registerMemoryCommands } from "./cli.js";
+import memoryModule from "./index.js";
 import { MemoryStore } from "./store.js";
 
 function stubCtx(): ModuleContext {
-	return {
-		client: {
-			memory: {
-				async list(filter?: { limit?: number }) {
-					const provider = getMemoryProvider();
-					const all = provider.list();
-					const slice =
-						filter?.limit !== undefined ? all.slice(0, filter.limit) : all;
-					return {
-						entries: slice.map((entry) => ({
-							id: entry.id,
-							created: entry.created,
-							content: entry.content,
-						})),
-					};
-				},
-				async add(content: string, tags?: string[]) {
-					const provider = getMemoryProvider();
-					return { id: provider.save(content, tags ?? []) };
-				},
-				async delete(id: string) {
-					const provider = getMemoryProvider();
-					return provider.delete(id)
-						? { ok: true as const }
-						: { ok: false as const, reason: "not_found" as const };
-				},
-				async search(
-					query: string,
-					filter?: {
-						tag?: string;
-						since?: string;
-						semantic?: boolean;
-						limit?: number;
-					},
-				) {
-					const provider = getMemoryProvider();
-					const limit = filter?.limit ?? 20;
-					if (filter?.semantic) {
-						const capability = provider.semanticSearchCapability;
-						if (!capability) {
-							return { ok: false as const, reason: "semantic_unavailable" as const };
-						}
-						const results = await capability.semanticSearch(query, limit, {
-							tag: filter.tag,
-							since: filter.since,
-						});
-						return {
-							ok: true as const,
-							entries: results.map((m) => ({
-								id: m.id,
-								created: m.created,
-								content: m.content,
-							})),
-						};
-					}
-					const results = provider
-						.search(query, { tag: filter?.tag, since: filter?.since })
-						.slice(0, limit);
-					return {
-						ok: true as const,
-						entries: results.map((m) => ({
-							id: m.id,
-							created: m.created,
-							content: m.content,
-						})),
-					};
-				},
-				async reindex() {
-					const provider = getMemoryProvider();
-					const capability = provider.semanticSearchCapability;
-					return capability
-						? { ok: true as const, ...await capability.reindex() }
-						: { ok: false as const, reason: "semantic_unavailable" as const };
-				},
-			},
-		},
-	} as unknown as ModuleContext;
+  const ctx = {
+    cwd: process.cwd(),
+    getProvider: (token: Parameters<ModuleContext["getProvider"]>[0]) => getProviderRegistry()?.get(token),
+  } as ModuleContext;
+  return { ...ctx, client: memoryModule.localClient!(ctx) } as ModuleContext;
 }
 
 function makeScopeRoot(): string {

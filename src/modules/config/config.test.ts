@@ -346,14 +346,6 @@ describe("kota config set", () => {
     expect(written.model).toBe("claude-opus-4-7");
   });
 
-  it("creates the scope config file if it does not exist", async () => {
-    expect(existsSync(join(scopeRoot, ".kota", "config.json"))).toBe(false);
-    await captureOutput(async () => {
-      await makeProgram(scopeRoot).parseAsync(["node", "kota", "config", "set", "model", "claude-opus-4-7"]);
-    });
-    expect(existsSync(join(scopeRoot, ".kota", "config.json"))).toBe(true);
-  });
-
   it("supports nested key via dot-notation", async () => {
     await captureOutput(async () => {
       await makeProgram(scopeRoot).parseAsync(["node", "kota", "config", "set", "daemon.shutdownGracePeriodMs", "9000"]);

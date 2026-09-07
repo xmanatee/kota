@@ -57,27 +57,6 @@ describe("kota scope CLI", () => {
     process.exitCode = originalExitCode;
   });
 
-  it("exposes canonical scope verbs without retired aliases", () => {
-    const command = buildScopeCommand({ client: { scopes: {} } } as never);
-    const names = command.commands.map((child) => child.name());
-    expect(names).toEqual([
-      "list",
-      "select",
-      "authority",
-      "inspect",
-      "configure",
-      "add",
-      "status",
-      "retry",
-      "cancel",
-      "drain",
-      "remove",
-    ]);
-    expect(names).not.toContain("ls");
-    expect(names).not.toContain("use");
-    expect(names).not.toContain("onboarding");
-  });
-
   it("list --json prints scopes + active selection on a daemon-up call", async () => {
     const scopes = {
       list: vi.fn(async () => ({

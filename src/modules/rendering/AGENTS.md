@@ -93,9 +93,10 @@ When migrating a surface:
    needs. Do not keep both paths — drop the old `buildXLines` /
    `LineNode[]` shape in the same change.
 4. Tests assert via `renderToString` against the typed node, not by
-   capturing stdout or asserting line-array shape. Cover all three
-   themes (`default`, `ascii`, `no-color`) plus a wide and a narrow
-   width when the surface has user-visible width adaptation.
+   capturing stdout or asserting line-array shape. Assert the surface
+   wording and a narrow-width case when its column choices can lose content.
+   Theme and ANSI behavior belongs to the rendering owner tests; do not
+   repeat a theme matrix for every surface.
 5. Columns whose text can run long (`Title`, `summary`, `path`,
    `Description`) declare a `maxWidth` so they truncate cleanly under a
    narrow terminal instead of overflowing. Role-aware coloring stays

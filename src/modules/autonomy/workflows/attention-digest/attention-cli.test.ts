@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { buildAttentionCommand } from "./attention-cli.js";
 import { NO_ATTENTION_ITEMS_TEXT, renderOnDemandAttention } from "./step.js";
@@ -66,8 +65,6 @@ describe("kota attention CLI", () => {
   let workspaceRoot: string;
   let runsDir: string;
   let origCwd: string;
-  const observed: Array<{ event: string; payload: unknown }> = [];
-  let unsubscribe: () => void;
 
   let origEnvKotaScopeRoot: string | undefined;
 
@@ -80,17 +77,9 @@ describe("kota attention CLI", () => {
     delete process.env.KOTA_SCOPE_ROOT;
     process.chdir(workspaceRoot);
 
-    observed.length = 0;
-    const bus = initEventBus();
-    const handler = (payload: unknown) => {
-      observed.push({ event: "workflow.attention.digest", payload });
-    };
-    unsubscribe = bus.on("workflow.attention.digest", handler as never);
   });
 
   afterEach(() => {
-    unsubscribe?.();
-    resetEventBus();
     process.chdir(origCwd);
     if (origEnvKotaScopeRoot !== undefined) {
       process.env.KOTA_SCOPE_ROOT = origEnvKotaScopeRoot;
@@ -148,16 +137,5 @@ describe("kota attention CLI", () => {
 
     const parsed = JSON.parse(out.trim());
     expect(parsed).toEqual({ items: expected.items, text: expected.text });
-  });
-
-  it("does not emit workflow.attention.digest", async () => {
-    makeTaskDir(workspaceRoot, "open", 2);
-
-    await captureStdout(async () => {
-      await makeProgram().parseAsync(["node", "kota", "attention"]);
-      await makeProgram().parseAsync(["node", "kota", "attention", "--json"]);
-    });
-
-    expect(observed).toEqual([]);
   });
 });

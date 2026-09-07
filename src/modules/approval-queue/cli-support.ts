@@ -5,6 +5,7 @@ import {
 	isApprovalId,
 	type PendingApproval,
 } from "#core/daemon/approval-queue.js";
+import { formatAge } from "#modules/rendering/format-age.js";
 import {
 	blank,
 	type LineNode,
@@ -37,16 +38,8 @@ export function parseDuration(value: string): number | null {
 	return amount * 86_400_000;
 }
 
-export function safeApprovalLineText(value: string): string {
-	return safeTerminalLineText(value);
-}
-
 export function printApprovalError(message: string): void {
 	printToStderr(line(span(message, "error")));
-}
-
-export function approvalInputHasRedaction(input: PendingApproval["input"]): boolean {
-	return Object.values(input).some(approvalValueHasRedaction);
 }
 
 export function executionRedactionSuffix(execution: ApprovalExecutionProjection): string {
@@ -90,33 +83,15 @@ export function exitApprovalMutationFailure(
 	process.exit(1);
 }
 
-export function exitRedactedApprovalWithoutExecution(id: string, tool: string): never {
-	printApprovalError(
-		`Error: approved ${safeApprovalLineText(tool)} [${id}], but the returned input was redacted and no daemon execution result was provided.`,
-	);
-	process.exit(1);
-}
-
-export function exitDaemonExecutionFailure(
-	id: string,
-	tool: string,
-	execution: ApprovalExecutionProjection,
-): never {
-	printApprovalError(
-		`Tool execution failed in daemon for [${id}] ${safeApprovalLineText(tool)}${executionRedactionSuffix(execution)}`,
-	);
-	process.exit(1);
-}
-
 export function renderPendingItem(item: ApprovalClientProjection): RenderNode {
 	const reviewInput = item.review.status === "available"
-		? safeApprovalLineText(JSON.stringify(item.review.input) ?? "")
+		? safeTerminalLineText(JSON.stringify(item.review.input) ?? "")
 		: "[input unavailable after daemon restart]";
 	const rows: LineNode[] = [
 		line(
 			span(`  [${item.id}]`, "accent", true),
 			plain(" "),
-			plain(safeApprovalLineText(item.tool)),
+			plain(safeTerminalLineText(item.tool)),
 			plain("  "),
 			span(`(${formatAge(item.createdAt)})`, "muted"),
 		),
@@ -124,16 +99,16 @@ export function renderPendingItem(item: ApprovalClientProjection): RenderNode {
 		...(item.review.status === "available"
 			? [
 					...(item.review.context !== undefined
-						? [line(span("    Context: ", "muted"), plain(safeApprovalLineText(item.review.context)))]
+						? [line(span("    Context: ", "muted"), plain(safeTerminalLineText(item.review.context)))]
 						: []),
 					line(span("    Digest: ", "muted"), plain(item.review.digest)),
 				]
 			: []),
 		line(span("    Risk:   ", "muted"), span(item.risk, riskRole(item.risk))),
-		line(span("    Reason: ", "muted"), plain(safeApprovalLineText(item.reason))),
+		line(span("    Reason: ", "muted"), plain(safeTerminalLineText(item.reason))),
 	];
 	if (item.source) {
-		rows.push(line(span("    Source: ", "muted"), plain(safeApprovalLineText(item.source))));
+		rows.push(line(span("    Source: ", "muted"), plain(safeTerminalLineText(item.source))));
 	}
 	return stack(...rows, blank());
 }
@@ -143,40 +118,22 @@ export function renderResolvedItem(item: PendingApproval): RenderNode {
 	const rows: LineNode[] = [
 		line(
 			span(`  [${item.id}]`, "accent", true),
-			plain(` ${safeApprovalLineText(item.tool)}  status=`),
+			plain(` ${safeTerminalLineText(item.tool)}  status=`),
 			span(item.status, statusRole(item.status)),
 			plain(`  resolved=${resolvedAgo}`),
 		),
 		line(span("    Risk:   ", "muted"), span(item.risk, riskRole(item.risk))),
 	];
 	if (item.rejectionReason && item.rejectionReason !== "expired") {
-		rows.push(line(span("    Reason: ", "muted"), plain(safeApprovalLineText(item.rejectionReason))));
+		rows.push(line(span("    Reason: ", "muted"), plain(safeTerminalLineText(item.rejectionReason))));
 	}
 	if (item.approvalNote) {
-		rows.push(line(span("    Note:   ", "muted"), plain(safeApprovalLineText(item.approvalNote))));
+		rows.push(line(span("    Note:   ", "muted"), plain(safeTerminalLineText(item.approvalNote))));
 	}
 	if (item.source) {
-		rows.push(line(span("    Source: ", "muted"), plain(safeApprovalLineText(item.source))));
+		rows.push(line(span("    Source: ", "muted"), plain(safeTerminalLineText(item.source))));
 	}
 	return stack(...rows, blank());
-}
-
-function approvalValueHasRedaction(value: PendingApproval["input"][string]): boolean {
-	if (value === "[redacted]") return true;
-	if (Array.isArray(value)) return value.some(approvalValueHasRedaction);
-	if (typeof value !== "object" || value === null) return false;
-	const record = value as { [key: string]: PendingApproval["input"][string] };
-	if (record.redacted === true) return true;
-	return Object.values(record).some(approvalValueHasRedaction);
-}
-
-function formatAge(createdAt: string): string {
-	const ageMs = Date.now() - new Date(createdAt).getTime();
-	const minutes = Math.floor(ageMs / 60_000);
-	if (minutes < 60) return `${minutes}m ago`;
-	const hours = Math.floor(ageMs / 3_600_000);
-	if (hours < 24) return `${hours}h ago`;
-	return `${Math.floor(ageMs / 86_400_000)}d ago`;
 }
 
 function riskRole(risk: string): "error" | "warn" | "info" | "muted" | "success" {

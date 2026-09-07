@@ -1,13 +1,14 @@
 import type { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { blank, line, plain, span, stack } from "#modules/rendering/primitives.js";
+import { safeTerminalLineText } from "#modules/rendering/safe-terminal-text.js";
 import { print } from "#modules/rendering/transport.js";
+import { renderApprovalRejection } from "./cli-result.js";
 import {
 	exitApprovalMutationFailure,
 	promptConfirm,
 	renderPendingItem,
 	requireApprovalId,
-	safeApprovalLineText,
 } from "./cli-support.js";
 
 export function registerApprovalRejectCommands(command: Command, ctx: ModuleContext): void {
@@ -19,13 +20,7 @@ export function registerApprovalRejectCommands(command: Command, ctx: ModuleCont
 			requireApprovalId(id);
 			const mutate = await ctx.client.approvals.reject(id, opts.reason);
 			if (!mutate.ok) exitApprovalMutationFailure(id, mutate.reason);
-			const suffix = opts.reason ? ` — ${safeApprovalLineText(opts.reason)}` : "";
-			print(line(
-				span("Rejected: ", "error"),
-				plain(`${safeApprovalLineText(mutate.approval.tool)} `),
-				span(`[${id}]`, "accent"),
-				plain(suffix),
-			));
+      print(renderApprovalRejection(mutate.approval, opts.reason));
 		});
 
 	command
@@ -62,17 +57,11 @@ export function registerApprovalRejectCommands(command: Command, ctx: ModuleCont
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
-						plain(` ${safeApprovalLineText(item.tool)} — no longer pending.`),
+						plain(` ${safeTerminalLineText(item.tool)} — no longer pending.`),
 					));
 					continue;
 				}
-				const reason = opts.reason ? ` — ${safeApprovalLineText(opts.reason)}` : "";
-				print(line(
-					span("  Rejected ", "error"),
-					plain(`${safeApprovalLineText(item.tool)} `),
-					span(`[${item.id}]`, "accent"),
-					plain(reason),
-				));
+        print(renderApprovalRejection(mutate.approval, opts.reason));
 				rejected += 1;
 			}
 			print(stack(

@@ -1,160 +1,80 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildEvalCommand } from "./cli.js";
 import { makeFakeCtx } from "./cli-test-support.js";
+import { mineFixtureCandidates } from "./fixture-candidates.js";
+
+vi.mock("./fixture-candidates.js", () => ({ mineFixtureCandidates: vi.fn() }));
 
 describe("kota eval fixture-candidates CLI", () => {
-  let workspaceRoot: string;
-
-  beforeEach(() => {
-    workspaceRoot = mkdtempSync(join(tmpdir(), "candidate-cli-"));
-  });
-
   afterEach(() => {
-    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
+    vi.resetAllMocks();
   });
 
-  it("writes JSON and readable summary artifacts for a bounded run-id scan", async () => {
-    const runId = "run-cli-candidate";
-    const runDir = join(workspaceRoot, ".kota/runs", runId);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify(
-        {
-          id: runId,
-          workflow: "builder",
-          status: "success",
-          startedAt: "2026-06-01T00:00:00.000Z",
-          steps: [
-            {
-              id: "build",
-              type: "agent",
-              status: "success",
-              output: {
-                content: "$ pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
-              },
-            },
-          ],
+  it("forwards scan options and renders the returned summary and artifact paths", async () => {
+    // Authored boundary response; classification, persistence and task creation
+    // are exercised by the fixture-candidates domain suites.
+    vi.mocked(mineFixtureCandidates).mockReturnValue({
+      report: {
+        version: 1,
+        input: {
+          runsDir: "/scope/runs",
+          runIds: [],
+          workflow: null,
+          limit: 3,
+          since: null,
+          createTask: true,
         },
-        null,
-        2,
-      ),
-    );
-    writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
-      runId,
-      changedPaths: ["src/modules/eval-harness/fixture-candidates.ts"],
-      publishedHead: "abc123",
-      commitSubject: "Candidate",
-      commitMessage: "Candidate",
-      completedAt: "2026-06-01T00:01:00.000Z",
+        totals: { scannedRuns: 9, viable: 4, needsReview: 3, rejected: 2 },
+        dispositionTotals: {
+          proposed: 3,
+          accepted: 1,
+          rejected: 2,
+          duplicate: 0,
+          "needs-owner-evidence": 3,
+        },
+        candidates: [],
+      },
+      jsonPath: "/scope/reports/candidates.json",
+      summaryPath: "/scope/reports/candidates.md",
     });
-    writeFileSync(
-      join(runDir, "verification.json"),
-      JSON.stringify({ ok: true, score: 1 }, null, 2),
-    );
     const writes: string[] = [];
     vi.spyOn(process.stdout, "write").mockImplementation((data) => {
       writes.push(String(data));
       return true;
     });
 
-    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
-    await cmd.parseAsync(
+    await buildEvalCommand(makeFakeCtx("/scope")).parseAsync(
       [
         "fixture-candidates",
-        "--run-id",
-        runId,
-        "--output-dir",
-        ".kota/runs/candidate-output",
-      ],
-      { from: "user" },
-    );
-
-    const reportPath = join(
-      workspaceRoot,
-      ".kota/runs/candidate-output/fixture-candidates.json",
-    );
-    const summaryPath = join(
-      workspaceRoot,
-      ".kota/runs/candidate-output/fixture-candidates.md",
-    );
-    const report = JSON.parse(readFileSync(reportPath, "utf-8")) as {
-      candidates: Array<{ runId: string; status: string; disposition: string }>;
-    };
-    expect(report.candidates[0]).toMatchObject({
-      runId,
-      status: "viable",
-      disposition: "proposed",
-    });
-    expect(readFileSync(summaryPath, "utf-8")).toContain("Viable: 1");
-    expect(writes.join("\n")).toContain("fixture candidates:");
-  });
-
-  it("creates accepted open tasks when requested", async () => {
-    const runId = "run-cli-accepted-candidate";
-    const runDir = join(workspaceRoot, ".kota/runs", runId);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      JSON.stringify(
-        {
-          id: runId,
-          workflow: "builder",
-          status: "success",
-          startedAt: "2026-06-01T00:00:00.000Z",
-          steps: [
-            {
-              id: "build",
-              type: "agent",
-              status: "success",
-              output: {
-                content: "$ pnpm test src/modules/eval-harness/fixture-candidates.test.ts",
-              },
-            },
-          ],
-        },
-        null,
-        2,
-      ),
-    );
-    writeWriterIntegrationFixture(join(workspaceRoot, ".kota/runs"), {
-      runId,
-      changedPaths: ["src/modules/eval-harness/fixture-candidates.ts"],
-    });
-    writeFileSync(
-      join(runDir, "verification.json"),
-      JSON.stringify({ ok: true }, null, 2),
-    );
-
-    const cmd = buildEvalCommand(makeFakeCtx(workspaceRoot));
-    await cmd.parseAsync(
-      [
-        "fixture-candidates",
-        "--run-id",
-        runId,
-        "--output-dir",
-        ".kota/runs/candidate-output",
+        "--run-id", "run-a",
+        "--run-id", "run-b",
+        "--output-dir", "reports",
+        "--runs-dir", "runs",
+        "--workflow", "builder",
+        "--limit", "3",
+        "--since", "2026-06-01T00:00:00.000Z",
         "--create-task",
       ],
       { from: "user" },
     );
 
-    const report = JSON.parse(
-      readFileSync(
-        join(workspaceRoot, ".kota/runs/candidate-output/fixture-candidates.json"),
-        "utf-8",
-      ),
-    ) as {
-      candidates: Array<{ disposition: string; acceptedAction: { path: string } | null }>;
-    };
-    expect(report.candidates[0]?.disposition).toBe("accepted");
-    const acceptedPath = report.candidates[0]?.acceptedAction?.path;
-    expect(acceptedPath).toMatch(/^data\/tasks\/task-eval-candidate-/);
-    expect(readFileSync(join(workspaceRoot, acceptedPath ?? ""), "utf-8")).toContain(runId);
+    expect(mineFixtureCandidates).toHaveBeenCalledWith("/scope", {
+      outputDir: "reports",
+      runIds: ["run-a", "run-b"],
+      runsDir: "runs",
+      workflow: "builder",
+      limit: 3,
+      since: "2026-06-01T00:00:00.000Z",
+      createTask: true,
+    });
+    const output = writes.join("");
+    for (const text of [
+      "fixture candidates:", "9 scanned", "4 viable", "3 needs-review",
+      "2 rejected", "1 accepted", "json: /scope/reports/candidates.json",
+      "summary: /scope/reports/candidates.md",
+    ]) {
+      expect(output).toContain(text);
+    }
   });
 });

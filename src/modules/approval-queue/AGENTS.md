@@ -1,8 +1,9 @@
 # Approval-Queue Module
 
-Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class used by the tool-runner and workflow code.
+Owns the `kota approval` CLI and HTTP surfaces. Core daemon owns the shared
+`ApprovalQueue` lifecycle used by the tool-runner and workflow code.
 
-- Provides `ApprovalQueue` state management, operator CLI subcommands, and
+- Provides operator CLI subcommands and
   HTTP route handlers for approvals on both surfaces: the public
   `/api/approvals*` routes contributed via `KotaModule.routes` and the
   daemon-control `/approvals*` routes contributed via
@@ -45,3 +46,8 @@ Owns the `kota approval` CLI surface and the underlying `ApprovalQueue` class us
 - Every local and route execution registers queue-owned activity before async
   preflight and releases it only after tool execution and resource-lease cleanup,
   so scope drain can block on approved work that is no longer pending.
+
+CLI checks consume authored typed client responses and verify review, argument
+forwarding, terminal safety, wording, and exit status. They do not simulate a
+queue or execute tools. Single and bulk commands share the result renderer;
+queue transitions, execution leases, and receipts stay with their owners.

@@ -1,22 +1,18 @@
 import type { Command } from "commander";
 import {
 	isWorkflowGateApproval,
-	type PendingApproval,
 } from "#core/daemon/approval-queue.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { blank, line, plain, span, stack } from "#modules/rendering/primitives.js";
-import { print } from "#modules/rendering/transport.js";
+import { safeTerminalLineText } from "#modules/rendering/safe-terminal-text.js";
+import { print, printToStderr } from "#modules/rendering/transport.js";
+import { renderApprovalOutcome } from "./cli-result.js";
 import {
-	executionRedactionSuffix,
 	exitApprovalMutationFailure,
-	exitDaemonExecutionFailure,
-	printApprovalError,
 	promptConfirm,
 	renderPendingItem,
 	requireApprovalId,
-	safeApprovalLineText,
 } from "./cli-support.js";
-import type { ApprovalResolutionProjection } from "./client.js";
 
 export function registerApprovalApproveCommands(command: Command, ctx: ModuleContext): void {
 	command
@@ -46,28 +42,12 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 			}
 			const mutate = await ctx.client.approvals.approve(id, selected.review.digest, opts.note);
 			if (!mutate.ok) exitApprovalMutationFailure(id, mutate.reason);
-			const item = mutate.approval;
-			if (mutate.resolution.kind === "workflow_gate_approved") {
-				const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
-				print(line(
-					span("Approved workflow gate ", "success"),
-					plain(`${safeApprovalLineText(item.tool)} `),
-					span(`[${id}]`, "accent"),
-					plain(note),
-				));
-				return;
-			}
-			const execution = mutate.resolution.execution;
-			if (execution.status === "failed") {
-				exitDaemonExecutionFailure(id, item.tool, execution);
-			}
-			const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
-			print(line(
-				span("Approved and executed ", "success"),
-				plain(`${safeApprovalLineText(item.tool)} `),
-				span(`[${id}]`, "accent"),
-				plain(`${note}${executionRedactionSuffix(execution)}`),
-			));
+      const outcome = renderApprovalOutcome(mutate.approval, mutate.resolution);
+      if (outcome.failed) {
+        printToStderr(outcome.node);
+        process.exit(1);
+      }
+      print(outcome.node);
 		});
 
 	command
@@ -104,7 +84,7 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
-						plain(` ${safeApprovalLineText(item.tool)} — input unavailable.`),
+						plain(` ${safeTerminalLineText(item.tool)} — input unavailable.`),
 					));
 					continue;
 				}
@@ -113,13 +93,18 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 					print(line(
 						span("  Skipped ", "muted"),
 						span(`[${item.id}]`, "accent"),
-						plain(` ${safeApprovalLineText(item.tool)} — no longer pending.`),
+						plain(` ${safeTerminalLineText(item.tool)} — no longer pending.`),
 					));
 					continue;
 				}
-				const outcome = executeApprovedItem(mutate.approval, mutate.resolution);
-				if (outcome) succeeded += 1;
-				else failed += 1;
+				const outcome = renderApprovalOutcome(mutate.approval, mutate.resolution);
+        if (outcome.failed) {
+          printToStderr(outcome.node);
+          failed += 1;
+        } else {
+          print(outcome.node);
+          succeeded += 1;
+        }
 			}
 			print(stack(
 				blank(),
@@ -133,34 +118,4 @@ export function registerApprovalApproveCommands(command: Command, ctx: ModuleCon
 			));
 			if (failed > 0) process.exit(1);
 		});
-}
-
-function executeApprovedItem(
-	item: PendingApproval,
-	resolution: ApprovalResolutionProjection,
-): boolean {
-	const note = item.approvalNote ? ` — note: ${safeApprovalLineText(item.approvalNote)}` : "";
-	if (resolution.kind === "workflow_gate_approved") {
-		print(line(
-			span("  Approved workflow gate ", "success"),
-			plain(`${safeApprovalLineText(item.tool)} `),
-			span(`[${item.id}]`, "accent"),
-			plain(note),
-		));
-		return true;
-	}
-	const execution = resolution.execution;
-	if (execution.status === "failed") {
-		printApprovalError(
-			`  Failed [${item.id}] ${safeApprovalLineText(item.tool)}${executionRedactionSuffix(execution)}`,
-		);
-		return false;
-	}
-	print(line(
-		span("  Approved and executed ", "success"),
-		plain(`${safeApprovalLineText(item.tool)} `),
-		span(`[${item.id}]`, "accent"),
-		plain(`${note}${executionRedactionSuffix(execution)}`),
-	));
-	return true;
 }

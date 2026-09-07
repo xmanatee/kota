@@ -14,7 +14,7 @@ import type { ModuleContext } from "#core/modules/module-types.js";
 import type { RecallHit, RecallSource } from "#modules/recall/client.js";
 import { isRecallSource, RECALL_SOURCE_ORDER } from "#modules/recall/recall-types.js";
 import { blank, line, plain, span } from "#modules/rendering/primitives.js";
-import { print, TerminalTransport, writeStdoutLine } from "#modules/rendering/transport.js";
+import { print, printToStderr, writeStdoutLine } from "#modules/rendering/transport.js";
 import type {
   AnswerCitation,
   AnswerFilter,
@@ -26,17 +26,10 @@ import {
   renderAnswerHistoryEntriesPlain,
 } from "./render.js";
 
-let stderrRenderer: TerminalTransport | null = null;
-function stderrTransport(): TerminalTransport {
-  if (!stderrRenderer) {
-    stderrRenderer = new TerminalTransport({ stream: process.stderr });
-  }
-  return stderrRenderer;
-}
 
 function collectSources(value: string, previous: RecallSource[]): RecallSource[] {
   if (!isRecallSource(value)) {
-    stderrTransport().write(line(span(`Unknown source "${value}". Valid: ${RECALL_SOURCE_ORDER.join(", ")}`, "error")));
+    printToStderr(line(span(`Unknown source "${value}". Valid: ${RECALL_SOURCE_ORDER.join(", ")}`, "error")));
     process.exit(1);
   }
   return [...previous, value];
@@ -71,7 +64,7 @@ export function registerAnswerCommand(
       async (opts: { limit: string; before?: string; json?: boolean }) => {
         const limit = Number.parseInt(opts.limit, 10);
         if (!Number.isFinite(limit) || limit <= 0) {
-          stderrTransport().write(
+          printToStderr(
             line(
               span(
                 `Error: --limit must be a positive integer, got "${opts.limit}"`,
@@ -89,7 +82,7 @@ export function registerAnswerCommand(
           return;
         }
         if (result.entries.length === 0) {
-          stderrTransport().write(
+          printToStderr(
             line(span("No persisted answer records yet.", "muted")),
           );
           return;
@@ -110,7 +103,7 @@ export function registerAnswerCommand(
         return;
       }
       if (!result.ok) {
-        stderrTransport().write(
+        printToStderr(
           line(span(`No answer record found for id "${id}".`, "error")),
         );
         process.exit(1);
@@ -144,14 +137,14 @@ export function registerAnswerCommand(
       ) => {
         const trimmed = query.trim();
         if (!trimmed) {
-          stderrTransport().write(
+          printToStderr(
             line(span("Usage: kota answer <query>", "warn")),
           );
           process.exit(1);
         }
         const limit = Number.parseInt(opts.limit, 10);
         if (!Number.isFinite(limit) || limit <= 0) {
-          stderrTransport().write(
+          printToStderr(
             line(
               span(
                 `Error: --limit must be a positive integer, got "${opts.limit}"`,
@@ -166,7 +159,7 @@ export function registerAnswerCommand(
         if (opts.minScore !== undefined) {
           const minScore = Number.parseFloat(opts.minScore);
           if (!Number.isFinite(minScore) || minScore < 0 || minScore > 1) {
-            stderrTransport().write(
+            printToStderr(
               line(
                 span(
                   `Error: --min-score must be a number in [0, 1], got "${opts.minScore}"`,
@@ -188,7 +181,7 @@ export function registerAnswerCommand(
         }
 
         if (!result.ok) {
-          stderrTransport().write(
+          printToStderr(
             line(span(renderAnswerFailurePlain(result.reason), "error")),
           );
           process.exit(1);
@@ -229,7 +222,7 @@ function renderRecord(record: AnswerHistoryRecord): void {
       record.result.hits,
     );
   } else {
-    stderrTransport().write(
+    printToStderr(
       line(span(renderAnswerFailurePlain(record.result.reason), "error")),
     );
   }
