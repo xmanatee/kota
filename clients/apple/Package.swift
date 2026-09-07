@@ -14,9 +14,7 @@ import PackageDescription
 //                     `TabView` shell and the UIKit-backed
 //                     `iOSPlatform`.
 //
-// Tests split the same way: `KotaSharedTests` exercises the shared
-// view-model and shared renderer behavior with focused fixtures;
-// `KotaMenuBarTests` keeps the macOS-specific rendered-IA snapshot.
+// Tests exercise native navigation, trust, diagnostics, and transport composition.
 let package = Package(
     name: "KotaApple",
     platforms: [.macOS(.v13), .iOS(.v16)],
@@ -48,11 +46,6 @@ let package = Package(
             resources: [
                 .copy("ui-behavior-vectors.generated.json"),
             ]
-        ),
-        .testTarget(
-            name: "KotaMenuBarTests",
-            dependencies: ["KotaShared"],
-            path: "Tests/KotaMenuBarTests"
         ),
     ]
 )

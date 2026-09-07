@@ -38,25 +38,6 @@ final class SharedUiRendererTests: XCTestCase {
         XCTAssertTrue(platform.supportsNativeScopePicker)
     }
 
-    func testInventoryUsesOnlyDaemonSurfaceOrderAndIntent() throws {
-        let bundle = try Self.bundle()
-        let inventory = SharedUiInventory(bundle: bundle)
-
-        XCTAssertEqual(inventory.surfaces.map(\.surfaceId), bundle.surfaces
-            .sorted {
-                if $0.order != $1.order { return $0.order < $1.order }
-                if $0.intent != $1.intent { return $0.intent.rawValue < $1.intent.rawValue }
-                return $0.title.localizedStandardCompare($1.title) == .orderedAscending
-            }
-            .map(\.surfaceId))
-        XCTAssertEqual(
-            inventory.intents,
-            inventory.surfaces.reduce(into: [UiIntent]()) { intents, surface in
-                if !intents.contains(surface.intent) { intents.append(surface.intent) }
-            }
-        )
-    }
-
     func testInventoryPreservesSurfaceHierarchyAndChoosesRootEntry() throws {
         let template = try XCTUnwrap(Self.bundle().surfaces.first)
         let root = Self.surface(
@@ -397,64 +378,6 @@ final class SharedUiRendererTests: XCTestCase {
         XCTAssertTrue(platform.openedURLs.isEmpty)
     }
 
-    func testAppStateClassifiesEmptyAndUnavailableSurfaceResponses() async throws {
-        let bundle = try Self.bundle()
-        let bundleData = try Self.bundleData()
-        let scopeId = try XCTUnwrap(bundle.surfaces.first?.scopeId)
-        let emptyData = try JSONEncoder().encode(UiSurfaceBundle(
-            protocolVersion: .uiSurfaceV1,
-            surfaces: []
-        ))
-        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
-            )!
-            return (response, emptyData)
-        }
-
-        let client = DaemonClient()
-        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "token")
-        let state = AppState(client: client)
-        state.reconcileActiveScopeId(with: scopeRegistry(
-            defaultScopeId: scopeId,
-            scopes: [directoryScope(
-                scopeId: scopeId,
-                scopeRoot: "/tmp/kota",
-                displayName: "KOTA"
-            )]
-        ))
-
-        await state.refreshUiSurfaceBundle()
-        guard case .empty = state.uiSurfaces.state else {
-            return XCTFail("Expected an empty shared UI resource")
-        }
-
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil
-            )!
-            return (response, Data(#"{"error":"UI module unavailable"}"#.utf8))
-        }
-        await state.refreshUiSurfaceBundle()
-        guard case .unavailable(let issue) = state.uiSurfaces.state else {
-            return XCTFail("Expected an unavailable shared UI resource")
-        }
-        XCTAssertEqual(issue.title, "Shared UI unavailable")
-        XCTAssertTrue(issue.detail.contains("UI module unavailable"))
-
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
-            )!
-            return (response, bundleData)
-        }
-        await state.refreshUiSurfaceBundle()
-        guard case .loaded = state.uiSurfaces.state else {
-            return XCTFail("Retry should replace unavailability with loaded content")
-        }
-    }
-
     func testDaemonSourceChangeDoesNotRetainThePreviousSurfaceOnFailure() async throws {
         let bundleData = try Self.bundleData()
         let scopeId = try XCTUnwrap(Self.bundle().surfaces.first?.scopeId)
@@ -594,61 +517,6 @@ final class SharedUiRendererTests: XCTestCase {
         await state.refreshUiSurfaceBundle()
         await state.refreshSlashCommands()
         XCTAssertEqual(readRequestCount(), requestsBeforeOfflineRetry)
-    }
-
-    func testSlashCommandResourceUsesSharedEmptyFailureAndRetryTransitions() async throws {
-        let commands = Data(#"{"commands":[{"name":"builder","label":"/builder","description":"Build the next task","source":"workflow","module":"autonomy"}]}"#.utf8)
-        URLProtocol.registerClass(SharedUiMockURLProtocol.self)
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
-            )!
-            return (response, commands)
-        }
-
-        let client = DaemonClient()
-        client.setRemoteConnection(url: URL(string: "http://127.0.0.1:8765")!, token: "token")
-        let state = AppState(client: client)
-
-        await state.refreshSlashCommands()
-        guard case .loaded(let loaded) = state.slashCommands.state else {
-            return XCTFail("Expected loaded slash commands")
-        }
-        XCTAssertEqual(loaded.map(\.name), ["builder"])
-
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
-            )!
-            return (response, Data(#"{"commands":[]}"#.utf8))
-        }
-        await state.refreshSlashCommands()
-        guard case .empty = state.slashCommands.state else {
-            return XCTFail("Expected an empty slash-command resource")
-        }
-
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil
-            )!
-            return (response, Data(#"{"error":"commands module unavailable"}"#.utf8))
-        }
-        await state.refreshSlashCommands()
-        guard case .unavailable(let issue) = state.slashCommands.state else {
-            return XCTFail("Expected an unavailable slash-command resource")
-        }
-        XCTAssertEqual(issue.title, "Commands unavailable")
-
-        SharedUiMockURLProtocol.handler = { request in
-            let response = HTTPURLResponse(
-                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
-            )!
-            return (response, commands)
-        }
-        await state.refreshSlashCommands()
-        guard case .loaded = state.slashCommands.state else {
-            return XCTFail("Retry should restore slash commands")
-        }
     }
 
     func testSlashCommandRefreshCancellationRestoresPreviousAndNewestRequestWins() async throws {

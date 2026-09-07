@@ -238,6 +238,9 @@ describe("VoiceControls", () => {
 
     await waitFor(() => expect(playSpy).toHaveBeenCalled());
     expect(window.Audio).toHaveBeenCalledWith("blob:test");
+    expect(URL.createObjectURL).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "audio/mpeg", size: 4 }),
+    );
     expect(onError).not.toHaveBeenCalled();
 
     // simulate playback finishing

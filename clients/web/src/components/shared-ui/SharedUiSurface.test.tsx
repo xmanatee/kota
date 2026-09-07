@@ -4,7 +4,7 @@ import type { UiSurface } from "../../../../conformance/ui-surface.generated";
 import { operatorSurface } from "./SharedUiSurface.test-utils";
 import { renderSurface } from "./SharedUiSurface.test-utils";
 
-describe("SharedUiSurface protocol coverage", () => {
+describe("SharedUiSurface browser rendering", () => {
   it("renders the operator surface's status, live source, and navigation", () => {
     renderSurface();
     expect(screen.getByText("workflow.trigger")).toBeInTheDocument();

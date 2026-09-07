@@ -71,8 +71,17 @@ for them.
 - iOS Simulator app: `./build-ios.sh` — wraps `xcodebuild` against
   the iPhone 17 Pro simulator destination.
 - Cross-platform tests: `swift test` (macOS host) runs the full
-  `KotaSharedTests` + `KotaMenuBarTests` suites. To run the same
+  `KotaSharedTests` suite; compiling the executables verifies shell construction. To run the same
   shared suite on iOS, use
   `xcodebuild test -scheme KotaApple-Package -destination 'platform=iOS Simulator,name=iPhone 17 Pro'`
   — this exercises the same view-model and decoder code on the iOS
   runtime.
+
+## Verification ownership
+
+Retain platform navigation, accessibility, interaction, trust, confirmation,
+rendering, and transport boundaries. Shared resource transitions and generated
+wire shapes are proved at their owner; do not repeat their matrices per screen
+or enumerate fixture catalogs. Client composition journeys keep production
+providers, navigation, and transport, with doubles only at network and device
+ports. Pure view construction is compiler proof, not rendered evidence.

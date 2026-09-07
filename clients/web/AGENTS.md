@@ -41,3 +41,12 @@ every scoped daemon request.
 - Tests render directory-scoped components inside `<TestScopeProvider>`
   (in `src/lib/scope-context.test-utils.tsx`) instead of stubbing a fake
   identity payload through `fetch`.
+
+## Verification ownership
+
+Retain platform navigation, accessibility, interaction, trust, confirmation,
+rendering, and transport boundaries. Shared resource transitions and generated
+wire shapes are proved at their owner; do not repeat their matrices per screen
+or enumerate fixture catalogs. Client composition journeys keep production
+providers, navigation, and transport, with doubles only at network and device
+ports. Pure view construction is compiler proof, not rendered evidence.

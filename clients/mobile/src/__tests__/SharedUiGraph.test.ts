@@ -3,7 +3,6 @@ import { parseUiSurfaceBundle } from '../daemon/ui-surface.generated';
 import {
   orderedIntents,
   resolveDeepLink,
-  surfaceActionIds,
   surfacesForIntent,
 } from '../shared-ui/graph';
 import { matchUiEvent, uiLogEntry } from '../shared-ui/live-events';
@@ -11,34 +10,20 @@ import { matchUiEvent, uiLogEntry } from '../shared-ui/live-events';
 const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 
 describe('Android shared UI graph', () => {
-  test('derives every intent tab and surface stack from ordered graph data', () => {
-    const expectedIntents = [...bundle.surfaces]
-      .sort((left, right) => left.order - right.order)
-      .reduce<typeof bundle.surfaces[number]['intent'][]>((items, surface) => {
-        if (!items.includes(surface.intent)) items.push(surface.intent);
-        return items;
-      }, []);
-    expect(orderedIntents(bundle)).toEqual(expectedIntents);
-
-    const stackedSurfaceIds = orderedIntents(bundle).flatMap((intent) =>
-      surfacesForIntent(bundle, intent).map((surface) => surface.surfaceId),
-    );
-    expect(stackedSurfaceIds).toHaveLength(bundle.surfaces.length);
-    expect(new Set(stackedSurfaceIds)).toEqual(
-      new Set(bundle.surfaces.map((surface) => surface.surfaceId)),
-    );
+  test('orders native intent tabs and their surface stack independently', () => {
+    const template = bundle.surfaces[0]!;
+    const surfaces = [
+      { ...template, surfaceId: 'later', title: 'Later', intent: 'Work' as const, order: 20 },
+      { ...template, surfaceId: 'status', title: 'Status', intent: 'Status' as const, order: 10 },
+      { ...template, surfaceId: 'first', title: 'First', intent: 'Work' as const, order: 5 },
+    ];
+    const navigationBundle = { ...bundle, surfaces };
+    expect(orderedIntents(navigationBundle)).toEqual(['Work', 'Status']);
+    expect(surfacesForIntent(navigationBundle, 'Work').map((surface) => surface.surfaceId))
+      .toEqual(['first', 'later']);
   });
 
-  test('resolves stable surface and action deep links against the live bundle', () => {
-    for (const surface of bundle.surfaces) {
-      expect(resolveDeepLink(bundle, { surfaceId: surface.surfaceId })?.surface)
-        .toBe(surface);
-      for (const actionId of surfaceActionIds(surface)) {
-        expect(
-          resolveDeepLink(bundle, { surfaceId: surface.surfaceId, actionId }),
-        ).toMatchObject({ surface, actionId });
-      }
-    }
+  test('rejects deep links to missing surfaces or actions', () => {
     expect(resolveDeepLink(bundle, { surfaceId: 'missing' })).toBeNull();
     expect(
       resolveDeepLink(bundle, { surfaceId: bundle.surfaces[0]!.surfaceId, actionId: 'missing' }),

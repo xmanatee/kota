@@ -139,7 +139,6 @@ describe('Android shared UI production journey', () => {
       () => expect(uiSurfaceFetches().length).toBeGreaterThan(uiFetchesBeforeEvent),
       { timeout: 2_000 },
     );
-    const uiFetchesAfterEvent = uiSurfaceFetches().length;
 
     fireEvent.press(view.getByLabelText(action.label));
     const confirmation = action.confirmation;
@@ -147,6 +146,7 @@ describe('Android shared UI production journey', () => {
       throw new Error(`${action.actionId} lost its required confirmation.`);
     }
     expect(view.getByText(confirmation.detail)).toBeTruthy();
+    expect(actionRequests()).toHaveLength(0);
     await act(async () => {
       fireEvent.press(
         view.getByLabelText(confirmation.confirmLabel),
@@ -160,6 +160,7 @@ describe('Android shared UI production journey', () => {
       scopeId: action.scopeId,
       surfaceId: action.surfaceId,
       actionId: action.actionId,
+      confirmed: true,
     });
   });
 

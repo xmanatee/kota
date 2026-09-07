@@ -26,3 +26,12 @@ explicitly changed.
 When a feature exposes a missing API capability, change the owning daemon
 contract and the client together. Keep the screen thin and verify the operator
 journey plus any distinct domain decision.
+
+## Verification ownership
+
+Retain platform navigation, accessibility, interaction, trust, confirmation,
+rendering, and transport boundaries. Shared resource transitions and generated
+wire shapes are proved at their owner; do not repeat their matrices per screen
+or enumerate fixture catalogs. Client composition journeys keep production
+providers, navigation, and transport, with doubles only at network and device
+ports. Pure view construction is compiler proof, not rendered evidence.

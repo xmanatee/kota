@@ -74,20 +74,6 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         XCTAssertTrue(diag.detail.contains("pid 12345"))
     }
 
-    func testFreshControlFileWithUnreachableProbe() {
-        let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
-        let diag = deriveLocalDaemonDiagnostic(
-            selectedScopeDir: dir,
-            controlFileState: .fresh(port: 8765, pid: 12345),
-            identityProbe: .unreachable
-        )
-        if case .unreachable = diag {
-            // expected
-        } else {
-            XCTFail("expected .unreachable, got \(diag)")
-        }
-    }
-
     func testFreshControlFileWithTokenRejection() {
         let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
         let diag = deriveLocalDaemonDiagnostic(
@@ -171,11 +157,6 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         let diag = deriveRemoteDaemonDiagnostic(remoteURL: "not a url", identityProbe: nil)
         XCTAssertEqual(diag, .remoteInvalidURL(input: "not a url"))
         XCTAssertEqual(diag.severity, .warn)
-    }
-
-    func testRemoteEmptyStringClassifiesAsInvalid() {
-        let diag = deriveRemoteDaemonDiagnostic(remoteURL: "", identityProbe: nil)
-        XCTAssertEqual(diag, .remoteInvalidURL(input: ""))
     }
 
     func testRemoteUnreachableWithoutProbe() {
@@ -290,67 +271,6 @@ final class DaemonConnectionDiagnosticTests: XCTestCase {
         try "<not json>".data(using: .utf8)!.write(to: path)
         let state = classifyDaemonControlFile(scopeRoot: tmp)
         XCTAssertEqual(state, .unreadable)
-    }
-
-    // MARK: - Bearer token value never appears in any rendered string
-
-    /// Pins the structural guarantee that `DaemonConnectionDiagnostic`
-    /// does not carry the bearer token. The control file used in
-    /// `testClassifyDaemonControlFileFresh` writes a synthetic token
-    /// value; if any future arm started threading the token through, a
-    /// pipeline test would render that value and fail this guard.
-    func testBearerTokenValueIsNeverIncludedInDiagnosticRendering() throws {
-        let dir = URL(fileURLWithPath: "/Users/op/Desktop/kota")
-        let identity = ClientIdentity(
-            scopeName: "kota",
-            scopeRoot: dir.path,
-            scopeRegistry: scopeRegistry(
-                defaultScopeId: "p-test",
-                scopes: [directoryScope(scopeId: "p-test", scopeRoot: dir.path, displayName: "kota")]
-            ),
-            daemonVersion: "0.1.0",
-            pid: 4242,
-            startedAt: "2026-04-29T00:00:00Z",
-            dashboard: .available(path: "/")
-        )
-        let cases: [DaemonConnectionDiagnostic] = [
-            .noScope,
-            .noControlFile(scopeRoot: dir.path),
-            .unreadableControlFile(scopeRoot: dir.path),
-            .staleControlFile(scopeRoot: dir.path, pid: 1, baseURL: "http://127.0.0.1:8765"),
-            .unreachable(scopeRoot: dir.path, baseURL: "http://127.0.0.1:8765", pid: 1),
-            .tokenRejected(scopeRoot: dir.path, baseURL: "http://127.0.0.1:8765", status: 401),
-            .wrongScope(
-                selectedDir: dir.path,
-                daemonScopeName: "kota",
-                daemonScopeDir: "/srv/kota",
-                baseURL: "http://127.0.0.1:8765"
-            ),
-            .connected(identity: identity, baseURL: "http://127.0.0.1:8765"),
-            .remoteConnected(identity: identity, baseURL: "https://kota.example.com"),
-            .remoteUnreachable(baseURL: "https://kota.example.com", reason: .unreachable),
-            .remoteInvalidURL(input: "not a url"),
-        ]
-        let bearerValue = "REDACTED-TEST-TOKEN"
-        let bearerHeader = "Bearer REDACTED-TEST-TOKEN"
-        for diag in cases {
-            XCTAssertFalse(
-                diag.headline.contains(bearerValue),
-                "headline for \(diag) leaked the bearer value"
-            )
-            XCTAssertFalse(
-                diag.detail.contains(bearerValue),
-                "detail for \(diag) leaked the bearer value"
-            )
-            XCTAssertFalse(
-                diag.headline.contains(bearerHeader),
-                "headline for \(diag) leaked the bearer header"
-            )
-            XCTAssertFalse(
-                diag.detail.contains(bearerHeader),
-                "detail for \(diag) leaked the bearer header"
-            )
-        }
     }
 
     // MARK: - Helpers

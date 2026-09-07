@@ -171,6 +171,7 @@ describe("SharedUiSurface interactions", () => {
     expect(within(form).getByRole("alert")).toHaveTextContent(
       "This can start a new autonomous run",
     );
+    expect(fetchMock).not.toHaveBeenCalled();
     fireEvent.click(within(form).getByRole("button", { name: "Launch run" }));
 
     await waitFor(() =>
@@ -178,12 +179,13 @@ describe("SharedUiSurface interactions", () => {
         "/ui/actions/execute",
         expect.objectContaining({
           method: "POST",
+          headers: expect.objectContaining({ "X-Kota-Dashboard-Request": "1" }),
           body: JSON.stringify({
             scopeId: operatorSurface.scopeId,
             surfaceId: "operator-control",
-          actionId: "workflow.launch",
-          parameters: { name: "builder", payload: { source: "web" } },
-          confirmed: true,
+            actionId: "workflow.launch",
+            parameters: { name: "builder", payload: { source: "web" } },
+            confirmed: true,
           }),
         }),
       ),

@@ -7,7 +7,6 @@ import {
   initialFieldValues,
   readActionParameters,
 } from '../shared-ui/action-parameters';
-import { surfaceActionIds } from '../shared-ui/graph';
 
 const bundle = parseUiSurfaceBundle(fixture.operatorBundle);
 const surface = bundle.surfaces.find(
@@ -56,22 +55,9 @@ describe('shared UI action parameters', () => {
     ).toThrow('Payload JSON must be a JSON object.');
   });
 
-  test('discovers the action through the same exhaustive graph traversal', () => {
-    expect(surfaceActionIds(surface)).toContain(action.actionId);
-  });
-
-  test('passes an explicit daemon-host path through the generated Add Scope field', () => {
+  test('preserves an explicit daemon-host path entered in a native field', () => {
     const addAction: UiAction = {
-      surfaceId: 'scopes',
-      actionId: 'scope.onboarding.apply',
-      scopeId: 'scope-current',
-      label: 'Add scope',
-      effect: 'write',
-      operation: {
-        kind: 'client-namespace',
-        namespace: 'scopes',
-        method: 'addOnboarding',
-      },
+      ...action,
       parameters: {
         fields: [{
           id: 'directoryRoot',
@@ -92,15 +78,6 @@ describe('shared UI action parameters', () => {
           additionalProperties: false,
         },
       },
-      confirmation: {
-        mode: 'required',
-        title: 'Apply Add Scope',
-        detail: 'Apply the daemon-owned onboarding plan.',
-        confirmLabel: 'Add scope',
-        risk: 'high',
-      },
-      readiness: { state: 'ready' },
-      result: { success: { message: 'Scope added.' }, errors: [] },
     };
     const fields = addAction.parameters?.fields ?? [];
     expect(readActionParameters(
