@@ -114,8 +114,8 @@ export async function withRetry<T>(
 /**
  * Structured input to the classifier. Callers should populate whichever
  * fields the error surface exposes; the classifier keys on the structured
- * fields first and only falls back to `message` for the SDK-specific
- * "API Error: <status>" marker it encodes into its error text.
+ * fields first and only falls back to `message` for narrow SDK/CLI-specific
+ * markers, with CLI provenance required where the text alone is ambiguous.
  */
 export type AgentFailureContext = {
   message: string;
@@ -272,6 +272,9 @@ function isCodexProviderReconnectFailure(
       input.message,
     ) ||
     /Reconnecting\.\.\. \d+\/\d+ \(stream disconnected before completion:\s*Transport error:\s*network error:\s*error decoding response body\)$/i.test(
+      input.message,
+    ) ||
+    /Reconnecting\.\.\. \d+\/\d+ \(stream disconnected before completion:\s*URL error:\s*Proxy connection failed:\s*HTTP CONNECT failed with status 502\)$/i.test(
       input.message,
     )
   );

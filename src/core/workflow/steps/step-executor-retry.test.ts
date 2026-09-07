@@ -73,6 +73,28 @@ describe("classifyAgentRuntimeFailure", () => {
     ).toEqual({ kind: "provider", retryable: true });
   });
 
+  it.each([
+    'Agent step "build" failed (codex_cli_error): ',
+    'Repair agent for step "improve" failed: ',
+  ])("classifies wrapped proxy CONNECT 502 failures: %s", (prefix) => {
+    expect(classifyAgentRuntimeFailure({
+      message: `${prefix}Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: HTTP CONNECT failed with status 502)`,
+    })).toEqual({ kind: "provider", retryable: true });
+  });
+
+  it.each([
+    { message: "Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: HTTP CONNECT failed with status 502)" },
+    { subtype: "error_during_execution", message: "Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: HTTP CONNECT failed with status 502)" },
+    { subtype: "codex_cli_error", message: "HTTP CONNECT failed with status 502" },
+    { subtype: "codex_cli_error", message: "Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: HTTP CONNECT failed with status 403)" },
+    { subtype: "codex_cli_error", message: "Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: HTTP CONNECT failed with status 407)" },
+    { subtype: "codex_cli_error", message: "Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: policy denied)" },
+    { subtype: "codex_cli_error", message: "Tool execution failed: permission denied" },
+    { subtype: "codex_cli_error", errorName: "AbortError", message: "Reconnecting... 2/5 (stream disconnected before completion: URL error: Proxy connection failed: HTTP CONNECT failed with status 502)" },
+  ])("rejects unrelated or denied proxy failures: $message", (input) => {
+    expect(classifyAgentRuntimeFailure(input)).toBeNull();
+  });
+
   it("classifies Codex CLI DNS lookup stream disconnects as provider failures", () => {
     expect(
       classifyAgentRuntimeFailure({
