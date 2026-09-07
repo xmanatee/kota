@@ -26,6 +26,7 @@ export function resolveRouteScope(
       scopeId: fallback.scopeId,
       scopeRoot: fallback.scopeRoot,
       store: null,
+      getDispatcher: () => null,
     };
   }
   const selectedId = readSelectedScopeSelectorIdQueryOrErrorResponse(
@@ -39,11 +40,15 @@ export function resolveRouteScope(
     jsonResponse(res, 404, resolved.error);
     return { ok: false };
   }
+  if (resolved.authority !== "canonical") {
+    throw new Error("Daemon task routes require canonical mutation authority");
+  }
   return {
     ok: true,
 	authority: "canonical",
     scopeId: resolved.scopeId,
     scopeRoot: resolved.scopeRoot,
     store: resolved.store,
+    getDispatcher: resolved.getDispatcher,
   };
 }

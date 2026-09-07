@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -29,6 +29,7 @@ function createStore(): RunStateDatabase {
   const store = new RunStateDatabase(root);
   stores.push(store);
   for (const scopeId of ["scope-a", "scope-b"]) {
+    mkdirSync(join(root, scopeId));
     store.registerScope({
       id: scopeId,
       rootPath: join(root, scopeId),
@@ -147,6 +148,66 @@ describe("RunCoordinator scope admission pause", () => {
     expect(coordinator.resumeGlobalAdmission()).toBe(2);
     await coordinator.whenIdle();
     expect(started).toEqual(["run-a", "run-b"]);
+  });
+
+  test("runtime pause release cannot clear a persistent operator pause", () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    const coordinator = new RunCoordinator({
+      store,
+      daemonEpoch: epoch,
+      concurrency: 1,
+      execute: async () => ({ kind: "terminal", state: "succeeded" }),
+    });
+    const scopeA = createRuntime(store, coordinator, epoch, "scope-a");
+
+    scopeA.setDispatchPaused(true, "persistent");
+    scopeA.setDispatchPaused(true);
+    scopeA.setDispatchPaused(false);
+
+    expect(scopeA.getDispatchPauseStatus()).toMatchObject({
+      paused: true,
+      kind: "operator",
+      source: "database",
+    });
+    expect(coordinator.isScopeAdmissionPaused("scope-a")).toBe(true);
+  });
+
+  test("does not admit replacement work while a paused abort is settling", async () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    admit(store, "run-a", "scope-a", "2026-08-25T10:00:01.000Z");
+    admit(store, "run-b", "scope-a", "2026-08-25T10:00:02.000Z");
+    const aborted = deferred<void>();
+    const settleAbort = deferred<RunExecutionOutcome>();
+    const started: string[] = [];
+    const coordinator = new RunCoordinator({
+      store,
+      daemonEpoch: epoch,
+      concurrency: 1,
+      execute: async (run, signal) => {
+        started.push(run.id);
+        if (run.id !== "run-a") return { kind: "terminal", state: "succeeded" };
+        signal.addEventListener("abort", () => aborted.resolve(), { once: true });
+        return settleAbort.promise;
+      },
+    });
+    const scopeA = createRuntime(store, coordinator, epoch, "scope-a");
+
+    coordinator.refill();
+    await Promise.resolve();
+    scopeA.setDispatchPaused(true);
+    expect(scopeA.abortActiveRuns()).toEqual({ aborted: 1 });
+    await aborted.promise;
+
+    expect(scopeA.getState().activeRuns.map((run) => run.runId)).toEqual(["run-a"]);
+    expect(store.getRun("run-b")?.state).toBe("queued");
+    settleAbort.resolve({ kind: "terminal", state: "cancelled" });
+    await coordinator.whenIdle();
+
+    expect(started).toEqual(["run-a"]);
+    expect(store.getRun("run-a")?.state).toBe("cancelled");
+    expect(store.getRun("run-b")?.state).toBe("queued");
   });
 
   test("runtime stop cancels and waits only for its project", async () => {

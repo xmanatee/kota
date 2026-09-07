@@ -8,6 +8,7 @@ import {
   ERROR_BACKOFF_MS,
   isRetryableTelegramApiFailure,
   isTelegramGetUpdatesConflict,
+  POLL_REQUEST_TIMEOUT_MS,
   POLL_TIMEOUT_S,
   splitMessage,
   TelegramTransport,
@@ -149,7 +150,11 @@ export class TelegramBot extends TelegramMessageRuntime {
       offset: this.offset,
       timeout: POLL_TIMEOUT_S,
       allowed_updates: [...TELEGRAM_SIGNAL_ALLOWED_UPDATES],
-    }, { signal: controller.signal, http: this.options.http }).finally(() => {
+    }, {
+      signal: controller.signal,
+      http: this.options.http,
+      timeoutMs: POLL_REQUEST_TIMEOUT_MS,
+    }).finally(() => {
       if (this.pollController === controller) this.pollController = null;
     });
     if (!this.pollHealthyReported) {
@@ -160,6 +165,13 @@ export class TelegramBot extends TelegramMessageRuntime {
     for (const update of updates) {
       this.offset = update.update_id + 1;
       if (update.callback_query) {
+        const callbackChatId = update.callback_query.message?.chat.id;
+        if (
+          callbackChatId === undefined ||
+          !this.isInteractiveChatAllowed(callbackChatId)
+        ) {
+          continue;
+        }
         let handled = false;
         if (this.options.onCallbackQuery) {
           try {

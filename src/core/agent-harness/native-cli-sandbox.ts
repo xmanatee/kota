@@ -2,6 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
+import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
+import { nativeRunOwnershipReadRoots } from "#core/workflow/run-sandbox.js";
 import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import {
   NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
@@ -134,7 +136,10 @@ function pathIsWithin(root: string, candidate: string): boolean {
 }
 
 function absoluteRoots(paths: readonly string[], cwd: string): string[] {
-  return [...new Set(paths.map((path) => resolve(cwd, path)))];
+  return [...new Set(paths.map((path) => {
+    const absolute = resolve(cwd, path);
+    return resolvePathThroughExistingAncestor(absolute) ?? absolute;
+  }))];
 }
 
 export async function withNativeCliSandbox<T>(
@@ -219,6 +224,10 @@ export async function withNativeCliSandbox<T>(
             packageManager.env,
           )),
       ...(options.readOnlyHostRoots ?? []),
+      ...nativeRunOwnershipReadRoots(options.cwd, options.env, [
+        ...options.writableRoots,
+        ...explicitRuntimeWritableRoots,
+      ]),
       ...packageManager.readOnlyHostRoots,
       ...explicitRuntimeWritableRoots,
     ];
@@ -235,9 +244,10 @@ export async function withNativeCliSandbox<T>(
       readProtectedRootMask,
       protectedRuntimeRoot,
     ])];
-    const runtimeStateRoot = resolve(
-      options.runtimeStateRoot ?? join(options.cwd, ".kota"),
-    );
+    const [runtimeStateRoot] = absoluteRoots(
+      [options.runtimeStateRoot ?? join(options.cwd, ".kota")],
+      options.cwd,
+    ) as [string];
     const runtimeWritableRoots = absoluteRoots([
       ...explicitRuntimeWritableRoots,
       ...options.writableRoots,

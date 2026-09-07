@@ -6,6 +6,7 @@ import {
   KNOWLEDGE_PROVIDER_TOKEN,
   MEMORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
+import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { createMemoryScopeStores } from "#modules/memory/scope.js";
 import type { RetractScopeContext } from "./retract-types.js";
@@ -43,6 +44,8 @@ export function createRetractScopeContextResolver(
       scopeRoot: memory.scopeRoot,
       memory: memory.store,
       knowledge: knowledge.store,
+      getWorkflowDispatcher: () =>
+        providers?.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE) ?? null,
     };
   };
 }

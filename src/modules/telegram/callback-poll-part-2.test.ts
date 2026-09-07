@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  createTelegramCallbackHandler,
   type PendingMessage,
   startCallbackPoll,
 } from "./callback-poll.js";
@@ -80,6 +81,39 @@ describe("startCallbackPoll", () => {
   });
 
   describe("owner-question callbacks", () => {
+    it("rejects callbacks that do not match the stored chat and message", async () => {
+      mockedCallTelegramApi.mockResolvedValue(undefined as never);
+      const pending: Map<string, PendingMessage> = new Map([
+        ["oq-bound", {
+          chatId: "99",
+          messageId: 30,
+          scopeId: "test-scope",
+          proposedAnswers: ["Yes"],
+        }],
+      ]);
+      const handler = createTelegramCallbackHandler(
+        TOKEN,
+        new Map(),
+        pending,
+        undefined,
+        stubLog,
+      );
+
+      await handler(makeCallbackUpdate(1, "cq-wrong-answer", "answer:oq-bound:0", 999, 777).callback_query);
+      await handler(makeCallbackUpdate(2, "cq-wrong-dismiss", "dismiss:oq-bound", 999, 777).callback_query);
+
+      expect(mockOwnerGet).not.toHaveBeenCalled();
+      expect(mockOwnerAnswer).not.toHaveBeenCalled();
+      expect(mockOwnerDismiss).not.toHaveBeenCalled();
+      expect(pending.has("oq-bound")).toBe(true);
+      expect(mockedCallTelegramApi).toHaveBeenCalledTimes(2);
+      expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "answerCallbackQuery", {
+        callback_query_id: "cq-wrong-answer",
+        text: "Question already resolved or not found.",
+        show_alert: true,
+      });
+    });
+
     it("answers question via queue and edits message on answer callback", async () => {
       const pendingQuestion = {
         id: "oq1",
@@ -221,7 +255,15 @@ describe("startCallbackPoll", () => {
         .mockReturnValueOnce(Promise.resolve(undefined))
         .mockReturnValue(hang());
 
-      const stop = startCallbackPoll(TOKEN, new Map(), new Map(), stubLog);
+      const pending: Map<string, PendingMessage> = new Map([
+        ["oq4", {
+          chatId: "99",
+          messageId: 42,
+          scopeId: "test-scope",
+          proposedAnswers: ["Yes", "No"],
+        }],
+      ]);
+      const stop = startCallbackPoll(TOKEN, new Map(), pending, stubLog);
       await new Promise((r) => setTimeout(r, 20));
       stop();
 

@@ -163,6 +163,7 @@ export function buildCrossStoreFixture(
     scopeRoot,
     memory: memoryStore,
     knowledge: knowledgeStore,
+    getWorkflowDispatcher: () => null,
   };
 
   const captureProvider = new CaptureProviderImpl({

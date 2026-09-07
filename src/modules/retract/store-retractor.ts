@@ -5,8 +5,12 @@ import {
 import type { RetractRequest, RetractResult } from "./client.js";
 import type { RetractScopeContext } from "./retract-types.js";
 
-function canonicalTarget(scopeId: string): RepoTaskMutationTarget {
-  return { authority: "canonical", scopeId };
+function canonicalTarget(scope: RetractScopeContext): RepoTaskMutationTarget {
+  return {
+    authority: "canonical",
+    scopeId: scope.scopeId,
+    getDispatcher: scope.getWorkflowDispatcher,
+  };
 }
 
 /** Maps one selected target into its owning store's canonical removal operation. */
@@ -36,7 +40,7 @@ export async function retractTarget({
           : { ok: false as const, reason: "not_found" as const }),
       };
     case "tasks": {
-      const result = await mutateRepoTask(canonicalTarget(scope.scopeId), {
+      const result = await mutateRepoTask(canonicalTarget(scope), {
         kind: "move",
         id: identifier,
         state: "dropped",
@@ -52,7 +56,7 @@ export async function retractTarget({
       return { target, identifier, ...result };
     }
     case "inbox": {
-      const result = await mutateRepoTask(canonicalTarget(scope.scopeId), {
+      const result = await mutateRepoTask(canonicalTarget(scope), {
         kind: "retract-inbox",
         path: identifier,
       });

@@ -18,8 +18,12 @@ function firstLine(text: string, max: number): string {
   return line.length <= max ? line : line.slice(0, max - 1).trimEnd();
 }
 
-function canonicalTarget(scopeId: string): RepoTaskMutationTarget {
-  return { authority: "canonical", scopeId };
+function canonicalTarget(scope: CaptureScopeContext): RepoTaskMutationTarget {
+  return {
+    authority: "canonical",
+    scopeId: scope.scopeId,
+    getDispatcher: scope.getWorkflowDispatcher,
+  };
 }
 
 /** Maps one selected target into its owning store's canonical write operation. */
@@ -47,7 +51,7 @@ export async function writeCaptureTarget({
     case "tasks": {
       const title = firstLine(text, REPO_TITLE_MAX);
       if (!title) throw new Error("Task capture requires a non-empty first line.");
-      const result = await mutateRepoTask(canonicalTarget(scope.scopeId), {
+      const result = await mutateRepoTask(canonicalTarget(scope), {
         kind: "create",
         options: { title, priority: "p3", state: "open" },
       });
@@ -65,7 +69,7 @@ export async function writeCaptureTarget({
           message: "Use a more descriptive first line.",
         };
       }
-      const result = await mutateRepoTask(canonicalTarget(scope.scopeId), {
+      const result = await mutateRepoTask(canonicalTarget(scope), {
         kind: "capture-inbox",
         id: `note-${slug}`,
         content: text.endsWith("\n") ? text : `${text}\n`,

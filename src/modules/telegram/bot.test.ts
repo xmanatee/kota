@@ -29,7 +29,12 @@ import {
   TelegramBot,
   type TelegramBotOptions,
 } from "./bot.js";
-import { ERROR_BACKOFF_MS, type TelegramApiBody } from "./client.js";
+import {
+  ERROR_BACKOFF_MS,
+  POLL_REQUEST_TIMEOUT_MS,
+  POLL_TIMEOUT_S,
+  type TelegramApiBody,
+} from "./client.js";
 import { TELEGRAM_SIGNAL_ALLOWED_UPDATES } from "./inbound-signal.js";
 import { resetTelegramPollingOwnersForTests } from "./polling-ownership.js";
 import type { TelegramScopeSelection } from "./scope-selection.js";
@@ -183,6 +188,7 @@ const telegramHttp = outboundHttpRequestPort(async (request) =>
     headers: request.headers,
     body: request.body,
     signal: request.signal,
+    limits: request.limits,
   }) as Promise<Response>
 );
 
@@ -1261,10 +1267,98 @@ describe("TelegramBot", () => {
     const getUpdatesCall = fetchMock.mock.calls.find((call) =>
       String(call[0]).endsWith("/getUpdates")
     );
-    expect(JSON.parse((getUpdatesCall?.[1] as { body: string }).body)).toMatchObject({
+    const getUpdatesRequest = getUpdatesCall?.[1] as {
+      body: string;
+      limits: { timeoutMs: number };
+    };
+    expect(JSON.parse(getUpdatesRequest.body)).toMatchObject({
       allowed_updates: [...TELEGRAM_SIGNAL_ALLOWED_UPDATES],
+      timeout: POLL_TIMEOUT_S,
     });
+    expect(getUpdatesRequest.limits.timeoutMs).toBe(POLL_REQUEST_TIMEOUT_MS);
+    expect(getUpdatesRequest.limits.timeoutMs).toBeGreaterThan(POLL_TIMEOUT_S * 1000);
     expect(agentSendMock).not.toHaveBeenCalled();
+  });
+
+  it("dispatches callbacks only when their message belongs to an allowed chat", async () => {
+    const onCallbackQuery = vi.fn(async () => true);
+    const bot = new TelegramBot(botOptions({
+      allowedChatIds: [9],
+      onCallbackQuery,
+    }));
+    let delivered = false;
+    fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({ ok: true, result: { id: 1, first_name: "Bot" } }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        if (!delivered) {
+          delivered = true;
+          return {
+            json: () => Promise.resolve({
+              ok: true,
+              result: [
+                {
+                  update_id: 1,
+                  callback_query: {
+                    id: "unauthorized-chat",
+                    from: { id: 7, first_name: "Other" },
+                    message: {
+                      message_id: 10,
+                      chat: { id: 10, type: "private" },
+                      date: 0,
+                    },
+                    data: "approve:callback-receipt",
+                  },
+                },
+                {
+                  update_id: 2,
+                  callback_query: {
+                    id: "missing-message",
+                    from: { id: 7, first_name: "Other" },
+                    data: "approve:callback-receipt",
+                  },
+                },
+                {
+                  update_id: 3,
+                  callback_query: {
+                    id: "authorized-chat",
+                    from: { id: 7, first_name: "Operator" },
+                    message: {
+                      message_id: 11,
+                      chat: { id: 9, type: "private" },
+                      date: 0,
+                    },
+                    data: "approve:callback-receipt",
+                  },
+                },
+              ],
+            }),
+          };
+        }
+        return new Promise((resolve) => {
+          init?.signal?.addEventListener("abort", () => {
+            resolve({ json: () => Promise.resolve({ ok: true, result: [] }) });
+          });
+        });
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    const startPromise = bot.start();
+    const deadline = Date.now() + 1_500;
+    while (Date.now() < deadline && onCallbackQuery.mock.calls.length === 0) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    await bot.stop();
+    await startPromise;
+
+    expect(onCallbackQuery).toHaveBeenCalledTimes(1);
+    expect(onCallbackQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "authorized-chat" }),
+    );
   });
 
   it("emits blocked and archived text/caption updates outside allowed chats through the polling path", async () => {

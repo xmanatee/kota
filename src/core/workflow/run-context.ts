@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { realpathSync } from "node:fs";
 import type { ProcessIdentity } from "#core/execution/process-supervisor.js";
 import type { RunResourceProfile } from "./run-resources.js";
 import type { RunSandbox } from "./run-sandbox.js";
@@ -107,6 +108,34 @@ export type RunRepositoryAccess = Readonly<{
     requireWriterWorkspace(): string;
   }>;
 }>;
+
+export function createRunRepositoryAccess(input: Readonly<{
+  store: RunStateDatabase;
+  runId: string;
+  attempt: number;
+  daemonEpoch: number;
+  workspaceDir: string;
+}>): RunRepositoryAccess {
+  const workspaceDir = realpathSync(input.workspaceDir);
+  return Object.freeze({
+    [RUN_REPOSITORY_ACCESS]: Object.freeze({
+      requireWriterWorkspace(): string {
+        const activeSandbox = input.store.requireActiveRunSandbox({
+          runId: input.runId,
+          attempt: input.attempt,
+          epoch: input.daemonEpoch,
+        });
+        if (
+          activeSandbox.repository !== "write" ||
+          realpathSync(activeSandbox.workspaceDir) !== workspaceDir
+        ) {
+          throw new Error("A runtime-owned writer repository is required");
+        }
+        return activeSandbox.workspaceDir;
+      },
+    }),
+  });
+}
 
 /** Resolve the writer workspace after revalidating its active run attempt. */
 export function requireRunWriterWorkspace(
@@ -271,23 +300,12 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
   });
 
   const sandbox = deepFreeze({ ...input.sandbox }) as Readonly<RunSandbox>;
-  const repositoryAccess: RunRepositoryAccess = Object.freeze({
-    [RUN_REPOSITORY_ACCESS]: Object.freeze({
-      requireWriterWorkspace(): string {
-        const activeSandbox = input.store.requireActiveRunSandbox({
-          runId: input.runId,
-          attempt: input.attempt,
-          epoch: input.daemonEpoch,
-        });
-        if (
-          activeSandbox.repository !== "write" ||
-          activeSandbox.workspaceDir !== sandbox.workspaceDir
-        ) {
-          throw new Error("A runtime-owned writer repository is required");
-        }
-        return activeSandbox.workspaceDir;
-      },
-    }),
+  const repositoryAccess = createRunRepositoryAccess({
+    store: input.store,
+    runId: input.runId,
+    attempt: input.attempt,
+    daemonEpoch: input.daemonEpoch,
+    workspaceDir: sandbox.workspaceDir,
   });
   return Object.freeze({
     run: Object.freeze({

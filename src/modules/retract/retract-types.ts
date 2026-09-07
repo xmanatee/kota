@@ -7,6 +7,7 @@ import type {
   KnowledgeProvider,
   MemoryProvider,
 } from "#core/modules/provider-types.js";
+import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import type {
   RetractRequest,
   RetractResult,
@@ -35,6 +36,7 @@ export type RetractScopeContext = {
   scopeRoot: string;
   memory: MemoryProvider;
   knowledge: KnowledgeProvider;
+  getWorkflowDispatcher: () => WorkflowDispatcher | null;
 };
 
 export interface RetractProvider {

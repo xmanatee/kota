@@ -15,6 +15,7 @@ import {
 	REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
+import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import { createRepoTasksReadinessSource } from "./capability-readiness.js";
 import { registerTaskCommands } from "./cli.js";
 import type { RepoTasksClient } from "./client.js";
@@ -88,7 +89,8 @@ const repoTasksModule: KotaModule = {
 				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
 				if (!provider) throw new Error("repo-tasks provider is not registered");
 				return provider;
-			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+			() => ctx.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE)),
 		),
 	controlRoutes: (ctx) =>
 		taskControlRoutes(
@@ -96,7 +98,8 @@ const repoTasksModule: KotaModule = {
 				const provider = ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN);
 				if (!provider) throw new Error("repo-tasks provider is not registered");
 				return provider;
-			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+			() => ctx.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE)),
 		),
 
 	localClient: (ctx) => {
@@ -107,6 +110,7 @@ const repoTasksModule: KotaModule = {
 				() => ctx.getProvider(REPO_TASKS_PROVIDER_TOKEN),
 			),
 			() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+			() => ctx.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE),
 		);
 		const handler: RepoTasksClient = {
 			async list(states, scopeSelector) {

@@ -161,17 +161,15 @@ async function handleOwnerAnswerCallback(
   log?: ModuleContext["log"],
 ): Promise<void> {
   const info = pending.get(questionId);
+  if (!isPendingMessageCallback(cq, info)) {
+    await answerUnavailableOwnerQuestionCallback(token, cq.id, log);
+    return;
+  }
   const item = client
-    ? info
-      ? { status: "pending" as const, proposedAnswers: info.proposedAnswers ?? [] }
-      : null
+    ? { status: "pending" as const, proposedAnswers: info.proposedAnswers ?? [] }
     : getOwnerQuestionQueue().get(questionId);
   if (!item || item.status !== "pending") {
-    await callTelegramApi(token, "answerCallbackQuery", {
-      callback_query_id: cq.id,
-      text: "Question already resolved or not found.",
-      show_alert: true,
-    }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
+    await answerUnavailableOwnerQuestionCallback(token, cq.id, log);
     return;
   }
   const answers = item.proposedAnswers ?? [];
@@ -185,9 +183,7 @@ async function handleOwnerAnswerCallback(
   }
   const answerText = answers[answerIdx];
   const mutate = client
-    ? info
-      ? await client.forScope(info.scopeId).ownerQuestions.answer(questionId, answerText)
-      : { ok: false as const, reason: "not_found" as const }
+    ? await client.forScope(info.scopeId).ownerQuestions.answer(questionId, answerText)
     : (() => {
         const resolved = getOwnerQuestionQueue().answer(questionId, answerText, "telegram-inline");
         return resolved
@@ -227,10 +223,12 @@ async function handleOwnerDismissCallback(
   log?: ModuleContext["log"],
 ): Promise<void> {
   const info = pending.get(questionId);
+  if (!isPendingMessageCallback(cq, info)) {
+    await answerUnavailableOwnerQuestionCallback(token, cq.id, log);
+    return;
+  }
   const mutate = client
-    ? info
-      ? await client.forScope(info.scopeId).ownerQuestions.dismiss(questionId)
-      : { ok: false as const, reason: "not_found" as const }
+    ? await client.forScope(info.scopeId).ownerQuestions.dismiss(questionId)
     : (() => {
         const resolved = getOwnerQuestionQueue().dismiss(questionId, undefined, "telegram-inline");
         return resolved
@@ -259,6 +257,29 @@ async function handleOwnerDismissCallback(
     pending,
     log,
   );
+}
+
+function isPendingMessageCallback(
+  callback: TelegramCallbackQuery,
+  pending: PendingMessage | undefined,
+): pending is PendingMessage {
+  const message = callback.message;
+  return pending !== undefined &&
+    message !== undefined &&
+    String(message.chat.id) === String(pending.chatId) &&
+    message.message_id === pending.messageId;
+}
+
+async function answerUnavailableOwnerQuestionCallback(
+  token: string,
+  callbackId: string,
+  log?: ModuleContext["log"],
+): Promise<void> {
+  await callTelegramApi(token, "answerCallbackQuery", {
+    callback_query_id: callbackId,
+    text: "Question already resolved or not found.",
+    show_alert: true,
+  }).catch((error) => reportCallbackFailure("answerCallbackQuery", error, log));
 }
 
 function reportCallbackFailure(

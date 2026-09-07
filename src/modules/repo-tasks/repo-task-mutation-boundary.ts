@@ -6,7 +6,7 @@ import {
   type RunRepositoryAccess,
   requireRunWriterWorkspace,
 } from "#core/workflow/run-context.js";
-import { getWorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
 import type {
   RepoTaskCaptureResult,
   RepoTaskCreateResult,
@@ -35,6 +35,7 @@ import { isRepoTaskId } from "./task-id.js";
 export type RepoTaskCanonicalMutationTarget = Readonly<{
 	authority: "canonical";
   scopeId: ScopeId;
+  getDispatcher: () => WorkflowDispatcher | null;
 }>;
 
 export type RepoTaskRuntimeSandboxTarget = Readonly<{
@@ -273,7 +274,7 @@ async function executeCanonicalRepoTaskMutation(
   target: RepoTaskCanonicalMutationTarget,
   request: RepoTaskMutationRequest,
 ): Promise<RepoTaskMutationValue> {
-  const dispatcher = getWorkflowDispatcher();
+  const dispatcher = target.getDispatcher();
   if (dispatcher === null) {
     throw new Error("Repo-task mutation requires the active workflow runtime");
   }

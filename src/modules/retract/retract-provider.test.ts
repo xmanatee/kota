@@ -18,6 +18,7 @@ describe("RetractProviderImpl", () => {
       scopeRoot: root,
       memory: new MemoryStore(join(root, ".kota")),
       knowledge: new KnowledgeStore(root, join(root, "global-data")),
+      getWorkflowDispatcher: () => null,
     };
   });
 

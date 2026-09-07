@@ -124,6 +124,7 @@ try {
       ? error.safeReason
       : "repo mutation filesystem operation failed (" +
         (error && typeof error.code === "string" ? error.code : "unknown") +
+        (error && typeof error.syscall === "string" ? ": " + error.syscall : "") +
         ")";
   respond({ ok: false, reason });
 }

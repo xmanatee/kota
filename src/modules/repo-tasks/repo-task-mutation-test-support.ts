@@ -37,7 +37,7 @@ export function createRepoTaskRuntimeSandbox(
   });
   const agentRunDir = join(sandbox.rootDir, "agent");
   mkdirSync(agentRunDir, { recursive: true });
-  const store = new RunStateDatabase(join(sandbox.rootDir, "test-state"));
+  const store = new RunStateDatabase(join(scopeRoot, ".kota"));
   const startedAt = "2026-08-26T00:00:00.000Z";
   store.registerScope({
     id: "test-scope",

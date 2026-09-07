@@ -340,6 +340,9 @@ describe("startTelegramStatusPoll", () => {
       paused: true,
       pendingAbort: false,
       concurrency: 4,
+      authorityCriticalRunIds: [],
+      operationallyActiveRunIds: [],
+      terminalRunIds: [],
     }));
     const scopedClient = createKotaClientTestDouble({
         workflow: {

@@ -8,6 +8,9 @@ import {
 } from "#core/daemon/scope-registry.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
+import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+import { nativeRunRepositoryAccess } from "./native-run-repository-access.js";
+import type { RepoTaskMutationTarget } from "./repo-task-mutation-boundary.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 
 export type UnknownRepoTasksScopeError = {
@@ -29,14 +32,14 @@ export type RepoTasksScopeStoresOptions = {
 	getActiveScopeId?: () => ScopeId | null;
 	getDefaultProvider?: () => RepoTasksProvider | null;
 	getDaemonScopeProvider?: () => DaemonScopeProvider | null;
+	getWorkflowDispatcher?: () => WorkflowDispatcher | null;
 };
 
 export type ResolvedRepoTasksScope = {
-	authority: "canonical";
 	scopeId: ScopeId;
 	scopeRoot: string;
 	store: RepoTasksProvider;
-};
+} & RepoTaskMutationTarget;
 
 export class RepoTasksScopeStores {
 	private readonly fallbackScope: DirectoryScope;
@@ -46,6 +49,7 @@ export class RepoTasksScopeStores {
 	private readonly getDefaultProvider: (() => RepoTasksProvider | null) | undefined;
 	private readonly stores = new Map<ScopeId, RepoTasksProvider>();
 	private readonly getDaemonScopeProvider: () => DaemonScopeProvider | null;
+	private readonly getWorkflowDispatcher: () => WorkflowDispatcher | null;
 
 	constructor(options: RepoTasksScopeStoresOptions) {
 		this.fallbackScope = buildDirectoryScope({
@@ -71,6 +75,7 @@ export class RepoTasksScopeStores {
 		this.getDefaultProvider = options.getDefaultProvider;
 		this.getDaemonScopeProvider = options.getDaemonScopeProvider
 			?? (() => getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null);
+		this.getWorkflowDispatcher = options.getWorkflowDispatcher ?? (() => null);
 	}
 
 	resolve(
@@ -97,12 +102,23 @@ export class RepoTasksScopeStores {
 				},
 			};
 		}
+		const repositoryAccess = scope.scopeRoot === this.fallbackScope.scopeRoot
+			? nativeRunRepositoryAccess(this.fallbackScope.scopeRoot)
+			: null;
 		return {
 			ok: true,
-			authority: "canonical",
 			scopeId: scope.scopeId,
 			scopeRoot: scope.scopeRoot,
 			store: this.storeFor(scope, snapshot.defaultScopeId),
+			...(repositoryAccess === null
+				? {
+					authority: "canonical" as const,
+					getDispatcher: this.getWorkflowDispatcher,
+				}
+				: {
+					authority: "runtime-owned-sandbox" as const,
+					repositoryAccess,
+				}),
 		};
 	}
 
@@ -143,6 +159,12 @@ export function createRepoTasksScopeStores(
 	defaultScopeRoot: string,
 	getDefaultProvider?: () => RepoTasksProvider | null,
 	getDaemonScopeProvider?: () => DaemonScopeProvider | null,
+	getWorkflowDispatcher?: () => WorkflowDispatcher | null,
 ): RepoTasksScopeStores {
-	return new RepoTasksScopeStores({ defaultScopeRoot, getDefaultProvider, getDaemonScopeProvider });
+	return new RepoTasksScopeStores({
+		defaultScopeRoot,
+		getDefaultProvider,
+		getDaemonScopeProvider,
+		getWorkflowDispatcher,
+	});
 }

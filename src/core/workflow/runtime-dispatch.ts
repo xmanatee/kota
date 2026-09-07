@@ -90,7 +90,7 @@ export async function emitIdleEvent(
     .some((run) => run.trigger.event === "runtime.idle");
   if (
     state.stopping ||
-    state.runCoordinator.isScopeBusy(state.runtimeConfig.scopeId) ||
+    !canDispatchIdleProbe(state.runCoordinator, state.runtimeConfig.scopeId) ||
     idleTriggerAlreadyQueued
   ) return;
   const dispatchWindow = state.config?.scheduler?.dispatchWindow;
@@ -121,7 +121,7 @@ export async function emitIdleEvent(
     .some((run) => run.trigger.event === "runtime.idle");
   if (
     state.stopping ||
-    state.runCoordinator.isScopeBusy(state.runtimeConfig.scopeId) ||
+    !canDispatchIdleProbe(state.runCoordinator, state.runtimeConfig.scopeId) ||
     triggerQueuedDuringInspection
   ) {
     return;
@@ -138,6 +138,21 @@ export async function emitIdleEvent(
     timestamp: new Date().toISOString(),
     idleIntervalMs: state.idleIntervalMs,
   });
+}
+
+function canDispatchIdleProbe(
+  coordinator: Pick<
+    RunCoordinator,
+    | "capacity"
+    | "occupiedCapacity"
+    | "isGlobalAdmissionPaused"
+    | "isScopeAdmissionPaused"
+  >,
+  scopeId: string,
+): boolean {
+  return !coordinator.isGlobalAdmissionPaused() &&
+    !coordinator.isScopeAdmissionPaused(scopeId) &&
+    coordinator.occupiedCapacity < coordinator.capacity;
 }
 
 export function maybeStartNext(

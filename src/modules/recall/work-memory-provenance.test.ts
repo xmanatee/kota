@@ -85,6 +85,7 @@ describe("work-memory provenance through recall", () => {
 					scopeRoot: root,
 					memory,
 					knowledge,
+					getWorkflowDispatcher: () => null,
 				},
 			),
 		).resolves.toMatchObject({

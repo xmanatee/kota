@@ -9,6 +9,7 @@ export const TELEGRAM_API = "https://api.telegram.org";
 export const MAX_MESSAGE_LENGTH = 4096;
 export const TYPING_INTERVAL_MS = 4000;
 export const POLL_TIMEOUT_S = 30;
+export const POLL_REQUEST_TIMEOUT_MS = 40_000;
 export const ERROR_BACKOFF_MS = 5000;
 
 // --- Telegram API types (minimal subset) ---
@@ -204,7 +205,11 @@ export async function callTelegramApi<T>(
   token: string,
   method: string,
   body?: TelegramApiBody,
-  options?: { signal?: AbortSignal; http?: OutboundHttpRequestPort },
+  options?: {
+    signal?: AbortSignal;
+    http?: OutboundHttpRequestPort;
+    timeoutMs?: number;
+  },
 ): Promise<T> {
   const url = `${TELEGRAM_API}/bot${token}/${method}`;
   let res: Response;
@@ -217,6 +222,9 @@ export async function callTelegramApi<T>(
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
       signal: options?.signal,
+      limits: options?.timeoutMs === undefined
+        ? undefined
+        : { timeoutMs: options.timeoutMs },
     }));
   } catch (err) {
     throw new TelegramApiTransportError(

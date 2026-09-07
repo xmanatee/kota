@@ -3,11 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildDirectoryScope } from "#core/daemon/scope-registry.js";
-import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
-import {
-  WORKFLOW_DISPATCHER_PROVIDER_TYPE,
-  type WorkflowDispatcher,
-} from "#core/workflow/workflow-dispatcher-provider.js";
+import { ProviderRegistry } from "#core/modules/provider-registry.js";
+import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
+import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import {
   decodeRepoTaskMutationRequest,
   mutateRepoTask,
@@ -24,7 +22,6 @@ const roots: string[] = [];
 afterEach(() => {
   disposeRepoTaskRuntimeSandboxes();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-  resetProviderRegistry();
 });
 
 function projectWithTask() {
@@ -43,18 +40,22 @@ function projectWithTask() {
   };
 }
 
-function registerDispatcher(execute: WorkflowDispatcher["execute"]): void {
-  initProviderRegistry().register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "test", {
+function dispatcher(execute: WorkflowDispatcher["execute"]): WorkflowDispatcher {
+  return {
     enqueuePendingRun: () => ({ ok: false }),
     enqueueWebhookRun: () => ({ ok: false }),
     execute,
-  });
+  };
 }
 
 describe("repo-task mutation", () => {
   it("fails closed when canonical mutation has no active workflow runtime", async () => {
     const value = projectWithTask();
-    await expect(mutateRepoTask({ authority: "canonical", scopeId: value.scopeId }, {
+    await expect(mutateRepoTask({
+      authority: "canonical",
+      scopeId: value.scopeId,
+      getDispatcher: () => null,
+    }, {
       kind: "update-body",
       id: "task-example",
       body: "## Problem\n\nUpdated.",
@@ -69,9 +70,20 @@ describe("repo-task mutation", () => {
       runId: "run-repo-task-mutation",
       output: { ok: true, id: "task-example", state: "open" },
     });
-    registerDispatcher(execute);
+    const workflowDispatcher = dispatcher(execute);
+    const moduleLoaderRegistry = new ProviderRegistry();
+    moduleLoaderRegistry.register(
+      WORKFLOW_DISPATCHER_PROVIDER_TYPE,
+      "daemon",
+      workflowDispatcher,
+    );
 
-    await expect(mutateRepoTask({ authority: "canonical", scopeId: value.scopeId }, {
+    await expect(mutateRepoTask({
+      authority: "canonical",
+      scopeId: value.scopeId,
+      getDispatcher: () =>
+        moduleLoaderRegistry.get(WORKFLOW_DISPATCHER_PROVIDER_TYPE),
+    }, {
       kind: "update-body",
       id: "task-example",
       body: "## Problem\n\nUpdated.",

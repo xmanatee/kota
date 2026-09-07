@@ -47,11 +47,13 @@ export function startRuntime(
 ): void {
   if (state.stopBus || state.idleTimer) return;
   state.stopping = false;
-  state.dispatchPaused =
-    initialDispatch === "paused" || state.scopeState.getDispatchPaused();
+  state.dispatchPaused = initialDispatch === "paused";
   // Keep this scope closed until definitions, triggers, and durable resumers
   // are ready. Other scopes may continue filling shared capacity.
   state.runCoordinator.pauseScopeAdmission(state.scopeId);
+  if (state.scopeState.getDispatchPaused()) {
+    state.runCoordinator.pauseScopeAdmission(state.scopeId, "operator");
+  }
   state.lastIdleEventSignature = undefined;
   state.lastIdleEventEmittedAtMs = undefined;
 
@@ -258,6 +260,9 @@ export function setDispatchPaused(
 ): void {
   if (mode === "persistent") {
     state.scopeState.setDispatchPaused(paused);
+    if (paused) state.runCoordinator.pauseScopeAdmission(state.scopeId, "operator");
+    else state.runCoordinator.resumeScopeAdmission(state.scopeId, "operator");
+    return;
   }
   state.dispatchPaused = paused;
   if (paused) state.runCoordinator.pauseScopeAdmission(state.scopeId);

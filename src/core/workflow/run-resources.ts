@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { createServer } from "node:net";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { RunSandbox } from "./run-sandbox.js";
 import type { RunStateDatabase } from "./run-state-database.js";
 import type { StoredRun } from "./run-state-types.js";
@@ -68,6 +68,7 @@ function immutableProfile(input: {
   agentDir: string;
   packageCacheDir: string;
   ports: number[];
+  stateDatabasePath: string;
 }): RunResourceProfile {
   const { run, sandbox, daemonEpoch, agentDir, packageCacheDir, ports } = input;
   const start = ports[0]!;
@@ -82,6 +83,14 @@ function immutableProfile(input: {
     KOTA_RUN_DIR: agentDir,
     KOTA_RUN_TEMP_DIR: sandbox.tempDir,
     KOTA_RUN_ARTIFACT_DIR: sandbox.artifactDir,
+    ...(sandbox.repository === "write"
+      ? {
+          KOTA_RUN_ID: run.id,
+          KOTA_RUN_ATTEMPT: String(run.attempt),
+          KOTA_DAEMON_EPOCH: String(daemonEpoch),
+          KOTA_RUN_STATE_DIR: dirname(input.stateDatabasePath),
+        }
+      : {}),
     KOTA_PACKAGE_CACHE_DIR: packageCacheDir,
     KOTA_PORT_BASE: String(start),
     KOTA_PORT_RANGE: String(frozenPorts.length),
@@ -177,6 +186,7 @@ export class RunResourceAllocator {
             agentDir,
             packageCacheDir,
             ports: claimed,
+            stateDatabasePath: this.state.path,
           });
         }
       } catch (error) {

@@ -136,6 +136,28 @@ describe("runtime idle dispatch", () => {
     expect(countIdleRuns(workspaceRoot)).toBe(1);
   });
 
+  it("does not enqueue runtime.idle while operator dispatch is paused", async () => {
+    const runtime = createRuntime({
+      bus: new EventBus(),
+      scopeRoot: workspaceRoot,
+      idleIntervalMs: 10,
+      workflows: [idleWorkflow],
+    });
+
+    runtime.setDispatchPaused(true, "persistent");
+    runtime.start();
+    await wait(50);
+    await runtime.stop();
+
+    expect(runtime.getDispatchPauseStatus()).toMatchObject({
+      paused: true,
+      kind: "operator",
+      source: "database",
+    });
+    expect(countIdleRuns(workspaceRoot)).toBe(0);
+    expect(runtime.getState().pendingRuns).toHaveLength(0);
+  });
+
   it("dispatches runtime.idle again after the repo state changes", async () => {
     const runtime = createRuntime({
       bus: new EventBus(),
@@ -531,6 +553,84 @@ describe("runtime idle dispatch", () => {
     expect(countWorkflowRuns(workspaceRoot, "builder-like-agent-slot")).toBe(1);
     expect(countWorkflowRuns(workspaceRoot, "security-review")).toBe(1);
     expect(runtime.getState().pendingRuns).toHaveLength(0);
+  });
+
+  it("runs the idle dispatcher when an active run leaves coordinator capacity available", async () => {
+    let dispatchCount = 0;
+    let activeWorkers = 0;
+    let peakWorkers = 0;
+    let releaseWorkers!: () => void;
+    const workersReleased = new Promise<void>((resolve) => {
+      releaseWorkers = resolve;
+    });
+    const runtime = createRuntime({
+      bus: new EventBus(),
+      scopeRoot: workspaceRoot,
+      idleIntervalMs: 10,
+      workflows: [
+        {
+          repository: "none",
+          name: "capacity-dispatcher",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "runtime.idle", cooldownMs: 0 }],
+          steps: [{
+            id: "route",
+            type: "code",
+            run: ({ emit }) => {
+              dispatchCount += 1;
+              const taskId = `task-capacity-${dispatchCount}`;
+              const digest = String(dispatchCount).padStart(64, "a");
+              emit("autonomy.queue.available", {
+                taskId,
+                taskPath: `data/tasks/${taskId}.md`,
+                taskState: "open",
+                taskDigest: digest,
+                title: `Capacity task ${dispatchCount}`,
+                priority: "p2",
+                dependsOn: [],
+                idempotencyKey: `builder:${taskId}:${digest}`,
+              });
+              return { dispatchCount };
+            },
+          }],
+        },
+        {
+          repository: "none",
+          name: "capacity-worker",
+          definitionPath: "src/core/workflow/runtime-dispatch.test.ts",
+          moduleRoot: process.cwd(),
+          triggers: [{ event: "autonomy.queue.available", cooldownMs: 0 }],
+          steps: [{
+            id: "hold",
+            type: "code",
+            run: async () => {
+              activeWorkers += 1;
+              peakWorkers = Math.max(peakWorkers, activeWorkers);
+              await workersReleased;
+              activeWorkers -= 1;
+              return { ok: true };
+            },
+          }],
+        },
+      ],
+    }, 2);
+
+    runtime.start();
+    try {
+      await waitUntil(() => activeWorkers === 1, "Timed out waiting for the first worker");
+      writeFileSync(join(workspaceRoot, "capacity-change.txt"), "changed\n");
+      await waitUntil(
+        () => peakWorkers === 2,
+        "Timed out waiting for idle capacity to trigger a second worker",
+      );
+    } finally {
+      releaseWorkers();
+      await runtime.stop();
+    }
+
+    expect(dispatchCount).toBeGreaterThanOrEqual(2);
+    expect(peakWorkers).toBe(2);
   });
 
 });
