@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, realpathSync, rmdirSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import type { ModuleSetupStatusResponse } from "#core/modules/setup-requirements.js";
 import type { ScopeAuthorityOperatorAction } from "./scope-authority-operator-token.js";
@@ -8,6 +8,12 @@ import type { ScopeAuthorityService } from "./scope-authority-service.js";
 import { resolveLiveDirectoryScope } from "./scope-directory.js";
 import type { ScopeImprovementAuthorityProjection } from "./scope-improvement-authority-provider.js";
 import type { ScopeLifecycleService } from "./scope-lifecycle.js";
+import {
+  captureScopeOnboardingRootIdentity,
+  mutateAnchoredScopeRuntimeDirectories,
+  type RuntimeDirectoryMutation,
+  type RuntimeDirectoryMutationResult,
+} from "./scope-onboarding-runtime-directory.js";
 import { ScopeOnboardingOperationStore } from "./scope-onboarding-store.js";
 import type {
   ScopeImprovementPosture,
@@ -63,7 +69,9 @@ export type ScopeOnboardingServiceOptions = {
     policy: ResolvedScopePolicy,
   ) => ScopeImprovementAuthorityProjection | null;
   isDispatchAvailable?: () => boolean;
-  createRuntimeDirectory?: (path: string) => void;
+  mutateRuntimeDirectories?: (
+    mutations: readonly RuntimeDirectoryMutation[],
+  ) => RuntimeDirectoryMutationResult[];
   now?: () => Date;
 };
 
@@ -82,6 +90,7 @@ export class ScopeOnboardingService {
     const resolved = resolveLiveDirectoryScope({ scopeRoot: directoryRoot });
     if (!resolved.ok) throw new ScopeOnboardingInspectionError(resolved.reason, resolved.message);
     const scope = resolved.scope;
+    const directoryRootIdentity = captureScopeOnboardingRootIdentity(scope.scopeRoot);
     const registered = this.options.registry.getByRoot(scope.scopeRoot);
     const blockers: ScopeOnboardingReason[] = [];
     for (const path of conflictingRuntimeDirectories(scope.scopeRoot)) {
@@ -148,6 +157,7 @@ export class ScopeOnboardingService {
     const inspectionFacts = {
       scopeId: scope.scopeId,
       directoryRoot: scope.scopeRoot,
+      directoryRootIdentity,
       displayName: registered?.displayName ?? scope.displayName,
       kind,
       registered: registered !== undefined,
@@ -185,6 +195,7 @@ export class ScopeOnboardingService {
       operationId: operationId(scope.scopeRoot),
       scopeId: scope.scopeId,
       directoryRoot: scope.scopeRoot,
+      directoryRootIdentity,
       displayName: registered?.displayName ?? scope.displayName,
       kind,
       registered: registered !== undefined,
@@ -277,6 +288,7 @@ export class ScopeOnboardingService {
       inspectionId: inspection.inspectionId,
       scopeId: inspection.scopeId,
       directoryRoot: inspection.directoryRoot,
+      directoryRootIdentity: inspection.directoryRootIdentity,
       choices: normalized.choices,
       registrationBaseline: {
         registered: inspection.registered,
@@ -583,6 +595,7 @@ export class ScopeOnboardingService {
       attempts: prior.attempts + 1,
       error: null,
     });
+    let initializingScopeState = false;
     this.#store.write(operation);
     try {
       const resolved = resolveLiveDirectoryScope({
@@ -623,7 +636,9 @@ export class ScopeOnboardingService {
           runtimePathConflict.message,
         );
       }
+      initializingScopeState = true;
       operation = this.#initializeScopeState(operation);
+      initializingScopeState = false;
       const existing = this.options.registry.getByRoot(operation.acceptedPlan.directoryRoot);
       const registrationBaseline = operation.acceptedPlan.registrationBaseline;
       if (registrationBaseline.registered) {
@@ -831,7 +846,14 @@ export class ScopeOnboardingService {
           "apply_failed",
           error instanceof Error ? error.message : String(error),
         );
-      const rollback = await this.#rollback(operation);
+      // A filesystem failure can occur after a write-ahead ownership record
+      // was persisted but before #initializeScopeState returned its updated
+      // value. Roll back from the durable checkpoint, not the stale local
+      // reference, so every possibly-created directory is compensated.
+      const checkpoint = initializingScopeState
+        ? this.#store.read(operation.operationId) ?? operation
+        : operation;
+      const rollback = await this.#rollback(checkpoint);
       const readiness = await this.#readiness(rollback.operation, true);
       const rollbackMessage = rollback.failures.length === 0
         ? null
@@ -1006,7 +1028,7 @@ export class ScopeOnboardingService {
       }
     }
     if (!next.registeredByOperation) {
-      next = this.#rollbackScopeState(next, failures);
+      next = this.#rollbackScopeState(next);
     }
     return { operation: next, failures };
   }
@@ -1014,40 +1036,67 @@ export class ScopeOnboardingService {
   #initializeScopeState(
     operation: ScopeOnboardingOperation,
   ): ScopeOnboardingOperation {
+    const scopeRootIdentity = operation.acceptedPlan.directoryRootIdentity;
+    if (scopeRootIdentity === undefined) {
+      throw new OnboardingApplyError(
+        "plan_changed",
+        "The accepted onboarding operation predates runtime root identity checks; cancel it, then inspect and accept a fresh plan",
+      );
+    }
+    const mutate = this.options.mutateRuntimeDirectories ??
+      mutateAnchoredScopeRuntimeDirectories;
     let next = operation;
+    const mutations: RuntimeDirectoryMutation[] = [];
+    const ownershipByPath = new Map<ScopeOnboardingRuntimeDirectory, "prepared" | "applied">();
     for (const change of operation.acceptedPlan.changes) {
       if (change.owner !== "scope") continue;
-      const target = join(operation.acceptedPlan.directoryRoot, change.path);
       let ownership = runtimeDirectoryOwnership(next, change.path);
-      const pathState = runtimeDirectoryState(target);
-      if (pathState === "directory") {
-        if (ownership === "unclaimed") {
-          throw new OnboardingApplyError(
-            "plan_changed",
-            `Planned runtime directory ${change.path} was created after inspection`,
-          );
-        }
-      } else if (pathState === "conflict") {
+      if (ownership === "unclaimed") {
+        next = this.#append(next, {
+          kind: "create-runtime-directory",
+          target: change.path,
+          status: "prepared",
+          at: this.#now().toISOString(),
+        });
+        ownership = "prepared";
+      }
+      ownershipByPath.set(change.path, ownership);
+      mutations.push({
+        operation: "ensure",
+        scopeRootPath: operation.acceptedPlan.directoryRoot,
+        scopeRootIdentity,
+        relativePath: change.path,
+        expectMissing: runtimeDirectoryOwnership(operation, change.path) === "unclaimed",
+      });
+    }
+    const results = mutate(mutations);
+    for (const [index, mutation] of mutations.entries()) {
+      const changePath = mutation.relativePath;
+      const ownership = ownershipByPath.get(changePath);
+      const result = results[index];
+      if (result === undefined) throw new Error("Runtime-directory mutation result is missing");
+      if (result.outcome === "unexpected-existing") {
+        throw new OnboardingApplyError(
+          "plan_changed",
+          `Planned runtime directory ${changePath} was created after inspection`,
+        );
+      }
+      if (result.outcome === "conflict") {
         throw new OnboardingApplyError(
           "runtime_path_conflict",
-          `Planned runtime path ${change.path} exists but is not a real directory`,
+          `Planned runtime path ${changePath} exists but is not a real directory`,
         );
-      } else {
-        if (ownership === "unclaimed") {
-          next = this.#append(next, {
-            kind: "create-runtime-directory",
-            target: change.path,
-            status: "prepared",
-            at: this.#now().toISOString(),
-          });
-          ownership = "prepared";
-        }
-        (this.options.createRuntimeDirectory ?? mkdirSync)(target);
+      }
+      if (
+        result.outcome !== "created" &&
+        result.outcome !== "existing"
+      ) {
+        throw new Error(`Unexpected runtime-directory ensure outcome ${result.outcome}`);
       }
       if (ownership === "prepared") {
         next = this.#append(next, {
           kind: "create-runtime-directory",
-          target: change.path,
+          target: changePath,
           status: "applied",
           at: this.#now().toISOString(),
         });
@@ -1056,56 +1105,21 @@ export class ScopeOnboardingService {
     return next;
   }
 
-  #rollbackScopeState(
-    operation: ScopeOnboardingOperation,
-    failures: string[],
-  ): ScopeOnboardingOperation {
+  #rollbackScopeState(operation: ScopeOnboardingOperation): ScopeOnboardingOperation {
     let next = operation;
     const changes = operation.acceptedPlan.changes
       .filter((change) => change.owner === "scope")
       .reverse();
     for (const change of changes) {
       if (!ownsRuntimeDirectory(next, change.path)) continue;
-      const target = join(operation.acceptedPlan.directoryRoot, change.path);
-      if (runtimeDirectoryState(target) === "conflict") {
-        next = this.#append(next, {
-          kind: "rollback",
-          target: `runtime-directory:${change.path}`,
-          status: "rolled-back",
-          at: this.#now().toISOString(),
-          message: "Released transaction ownership without deleting a conflicting path",
-        });
-        continue;
-      }
-      try {
-        rmdirSync(target);
-        next = this.#append(next, {
-          kind: "rollback",
-          target: `runtime-directory:${change.path}`,
-          status: "rolled-back",
-          at: this.#now().toISOString(),
-        });
-      } catch (error) {
-        const code = error instanceof Error && "code" in error ? error.code : undefined;
-        if (code === "ENOENT") {
-          next = this.#append(next, {
-            kind: "rollback",
-            target: `runtime-directory:${change.path}`,
-            status: "rolled-back",
-            at: this.#now().toISOString(),
-          });
-          continue;
-        }
-        const message = error instanceof Error ? error.message : String(error);
-        failures.push(`runtime directory ${change.path}: ${message}`);
-        next = this.#append(next, {
-          kind: "rollback",
-          target: `runtime-directory:${change.path}`,
-          status: "failed",
-          at: this.#now().toISOString(),
-          message,
-        });
-      }
+      next = this.#append(next, {
+        kind: "rollback",
+        target: `runtime-directory:${change.path}`,
+        status: "rolled-back",
+        at: this.#now().toISOString(),
+        message:
+          "Released transaction ownership without mutating the scope filesystem",
+      });
     }
     return next;
   }

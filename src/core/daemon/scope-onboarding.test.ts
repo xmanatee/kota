@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   existsSync,
   lstatSync,
@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
+  renameSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -32,6 +33,8 @@ import {
   type ScopeOnboardingOperation,
   ScopeOnboardingService,
 } from "./scope-onboarding.js";
+import { SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE } from "./scope-onboarding-runtime-directory-helper-source.js";
+import { mutateAnchoredScopeRuntimeDirectories } from "./scope-onboarding-runtime-directory.js";
 import { ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
@@ -833,12 +836,12 @@ describe("ScopeOnboardingService", () => {
     }
   });
 
-  it("write-ahead checkpoints directory ownership before the filesystem effect", async () => {
+  it("does not delete an ambiguously owned directory after a write-ahead crash", async () => {
     let fixture!: Awaited<ReturnType<typeof createFixture>>;
     let crashCheckpoint: ScopeOnboardingOperation | null = null;
     let checkpointObservedBeforeCreation = false;
     fixture = await createFixture({
-      createRuntimeDirectory: (target) => {
+      mutateRuntimeDirectories: (mutations) => {
         const operationFile = readdirSync(join(fixture.stateDir, "scope-onboarding")).at(0);
         if (operationFile === undefined) throw new Error("onboarding checkpoint is missing");
         crashCheckpoint = JSON.parse(readFileSync(
@@ -850,7 +853,7 @@ describe("ScopeOnboardingService", () => {
           mutation.target === ".kota" &&
           mutation.status === "prepared"
         );
-        mkdirSync(target);
+        mutateAnchoredScopeRuntimeDirectories(mutations);
         throw new Error("fixture process stopped after directory creation");
       },
     });
@@ -865,7 +868,7 @@ describe("ScopeOnboardingService", () => {
       reason: "apply_failed",
     });
     expect(checkpointObservedBeforeCreation).toBe(true);
-    expect(existsSync(join(target, ".kota"))).toBe(false);
+    expect(existsSync(join(target, ".kota"))).toBe(true);
     if (crashCheckpoint === null) throw new Error("fixture did not capture the crash checkpoint");
 
     const operationPath = join(
@@ -874,13 +877,82 @@ describe("ScopeOnboardingService", () => {
       `${planned.plan.operationId}.json`,
     );
     writeFileSync(operationPath, JSON.stringify(crashCheckpoint, null, 2));
-    mkdirSync(join(target, ".kota"));
 
     expect(await fixture.restartService().cancel(planned.plan.operationId)).toMatchObject({
       ok: true,
       operation: { state: "cancelled" },
     });
-    expect(existsSync(join(target, ".kota"))).toBe(false);
+    expect(existsSync(join(target, ".kota"))).toBe(true);
+    await fixture.close();
+  });
+
+  it("cancels legacy schema-two ownership and accepts a fresh identity-bound plan", async () => {
+    const fixture = await createFixture();
+    const target = join(fixture.root, "legacy-schema-two-runtime-ownership");
+    mkdirSync(target);
+    initializeGitRepository(target);
+    const planned = await fixture.service.plan(target, {
+      trust: true,
+      improvementPosture: "propose",
+      writes: { mode: "scope-directory" },
+    });
+    expect(planned.ok).toBe(true);
+    if (!planned.ok) return;
+
+    const interrupted = await fixture.service.apply(planned.plan);
+    expect(interrupted).toMatchObject({
+      ok: false,
+      reason: "operator_action_required",
+      operation: { state: "incomplete" },
+    });
+    if (interrupted.ok || interrupted.operation === undefined) return;
+    const operationPath = join(
+      fixture.stateDir,
+      "scope-onboarding",
+      `${planned.plan.operationId}.json`,
+    );
+    const legacyOperation = structuredClone(interrupted.operation);
+    delete legacyOperation.acceptedPlan.directoryRootIdentity;
+    for (const change of legacyOperation.acceptedPlan.changes) {
+      if (change.owner !== "scope") continue;
+      mkdirSync(join(target, change.path), { recursive: true });
+      legacyOperation.mutations.push({
+        kind: "create-runtime-directory",
+        target: change.path,
+        status: "applied",
+        at: "2026-01-01T00:00:00.000Z",
+      });
+    }
+    writeFileSync(operationPath, JSON.stringify(legacyOperation, null, 2));
+
+    const restarted = fixture.restartService();
+    expect(await restarted.cancel(planned.plan.operationId)).toMatchObject({
+      ok: true,
+      operation: {
+        state: "cancelled",
+        mutations: expect.arrayContaining([
+          expect.objectContaining({
+            kind: "rollback",
+            target: "runtime-directory:.kota",
+            status: "rolled-back",
+            message: expect.stringContaining("legacy transaction ownership"),
+          }),
+        ]),
+      },
+    });
+    expect(existsSync(join(target, ".kota"))).toBe(true);
+
+    const freshPlan = await restarted.plan(target, planned.plan.choices);
+    expect(freshPlan.ok).toBe(true);
+    if (!freshPlan.ok) return;
+    expect(freshPlan.plan.directoryRootIdentity).toMatchObject({
+      dev: expect.any(Number),
+      ino: expect.any(Number),
+    });
+    expect(await restarted.apply(
+      freshPlan.plan,
+      operatorAction(fixture.authorityConfigPath, true),
+    )).toMatchObject({ ok: true, operation: { state: "succeeded" } });
     await fixture.close();
   });
 
@@ -1147,6 +1219,259 @@ describe("ScopeOnboardingService", () => {
       await fixture.close();
     },
   );
+
+  it("does not follow a replaced runtime-directory ancestor during apply or rollback", async () => {
+    const targetName = "runtime-ancestor-replacement";
+    let target = "";
+    let parkedKota = "";
+    let outside = "";
+    let replaced = false;
+    const fixture = await createFixture({
+      mutateRuntimeDirectories: (mutations) => {
+        const mutation = mutations.find((candidate) =>
+          candidate.relativePath === ".kota/runs"
+        );
+        if (
+          !replaced &&
+          mutation !== undefined
+        ) {
+          const kotaMutation = mutations.find((candidate) =>
+            candidate.relativePath === ".kota"
+          );
+          if (kotaMutation === undefined) throw new Error("missing .kota mutation");
+          const firstResult = mutateAnchoredScopeRuntimeDirectories([kotaMutation]);
+          replaced = true;
+          renameSync(join(target, ".kota"), parkedKota);
+          symlinkSync(outside, join(target, ".kota"), "dir");
+          return [
+            ...firstResult,
+            ...mutateAnchoredScopeRuntimeDirectories(
+              mutations.filter((candidate) => candidate !== kotaMutation),
+            ),
+          ];
+        }
+        return mutateAnchoredScopeRuntimeDirectories(mutations);
+      },
+    });
+    target = join(fixture.root, targetName);
+    parkedKota = join(target, ".kota-parked");
+    outside = join(fixture.root, "outside-runtime-state");
+    mkdirSync(target);
+    mkdirSync(join(outside, "runs"), { recursive: true });
+    writeFileSync(join(outside, "runs", "sentinel"), "outside\n");
+
+    try {
+      const planned = await fixture.service.plan(target);
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+
+      expect(await fixture.service.apply(planned.plan)).toMatchObject({
+        ok: false,
+        reason: "apply_failed",
+      });
+      expect(replaced).toBe(true);
+      expect(readFileSync(join(outside, "runs", "sentinel"), "utf8")).toBe(
+        "outside\n",
+      );
+      expect(existsSync(join(outside, "approvals"))).toBe(false);
+      expect(existsSync(join(parkedKota, "runs"))).toBe(false);
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it("does not move a replacement directory while compensating a failed apply", async () => {
+    let target = "";
+    let parkedCreatedDirectory = "";
+    let mutationCalls = 0;
+    const fixture = await createFixture({
+      mutateRuntimeDirectories: (mutations) => {
+        mutationCalls += 1;
+        mutateAnchoredScopeRuntimeDirectories(mutations);
+        parkedCreatedDirectory = join(target, ".kota", "runs-created-by-onboarding");
+        renameSync(join(target, ".kota", "runs"), parkedCreatedDirectory);
+        mkdirSync(join(target, ".kota", "runs"));
+        writeFileSync(join(target, ".kota", "runs", "sentinel"), "replacement\n");
+        throw new Error("fixture failed after replacing the created runtime directory");
+      },
+    });
+    target = join(fixture.root, "runtime-leaf-replacement");
+    mkdirSync(target);
+
+    try {
+      const planned = await fixture.service.plan(target);
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+
+      expect(await fixture.service.apply(planned.plan)).toMatchObject({
+        ok: false,
+        reason: "apply_failed",
+        operation: {
+          mutations: expect.arrayContaining([
+            expect.objectContaining({
+              kind: "rollback",
+              target: "runtime-directory:.kota/runs",
+              status: "rolled-back",
+              message: expect.stringContaining("without mutating"),
+            }),
+          ]),
+        },
+      });
+      expect(mutationCalls).toBe(1);
+      expect(readFileSync(join(target, ".kota", "runs", "sentinel"), "utf8"))
+        .toBe("replacement\n");
+      expect(existsSync(parkedCreatedDirectory)).toBe(true);
+      expect(readdirSync(target).some((entry) =>
+        entry.startsWith(".kota-runtime-directory-quarantine-")
+      )).toBe(false);
+    } finally {
+      await fixture.close();
+    }
+  });
+
+  it("rejects ancestor replacement at the atomic mutation boundary", () => {
+    if (process.platform !== "darwin") return;
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-atomic-runtime-")));
+    roots.push(root);
+    const target = join(root, "target");
+    const outside = join(root, "outside");
+    const parkedKota = join(target, ".kota-parked");
+    mkdirSync(join(target, ".kota", "runs"), { recursive: true });
+    mkdirSync(join(outside, "runs"), { recursive: true });
+    writeFileSync(join(outside, "runs", "sentinel"), "outside\n");
+    const rootStats = lstatSync(target);
+    const boundary =
+      "  result = RENAMEATX.call(from_fd, from_path, to_fd, to_path, RENAME_FLAGS)";
+    const attackedSource =
+      SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE.replace(
+        boundary,
+        [
+          "  unless $ancestor_replaced",
+          "    $ancestor_replaced = true",
+          `    File.rename(${JSON.stringify(join(target, ".kota"))}, ${JSON.stringify(parkedKota)})`,
+          `    File.symlink(${JSON.stringify(outside)}, ${JSON.stringify(join(target, ".kota"))})`,
+          "  end",
+          boundary,
+        ].join("\n"),
+      );
+    expect(attackedSource).not.toBe(
+      SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE,
+    );
+
+    const invoke = (
+      mutation: Record<string, unknown>,
+    ): { ok: boolean; reason?: string } => {
+      const result = spawnSync(
+        "/usr/bin/ruby",
+        ["--disable-gems", "-e", attackedSource],
+        {
+          encoding: "utf8",
+          env: {},
+          input: JSON.stringify({
+            operation: "ensure",
+            scopeRootPath: target,
+            scopeRootIdentity: { dev: rootStats.dev, ino: rootStats.ino },
+            mutations: [{ operation: "ensure", ...mutation }],
+          }),
+        },
+      );
+      expect(result.status).toBe(0);
+      return JSON.parse(result.stdout) as { ok: boolean; reason?: string };
+    };
+
+    expect(
+      invoke({
+        relativePath: ".kota/approvals",
+        expectMissing: true,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(existsSync(join(outside, "approvals"))).toBe(false);
+  });
+
+  it("does not follow a moved direct staging leaf during atomic creation", () => {
+    if (process.platform !== "darwin") return;
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "kota-staging-race-")));
+    roots.push(root);
+    const target = join(root, "target");
+    const outside = join(root, "outside");
+    const parkedStaging = join(root, "parked-staging");
+    mkdirSync(join(target, ".kota"), { recursive: true });
+    mkdirSync(outside);
+    writeFileSync(join(outside, "sentinel"), "outside\n");
+    const rootStats = lstatSync(target);
+    const boundary =
+      "    error = atomic_rename(root_fd, staging_name, root_fd, relative_path)";
+    const attackedSource =
+      SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE.replace(
+        boundary,
+        [
+          "    unless $staging_replaced",
+          "      $staging_replaced = true",
+          `      File.rename(File.join(${JSON.stringify(
+            target,
+          )}, staging_name), ${JSON.stringify(parkedStaging)})`,
+          `      File.symlink(${JSON.stringify(outside)}, File.join(${JSON.stringify(
+            target,
+          )}, staging_name))`,
+          "    end",
+          boundary,
+        ].join("\n"),
+      );
+    expect(attackedSource).not.toBe(
+      SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE,
+    );
+
+    const result = spawnSync(
+      "/usr/bin/ruby",
+      ["--disable-gems", "-e", attackedSource],
+      {
+        encoding: "utf8",
+        env: {},
+        input: JSON.stringify({
+          operation: "ensure",
+          scopeRootPath: target,
+          scopeRootIdentity: { dev: rootStats.dev, ino: rootStats.ino },
+          mutations: [
+            {
+              operation: "ensure",
+              relativePath: ".kota/runs",
+              expectMissing: true,
+            },
+          ],
+        }),
+      },
+    );
+    expect(result.status).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ ok: false });
+    expect(readFileSync(join(outside, "sentinel"), "utf8")).toBe("outside\n");
+    expect(existsSync(join(outside, "runs"))).toBe(false);
+    expect(existsSync(parkedStaging)).toBe(true);
+  });
+
+  it("rejects a plan after the accepted scope-root inode is replaced", async () => {
+    const fixture = await createFixture();
+    const target = join(fixture.root, "replaced-scope-root");
+    const acceptedRoot = join(fixture.root, "accepted-scope-root");
+    mkdirSync(target);
+
+    try {
+      const planned = await fixture.service.plan(target);
+      expect(planned.ok).toBe(true);
+      if (!planned.ok) return;
+
+      renameSync(target, acceptedRoot);
+      mkdirSync(target);
+
+      expect(await fixture.service.apply(planned.plan)).toMatchObject({
+        ok: false,
+        reason: "plan_changed",
+      });
+      expect(existsSync(join(target, ".kota"))).toBe(false);
+      expect(existsSync(join(acceptedRoot, ".kota"))).toBe(false);
+    } finally {
+      await fixture.close();
+    }
+  });
 
   it("runs observe review without treating an empty .git directory as Git", async () => {
     const fixture = await createFixture();
@@ -2070,7 +2395,7 @@ describe("ScopeOnboardingService", () => {
 async function createFixture(
   overrides: Partial<Pick<
     ConstructorParameters<typeof ScopeOnboardingService>[0],
-    | "createRuntimeDirectory"
+    | "mutateRuntimeDirectories"
     | "getImprovementAuthority"
     | "inspectImprovementRuntimeReadiness"
   >> = {},

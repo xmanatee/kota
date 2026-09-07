@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: Runtime directory creation and rollback use path-based checks followed by separate filesystem mutations. An untrusted scope can replace an ancestor with a symlink between those operations, causing the daemon to create or remove directories outside the accepted scope root.
 
@@ -116,3 +115,16 @@ excerpt:
 
 
 > const stats = lstatSync(path);
+
+## Resolution
+
+Runtime-directory plans now retain the accepted scope-root device/inode identity. Apply installs each missing leaf with Darwin's atomic no-follow, beneath-root rename primitive using the accepted root descriptor and complete relative path. Ancestor screening and installation therefore occur in one kernel operation instead of separate cwd-relative checks and mutations. Randomized staging leaves are direct children of the accepted root, and their creation, inspection, and no-follow cleanup stay relative to that descriptor. Hosts without the atomic creation primitive fail closed.
+
+Rollback deliberately performs no runtime-directory filesystem mutation. Darwin does not provide a compare-and-delete operation that can require a name to still identify the recorded inode at the instant it is renamed or removed; an inspect-then-quarantine sequence retains the original TOCTOU gap. Compensation instead releases transaction ownership and retains the created directories, which are safe state for a fresh plan to recognize. Replaced paths and user content therefore cannot be moved into a quarantine name by cancellation.
+
+## Final verification
+
+- A focused owner test replaces a created runtime-directory leaf with a sentinel-bearing directory immediately before a failed apply is compensated. It proves cancellation never calls the filesystem mutator, the sentinel remains at its original path, and no quarantine entry appears.
+- The ancestor-replacement and staging-replacement probes continue to exercise the production creation helper at the atomic syscall boundary.
+- A direct helper probe creates top-level and nested runtime directories, rejects the removed deletion operation, and preserves the nested sentinel.
+- Ruby syntax validation and Node TypeScript syntax checks pass for every touched source and test file. The focused Vitest suite and `check:fast` could not run in this repair sandbox because the workspace package shims resolve to dependencies outside its executable boundary.

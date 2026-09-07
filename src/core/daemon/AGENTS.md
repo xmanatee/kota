@@ -53,7 +53,15 @@ readiness inspection but stays dispatch-closed until declared scope state and
 machine authority commit; incomplete operations never quarantine a scope that
 predated them and recover through retry or cancel. Scope-directory effects are
 write-ahead claimed in the operation artifact before mutation, so an interrupted
-claim remains rollback-owned. Transaction compensation restores unpublished
+claim remains rollback-owned. Runtime-directory creation preserves the accepted
+scope-root identity and uses atomic no-follow, beneath-root renames through a
+root descriptor. Randomized staging leaves are direct children of that root;
+their creation, inspection, and no-follow, beneath-root removal always use the
+root descriptor rather than an attacker-movable temporary descriptor. Rollback
+releases runtime-directory ownership without mutating the scope filesystem;
+created directories are safe to retain and a fresh plan treats them as existing
+state. Hosts without the atomic creation primitive fail closed.
+Transaction compensation restores unpublished
 authority while dispatch is closed, so it does not enter the separate live
 trust-revocation restart path. Task and inbox directories remain lazily owned by
 the repo-task domain; onboarding never creates a parallel queue scaffold.

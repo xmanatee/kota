@@ -11,6 +11,11 @@ export type ScopeOnboardingDirectoryKind = "git-repository" | "directory";
 
 export type ScopeImprovementPosture = "observe" | "propose" | "build";
 
+export type ScopeOnboardingFileIdentity = {
+  dev: number;
+  ino: number;
+};
+
 export type ScopeOnboardingReason = {
   code: string;
   message: string;
@@ -22,6 +27,7 @@ export type ScopeOnboardingInspection = {
   operationId: string;
   scopeId: ScopeId;
   directoryRoot: string;
+  directoryRootIdentity: ScopeOnboardingFileIdentity;
   displayName: string;
   kind: ScopeOnboardingDirectoryKind;
   registered: boolean;
@@ -93,6 +99,8 @@ export type ScopeOnboardingPlan = {
   inspectionId: string;
   scopeId: ScopeId;
   directoryRoot: string;
+  /** Missing only on operations persisted before root identities were recorded. */
+  directoryRootIdentity?: ScopeOnboardingFileIdentity;
   createdAt: string;
   choices: ScopeOnboardingNormalizedChoices;
   registrationBaseline: {
