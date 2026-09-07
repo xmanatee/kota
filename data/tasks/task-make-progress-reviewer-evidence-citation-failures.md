@@ -2,7 +2,6 @@
 status: blocked
 priority: p1
 ---
-
 # Make progress-reviewer evidence citation failures repairable
 
 ## Problem
@@ -44,24 +43,27 @@ One autonomy issue, one decision, one implementation path.
 
 ## Acceptance Evidence
 
--     Focused progress-reviewer workflow tests inject the malformed citation shapes from dlq-fd469f02-35bf-4656-bfc6-a7bc7e3347fd and dlq-8c912d98-2b05-4160-a77f-5cec930102db, prove they are rejected before apply-actions, and show a bounded corrected response completes successfully using exact packet IDs. An exhausted correction path must create no tasks or owner questions and retain an explicit diagnostic. Record redrive or dismissal evidence for both cited dead letters after same-shape verification.
+Existing focused workflow coverage must demonstrate correction before action application and fail-closed exhaustion without task/question writes. Preserve the available historical citation evidence. For records absent from the current DLQ, record absence rather than demanding export, recreation, or dismissal. Resolve any still-live matching issue through its owning mechanism.
 
 ## Blocked on
+
 ```
 kind: operator-capture
-path: .kota/runs/progress-reviewer-citation-resolution/canonical-citation-resolution.json
-description: trusted-host canonical-runtime reconciliation — export dlq-fd469f02-35bf-4656-bfc6-a7bc7e3347fd and dlq-8c912d98-2b05-4160-a77f-5cec930102db with `pnpm kota workflow dlq export <id> --out <path>`; preserve each exact fabricated hybrid evidence ID from failure.reason in the named artifact; update workflow-citation-correction.test.ts to replay both source values; run the focused test; dismiss both records with `pnpm kota workflow dlq dismiss <id> --reason "superseded by verified citation-contract fix"`; and record the resulting typed cleared observation or resolved autonomy-issue-cb5e47a553dba6caa23a revision-1 projection in the artifact
+path: .kota/runs/blocked-task-review-2026-09-07/task-make-progress-reviewer-evidence-citation-failures.diagnostics.json
+description: inspectable host diagnostics for final task review; no canonical credentials required
 ```
 
-## Status (2026-08-15 builder repair)
+## Operational evidence (2026-09-07)
 
-The production validator and bounded retry path are implemented, and synthetic
-unknown-ID coverage proves rejection happens before action writers. This
-isolated builder run cannot read the canonical DLQ records, so it cannot
-truthfully copy the two exact malformed citation values into a source-specific fixture.
-It also cannot dismiss the canonical records or resolve the runtime-owned
-autonomy issue projection. The task remains blocked until the capture above
-supplies and dispositions those canonical records.
+The two historical DLQ records are absent from the current store; they cannot be exported or dismissed now. Do not recreate them or require their exact records as a completion gate. A retained evidence packet in .kota/runs/2026-08-15T14-27-08-197Z-progress-reviewer-u148pd/metadata.json preserves the scoped malformed citation scope:8nrg1m:dead-letter:dlq-f084687d-a51d-4b30-b661-aa07517a4d83 and its rejection.
+
+The existing workflow-citation-correction.test.ts already exercises both scoped and unscoped forms of that malformed ID. Its two behavioral scenarios passed on 2026-09-07: correction before action application, and fail-closed exhaustion without creating tasks/questions. No new test or source change was needed for this verification.
+
+Review this current contract and close the task if it is satisfied; retain source absence honestly rather than blocking indefinitely on expired records. Do not infer that absence proves a historical dismissal or modify unrelated runtime state.
+
+## Prior implementation
+
+The production citation validator and bounded correction path are implemented. The former operator-capture restriction is superseded by the evidence above.
 
 - Source: improver; run: 2026-08-15T01-53-11-533Z-improver-uqqhg8
   - Issue: autonomy-issue-cb5e47a553dba6caa23a; revision: 1
