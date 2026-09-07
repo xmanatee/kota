@@ -298,6 +298,7 @@ describe("improver issue disposition workflow", () => {
       transition: "opened" | "revised",
     ) => ({
       event: autonomyIssueDecisionRequested.name,
+      schemaRef: null,
       payload: {
         scopeId: "scope-fixture",
         issueKey: issue.issueKey,
