@@ -22,17 +22,18 @@ Resolve autonomy issue autonomy-issue-65f82f71f370a705956a at semantic revision 
 ```
 kind: operator-capture
 path: .kota/runs/evaluator-calibration-monitor-dlq-capture/diagnostics.json
-description: operator-provided exports from `kota workflow dlq export <id>` for all seven cited ids, including each exact failure reason, failed run, and failing step, plus authenticated access to redrive or dismiss those canonical items after same-shape verification
+description: inspectable host diagnostics for final task review; no canonical credentials required
 ```
 
-An operator-controlled canonical diagnostic capture is required for the seven
-cited dead letters. This builder sandbox cannot read the canonical
-`.kota/dead-letter-queue/items.json`, enter the canonical scope as a process
-working directory, or authenticate to its daemon control API. Provide exports
-from `kota workflow dlq export <id>` for all seven cited ids, including each
-item's exact failure reason, failed run, and failing step, plus a mutation path
-that can redrive or dismiss the canonical items after verification. The task
-must not infer the shared execution fingerprint from the issue summary.
+## Operational evidence (2026-09-07)
+
+All seven cited records were exported through the canonical control API to
+`.kota/runs/evaluator-calibration-monitor-dlq-capture/diagnostics.json`.
+Their observed shared failure is: The "paths[0]" argument must be of type string. Received undefined, at inspectEvaluatorCalibrationInWorker.
+The current workflow passes both stateDir and scopeRoot to that worker.
+A retained-trigger replay was admitted as 2026-09-07T13-33-16-621Z-evaluator-calibration-monitor-h7oxsf; admission is not evidence of success.
+
+Use these diagnostics to review the owning input boundary and existing regression coverage. Do not request canonical credentials or duplicate exports. Operational redrive/disposition belongs to the host control API, not direct sandbox access. Do not weaken metadata validation or invent a new protocol. Review actual replay results before closing this task.
 
 ## How We Will Know
 
