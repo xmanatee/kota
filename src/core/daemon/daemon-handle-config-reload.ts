@@ -92,6 +92,7 @@ export function buildDaemonConfigReloadHandle(
         const inputs = loader.getContributedWorkflows();
         let aggregateCount = 0;
         for (const runtime of scopeRuntimes.list()) {
+          runtime.workflowRuntime.configureQuotaGuard(loadConfig(runtime.scope.scopeRoot));
           runtime.workflowRuntime.setWorkflowInputs(inputs);
           aggregateCount = runtime.workflowRuntime.reloadWorkflowDefinitions().count;
         }

@@ -1255,6 +1255,23 @@
             "end"
           ],
           "type": "object"
+        },
+        "quotaGuard": {
+          "additionalProperties": false,
+          "description": "Pause new workflows at a declining weekly account-quota reserve.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "reservePercentPerDay": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "enabled",
+            "reservePercentPerDay"
+          ],
+          "type": "object"
         }
       },
       "type": "object",

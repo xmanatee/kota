@@ -13,6 +13,7 @@ import {
 } from "./agent-backoff.js";
 import { WorkflowEventBatchManager } from "./event-batches.js";
 import { withWorkflowFailureAlert } from "./failure-alert.js";
+import { QuotaGuard } from "./quota-guard.js";
 import type { RunCoordinator } from "./run-coordinator.js";
 import { workflowUsesAgent } from "./run-executor-utils.js";
 import {
@@ -55,6 +56,7 @@ export interface WorkflowRuntimeContext {
   readonly watchTriggers: WatchTriggerManager;
   readonly eventBatches: WorkflowEventBatchManager;
   readonly backoff: AgentBackoffManager;
+  readonly quotaGuard: QuotaGuard;
   readonly runState: RunStateDatabase;
   readonly runCoordinator: RunCoordinator;
   readonly daemonEpoch: number;
@@ -196,6 +198,11 @@ export function createWorkflowRuntimeContext(
     watchTriggers,
     eventBatches,
     backoff,
+    quotaGuard: new QuotaGuard({
+      hold: () => runtimeConfig.runCoordinator.pauseScopeAdmission(runtimeConfig.scopeId, "quota"),
+      release: () => runtimeConfig.runCoordinator.resumeScopeAdmission(runtimeConfig.scopeId, "quota"),
+      log,
+    }),
     runState: runtimeConfig.runState,
     runCoordinator: runtimeConfig.runCoordinator,
     daemonEpoch: runtimeConfig.daemonEpoch,

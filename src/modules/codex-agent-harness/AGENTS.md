@@ -19,6 +19,10 @@ the child, so exported keys cannot take priority over local Codex login.
 
 KOTA supports Codex CLI `0.144.1` or newer for this GPT-5.6 integration.
 
+Account quota inspection uses the installed CLI's app-server account RPC,
+with no agent turns or reset-credit consumption. Normalize only the weekly
+Codex account bucket; never substitute Spark, five-hour limits, or run usage.
+
 Reasoning effort maps to Codex CLI's `model_reasoning_effort` config:
 
 - `low` -> `low`

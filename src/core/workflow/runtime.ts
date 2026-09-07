@@ -1,3 +1,6 @@
+import { resolveAgentHarness } from "#core/agent-harness/registry.js";
+import type { KotaConfig } from "#core/config/config.js";
+import { resolveAgentRuntime } from "#core/model/preset.js";
 import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import type { AwaitSuspension } from "./awaits-store.js";
 import { resolveWorkflowDispatchPause } from "./dispatch-pause.js";
@@ -136,13 +139,25 @@ export class WorkflowRuntime {
   }
 
   start(initialDispatch: WorkflowRuntimeInitialDispatch = "active"): void {
+    if (this.ctx.config?.scheduler?.quotaGuard?.enabled) {
+      this.configureQuotaGuard(this.ctx.config);
+    }
     startRuntime(this.ctx, initialDispatch);
+  }
+
+  configureQuotaGuard(config: KotaConfig): void {
+    const policy = config.scheduler?.quotaGuard;
+    const reader = policy?.enabled
+      ? resolveAgentHarness(resolveAgentRuntime(config).harness).readWeeklyQuota
+      : undefined;
+    this.ctx.quotaGuard.configure(policy, reader);
   }
 
   stop(
     gracePeriodMs = 60_000,
     abortWaitMs = WORKFLOW_STOP_ABORT_WAIT_MS,
   ): Promise<void> {
+    this.ctx.quotaGuard.stop();
     return stopRuntime(this.ctx, gracePeriodMs, abortWaitMs);
   }
 
@@ -266,6 +281,15 @@ export class WorkflowRuntime {
   }
 
   getDispatchPauseStatus(): WorkflowDispatchPauseStatus {
+    if (!this.ctx.scopeState.getDispatchPaused() && this.ctx.quotaGuard.message !== null) {
+      return {
+        paused: true,
+        kind: "runtime",
+        source: "runtime",
+        message: this.ctx.quotaGuard.message,
+        nextAction: "Quota is checked automatically every minute. Configure scheduler.quotaGuard to change the policy.",
+      };
+    }
     return resolveWorkflowDispatchPause({
       operatorPaused: this.ctx.scopeState.getDispatchPaused(),
       runtimePaused: isDispatchPaused(this.ctx),

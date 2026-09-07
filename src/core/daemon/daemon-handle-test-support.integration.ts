@@ -25,6 +25,7 @@ export type ReloadSubject = {
   restartRequests: BusEvents["runtime.restart_requested"][];
   refreshLiveSessionGuardrails: ReturnType<typeof vi.fn>;
   workflowRuntime: {
+    configureQuotaGuard: ReturnType<typeof vi.fn>;
     setWorkflowInputs: ReturnType<typeof vi.fn>;
     reloadWorkflowDefinitions: ReturnType<typeof vi.fn>;
     getDefinitionCount: ReturnType<typeof vi.fn>;
@@ -69,6 +70,7 @@ export function makeReloadSubject(
   });
 
   const workflowRuntime = {
+    configureQuotaGuard: vi.fn(),
     setWorkflowInputs: vi.fn(),
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 5 })),
     getDefinitionCount: vi.fn(() => 3),

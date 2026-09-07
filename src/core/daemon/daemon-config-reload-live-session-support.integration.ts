@@ -188,6 +188,7 @@ export async function startDaemonWithLiveSessionReload(
     })),
     getDispatchWindowStatus: vi.fn(() => ({ blocked: false })),
     getDispatchPauseStatus: vi.fn(() => ({ paused: false, kind: "none" })),
+    configureQuotaGuard: vi.fn(),
     isDispatchPaused: vi.fn(() => false),
     setWorkflowInputs: vi.fn(),
     reloadWorkflowDefinitions: vi.fn(() => ({ count: 0 })),

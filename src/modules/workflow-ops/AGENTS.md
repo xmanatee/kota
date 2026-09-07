@@ -25,6 +25,8 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 - `workflow resume` changes dispatch pause only. The explicit `--retry-agent`
   option clears a corrected quality/output pause; provider and authentication
   incidents remain parked until their recorded recovery horizon elapses.
+  Status and resume output report the effective pause reason; resuming an
+  operator pause cannot override the automatic quota admission hold.
 - Material canary quality regressions use the agent-only quality-pause control.
   They persist in the selected scope's backoff authority and leave deterministic
   workflow dispatch available until an explicit agent retry. That retry clears

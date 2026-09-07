@@ -1,4 +1,5 @@
 import type { HarnessHookKind } from "./hooks.js";
+import type { ReadWeeklyQuota } from "./quota.js";
 import type {
   AgentHarnessReadinessProbe,
   AgentHarnessUnsupportedOption,
@@ -18,6 +19,8 @@ import type {
  * and never the underlying runtime directly.
  */
 export type AgentHarness = {
+  /** Optional account-level subscription quota capability; never runs an agent. */
+  readonly readWeeklyQuota?: ReadWeeklyQuota;
   /** Unique harness name, used to resolve adapters at runtime. */
   readonly name: string;
   /** Short human-facing description of what this harness runs. */

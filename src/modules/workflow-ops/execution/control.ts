@@ -83,6 +83,12 @@ export function registerControlCommands(wfCmd: Command, ctx: ModuleContext): voi
       const result = await ctx.client.workflow.resume(
         options.retryAgent ? { retryAgent: true } : undefined,
       );
+      const status = await ctx.client.workflow.status();
+      if (status.pause?.paused) {
+        printWorkflowText(`Dispatch remains paused: ${status.pause.message}`);
+        printWorkflowText(status.pause.nextAction);
+        return;
+      }
       if (result.already) {
         printWorkflowText(
           result.agentBackoffCleared
@@ -157,7 +163,9 @@ function printWorkflowStatus(status: WorkflowStatusSnapshot): void {
   if (status.pause?.kind === "operator") {
     printWorkflowText("Dispatch: PAUSED by operator (run `kota workflow resume` to re-enable)");
   } else if (status.paused) {
-    printWorkflowText("Dispatch: PAUSED at runtime (inspect daemon before resuming)");
+    printWorkflowText(status.pause?.paused
+      ? `Dispatch: PAUSED. ${status.pause.message}\n${status.pause.nextAction}`
+      : "Dispatch: PAUSED at runtime (inspect daemon before resuming)");
   } else if (status.dispatchWindowBlocked) {
     const opensAt = status.dispatchWindowOpensAt
       ? ` (opens ${formatWindowTime(status.dispatchWindowOpensAt)})`

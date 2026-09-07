@@ -22,6 +22,7 @@ import {
 } from "#core/agent-harness/index.js";
 import { projectNativeCliScope } from "#core/agent-harness/native-cli-scope-policy.js";
 import { collectTextFromCodexCli } from "./cli-runner.js";
+import { readCodexWeeklyQuota } from "./quota.js";
 import { resolveCodexHome } from "./runtime-home.js";
 
 export const CODEX_AGENT_HARNESS_NAME = "codex";
@@ -234,6 +235,7 @@ export const codexAgentHarness: AgentHarness = {
   nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,
+  readWeeklyQuota: readCodexWeeklyQuota,
   resolveIsolatedHostAuthEnv: resolveCodexIsolatedHostAuthEnv,
   async run(
     options: AgentHarnessRunOptions,

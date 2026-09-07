@@ -38,6 +38,13 @@ describe("scheduler config slice", () => {
     expect(resolveWorkflowConcurrency(config.scheduler)).toBe(8);
   });
 
+  it("validates the quota policy and preserves explicit disablement through config resolution", () => {
+    const config = loadTrustedConfig({ scheduler: { quotaGuard: { enabled: false, reservePercentPerDay: 7 } } });
+    expect(config.scheduler?.quotaGuard).toEqual({ enabled: false, reservePercentPerDay: 7 });
+    expect(() => loadTrustedConfig({ scheduler: { quotaGuard: { enabled: true, reservePercentPerDay: -1 } } })).toThrow();
+    expect(() => loadTrustedConfig({ scheduler: { quotaGuard: { enabled: "yes", reservePercentPerDay: 10 } } })).toThrow();
+  });
+
   it("rejects invalid concurrency without discarding valid scheduler behavior", () => {
     writeFileSync(
       join(tmpDir, ".kota", "config.json"),

@@ -67,6 +67,24 @@ afterEach(() => {
 });
 
 describe("RunCoordinator", () => {
+  test("quota release does not release an operator or recovery admission hold", async () => {
+    const store = createStore();
+    const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    admit(store, "run-quota", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
+    const execute = vi.fn(async (): Promise<RunExecutionOutcome> => ({ kind: "terminal", state: "succeeded" }));
+    const coordinator = new RunCoordinator({ store, daemonEpoch: epoch, concurrency: 2, execute });
+    coordinator.pauseScopeAdmission("scope-a");
+    coordinator.pauseScopeAdmission("scope-a", "quota");
+    coordinator.resumeScopeAdmission("scope-a");
+    expect(execute).not.toHaveBeenCalled();
+    coordinator.pauseScopeAdmission("scope-a");
+    coordinator.resumeScopeAdmission("scope-a", "quota");
+    expect(execute).not.toHaveBeenCalled();
+    coordinator.resumeScopeAdmission("scope-a");
+    await coordinator.whenIdle();
+    expect(execute).toHaveBeenCalledOnce();
+    await coordinator.dispose();
+  });
   test("shares one limit across scopes and workflows and refills on completion", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");

@@ -101,7 +101,7 @@ export class RunCoordinator {
   private readonly capacityWaiters: CapacityWaiter[] = [];
   private readonly terminalWaiters = new Map<string, Set<TerminalWaiter>>();
   private readonly dependencyRunIds = new Set<string>();
-  private readonly pausedScopeIds = new Set<string>();
+  private readonly pausedScopeIds = new Map<string, Set<string>>();
   private globalAdmissionPaused = false;
   private eligibilityTimer: ReturnType<typeof setTimeout> | null = null;
   private publicationDrain: Promise<void> | null = null;
@@ -188,15 +188,19 @@ export class RunCoordinator {
     return this.refill();
   }
 
-  pauseScopeAdmission(scopeId: string): void {
-    this.pausedScopeIds.add(scopeId);
+  pauseScopeAdmission(scopeId: string, owner = "runtime"): void {
+    const owners = this.pausedScopeIds.get(scopeId) ?? new Set<string>();
+    owners.add(owner);
+    this.pausedScopeIds.set(scopeId, owners);
     this.clearEligibilityTimer();
     if (this.phase === "active") this.refill();
   }
 
-  resumeScopeAdmission(scopeId: string): number {
+  resumeScopeAdmission(scopeId: string, owner = "runtime"): number {
     if (this.phase !== "active") return 0;
-    this.pausedScopeIds.delete(scopeId);
+    const owners = this.pausedScopeIds.get(scopeId);
+    owners?.delete(owner);
+    if (owners?.size === 0) this.pausedScopeIds.delete(scopeId);
     return this.refill();
   }
 
@@ -220,7 +224,7 @@ export class RunCoordinator {
         this.store.listDispatchableRuns({
           now: observedAt,
           limit: this.concurrency - this.countOccupiedCapacity(),
-          excludedScopeIds: [...this.pausedScopeIds],
+          excludedScopeIds: [...this.pausedScopeIds.keys()],
         }),
         observedAt,
       );
@@ -677,7 +681,7 @@ export class RunCoordinator {
       ? null
       : this.store.nextQueuedEligibility({
           after: observedAt,
-          excludedScopeIds: [...this.pausedScopeIds],
+          excludedScopeIds: [...this.pausedScopeIds.keys()],
         });
     const eligibleAt = [dependencyEligibility, normalEligibility]
       .filter((value): value is string => value !== null)
