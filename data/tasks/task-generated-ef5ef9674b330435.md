@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Repair historical run metadata blocking runtime-health audit
