@@ -44,8 +44,8 @@ type RunSummary = {
   provenance: EvidenceProvenance;
 };
 
-function toSummary(meta: WorkflowRunMetadata, runsDir?: string): RunSummary {
-  return {
+function toSummary(meta: WorkflowRunMetadata, runsDir?: string): EvidenceJsonObject {
+  const summary: RunSummary = {
     id: meta.id,
     workflow: meta.workflow,
     status: meta.status,
@@ -58,6 +58,7 @@ function toSummary(meta: WorkflowRunMetadata, runsDir?: string): RunSummary {
     ...(meta.tags !== undefined && { tags: meta.tags }),
     provenance: workflowRunProvenance(meta),
   };
+  return projectEvidenceObject(summary, "daemon-api");
 }
 
 function workflowRunProvenance(meta: WorkflowRunMetadata): EvidenceProvenance {

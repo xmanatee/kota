@@ -116,3 +116,33 @@ excerpt:
 
 
 > res.end(JSON.stringify(body));
+
+## Resolution
+
+The workflow-ops run-list route now applies the shared `daemon-api` evidence
+projection to each assembled summary after delivery derivation. This covers
+current task-file blocker text as well as persisted delivery fields before
+either paginated or `since` responses are serialized. Authorization and the
+shared redaction policy are unchanged.
+
+## Verification
+
+- Added an owner-portfolio regression through `handleWorkflowRuns` using a real
+  run store, historical metadata without delivery, and a blocked task containing
+  a synthetic password and email. Both query modes failed before the fix and
+  passed afterward. Serialized responses retain delivery kind, task identity,
+  title, and useful blocker prose while removing both sensitive values.
+- `pnpm test:owner src/modules/workflow-ops/routes/workflow-routes.test.ts`:
+  all 82 tests passed, including existing pagination and usage projections.
+- `pnpm typecheck`: production and test projects passed.
+- Scoped Biome checks passed for both changed route files.
+
+The regression exercises the owning response boundary with filesystem evidence;
+it does not exercise a live daemon or client UI. Redaction coverage remains that
+of the existing shared evidence policy.
+
+The normal completion command, `pnpm kota task move
+task-security-review-for-historical-runs-without-persis done`, failed with
+`Repo-task mutation requires the active workflow runtime`. The implementation is
+complete; the runtime must perform the terminal transition because this native
+CLI process has no task-mutation authority. Task state remains open.

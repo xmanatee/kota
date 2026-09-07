@@ -816,6 +816,52 @@ describe("workflow-routes", () => {
   });
 
   describe("handleWorkflowRuns", () => {
+    it.each(["?limit=20&offset=0", "?since=0"])(
+      "redacts historical delivery derived from a blocked task (%s)",
+      (query) => {
+        const taskId = "task-awaiting-access";
+        const taskTitle = "Restore deployment access";
+        mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
+        writeFileSync(join(workspaceRoot, "data", "tasks", `${taskId}.md`), [
+          "---",
+          "status: blocked",
+          "priority: p2",
+          "---",
+          `# ${taskTitle}`,
+          "",
+          "## Blocked on",
+          "Awaiting access; password=synthetic-value-123; contact operator@example.test",
+        ].join("\n"));
+        writeRunMetadata(runsDir, "run-historical", "builder", "success", {
+          trigger: {
+            event: "autonomy.queue.available",
+            schemaRef: null,
+            payload: { taskId, title: taskTitle },
+          },
+        });
+
+        const { res, result } = mockResponse();
+        handleWorkflowRuns(res, new URL(`http://localhost/api/workflow/runs${query}`), store);
+
+        expect(result.status).toBe(200);
+        expect(result.body).toMatchObject({
+          runs: [{
+            id: "run-historical",
+            status: "success",
+            delivery: {
+              kind: "blocked",
+              taskId,
+              taskTitle,
+              blocker: "Awaiting access; password=[redacted]; contact [redacted]",
+            },
+          }],
+        });
+        const serialized = JSON.stringify(result.body);
+        expect(serialized).not.toContain("synthetic-value-123");
+        expect(serialized).not.toContain("operator@example.test");
+      },
+    );
+
     it("returns empty list when no runs exist", () => {
       const { res, result } = mockResponse();
       handleWorkflowRuns(res, new URL("http://localhost/api/workflow/runs"), store);
