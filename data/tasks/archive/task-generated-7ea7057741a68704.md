@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Prevent overlapping attention-digest runs from failing on counter contention
 

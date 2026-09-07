@@ -10,6 +10,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
   description:
     "Check for attention-worthy system conditions and emit a notification digest when any are found.",
   repository: "read",
+  resources: () => [ATTENTION_DIGEST_COUNTER_STATE_KEY],
   triggers: [
     {
       event: "workflow.completed",

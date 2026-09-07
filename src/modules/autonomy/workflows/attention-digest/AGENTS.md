@@ -25,7 +25,9 @@ surfaces should strict-decode `{ data: { items }, text }` and surface transport
 errors as plain failure banners.
 
 Counter invariant: the cadence counter is revisioned project state owned by
-the workflow runtime. The cadence run stages its update transactionally;
+the workflow runtime. Cadence runs declare a scope-local logical resource so
+the runtime serializes counter readers through transaction completion. The
+cadence run stages its update transactionally;
 on-demand reads do not advance it or change the next cadence boundary.
 
 Bus invariant: the on-demand path must not emit `workflow.attention.digest`.
