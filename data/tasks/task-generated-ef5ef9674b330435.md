@@ -19,7 +19,7 @@ Resolve the progress-review finding identified by topic runtime:historical-run-m
 
 ## How We Will Know
 
-The cited historical run is reconciled from its durable workflow and trigger authority through a runtime-owned safe repair path, the metadata passes current schema and provenance validation, a same-shape runtime-health audit reaches success without weakening fail-closed handling, and the cited dead letter receives a durable terminal disposition.
+Retained malformed runs reconcile through the runtime-owned durable-authority path without weakening validation. A same-scope runtime-health audit succeeds and the cited dead letter has an explicit disposition. If the exact historical source is no longer retained, document that absence instead of fabricating repair evidence.
 
 ## Context
 
@@ -38,11 +38,12 @@ Evidence ids:
 
 ```
 kind: operator-capture
-path: .kota/runs/historical-run-metadata-repair/canonical-resolution.json
-description: trusted-host canonical-runtime activation — publish this repair, restart the daemon so startup reconciles the cited malformed run and retains its digest-addressed source, let a same-scope runtime-health audit succeed, and capture the repaired metadata validation plus the terminal disposition of dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687 at this path
+path: .kota/runs/blocked-task-review-2026-09-07/task-generated-ef5ef9674b330435.diagnostics.json
+description: inspectable host diagnostics for final task review; no canonical credentials required
 ```
 
-Runtime-owned publication and daemon startup must activate the repair against
-the canonical scope. A later same-scope runtime-health audit must then succeed
-and durably dismiss the cited dead letter using the retained, run-specific
-repair evidence. The isolated builder must not mutate that live daemon state.
+## Operational evidence (2026-09-07)
+
+Repair implementation was integrated in 5bb1b41e8 and the daemon was restarted on current code. The exact run cited by dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687 is 2026-08-24T12-19-13-793Z-builder-689rsi. Both its durable run row and its metadata file are now absent. Do not confuse it with another malformed historical run or fabricate a repair backup.
+
+The cited dead letter was redriven through the owning control API as 2026-09-07T13-33-18-949Z-runtime-health-auditor-ywbldz. Verify that replay reaches success and assess current startup repair behavior. For a retained malformed record require the existing durable-authority validation and backup; for a source no longer retained, record its absence and current same-scope audit result instead of requiring reconstruction of nonexistent evidence. Do not delete evidence or weaken authority checks.
