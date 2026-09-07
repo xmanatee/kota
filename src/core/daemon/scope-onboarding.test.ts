@@ -916,12 +916,12 @@ describe("ScopeOnboardingService", () => {
     for (const change of legacyOperation.acceptedPlan.changes) {
       if (change.owner !== "scope") continue;
       mkdirSync(join(target, change.path), { recursive: true });
-      legacyOperation.mutations.push({
+      legacyOperation.mutations = [...legacyOperation.mutations, {
         kind: "create-runtime-directory",
         target: change.path,
         status: "applied",
         at: "2026-01-01T00:00:00.000Z",
-      });
+      }];
     }
     writeFileSync(operationPath, JSON.stringify(legacyOperation, null, 2));
 
