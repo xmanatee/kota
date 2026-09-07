@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Verify historical metadata repair and disposition the cited runtime-health failure
@@ -33,3 +33,57 @@ Resolve the finding using evidence from scope kota (8nrg1m): establish the exact
 ## Context
 
 Decomposed from `task-generated-ef5ef9674b330435` after builder run `2026-09-07T16-05-20-034Z-builder-zdj0si` exhausted repair.
+
+## Verification attempt (2026-09-07)
+
+Read-only canonical SQLite observation at 2026-09-07T18:58:11.621187Z identifies
+scope kota (`8nrg1m`). The exact historical run
+`2026-08-24T12-19-13-793Z-builder-689rsi` has no durable row. Its metadata retention
+is still unverified; the predecessor task's report of file absence is not a
+fresh observation and no repair of that source is claimed.
+
+The named replay `2026-09-07T13-33-18-949Z-runtime-health-auditor-ywbldz` is
+`succeeded` with `result_status: success`, completed at 2026-09-07T15:02:18.000Z
+in scope `8nrg1m`. The failed builder `2026-09-07T16-05-20-034Z-builder-zdj0si`
+is durably failed: its build repair loop made no progress after three attempts,
+with `target-task-resolved` and `critic-review` still failing. Reading its
+metadata and the required original operator capture returned `PermissionError`,
+errno 1 (`Operation not permitted`). Those errors establish inaccessibility,
+not absence. Detailed critic evidence could not be inspected.
+
+The integrated daemon startup path still owns authority-based repair and source
+backup. Existing repair, startup, and supersession owner checks passed (3 files,
+7 tests); they prove fixture behavior, not host startup execution. Eleven current
+needs-attention rows report integration-invariant or sandbox-cleanup blockers;
+this bounded projection does not replace the full `state:recovery` response.
+`dead-letter:dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687` still lacks an inspected
+explicit disposition. `runtime:historical-run-metadata-repair` remains unresolved.
+No remaining production defect was demonstrated and no implementation changed.
+
+Evidence for this attempt lives under
+`.kota/runtime/2026-09-07t18-52-45-373z-builder-e7075c3014c4687a88cfb800fcccf862858d0570aef1c53e2ef8b9e9a2af9e7e/agent/`:
+`durable-observation.json` (read-only host records), `evidence-access.json`
+(permission errors), and `verification.md` (source assessment and validation).
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/blocked-task-review-2026-09-07/task-verify-historical-metadata-repair-and-disposition.diagnostics.json
+description: Writer-readable scope 8nrg1m capture of predecessor critic evidence, original diagnostics, exact historical metadata retention, startup repair observation, cited dead-letter disposition and current recovery; no credentials required
+```
+
+## Operator capture requirements
+
+Provide the capture through a permitted evidence surface readable in the next
+writer run. Include the failed builder's review diagnostics and the original
+`.kota/runs/blocked-task-review-2026-09-07/task-generated-ef5ef9674b330435.diagnostics.json`,
+plus timestamped metadata retention evidence for the exact historical source,
+current startup repair evidence, and the explicit disposition of the cited dead
+letter linked to the named successful replay or authorized operator action.
+Include the current `state:recovery` projection and explain relevant blockers.
+Any needed disposition action must use an authorized operator/runtime control
+path outside this writer. Preserve existing evidence; do not reconstruct missing
+metadata or treat permission denial as absence. A new task-specific capture path
+keeps the existing inaccessible capture from being mistaken for satisfaction of
+this remaining prerequisite.
