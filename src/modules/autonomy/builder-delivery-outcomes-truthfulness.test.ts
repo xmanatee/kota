@@ -2,6 +2,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { aggregateAutonomyReport } from "#modules/autonomy/report/aggregate.js";
@@ -130,7 +131,16 @@ describe("builder delivery outcomes truthfulness", () => {
     writeTaskFile("open", taskFailedId, "Failed Task");
     const failedRun = writeRunRecord("2026-08-20T14-00-00-000Z-builder-fail1", {
       status: "failed",
-      steps: [{ id: "agent", type: "agent", status: "failed", durationMs: 5000, error: "Model timeout error" }],
+      steps: [{
+        id: "agent",
+        type: "agent",
+        status: "failed",
+        startedAt: new Date(NOW - MS_PER_DAY).toISOString(),
+        completedAt: new Date(NOW - MS_PER_DAY + 5000).toISOString(),
+        durationMs: 5000,
+        usage: UNKNOWN_AGENT_USAGE,
+        error: "Model timeout error",
+      }],
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload: { taskId: taskFailedId, title: "Failed Task" } },
     });
 
@@ -181,6 +191,7 @@ describe("builder delivery outcomes truthfulness", () => {
     // Verify Report Aggregation / Throughput metrics
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 7,
@@ -190,7 +201,7 @@ describe("builder delivery outcomes truthfulness", () => {
     expect(report.builder.closures.map((c) => c.taskId)).toEqual([taskDoneId]);
     // doneInWindow queue balance only includes completed tasks
     expect(report.doneInWindow.total).toBe(1);
-    expect(report.doneInWindow.byState.done).toBe(1);
+    expect(report.doneInWindow.byState).toEqual([{ state: "done", count: 1 }]);
 
     // Verify Progress Review evidence collection
     const progressEvidence = collectProgressReviewEvidence({
@@ -246,6 +257,7 @@ describe("builder delivery outcomes truthfulness", () => {
 
     const report = aggregateAutonomyReport({
       workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
       runsDir,
       windowEndMs: NOW,
       windowDays: 30,
@@ -263,4 +275,3 @@ describe("builder delivery outcomes truthfulness", () => {
     expect(history.deliveryRate).toBe(0);
   });
 });
-
