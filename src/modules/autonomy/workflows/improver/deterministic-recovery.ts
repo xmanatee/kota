@@ -1,10 +1,10 @@
 import { join } from "node:path";
-import type { DoctorRepairResult } from "#modules/doctor/client.js";
-import { runDoctorFixes } from "#modules/doctor/doctor-fixes.js";
 import type { AutonomyIssue } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   classifyDaemonControlFileForAudit,
 } from "#modules/autonomy/workflows/runtime-health-auditor/daemon-control-health.js";
+import type { DoctorRepairResult } from "#modules/doctor/client.js";
+import { runDoctorFixes } from "#modules/doctor/doctor-fixes.js";
 
 export const IMPROVER_RECOVERY_ACTIONS = ["doctor.fix"] as const;
 export type ImproverRecoveryAction = (typeof IMPROVER_RECOVERY_ACTIONS)[number];

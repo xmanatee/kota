@@ -1,13 +1,13 @@
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
+  moduleOperationHealthPattern,
+  moduleOperationLabel,
+} from "./autonomy-issue-module-failure.js";
+import {
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   type AutonomyIssueProjection,
   decodeAutonomyIssueProjection,
 } from "./autonomy-issue-projection.js";
-import {
-  moduleOperationHealthPattern,
-  moduleOperationLabel,
-} from "./autonomy-issue-module-failure.js";
 import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope.js";
 import { emitHealth } from "./autonomy-issue-source-shared.js";
 

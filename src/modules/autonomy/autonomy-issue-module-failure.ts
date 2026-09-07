@@ -2,8 +2,8 @@ import {
   classifyModuleOperationFailure,
   type ModuleOperationFailureIdentity,
 } from "#core/modules/module-operation-health.js";
-import type { AutonomyHealthSignalInput } from "./health-signal.js";
 import { stableToken } from "./autonomy-issue-source-shared.js";
+import type { AutonomyHealthSignalInput } from "./health-signal.js";
 
 export type ModuleOperationHealthPattern = Pick<
   AutonomyHealthSignalInput,

@@ -8,8 +8,8 @@ import {
   materializeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
-  autonomyIssueProjectionMaterializationRequested,
   type AutonomyIssueProjectionMaterializationRequest,
+  autonomyIssueProjectionMaterializationRequested,
   decodeAutonomyIssueProjectionMaterializationRequest,
 } from "#modules/autonomy/autonomy-issue-projection-publication.js";
 

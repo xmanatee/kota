@@ -1,6 +1,6 @@
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { StateValueConflictError } from "#core/workflow/run-state-database.js";
 import { formatRunId } from "#core/workflow/run-io.js";
+import { StateValueConflictError } from "#core/workflow/run-state-database.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   autonomyIssueDecisionRequested,

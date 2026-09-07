@@ -17,11 +17,11 @@ import {
   finalizeGeneratedWorkProposal,
   type StagedGeneratedWorkProposalResult,
 } from "#modules/autonomy/generated-work-transaction.js";
-import type { IssueDisposition } from "./issue-disposition.js";
 import {
   type DeterministicRecoveryResult,
   verifyDeterministicRecovery,
 } from "./deterministic-recovery.js";
+import type { IssueDisposition } from "./issue-disposition.js";
 
 export const IMPROVER_DISPOSITION_ARTIFACT = "improver-disposition.json";
 export const IMPROVER_DISPOSITION_PUBLICATION_REQUESTED_EVENT =
