@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: dropped
 ---
 # Repair historical run metadata blocking runtime-health audit
 
@@ -47,3 +46,7 @@ description: inspectable host diagnostics for final task review; no canonical cr
 Repair implementation was integrated in 5bb1b41e8 and the daemon was restarted on current code. The exact run cited by dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687 is 2026-08-24T12-19-13-793Z-builder-689rsi. Both its durable run row and its metadata file are now absent. Do not confuse it with another malformed historical run or fabricate a repair backup.
 
 The cited dead letter was redriven through the owning control API as 2026-09-07T13-33-18-949Z-runtime-health-auditor-ywbldz. Verify that replay reaches success and assess current startup repair behavior. For a retained malformed record require the existing durable-authority validation and backup; for a source no longer retained, record its absence and current same-scope audit result instead of requiring reconstruction of nonexistent evidence. Do not delete evidence or weaken authority checks.
+
+## Decomposed
+
+- task-verify-historical-metadata-repair-and-disposition
