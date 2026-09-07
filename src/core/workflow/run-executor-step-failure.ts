@@ -24,8 +24,10 @@ import {
   AgentStepIdleTimeoutError,
   WorkflowStepIdleTimeoutError,
 } from "./step-idle-timeout.js";
+import { WorkflowStepOutputValidationError } from "./step-input-code.js";
 import type { WorkflowStep } from "./step-types.js";
 import type { AgentStepConfig } from "./steps/step-executor-agent.js";
+import { JsonOutputValidationError } from "./steps/step-executor-agent-json.js";
 import {
   AgentStepRuntimeError,
   workflowAgentBackoffSignalFromError,
@@ -168,7 +170,10 @@ export function recordWorkflowStepFailure(args: {
         : repairFailure instanceof RepairLoopError &&
             repairFailure.kind !== undefined
           ? { errorKind: repairFailure.kind }
-          : {}),
+          : err instanceof WorkflowStepOutputValidationError ||
+              err instanceof JsonOutputValidationError
+            ? { errorKind: "output-validation" as const }
+            : {}),
     ...(step.continueOnFailure ? { continueOnFailure: true } : {}),
   } as const;
   if (step.type === "agent" && usage === undefined) {

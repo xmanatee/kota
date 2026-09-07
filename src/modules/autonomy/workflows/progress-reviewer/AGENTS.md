@@ -28,6 +28,10 @@ This workflow owns bounded evidence review for scoped activity.
   included evidence, excluded evidence, and applied actions.
 - Dedupe before creating tasks or owner questions so recurring reviews do not
   spam the queue.
+- Validate citations against the collected evidence inside the agent contract.
+  Exhausted output correction retains a typed rejection and finishes with
+  warnings, without actions or semantic publication. Runtime and evidence
+  integrity failures remain terminal.
 - Reconcile generated tasks and owner questions through the shared proposal
   lifecycle when canonical state disproves their premise.
 - Stage task changes and semantic publication evidence in the writer run.

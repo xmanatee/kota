@@ -186,6 +186,7 @@ const errorKind = z.enum([
 	"step-timeout",
 	"repair-no-progress",
 	"repair-attempts-exhausted",
+	"output-validation",
 	"rate_limit",
 	"auth",
 	"provider",

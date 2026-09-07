@@ -19,6 +19,7 @@ export type WorkflowRepairErrorKind =
   | "repair-no-progress"
   | "repair-attempts-exhausted";
 export type WorkflowStepErrorKind =
+  | "output-validation"
   | WorkflowStepTimeoutErrorKind
   | WorkflowRepairErrorKind
   | WorkflowAgentBackoffKind;

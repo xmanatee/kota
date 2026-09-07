@@ -134,6 +134,41 @@ export const prepareReviewInput = typedCodeStep<ProgressReviewAgentEvidencePacke
     compactProgressReviewEvidenceForAgent(readProgressReviewEvidencePacket(ctx)),
 });
 
+type ProgressReviewRejection = {
+  kind: "output-validation-exhausted";
+  reason: string;
+  evidenceSha256: string;
+};
+
+export const recordReviewRejection = typedCodeStep<ProgressReviewRejection>({
+  id: "record-review-rejection",
+  type: "code",
+  when: (ctx) => ctx.stepResults["review-evidence"]?.status === "failed",
+  validate: (raw) => {
+    const result = expectStructuredOutput<ProgressReviewRejection>(raw, [
+      "kind", "reason", "evidenceSha256",
+    ]);
+    if (result.kind !== "output-validation-exhausted") {
+      throw new Error("Unexpected progress-review rejection kind");
+    }
+    return result;
+  },
+  run: (ctx) => {
+    const review = ctx.stepResults["review-evidence"];
+    if (review?.errorKind !== "output-validation" || !review.error) {
+      throw new Error(review?.error ?? "Progress review failed without a diagnostic");
+    }
+    // A damaged runtime packet is an integrity failure, not a rejected review.
+    readProgressReviewEvidencePacket(ctx);
+    prepareReviewInput.outputRequired(ctx);
+    return {
+      kind: "output-validation-exhausted",
+      reason: review.error,
+      evidenceSha256: collectEvidence.outputRequired(ctx).contentSha256,
+    };
+  },
+});
+
 export const applyActions = typedCodeStep<ProgressReviewActionResult>({
   id: "apply-actions",
   type: "code",

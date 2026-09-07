@@ -68,6 +68,7 @@ describe("agent output validation and retry", () => {
 
     expect(result.metadata.status).toBe("failed");
     expect(step?.status).toBe("failed");
+    expect(step?.errorKind).toBe("output-validation");
     expect(step?.output).toBeUndefined();
     expect(step?.error).toContain("github-token");
     expect(step?.error).not.toContain(token);

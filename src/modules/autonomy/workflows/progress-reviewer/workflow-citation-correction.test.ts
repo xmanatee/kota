@@ -7,6 +7,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { resetModuleEventRegistry } from "#core/events/module-event.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { DEFAULT_AGENT_STEP_RETRY } from "#core/workflow/steps/step-executor-retry.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { progressReviewRequested } from "./events.js";
 import type { ProgressReviewActionResult } from "./progress-review.js";
@@ -34,7 +35,10 @@ function executeCitationReview(workspaceRoot: string, runId: string) {
   if (reviewStep?.type !== "agent") {
     throw new Error("review-evidence must be an agent step");
   }
-  reviewStep.retry = { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 };
+  reviewStep.retry = {
+    ...(reviewStep.retry ?? DEFAULT_AGENT_STEP_RETRY),
+    initialDelayMs: 1,
+  };
   return executeWorkflowRun(
     definition,
     {
@@ -72,7 +76,7 @@ describe("progress-reviewer citation correction", () => {
   function makeScopeRoot(label: string): string {
     const workspaceRoot = makeProgressReviewScopeRoot(label);
     scopeRoots.push(workspaceRoot);
-    writeProgressReviewTask(workspaceRoot, "done", "task-citation-source");
+    writeProgressReviewTask(workspaceRoot, "open", "task-citation-source");
     commitProgressReviewFixture(
       workspaceRoot,
       "prepare citation fixture",
@@ -180,10 +184,20 @@ describe("progress-reviewer citation correction", () => {
 
     const result = await executeCitationReview(workspaceRoot, runId);
 
-    expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.status).toBe("completed-with-warnings");
     expect(attempts).toBe(2);
-    expect(result.metadata.steps.find((step) => step.id === "apply-actions"))
-      .toBeUndefined();
+    expect(result.metadata.steps.find((step) => step.id === "apply-actions")?.status)
+      .toBe("skipped");
+    expect(result.metadata.steps.find((step) => step.id === "review-evidence"))
+      .toMatchObject({ status: "failed", errorKind: "output-validation" });
+    expect(result.metadata.steps.find((step) => step.id === "record-review-rejection")?.output)
+      .toEqual({
+        kind: "output-validation-exhausted",
+        reason: expect.stringContaining(OBSERVED_UNKNOWN_EVIDENCE_IDS[0]),
+        evidenceSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      });
+    expect(result.metadata.steps.find((step) => step.id === "emit-progress-publication")?.status)
+      .toBe("skipped");
     expect(existsSync(join(
       workspaceRoot,
       "data/tasks/task-citation-contract-exhausted.md",
@@ -196,5 +210,27 @@ describe("progress-reviewer citation correction", () => {
     expect(diagnostic).toContain("unknown evidence id");
     expect(diagnostic).toContain(OBSERVED_UNKNOWN_EVIDENCE_IDS[0]);
     expect(diagnostic).toContain(OBSERVED_UNKNOWN_EVIDENCE_IDS[1]);
+    const retained = new WorkflowRunStore(workspaceRoot).getRun(runId);
+    expect(retained?.status).toBe("completed-with-warnings");
+    expect(retained?.steps.find((step) => step.id === "review-evidence")?.errorKind)
+      .toBe("output-validation");
+  });
+
+  it("keeps unrelated harness failures terminal instead of recording output rejection", async () => {
+    const workspaceRoot = makeScopeRoot("progress-reviewer-runtime-failure");
+    let attempts = 0;
+    registerProgressReviewHarness(async () => {
+      attempts += 1;
+      throw new Error("Reviewer harness execution failed");
+    });
+
+    const result = await executeCitationReview(workspaceRoot, "runtime-review-failure");
+
+    expect(result.metadata.status).toBe("failed");
+    expect(attempts).toBe(1);
+    expect(result.metadata.steps.find((step) => step.id === "record-review-rejection"))
+      .toMatchObject({ status: "failed", error: "Reviewer harness execution failed" });
+    expect(result.metadata.steps.find((step) => step.id === "apply-actions"))
+      .toBeUndefined();
   });
 });

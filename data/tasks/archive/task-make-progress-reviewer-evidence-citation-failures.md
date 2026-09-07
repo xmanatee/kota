@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Make progress-reviewer evidence citation failures repairable
 
@@ -68,3 +67,34 @@ The production citation validator and bounded correction path are implemented. T
 - Source: improver; run: 2026-08-15T01-53-11-533Z-improver-uqqhg8
   - Issue: autonomy-issue-cb5e47a553dba6caa23a; revision: 1
   - Evidence: .kota/dead-letter-queue/items.json#dlq-8c912d98-2b05-4160-a77f-5cec930102db
+
+## Builder disposition (2026-09-07)
+
+The remaining code defect is repaired for autonomy-issue-cb5e47a553dba6caa23a.
+The earlier operational verification established bounded citation correction,
+but exhaustion still produced a failed run and therefore a terminal dispatch
+dead letter. This run closes that gap: structured-output failures now retain a
+typed error kind, and the progress-reviewer records an evidence-digest-bound
+rejection after correction is exhausted. It finishes with warnings and skips
+action writers and semantic publication. Unrelated harness failures and damaged
+evidence still fail terminally.
+
+The existing citation fixture now uses a current open task so its exact evidence
+ID is reliably collected; it previously failed before attempting correction.
+The production retry policy still supplies one correction attempt. Scoped and
+unscoped historical malformed UUIDs remain in the focused scenarios.
+
+Validation: nine focused checks passed across citation correction, exhaustion,
+unrelated harness failure, evidence integrity, and core agent output handling.
+Production and test typechecks, scoped Biome checks, and generated client binding
+freshness passed. Six broader DLQ/legacy-metadata checks failed identically with
+the unchanged core files; logs retain that comparison under this builder run.
+
+Historical DLQ absence remains the operator observation recorded above, not a
+claim of historical dismissal. The retained historical packet is not available
+in this isolated workspace, and canonical runtime diagnostics are inaccessible.
+No live issue/DLQ transition is asserted or recreated here. Source issue identity,
+all historical references, and the recorded malformed citation remain preserved
+for the owning runtime's reconciliation after publication.
+
+Run: 2026-09-07T16-05-20-315Z-builder-aqg311.

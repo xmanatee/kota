@@ -26,6 +26,7 @@ import {
   needsAttention,
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
+  recordReviewRejection,
   validateChanges,
   writeArtifact,
   writeCommitMessage,
@@ -70,10 +71,13 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       outputFormat: "json",
       outputSchema: progressReviewOutputSchema,
       validate: validateProgressReviewAgentStepOutput,
+      // Only output rejection is recoverable; the next step rethrows other failures.
+      continueOnFailure: true,
       when: (ctx) =>
         stepSucceeded("prepare-review-input")(ctx) &&
         inspectSemanticInput.output(ctx)?.shouldReview === true,
     },
+    recordReviewRejection,
     applyActions,
     writeArtifact,
     writeCommitMessage,
