@@ -7,9 +7,8 @@ export function evaluateWeeklyQuota(
   percentPerDay: number,
   now = Date.now(),
 ): { blocked: boolean; remaining: number; reserve: number } {
-  if (!Number.isFinite(snapshot.usedPercent) || snapshot.usedPercent < 0 || snapshot.usedPercent > 100
-    || !Number.isFinite(snapshot.resetsAt) || snapshot.resetsAt * 1000 <= now) {
-    throw new Error("Weekly quota snapshot is invalid or its reset window has expired");
+  if (snapshot.resetsAt * 1000 <= now) {
+    throw new Error("Weekly quota snapshot reset window has expired");
   }
   const daysLeft = Math.floor((snapshot.resetsAt * 1000 - now) / 86_400_000);
   const reserve = Math.min(100, daysLeft * percentPerDay);
@@ -27,7 +26,6 @@ export class QuotaGuard {
     hold: () => void;
     release: () => void;
     log: (message: string) => void;
-    now?: () => number;
   }) {}
 
   get message(): string | null {
@@ -35,7 +33,7 @@ export class QuotaGuard {
   }
 
   configure(policy: QuotaGuardPolicy | undefined, read: ReadWeeklyQuota | undefined): void {
-    this.cancelProbe();
+    this.stop();
     if (!policy?.enabled) {
       this.pauseMessage = null;
       this.deps.release();
@@ -54,12 +52,14 @@ export class QuotaGuard {
           AbortSignal.timeout(20_000),
         ]));
         if (controller.signal.aborted) return;
-        const decision = evaluateWeeklyQuota(snapshot, policy.reservePercentPerDay, this.deps.now?.());
+        const decision = evaluateWeeklyQuota(snapshot, policy.reservePercentPerDay);
         const message = `Weekly quota: ${decision.remaining}% remaining, ${decision.reserve}% reserved; reset ${new Date(snapshot.resetsAt * 1000).toISOString()}.`;
         const wasBlocked = this.pauseMessage !== null;
         this.pauseMessage = decision.blocked ? message : null;
-        if (decision.blocked) this.deps.hold();
-        else this.deps.release();
+        if (wasBlocked !== decision.blocked) {
+          if (decision.blocked) this.deps.hold();
+          else this.deps.release();
+        }
         if (wasBlocked !== decision.blocked || lastDiagnostic !== "ok") {
           this.deps.log(`Quota guard ${decision.blocked ? "paused" : "released"} dispatch. ${message}`);
         }
@@ -81,10 +81,6 @@ export class QuotaGuard {
   }
 
   stop(): void {
-    this.cancelProbe();
-  }
-
-  private cancelProbe(): void {
     this.controller?.abort();
     this.controller = null;
     if (this.timer !== null) clearTimeout(this.timer);

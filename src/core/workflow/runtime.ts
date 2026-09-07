@@ -10,6 +10,7 @@ import type {
   WorkflowBatchDispatchResult,
 } from "./event-batches.js";
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
+import { QuotaGuard } from "./quota-guard.js";
 import type { RunExecutionOutcome } from "./run-coordinator.js";
 import {
   continueRunIntegration,
@@ -96,9 +97,15 @@ export { ABORT_SIGNAL_FILE, RELOAD_SIGNAL_FILE, WORKFLOW_STOP_ABORT_WAIT_MS };
 export class WorkflowRuntime {
   private readonly ctx: WorkflowRuntimeContext;
   private readonly lifecycle: RunLifecycle;
+  private readonly quotaGuard: QuotaGuard;
 
   constructor(runtimeConfig: WorkflowRuntimeConfig) {
     this.ctx = createWorkflowRuntimeContext(runtimeConfig);
+    this.quotaGuard = new QuotaGuard({
+      hold: () => runtimeConfig.runCoordinator.pauseScopeAdmission(runtimeConfig.scopeId, "quota"),
+      release: () => runtimeConfig.runCoordinator.resumeScopeAdmission(runtimeConfig.scopeId, "quota"),
+      log: this.ctx.log,
+    });
     this.lifecycle = new RunLifecycle({
       store: runtimeConfig.runState,
       daemonEpoch: runtimeConfig.daemonEpoch,
@@ -150,14 +157,14 @@ export class WorkflowRuntime {
     const reader = policy?.enabled
       ? resolveAgentHarness(resolveAgentRuntime(config).harness).readWeeklyQuota
       : undefined;
-    this.ctx.quotaGuard.configure(policy, reader);
+    this.quotaGuard.configure(policy, reader);
   }
 
   stop(
     gracePeriodMs = 60_000,
     abortWaitMs = WORKFLOW_STOP_ABORT_WAIT_MS,
   ): Promise<void> {
-    this.ctx.quotaGuard.stop();
+    this.quotaGuard.stop();
     return stopRuntime(this.ctx, gracePeriodMs, abortWaitMs);
   }
 
@@ -281,18 +288,10 @@ export class WorkflowRuntime {
   }
 
   getDispatchPauseStatus(): WorkflowDispatchPauseStatus {
-    if (!this.ctx.scopeState.getDispatchPaused() && this.ctx.quotaGuard.message !== null) {
-      return {
-        paused: true,
-        kind: "runtime",
-        source: "runtime",
-        message: this.ctx.quotaGuard.message,
-        nextAction: "Quota is checked automatically every minute. Configure scheduler.quotaGuard to change the policy.",
-      };
-    }
     return resolveWorkflowDispatchPause({
       operatorPaused: this.ctx.scopeState.getDispatchPaused(),
       runtimePaused: isDispatchPaused(this.ctx),
+      quotaPauseMessage: this.quotaGuard.message,
     });
   }
 

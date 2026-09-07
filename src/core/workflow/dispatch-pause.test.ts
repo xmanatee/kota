@@ -32,7 +32,7 @@ describe("workflow dispatch pause", () => {
 
     expect(state.getDispatchPaused()).toBe(true);
     expect(
-      resolveWorkflowDispatchPause({ operatorPaused: true, runtimePaused: false }),
+      resolveWorkflowDispatchPause({ operatorPaused: true, runtimePaused: false, quotaPauseMessage: "Quota reserve reached" }),
     ).toMatchObject({ paused: true, kind: "operator", source: "database" });
 
     state.setDispatchPaused(false);
@@ -46,6 +46,9 @@ describe("workflow dispatch pause", () => {
     expect(
       resolveWorkflowDispatchPause({ operatorPaused: false, runtimePaused: true }),
     ).toMatchObject({ paused: true, kind: "runtime", source: "runtime" });
+    expect(
+      resolveWorkflowDispatchPause({ operatorPaused: false, runtimePaused: true, quotaPauseMessage: "Quota reserve reached" }),
+    ).toMatchObject({ paused: true, kind: "runtime", message: "Quota reserve reached" });
     expect(state.getDispatchPaused()).toBe(false);
   });
 });

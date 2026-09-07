@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
+import { addAbortListener } from "node:events";
 import { createInterface } from "node:readline";
 import { z } from "zod";
 import { buildNativeCliEnvironment } from "#core/agent-harness/native-cli-environment.js";
+import { NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS, signalNativeCliProcessGroup } from "#core/agent-harness/native-cli-process-group.js";
 import type { ReadWeeklyQuota, WeeklyQuotaSnapshot } from "#core/agent-harness/quota.js";
 import { resolveCodexHome } from "./runtime-home.js";
 
@@ -38,64 +40,53 @@ export function decodeCodexWeeklyQuota(value: unknown): WeeklyQuotaSnapshot {
 /** Account RPC only: no thread, turn, model inference, or reset-credit consumption. */
 export const readCodexWeeklyQuota: ReadWeeklyQuota = async (signal) => {
   signal.throwIfAborted();
-  return new Promise<WeeklyQuotaSnapshot>((resolve, reject) => {
-    const child = spawn("codex", ["app-server", "--stdio", "--disable", "plugins", "--disable", "hooks"], {
-      cwd: resolveCodexHome(process.env),
-      env: {
-        ...buildNativeCliEnvironment({ blockedEnvKeys: ["OPENAI_API_KEY"] }),
-        CODEX_HOME: resolveCodexHome(process.env),
-      },
-      stdio: ["pipe", "pipe", "ignore"],
-      signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-    });
-    let result: WeeklyQuotaSnapshot | undefined;
-    let failure: Error | undefined;
-    let stopping = false;
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
-    const stop = () => {
-      if (stopping) return;
-      stopping = true;
-      child.stdin.end();
-      child.kill("SIGTERM");
-      killTimer = setTimeout(() => child.kill("SIGKILL"), 1_000);
-      killTimer.unref();
-    };
-    const send = (message: object) => child.stdin.write(`${JSON.stringify(message)}\n`);
-    child.on("error", (error) => { failure = error; stop(); });
-    child.stdin.on("error", (error) => { failure ??= error; stop(); });
-    const lines = createInterface({ input: child.stdout });
-    lines.on("line", (line) => {
-      if (stopping) return;
-      try {
-        const message = z.object({
-          id: z.number().optional(),
-          result: z.unknown().optional(),
-          error: z.unknown().optional(),
-        }).parse(JSON.parse(line));
-        if (message.id !== 1 && message.id !== 2) return;
-        if (message.error !== undefined) throw new Error(`Codex account RPC ${message.id} failed`);
-        if (message.id === 1) {
-          send({ method: "initialized", params: {} });
-          send({ id: 2, method: "account/rateLimits/read", params: {} });
-        } else {
-          result = decodeCodexWeeklyQuota(message.result);
-          stop();
-        }
-      } catch (error) {
-        failure = new Error(`Codex quota response rejected: ${error instanceof Error ? error.message : "invalid response"}`);
-        stop();
-      }
-    });
-    child.on("close", () => {
-      if (killTimer) clearTimeout(killTimer);
-      lines.close();
-      if (failure) reject(failure);
-      else if (result) resolve(result);
-      else reject(new Error("Codex quota process exited before returning account limits"));
-    });
-    send({ id: 1, method: "initialize", params: {
-      clientInfo: { name: "kota_quota_guard", version: "1.0.0" },
-      capabilities: {},
-    } });
+  const home = resolveCodexHome(process.env);
+  const child = spawn("codex", ["app-server", "--stdio", "--disable", "plugins", "--disable", "hooks"], {
+    cwd: home,
+    env: { ...buildNativeCliEnvironment({ blockedEnvKeys: ["OPENAI_API_KEY"] }), CODEX_HOME: home },
+    ...NATIVE_CLI_PROCESS_GROUP_SPAWN_OPTIONS,
+    stdio: ["pipe", "pipe", "ignore"],
   });
+  const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
+  const lines = createInterface({ input: child.stdout });
+  const send = (message: object) => child.stdin.write(`${JSON.stringify(message)}\n`);
+  let cancellation: Disposable | undefined;
+  try {
+    return await new Promise<WeeklyQuotaSnapshot>((resolve, reject) => {
+      cancellation = addAbortListener(signal, () => reject(signal.reason));
+      child.once("error", reject);
+      child.stdin.once("error", reject);
+      child.once("close", () => reject(new Error("Codex quota process exited before returning account limits")));
+      lines.on("line", (line) => {
+        try {
+          const message = z.object({
+            id: z.number().optional(),
+            result: z.unknown().optional(),
+            error: z.unknown().optional(),
+          }).parse(JSON.parse(line));
+          if (message.id !== 1 && message.id !== 2) return;
+          if (message.error !== undefined) throw new Error(`Codex account RPC ${message.id} failed`);
+          if (message.id === 1) {
+            send({ method: "initialized", params: {} });
+            send({ id: 2, method: "account/rateLimits/read", params: {} });
+          } else {
+            resolve(decodeCodexWeeklyQuota(message.result));
+          }
+        } catch (error) {
+          reject(error);
+        }
+      });
+      send({ id: 1, method: "initialize", params: {
+        clientInfo: { name: "kota_quota_guard", version: "1.0.0" },
+        capabilities: {},
+      } });
+    });
+  } finally {
+    cancellation?.[Symbol.dispose]();
+    lines.close();
+    child.stdin.destroy();
+    // This read-only probe has no agent work to drain; use the shared group cleanup.
+    signalNativeCliProcessGroup(child, "SIGKILL");
+    await closed;
+  }
 };
