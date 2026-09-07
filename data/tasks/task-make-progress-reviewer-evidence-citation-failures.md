@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Make progress-reviewer evidence citation failures repairable
