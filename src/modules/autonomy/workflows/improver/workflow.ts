@@ -45,7 +45,7 @@ import {
   type IssueDisposition,
   issueDispositionOutputSchema,
 } from "./issue-disposition.js";
-import { selectIssue } from "./issue-selection.js";
+import { selectIssue, selectIssueForProjection } from "./issue-selection.js";
 import { proposalFor } from "./issue-work-proposal.js";
 
 export const agent: AgentDef = {
@@ -205,21 +205,27 @@ const improverWorkflow: WorkflowDefinitionInput = {
     validationCommand: ["pnpm", "validate-tasks"],
     postReconcile: (input) => {
       input.signal.throwIfAborted();
-      const artifact = readImproverDispositionArtifact(
-        input.stateDir,
-        input.runId,
-      );
-      if (artifact === null) {
-        return {
-          satisfied: false,
-          reason: `Improver disposition artifact for ${input.runId} is missing`,
-        };
-      }
       const projection = decodeAutonomyIssueProjection(
         input.readState<AutonomyIssueProjection>(
           AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
         ).value,
       );
+      const artifact = readImproverDispositionArtifact(
+        input.stateDir,
+        input.runId,
+      );
+      if (artifact === null) {
+        if (input.head === input.baseHead && !selectIssueForProjection({
+          trigger: input.trigger,
+          projection,
+        }).eligible) {
+          return { satisfied: true };
+        }
+        return {
+          satisfied: false,
+          reason: `Improver disposition artifact for ${input.runId} is missing`,
+        };
+      }
       return isImproverDispositionCurrent(projection, artifact.applied)
         ? { satisfied: true }
         : {

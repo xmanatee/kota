@@ -104,6 +104,7 @@ export type WorkflowPostReconcileInvariantInput = Readonly<{
   }>;
   workflowName: string;
   trigger: WorkflowRunTrigger;
+  baseHead: string;
   head: string;
   canonicalHead: string;
   signal: AbortSignal;

@@ -124,6 +124,7 @@ describe("targeted builder contract", () => {
         payload,
       },
       head: "reconciled-head",
+      baseHead: "base-head",
       canonicalHead: "canonical-head",
       signal: new AbortController().signal,
     };

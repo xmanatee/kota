@@ -213,7 +213,7 @@ export class WorkflowRunStore {
       throw new Error(`Cannot reconcile terminal status for workflow run "${id}"`);
     }
     const delivery = deriveWorkflowRunDelivery(
-      { ...metadata, status },
+      { ...metadata, status, delivery: undefined },
       { runsDir: this.runsDir, scopeRoot: this.scopeRoot },
     );
     const reconciled = { ...metadata, status, delivery };

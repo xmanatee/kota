@@ -226,6 +226,24 @@ describe("improver issue disposition workflow", () => {
     expect(repeated.status).toBe("success");
     expect(repeated.steps["select-issue"].output).toMatchObject({ eligible: false });
     expect(repeated.steps["review-issue"].status).toBe("skipped");
+    const invariant = improverWorkflow.integration!.postReconcile!;
+    const input = {
+      workspaceRoot,
+      repoRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
+      runId: basename(repeated.runDirPath),
+      readState: <T = unknown>() => ({ revision: 1, value: projection as T }),
+      workflowName: "improver",
+      trigger: { ...trigger, schemaRef: null },
+      baseHead: "unchanged-head",
+      head: "unchanged-head",
+      canonicalHead: "newer-canonical-head",
+      signal: new AbortController().signal,
+    };
+    expect(invariant(input)).toEqual({ satisfied: true });
+    expect(invariant({ ...input, head: "unexpected-writer-change" })).toMatchObject({
+      satisfied: false,
+    });
   });
 
   it("publishes verified deterministic recovery as a clear observation", async () => {
@@ -344,6 +362,7 @@ describe("improver issue disposition workflow", () => {
       workflowName: "improver",
       trigger: triggerFor(1, "opened"),
       head: "reconciled-head",
+      baseHead: "base-head",
       canonicalHead: "canonical-head",
       signal: new AbortController().signal,
     };

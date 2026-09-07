@@ -233,6 +233,7 @@ function scenarioDefinition(
   };
   return validateWorkflowDefinitions([registered], scopeRoot, {
     defaultAgentHarness: "scenario",
+    defaultAgentEffort: "high",
   })[0];
 }
 

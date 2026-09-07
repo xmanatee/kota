@@ -255,6 +255,9 @@ export function verifyRunPostReconcileInvariant(
 ): WorkflowPostReconcileInvariantResult {
   const invariant = policy.postReconcile;
   if (!invariant) return { satisfied: true };
+  if (context.sandbox.repository !== "write") {
+    throw new Error("Integration invariants require a writer sandbox");
+  }
   return invariant({
     workspaceRoot: input.workspaceDir,
     repoRoot: context.scope.root,
@@ -263,6 +266,7 @@ export function verifyRunPostReconcileInvariant(
     readState,
     workflowName: context.workflow,
     trigger: context.trigger,
+    baseHead: context.sandbox.baseCommit,
     head: input.head,
     canonicalHead: input.canonicalHead,
     signal: input.signal,

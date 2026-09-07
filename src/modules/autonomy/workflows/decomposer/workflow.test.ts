@@ -230,6 +230,7 @@ describe("decomposer workflow", () => {
       workflowName: "decomposer",
       trigger: fixture.trigger,
       head: "reconciled-head",
+      baseHead: "base-head",
       canonicalHead: "canonical-head",
       signal: new AbortController().signal,
     };

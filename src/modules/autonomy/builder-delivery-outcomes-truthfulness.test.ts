@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { deriveWorkflowRunDelivery } from "#core/workflow/run-delivery.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { aggregateAutonomyReport } from "#modules/autonomy/report/aggregate.js";
 import { readAutonomyRunDeliveryEvidence } from "#modules/autonomy/run-delivery-evidence.js";
@@ -47,7 +48,10 @@ describe("builder delivery outcomes truthfulness", () => {
   function writeRunRecord(id: string, metadata: Partial<WorkflowRunMetadata>, changedPaths: string[] = []) {
     const dir = join(runsDir, id);
     mkdirSync(dir, { recursive: true });
+    const taskId = metadata.trigger?.payload?.taskId ?? "task-sample";
+    const taskDigest = "a".repeat(64);
     const fullMeta: WorkflowRunMetadata = {
+      metadataVersion: 1,
       id,
       workflow: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
@@ -66,6 +70,17 @@ describe("builder delivery outcomes truthfulness", () => {
       durationMs: 60000,
       steps: [],
       ...metadata,
+    };
+    fullMeta.trigger = {
+      ...fullMeta.trigger,
+      payload: {
+        ...fullMeta.trigger.payload,
+        taskId,
+        taskPath: `data/tasks/${taskId}.md`,
+        taskState: "open",
+        taskDigest,
+        idempotencyKey: `builder:${taskId}:${taskDigest}`,
+      },
     };
     writeFileSync(join(dir, "metadata.json"), JSON.stringify(fullMeta, null, 2), "utf-8");
     writeFileSync(join(dir, "trigger.json"), JSON.stringify(fullMeta.trigger, null, 2), "utf-8");
@@ -91,6 +106,29 @@ describe("builder delivery outcomes truthfulness", () => {
     }
     return fullMeta;
   }
+
+  it("reconciles pre-integration delivery after publication and on later failure", () => {
+    const store = new WorkflowRunStore(workspaceRoot);
+    const taskId = "task-delivery-reconciliation";
+    const run = store.createRun({
+      name: "builder", enabled: true, repository: "read", tags: [],
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      moduleRoot: workspaceRoot, triggers: [], steps: [],
+    }, { event: "manual", schemaRef: null, payload: { taskId, title: "Delivery reconciliation" } });
+    expect(run.finish({ status: "success", durationMs: 1 }).delivery).toMatchObject({
+      kind: "unresolved",
+    });
+    writeTaskFile("done", taskId, "Delivery reconciliation");
+    writeRunRecord(run.metadata.id, store.getRun(run.metadata.id)!, [
+      `data/tasks/archive/${taskId}.md`,
+    ]);
+    expect(store.reconcileTerminalStatus(run.metadata.id, "success").delivery).toMatchObject({
+      kind: "completed", taskId,
+    });
+    expect(store.reconcileTerminalStatus(run.metadata.id, "failed").delivery).toMatchObject({
+      kind: "failed", taskId,
+    });
+  });
 
   it("distinguishes all 5 delivery dispositions across run metadata, history, progress review, and report aggregation", () => {
     // 1. Completed delivery (task moved to done)
@@ -211,7 +249,7 @@ describe("builder delivery outcomes truthfulness", () => {
       trigger: { event: "manual", schemaRef: null, payload: { windowMs: 7 * MS_PER_DAY } },
       now: new Date(NOW),
     });
-    const runEvMap = new Map(progressEvidence.runs.map((r) => [r.id.split(":run:")[1], r]));
+    const runEvMap = new Map(progressEvidence.runs.map((r) => [r.id.slice("run:".length), r]));
     expect(runEvMap.get(completedRun.id)?.delivery?.kind).toBe("completed");
     expect(runEvMap.get(blockedRun.id)?.delivery?.kind).toBe("blocked");
     expect(runEvMap.get(attentionRun.id)?.delivery?.kind).toBe("needs_attention");
