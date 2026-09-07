@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-generate-daemon-client-transport-bindings, task-unify-typescript-client-resource-state, task-unify-apple-client-resource-state, task-centralize-approval-lifecycle-state, task-centralize-owner-decision-lifecycle-state]
+status: done
 ---
 
 # Prune web, mobile, and Apple test duplication
