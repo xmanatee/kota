@@ -11,7 +11,11 @@ import type {
   WorkflowDefinitionInput,
 } from "#core/workflow/types.js";
 import { buildAgyCanaryCommand } from "./agy-continuous-canary-cli.js";
-import { autonomyIssueDecisionRequested } from "./autonomy-issue-events.js";
+import {
+  autonomyIssueDecisionRequested,
+  autonomyIssueReconciliationRequested,
+} from "./autonomy-issue-events.js";
+import { autonomyIssueProjectionMaterializationRequested } from "./autonomy-issue-projection-publication.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { buildReportCommand } from "./report/report-cli.js";
@@ -106,6 +110,7 @@ const autonomyModule: KotaModule = {
     "git",
     "inbound-signals",
     "repo-ai-checks",
+    "doctor",
   ],
   events: [
     progressReviewRequested,
@@ -114,6 +119,8 @@ const autonomyModule: KotaModule = {
     scopeImprovementChanged,
     autonomyHealthSignal,
     autonomyIssueDecisionRequested,
+    autonomyIssueReconciliationRequested,
+    autonomyIssueProjectionMaterializationRequested,
   ],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),

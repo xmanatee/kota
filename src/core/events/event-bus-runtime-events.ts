@@ -45,6 +45,21 @@ export type AutonomyQueueAvailableEvent = Readonly<{
  * rather than directory-scope attributed.
  */
 export type RuntimeBusEvents = {
+  "workflow.runtime.started": {
+    scopeId: ScopeId;
+    startedAt: string;
+  };
+  /**
+   * A durable run transition that can release an external lifecycle owner
+   * without a completion publication.
+   */
+  "workflow.run.reconciliation-needed": {
+    scopeId: ScopeId;
+    workflow: string;
+    runId: string;
+    state: "cancelled" | "needs_attention";
+    transitionedAt: string;
+  };
   "runtime.idle": {
     scopeId: ScopeId;
     timestamp: string;

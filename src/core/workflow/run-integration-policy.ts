@@ -18,6 +18,7 @@ import { resolveWorkflowAgentRunContract } from "./steps/step-executor-agent-run
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import type {
   WorkflowIntegrationPolicy,
+  WorkflowPostReconcileInvariantInput,
   WorkflowPostReconcileInvariantResult,
 } from "./types.js";
 import {
@@ -250,6 +251,7 @@ export function verifyRunPostReconcileInvariant(
   policy: WorkflowIntegrationPolicy,
   stateDir: string,
   input: IntegrationValidationInput,
+  readState: WorkflowPostReconcileInvariantInput["readState"],
 ): WorkflowPostReconcileInvariantResult {
   const invariant = policy.postReconcile;
   if (!invariant) return { satisfied: true };
@@ -257,6 +259,8 @@ export function verifyRunPostReconcileInvariant(
     workspaceRoot: input.workspaceDir,
     repoRoot: context.scope.root,
     stateDir,
+    runId: context.run.id,
+    readState,
     workflowName: context.workflow,
     trigger: context.trigger,
     head: input.head,

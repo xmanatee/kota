@@ -39,6 +39,8 @@ This directory owns the bidirectional Slack bot channel for KOTA.
 - Channel-owned session ids participate in daemon scope-drain inspection.
 - Keep the module-owned config shape, generated schema fragment, and focused
   startup tests aligned.
+- Connection-loop health clears only after Socket Mode opens successfully;
+  adapter construction alone is not recovery.
 
 ## Slack App Setup
 

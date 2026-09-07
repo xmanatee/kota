@@ -1,14 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import { isProcessAlive } from "#core/util/process-alive.js";
 import { readStoredWorkflowRuntimeState } from "#core/workflow/stored-runtime-state.js";
 import type {
   AutonomyHealthEvidenceRef,
   AutonomyHealthSeverity,
-} from "#modules/autonomy/health-signal.js";
-import {
-  type AutonomyHealthJsonValue,
-  isAutonomyHealthJsonObject,
 } from "#modules/autonomy/health-signal.js";
 import {
   buildOperatorRuntimeInboxItems,
@@ -16,6 +10,7 @@ import {
 } from "#modules/daemon-ops/operator-inbox.js";
 import type { StatusSnapshot } from "#modules/daemon-ops/status-cli.js";
 import { readStatusRunProjection } from "#modules/daemon-ops/status-cli-gather.js";
+import { classifyDaemonControlFileForAudit } from "./daemon-control-health.js";
 import {
   addPattern,
   type RuntimeHealthAuditContext,
@@ -27,31 +22,6 @@ type DurableWorkflowSnapshot = {
   queuedRuns: number;
   workflowPaused: boolean;
 };
-
-function classifyDaemonControlFileForAudit(
-  stateDir: string,
-): StatusSnapshot["controlFile"] {
-  const controlPath = join(stateDir, "daemon-control.json");
-  if (!existsSync(controlPath)) return { kind: "missing" };
-  let parsed: AutonomyHealthJsonValue;
-  try {
-    parsed = JSON.parse(readFileSync(controlPath, "utf-8")) as AutonomyHealthJsonValue;
-  } catch {
-    return { kind: "unreadable" };
-  }
-  if (
-    !isAutonomyHealthJsonObject(parsed) ||
-    typeof parsed.port !== "number" ||
-    typeof parsed.pid !== "number"
-  ) {
-    return { kind: "unreadable" };
-  }
-  const baseURL = `http://127.0.0.1:${parsed.port}`;
-  if (isProcessAlive(parsed.pid)) {
-    return { kind: "fresh", pid: parsed.pid, baseURL };
-  }
-  return { kind: "stale", pid: parsed.pid, baseURL };
-}
 
 function readDurableWorkflowSnapshot(
   stateDir: string,

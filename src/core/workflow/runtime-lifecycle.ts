@@ -151,6 +151,10 @@ export function startRuntime(
   }
   maybeStartNext(state);
 
+  state.pbus.emit("workflow.runtime.started", {
+    startedAt: new Date().toISOString(),
+  });
+
   state.idleTimer = setInterval(() => {
     void emitIdleEvent(state);
   }, state.idleIntervalMs);

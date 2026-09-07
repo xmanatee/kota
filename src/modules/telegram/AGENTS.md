@@ -85,6 +85,8 @@ notification forwarding.
 - The interactive channel does not own the scheduler. The daemon owns
   it; the channel subscribes to `schedule.fire` bus events and
   broadcasts reminders to active chat sessions.
+- Poll-loop health clears only after a successful Bot API `getUpdates`
+  response. Adapter construction or token validation alone is not recovery.
 
 ## Boundaries
 

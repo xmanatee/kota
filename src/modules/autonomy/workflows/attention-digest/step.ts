@@ -1,4 +1,5 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { readAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { WorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
@@ -101,6 +102,18 @@ function detectAttentionItems(
 
   const warningsItem = builderWarningsCheck(recentRuns);
   if (warningsItem) items.push(warningsItem);
+
+  for (const issue of readAutonomyIssueProjection(workspaceRoot).issues) {
+    if (issue.status === "resolved" || issue.disposition.kind !== "attention") {
+      continue;
+    }
+    items.push({
+      label: "Autonomy investigation blocked",
+      detail:
+        `${issue.issueKey} revision ${issue.semanticRevision} exhausted its ` +
+        "investigation retries; inspect the retained issue and run evidence.",
+    });
+  }
 
   items.push(...blockedAttentionItems(workspaceRoot));
 

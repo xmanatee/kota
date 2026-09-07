@@ -106,15 +106,17 @@ export function recordAutonomyIssueDispositions(args: {
   let changed = false;
   const issues = current.issues.map((issue) => {
     const update = updates.get(issue.issueKey);
-    if (!update || issue.status === "resolved") return issue;
+    if (
+      !update ||
+      issue.status === "resolved" ||
+      issue.semanticRevision !== update.semanticRevision
+    ) {
+      return issue;
+    }
     changed = true;
     return {
       ...issue,
-      status: update.kind === "accepted" ||
-          update.kind === "duplicate" ||
-          update.kind === "no-action"
-        ? "resolved" as const
-        : update.kind === "owner-question"
+      status: update.kind === "owner-question"
         ? "needs-decision" as const
         : "open" as const,
       disposition: {

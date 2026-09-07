@@ -2,7 +2,9 @@ import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowRuntime } from "#core/workflow/runtime.js";
 
 export type AutonomyIssueEventScope = {
   scopeId: string;
@@ -12,8 +14,10 @@ export type AutonomyIssueRuntimeScope = {
   scopeId: string;
   workspaceRoot: string;
   runStore: WorkflowRunStore;
+  runState: RunStateDatabase;
   deadLetterQueue: DeadLetterQueueStore;
   ownerQuestionQueue: OwnerQuestionQueue;
+  workflowRuntime: Pick<WorkflowRuntime, "enqueuePendingRun">;
 };
 
 type AutonomyIssueScopeContext = Pick<ModuleRuntimeContext, "getProvider">;
@@ -55,7 +59,9 @@ export function resolveAutonomyIssueRuntimeScope(
     scopeId,
     workspaceRoot,
     runStore: resolution.runtime.runStore,
+    runState: resolution.runtime.runState,
     deadLetterQueue: resolution.runtime.deadLetterQueue,
     ownerQuestionQueue: resolution.runtime.ownerQuestionQueue,
+    workflowRuntime: resolution.runtime.workflowRuntime,
   };
 }

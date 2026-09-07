@@ -80,7 +80,7 @@ describe("autonomy-health-reviewer workflow", () => {
     expect(batched?.filter).toEqual({ severity: ["warning", "error"] });
     expect(batched?.batch).toMatchObject({
       maxCount: 5,
-      groupBy: ["scopeId", "labelsKey"],
+      groupBy: ["scopeId", "dedupeKey"],
       maxBufferSize: 20,
       overflow: "flush-oldest",
     });

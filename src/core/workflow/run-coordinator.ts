@@ -39,6 +39,13 @@ export type RunCoordinatorOptions = {
   onError?: (error: unknown, run: StoredRun) => void;
   deliverPublication?: (publication: PendingRunPublication) => void | Promise<void>;
   onPublicationError?: (error: unknown, publication: PendingRunPublication) => void;
+  onReconciliationNeeded?: (transition: {
+    scopeId: string;
+    workflow: string;
+    runId: string;
+    state: "cancelled" | "needs_attention";
+    transitionedAt: string;
+  }) => void;
   publicationRetryMs?: number;
   prepareCancellation?: (
     run: StoredRun,
@@ -93,6 +100,9 @@ export class RunCoordinator {
   private readonly onError: (error: unknown, run: StoredRun) => void;
   private readonly deliverPublication?: RunCoordinatorOptions["deliverPublication"];
   private readonly onPublicationError: NonNullable<RunCoordinatorOptions["onPublicationError"]>;
+  private readonly onReconciliationNeeded: NonNullable<
+    RunCoordinatorOptions["onReconciliationNeeded"]
+  >;
   private readonly publicationRetryMs: number;
   private readonly prepareCancellation: NonNullable<RunCoordinatorOptions["prepareCancellation"]>;
   private readonly active = new Map<string, ActiveRun>();
@@ -122,6 +132,8 @@ export class RunCoordinator {
     this.onError = options.onError ?? (() => undefined);
     this.deliverPublication = options.deliverPublication;
     this.onPublicationError = options.onPublicationError ?? (() => undefined);
+    this.onReconciliationNeeded =
+      options.onReconciliationNeeded ?? (() => undefined);
     this.publicationRetryMs = options.publicationRetryMs ?? 1_000;
     this.prepareCancellation =
       options.prepareCancellation ??
@@ -259,20 +271,24 @@ export class RunCoordinator {
     }
     const prepared = this.prepareCancellation(run);
     if (!prepared.ready) {
+      const transitionedAt = this.now();
       this.store.requireRunAttention(
         run.id,
         "sandbox-cleanup-blocked",
         prepared.blockers,
       );
+      this.notifyReconciliationNeeded(run, "needs_attention", transitionedAt);
       return {
         cancelled: false,
         reason: "sandbox-preserved",
         blockers: prepared.blockers,
       };
     }
-    if (!this.store.cancelQueuedRun(runId, this.now())) {
+    const transitionedAt = this.now();
+    if (!this.store.cancelQueuedRun(runId, transitionedAt)) {
       return { cancelled: false, reason: "not-found" };
     }
+    this.notifyReconciliationNeeded(run, "cancelled", transitionedAt);
     if (this.notifyTerminal(runId)) {
       queueMicrotask(() => this.refill());
     } else {
@@ -454,6 +470,7 @@ export class RunCoordinator {
         "cancelled",
         transitionedAt,
       );
+      this.notifyReconciliationNeeded(run, "cancelled", transitionedAt);
       await this.drainPublications();
       return;
     }
@@ -467,6 +484,9 @@ export class RunCoordinator {
         outcome.publication,
         outcome.resultStatus,
       );
+      if (outcome.state === "cancelled") {
+        this.notifyReconciliationNeeded(run, "cancelled", transitionedAt);
+      }
       await this.drainPublications();
       return;
     }
@@ -486,6 +506,23 @@ export class RunCoordinator {
       suspendedAt: transitionedAt,
       ...(outcome.wait === undefined ? {} : { wait: outcome.wait }),
       ...(outcome.error === undefined ? {} : { error: outcome.error }),
+    });
+    if (outcome.state === "needs_attention") {
+      this.notifyReconciliationNeeded(run, "needs_attention", transitionedAt);
+    }
+  }
+
+  private notifyReconciliationNeeded(
+    run: StoredRun,
+    state: "cancelled" | "needs_attention",
+    transitionedAt: string,
+  ): void {
+    this.onReconciliationNeeded({
+      scopeId: run.scopeId,
+      workflow: run.workflow,
+      runId: run.id,
+      state,
+      transitionedAt,
     });
   }
 

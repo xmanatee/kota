@@ -11,6 +11,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
+  applyAutonomyIssueObservations,
+  buildAutonomyIssueObservation,
+  emptyAutonomyIssueProjection,
+  materializeAutonomyIssueProjection,
+  recordAutonomyIssueDispositions,
+} from "#modules/autonomy/autonomy-issue-projection.js";
+import {
   inspectAttentionDigestStep,
   NO_ATTENTION_ITEMS_TEXT,
   renderOnDemandAttention,
@@ -123,6 +130,46 @@ describe("attention digest inspection", () => {
     makeTaskDir(workspaceRoot, "open", 1);
     runSteps(10);
     expect(emittedEvents).toHaveLength(0);
+  });
+
+  it("surfaces a durable exhausted-investigation attention disposition", () => {
+    makeTaskDir(workspaceRoot, "open", 1);
+    const observed = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
+      observations: [buildAutonomyIssueObservation({
+        kind: "present",
+        rootCauseKey: "workflow:improver:provider-unavailable",
+        observedAt: "2026-09-03T10:00:00.000Z",
+        signalIds: ["investigation-exhausted"],
+        source: { kind: "workflow", id: "improver", workflow: "improver" },
+        severity: "error",
+        actionability: "external-service",
+        labels: ["workflow-failure", "provider"],
+        summaries: ["Issue investigation could not reach its provider."],
+        evidenceRefs: [{ kind: "run", ref: ".kota/runs/improver-failed" }],
+        observationCount: 1,
+      })],
+    }).projection;
+    materializeAutonomyIssueProjection(
+      workspaceRoot,
+      recordAutonomyIssueDispositions({
+        current: observed,
+        updates: [{
+          issueKey: observed.issues[0]!.issueKey,
+          semanticRevision: observed.issues[0]!.semanticRevision,
+          kind: "attention",
+          decidedAt: "2026-09-03T11:00:00.000Z",
+          taskIds: [],
+          ownerQuestionIds: [],
+        }],
+      }),
+    );
+
+    runSteps(10);
+    expect(emittedEvents[0]?.payload.text).toContain(
+      "Autonomy investigation blocked",
+    );
+    expect(emittedEvents[0]?.payload.text).toContain(observed.issues[0]!.issueKey);
   });
 
   it("emits workflow.attention.digest at exactly 10 invocations when builder failure streak >= 3", () => {

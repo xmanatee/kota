@@ -66,6 +66,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
       const dispositions = [
         {
           action: "ask-owner",
+          recoveryAction: "",
           rationale: "The recovery policy is an owner decision.",
           taskTitle: "",
           taskSummary: "",
@@ -77,6 +78,7 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         },
         {
           action: "create-task",
+          recoveryAction: "",
           rationale: "The owner selected worktree preservation.",
           taskTitle: "Preserve failed builder worktrees",
           taskSummary: "Apply the owner-selected recovery policy through builder.",

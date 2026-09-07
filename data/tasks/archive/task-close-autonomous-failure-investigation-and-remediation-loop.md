@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p0
+status: done
 ---
 
 # Close the autonomous failure investigation and remediation loop

@@ -5,7 +5,10 @@ import type { BusEvents } from "#core/events/event-bus.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { subscribeBuilderInterruptions } from "./autonomy-issue-builder-interruption-source.js";
 import { subscribeDeadLetterChanges } from "./autonomy-issue-dead-letter-source.js";
+import { autonomyIssueReconciliationRequested } from "./autonomy-issue-events.js";
+import { subscribeModuleOperationFailures } from "./autonomy-issue-module-source.js";
 import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
+import { subscribeAutonomyIssueReconciliation } from "./autonomy-issue-reconciliation-source.js";
 import {
   type AutonomyIssueRuntimeScope,
   resolveAutonomyIssueRuntimeScope,
@@ -15,6 +18,7 @@ import {
   stableIssueHash,
   stableToken,
 } from "./autonomy-issue-source-shared.js";
+import { subscribeWorkflowHealth } from "./autonomy-issue-workflow-source.js";
 import {
   type AutonomyHealthJsonObject,
   type AutonomyHealthJsonValue,
@@ -265,9 +269,19 @@ function subscribeOwnerInterventions(ctx: AutonomyIssueSourceContext): void {
 }
 
 export function subscribeAutonomyIssueSources(ctx: AutonomyIssueSourceContext): void {
+  ctx.events.subscribe("workflow.runtime.started", (payload) => {
+    ctx.events.emit(autonomyIssueReconciliationRequested, {
+      scopeId: payload.scopeId,
+      reason: "workflow-runtime-started",
+      requestedAt: payload.startedAt,
+    });
+  });
   subscribeStepObservations(ctx);
   subscribeEvalRegressions(ctx);
   subscribeOwnerInterventions(ctx);
   subscribeDeadLetterChanges(ctx);
   subscribeBuilderInterruptions(ctx);
+  subscribeWorkflowHealth(ctx);
+  subscribeModuleOperationFailures(ctx);
+  subscribeAutonomyIssueReconciliation(ctx);
 }

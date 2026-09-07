@@ -18,11 +18,19 @@ import {
   buildAutonomyIssueObservation,
   emptyAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import { publishImproverDisposition } from "./disposition-publication.js";
+import {
+  createGeneratedWorkQuestionQueue,
+  generatedWorkQuestionDedupeKey,
+} from "#modules/autonomy/generated-work-owner-question.js";
+import {
+  type AppliedDisposition,
+  publishImproverDisposition,
+} from "./disposition-publication.js";
 import improverWorkflow, { agent } from "./workflow.js";
 
 const OBSERVED_DISPOSITION = {
   action: "observe" as const,
+  recoveryAction: "" as const,
   rationale: "Evidence is diagnostic and does not justify implementation work yet.",
   taskTitle: "",
   taskSummary: "",
@@ -46,6 +54,13 @@ const ACCEPTED_DISPOSITION = {
   ...OBSERVED_DISPOSITION,
   action: "accept" as const,
   rationale: "The revised evidence proves the root cause is resolved.",
+};
+
+const RECOVERY_DISPOSITION = {
+  ...OBSERVED_DISPOSITION,
+  action: "recover" as const,
+  recoveryAction: "doctor.fix" as const,
+  rationale: "The cited runtime layout is eligible for the allowlisted doctor repair.",
 };
 
 function improverCommandRunner(workspaceRoot: string): WorkflowCommandRunner {
@@ -112,6 +127,33 @@ describe("improver issue disposition workflow", () => {
     return result.projection.issues[0]!;
   }
 
+  function openDoctorIssue() {
+    mkdirSync(join(workspaceRoot, ".kota"), { recursive: true });
+    writeFileSync(
+      join(workspaceRoot, ".kota", "daemon-control.json"),
+      JSON.stringify({ pid: Number.MAX_SAFE_INTEGER }),
+      "utf-8",
+    );
+    const observation = buildAutonomyIssueObservation({
+      kind: "present",
+      rootCauseKey: "operator-inbox:runtime:daemon-control-stale",
+      observedAt: "2026-08-13T10:00:00.000Z",
+      source: { kind: "inbox", id: "runtime:daemon-control-stale" },
+      severity: "error",
+      actionability: "owner-action",
+      labels: ["operator-inbox", "runtime"],
+      summaries: ["The daemon control file refers to a dead process."],
+      evidenceRefs: [{ kind: "artifact", ref: ".kota/daemon-control.json" }],
+      observationCount: 1,
+      signalIds: ["doctor-recovery"],
+    });
+    projection = applyAutonomyIssueObservations({
+      current: projection,
+      observations: [observation],
+    }).projection;
+    return projection.issues[0]!;
+  }
+
   function stateForProjection() {
     const state = createTestTransactionalRunState();
     state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, 0, projection);
@@ -143,6 +185,9 @@ describe("improver issue disposition workflow", () => {
         semanticRevision: issue.semanticRevision,
         transition: "opened",
         observedAt: issue.lastSeenAt,
+        requestKind: "transition",
+        idempotencyKey:
+          `autonomy-issue-investigation:${issue.issueKey}:${issue.semanticRevision}:0`,
       },
     };
     const first = await new WorkflowScenarioDriver(improverWorkflow, {
@@ -183,6 +228,69 @@ describe("improver issue disposition workflow", () => {
     expect(repeated.steps["review-issue"].status).toBe("skipped");
   });
 
+  it("publishes verified deterministic recovery as a clear observation", async () => {
+    const issue = openDoctorIssue();
+    const result = await new WorkflowScenarioDriver(improverWorkflow, {
+      workspaceRoot,
+      workspaceDir: workspaceRoot,
+      trigger: {
+        event: autonomyIssueDecisionRequested.name,
+        payload: {
+          scopeId: "scope-fixture",
+          issueKey: issue.issueKey,
+          rootCauseKey: issue.rootCauseKey,
+          semanticRevision: issue.semanticRevision,
+          transition: "opened",
+          observedAt: issue.lastSeenAt,
+          requestKind: "transition",
+          idempotencyKey:
+            `autonomy-issue-investigation:${issue.issueKey}:${issue.semanticRevision}:0`,
+        },
+      },
+      stepOutputs: { "review-issue": RECOVERY_DISPOSITION },
+      ports: {
+        runCommand: improverCommandRunner(workspaceRoot),
+        state: stateForProjection(),
+      },
+    }).run();
+
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
+    expect(result.steps["apply-disposition"].output).toMatchObject({
+      recovery: {
+        action: "doctor.fix",
+        verification: expect.arrayContaining([
+          expect.objectContaining({ action: "skipped" }),
+        ]),
+      },
+    });
+    writeFileSync(
+      join(workspaceRoot, ".kota", "daemon-control.json"),
+      JSON.stringify({ port: 8765, pid: Number.MAX_SAFE_INTEGER }),
+      "utf-8",
+    );
+    expect(() => publishImproverDisposition({
+      scopeRoot: workspaceRoot,
+      sourceRunId: basename(result.runDirPath),
+      currentProjection: projection,
+    })).toThrow("cannot verify the original health contract");
+    rmSync(join(workspaceRoot, ".kota", "daemon-control.json"));
+    projection = publishImproverDisposition({
+      scopeRoot: workspaceRoot,
+      sourceRunId: basename(result.runDirPath),
+      currentProjection: projection,
+    }).nextProjection;
+    expect(projection.issues[0]).toMatchObject({
+      status: "resolved",
+      disposition: { kind: "cleared" },
+      history: expect.arrayContaining([
+        expect.objectContaining({
+          kind: "cleared",
+          summaries: [expect.stringContaining("doctor.fix")],
+        }),
+      ]),
+    });
+  });
+
   it("routes a repair through one stable task and resolves it on a revised issue", async () => {
     const issue = openIssue();
     const triggerFor = (
@@ -197,6 +305,9 @@ describe("improver issue disposition workflow", () => {
         semanticRevision,
         transition,
         observedAt: "2026-08-13T10:00:00.000Z",
+        requestKind: "transition",
+        idempotencyKey:
+          `autonomy-issue-investigation:${issue.issueKey}:${semanticRevision}:0`,
       },
     });
     const created = await new WorkflowScenarioDriver(improverWorkflow, {
@@ -211,15 +322,57 @@ describe("improver issue disposition workflow", () => {
     }).run();
 
     expect(created.status, JSON.stringify(created, null, 2)).toBe("success");
-    const applied = created.steps["apply-disposition"].output as {
-      materialized: { taskId: string | null };
-    };
+    const applied = created.steps["apply-disposition"].output as AppliedDisposition;
     const taskId = applied.materialized.taskId;
     expect(taskId).toEqual(expect.stringMatching(/^task-/));
     expect(
       existsSync(join(workspaceRoot, "data", "tasks", `${taskId}.md`)),
     ).toBe(true);
     expect(projection.issues[0]?.links.taskIds).toEqual([]);
+    const invariant = improverWorkflow.integration?.postReconcile;
+    if (!invariant) throw new Error("missing improver post-reconcile invariant");
+    const invariantInput = {
+      workspaceRoot,
+      repoRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"),
+      runId: basename(created.runDirPath),
+      readState: <T = unknown>() => ({
+        revision: 1,
+        value: projection as T,
+      }),
+      workflowName: "improver",
+      trigger,
+      head: "reconciled-head",
+      canonicalHead: "canonical-head",
+      signal: new AbortController().signal,
+    };
+    expect(invariant(invariantInput)).toEqual({ satisfied: true });
+    const clearedProjection = applyAutonomyIssueObservations({
+      current: projection,
+      observations: [buildAutonomyIssueObservation({
+        kind: "cleared",
+        rootCauseKey: issue.rootCauseKey,
+        observedAt: "2026-08-13T10:30:00.000Z",
+        source: issue.source,
+        severity: issue.severity,
+        actionability: issue.actionability,
+        labels: issue.labels,
+        summaries: ["The fixture recovered while review was running."],
+        evidenceRefs: [{ kind: "run", ref: ".kota/runs/fixture-clear" }],
+        observationCount: 1,
+        signalIds: ["signal-fixture-clear"],
+      })],
+    }).projection;
+    expect(invariant({
+      ...invariantInput,
+      readState: <T = unknown>() => ({
+        revision: 2,
+        value: clearedProjection as T,
+      }),
+    })).toMatchObject({
+      satisfied: false,
+      reason: expect.stringContaining("changed after disposition review"),
+    });
     projection = publishImproverDisposition({
       scopeRoot: workspaceRoot,
       sourceRunId: basename(created.runDirPath),
@@ -250,6 +403,27 @@ describe("improver issue disposition workflow", () => {
       observations: [revisedObservation],
     });
     projection = revisedResult.projection;
+    const ownerQuestionQueue = createGeneratedWorkQuestionQueue(workspaceRoot);
+    const pendingQuestion = ownerQuestionQueue.enqueue({
+      dedupeKey: generatedWorkQuestionDedupeKey(applied.proposal.proposalKey),
+      context: "Newer owner context",
+      question: "Keep this newer owner question pending?",
+      reason: "It belongs to the current issue revision.",
+      source: "workflow-test",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "workflow-test" },
+    });
+    const stalePublication = publishImproverDisposition({
+      scopeRoot: workspaceRoot,
+      sourceRunId: basename(created.runDirPath),
+      currentProjection: projection,
+      ownerQuestionQueue,
+    });
+    expect(stalePublication).toEqual({
+      published: false,
+      nextProjection: projection,
+    });
+    expect(ownerQuestionQueue.get(pendingQuestion.id)?.status).toBe("pending");
     const revised = revisedResult.transitions[0]!;
     const resolved = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
@@ -286,7 +460,7 @@ describe("improver issue disposition workflow", () => {
       currentProjection: projection,
     }).nextProjection;
     expect(projection.issues[0]).toMatchObject({
-      status: "resolved",
+      status: "open",
       disposition: { kind: "accepted" },
       links: { taskIds: [], ownerQuestionIds: [] },
     });

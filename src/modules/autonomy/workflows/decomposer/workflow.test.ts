@@ -225,6 +225,8 @@ describe("decomposer workflow", () => {
       workspaceRoot: fixture.workspaceRoot,
       repoRoot: fixture.workspaceRoot,
       stateDir: fixture.stateDir,
+      runId: "decomposer-contract-run",
+      readState: () => ({ revision: 0, value: null }),
       workflowName: "decomposer",
       trigger: fixture.trigger,
       head: "reconciled-head",

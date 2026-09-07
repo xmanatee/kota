@@ -92,6 +92,7 @@ describe("production dead-letter routing replay", () => {
 
       const disposition = {
         action: "create-task",
+        recoveryAction: "",
         rationale: "The passive Codex capability failure needs one builder repair.",
         taskTitle: "Repair passive Codex workflow compatibility",
         taskSummary: "Reject the incompatible native harness contract before dispatch.",

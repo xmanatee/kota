@@ -140,6 +140,7 @@ describe("source-owned autonomy issue observations", () => {
       current: readAutonomyIssueProjection(workspaceRoot),
       updates: [{
         issueKey: issue.issueKey,
+        semanticRevision: issue.semanticRevision,
         kind: "owner-question",
         decidedAt: NOW,
         taskIds: [],

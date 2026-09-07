@@ -100,6 +100,8 @@ describe("targeted builder contract", () => {
       workspaceRoot: root,
       repoRoot: root,
       stateDir: join(root, ".kota"),
+      runId: "builder-contract-run",
+      readState: () => ({ revision: 0, value: null }),
       workflowName: "builder",
       trigger: {
         event: "autonomy.queue.available",

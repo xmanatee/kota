@@ -132,6 +132,11 @@ export class WorkflowRuntime {
           definition.integration,
           this.ctx.store.rootDir,
           input,
+          <T = unknown>(key: string) =>
+            runtimeConfig.runState.readScopeStateValue<T>(
+              context.scope.id,
+              key,
+            ),
         );
       },
       continueIntegration: (context, issue) =>

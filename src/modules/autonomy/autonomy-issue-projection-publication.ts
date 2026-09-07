@@ -1,4 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 import type { TransactionalRunState } from "#core/workflow/run-context.js";
 import type { AutonomyIssueProjection } from "./autonomy-issue-projection.js";
 
@@ -6,17 +7,43 @@ export const AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT =
   "autonomy.issue-projection.materialization.requested";
 
 export type AutonomyIssueProjectionMaterializationRequest = {
+  idempotencyKey: string;
   stateRevision: number;
 };
+
+export const autonomyIssueProjectionMaterializationRequested =
+  defineScopedModuleEvent<AutonomyIssueProjectionMaterializationRequest>(
+    AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
+    ["idempotencyKey", "stateRevision"],
+    {
+      payloadSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          idempotencyKey: { type: "string" },
+          stateRevision: { type: "number" },
+        },
+      },
+      sensitivity: "internal",
+    },
+  );
 
 export function decodeAutonomyIssueProjectionMaterializationRequest(
   value: object,
 ): AutonomyIssueProjectionMaterializationRequest {
   const request = value as Partial<AutonomyIssueProjectionMaterializationRequest>;
-  if (!Number.isSafeInteger(request.stateRevision) || request.stateRevision! <= 0) {
+  if (
+    !Number.isSafeInteger(request.stateRevision) ||
+    request.stateRevision! <= 0 ||
+    request.idempotencyKey !==
+      `autonomy-issue-projection:${request.stateRevision}`
+  ) {
     throw new Error("autonomy issue projection materialization request is invalid");
   }
-  return { stateRevision: request.stateRevision! };
+  return {
+    idempotencyKey: request.idempotencyKey,
+    stateRevision: request.stateRevision!,
+  };
 }
 
 export function stageAutonomyIssueProjection(args: {

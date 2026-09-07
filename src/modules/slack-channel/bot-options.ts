@@ -47,5 +47,6 @@ export type SlackBotOptions = {
 	attention: AttentionSnapshotClient;
 	digest: DigestSnapshotClient;
 	getApprovals: (scopeId: string) => ApprovalsClient;
+	onConnectionHealthy?: () => void;
 	inboundSignals?: SlackInboundSignalRuntime;
 };

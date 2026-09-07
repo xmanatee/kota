@@ -374,10 +374,20 @@ describe("RunCoordinator", () => {
     admit(store, "run-b", "scope-a", "alpha", "2026-08-25T10:00:02.000Z");
     const started = deferred<void>();
     const aborted = deferred<void>();
+    const reconciliationTransitions: Array<{
+      scopeId: string;
+      workflow: string;
+      runId: string;
+      state: "cancelled" | "needs_attention";
+      transitionedAt: string;
+    }> = [];
     const coordinator = new RunCoordinator({
       store,
       daemonEpoch: epoch,
       concurrency: 1,
+      onReconciliationNeeded: (transition) => {
+        reconciliationTransitions.push(transition);
+      },
       execute: async (_run, signal) =>
         new Promise((resolve) => {
           started.resolve();
@@ -401,6 +411,22 @@ describe("RunCoordinator", () => {
 
     expect(store.getRun("run-a")?.state).toBe("cancelled");
     expect(store.getRun("run-b")?.state).toBe("cancelled");
+    expect(reconciliationTransitions).toEqual([
+      {
+        scopeId: "scope-a",
+        workflow: "alpha",
+        runId: "run-b",
+        state: "cancelled",
+        transitionedAt: expect.any(String),
+      },
+      {
+        scopeId: "scope-a",
+        workflow: "alpha",
+        runId: "run-a",
+        state: "cancelled",
+        transitionedAt: expect.any(String),
+      },
+    ]);
     expect(coordinator.cancel("run-a")).toEqual({ cancelled: false, reason: "not-found" });
   });
 
@@ -409,10 +435,17 @@ describe("RunCoordinator", () => {
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     admit(store, "run-a", "scope-a", "alpha", "2026-08-25T10:00:01.000Z");
     const started = deferred<void>();
+    const reconciliationTransitions: Array<{
+      state: "cancelled" | "needs_attention";
+      runId: string;
+    }> = [];
     const coordinator = new RunCoordinator({
       store,
       daemonEpoch: epoch,
       concurrency: 1,
+      onReconciliationNeeded: ({ state, runId }) => {
+        reconciliationTransitions.push({ state, runId });
+      },
       execute: async (_run, signal) =>
         new Promise((resolve) => {
           started.resolve();
@@ -437,6 +470,10 @@ describe("RunCoordinator", () => {
       state: "needs_attention",
       wait: { reason: "sandbox-cleanup-blocked" },
     });
+    expect(reconciliationTransitions).toEqual([{
+      state: "needs_attention",
+      runId: "run-a",
+    }]);
   });
 
   test("fails fast when an awaited child requires a resource held by its parent", async () => {

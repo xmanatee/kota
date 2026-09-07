@@ -6,6 +6,17 @@ setupSlackBotTestHooks();
 
 describe("SlackBot", () => {
   describe("handleSocketPayload (via start)", () => {
+    it("reports the connection healthy when Socket Mode opens", async () => {
+      const onConnectionHealthy = vi.fn();
+      const bot = makeBot({ onConnectionHealthy });
+      const startPromise = bot.start();
+
+      await vi.waitFor(() => expect(onConnectionHealthy).toHaveBeenCalledTimes(1));
+
+      bot.stop();
+      await startPromise.catch(() => {});
+    });
+
     it("acknowledges envelopes by sending envelope_id back", async () => {
       const bot = makeBot();
       const startPromise = bot.start();

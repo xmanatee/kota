@@ -7,9 +7,11 @@ import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope
 import {
   emitHealth,
   stableToken,
+  workflowFailureHealthShape,
   workflowFailureHealthSource,
   workflowFailureIssueKey,
 } from "./autonomy-issue-source-shared.js";
+import { workflowHealthContractLabel } from "./autonomy-issue-workflow-source.js";
 import { deadLetterHealthCategory } from "./dead-letter-health.js";
 
 type DeadLetterSourceContext = Pick<
@@ -54,6 +56,25 @@ export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
     const matchingItems = runtime.deadLetterQueue
       .list()
       .filter((item) => deadLetterIssueKey(item) === dedupeKey);
+    const changedItem = matchingItems.find((item) => item.id === payload.id);
+    const failedRun = changedItem?.source.kind === "workflow-dispatch" &&
+        changedItem.source.failedRunId !== undefined
+      ? runtime.runState.getRun(changedItem.source.failedRunId)
+      : null;
+    const workflowShape = workflowFailureName === undefined
+      ? null
+      : workflowFailureHealthShape({
+          failureKind: payload.failureClass,
+          triggerEvent: failedRun?.trigger.event ??
+            (changedItem?.source.kind === "workflow-dispatch"
+              ? changedItem.source.triggerEvent
+              : "unattributed"),
+          contractLabels: [
+            failedRun === null
+              ? "contract/unattributed"
+              : workflowHealthContractLabel(failedRun),
+          ],
+        });
     if (
       payload.status !== "open" &&
       matchingItems.some((item) => item.status === "open")
@@ -65,22 +86,20 @@ export function subscribeDeadLetterChanges(ctx: DeadLetterSourceContext): void {
       source: workflowFailureName !== undefined
         ? workflowFailureHealthSource(workflowFailureName)
         : { kind: "dead-letter", id: payload.id },
-      severity:
-        workflowFailureName !== undefined &&
-        classification.actionability === "local-code"
-          ? "critical"
-          : classification.severity,
-      labels: classification.labels,
+      severity: workflowShape?.severity ?? classification.severity,
+      labels: workflowShape?.labels ?? classification.labels,
       summary:
         `Dead-letter ${payload.id} is ${payload.status}; ` +
         (payload.resolutionReason
           ? `resolution: ${payload.resolutionReason}.`
           : `${classification.failureClass} evidence remains in the canonical queue record.`),
-      evidenceRefs: matchingItems.map((item) => ({
+      evidenceRefs: (matchingItems.length > 0
+        ? matchingItems.map((item) => item.id)
+        : [payload.id]).map((id) => ({
         kind: "dead-letter" as const,
-        ref: `.kota/dead-letter-queue/items.json#${item.id}`,
+        ref: `.kota/dead-letter-queue/items.json#${id}`,
       })),
-      actionability: classification.actionability,
+      actionability: workflowShape?.actionability ?? classification.actionability,
       dedupeKey,
       observationCount: 1,
       createdAt: payload.updatedAt,

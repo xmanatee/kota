@@ -85,6 +85,7 @@ describe("durable autonomy issue projection", () => {
       current: reduced.projection,
       updates: [{
         issueKey: observations[0]!.issueKey,
+        semanticRevision: 2,
         kind: "task",
         decidedAt: "2026-06-17T15:00:00.000Z",
         taskIds: ["task-health-builder"],
@@ -98,6 +99,34 @@ describe("durable autonomy issue projection", () => {
       links: { taskIds: ["task-health-builder"] },
     });
     expect(existsSync(join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
+  });
+
+  it("ignores a disposition produced for an older semantic revision", () => {
+    const observations = [
+      observation({ runId: "run-1", observedAt: "2026-06-17T12:00:00.000Z" }),
+      observation({
+        kind: "changed",
+        runId: "run-2",
+        observedAt: "2026-06-17T13:00:00.000Z",
+        severity: "error",
+      }),
+    ];
+    const current = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
+      observations,
+    }).projection;
+
+    expect(recordAutonomyIssueDispositions({
+      current,
+      updates: [{
+        issueKey: observations[0]!.issueKey,
+        semanticRevision: 1,
+        kind: "task",
+        decidedAt: "2026-06-17T14:00:00.000Z",
+        taskIds: ["task-stale"],
+        ownerQuestionIds: [],
+      }],
+    })).toBe(current);
   });
 
   it("stages one CAS and materializes only from the published state row", async () => {

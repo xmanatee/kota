@@ -7,7 +7,7 @@ import { createTelegramCallbackHandler, type PendingApprovalMessage } from "./ca
 import { callTelegramApi } from "./client.js";
 import { renderScopeLabelPrefix } from "./notification-delivery.js";
 import { type PendingMessage, tryHandleOwnerQuestionReply } from "./owner-question-reply.js";
-import { emitTelegramPollConflictHealthSignal, getCredentials, type TelegramConfig, telegramInteractiveBackendError } from "./readiness.js";
+import { emitTelegramPollConflictHealthSignal, getCredentials, reportTelegramPollRecovered, type TelegramConfig, telegramInteractiveBackendError } from "./readiness.js";
 import { resolveTelegramScopeRouting, tryResolveTelegramClient } from "./scope-routing.js";
 import type { TelegramChatScopeBinding } from "./scope-selection.js";
 import { buildStatusText, handleTelegramStatusCommand, type TelegramStatusScope } from "./status-poll.js";
@@ -95,6 +95,10 @@ export function makeTelegramInteractiveChannel(
           owner: "telegram-interactive",
           source: "daemon channel",
         },
+        onPollHealthy: () => reportTelegramPollRecovered(
+          ctx,
+          channelCtx.getDefaultScopeRuntime().scope.scopeId,
+        ),
         defaultScopeRuntime: channelCtx.getDefaultScopeRuntime(),
         getScopeRuntime: channelCtx.getScopeRuntime,
         allowedChatIds,
@@ -200,8 +204,17 @@ export function makeTelegramInteractiveChannel(
                   ctx,
                   channelCtx.getDefaultScopeRuntime().scope.scopeId,
                 );
+                ctx.log.error(
+                  `telegram-interactive channel poll loop exited: ${message}`,
+                  { operation: "poll-loop" },
+                );
+              } else {
+                ctx.log.operationFailed?.(
+                  channelCtx.getDefaultScopeRuntime().scope.scopeId,
+                  "poll-loop",
+                  `telegram-interactive channel poll loop exited: ${message}`,
+                );
               }
-              ctx.log.error(`telegram-interactive channel poll loop exited: ${message}`);
               channelCtx.reportFailure(message);
             });
           },

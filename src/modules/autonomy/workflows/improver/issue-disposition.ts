@@ -3,6 +3,7 @@ import type { JsonSchemaObject } from "#core/util/json-schema-validator.js";
 
 export const ISSUE_DISPOSITION_ACTIONS = [
   "create-task",
+  "recover",
   "ask-owner",
   "observe",
   "accept",
@@ -10,8 +11,11 @@ export const ISSUE_DISPOSITION_ACTIONS = [
   "no-action",
 ] as const;
 
+export const ISSUE_RECOVERY_ACTIONS = ["", "doctor.fix"] as const;
+
 const issueDispositionSchema = z.object({
   action: z.enum(ISSUE_DISPOSITION_ACTIONS),
+  recoveryAction: z.enum(ISSUE_RECOVERY_ACTIONS),
   rationale: z.string().min(1),
   taskTitle: z.string(),
   taskSummary: z.string(),
@@ -36,6 +40,20 @@ const issueDispositionSchema = z.object({
         });
       }
     }
+  }
+  if (value.action === "recover" && value.recoveryAction !== "doctor.fix") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recoveryAction"],
+      message: "recoveryAction must be doctor.fix for recover",
+    });
+  }
+  if (value.action !== "recover" && value.recoveryAction !== "") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["recoveryAction"],
+      message: "recoveryAction is only valid for recover",
+    });
   }
   if (value.action === "ask-owner") {
     if (!value.ownerQuestion.trim()) {
@@ -74,6 +92,7 @@ export const issueDispositionOutputSchema = {
   type: "object",
   required: [
     "action",
+    "recoveryAction",
     "rationale",
     "taskTitle",
     "taskSummary",
@@ -86,6 +105,7 @@ export const issueDispositionOutputSchema = {
   additionalProperties: false,
   properties: {
     action: { type: "string", enum: [...ISSUE_DISPOSITION_ACTIONS] },
+    recoveryAction: { type: "string", enum: [...ISSUE_RECOVERY_ACTIONS] },
     rationale: { type: "string" },
     taskTitle: { type: "string" },
     taskSummary: { type: "string" },

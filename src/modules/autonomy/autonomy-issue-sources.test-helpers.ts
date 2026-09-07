@@ -6,6 +6,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
   materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
@@ -31,6 +32,10 @@ export function makeAutonomyIssueSourceContext(
   workspaceRoot: string,
   bus: EventBus,
   scopeId = ISSUE_SOURCE_SCOPE_ID,
+  runtimeAuthority?: {
+    runState: RunStateDatabase;
+    workflowRuntime: ScopeRuntime["workflowRuntime"];
+  },
 ): { ctx: AutonomyIssueSourceContext; runtime: ScopeRuntime } {
   const runtime = createTestScopeRuntime({
     scope: { scopeId, scopeRoot: workspaceRoot, displayName: scopeId },
@@ -42,7 +47,15 @@ export function makeAutonomyIssueSourceContext(
   registry.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "test", {
     resolve: (selectedId) =>
       selectedId === scopeId
-        ? { ok: true, runtime }
+        ? {
+            ok: true,
+            runtime: runtimeAuthority === undefined
+              ? runtime
+              : {
+                  ...runtime,
+                  ...runtimeAuthority,
+                },
+          }
         : { ok: false, scopeId: selectedId },
   });
   return {

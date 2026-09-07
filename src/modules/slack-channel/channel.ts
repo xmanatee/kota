@@ -50,6 +50,14 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 				history: moduleCtx.client.history,
 				tasks: moduleCtx.client.tasks,
 				getApprovals: (scopeId) => moduleCtx.client.forScope(scopeId).approvals,
+				onConnectionHealthy: () => {
+					const scopeId = ctx.getDefaultScopeRuntime().scope.scopeId;
+					moduleCtx.log.operationRecovered?.(
+						scopeId,
+						"poll-loop",
+						"slack-channel Socket Mode connection is healthy",
+					);
+				},
 				inboundSignals: config.inboundSignals
 					? {
 							getScopeId: () =>
@@ -122,7 +130,11 @@ export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
 					async start() {
 						startPromise = bot.start().catch((error) => {
 							const message = error instanceof Error ? error.message : String(error);
-							moduleCtx.log.error(`slack-channel poll loop exited: ${message}`);
+							moduleCtx.log.operationFailed?.(
+								ctx.getDefaultScopeRuntime().scope.scopeId,
+								"poll-loop",
+								`slack-channel poll loop exited: ${message}`,
+							);
 							ctx.reportFailure(message);
 						});
 					},

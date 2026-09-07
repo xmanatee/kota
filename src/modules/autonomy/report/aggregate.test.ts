@@ -602,6 +602,7 @@ describe("aggregateAutonomyReport", () => {
       updates: [
         {
           issueKey: observation.issueKey,
+          semanticRevision: 1,
           kind: "task",
           decidedAt: new Date(NOW - MS_PER_DAY + 1).toISOString(),
           taskIds: ["task-health-workflow-builder-runtime-warning"],
@@ -633,6 +634,9 @@ describe("aggregateAutonomyReport", () => {
       { actionability: "local-code", count: 2 },
     ]);
     expect(report.health.byStatus).toEqual([{ status: "open", count: 1 }]);
+    expect(report.health.byPhase).toEqual([
+      { phase: "awaiting-investigation", count: 1 },
+    ]);
   });
 
   it("breaks cost down by workflow over the window", () => {

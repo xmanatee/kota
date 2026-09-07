@@ -27,7 +27,10 @@ and publication.
   the current canonical head, validates, acquires the repository integration
   resource, runs any workflow-declared semantic invariant against that exact
   reconciled/canonical snapshot, checks both trees again, and publishes with a
-  fast-forward merge. Invariant rejection preserves the writer for attention.
+  fast-forward merge. Invariants receive a latest canonical scope-state reader
+  so durable domain ownership can be rechecked without consulting the run's
+  earlier transactional snapshot. Invariant rejection preserves the writer for
+  attention.
 - Conflict and validator repair use a bounded AI continuation. Screened
   diagnostics, conflict-path write scope, Git mutation denial, cancellation,
   and no-progress fingerprints are runtime rails; staging, rebase continuation,

@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getScopeSecretStore } from "#core/config/secrets.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { readOnlyLocalEffect } from "#core/tools/effect.js";
 import { registerTool } from "#core/tools/index.js";
 import {
@@ -15,6 +16,7 @@ import {
   resetModuleContextTestState,
   TEXT_LOG_CONFIG,
 } from "./module-context.test-helpers.js";
+import { ModuleLoader } from "./module-loader.js";
 import type { ModuleContext } from "./module-types.js";
 
 beforeEach(() => {
@@ -74,6 +76,41 @@ describe("ModuleContext.log", () => {
     const debugCall = chunks.find((chunk) => chunk.includes("DEBUG:"));
     expect(debugCall).toBeTruthy();
     expect(debugCall).toContain("[module:verbose-mod] DEBUG: visible");
+  });
+
+  it("attributes typed operation health to the caller's scope rather than the module cwd", async () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "module-context-health-"));
+    try {
+      const bus = new EventBus();
+      const failures: Array<{ scopeId: string; module: string }> = [];
+      bus.on("module.operation.failed", (payload) => failures.push(payload));
+      const onLoad = vi.fn();
+      const loader = new ModuleLoader(TEXT_LOG_CONFIG);
+      loader.setCwd(scopeRoot);
+      loader.setBus(bus);
+      await loader.load({ name: "health-source", onLoad });
+
+      const ctx: ModuleContext = onLoad.mock.calls[0][0];
+      ctx.log.error("diagnostic-only error");
+      ctx.log.operationFailed?.(
+        "scope-operation",
+        "poll-loop",
+        "operation failed",
+        { secret: "retained-only" },
+      );
+
+      expect(failures).toEqual([{
+        scopeId: "scope-operation",
+        module: "health-source",
+        operation: "poll-loop",
+        failureKind: "unknown",
+        causeKey: expect.stringMatching(/^poll-loop:unknown:/),
+        observedAt: expect.any(String),
+      }]);
+      expect(JSON.stringify(failures)).not.toContain("retained-only");
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
   });
 });
 

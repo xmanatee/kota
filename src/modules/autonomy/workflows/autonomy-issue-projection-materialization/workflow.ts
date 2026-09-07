@@ -8,7 +8,7 @@ import {
   materializeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
-  AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
+  autonomyIssueProjectionMaterializationRequested,
   type AutonomyIssueProjectionMaterializationRequest,
   decodeAutonomyIssueProjectionMaterializationRequest,
 } from "#modules/autonomy/autonomy-issue-projection-publication.js";
@@ -28,7 +28,7 @@ const workflow: WorkflowDefinitionInput = {
   resources: () => [AUTONOMY_ISSUE_PROJECTION_RESOURCE],
   description:
     "Materialize the published autonomy issue state for non-workflow readers.",
-  triggers: [{ event: AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT }],
+  triggers: [{ event: autonomyIssueProjectionMaterializationRequested.name }],
   steps: [
     inspectRequest,
     {

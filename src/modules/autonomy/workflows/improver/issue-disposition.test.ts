@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { decodeIssueDisposition } from "./issue-disposition.js";
 
 const base = {
+  recoveryAction: "",
   rationale: "Current evidence does not justify new implementation work.",
   taskTitle: "",
   taskSummary: "",
@@ -36,5 +37,18 @@ describe("issue disposition contract", () => {
       action: "duplicate",
       duplicateOfIssueKey: "autonomy-issue-existing",
     });
+  });
+
+  it("admits only the allowlisted deterministic recovery action", () => {
+    expect(
+      decodeIssueDisposition({
+        ...base,
+        action: "recover",
+        recoveryAction: "doctor.fix",
+      }),
+    ).toMatchObject({ action: "recover", recoveryAction: "doctor.fix" });
+    expect(() =>
+      decodeIssueDisposition({ ...base, action: "recover" })
+    ).toThrow(/recoveryAction/);
   });
 });

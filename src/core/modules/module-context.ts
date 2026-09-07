@@ -27,6 +27,7 @@ import { resolveLogFormatter } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import { getModuleLogStore } from "./module-log.js";
+import { classifyModuleOperationFailure } from "./module-operation-health.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
 import type { RegisteredUiSurfaceSource } from "./module-ui-surfaces.js";
@@ -165,6 +166,55 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     error: (msg: string, data?: unknown) => {
       printTerminalDiagnostic(formatLine("error", prefix, msg, data), "error");
       getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, data);
+    },
+    operationFailed: (
+      scopeId: string,
+      operation: string,
+      msg: string,
+      data?: unknown,
+    ) => {
+      printTerminalDiagnostic(formatLine("error", prefix, msg, data), "error");
+      getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, {
+        scopeId,
+        operation,
+        detail: data,
+      });
+      if (moduleName !== undefined) {
+        const identity = classifyModuleOperationFailure({
+          module: moduleName,
+          operation,
+          message: msg,
+        });
+        getBus()?.emit("module.operation.failed", {
+          scopeId,
+          module: moduleName,
+          operation,
+          ...identity,
+          observedAt: new Date().toISOString(),
+        });
+      }
+    },
+    operationRecovered: (
+      scopeId: string,
+      operation: string,
+      msg?: string,
+      data?: unknown,
+    ) => {
+      const message = msg ?? `${operation} recovered`;
+      printTerminalDiagnostic(formatLine("info", prefix, message, data));
+      getModuleLogStore()?.append(moduleName ?? "_default", "info", message, {
+        scopeId,
+        operation,
+        detail: data,
+      });
+      if (moduleName !== undefined) {
+        getBus()?.emit("module.operation.recovered", {
+          scopeId,
+          module: moduleName,
+          operation,
+          observedAt: new Date().toISOString(),
+        });
+      }
     },
     debug: (msg: string, data?: unknown) => {
       if (verbose) printTerminalDiagnostic(formatLine("debug", prefix, msg, data), "debug");

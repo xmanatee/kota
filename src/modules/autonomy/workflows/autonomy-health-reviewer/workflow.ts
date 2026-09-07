@@ -5,7 +5,10 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import {
+  autonomyIssueDecisionRequested,
+  autonomyIssueInvestigationKey,
+} from "#modules/autonomy/autonomy-issue-events.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
@@ -126,7 +129,7 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
       batch: {
         maxCount: 5,
         maxAgeMs: 60 * 60 * 1000,
-        groupBy: ["scopeId", "labelsKey"],
+        groupBy: ["scopeId", "dedupeKey"],
         maxBufferSize: 20,
         overflow: "flush-oldest",
       },
@@ -197,6 +200,12 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
               semanticRevision: request.semanticRevision,
               transition: request.transition,
               observedAt: review.generatedAt,
+              requestKind: "transition",
+              idempotencyKey: autonomyIssueInvestigationKey(
+                request.issueKey,
+                request.semanticRevision,
+                0,
+              ),
             },
             {
               delivery: "on-run-success",

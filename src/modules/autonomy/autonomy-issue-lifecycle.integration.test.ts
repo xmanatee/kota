@@ -75,6 +75,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         'Agent harness "codex" cannot honor requested run option(s): autonomyMode="passive". autonomyMode="passive": Codex CLI native tool calls cannot be classified and denied individually under KOTA\'s passive contract.';
       const disposition = {
         action: "create-task",
+        recoveryAction: "",
         rationale: "The repeated static capability failure needs one builder repair.",
         taskTitle: "Repair passive Codex workflow compatibility",
         taskSummary: "Keep incompatible native harness contracts out of dispatch.",

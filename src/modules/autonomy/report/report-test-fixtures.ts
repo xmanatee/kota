@@ -191,6 +191,7 @@ export const emptyAutonomyReportData: AutonomyReportData = {
     bySource: [],
     byActionability: [],
     byStatus: [],
+    byPhase: [],
     topGroups: [],
   },
   blockers: { totalBlocked: 0, byKind: [] },

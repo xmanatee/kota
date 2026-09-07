@@ -73,8 +73,12 @@ const inboundSignalsModule: KotaModule = {
               triggerInboundSignalAgent(ctx, name, options),
             emitRouted: (payload) => ctx.events.emit(inboundSignalRouted, payload),
           },
+        }).then(() => {
+          ctx.log.operationRecovered?.(signal.scopeId, "route-dispatch");
         }).catch((err) => {
-          ctx.log.error(
+          ctx.log.operationFailed?.(
+            signal.scopeId,
+            "route-dispatch",
             `inbound-signals route dispatch failed: ${
               err instanceof Error ? err.message : String(err)
             }`,

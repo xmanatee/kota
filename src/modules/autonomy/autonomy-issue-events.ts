@@ -7,6 +7,17 @@ export type AutonomyIssueDecisionRequest = {
   semanticRevision: number;
   transition: AutonomyIssueTransitionKind;
   observedAt: string;
+  requestKind: "transition" | "reconciliation";
+  idempotencyKey: string;
+  ownerFingerprint?: string;
+};
+
+export type AutonomyIssueReconciliationRequest = {
+  reason:
+    | "workflow-runtime-started"
+    | "workflow-completed"
+    | "owner-decision-resolved";
+  requestedAt: string;
 };
 
 export const autonomyIssueDecisionRequested =
@@ -18,6 +29,9 @@ export const autonomyIssueDecisionRequested =
       "semanticRevision",
       "transition",
       "observedAt",
+      "requestKind",
+      "idempotencyKey",
+      "ownerFingerprint",
     ],
     {
       payloadSchema: {
@@ -33,6 +47,13 @@ export const autonomyIssueDecisionRequested =
             filterable: true,
           },
           observedAt: { type: "string", format: "date-time" },
+          requestKind: {
+            type: "string",
+            enum: ["transition", "reconciliation"],
+            filterable: true,
+          },
+          idempotencyKey: { type: "string" },
+          ownerFingerprint: { type: "string", required: false },
         },
       },
       filterablePaths: [
@@ -40,7 +61,42 @@ export const autonomyIssueDecisionRequested =
         "rootCauseKey",
         "semanticRevision",
         "transition",
+        "requestKind",
       ],
+      sensitivity: "internal",
+    },
+  );
+
+export function autonomyIssueInvestigationKey(
+  issueKey: string,
+  semanticRevision: number,
+  attempt: number,
+): string {
+  return `autonomy-issue-investigation:${issueKey}:${semanticRevision}:${attempt}`;
+}
+
+export const autonomyIssueReconciliationRequested =
+  defineScopedModuleEvent<AutonomyIssueReconciliationRequest>(
+    "autonomy.issue.reconciliation-requested",
+    ["reason", "requestedAt"],
+    {
+      payloadSchema: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          reason: {
+            type: "string",
+            enum: [
+              "workflow-runtime-started",
+              "workflow-completed",
+              "owner-decision-resolved",
+            ],
+            filterable: true,
+          },
+          requestedAt: { type: "string", format: "date-time" },
+        },
+      },
+      filterablePaths: ["reason"],
       sensitivity: "internal",
     },
   );

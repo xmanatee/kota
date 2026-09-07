@@ -101,6 +101,7 @@ export type AutonomyIssueProjectionResult = {
 
 export type AutonomyIssueDispositionUpdate = {
   issueKey: string;
+  semanticRevision: number;
   kind: Exclude<AutonomyIssueDispositionKind, "cleared" | "needs-decision">;
   decidedAt: string;
   taskIds: string[];

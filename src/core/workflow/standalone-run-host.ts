@@ -140,6 +140,8 @@ export class StandaloneRunHost {
           definition.integration,
           this.scopeRuntime.runStore.rootDir,
           input,
+          <T = unknown>(key: string) =>
+            this.state.readScopeStateValue<T>(context.scope.id, key),
         );
       },
       continueIntegration: (context, issue) =>

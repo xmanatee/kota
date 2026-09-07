@@ -10,6 +10,7 @@ import {
   type AutonomyIssueProjection,
   decodeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { autonomyIssueOwnerFingerprint } from "#modules/autonomy/autonomy-issue-reconciliation.js";
 
 export type IssueDecisionInput = {
   eligible: boolean;
@@ -49,12 +50,24 @@ export function selectIssueForProjection(args: {
   }
   if (
     issue.status === "resolved" ||
-    issue.disposition.kind !== "needs-decision" ||
-    issue.disposition.semanticRevision !== semanticRevision
+    issue.disposition.semanticRevision !== semanticRevision ||
+    (trigger.payload.requestKind !== "reconciliation" &&
+      issue.disposition.kind !== "needs-decision")
   ) {
     return {
       eligible: false,
       reason: "issue revision already has a current disposition",
+      issue,
+    };
+  }
+  if (
+    trigger.payload.requestKind === "reconciliation" &&
+    (typeof trigger.payload.ownerFingerprint !== "string" ||
+      trigger.payload.ownerFingerprint !== autonomyIssueOwnerFingerprint(issue))
+  ) {
+    return {
+      eligible: false,
+      reason: "issue disposition ownership changed after reconciliation",
       issue,
     };
   }

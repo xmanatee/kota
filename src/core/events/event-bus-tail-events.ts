@@ -1,3 +1,4 @@
+import type { ModuleOperationFailureKind } from "#core/modules/module-operation-health.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { WorkflowDeadLetterBusEvents } from "./event-bus-dead-letter-events.js";
 import type { ScopeId } from "./scope.js";
@@ -204,6 +205,20 @@ export type TailBusEvents = WorkflowDeadLetterBusEvents & {
   "module.failed": {
     name: string;
     reason: string;
+  };
+  "module.operation.failed": {
+    scopeId: ScopeId;
+    module: string;
+    operation: string;
+    failureKind: ModuleOperationFailureKind;
+    causeKey: string;
+    observedAt: string;
+  };
+  "module.operation.recovered": {
+    scopeId: ScopeId;
+    module: string;
+    operation: string;
+    observedAt: string;
   };
   "module.restarted": {
     name: string;

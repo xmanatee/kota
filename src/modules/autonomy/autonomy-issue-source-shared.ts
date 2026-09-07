@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
+  type AutonomyHealthActionability,
+  type AutonomyHealthSeverity,
   autonomyHealthSignal,
   normalizeHealthSignal,
 } from "./health-signal.js";
+
+export type WorkflowFailureHealthShape = {
+  severity: AutonomyHealthSeverity;
+  actionability: AutonomyHealthActionability;
+  labels: string[];
+};
 
 export function workflowFailureHealthSource(workflowName: string) {
   return {
@@ -44,6 +52,27 @@ export function workflowFailureIssueKey(args: {
     ? stableIssueHash(normalized)
     : stableToken(args.fallback);
   return `workflow:${stableToken(args.workflowName)}:failure:${failureKey}`;
+}
+
+export function workflowFailureHealthShape(args: {
+  failureKind: string;
+  triggerEvent: string;
+  contractLabels: readonly string[];
+}): WorkflowFailureHealthShape {
+  const external = args.failureKind === "auth" ||
+    args.failureKind === "provider" ||
+    args.failureKind === "rate_limit";
+  return {
+    severity: external ? "warning" : "error",
+    actionability: external ? "external-service" : "local-code",
+    labels: [
+      "runtime",
+      "workflow-failure",
+      stableToken(args.failureKind),
+      `trigger/${stableToken(args.triggerEvent)}`,
+      ...args.contractLabels,
+    ],
+  };
 }
 
 export function emitHealth(

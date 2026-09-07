@@ -164,6 +164,25 @@ describe("slackChannelModule channel adapter", () => {
     expect(botInstance.start).toHaveBeenCalled();
   });
 
+  it("reports poll-loop recovery after Socket Mode reaches healthy", async () => {
+    const ctx = makeStubCtx(undefined, {
+      botToken: "xoxb-test",
+      appToken: "xapp-test",
+    });
+    const operationRecovered = vi.fn();
+    ctx.log.operationRecovered = operationRecovered;
+
+    await resolveAdapter(ctx);
+    const options = MockedSlackBot.mock.calls[0][0];
+    options.onConnectionHealthy?.();
+
+    expect(operationRecovered).toHaveBeenCalledWith(
+      "test-scope",
+      "poll-loop",
+      "slack-channel Socket Mode connection is healthy",
+    );
+  });
+
   it("reports channel sessions and closes the previous default scope immediately", async () => {
     const bus = new EventBus();
     const ctx = makeStubCtx(bus, {

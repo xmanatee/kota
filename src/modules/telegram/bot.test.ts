@@ -519,6 +519,38 @@ describe("TelegramBot", () => {
     );
   });
 
+  it("reports the poll loop healthy after the first successful getUpdates", async () => {
+    const onPollHealthy = vi.fn();
+    const bot = new TelegramBot(botOptions({
+      token: "test-token",
+      onPollHealthy,
+    }));
+    let pollCount = 0;
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith("/getMe")) {
+        return {
+          json: () => Promise.resolve({
+            ok: true,
+            result: { id: 1, first_name: "TestBot", username: "test_bot" },
+          }),
+        };
+      }
+      if (url.endsWith("/getUpdates")) {
+        pollCount++;
+        if (pollCount === 2) await bot.stop();
+        return {
+          json: () => Promise.resolve({ ok: true, result: [] }),
+        };
+      }
+      throw new Error(`unexpected URL ${url}`);
+    });
+
+    await bot.start();
+
+    expect(pollCount).toBe(2);
+    expect(onPollHealthy).toHaveBeenCalledTimes(1);
+  });
+
   it("retries a transient getMe failure before polling", async () => {
     vi.useFakeTimers();
     const bot = new TelegramBot(botOptions({ token: "test-token" }));

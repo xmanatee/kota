@@ -211,7 +211,7 @@ export function aggregateAutonomyReport(
       postCompletionFollowUpLinks,
       priorPostCompletionFollowUpLinks,
     }),
-    health: buildAutonomyHealthBreakdown(input.workspaceRoot),
+    health: buildAutonomyHealthBreakdown(input.workspaceRoot, input.stateDir),
     blockers: buildBlockerMix(allTasks),
     cost: buildCostBreakdown(runs),
   };

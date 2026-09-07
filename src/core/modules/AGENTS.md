@@ -22,6 +22,11 @@ fewer capabilities outside `onLoad`:
 Lifecycle registration belongs in `onLoad`; contribution factories may run
 after provider activation. `module-context-capabilities.test.ts` enforces this.
 
+Typed module-operation health is scope-bound. Callers supply the authoritative
+operation scope from the request, signal, session, or channel runtime; module
+loader `cwd` is storage context and must not be used as runtime attribution.
+Operations without authoritative scope remain ordinary diagnostics.
+
 `ModuleLoader` owns its `ProviderRegistry`. Runtime composition roots pass the
 host registry explicitly when it must also be the single CLI process registry;
 embedded and test hosts use a fresh registry. Never initialize, replace, or

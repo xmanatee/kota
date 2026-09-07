@@ -77,6 +77,18 @@ export type ModuleLogger = {
   warn: (msg: string, data?: unknown) => void;
   error: (msg: string, data?: unknown) => void;
   debug: (msg: string, data?: unknown) => void;
+  operationFailed?: (
+    scopeId: ScopeId,
+    operation: string,
+    msg: string,
+    data?: unknown,
+  ) => void;
+  operationRecovered?: (
+    scopeId: ScopeId,
+    operation: string,
+    msg?: string,
+    data?: unknown,
+  ) => void;
 };
 
 /**

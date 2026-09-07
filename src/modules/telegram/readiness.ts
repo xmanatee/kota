@@ -5,6 +5,7 @@ import { checkPresetAuth } from "#core/model/preset.js";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
+import { moduleOperationHealthPattern } from "#modules/autonomy/autonomy-issue-module-failure.js";
 import { autonomyHealthSignal, normalizeHealthSignal } from "#modules/autonomy/health-signal.js";
 import { apiKeyNameForProvider, resolveApiKey, resolveModelProviderName } from "#modules/model-clients/factory.js";
 import { isModelClientHarness, resolveTelegramInteractiveBackend } from "./backend.js";
@@ -171,11 +172,14 @@ export function emitTelegramPollConflictHealthSignal(
 
   const signal = normalizeHealthSignal({
     observation: "present",
-    source: { kind: "module", id: "telegram-interactive", module: "telegram" },
-    severity: "warning",
-    labels: ["external-service", "polling", "telegram"],
-    summary:
-      "Telegram Bot API reported a getUpdates conflict for telegram-interactive. Another process or poller is using the same bot token; stop the duplicate consumer before enabling Telegram chat.",
+    ...moduleOperationHealthPattern({
+      module: "telegram",
+      operation: "poll-loop",
+      identity: {
+        failureKind: "duplicate-consumer",
+        causeKey: "getupdates-conflict",
+      },
+    }),
     evidenceRefs: [
       {
         kind: "module-log",
@@ -184,8 +188,6 @@ export function emitTelegramPollConflictHealthSignal(
           "Bot API getUpdates returned a conflict while the interactive Telegram channel was running.",
       },
     ],
-    actionability: "external-service",
-    dedupeKey,
     observationCount: 1,
     createdAt: new Date().toISOString(),
   });
@@ -200,6 +202,19 @@ export function emitTelegramPollConflictHealthSignal(
       `Telegram getUpdates conflict health signal failed: ${(err as Error).message}`,
     );
   }
+}
+
+export function reportTelegramPollRecovered(
+  ctx: ModuleContext,
+  scopeId: string,
+): void {
+  const reportKey = `${scopeId}:module:telegram:getupdates-conflict`;
+  reportedTelegramPollConflicts.delete(reportKey);
+  ctx.log.operationRecovered?.(
+    scopeId,
+    "poll-loop",
+    "telegram-interactive poll loop completed a healthy getUpdates request",
+  );
 }
 
 export function telegramInteractiveBackendError(

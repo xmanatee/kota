@@ -36,6 +36,7 @@ export class SlackBot {
   private ws: WebSocket | null = null;
   private sessions = new Map<string, ChannelSession>();
   private busyUsers = new Set<string>();
+  private connectionHealthyReported = false;
 
   constructor(
     private options: SlackBotOptions,
@@ -44,6 +45,7 @@ export class SlackBot {
 
   async start(): Promise<void> {
     this.running = true;
+    this.connectionHealthyReported = false;
     await this.connect();
   }
 
@@ -110,6 +112,10 @@ export class SlackBot {
 
       ws.addEventListener("open", () => {
         printTerminalDiagnostic("[kota-slack] Socket Mode connected");
+        if (!this.connectionHealthyReported) {
+          this.connectionHealthyReported = true;
+          this.options.onConnectionHealthy?.();
+        }
       });
 
       ws.addEventListener("message", (event) => {

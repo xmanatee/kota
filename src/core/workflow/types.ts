@@ -95,6 +95,13 @@ export type WorkflowPostReconcileInvariantInput = Readonly<{
   repoRoot: string;
   /** Canonical durable runtime-state directory for this scope. */
   stateDir: string;
+  /** Durable identity of the writer whose publication is being guarded. */
+  runId: string;
+  /** Read the latest canonical scope state without using the run's snapshot. */
+  readState: <T = unknown>(key: string) => Readonly<{
+    revision: number;
+    value: T | null;
+  }>;
   workflowName: string;
   trigger: WorkflowRunTrigger;
   head: string;

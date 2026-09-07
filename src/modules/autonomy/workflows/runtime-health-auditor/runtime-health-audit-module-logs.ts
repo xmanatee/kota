@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { classifyModuleOperationHealth } from "#modules/autonomy/autonomy-issue-module-failure.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
 import {
   type AutonomyHealthJsonObject,
@@ -10,15 +11,14 @@ import {
   addPattern,
   isHighSignalLogCategory,
   MAX_LOG_LINES_PER_FILE,
-  normalizeLogCode,
   type PatternInput,
   type RuntimeHealthAuditContext,
-  stableHash,
   truncateSingleLine,
 } from "./runtime-health-audit-model.js";
 
 type LogObservation = {
   moduleName: string;
+  operation: string;
   path: string;
   lineNumber: number;
   text: string;
@@ -59,113 +59,32 @@ function logLineText(
 function classifyLogObservation(
   observation: LogObservation,
 ): PatternInput | null {
-  const normalized = normalizeLogCode(observation.text);
   const evidence: AutonomyHealthEvidenceRef = {
     kind: "module-log",
     ref: `${observation.path}#L${observation.lineNumber}`,
     summary: truncateSingleLine(observation.text),
   };
 
-  if (
-    observation.moduleName === "telegram" &&
-    /getupdates/.test(normalized) &&
-    /(conflict|terminated by other getupdates request|409)/.test(normalized)
-  ) {
-    return {
-      dedupeKey: "module:telegram:getupdates-conflict",
-      category: "duplicate-consumer",
-      severity: "error",
-      actionability: "owner-action",
-      labels: [
-        "duplicate-consumer",
-        "external-service",
-        "operator-action",
-        "telegram",
-      ],
-      summary:
-        "Telegram getUpdates conflict indicates another consumer is using the same bot token.",
-      source: { kind: "module-log", id: "telegram", module: "telegram" },
-      evidenceRefs: [evidence],
-    };
-  }
-
-  if (/(unauthorized|forbidden|invalid token|auth|oauth|401|403)/.test(normalized)) {
-    return {
-      dedupeKey: `module:${observation.moduleName}:auth-failure`,
-      category: "external-service/auth",
-      severity: "error",
-      actionability: "external-service",
-      labels: ["auth", "external-service", observation.moduleName],
-      summary: `${observation.moduleName} log reports an auth/setup failure.`,
-      source: {
-        kind: "module-log",
-        id: observation.moduleName,
-        module: observation.moduleName,
-      },
-      evidenceRefs: [evidence],
-    };
-  }
-
-  if (
-    /(rate limit|429|timeout|econnreset|etimedout|enotfound|network|temporar)/.test(
-      normalized,
-    )
-  ) {
-    return {
-      dedupeKey: `module:${observation.moduleName}:external-provider-failure`,
-      category: "external-service/auth",
-      severity: "warning",
-      actionability: "external-service",
-      labels: ["external-service", observation.moduleName, "provider"],
-      summary: `${observation.moduleName} log reports repeated provider or network failures.`,
-      source: {
-        kind: "module-log",
-        id: observation.moduleName,
-        module: observation.moduleName,
-      },
-      evidenceRefs: [evidence],
-    };
-  }
-
-  if (/(cost|budget|spend|token).*(exceed|limit|spike|risk|runaway)/.test(normalized)) {
-    return {
-      dedupeKey: `module:${observation.moduleName}:cost-risk`,
-      category: "cost-risk",
-      severity: "critical",
-      actionability: "informational",
-      labels: ["cost-risk", observation.moduleName, "runtime"],
-      summary: `${observation.moduleName} log reports a runtime cost-risk condition.`,
-      source: {
-        kind: "module-log",
-        id: observation.moduleName,
-        module: observation.moduleName,
-      },
-      evidenceRefs: [evidence],
-    };
-  }
-
-  if (
-    /(typeerror|referenceerror|syntaxerror|err_module_not_found|cannot find module|invariant|assertion failed)/.test(
-      normalized,
-    )
-  ) {
-    return {
-      dedupeKey: `module:${observation.moduleName}:local-code:${stableHash(normalized)}`,
-      category: "local-code",
-      severity: "error",
-      actionability: "local-code",
-      labels: ["local-code", observation.moduleName, "runtime"],
-      summary: `${observation.moduleName} log reports a repeated local runtime error.`,
-      source: {
-        kind: "module-log",
-        id: observation.moduleName,
-        module: observation.moduleName,
-      },
-      evidenceRefs: [evidence],
-    };
-  }
-
-  return null;
+  const pattern = classifyModuleOperationHealth({
+    module: observation.moduleName,
+    operation: observation.operation,
+    message: observation.text,
+  });
+  if (pattern.labels.includes("unclassified")) return null;
+  const category: PatternInput["category"] = pattern.labels.includes("cost-risk")
+    ? "cost-risk"
+    : pattern.labels.includes("duplicate-consumer")
+      ? "duplicate-consumer"
+      : pattern.actionability === "external-service"
+        ? "external-service/auth"
+        : pattern.actionability === "owner-action"
+          ? "operator-action"
+          : "local-code";
+  return {
+    ...pattern,
+    category,
+    evidenceRefs: [evidence],
+  };
 }
 
 export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
@@ -193,7 +112,11 @@ export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
         if (!Number.isFinite(timestampMs) || timestampMs < ctx.windowStartMs) {
           return [];
         }
-        return [{ ...entry, text: logLineText(parsed, entry.line) }];
+        const data = parsed.data;
+        const operation = isAutonomyHealthJsonObject(data)
+          ? stringField(data, "operation") ?? "legacy-log"
+          : "legacy-log";
+        return [{ ...entry, operation, text: logLineText(parsed, entry.line) }];
       });
     ctx.inspected.moduleLogLines += lines.length;
 
@@ -201,6 +124,7 @@ export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
     for (const line of lines) {
       const pattern = classifyLogObservation({
         moduleName,
+        operation: line.operation,
         path: repoPath,
         lineNumber: line.lineNumber,
         text: line.text,

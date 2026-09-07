@@ -34,6 +34,7 @@ export class TelegramBot extends TelegramMessageRuntime {
   private offset = 0;
   private pollController: AbortController | null = null;
   private releasePollingOwner: (() => void) | null = null;
+  private pollHealthyReported = false;
 
   async start(): Promise<void> {
     const releasePollingOwner = acquireTelegramPollingOwner(
@@ -45,6 +46,7 @@ export class TelegramBot extends TelegramMessageRuntime {
     );
     this.releasePollingOwner = releasePollingOwner;
     this.running = true;
+    this.pollHealthyReported = false;
     try {
       let me: TelegramUser | null = null;
       while (this.running && me === null) {
@@ -150,6 +152,10 @@ export class TelegramBot extends TelegramMessageRuntime {
     }, { signal: controller.signal, http: this.options.http }).finally(() => {
       if (this.pollController === controller) this.pollController = null;
     });
+    if (!this.pollHealthyReported) {
+      this.pollHealthyReported = true;
+      this.options.onPollHealthy?.();
+    }
 
     for (const update of updates) {
       this.offset = update.update_id + 1;

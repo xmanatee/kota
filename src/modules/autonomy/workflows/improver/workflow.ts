@@ -8,7 +8,15 @@ import {
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
-import type { AutonomyIssue } from "#modules/autonomy/autonomy-issue-projection.js";
+import {
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssue,
+  type AutonomyIssueProjection,
+  decodeAutonomyIssueProjection,
+} from "#modules/autonomy/autonomy-issue-projection.js";
+import {
+  autonomyIssueOwnerFingerprint,
+} from "#modules/autonomy/autonomy-issue-reconciliation.js";
 import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-transaction.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
@@ -20,11 +28,17 @@ import {
   inspectImproverWorktreeOperation,
 } from "./blocking-operations.js";
 import {
+  type DeterministicRecoveryResult,
+  executeDeterministicRecovery,
+} from "./deterministic-recovery.js";
+import {
   type AppliedDisposition,
   IMPROVER_DISPOSITION_ARTIFACT,
   IMPROVER_DISPOSITION_PUBLICATION_REQUESTED_EVENT,
   type ImproverDispositionArtifact,
   improverDispositionPublicationKey,
+  isImproverDispositionCurrent,
+  readImproverDispositionArtifact,
 } from "./disposition-publication.js";
 import {
   decodeIssueDisposition,
@@ -56,6 +70,7 @@ const inspectWorktree = typedCodeStep<ImproverWorktreeInspection>({
 
 type ApplyDispositionInput = {
   workspaceRoot: string;
+  scopeRoot: string;
   disposition: IssueDisposition;
   issue: AutonomyIssue;
   workflowRunId: string;
@@ -69,6 +84,17 @@ export function applyDispositionInWorker(
     input.disposition,
     input.workflowRunId,
   );
+  let recovery: DeterministicRecoveryResult | null = null;
+  if (input.disposition.action === "recover") {
+    if (input.disposition.recoveryAction !== "doctor.fix") {
+      throw new Error("Recover dispositions require the doctor.fix action");
+    }
+    recovery = executeDeterministicRecovery({
+      scopeRoot: input.scopeRoot,
+      issue: input.issue,
+      action: input.disposition.recoveryAction,
+    });
+  }
   const materialized = stageGeneratedWorkProposal({
     workspaceRoot: input.workspaceRoot,
     proposal,
@@ -76,9 +102,11 @@ export function applyDispositionInWorker(
   return {
     issueKey: input.issue.issueKey,
     semanticRevision: input.issue.semanticRevision,
+    ownerFingerprint: autonomyIssueOwnerFingerprint(input.issue),
     disposition: input.disposition,
     proposal,
     materialized,
+    recovery,
   };
 }
 
@@ -95,13 +123,16 @@ const applyDisposition = typedCodeStep<AppliedDisposition>({
     expectStructuredOutput<AppliedDisposition>(raw, [
       "issueKey",
       "semanticRevision",
+      "ownerFingerprint",
       "disposition",
       "proposal",
       "materialized",
+      "recovery",
     ]),
   run: (ctx) =>
     ctx.runBlocking(applyDispositionOperation, {
       workspaceRoot: ctx.workspaceRoot,
+      scopeRoot: ctx.scopeRoot,
       issue: selectIssue.outputRequired(ctx).issue!,
       disposition: decodeIssueDisposition(ctx.stepOutputs["review-issue"]),
       workflowRunId: ctx.workflow.runId,
@@ -130,7 +161,10 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
 const validateChanges = typedCodeStep<{ ok: true }>({
   id: "validate-changes",
   type: "code",
-  when: stepSucceeded("write-commit-message"),
+  when: (ctx) =>
+    applyDisposition.output(ctx) !== undefined &&
+    (applyDisposition.output(ctx)?.materialized.touchedTaskQueue !== true ||
+      writeCommitMessage.output(ctx) !== undefined),
   validate: (raw) => expectStructuredOutput<{ ok: true }>(raw, ["ok"]),
   run: async (ctx) => {
     await ctx.runCommand({
@@ -167,7 +201,35 @@ const writeDispositionArtifact = typedCodeStep<{ written: true }>({
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: {
+    validationCommand: ["pnpm", "validate-tasks"],
+    postReconcile: (input) => {
+      input.signal.throwIfAborted();
+      const artifact = readImproverDispositionArtifact(
+        input.stateDir,
+        input.runId,
+      );
+      if (artifact === null) {
+        return {
+          satisfied: false,
+          reason: `Improver disposition artifact for ${input.runId} is missing`,
+        };
+      }
+      const projection = decodeAutonomyIssueProjection(
+        input.readState<AutonomyIssueProjection>(
+          AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+        ).value,
+      );
+      return isImproverDispositionCurrent(projection, artifact.applied)
+        ? { satisfied: true }
+        : {
+            satisfied: false,
+            reason:
+              `Autonomy issue ${artifact.applied.issueKey} revision ` +
+              `${artifact.applied.semanticRevision} changed after disposition review`,
+          };
+    },
+  },
   description:
     "Disposition one new or materially revised durable autonomy issue and route implementation through generated work.",
   defaultAutonomyMode: "autonomous",

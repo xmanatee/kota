@@ -188,6 +188,7 @@ describe("autonomy health issue projection", () => {
       current: readAutonomyIssueProjection(workspaceRoot),
       updates: [{
         issueKey,
+        semanticRevision: 1,
         kind: "owner-question",
         decidedAt: "2026-06-17T12:45:00.000Z",
         taskIds: [],
@@ -243,6 +244,7 @@ describe("autonomy health issue projection", () => {
       current: readAutonomyIssueProjection(workspaceRoot),
       updates: [{
         issueKey,
+        semanticRevision: 1,
         kind: "task",
         decidedAt: "2026-06-17T12:45:00.000Z",
         taskIds: [task.taskId!],

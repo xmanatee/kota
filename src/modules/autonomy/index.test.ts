@@ -8,6 +8,7 @@ function publicationContext(events: ModuleRuntimeContext["events"]): ModuleRunti
   return {
     events,
     getProvider: () => null,
+    registerProvider: () => {},
     log: {
       info: () => {},
       warn: () => {},
@@ -18,14 +19,15 @@ function publicationContext(events: ModuleRuntimeContext["events"]): ModuleRunti
 }
 
 describe("autonomy module subscriptions", () => {
-  it("does not register workflow completion mutation subscribers", () => {
+  it("registers typed workflow health and disposition reconciliation sources", () => {
     const bus = new EventBus();
     const ctx = publicationContext(makeStubEventProxy(bus));
 
     autonomyModule.onLoad?.(ctx);
-    expect(bus.listenerCount("workflow.completed")).toBe(0);
-
-    autonomyModule.onLoad?.(ctx);
-    expect(bus.listenerCount("workflow.completed")).toBe(0);
+    expect(bus.listenerCount("workflow.completed")).toBe(2);
+    expect(bus.listenerCount("module.operation.failed")).toBe(1);
+    expect(bus.listenerCount("module.operation.recovered")).toBe(1);
+    expect(bus.listenerCount("runtime.idle")).toBe(1);
+    expect(bus.listenerCount("owner.decision.resolved")).toBe(1);
   });
 });

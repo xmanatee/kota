@@ -38,6 +38,8 @@ export type TelegramBotOptions = {
     events: Pick<ModuleContext["events"], "emit">;
   };
   pollOwner?: TelegramPollingOwner;
+  /** Called after the Bot API completes a getUpdates request successfully. */
+  onPollHealthy?: () => void;
   http?: OutboundHttpRequestPort;
 };
 

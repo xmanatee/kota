@@ -155,6 +155,7 @@ export type HealthTopGroup = {
   source: string;
   scope: string;
   status: string;
+  phase: string;
 };
 
 export type AutonomyHealthBreakdown = {
@@ -166,6 +167,7 @@ export type AutonomyHealthBreakdown = {
   bySource: HealthCountRow<"source">[];
   byActionability: HealthCountRow<"actionability">[];
   byStatus: HealthCountRow<"status">[];
+  byPhase: HealthCountRow<"phase">[];
   topGroups: HealthTopGroup[];
 };
 

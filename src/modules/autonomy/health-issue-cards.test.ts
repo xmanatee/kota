@@ -73,6 +73,7 @@ describe("current autonomy health issue cards", () => {
       updates: [
         {
           issueKey: first.issueKey,
+          semanticRevision: 1,
           kind: "task",
           decidedAt: NOW,
           taskIds: ["task-health-workflow-builder-runtime-warning"],

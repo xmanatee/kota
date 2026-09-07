@@ -120,6 +120,9 @@ export async function createDaemonRuntimeContext(
         }`,
       );
     },
+    onReconciliationNeeded: (transition) => {
+      bus.emit("workflow.run.reconciliation-needed", transition);
+    },
     onError: (error, run) => {
       log(
         `Run coordinator paused after state transition failure for ${run.id}: ${
