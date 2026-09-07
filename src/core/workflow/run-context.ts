@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import type { ProcessIdentity } from "#core/execution/process-supervisor.js";
+import { nativeRunWriterAuthorization } from "./native-run-authorization.js";
 import type { RunResourceProfile } from "./run-resources.js";
 import type { RunSandbox } from "./run-sandbox.js";
 import type { RunStateDatabase } from "./run-state-database.js";
@@ -134,6 +135,17 @@ export function createRunRepositoryAccess(input: Readonly<{
         return activeSandbox.workspaceDir;
       },
     }),
+  });
+}
+
+/** Native callers receive only fresh authorization from their runtime-owned host. */
+export function nativeRunRepositoryAccess(
+  workspaceDir: string,
+  env: NodeJS.ProcessEnv = process.env,
+): RunRepositoryAccess | null {
+  const requireWriterWorkspace = nativeRunWriterAuthorization(workspaceDir, env);
+  return requireWriterWorkspace === null ? null : Object.freeze({
+    [RUN_REPOSITORY_ACCESS]: Object.freeze({ requireWriterWorkspace }),
   });
 }
 

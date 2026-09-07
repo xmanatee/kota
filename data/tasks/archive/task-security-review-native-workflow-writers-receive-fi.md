@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p2
+status: done
 ---
 # Security review: Native workflow writers receive filesystem read access to the entire daemon run-state database and its journal files. On a multi-scope daemon, this exposes other scopes' workflow trigger payloads, persisted state, and external-effect results to the sandboxed agent. Checking writer identity in the task-mutation API does not restrict direct database reads.
 
@@ -145,3 +144,64 @@ excerpt:
 >  WHERE effect_key = ? AND run_id = ? AND state = 'prepared'`,
 > )
 > .run(input.completedAt, JSON.stringify(input.result), input.key, input.runId);
+
+## Resolution and verification
+
+Removed the raw SQLite/WAL/SHM read-root grant and the native task command's
+read-only database reconstruction. The shared native harness now hosts a
+per-invocation authorization boundary tied to the run, attempt, daemon epoch,
+and canonical writer workspace. Each task mutation uses a fresh challenge; the
+host rechecks durable active-attempt ownership and returns only a boolean in a
+sandbox-read-only response directory. Only request names are consumed, so
+agent-controlled request contents and symlinks are never opened by the host.
+Responses and the host database connection are cleaned up with the invocation.
+The daemon database locator is removed from the child environment, and database,
+WAL, SHM, and rollback-journal paths are explicitly denied even beneath a broader
+read grant. Workflow and repo-task instructions describe this ownership boundary.
+
+Proof:
+
+- Production and test TypeScript checks passed. Scoped Biome checks and Git
+  whitespace checks passed.
+- The native authorization integration worker test passed through the production
+  native-CLI projection and task mutation domain: task creation/completion works
+  in the writer only; forged run, attempt, epoch, and workspace identities and a
+  missing invocation capability fail; ending the attempt revokes subsequent
+  mutations; closing the invocation removes its response surface. The native
+  permission projection excludes raw database reads and protects responses.
+- Focused task-mutation owner and Codex permission-renderer tests passed. The
+  combined existing sandbox/owner selection reported 16 passes, one skip, and
+  one environment failure: its loopback listener cannot bind (listen EPERM).
+- The OS sandbox integration regression seeds another scope's private trigger
+  in the shared database and probes database/WAL/SHM reads, response forgery, and
+  legitimate task completion. Execution is unavailable in this enclosing
+  sandbox: sandbox-exec reports sandbox_apply: Operation not permitted before
+  the probe starts. It remains fail-closed, with no unsandboxed fallback. Actual
+  OS enforcement of this new scenario still needs an unrestricted test host;
+  no successful OS probe is claimed.
+
+Critic repair: Linux previously selected read masks only beneath explicit read
+roots even though writable and runtime-boundary mounts also exposed host files.
+Mask selection now covers every mounted root, with denials applied after those
+mounts. The OS integration fixture no longer grants the state directory extra
+read access. Owner regression cases cover readable, writable, and write-boundary
+mounts, including database journals and protected directories.
+
+A direct Node probe invoked the production launch generator and path resolution
+using real temporary files. The pre-repair generator from Git failed the writable
+and write-boundary cases; the repaired generator passed all three cases, kept the
+writer writable, and rejected a missing directory mask. Probe source and outputs
+are retained as `linux-mount-probe.mjs`, `linux-mount-baseline.txt`, and
+`linux-mount-fixed.txt` in this run's agent directory. This proves Linux permission
+projection, not actual bubblewrap enforcement. In this repair environment Vitest
+and tsx are missing, and the sandbox prevents restoring node_modules; the focused
+owner suite and normal task-validator command could not start. The prior OS-probe
+limitation above remains applicable. The production task validator subsequently
+passed via Node's TypeScript transform and a source-import resolver, reporting
+zero errors and zero warnings. Node accepted the changed TypeScript syntax and
+Git whitespace validation passed; these do not substitute for typechecking or
+executing the Vitest suites.
+
+The confirmed finding and original cited evidence above are retained. The
+legacy sandbox of this already-running builder is not changed or restarted by
+this patch; the corrected permissions apply to subsequent native launches.

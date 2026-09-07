@@ -42,7 +42,12 @@ the protocol and registry.
   declared auth/read roots, and provider-only egress through a host-owned proxy.
   Native tools lack direct host, loopback, metadata-service, or internet routes.
   KOTA native sandboxes protect `.kota`; only validated `KOTA_RUN_DIR` /
-  `KOTA_RUN_TEMP_DIR` evidence and temp paths are writable.
+  `KOTA_RUN_TEMP_DIR` evidence and temp paths are writable. Native writer task
+  authorization crosses a per-invocation, runtime-owned request/reply boundary:
+  only its request directory is additionally writable; responses are read-only.
+  Raw daemon databases and SQLite journals never cross the agent read boundary.
+  Linux read denials cover every mounted surface, including writable roots and
+  runtime write boundaries that have no explicit read grant.
 - Native CLI adapters compose their workflow Git and daemon instructions from
   the shared native workflow rails. Keep Git metadata read-only for agents and
   leave staging, rebase continuation, commits, and publication runtime-owned.

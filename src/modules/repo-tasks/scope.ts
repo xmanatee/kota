@@ -8,8 +8,8 @@ import {
 } from "#core/daemon/scope-registry.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
+import { nativeRunRepositoryAccess } from "#core/workflow/run-context.js";
 import type { WorkflowDispatcher } from "#core/workflow/workflow-dispatcher-provider.js";
-import { nativeRunRepositoryAccess } from "./native-run-repository-access.js";
 import type { RepoTaskMutationTarget } from "./repo-task-mutation-boundary.js";
 import { RepoTasksDefaultStore } from "./repo-tasks-store.js";
 

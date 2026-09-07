@@ -127,43 +127,6 @@ export function canonicalRepositoryRoot(cwd: string): string {
   return comparablePath(resolve(commonDir, ".."));
 }
 
-export function nativeRunOwnershipReadRoots(
-  cwd: string,
-  env: NodeJS.ProcessEnv,
-  mutableRoots: readonly string[],
-): string[] {
-  const runId = env.KOTA_RUN_ID?.trim();
-  const stateDir = env.KOTA_RUN_STATE_DIR?.trim();
-  if (!runId && !stateDir) return [];
-  if (!runId || !stateDir) {
-    throw new Error("Native run ownership roots require a complete runtime locator");
-  }
-  const canonicalRoot = canonicalRepositoryRoot(cwd);
-  const reconciliation = new RunSandboxManager(canonicalRoot).reconcile(runId, "write");
-  if (reconciliation.status !== "active") return [];
-  if (comparablePath(reconciliation.sandbox.workspaceDir) !== comparablePath(cwd)) {
-    return [];
-  }
-  const resolvedStateDir = comparablePath(stateDir);
-  const forbiddenRoots = [
-    cwd,
-    reconciliation.sandbox.rootDir,
-    ...mutableRoots,
-  ].map(comparablePath);
-  if (forbiddenRoots.some((root) => {
-    const child = relative(root, resolvedStateDir);
-    return child === "" || (!child.startsWith("..") && !isAbsolute(child));
-  })) {
-    throw new Error("Native run state database must be outside sandbox mutable roots");
-  }
-  const stateDatabase = join(resolvedStateDir, "kota.sqlite");
-  return [
-    stateDatabase,
-    `${stateDatabase}-wal`,
-    `${stateDatabase}-shm`,
-  ].filter(existsSync).map(comparablePath);
-}
-
 function repositoryTopLevel(cwd: string): string {
   return comparablePath(git(cwd, ["rev-parse", "--show-toplevel"]));
 }

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
 import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
-import { nativeRunOwnershipReadRoots } from "#core/workflow/run-sandbox.js";
+import { startNativeRunAuthorization } from "#core/workflow/native-run-authorization.js";
 import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
 import {
   NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
@@ -150,6 +150,7 @@ export async function withNativeCliSandbox<T>(
 ): Promise<T> {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "kota-native-cli-"));
   let egressProxy: NativeCliEgressProxy | undefined;
+  let runAuthorization: ReturnType<typeof startNativeRunAuthorization>;
   try {
     const toolRuntimeRoot = join(temporaryDirectory, "tool-runtime");
     const readProtectedRootMask = join(
@@ -182,6 +183,11 @@ export async function withNativeCliSandbox<T>(
       options.runtimeWritableRoots ?? [],
       options.cwd,
     );
+    runAuthorization = startNativeRunAuthorization(options.cwd, options.env, [
+      ...options.writableRoots,
+      ...explicitRuntimeWritableRoots,
+    ]);
+    const authorizationWritableRoots = runAuthorization?.writableRoots ?? [];
     const executablePath = resolveNativeCliExecutable(
       executable,
       packageManager.env,
@@ -224,15 +230,13 @@ export async function withNativeCliSandbox<T>(
             packageManager.env,
           )),
       ...(options.readOnlyHostRoots ?? []),
-      ...nativeRunOwnershipReadRoots(options.cwd, options.env, [
-        ...options.writableRoots,
-        ...explicitRuntimeWritableRoots,
-      ]),
+      ...(runAuthorization?.readableRoots ?? []),
       ...packageManager.readOnlyHostRoots,
       ...explicitRuntimeWritableRoots,
     ];
     const readProtectedPaths = [...new Set([
       ...existingProtectedScopePaths(options.cwd),
+      ...(runAuthorization?.readProtectedPaths ?? []),
       ...(resolve(options.cwd) === resolve(process.cwd())
         ? []
         : existingProtectedScopePaths(process.cwd())),
@@ -240,6 +244,7 @@ export async function withNativeCliSandbox<T>(
     const readProtectedRoots = [...new Set(options.readProtectedRoots ?? [])];
     const writeProtectedPaths = [...new Set([
       join(options.cwd, ".git"),
+      ...(runAuthorization?.writeProtectedRoots ?? []),
       ...nativeCliGitMetadataRoots(options.cwd),
       readProtectedRootMask,
       protectedRuntimeRoot,
@@ -251,6 +256,7 @@ export async function withNativeCliSandbox<T>(
     const runtimeWritableRoots = absoluteRoots([
       ...explicitRuntimeWritableRoots,
       ...options.writableRoots,
+      ...authorizationWritableRoots,
     ], options.cwd).filter((root) =>
       root !== runtimeStateRoot && pathIsWithin(runtimeStateRoot, root)
     );
@@ -273,6 +279,7 @@ export async function withNativeCliSandbox<T>(
           readableRoots,
           writableRoots: [
             ...options.writableRoots,
+            ...authorizationWritableRoots,
             ...runtimeWritableRoots,
             temporaryDirectory,
           ],
@@ -286,7 +293,8 @@ export async function withNativeCliSandbox<T>(
             : { kind: "offline" },
         });
     if (!launch.ok) throw new Error(launch.error);
-    const providerEnvironment = { ...packageManager.env };
+    const providerEnvironment = { ...packageManager.env, ...runAuthorization?.env };
+    delete providerEnvironment.KOTA_RUN_STATE_DIR;
     delete providerEnvironment[NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV];
     const preparedEnvironment = options.prepareEnvironment?.(
       {
@@ -298,7 +306,10 @@ export async function withNativeCliSandbox<T>(
           ),
           options.cwd,
         ),
-        writableRoots: absoluteRoots(options.writableRoots, options.cwd),
+        writableRoots: absoluteRoots([
+          ...options.writableRoots,
+          ...authorizationWritableRoots,
+        ], options.cwd),
         readProtectedPaths,
         readProtectedRoots,
         writeProtectedPaths,
@@ -323,6 +334,7 @@ export async function withNativeCliSandbox<T>(
       env,
     });
   } finally {
+    runAuthorization?.close();
     await egressProxy?.close();
     rmSync(temporaryDirectory, { recursive: true, force: true });
   }

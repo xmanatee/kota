@@ -45,6 +45,11 @@ and publication.
   disagreement stays fail-closed. Dead-letter disposition requires that
   run-specific repair evidence plus a later successful consumer. Standalone
   and inspection paths remain read-only.
+- Native writer authorization stays host-side and rechecks the invoking run,
+  attempt, daemon epoch, and workspace for each mutation. Sandboxed commands
+  receive only a fresh boolean result through protected runtime responses,
+  never raw database access. Authorization requests and responses are transient
+  invocation transport, not durable run state or reusable approvals.
 
 ## Definitions And Steps
 

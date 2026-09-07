@@ -12,7 +12,6 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import {
-  nativeRunOwnershipReadRoots,
   type RunSandbox,
   RunSandboxManager,
 } from "./run-sandbox.js";
@@ -58,12 +57,6 @@ afterEach(() => {
 });
 
 describe("RunSandboxManager", () => {
-  test.each(["none", "read"] as const)(
-    "does not derive writer ownership roots for a %s launch without writer identity",
-    () => {
-      expect(nativeRunOwnershipReadRoots(process.cwd(), {}, [])).toEqual([]);
-    },
-  );
   test("allocates every repository access mode in a run-owned isolated location", () => {
     const workspaceRoot = createRepository();
     const manager = new RunSandboxManager(workspaceRoot);

@@ -154,7 +154,15 @@ export function buildMachineAuthoritySandboxLaunch(
       path,
     ]) ?? [];
     const writableMounts = writableRoots?.flatMap((path) => ["--bind", path, path]) ?? [];
-    const visibleRoots = readableRoots ?? ["/"];
+    // Every bind exposes reads, including mounts introduced only to enforce a
+    // write boundary. Denials must cover the complete mounted filesystem.
+    const visibleRoots = readableRoots === undefined ? ["/"] : [
+      ...readableRoots,
+      ...(writableRoots ?? []),
+      ...writeBoundaries.flatMap((boundary) => [boundary.root, ...boundary.writableDescendants]),
+      "/proc",
+      "/dev",
+    ];
     const protectedMounts = [
       ...writeProtectedPaths,
       ...existingConfigDirectories,

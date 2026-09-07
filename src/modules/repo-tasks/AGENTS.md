@@ -30,6 +30,8 @@ projections.
   active for the supplied run and canonical scope. The shared runtime supplies
   its sandbox, logical resources, validation, integration, and recovery; the
   module does not create a task claim, lease, worktree, or second lock table.
+  Native CLI callers obtain fresh writer authorization through the shared
+  runtime boundary; task commands never open the daemon database directly.
 - The domain mechanically owns identity, safe paths, lifecycle states,
   dependencies, and mutation authorization. Whether a task outcome is good,
   complete, or supported by proportionate evidence is an agent review decision,
