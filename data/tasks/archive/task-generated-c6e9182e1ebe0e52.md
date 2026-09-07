@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: dropped
 ---
 # Classify native CLI proxy CONNECT 502 failures through shared provider backoff
 
