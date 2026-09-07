@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p3
+status: done
 ---
 # Security review: For historical runs without persisted delivery metadata, the authenticated run-list API derives blocker text directly from the current task file and returns it without the shared evidence redaction. Credentials or personal information in that blocker section can therefore reach client responses despite the API's evidence-projection policy.
 
