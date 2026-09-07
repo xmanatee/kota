@@ -62,7 +62,7 @@ function codexPermissionProfile(
   ].map((path) => `${JSON.stringify(path)} = "deny"`);
   return [
     `default_permissions = ${JSON.stringify(CODEX_PERMISSION_PROFILE)}`,
-    'approval_policy = "untrusted"',
+    'approval_policy = "never"',
     'web_search = "disabled"',
     "",
     `[permissions.${CODEX_PERMISSION_PROFILE}.filesystem]`,

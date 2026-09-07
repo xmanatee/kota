@@ -53,7 +53,7 @@ describe("Codex runtime home", () => {
       .toBe("{\"auth_mode\":\"chatgpt\"}");
     const config = readFileSync(join(env.CODEX_HOME!, "config.toml"), "utf8");
     expect(config).toContain('default_permissions = "kota-native"');
-    expect(config).toContain('approval_policy = "untrusted"');
+    expect(config).toContain('approval_policy = "never"');
     expect(config).toContain('"/repo/src" = "write"');
     expect(config).toContain('"/repo/.env" = "deny"');
     expect(config).toContain('"/repo/.git" = "read"');
