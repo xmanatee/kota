@@ -33,8 +33,8 @@ import {
   type ScopeOnboardingOperation,
   ScopeOnboardingService,
 } from "./scope-onboarding.js";
-import { SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE } from "./scope-onboarding-runtime-directory-helper-source.js";
 import { mutateAnchoredScopeRuntimeDirectories } from "./scope-onboarding-runtime-directory.js";
+import { SCOPE_ONBOARDING_RUNTIME_DIRECTORY_HELPER_SOURCE } from "./scope-onboarding-runtime-directory-helper-source.js";
 import { ScopeRegistry } from "./scope-registry.js";
 import { ScopeRuntimeRegistry } from "./scope-runtime.js";
 import { ScopeRuntimeHost } from "./scope-runtime-host.js";
