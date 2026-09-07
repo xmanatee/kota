@@ -84,8 +84,10 @@ export function defineWorkflowBlockingOperation<TInput, TOutput>(
 }
 
 function sourceWorkerBootstrap(workerEntryUrl: string): string {
+  // Eval workers resolve bare imports from cwd, which may be an external scope.
+  const loaderUrl = import.meta.resolve("tsx/esm/api");
   return (
-    `import("tsx/esm/api").then(({ register }) => {` +
+    `import(${JSON.stringify(loaderUrl)}).then(({ register }) => {` +
     `register(); return import(${JSON.stringify(workerEntryUrl)});` +
     `}).catch((error) => { queueMicrotask(() => { throw error; }); });`
   );

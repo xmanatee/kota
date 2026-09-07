@@ -1,3 +1,10 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import {
   defineWorkflowBlockingOperation,
@@ -21,6 +28,43 @@ const cpuBlockingOperation = defineWorkflowBlockingOperation<
 >(fixtureModule, "runCpuBlockingFixture");
 
 describe("workflow blocking operation boundary", () => {
+  it("loads source workers using KOTA's loader from a directory without tsx", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "kota-blocking-external-"));
+    const loader = pathToFileURL(createRequire(import.meta.url).resolve("tsx")).href;
+    const runnerUrl = new URL("./blocking-operation.ts", import.meta.url).href;
+    const operationUrl = new URL(
+      "./testing/blocking-operation-fixture.ts",
+      import.meta.url,
+    ).href;
+    try {
+      const { stdout } = await promisify(execFile)(
+        process.execPath,
+        [
+          "--import", loader,
+          "--input-type=module",
+          "--eval",
+          `
+            import assert from "node:assert/strict";
+            import { defineWorkflowBlockingOperation, runWorkflowBlockingOperation }
+              from ${JSON.stringify(runnerUrl)};
+            assert.throws(() => import.meta.resolve("tsx/esm/api"), { code: "ERR_MODULE_NOT_FOUND" });
+            const operation = defineWorkflowBlockingOperation(
+              ${JSON.stringify(operationUrl)}, "runCpuBlockingFixture",
+            );
+            const result = await runWorkflowBlockingOperation(operation, {
+              durationMs: 0, value: "external-directory-result",
+            });
+            console.log(JSON.stringify(result));
+          `,
+        ],
+        { cwd, timeout: 10_000 },
+      );
+      expect(JSON.parse(stdout)).toMatchObject({ value: "external-directory-result" });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("preserves an existing blocking runner when adapting a repair-check context", () => {
     const runBlocking = vi.fn();
     const context = { runBlocking } as unknown as WorkflowStepContext;

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Resolve blocking-worker source loader from the KOTA installation
 
