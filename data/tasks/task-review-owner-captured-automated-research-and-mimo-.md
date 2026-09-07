@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 
