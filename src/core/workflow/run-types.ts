@@ -305,6 +305,11 @@ export type WorkflowRunWarning = {
   message: string;
 };
 
+export type WorkflowRunMetadataAuthorityRepairEvidence = {
+  repairedAt: string;
+  originalSha256: string;
+};
+
 export type WorkflowRunMetadata = {
   /** Present on persisted metadata; in-memory workflow fixtures need not model storage framing. */
   metadataVersion?: 1;
@@ -316,6 +321,8 @@ export type WorkflowRunMetadata = {
   causedBy?: { runId: string; workflow: string };
   retryOf?: string;
   resumedFromRunId?: string;
+  /** Present only when daemon startup reconstructed this record from durable authority. */
+  authorityRepair?: WorkflowRunMetadataAuthorityRepairEvidence;
   tags?: string[];
   startedAt: string;
   completedAt?: string;

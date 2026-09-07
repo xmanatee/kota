@@ -11,7 +11,13 @@ function failureSubtype(reason: string): string | undefined {
   return /\(([^)]+)\):/.exec(reason)?.[1];
 }
 
-function isTransientWorkflowFailure(item: DeadLetterItem): boolean {
+function isWorkflowMetadataAuthorityFailure(item: DeadLetterItem): boolean {
+  return item.type === "workflow-dispatch" &&
+    deadLetterWorkflowName(item) === "runtime-health-auditor" &&
+    /workflow run metadata authority is invalid\b/i.test(item.failure.reason);
+}
+
+function isSupersedableWorkflowFailure(item: DeadLetterItem): boolean {
   if (item.type !== "workflow-dispatch") return false;
   if (
     item.failure.lastErrorClass === "auth" ||
@@ -30,7 +36,7 @@ function isTransientWorkflowFailure(item: DeadLetterItem): boolean {
   }
   return /\b(?:agent )?step "[^"]+" timed out after \d+ms\b/i.test(
     item.failure.reason,
-  );
+  ) || isWorkflowMetadataAuthorityFailure(item);
 }
 
 function failedStepId(
@@ -59,7 +65,14 @@ function payloadString(
 function runContinuesDeadLetter(
   item: DeadLetterItem,
   run: WorkflowRunMetadata,
+  runStore: WorkflowRunStore,
 ): boolean {
+  if (isWorkflowMetadataAuthorityFailure(item)) {
+    const repair = runStore.retainedMetadataAuthorityRepair(item.failure.reason);
+    return deadLetterWorkflowName(item) === run.workflow &&
+      repair !== null &&
+      Date.parse(run.startedAt) > Date.parse(repair.repairedAt);
+  }
   if (payloadString(run, "redriveOf") === item.id) return true;
   if (
     item.source.kind !== "workflow-dispatch" ||
@@ -95,7 +108,7 @@ function supersedingRun(
     if (!Number.isFinite(completedAtMs) || completedAtMs <= failedAtMs) {
       return false;
     }
-    if (!runContinuesDeadLetter(item, run)) return false;
+    if (!runContinuesDeadLetter(item, run, runStore)) return false;
     return stepId === null || run.steps.some(
       (step) => step.id === stepId && step.status === "success",
     );
@@ -114,7 +127,7 @@ export function dismissSupersededWorkflowDeadLetters(args: {
     status: "open",
     type: "workflow-dispatch",
   })) {
-    if (!isTransientWorkflowFailure(item)) continue;
+    if (!isSupersedableWorkflowFailure(item)) continue;
     const workflow = deadLetterWorkflowName(item);
     if (!workflow) continue;
     if (
@@ -136,9 +149,14 @@ export function dismissSupersededWorkflowDeadLetters(args: {
     }
     const run = supersedingRun(item, args.runStore, candidates);
     if (!run) continue;
+    const repair = isWorkflowMetadataAuthorityFailure(item)
+      ? args.runStore.retainedMetadataAuthorityRepair(item.failure.reason)
+      : null;
     args.deadLetterQueue.dismiss(
       item.id,
-      `Superseded by successful run ${run.id}`,
+      repair === null
+        ? `Superseded by successful run ${run.id}`
+        : `Superseded by successful run ${run.id} after metadata authority repair ${repair.runId}`,
     );
     dismissed.push(item.id);
   }

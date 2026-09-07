@@ -18,6 +18,7 @@ import {
   releaseInstanceLock,
 } from "./daemon-instance-lock.js";
 import { DaemonLogger } from "./daemon-logger.js";
+import { repairRetainedRunMetadataAtDaemonStartup } from "./daemon-run-metadata-repair.js";
 import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk } from "./daemon-state-persistence.js";
 import { prepareDaemonStateRoot } from "./daemon-state-root.js";
@@ -154,6 +155,18 @@ export async function createDaemonRuntimeContext(
     runCoordinator,
     daemonEpoch,
   });
+  const restartRecoveryRunIds = new Set(
+    session.recovered.map((recovered) => recovered.runId),
+  );
+  for (const runtime of scopeRuntimes.list()) {
+    repairRetainedRunMetadataAtDaemonStartup({
+      scopeId: runtime.scope.scopeId,
+      runState,
+      runStore: runtime.runStore,
+      restartRecoveryRunIds,
+      log,
+    });
+  }
   const uninstallEventIdempotency = installEventIdempotency(bus, {
     getDefaultScopeId: () => scopeRegistry.getDefaultScopeId(),
     resolveStore: (scopeId) => scopeRuntimes.get(scopeId).idempotencyStore,

@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Repair historical run metadata blocking runtime-health audit
@@ -33,3 +33,16 @@ Evidence ids:
 
 - dead-letter:dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687
 - state:recovery
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/historical-run-metadata-repair/canonical-resolution.json
+description: trusted-host canonical-runtime activation — publish this repair, restart the daemon so startup reconciles the cited malformed run and retains its digest-addressed source, let a same-scope runtime-health audit succeed, and capture the repaired metadata validation plus the terminal disposition of dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687 at this path
+```
+
+Runtime-owned publication and daemon startup must activate the repair against
+the canonical scope. A later same-scope runtime-health audit must then succeed
+and durably dismiss the cited dead letter using the retained, run-specific
+repair evidence. The isolated builder must not mutate that live daemon state.

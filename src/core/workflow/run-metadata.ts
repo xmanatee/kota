@@ -69,6 +69,44 @@ export type VersionedWorkflowRunMetadata = WorkflowRunMetadata &
 		metadataVersion: typeof WORKFLOW_RUN_METADATA_VERSION;
 	}>;
 
+export type WorkflowRunCausalProvenance = Pick<
+	WorkflowRunMetadata,
+	"triggeredByRunId" | "causedBy" | "retryOf" | "resumedFromRunId"
+>;
+
+/** Derive authority-relevant run lineage exclusively from the durable trigger. */
+export function deriveWorkflowRunCausalProvenance(
+	trigger: WorkflowRunMetadata["trigger"],
+): WorkflowRunCausalProvenance {
+	const triggeredByRunId =
+		typeof trigger.payload.runId === "string"
+			? trigger.payload.runId
+			: undefined;
+	const causedBy =
+		trigger.event === "workflow.completed" &&
+		typeof trigger.payload.runId === "string" &&
+		typeof trigger.payload.workflow === "string"
+			? {
+					runId: trigger.payload.runId,
+					workflow: trigger.payload.workflow,
+				}
+			: undefined;
+	const retryOf =
+		typeof trigger.payload.retryOf === "string"
+			? trigger.payload.retryOf
+			: undefined;
+	const resumedFromRunId =
+		typeof trigger.payload.resumedFromRunId === "string"
+			? trigger.payload.resumedFromRunId
+			: undefined;
+	return {
+		...(triggeredByRunId !== undefined ? { triggeredByRunId } : {}),
+		...(causedBy !== undefined ? { causedBy } : {}),
+		...(retryOf !== undefined ? { retryOf } : {}),
+		...(resumedFromRunId !== undefined ? { resumedFromRunId } : {}),
+	};
+}
+
 declare const storedWorkflowRunDirectoryId: unique symbol;
 
 export type StoredWorkflowRunDirectoryId = string & {
@@ -207,23 +245,25 @@ const workflowStepResult = z.union([
 	nonAgentStep,
 ]) satisfies z.ZodType<WorkflowStepResult>;
 
+const workflowRunTrigger = z.strictObject({
+	event: z.string(),
+	schemaRef: z.union([
+		z.null(),
+		z.strictObject({
+			name: z.string().min(1),
+			version: z.number().int().positive(),
+		}),
+	]),
+	eventId: z.string().optional(),
+	payload: z.record(z.string(), z.unknown()),
+});
+
 const workflowRunMetadata = z.strictObject({
 	metadataVersion: z.literal(WORKFLOW_RUN_METADATA_VERSION),
 	id: z.string(),
 	workflow: z.string(),
 	definitionPath: z.string(),
-	trigger: z.strictObject({
-		event: z.string(),
-		schemaRef: z.union([
-			z.null(),
-			z.strictObject({
-				name: z.string().min(1),
-				version: z.number().int().positive(),
-			}),
-		]),
-		eventId: z.string().optional(),
-		payload: z.record(z.string(), z.unknown()),
-	}),
+	trigger: workflowRunTrigger,
 	triggeredByRunId: z.string().optional(),
 	causedBy: z
 		.strictObject({
@@ -233,6 +273,12 @@ const workflowRunMetadata = z.strictObject({
 		.optional(),
 	retryOf: z.string().optional(),
 	resumedFromRunId: z.string().optional(),
+	authorityRepair: z
+		.strictObject({
+			repairedAt: timestamp,
+			originalSha256: z.string().regex(/^[a-f0-9]{64}$/),
+		})
+		.optional(),
 	tags: z.array(z.string()).optional(),
 	startedAt: timestamp,
 	completedAt: timestamp.optional(),
@@ -963,6 +1009,31 @@ export function parseWorkflowRunMetadata(
 	const parsed = workflowRunMetadata.safeParse(raw);
 	if (parsed.success) return parsed.data;
 	throw new Error(parseFailureReason(raw, field) ?? `${field} is invalid`);
+}
+
+/** Decode the current durable trigger representation used by run authority. */
+export function parseWorkflowRunTrigger(
+	raw: unknown,
+	field = "workflow run trigger",
+): VersionedWorkflowRunMetadata["trigger"] {
+	const parsed = workflowRunTrigger.safeParse(raw);
+	if (parsed.success) return parsed.data;
+	const issue = parsed.error.issues[0];
+	const path = issue?.path.length ? `.${issue.path.join(".")}` : "";
+	throw new Error(`${field}${path} ${issue?.message ?? "is invalid"}`);
+}
+
+/** Normalize only the supported historical trigger envelope forms. */
+export function normalizeWorkflowRunTrigger(
+	raw: unknown,
+	field = "workflow run trigger",
+): VersionedWorkflowRunMetadata["trigger"] {
+	const trigger = recordValue(raw);
+	if (trigger === null) throw new Error(`${field} must be a JSON object`);
+	const candidate = { ...trigger };
+	candidate.schemaRef = schemaRefForHistoricalTrigger(trigger, []);
+	delete candidate.schemaVersion;
+	return parseWorkflowRunTrigger(candidate, field);
 }
 
 function readWorkflowRunMetadataResult(

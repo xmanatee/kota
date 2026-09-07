@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { join, relative } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
   type ActiveWorkflowRunHandle,
   createActiveRunHandle,
@@ -15,6 +17,8 @@ import {
   writeJsonFile,
 } from "./run-io.js";
 import {
+  deriveWorkflowRunCausalProvenance,
+  readWorkflowRunMetadataFile,
   WORKFLOW_RUN_METADATA_VERSION,
 } from "./run-metadata.js";
 import { buildWorkflowSnapshot } from "./run-store-snapshot.js";
@@ -47,12 +51,20 @@ export function createWorkflowRun(opts: {
   ensureDir(runDirPath);
   ensureDir(join(runDirPath, "steps"));
 
+  const authorityRepair = retainedAuthorityRepairForContinuation({
+    metadataPath: join(runDirPath, "metadata.json"),
+    id,
+    workflow: opts.workflow,
+    trigger: opts.trigger,
+  });
+
   const metadata = buildRunMetadata({
     scopeRoot: opts.scopeRoot,
     runDirPath,
     id,
     workflow: opts.workflow,
     trigger: opts.trigger,
+    authorityRepair,
   });
 
   writeJsonFile(join(runDirPath, "workflow.json"), buildWorkflowSnapshot(opts.workflow));
@@ -81,28 +93,9 @@ function buildRunMetadata(opts: {
   id: string;
   workflow: WorkflowDefinition;
   trigger: WorkflowRunTrigger;
+  authorityRepair: WorkflowRunMetadata["authorityRepair"];
 }): WorkflowRunMetadata {
-  const triggeredByRunId =
-    typeof opts.trigger.payload.runId === "string"
-      ? opts.trigger.payload.runId
-      : undefined;
-  const causedBy =
-    opts.trigger.event === "workflow.completed" &&
-    typeof opts.trigger.payload.runId === "string" &&
-    typeof opts.trigger.payload.workflow === "string"
-      ? {
-        runId: opts.trigger.payload.runId,
-        workflow: opts.trigger.payload.workflow,
-      }
-      : undefined;
-  const retryOf =
-    typeof opts.trigger.payload.retryOf === "string"
-      ? opts.trigger.payload.retryOf
-      : undefined;
-  const resumedFromRunId =
-    typeof opts.trigger.payload.resumedFromRunId === "string"
-      ? opts.trigger.payload.resumedFromRunId
-      : undefined;
+  const causalProvenance = deriveWorkflowRunCausalProvenance(opts.trigger);
   const triggerTags = stringArray(opts.trigger.payload.tags) ?? [];
   const tags = [...new Set([...opts.workflow.tags, ...triggerTags])];
 
@@ -112,16 +105,41 @@ function buildRunMetadata(opts: {
     workflow: opts.workflow.name,
     definitionPath: opts.workflow.definitionPath,
     trigger: opts.trigger,
-    ...(triggeredByRunId !== undefined ? { triggeredByRunId } : {}),
-    ...(causedBy !== undefined ? { causedBy } : {}),
-    ...(retryOf !== undefined ? { retryOf } : {}),
-    ...(resumedFromRunId !== undefined ? { resumedFromRunId } : {}),
+    ...causalProvenance,
+    ...(opts.authorityRepair === undefined
+      ? {}
+      : { authorityRepair: opts.authorityRepair }),
     ...(tags.length > 0 ? { tags } : {}),
     startedAt: new Date().toISOString(),
     status: "running",
     runDir: relative(opts.scopeRoot, opts.runDirPath),
     steps: [],
   };
+}
+
+function retainedAuthorityRepairForContinuation(opts: {
+  metadataPath: string;
+  id: string;
+  workflow: WorkflowDefinition;
+  trigger: WorkflowRunTrigger;
+}): WorkflowRunMetadata["authorityRepair"] {
+  if (!existsSync(opts.metadataPath)) return undefined;
+  const existing = readWorkflowRunMetadataFile(opts.metadataPath, {
+    authorityCritical: true,
+    operationallyActive: false,
+  });
+  if (existing.authorityRepair === undefined) return undefined;
+  const projectedTrigger = projectWorkflowRunTriggerForStorage(opts.trigger);
+  if (
+    existing.id !== opts.id ||
+    existing.workflow !== opts.workflow.name ||
+    !isDeepStrictEqual(existing.trigger, projectedTrigger)
+  ) {
+    throw new Error(
+      `Cannot continue authority-repaired workflow run "${opts.id}": workflow or trigger authority changed`,
+    );
+  }
+  return existing.authorityRepair;
 }
 
 function stringArray(value: WorkflowRunTrigger["payload"][string]): string[] | undefined {

@@ -1,6 +1,10 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { repairRetainedRunMetadataAtDaemonStartup } from "#core/daemon/daemon-run-metadata-repair.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import type { WorkflowDefinition } from "#core/workflow/types.js";
 import {
   collectRuntimeHealthAuditForScope,
   makeRuntimeHealthAuditScopeRoot,
@@ -147,6 +151,95 @@ describe("runtime health audit", () => {
       ],
     );
     expect(runtimeHealthReadyTaskFiles(workspaceRoot)).toEqual([]);
+  });
+
+  it("audits after restart recovery repairs historical authority metadata", () => {
+    const runId = "2026-06-19T08-00-00-000Z-builder-historical";
+    const startedAt = "2026-06-19T08:00:00.000Z";
+    const trigger = {
+      event: "autonomy.queue.available",
+      schemaRef: null,
+      payload: { taskId: "task-historical" },
+    } as const;
+    const runState = new RunStateDatabase(join(workspaceRoot, ".kota"));
+    try {
+      runState.registerScope({
+        id: "scope-a",
+        rootPath: workspaceRoot,
+        createdAt: "2026-06-19T07:59:00.000Z",
+      });
+      const firstSession = runState.beginDaemonSession(
+        "2026-06-19T07:59:30.000Z",
+      );
+      runState.admitRun({
+        id: runId,
+        scopeId: "scope-a",
+        workflow: "builder",
+        repository: "none",
+        trigger: { ...trigger, payload: { ...trigger.payload } },
+        resources: [],
+        admittedAt: "2026-06-19T07:59:59.000Z",
+      });
+      runState.startRun(runId, firstSession.epoch, startedAt);
+      const runStore = new WorkflowRunStore(workspaceRoot, {
+        stateDir: join(workspaceRoot, ".kota"),
+      });
+      const workflow: WorkflowDefinition = {
+        name: "builder",
+        description: "historical builder",
+        enabled: true,
+        repository: "none",
+        tags: ["autonomy"],
+        definitionPath:
+          "src/modules/autonomy/workflows/builder/workflow.ts",
+        moduleRoot: workspaceRoot,
+        triggers: [{ event: trigger.event, cooldownMs: 0 }],
+        steps: [{ id: "build", type: "code", run: () => undefined }],
+      };
+      runStore.createRun(
+        workflow,
+        { ...trigger, payload: { ...trigger.payload } },
+        runId,
+      );
+      const metadataPath = join(runStore.runsDir, runId, "metadata.json");
+      const malformed = JSON.parse(
+        readFileSync(metadataPath, "utf8"),
+      ) as Record<string, unknown>;
+      malformed.definitionPath = 17;
+      writeFileSync(metadataPath, JSON.stringify(malformed), "utf8");
+      runState.beginDaemonSession("2026-06-19T08:30:00.000Z");
+
+      expect(() =>
+        collectRuntimeHealthAuditForScope({
+          workspaceRoot,
+          options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
+        })
+      ).toThrow("Workflow run metadata authority is invalid");
+
+      expect(
+        repairRetainedRunMetadataAtDaemonStartup({
+          scopeId: "scope-a",
+          runState,
+          runStore,
+        }),
+      ).toEqual([
+        expect.objectContaining({ kind: "repaired", runId }),
+      ]);
+      const audit = collectRuntimeHealthAuditForScope({
+        workspaceRoot,
+        options: { nowIso: RUNTIME_HEALTH_AUDIT_NOW },
+      });
+
+      expect(audit.inspected.recentRuns).toBe(1);
+      expect(audit.evidenceGaps).toEqual([
+        expect.objectContaining({
+          kind: "producer-missing",
+          ref: `.kota/runs/${runId}/control-monitor-coverage.json`,
+        }),
+      ]);
+    } finally {
+      runState.close();
+    }
   });
 
   it("does not infer issue disposition from a title-related active task", () => {

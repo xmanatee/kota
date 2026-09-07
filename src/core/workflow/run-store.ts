@@ -12,7 +12,15 @@ import {
   enumerateWorkflowRunMetadata,
   readWorkflowRunMetadataFile,
 } from "./run-metadata.js";
+import {
+  type RetainedWorkflowRunMetadataAuthorityRepair,
+  repairWorkflowRunMetadataFromDurableAuthority,
+  retainedWorkflowRunMetadataAuthorityRepair,
+  type WorkflowRunMetadataAuthorityRepair,
+  workflowRunMetadataAuthorityFailureRunId,
+} from "./run-metadata-repair.js";
 import { readWorkflowRunMetadataDurableAuthority } from "./run-operational-projection.js";
+import type { StoredRun } from "./run-state-types.js";
 import { createWorkflowRun } from "./run-store-creation.js";
 import { pruneWorkflowRuns } from "./run-store-retention.js";
 import type {
@@ -164,6 +172,31 @@ export class WorkflowRunStore {
   resolveRunIdPrefix(prefix: string): string | null {
     return this.listRuns({ limit: Number.MAX_SAFE_INTEGER })
       .find((run) => run.id.startsWith(prefix))?.id ?? null;
+  }
+
+  repairMetadataFromDurableAuthority(
+    run: StoredRun,
+  ): WorkflowRunMetadataAuthorityRepair {
+    return repairWorkflowRunMetadataFromDurableAuthority({
+      scopeRoot: this.scopeRoot,
+      runsDir: this.runsDir,
+      run,
+    });
+  }
+
+  retainedMetadataAuthorityRepair(
+    reason: string,
+  ): RetainedWorkflowRunMetadataAuthorityRepair | null {
+    const runId = workflowRunMetadataAuthorityFailureRunId({
+      reason,
+      runsDir: this.runsDir,
+    });
+    return runId !== null
+      ? retainedWorkflowRunMetadataAuthorityRepair({
+          runsDir: this.runsDir,
+          runId,
+        })
+      : null;
   }
 
   reconcileTerminalStatus(
