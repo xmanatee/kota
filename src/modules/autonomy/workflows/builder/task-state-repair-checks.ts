@@ -1,8 +1,20 @@
 import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
-import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { listFullRepoTasks, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 function taskIdFromPath(path: string): string | null {
   return path.match(/^data\/tasks\/(?:archive\/)?(task-[^/]+)\.md$/)?.[1] ?? null;
+}
+
+export function requireResolvedTargetTask(
+  tasks: readonly RepoTaskFullRecord[],
+  taskId: string,
+): void {
+  const task = tasks.find((candidate) => candidate.id === taskId);
+  if (!task || !["done", "blocked", "dropped"].includes(task.state)) {
+    throw new Error(
+      `Builder must move targeted task ${taskId} to done, blocked, or dropped before stopping.`,
+    );
+  }
 }
 
 export function checkTargetTaskResolved(
@@ -10,12 +22,7 @@ export function checkTargetTaskResolved(
   taskId: string,
 ): string {
   const tasks = listFullRepoTasks(workspaceRoot);
-  const task = tasks.find((candidate) => candidate.id === taskId);
-  if (!task || !["done", "blocked", "dropped"].includes(task.state)) {
-    throw new Error(
-      `Builder must move targeted task ${taskId} to done, blocked, or dropped before stopping.`,
-    );
-  }
+  requireResolvedTargetTask(tasks, taskId);
 
   const terminalTaskIds = new Set(
     tasks

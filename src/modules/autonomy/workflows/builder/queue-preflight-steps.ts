@@ -5,7 +5,6 @@ import {
   type BuilderTaskTarget,
   inspectBuilderTaskTargetOperation,
 } from "./task-contract.js";
-import { workflowWorkspaceDir } from "./workspace.js";
 
 export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget>({
   id: "inspect-target-task",
@@ -23,7 +22,7 @@ export const inspectTargetTaskStep = typedCodeStep<BuilderTaskTarget>({
     ]),
   run: (ctx) =>
     ctx.runBlocking(inspectBuilderTaskTargetOperation, {
-      workspaceRoot: workflowWorkspaceDir(ctx),
+      workspaceRoot: ctx.scopeRoot,
       payload: ctx.trigger.payload,
     }),
 });

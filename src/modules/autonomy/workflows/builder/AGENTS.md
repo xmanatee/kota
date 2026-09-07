@@ -7,13 +7,16 @@ Builder is a business workflow, not a private execution runtime.
 - The definition declares `repository: "write"` and resource
   `task:<taskId>`. Shared runtime owns task-resource exclusivity, sandbox,
   process, ports, commit, integration, recovery, and cleanup.
-- Builder validates that the targeted contract still matches its isolated
-  workspace, checks harness readiness, then runs one build agent. Universal
+- Builder validates the admitted task against canonical source state, so its
+  own retained task notes do not invalidate recovery, then checks harness
+  readiness and runs one build agent. Universal
   repair checks protect target-task authority and independent critic review;
   the agent selects behavior-specific proof.
 - Its integration policy rechecks the admitted source task against the exact
   canonical snapshot used for the final rebase. Contract drift preserves the
-  writer for attention instead of publishing stale work.
+  writer for attention instead of publishing stale work. Publication also
+  requires a successful build (including repair checks) and a terminal target
+  task in the reconciled writer; skipped builds cannot publish retained diffs.
 - Builder never chooses another task and never implements claims, worktrees,
   branches, merge gates, port leases, recovery triggers, or terminal cleanup.
 - The task remains `open` while runtime resource ownership marks the active

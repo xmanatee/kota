@@ -8,6 +8,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { WORKFLOW_RUN_METADATA_VERSION } from "#core/workflow/run-metadata.js";
+import type { WorkflowStepResult } from "#core/workflow/run-types.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   EVALUATOR_CALIBRATION_STEP_ID,
@@ -77,10 +79,21 @@ describe("targeted builder contract", () => {
     ]);
   });
 
-  it("rejects a queued target after its task contract changes", () => {
+  it("ignores retained worker notes but rejects changes to the admitted source", async () => {
     const root = project();
+    const workspace = project();
     writeTask(root, "open");
+    writeTask(workspace, "open", "retained implementation notes");
     const payload = listBuilderTaskDispatches(root)[0]!;
+    const preflight = builderWorkflow.steps.find((step) => step.id === "inspect-target-task");
+    if (!preflight || preflight.type !== "code") throw new Error("missing preflight");
+    expect(await preflight.run({
+      scopeRoot: root,
+      workspaceRoot: workspace,
+      trigger: { payload },
+      runBlocking: (_operation: unknown, input: Parameters<typeof inspectBuilderTaskTarget>[0]) =>
+        inspectBuilderTaskTarget(input),
+    } as never)).toMatchObject({ actionable: true });
     writeTask(root, "open", "changed");
 
     expect(inspectBuilderTaskTarget({ workspaceRoot: root, payload })).toMatchObject({
@@ -92,12 +105,14 @@ describe("targeted builder contract", () => {
 
   it("rechecks the admitted source contract after reconciliation", () => {
     const root = project();
+    const workspace = project();
     writeTask(root, "open");
+    writeTask(workspace, "open", "retained notes");
     const payload = listBuilderTaskDispatches(root)[0]!;
     const invariant = builderWorkflow.integration?.postReconcile;
     if (!invariant) throw new Error("missing builder post-reconcile invariant");
     const input = {
-      workspaceRoot: root,
+      workspaceRoot: workspace,
       repoRoot: root,
       stateDir: join(root, ".kota"),
       runId: "builder-contract-run",
@@ -113,6 +128,40 @@ describe("targeted builder contract", () => {
       signal: new AbortController().signal,
     };
 
+    const runDir = join(input.stateDir, "runs", input.runId);
+    mkdirSync(runDir, { recursive: true });
+    const metadata = {
+      metadataVersion: WORKFLOW_RUN_METADATA_VERSION,
+      id: input.runId,
+      workflow: "builder",
+      definitionPath: "workflow.ts",
+      trigger: input.trigger,
+      startedAt: "2026-09-07T00:00:00.000Z",
+      status: "success",
+      runDir,
+      steps: [{
+        id: "build", type: "agent", status: "skipped",
+        startedAt: "2026-09-07T00:00:00.000Z",
+        completedAt: "2026-09-07T00:00:01.000Z", durationMs: 1000,
+        skipReason: { kind: "when-predicate" },
+      }] as WorkflowStepResult[],
+    };
+    const persist = () => writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
+    persist();
+    expect(invariant(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("successful build") });
+    metadata.steps = [{
+      id: "build", type: "agent", status: "success",
+      startedAt: "2026-09-07T00:00:00.000Z",
+      completedAt: "2026-09-07T00:00:01.000Z", durationMs: 1000,
+      usage: {
+        tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
+        cost: { state: "complete", usd: 0.01 },
+      },
+    }];
+    persist();
+    expect(invariant(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("must move targeted task") });
+    rmSync(join(workspace, "data/tasks/task-target.md"));
+    writeTask(workspace, "done");
     expect(invariant(input)).toEqual({ satisfied: true });
     writeTask(root, "open", "changed after admission");
     expect(invariant(input)).toMatchObject({

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { AutonomyQueueAvailableEvent } from "#core/events/event-bus-runtime-events.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import type {
   WorkflowPostReconcileInvariant,
   WorkflowResourceInput,
@@ -12,6 +13,7 @@ import {
   type RepoTaskFullRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { findUnfinishedTaskDependencies } from "#modules/repo-tasks/task-dependencies.js";
+import { requireResolvedTargetTask } from "./task-state-repair-checks.js";
 
 export const BUILDER_TASK_EVENT = "autonomy.queue.available";
 
@@ -189,12 +191,25 @@ export const verifyBuilderTaskContractAfterReconcile: WorkflowPostReconcileInvar
       workspaceRoot: input.repoRoot,
       payload: input.trigger.payload,
     });
-    return target.actionable
-      ? { satisfied: true }
-      : {
-          satisfied: false,
-          reason: `Builder task ${target.taskId} no longer matches its admitted source contract: ${target.reason}`,
-        };
+    if (!target.actionable) {
+      return {
+        satisfied: false,
+        reason: `Builder task ${target.taskId} no longer matches its admitted source contract: ${target.reason}`,
+      };
+    }
+    const metadata = readWorkflowRunMetadataFile(
+      join(input.stateDir, "runs", input.runId, "metadata.json"),
+      { authorityCritical: true },
+    );
+    if (!metadata.steps.some((step) => step.id === "build" && step.status === "success")) {
+      return { satisfied: false, reason: "Builder publication requires a successful build with its repair checks" };
+    }
+    try {
+      requireResolvedTargetTask(listFullRepoTasks(input.workspaceRoot), target.taskId);
+      return { satisfied: true };
+    } catch (error) {
+      return { satisfied: false, reason: error instanceof Error ? error.message : String(error) };
+    }
   };
 
 export const inspectBuilderTaskTargetOperation = defineWorkflowBlockingOperation<
