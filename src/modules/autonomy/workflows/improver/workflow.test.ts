@@ -341,7 +341,7 @@ describe("improver issue disposition workflow", () => {
         value: projection as T,
       }),
       workflowName: "improver",
-      trigger,
+      trigger: triggerFor(1, "opened"),
       head: "reconciled-head",
       canonicalHead: "canonical-head",
       signal: new AbortController().signal,
