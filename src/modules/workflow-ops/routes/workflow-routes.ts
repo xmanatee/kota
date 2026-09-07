@@ -138,11 +138,6 @@ export async function handleWorkflowRetry(
     return;
   }
 
-  if (run.status !== "failed" && run.status !== "interrupted") {
-    jsonResponse(res, 409, { error: `Run "${runId}" cannot be retried (status: ${run.status})` });
-    return;
-  }
-
   await enqueueThroughDaemon(
     req,
     res,

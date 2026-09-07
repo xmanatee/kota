@@ -15,6 +15,9 @@ Shared utilities (`utils.ts`, `definitions-source.ts`) stay at the module root.
 ## Boundaries
 
 - No change to command names, flags, aliases, or output without updating docs.
+- Retry eligibility comes from durable runtime state, not step-result status:
+  successful steps may still have a retained integration failure. CLI and HTTP
+  clients submit retry intent to the same admission owner.
 - Do not add a second automation client namespace. Operator-facing labels may
   say automation or hook, but commands and clients still route through the
   workflow contract and workflow run store.

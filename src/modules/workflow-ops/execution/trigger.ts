@@ -128,16 +128,6 @@ export function registerTriggerCommands(
 
       const original = await loadRunOrExit(ctx, resolvedId);
 
-      if (original.status === "running") {
-        printWorkflowError(`Run "${resolvedId}" is still running. Cannot retry an active run.`);
-        process.exit(1);
-      }
-
-      if (original.status === "success" || original.status === "completed-with-warnings") {
-        printWorkflowError(`Run "${resolvedId}" completed successfully. Nothing to retry.`);
-        process.exit(1);
-      }
-
       const definitions = getValidatedWorkflowDefinitions(ctx);
       const definition = definitions.find((d) => d.name === original.workflow);
       if (!definition) {

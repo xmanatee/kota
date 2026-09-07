@@ -60,13 +60,10 @@ export function enqueuePendingRun(
   const retryOf = options.payload?.retryOf;
   if (typeof retryOf === "string") {
     const source = state.runtimeConfig.runState.getRun(retryOf);
+    if (source && (source.scopeId !== state.runtimeConfig.scopeId || source.workflow !== name)) {
+      return { ok: false, reason: "workflow_contract_conflict", error: `Workflow "${name}" cannot retry run "${retryOf}"` };
+    }
     if (source?.state === "needs_attention") {
-      if (source.scopeId !== state.runtimeConfig.scopeId || source.workflow !== name) {
-        return {
-          ok: false,
-          error: `Workflow "${name}" cannot retry retained run "${retryOf}"`,
-        };
-      }
       if (!state.wfQueue.resumeRetainedRun(retryOf, Date.now())) {
         return {
           ok: false,
@@ -76,6 +73,13 @@ export function enqueuePendingRun(
       }
       maybeStartNext(state);
       return { ok: true, queued: name, runId: retryOf };
+    }
+    if (source && source.state !== "failed" && source.state !== "cancelled") {
+      return {
+        ok: false,
+        reason: "workflow_contract_conflict",
+        error: `Run "${retryOf}" cannot be retried from ${source.state}`,
+      };
     }
   }
   if (

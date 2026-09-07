@@ -201,8 +201,6 @@ describe("durable workflow queue restoration", () => {
         resources: [`task:${contractChange}`],
         admittedAt: "2026-08-25T10:00:00.000Z",
       });
-      runState.requireRunAttention(runId, "preserved after runtime interruption", []);
-
       const currentDefinition = workflow(scopeRoot, contractChange);
       const refill = vi.fn();
       const queue = new WorkflowQueueManager({
@@ -223,6 +221,11 @@ describe("durable workflow queue restoration", () => {
         wfQueue: queue,
       } as unknown as WorkflowRuntimeRunsControlState;
 
+      expect(enqueuePendingRun(state, currentDefinition.name, {
+        payload: { retryOf: runId },
+      })).toMatchObject({ ok: false, reason: "workflow_contract_conflict" });
+      expect(runState.getRun(runId)?.state).toBe("queued");
+      runState.requireRunAttention(runId, "preserved after runtime interruption", []);
       expect(
         enqueuePendingRun(state, currentDefinition.name, {
           payload: { retryOf: runId },

@@ -578,15 +578,21 @@ describe("workflow-routes", () => {
       expect(result.status).toBe(404);
     });
 
-    it("returns 409 for successful run", async () => {
-      const client = mockTransport({ runs: { "run-success-01": runDetail("run-success-01", "success") } });
+    it("defers retry eligibility to durable runtime state even when steps succeeded", async () => {
+      const client = mockTransport({
+        runs: { "run-success-01": runDetail("run-success-01", "success") },
+        trigger: { ok: true, queued: "builder", runId: "run-success-01" },
+      });
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-success-01" }), res, client);
-      expect(result.status).toBe(409);
+      expect(result.status).toBe(200);
     });
 
     it("returns 409 for running run", async () => {
-      const client = mockTransport({ runs: { "run-running-01": runDetail("run-running-01", "running") } });
+      const client = mockTransport({
+        runs: { "run-running-01": runDetail("run-running-01", "running") },
+        trigger: { status: 409, body: { ok: false, reason: "workflow_contract_conflict" } },
+      });
       const { res, result } = mockResponse();
       await handleWorkflowRetry(makeRequest({ runId: "run-running-01" }), res, client);
       expect(result.status).toBe(409);
