@@ -1,5 +1,6 @@
 import {
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -16,6 +17,7 @@ import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { progressReviewRequested } from "./events.js";
 import {
+  PROGRESS_REVIEW_ARTIFACT,
   PROGRESS_REVIEW_EVIDENCE_ARTIFACT,
   type ProgressReviewEvidencePacket,
 } from "./progress-review.js";
@@ -148,5 +150,79 @@ describe("progress-reviewer evidence integrity", () => {
     expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
     const diagnostic = JSON.stringify(new WorkflowRunStore(workspaceRoot).getRun(runId));
     expect(diagnostic).toContain("evidence artifact digest mismatch");
+  });
+
+  it("completes review with an explicit exclusion for malformed historical run metadata", async () => {
+    // Local DLQ failure: a successful agent step omitted required usage data.
+    const malformedRunId = "control-monitor-coverage-gap-sample";
+    const malformedDir = join(workspaceRoot, ".kota", "runs", malformedRunId);
+    mkdirSync(malformedDir, { recursive: true });
+    const metadataPath = join(malformedDir, "metadata.json");
+    const metadata = {
+      id: malformedRunId,
+      workflow: "builder",
+      definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+      trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+      startedAt: "2026-06-01T10:20:00.000Z",
+      completedAt: "2026-06-01T10:21:00.000Z",
+      status: "success",
+      runDir: malformedDir,
+      steps: [{
+        id: "build",
+        type: "agent",
+        status: "success",
+        startedAt: "2026-06-01T10:20:00.000Z",
+        completedAt: "2026-06-01T10:21:00.000Z",
+        durationMs: 60_000,
+      }],
+    };
+    const originalMetadata = JSON.stringify(metadata);
+    writeFileSync(metadataPath, originalMetadata);
+    expect(() => new WorkflowRunStore(workspaceRoot).getRun(malformedRunId))
+      .toThrow("workflow run metadata.steps.0 Invalid input");
+    const validRunId = "valid-recent-run";
+    const validDir = join(workspaceRoot, ".kota", "runs", validRunId);
+    mkdirSync(validDir, { recursive: true });
+    writeFileSync(join(validDir, "metadata.json"), JSON.stringify({
+      ...metadata,
+      id: validRunId,
+      runDir: validDir,
+      startedAt: "2026-06-04T11:20:00.000Z",
+      completedAt: "2026-06-04T11:21:00.000Z",
+      steps: [],
+    }));
+
+    registerProgressReviewHarness(async (options) => {
+      const input = parseReviewInputFromAgentPrompt(options);
+      expect(input.evidence.map((item) => item.id)).toContain(`run:${validRunId}`);
+      expect(input.evidence.map((item) => item.id)).not.toContain(`run:${malformedRunId}`);
+      expect(input.excluded.join("\n")).toContain(`${malformedRunId}: excluded unreadable metadata`);
+      return {
+        text: `\`\`\`json\n${JSON.stringify(reviewOutput({
+          verdict: "on-track",
+          summary: "Available evidence reviewed; malformed historical run excluded.",
+        }))}\n\`\`\``,
+        streamedText: "",
+        turns: 1,
+        usage: UNKNOWN_AGENT_USAGE,
+        isError: false,
+      };
+    });
+
+    const runId = "review-with-malformed-history";
+    const result = await executeReview(workspaceRoot, runId);
+    expect(result.metadata.status, JSON.stringify(result.metadata)).toBe("success");
+    expect(result.metadata.steps.find((step) => step.id === "apply-actions")?.status)
+      .toBe("success");
+    const artifact = JSON.parse(readFileSync(
+      join(workspaceRoot, ".kota", "runs", runId, PROGRESS_REVIEW_ARTIFACT),
+      "utf-8",
+    ));
+    expect(artifact.evidence.excluded).toEqual(expect.arrayContaining([
+      expect.stringContaining(`${malformedRunId}: excluded unreadable metadata`),
+    ]));
+    expect(artifact.evidence.excluded.join("\n")).toContain("metadata.steps.0 Invalid input");
+    expect(artifact.actions.createdTaskIds).toEqual([]);
+    expect(readFileSync(metadataPath, "utf-8")).toBe(originalMetadata);
   });
 });

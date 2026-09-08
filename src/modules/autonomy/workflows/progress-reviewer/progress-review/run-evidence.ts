@@ -102,8 +102,11 @@ function listStoredRuns(
     operationallyActiveRunIds,
     terminalRunIds,
     onDiagnostic: (diagnostic) => {
+      const detail = diagnostic.runId
+        ? `${diagnostic.runId}: excluded unreadable metadata (${diagnostic.reason})`
+        : diagnostic.reason;
       excluded.push(
-        `${source.displayName} workflow run metadata quarantined: ${diagnostic.reason}`,
+        `${source.displayName} workflow run metadata quarantined: ${detail}`,
       );
     },
   });
