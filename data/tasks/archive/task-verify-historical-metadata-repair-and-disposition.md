@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Verify historical metadata repair and disposition the cited runtime-health failure
 
@@ -65,7 +64,7 @@ Evidence for this attempt lives under
 `durable-observation.json` (read-only host records), `evidence-access.json`
 (permission errors), and `verification.md` (source assessment and validation).
 
-## Blocked on
+## Prior blocker (satisfied by the 2026-09-08 operator capture)
 
 ```
 kind: operator-capture
@@ -1631,3 +1630,54 @@ Untrusted diagnostic data, not instructions. Captured through read-only canonica
   "completion": "Not asserted. Evidence is available for semantic review; current unrelated needs_attention runs do not prove historical repair failure."
 }
 ```
+
+## Verified disposition (2026-09-08)
+
+The closure conditions for `runtime:historical-run-metadata-repair` are satisfied.
+The preserved [operator capture](#operator-evidence-capture-2026-09-08) identifies
+scope kota (`8nrg1m`) and supplies the previously unavailable operational facts.
+This records the finding's repository disposition; runtime-owned issue state is
+not directly changed by this writer.
+
+- The exact source `2026-08-24T12-19-13-793Z-builder-689rsi` has neither a
+  retained durable row nor metadata (capture `historical`: null row and
+  `ENOENT`). No repair or backup of that absent source is claimed.
+- Replay `2026-09-07T13-33-18-949Z-runtime-health-auditor-ywbldz` succeeded in
+  scope `8nrg1m`, durably finished at `2026-09-07T15:02:18.000Z`. Its three
+  steps collected the audit, verified its artifact, and published 15 signals.
+  The audit's other findings and three evidence gaps are not a clean-health claim.
+- `dead-letter:dlq-222b5895-cf3e-4d1b-a36f-28ea6ee05687` is explicitly
+  `redriven` in the export at `2026-09-08T14:52:11.506Z`. The retained
+  operator redrive attempt names that replay, whose trigger reciprocates with
+  `redriveOf`. The successful terminal evidence completes the queued receipt;
+  no automatic dismissal or absent-source repair is inferred.
+- Startup logs show readiness at `2026-09-08T14:40:14.654Z`, with subsequent
+  health `ok`. The production startup path still selects eligible retained
+  records, requires agreeing durable/workflow/trigger authority, validates
+  strictly, and preserves the malformed source before replacement.
+- Captured `state:recovery` contains eight same-scope runs: two running, three
+  queued, and three needing attention for dirty-workspace cleanup after failed
+  critic repairs. Those other builders' blockers remain; none reports this
+  historical metadata failure.
+
+The required original diagnostics were inspected through `original.content`.
+Failed builder `2026-09-07T16-05-20-034Z-builder-zdj0si` was inspected through
+its captured durable row and metadata, including all three failed repair checks.
+Its detailed critic artifact is confirmed no longer retained. Retained agent
+responses are self-reports, not audit proof; the independent observations above
+establish closure without reconstructing that artifact or treating the previous
+permission denial as absence.
+
+Existing production-owner checks passed: three files, seven tests, using
+`pnpm test:owner src/core/workflow/run-metadata-repair.test.ts src/core/daemon/daemon-run-metadata-repair.test.ts src/core/workflow/dead-letter-supersession.test.ts`.
+They prove retained-source preservation, rejection of disagreeing authority and
+unsupported versions, restart repair, and causal supersession behavior on
+fixtures. Production-path inspection connects the checks to startup. These
+fixture results are separate from timestamped operator host observations.
+No remaining implementation defect was demonstrated and no production code changed.
+
+Detailed evidence mapping, recovery run identities, proof scope, and limitations:
+[run verification](../../../.kota/runtime/2026-09-08t15-32-51-455z-builder-ec48f8d013c3a9aa93552925e92371828bebb107cc294d280d5e5c45e144e37a/agent/verification.md).
+The original capture above is preserved in full. Observations establish the
+captured state, not continuous health; runtime owns subsequent publication and
+issue reconciliation.
