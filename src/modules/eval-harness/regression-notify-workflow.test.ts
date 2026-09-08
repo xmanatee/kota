@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import evalHarnessRegressionNotify, {
   buildAttentionItemFromRegression,
 } from "./regression-notify-workflow.js";
@@ -17,18 +16,6 @@ const samplePayload = {
 };
 
 describe("eval-harness-regression-notify workflow", () => {
-  it("registers without errors and triggers on eval-harness.regression.detected only", () => {
-    const registered = registerWorkflowDefinition(
-      "src/modules/eval-harness/regression-notify-workflow.ts",
-      evalHarnessRegressionNotify,
-    );
-    expect(registered.name).toBe("eval-harness-regression-notify");
-    expect(registered.triggers).toHaveLength(1);
-    expect(registered.triggers[0].event).toBe(
-      "eval-harness.regression.detected",
-    );
-  });
-
   it("emits workflow.attention.digest with both baseline and candidate numbers", async () => {
     const harness = new WorkflowScenarioDriver(evalHarnessRegressionNotify, {
       trigger: {

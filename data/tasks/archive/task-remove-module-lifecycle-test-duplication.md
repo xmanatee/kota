@@ -121,3 +121,9 @@ Recomputed after repair attempt 19 across every changed `src/` path relative to 
 ## Initiative
 
 Lean behavioral verification: test only contracts a module declares and behavior it adds.
+
+### Config Reload and Notification Review Repair
+
+Config reload now copies contributed workflow inputs before disposing the metadata loader. Direct inspection confirms disposal removes entries from the loader-owned array without mutating the retained definitions, so the snapshot preserves the inputs passed to each scope runtime. A focused daemon owner regression case uses the real commands-mode ModuleLoader and checks that reload propagates its contribution after disposal. The two remaining declaration-only registration tests in eval regression notification and evaluator calibration notification were removed; their semantic digest-delivery cases remain.
+
+Node TypeScript syntax checks passed for all four changed source/test files, scoped diff whitespace checks passed, and the task validator reported zero errors and warnings. The focused owner suite could not start because Vitest is not installed in this worktree; the new regression case has not been executed here. The normal task CLI could not start because Commander is missing. The repo-task domain confirmed this target was already archived as done, and its path-safe write operation records this repair evidence in the terminal task diff without reopening it or changing another task.

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "#core/config/config.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
+import { loadModuleMetadata } from "#core/modules/module-metadata.js";
 import {
   makeReloadSubject,
   mockModuleMetadata,
@@ -157,6 +159,32 @@ describe("buildDaemonHandle reloadConfig events", () => {
       sessionGuardrails: { refreshed: 0, unchanged: 0, nonRefreshable: [] },
     });
     expect(subject.events[0].timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("preserves workflow inputs across metadata loader disposal during reload", async () => {
+    vi.mocked(loadConfig).mockReturnValue({});
+    const loader = new ModuleLoader({}, false, { mode: "commands" });
+    try {
+      await loader.load({
+        name: "reload-workflow-owner",
+        workflows: [{
+          name: "reload-workflow",
+          repository: "read",
+          triggers: [{ event: "runtime.idle", cooldownMs: 60_000 }],
+          steps: [{ id: "noop", type: "code", run: () => undefined }],
+        }],
+      });
+      const [contribution] = loader.getContributedWorkflows();
+      expect(contribution).toBeDefined();
+      vi.mocked(loadModuleMetadata).mockResolvedValue(loader);
+      const subject = makeReloadSubject();
+
+      await subject.handle.reloadConfig();
+
+      expect(subject.workflowRuntime.setWorkflowInputs).toHaveBeenCalledWith([contribution]);
+    } finally {
+      await loader.unloadAll();
+    }
   });
 
   it("emits a no-op reload event when config produces no changed modules", async () => {

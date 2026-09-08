@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import evaluatorCalibrationNotify from "./workflow.js";
 
 const samplePayload = {
@@ -22,18 +21,6 @@ const samplePayload = {
 };
 
 describe("evaluator-calibration-notify workflow", () => {
-  it("registers with a single trigger on the typed calibration regression event", () => {
-    const registered = registerWorkflowDefinition(
-      "src/modules/autonomy/workflows/evaluator-calibration-notify/workflow.ts",
-      evaluatorCalibrationNotify,
-    );
-    expect(registered.name).toBe("evaluator-calibration-notify");
-    expect(registered.triggers).toHaveLength(1);
-    expect(registered.triggers[0].event).toBe(
-      "evaluator-calibration.regression.detected",
-    );
-  });
-
   it("emits workflow.attention.digest carrying the contradiction rate and reason", async () => {
     const harness = new WorkflowScenarioDriver(evaluatorCalibrationNotify, {
       trigger: {

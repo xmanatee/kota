@@ -80,7 +80,7 @@ export function buildDaemonConfigReloadHandle(
         try {
           metadata = {
             summaries: loader.getModuleSummaries(),
-            workflows: loader.getContributedWorkflows(),
+            workflows: [...loader.getContributedWorkflows()],
           };
         } finally {
           await loader.unloadAll();
