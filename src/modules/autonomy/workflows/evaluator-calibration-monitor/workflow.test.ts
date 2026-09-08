@@ -9,6 +9,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import { getCriticPromptHash } from "#modules/autonomy/critic.js";
@@ -60,6 +61,19 @@ function seedCalibration(
     join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
     JSON.stringify(artifact, null, 2),
   );
+  const metadata: WorkflowRunMetadata = {
+    metadataVersion: 1,
+    id: runId,
+    workflow: "builder",
+    definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    startedAt: completedAt,
+    completedAt,
+    status: artifact.terminalRunStatus,
+    runDir: `.kota/runs/${runId}`,
+    steps: [],
+  };
+  writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata, null, 2));
 }
 
 const builderCompletionTrigger = {
@@ -271,10 +285,14 @@ describe("evaluator-calibration-monitor workflow", () => {
       trigger: builderCompletionTrigger,
     }).run();
 
+    expect(result.status).toBe("success");
     expect(
       result.emitted.filter(
         (event) => event.event === "evaluator-calibration.regression.detected",
       ),
+    ).toHaveLength(0);
+    expect(
+      result.emitted.filter((event) => event.event === autonomyHealthSignal.name),
     ).toHaveLength(0);
     const observation = JSON.parse(
       readFileSync(
@@ -282,6 +300,11 @@ describe("evaluator-calibration-monitor workflow", () => {
         "utf-8",
       ),
     ) as Record<string, unknown>;
-    expect(observation).toMatchObject({ status: "under-threshold", driftKinds: [] });
+    expect(observation).toMatchObject({
+      sourceRunId: "run-newer",
+      status: "under-threshold",
+      driftKinds: [],
+      aggregate: { totalRuns: 2, byVerdict: { pass: 2 } },
+    });
   });
 });

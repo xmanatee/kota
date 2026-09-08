@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Repair repeated evaluator-calibration monitor execution dead letters
 
