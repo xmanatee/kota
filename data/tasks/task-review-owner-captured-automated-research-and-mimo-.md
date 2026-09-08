@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
 # Review owner captured automated research and MiMo links
