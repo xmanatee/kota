@@ -114,6 +114,7 @@ function makeModuleContext(options: {
 }
 
 describe("inbound-signals module", () => {
+
   it("keeps built-in GitHub mention workflows reachable through declarative routes", async () => {
     const ctx = makeModuleContext({
       workflowNames: [

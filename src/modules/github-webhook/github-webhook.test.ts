@@ -4,8 +4,6 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it, vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import githubWebhookModule from "./index.js";
@@ -16,38 +14,12 @@ function makeStubCtx(
   bus: EventBus,
   config?: unknown,
   logWarn = vi.fn(),
-): ModuleRuntimeContext {
+): Parameters<typeof githubWebhookModule.routes>[0] {
   return {
     cwd: "/tmp",
-    verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage("/tmp/test", "github-webhook"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
     getModuleConfig: () => config as never,
-    log: { info: () => {}, warn: logWarn, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
+    log: { info: vi.fn(), warn: logWarn, error: vi.fn(), debug: vi.fn() },
     events: makeStubEventProxy(bus),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
   };
 }
 
@@ -133,7 +105,7 @@ function issueCommentBody(input?: {
 
 async function invokeHandler(
   module: typeof githubWebhookModule,
-  ctx: ModuleRuntimeContext,
+  ctx: Parameters<typeof githubWebhookModule.routes>[0],
   body: string,
   headers: Record<string, string>,
 ): Promise<FakeResponse> {
@@ -148,6 +120,7 @@ async function invokeHandler(
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("githubWebhookModule metadata", () => {
+
   it("sets bypassAuth:true on its route so GitHub deliveries work without KOTA auth", () => {
     const bus = new EventBus();
     const ctx = makeStubCtx(bus, { secret: SECRET });

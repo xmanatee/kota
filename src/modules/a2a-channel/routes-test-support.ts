@@ -1,6 +1,10 @@
 import { createServer, type Server } from "node:http";
-import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
-import { findRouteMatch } from "#core/modules/route-matcher.js";
+import { Scheduler } from "#core/daemon/scheduler.js";
+import { EventBus } from "#core/events/event-bus.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
+import { buildRequestHandler } from "#core/server/server-routes.js";
+import { SessionPool } from "#core/server/session-pool.js";
+import type { A2AContext } from "./context.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import { makeTask } from "./daemon-session-client.js";
 import {
@@ -20,16 +24,6 @@ import {
 export const NOW = "2026-05-27T05:44:30.913Z";
 
 const noop = () => {};
-const unsubscribe = () => {};
-const emitEvent = noop as ModuleContext["events"]["emit"];
-const subscribeEvent = (() => unsubscribe) as ModuleContext["events"]["subscribe"];
-const unavailableCallTool: ModuleContext["callTool"] = async () => {
-  throw new Error("test context does not provide tools");
-};
-const unavailableCreateSession: ModuleContext["createSession"] = () => {
-  throw new Error("test context does not provide sessions");
-};
-
 export class FakeBackend implements A2ABackend {
   sentInputs: SendMessageInput[] = [];
   getSelectors: TaskSelector[] = [];
@@ -96,11 +90,9 @@ export class FakeBackend implements A2ABackend {
   }
 }
 
-export function makeContext(): ModuleContext {
+export function makeContext(): A2AContext {
   return {
     cwd: process.cwd(),
-    verbose: false,
-    config: {},
     storage: { getJSON: () => undefined } as never,
     log: {
       info: noop,
@@ -108,14 +100,6 @@ export function makeContext(): ModuleContext {
       error: noop,
       debug: noop,
     },
-    getSecret: () => null,
-    getModuleConfig: () => undefined,
-    getRegisteredConfigKeys: () => new Set(),
-    getRoutes: () => [],
-    getContributedControlRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
     getModuleSummaries: () => [
       {
         name: "example",
@@ -132,21 +116,7 @@ export function makeContext(): ModuleContext {
         routeSummaries: [],
       },
     ],
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    callTool: unavailableCallTool,
-    listTools: () => [],
-    events: {
-      emit: emitEvent,
-      subscribe: subscribeEvent,
-      emitExternal: noop,
-      subscribeExternal: () => unsubscribe,
-      listenerCount: () => 0,
-    },
-    getProvider: () => null,
-    createSession: unavailableCreateSession,
-    client: {} as never,
+
   };
 }
 
@@ -157,39 +127,16 @@ export async function startRouteServer(
   server: Server;
   baseUrl: string;
 }> {
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    const match = findRouteMatch(routes, req.method ?? "GET", url.pathname);
-    if (!match) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "not found" }));
-      return;
-    }
-    if (options.authToken && !match.route.bypassAuth) {
-      const header = req.headers.authorization;
-      const queryToken = url.searchParams.get("token");
-      if (header !== `Bearer ${options.authToken}` && queryToken !== options.authToken) {
-        if (match.route.authFailureHandler) {
-          Promise.resolve(match.route.authFailureHandler(req, res, match.params)).catch((err: Error) => {
-            if (!res.headersSent) {
-              res.writeHead(500, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ error: err.message }));
-            }
-          });
-          return;
-        }
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Unauthorized" }));
-        return;
-      }
-    }
-    Promise.resolve(match.route.handler(req, res, match.params)).catch((err: Error) => {
-      if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-  });
+  const server = createServer(buildRequestHandler({
+    port: 0,
+    pool: new SessionPool(),
+    scheduler: new Scheduler(process.cwd(), null),
+    bus: new EventBus(),
+    moduleRoutes: routes,
+    authToken: options.authToken,
+    makeAgent: () => { throw new Error("A2A must use its daemon backend port"); },
+    resolveDefaultAutonomyMode: () => "supervised",
+  }));
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
   if (typeof address === "string" || address === null) {

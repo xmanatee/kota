@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import type { ChannelWorkflowStatus } from "#core/channels/channel.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { MemoryClient } from "#modules/memory/client.js";
@@ -79,6 +80,9 @@ export function makeSpies(): Map<string, ScopeSpies> {
           paused: false,
           pendingAbort: false,
           concurrency: 4,
+          authorityCriticalRunIds: [],
+          operationallyActiveRunIds: [],
+          terminalRunIds: [],
         })),
         memorySearch: vi.fn(async () => ({
           ok: true as const,
@@ -114,6 +118,9 @@ export function makeSpies(): Map<string, ScopeSpies> {
           paused: true,
           pendingAbort: false,
           concurrency: 4,
+          authorityCriticalRunIds: [],
+          operationallyActiveRunIds: [],
+          terminalRunIds: [],
         })),
         memorySearch: vi.fn(async () => ({
           ok: true as const,
@@ -134,9 +141,10 @@ export function makeSpies(): Map<string, ScopeSpies> {
   ]);
 }
 
-export function makeStatusInfo() {
+export function makeStatusInfo(): ChannelWorkflowStatus {
   return {
     runtimeState: {
+      activeRuns: [],
       completedRuns: 0,
       pendingRuns: [],
       workflows: {},

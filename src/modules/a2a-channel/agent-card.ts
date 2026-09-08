@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import type { A2AContext } from "./context.js";
 import {
   A2A_EXTENDED_CARD_PATH,
   A2A_PROTOCOL_VERSION,
@@ -48,7 +48,7 @@ export type A2AAgentSkill = {
 };
 
 export function buildAgentCard(
-  ctx: ModuleContext,
+  ctx: A2AContext,
   req: IncomingMessage,
   extended: boolean,
   tenant?: string,

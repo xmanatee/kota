@@ -12,7 +12,9 @@ import { SlackApprovalBindingStore } from "./approval-bindings.js";
 import { SlackBot } from "./bot.js";
 import { getSlackChannelConfig } from "./config.js";
 
-export function makeSlackChannelDef(moduleCtx: ModuleContext): ChannelDef {
+export type SlackChannelContext = Pick<ModuleContext, "config" | "getModuleConfig" | "getSecret" | "storage" | "client" | "events" | "log">;
+
+export function makeSlackChannelDef(moduleCtx: SlackChannelContext): ChannelDef {
 	return {
 		name: "slack-channel",
 		description: "Bidirectional Slack bot channel using Socket Mode",

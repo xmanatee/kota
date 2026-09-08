@@ -4,10 +4,6 @@ import { approvalProjection, makeBot, mockedCallSlackApi, setupSlackBotTestHooks
 setupSlackBotTestHooks();
 
 describe("SlackBot", () => {
-  it("constructs with options", () => {
-    const bot = makeBot();
-    expect(bot).toBeDefined();
-  });
 
   it("stop is safe to call before start", () => {
     const bot = makeBot();

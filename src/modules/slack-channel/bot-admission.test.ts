@@ -71,7 +71,7 @@ describe("SlackBot interactive admission", () => {
     });
 
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(clients.tasks.list).not.toHaveBeenCalled();
+    expect(clients.tasks.search).not.toHaveBeenCalled();
     expect(events.emit).not.toHaveBeenCalled();
     expect(AgentSession).not.toHaveBeenCalled();
 

@@ -214,7 +214,9 @@ describe("startCallbackPoll", () => {
         .mockReturnValueOnce(Promise.resolve(undefined))
         .mockReturnValue(hang());
 
-      const stop = startCallbackPoll(TOKEN, new Map(), new Map(), stubLog);
+      const stop = startCallbackPoll(TOKEN, new Map(), new Map([
+        ["oq3", { chatId: "99", messageId: 42, scopeId: "test-scope" }],
+      ]), stubLog);
       await new Promise((r) => setTimeout(r, 20));
       stop();
 
@@ -270,7 +272,9 @@ describe("startCallbackPoll", () => {
         .mockReturnValueOnce(Promise.resolve(undefined))
         .mockReturnValue(hang());
 
-      const stop = startCallbackPoll(TOKEN, new Map(), new Map(), stubLog);
+      const stop = startCallbackPoll(TOKEN, new Map(), new Map([
+        ["oq5", { chatId: "99", messageId: 42, scopeId: "test-scope" }],
+      ]), stubLog);
       await new Promise((r) => setTimeout(r, 20));
       stop();
 
@@ -280,6 +284,69 @@ describe("startCallbackPoll", () => {
         show_alert: true,
       });
     });});
+
+  it.each(["answer:oq1:1", "dismiss:oq1"])(
+    "rejects unbound owner-question callback %s before any domain access",
+    async (data) => {
+      const forScope = vi.fn(() => { throw new Error("Unexpected scope access"); });
+      const pending: Map<string, PendingMessage> = new Map([
+        ["oq1", { chatId: "99", messageId: 30, scopeId: "bound-scope", proposedAnswers: ["Yes", "No"] }],
+      ]);
+      mockedCallTelegramApi.mockResolvedValue(undefined);
+      for (const client of [undefined, { forScope } as never]) {
+        const handle = createTelegramCallbackHandler(TOKEN, new Map(), pending, client, stubLog);
+        for (const message of [
+          { message_id: 30, chat: { id: 777, type: "private" }, date: 0 },
+          { message_id: 999, chat: { id: 99, type: "private" }, date: 0 },
+          undefined,
+        ]) {
+          expect(await handle({ id: "unbound", from: { id: 1, first_name: "Test" }, data, message })).toBe(true);
+          expect(pending.has("oq1")).toBe(true);
+        }
+        await handle({ ...makeCallbackUpdate(1, "unknown", data.replace("oq1", "unknown")).callback_query });
+      }
+      expect(forScope).not.toHaveBeenCalled();
+      expect(mockOwnerGet).not.toHaveBeenCalled();
+      expect(mockOwnerAnswer).not.toHaveBeenCalled();
+      expect(mockOwnerDismiss).not.toHaveBeenCalled();
+      expect(mockedCallTelegramApi.mock.calls.every(([, method, body]) =>
+        method === "answerCallbackQuery" && body?.show_alert === true,
+      )).toBe(true);
+    },
+  );
+
+  it.each(["answer:oq1:1", "dismiss:oq1"])(
+    "routes bound owner-question callback %s to its stored scope",
+    async (data) => {
+      const question = { source: "builder", reason: "risky", question: "Proceed?", answer: "No" };
+      const answer = vi.fn().mockResolvedValue({ ok: true, question });
+      const dismiss = vi.fn().mockResolvedValue({ ok: true, question });
+      const forScope = vi.fn(() => ({ ownerQuestions: { answer, dismiss } }));
+      const pending: Map<string, PendingMessage> = new Map([
+        ["oq1", { chatId: "99", messageId: 30, scopeId: "bound-scope", proposedAnswers: ["Yes", "No"] }],
+      ]);
+      mockedCallTelegramApi.mockResolvedValue(undefined);
+      const handle = createTelegramCallbackHandler(TOKEN, new Map(), pending, { forScope } as never, stubLog);
+      const callback = makeCallbackUpdate(1, "bound", data, 30, 99).callback_query;
+      await handle(callback);
+      expect(forScope).toHaveBeenCalledWith("bound-scope");
+      if (data.startsWith("answer:")) {
+        expect(answer).toHaveBeenCalledWith("oq1", "No");
+        expect(dismiss).not.toHaveBeenCalled();
+      } else {
+        expect(dismiss).toHaveBeenCalledWith("oq1");
+        expect(answer).not.toHaveBeenCalled();
+      }
+      expect(mockedCallTelegramApi).toHaveBeenCalledWith(TOKEN, "editMessageText", expect.objectContaining({
+        chat_id: "99", message_id: 30,
+      }));
+      expect(pending.has("oq1")).toBe(false);
+      forScope.mockClear();
+      await handle(callback);
+      expect(forScope).not.toHaveBeenCalled();
+      expect(mockedCallTelegramApi).toHaveBeenLastCalledWith(TOKEN, "answerCallbackQuery", expect.objectContaining({ show_alert: true }));
+    },
+  );
 
   it("logs warning on API error and does not crash", async () => {
     mockedCallTelegramApi

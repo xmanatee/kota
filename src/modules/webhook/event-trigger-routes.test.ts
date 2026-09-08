@@ -3,46 +3,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import { eventTriggerRoutes } from "./event-trigger-routes.js";
-
-function makeStubCtx(bus: EventBus): ModuleRuntimeContext {
-  return {
-    cwd: "/tmp",
-    verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage("/tmp/test", "webhook"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => undefined,
-    log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
-    events: makeStubEventProxy(bus),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
-  };
-}
 
 type FakeResponse = {
   statusCode: number | null;
@@ -90,7 +53,10 @@ async function invokeRoute(
   bus.on(inboundSignalReceived, (payload) =>
     emitted.push(payload as Record<string, unknown>),
   );
-  const route = eventTriggerRoutes(makeStubCtx(bus))[0];
+  const route = eventTriggerRoutes({
+    cwd: "/tmp",
+    events: makeStubEventProxy(bus),
+  })[0];
   const res = makeFakeResponse();
   await route.handler(
     makeFakeRequest(body),

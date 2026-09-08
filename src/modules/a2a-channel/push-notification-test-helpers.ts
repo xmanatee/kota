@@ -1,11 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, vi } from "vitest";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
-import { findRouteMatch } from "#core/modules/route-matcher.js";
+import type { A2AContext } from "./context.js";
+
+export { startRouteServer } from "./routes-test-support.js";
+
 import {
   type OutboundHttpAddressResolver,
   OutboundHttpTransport,
@@ -161,11 +163,9 @@ export function makeStorage(tempDirs: string[]): ModuleStorage {
   return new ModuleStorage(dir, "a2a-channel");
 }
 
-export function makeContext(storage: ModuleStorage): ModuleContext {
+export function makeContext(storage: ModuleStorage): A2AContext {
   return {
     cwd: process.cwd(),
-    verbose: false,
-    config: {},
     storage,
     log: {
       info: vi.fn(),
@@ -173,30 +173,8 @@ export function makeContext(storage: ModuleStorage): ModuleContext {
       error: vi.fn(),
       debug: vi.fn(),
     },
-    getSecret: vi.fn(),
-    getModuleConfig: vi.fn(),
-    getRegisteredConfigKeys: () => new Set(),
-    getRoutes: () => [],
-    getContributedControlRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
     getModuleSummaries: () => [],
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    callTool: vi.fn(),
-    listTools: () => [],
-    events: {
-      emit: vi.fn(),
-      subscribe: vi.fn(() => () => {}),
-      emitExternal: vi.fn(),
-      subscribeExternal: vi.fn(() => () => {}),
-      listenerCount: () => 0,
-    },
-    getProvider: () => null,
-    createSession: vi.fn(),
-    client: {} as never,
+
   };
 }
 
@@ -211,35 +189,6 @@ export function makePushNotificationHttp(
     resolveAddresses,
     dispatcher: (url, init) => fetchImpl(url.toString(), init),
   });
-}
-
-export async function startRouteServer(
-  routes: RouteRegistration[],
-): Promise<{
-  server: Server;
-  baseUrl: string;
-}> {
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://127.0.0.1");
-    const match = findRouteMatch(routes, req.method ?? "GET", url.pathname);
-    if (!match) {
-      res.writeHead(404, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "not found" }));
-      return;
-    }
-    Promise.resolve(match.route.handler(req, res, match.params)).catch((err: Error) => {
-      if (!res.headersSent) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: err.message }));
-      }
-    });
-  });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const address = server.address();
-  if (typeof address === "string" || address === null) {
-    throw new Error("test server did not bind to a TCP port");
-  }
-  return { server, baseUrl: `http://127.0.0.1:${address.port}` };
 }
 
 export async function postRpc(baseUrl: string, body: object) {

@@ -73,10 +73,10 @@ export type SlackCommandClients = {
   answer: AnswerClient;
   capture: CaptureClient;
   retract: RetractClient;
-  memory: MemoryClient;
-  knowledge: KnowledgeClient;
-  history: HistoryClient;
-  tasks: RepoTasksClient;
+  memory: Pick<MemoryClient, "search">;
+  knowledge: Pick<KnowledgeClient, "search">;
+  history: Pick<HistoryClient, "search">;
+  tasks: Pick<RepoTasksClient, "search">;
   attention: AttentionSnapshotClient;
   digest: DigestSnapshotClient;
 };
@@ -255,7 +255,7 @@ async function handleMemory(
   token: string,
   channelId: string,
   body: string,
-  memory: MemoryClient,
+  memory: Pick<MemoryClient, "search">,
 ): Promise<void> {
   if (body.length === 0) {
     await postReply(token, channelId, "Usage: /memory <query>");
@@ -284,7 +284,7 @@ async function handleKnowledge(
   token: string,
   channelId: string,
   body: string,
-  knowledge: KnowledgeClient,
+  knowledge: Pick<KnowledgeClient, "search">,
 ): Promise<void> {
   if (body.length === 0) {
     await postReply(token, channelId, "Usage: /knowledge <query>");
@@ -313,7 +313,7 @@ async function handleHistory(
   token: string,
   channelId: string,
   body: string,
-  history: HistoryClient,
+  history: Pick<HistoryClient, "search">,
 ): Promise<void> {
   if (body.length === 0) {
     await postReply(token, channelId, "Usage: /history <query>");
@@ -346,7 +346,7 @@ async function handleTasks(
   token: string,
   channelId: string,
   body: string,
-  tasks: RepoTasksClient,
+  tasks: Pick<RepoTasksClient, "search">,
 ): Promise<void> {
   if (body.length === 0) {
     await postReply(token, channelId, "Usage: /tasks <query>");

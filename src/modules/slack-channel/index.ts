@@ -12,10 +12,10 @@ import type { KotaModule } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import { AUTONOMY_MODES } from "#core/tools/autonomy-mode.js";
 import { operatorSurfaceEffect } from "#core/tools/effect.js";
-import { makeSlackChannelDef } from "./channel.js";
+import { makeSlackChannelDef, type SlackChannelContext } from "./channel.js";
 import { getSlackChannelConfig } from "./config.js";
 
-const slackChannelModule: KotaModule = {
+const slackChannelModule = {
   name: "slack-channel",
   version: "1.0.0",
   description: "Bidirectional Slack bot channel for KOTA (Socket Mode)",
@@ -208,9 +208,9 @@ const slackChannelModule: KotaModule = {
     },
   },
 
-  channels: (ctx) => [makeSlackChannelDef(ctx)],
+  channels: (ctx: SlackChannelContext) => [makeSlackChannelDef(ctx)],
 
-  onLoad: (ctx) => {
+  onLoad: (ctx: SlackChannelContext) => {
     const config = getSlackChannelConfig(ctx);
     if (!config) {
       ctx.log.warn(
@@ -231,6 +231,6 @@ const slackChannelModule: KotaModule = {
       "slack-channel",
     );
   },
-};
+} satisfies KotaModule;
 
 export default slackChannelModule;

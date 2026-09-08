@@ -1,19 +1,8 @@
 import { afterEach, beforeEach, type Mock, vi } from "vitest";
 import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
-import type { AnswerClient } from "#modules/answer/client.js";
 import type { ApprovalsClient } from "#modules/approval-queue/client.js";
-import type { CaptureClient } from "#modules/capture/client.js";
-import type { HistoryClient } from "#modules/history/client.js";
-import type { KnowledgeClient } from "#modules/knowledge/client.js";
-import type { MemoryClient } from "#modules/memory/client.js";
-import type { RecallClient } from "#modules/recall/client.js";
-import type { RepoTasksClient } from "#modules/repo-tasks/client.js";
-import type { RetractClient } from "#modules/retract/client.js";
 import { SlackBot } from "./bot.js";
-import type {
-  AttentionSnapshotClient,
-  DigestSnapshotClient,
-} from "./commands.js";
+import type { SlackCommandClients } from "./commands.js";
 
 type SlackTransportMockInstance = {
   emit: Mock;
@@ -92,57 +81,16 @@ export function approvalProjection(id = "abc123") {
   };
 }
 
-export function makeStubClients(): {
-  recall: RecallClient;
-  answer: AnswerClient;
-  capture: CaptureClient;
-  retract: RetractClient;
-  memory: MemoryClient;
-  knowledge: KnowledgeClient;
-  history: HistoryClient;
-  tasks: RepoTasksClient;
-  attention: AttentionSnapshotClient;
-  digest: DigestSnapshotClient;
-  approvals: ApprovalsClient;
-} {
+export function makeStubClients(): SlackCommandClients & { approvals: ApprovalsClient } {
   return {
     recall: { recall: vi.fn() },
     answer: { answer: vi.fn(), log: vi.fn(), show: vi.fn() },
     capture: { capture: vi.fn() },
     retract: { retract: vi.fn() },
-    memory: {
-      list: vi.fn(),
-      add: vi.fn(),
-      delete: vi.fn(),
-      search: vi.fn(),
-      reindex: vi.fn(),
-    },
-    knowledge: {
-      list: vi.fn(),
-      show: vi.fn(),
-      search: vi.fn(),
-      add: vi.fn(),
-      delete: vi.fn(),
-      reindex: vi.fn(),
-    },
-    history: {
-      list: vi.fn(),
-      listDiscoveredScopeRecords: vi.fn(),
-      show: vi.fn(),
-      delete: vi.fn(),
-      search: vi.fn(),
-      reindex: vi.fn(),
-    },
-    tasks: {
-      list: vi.fn(),
-      show: vi.fn(),
-      move: vi.fn(),
-      updateBody: vi.fn(),
-      create: vi.fn(),
-      capture: vi.fn(),
-      search: vi.fn(),
-      reindex: vi.fn(),
-    },
+    memory: { search: vi.fn() },
+    knowledge: { search: vi.fn() },
+    history: { search: vi.fn() },
+    tasks: { search: vi.fn() },
     attention: { snapshot: vi.fn().mockReturnValue({ text: "" }) },
     digest: { snapshot: vi.fn().mockReturnValue({ text: "" }) },
     approvals: {
@@ -247,41 +195,4 @@ export function setupSlackBotTestHooks(): void {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
-}
-
-type SlackPostMessage = { channel?: string; text?: string };
-
-export function findPostMessage(channelId: string): SlackPostMessage | null {
-  const calls = mockedCallSlackApi.mock.calls.filter(
-    (call) => call[1] === "chat.postMessage" &&
-      (call[2] as { channel?: string }).channel === channelId,
-  );
-  const last = calls[calls.length - 1];
-  return last ? (last[2] as SlackPostMessage) : null;
-}
-
-export async function sendSlashAndAwait(
-  channelId: string,
-  text: string,
-  ws: MockWebSocket,
-  envelope: string,
-): Promise<SlackPostMessage> {
-  ws.simulateMessage({
-    type: "events_api",
-    envelope_id: envelope,
-    payload: {
-      team_id: "T-TEST",
-      event: {
-        type: "message",
-        text,
-        user: "U-SLASH",
-        channel: channelId,
-        channel_type: "im",
-      },
-    },
-  });
-  await vi.waitFor(() => {
-    if (!findPostMessage(channelId)) throw new Error("no chat.postMessage yet");
-  });
-  return findPostMessage(channelId)!;
 }

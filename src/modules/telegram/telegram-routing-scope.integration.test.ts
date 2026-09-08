@@ -8,9 +8,10 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { TelegramBot } from "./bot.js";
 import { callTelegramApi } from "./client.js";
-import telegramModule from "./index.js";
+import { loadTelegramModule } from "./notification-subscriptions.js";
+import { createTelegramRuntimeState } from "./runtime-state.js";
 import { TelegramScopeSelection } from "./scope-selection.js";
-import { startTelegramStatusPoll } from "./status-poll.js";
+import { handleTelegramStatusCommand } from "./status-commands.js";
 import {
   makeClient,
   makeSpies,
@@ -22,7 +23,7 @@ import {
   SCOPE_B,
 } from "./telegram-scope-daemon-test-support.integration.js";
 import {
-  makeCtx,
+  makeTelegramPorts,
   makeUpdate,
   sendBodies,
   waitFor,
@@ -87,47 +88,35 @@ describe("telegram scope integration", () => {
     const client = makeClient(spies);
     const selection = new TelegramScopeSelection(client, storage, []);
 
-    let firstPoll = true;
-    mockedCallTelegramApi.mockImplementation(async (_token, method) => {
-      if (method === "getUpdates") {
-        if (!firstPoll) return [];
-        firstPoll = false;
-        return [
-          makeUpdate(1, "/memory alpha"),
-          makeUpdate(2, "/scope scope-a"),
-          makeUpdate(3, "/memory alpha"),
-          makeUpdate(4, "/scope scope-b"),
-          makeUpdate(5, "/memory alpha"),
-          makeUpdate(6, "/capture-to-memory beta note"),
-          makeUpdate(7, "/retract-memory mem-b"),
-          makeUpdate(8, "/status"),
-        ];
-      }
-      return { message_id: 100 };
-    });
+    mockedCallTelegramApi.mockResolvedValue({ message_id: 100 });
     const statusInfo = makeStatusInfo();
-
-    const stopStatus = startTelegramStatusPoll(
-      "token",
-      "99",
-      SCOPE_A.scopeRoot,
-      () => ({
+    const defaultScope = {
+      ...client,
+      scopeRoot: SCOPE_A.scopeRoot,
+      getStatusInfo: () => ({
         ...statusInfo,
         runtimeState: { ...statusInfo.runtimeState, activeRuns: [] },
       }),
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      {} as never,
-      () => {},
-      { client, selection },
-    );
-    await waitFor(() => sendBodies().length >= 8);
-    stopStatus();
+    };
+    for (const text of [
+      "/memory alpha",
+      "/scope scope-a",
+      "/memory alpha",
+      "/scope scope-b",
+      "/memory alpha",
+      "/capture-to-memory beta note",
+      "/retract-memory mem-b",
+      "/status",
+    ]) {
+      expect(await handleTelegramStatusCommand({
+        token: "token",
+        messageChatId: 99,
+        text,
+        defaultScope,
+        scopeRouting: { client, selection },
+      })).toBe(true);
+    }
+    expect(sendBodies()).toHaveLength(8);
 
     const scopeASpies = spies.get(SCOPE_A.scopeId)!;
     const scopeBSpies = spies.get(SCOPE_B.scopeId)!;
@@ -144,7 +133,7 @@ describe("telegram scope integration", () => {
     });
     expect(scopeBSpies.retract).toHaveBeenCalledWith({
       target: "memory",
-      id: "mem-b",
+      identifier: "mem-b",
     });
     expect(scopeBSpies.workflowStatus).toHaveBeenCalledOnce();
     expect(scopeASpies.workflowStatus).not.toHaveBeenCalled();
@@ -168,9 +157,7 @@ describe("telegram scope integration", () => {
     process.env.TELEGRAM_BOT_TOKEN = "token";
     process.env.TELEGRAM_ALERT_CHAT_ID = "99";
     const bus = new EventBus();
-    const activation = await telegramModule.onLoad!(
-      makeCtx(bus, client, storage),
-    );
+    const dispose = loadTelegramModule(makeTelegramPorts(bus, client, storage), createTelegramRuntimeState());
     bus.emit("workflow.failure.alert", {
       scopeId: SCOPE_B.scopeId,
       workflow: "builder",
@@ -182,7 +169,7 @@ describe("telegram scope integration", () => {
     });
     await waitFor(() => sendBodies().length === 1);
     expect(sendBodies()[0]?.text).toBe("[Scope B] Workflow failed: *builder*");
-    await activation?.dispose();
+    dispose();
 
     mockedCallTelegramApi.mockClear();
     let bot: TelegramBot;

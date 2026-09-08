@@ -11,7 +11,7 @@ export type WebhookSession = {
 export type WebhookSessionFactory = (options: {
   label: string;
   autonomyMode: AutonomyMode;
-  ctx: ModuleContext;
+  ctx: Pick<ModuleContext, "config" | "createSession">;
 }) => Pick<WebhookSession, "send" | "close">;
 
 export const directSessions = new Map<string, WebhookSession>();
@@ -29,7 +29,7 @@ export function createAgentSession({
 }: {
   label: string;
   autonomyMode: AutonomyMode;
-  ctx: ModuleContext;
+  ctx: Pick<ModuleContext, "config" | "createSession">;
 }): Pick<WebhookSession, "send" | "close"> {
   const agent = ctx.createSession({
     autonomyMode,

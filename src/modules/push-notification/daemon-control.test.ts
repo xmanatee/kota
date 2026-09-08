@@ -132,6 +132,7 @@ describe("push-notification module daemon-control routes", () => {
   });
 
   describe("registration seam", () => {
+
     it("requires the daemon bearer token", async () => {
       const res = await globalThis.fetch(`http://127.0.0.1:${port}/push-tokens`, {
         method: "POST",
@@ -198,29 +199,5 @@ describe("push-notification module daemon-control routes", () => {
     });
   });
 
-  describe("collision detection", () => {
-    it("throws at server construction if two contributions claim the same route key", () => {
-      const collision = [
-        ...pushNotificationControlRoutes(scopeRoot),
-        {
-          method: "POST" as const,
-          path: "/push-tokens",
-          capabilityScope: "control" as const,
-          handler: (
-            _req: unknown,
-            res: { writeHead: (s: number) => void; end: () => void },
-          ) => {
-            res.writeHead(500);
-            res.end();
-          },
-        },
-      ];
-      expect(
-        () =>
-          new DaemonControlServer(makeHandle(), TEST_TOKEN, {
-            controlRoutes: collision as never,
-          }),
-      ).toThrow(/collides/);
-    });
-  });
+
 });

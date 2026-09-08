@@ -1,8 +1,8 @@
 import { vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import type { SlackChannelContext } from "./channel.js";
 import type { SlackChannelConfig } from "./config.js";
 
 export const STUB_CHANNEL_START_CTX = {
@@ -35,8 +35,8 @@ export const STUB_CHANNEL_START_CTX = {
 export function makeSlackChannelModuleTestContext(
   bus?: EventBus,
   moduleConfig?: Partial<SlackChannelConfig>,
-  kotaConfig?: ModuleRuntimeContext["config"],
-): ModuleRuntimeContext {
+  kotaConfig?: SlackChannelContext["config"],
+): SlackChannelContext {
 	const eventBus = bus ?? new EventBus();
 	const approvals = {
 		list: vi.fn(async () => ({
@@ -61,17 +61,8 @@ export function makeSlackChannelModuleTestContext(
 		reject: vi.fn(),
 	};
 	return {
-    cwd: "/tmp",
-    verbose: false,
-    config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"]),
+    config: kotaConfig ?? ({ serve: { defaultAutonomyMode: "supervised" } } as SlackChannelContext["config"]),
     storage: new ModuleStorage("/tmp/test", "slack-channel"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
     getModuleConfig: () => moduleConfig as never,
     log: Object.assign(() => {}, {
       info: () => {},
@@ -80,21 +71,7 @@ export function makeSlackChannelModuleTestContext(
       debug: () => {},
     }),
     getSecret: vi.fn(() => null),
-    listTools: () => [],
     events: makeStubEventProxy(eventBus),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
 		client: {
       recall: {},
       answer: {},

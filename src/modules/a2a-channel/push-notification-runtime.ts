@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import type { ModuleContext } from "#core/modules/module-types.js";
 import type { OutboundHttpTransport } from "#core/outbound-http/index.js";
 import { getDaemonTransport } from "#core/server/daemon-transport.js";
+import type { A2AContext } from "./context.js";
 import {
   type A2ABackend,
   DaemonA2ABackend,
@@ -17,7 +17,7 @@ export type A2ARouteOptions = {
 const sharedPushNotificationManagers = new Map<string, A2APushNotificationManager>();
 
 export function backendFactoryFor(
-  ctx: ModuleContext,
+  ctx: A2AContext,
   options: A2ARouteOptions,
 ): () => A2ABackend | null {
   return options.backendFactory ?? (() => {
@@ -27,7 +27,7 @@ export function backendFactoryFor(
 }
 
 export function pushNotificationManagerFor(
-  ctx: ModuleContext,
+  ctx: A2AContext,
   options: A2ARouteOptions,
 ): A2APushNotificationManager {
   if (options.pushNotifications) return options.pushNotifications;
@@ -52,7 +52,7 @@ export function pushNotificationManagerFor(
 }
 
 export function resumeStoredA2APushNotificationSubscriptions(
-  ctx: ModuleContext,
+  ctx: A2AContext,
   options: A2ARouteOptions = {},
 ): void {
   const pushNotifications = pushNotificationManagerFor(ctx, options);

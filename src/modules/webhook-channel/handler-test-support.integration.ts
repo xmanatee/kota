@@ -3,11 +3,11 @@ import { EventEmitter } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import {
   makeWebhookChannelHandler,
+  type WebhookChannelConfig,
+  type WebhookHandlerContext,
   type WebhookSessionFactory,
 } from "./handler.js";
 
@@ -31,48 +31,15 @@ export function makeSessionFactory(
 
 export function makeStubCtx(
   bus?: EventBus,
-  moduleConfig?: Record<string, unknown>,
-): ModuleRuntimeContext {
+  moduleConfig?: WebhookChannelConfig,
+): WebhookHandlerContext & { getModuleConfig: () => WebhookChannelConfig } {
   const resolvedBus = bus ?? new EventBus();
   return {
-    cwd: "/tmp/test",
-    verbose: false,
-    config: { serve: { defaultAutonomyMode: "supervised" } } as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage("/tmp/test", "webhook-channel"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => moduleConfig as never,
-    log: Object.assign(() => {}, {
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-      debug: () => {},
-    }),
-    getSecret: () => null,
-    listTools: () => [],
+    config: { serve: { defaultAutonomyMode: "supervised" } },
+    getModuleConfig: () => moduleConfig ?? {},
+    createSession: () => { throw new Error("Declare the agent session port for this scenario"); },
+    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     events: makeStubEventProxy(resolvedBus),
-    createSession: vi.fn(() => ({
-      send: vi.fn(async () => "agent response text"),
-      close: vi.fn(),
-    })),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
   };
 }
 
@@ -123,7 +90,7 @@ export function sign(secret: string, body: string): string {
 }
 
 export async function invokeHandler(
-  ctx: ModuleRuntimeContext,
+  ctx: ReturnType<typeof makeStubCtx>,
   body: string,
   headers: Record<string, string> = {},
   url?: string,

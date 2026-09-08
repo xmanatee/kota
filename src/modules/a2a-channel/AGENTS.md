@@ -15,7 +15,12 @@ This module owns KOTA's Agent2Agent HTTP surface.
 - The public Agent Card must advertise only stable, non-sensitive capability
   metadata. Put token-bearing or deployment-sensitive details only behind
   bearer-protected `/api/a2a/*` routes.
-- Advertise only implemented capabilities. Push notifications stay disabled
-  until callback authentication, persistence, and unsubscribe behavior exist.
+- Advertise only implemented capabilities. Push callback authentication,
+  persistence and unsubscribe behavior belong to this adapter.
 - Never expose internal reasoning traces, raw tool state, system prompts,
   workflow run internals, memory internals, or raw `.kota/` files through A2A.
+
+Protocol fixtures replace the daemon backend and outbound callback ports. HTTP
+scenarios use the production server request handler for routing and authorization;
+never recreate the host's bearer-token gate in a channel fixture. A2A task frames
+are projections of daemon sessions, not a second task lifecycle.

@@ -5,7 +5,6 @@ import type {
   CapabilityReadinessSource,
 } from "#core/daemon/capability-readiness.js";
 import { checkPresetAuth } from "#core/model/preset.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
 import type { ModuleSetupRequirement } from "#core/modules/setup-requirements.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { moduleOperationHealthPattern } from "#modules/autonomy/autonomy-issue-module-failure.js";
@@ -23,6 +22,7 @@ import {
   resolveTelegramInteractiveBackend,
 } from "./backend.js";
 import type { TelegramInboundSignalConfig } from "./inbound-signal.js";
+import type { TelegramRuntimePorts } from "./runtime-ports.js";
 import type { TelegramChatScopeBinding } from "./scope-selection.js";
 
 export type TelegramConfig = {
@@ -79,7 +79,7 @@ export const telegramSetupRequirements: ModuleSetupRequirement[] = [
 ];
 
 export function getCredentials(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
 ): { token: string; chatId: string } | null {
   const token = ctx.getSecret("TELEGRAM_BOT_TOKEN");
   const chatId = ctx.getSecret("TELEGRAM_ALERT_CHAT_ID");
@@ -88,7 +88,7 @@ export function getCredentials(
 }
 
 export function telegramInteractiveProviderError(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
   model: string,
   explicitProvider?: {
     provider?: string;
@@ -110,7 +110,7 @@ export function telegramInteractiveProviderError(
 }
 
 export function telegramInteractiveBackendReadiness(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
 ): CapabilityReadiness {
   const telegramConfig = ctx.getModuleConfig<TelegramConfig>();
   let autonomyMode: AutonomyMode;
@@ -173,7 +173,7 @@ export function telegramInteractiveBackendReadiness(
 }
 
 export function createTelegramReadinessSource(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
 ): CapabilityReadinessSource {
   return {
     moduleName: "telegram",
@@ -182,7 +182,7 @@ export function createTelegramReadinessSource(
 }
 
 export function emitTelegramPollConflictHealthSignal(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
   scopeId: string,
   reportedPollConflicts: Set<string>,
 ): void {
@@ -228,7 +228,7 @@ export function emitTelegramPollConflictHealthSignal(
 }
 
 export function reportTelegramPollRecovered(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
   scopeId: string,
   reportedPollConflicts: Set<string>,
 ): void {
@@ -242,7 +242,7 @@ export function reportTelegramPollRecovered(
 }
 
 export function telegramInteractiveBackendError(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
   autonomyMode: AutonomyMode,
 ): string | null {
   const backend = resolveTelegramInteractiveBackend(ctx.config);

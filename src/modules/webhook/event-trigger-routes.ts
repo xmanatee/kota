@@ -22,7 +22,11 @@ import {
   normalizeInboundSignalInput,
 } from "#modules/inbound-signals/events.js";
 
-function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
+type EventTriggerPorts = Pick<ModuleContext, "cwd"> & {
+  events: Pick<ModuleContext["events"], "emit" | "emitExternal" | "listenerCount">;
+};
+
+function makeEventTriggerHandler(ctx: EventTriggerPorts): ModuleRouteHandler {
   return async (req, res, params) => {
     const rawName = params.name;
     if (!rawName || /%(?![0-9A-Fa-f]{2})/.test(rawName)) {
@@ -79,7 +83,7 @@ function makeEventTriggerHandler(ctx: ModuleContext): ModuleRouteHandler {
   };
 }
 
-export function eventTriggerRoutes(ctx: ModuleContext): RouteRegistration[] {
+export function eventTriggerRoutes(ctx: EventTriggerPorts): RouteRegistration[] {
   return [
     {
       method: "POST",

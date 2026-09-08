@@ -65,6 +65,8 @@ notification forwarding.
   loader host that created them.
 - Bind each approval button to its chat/message, approval id, and review digest;
   never let reused short ids reactivate stale buttons.
+- Owner-question answer and dismiss callbacks require the stored chat/message
+  binding before accessing either the scoped client or the local queue.
 - Interactive sessions use configured autonomy explicitly. Missing
   session-autonomy config is a startup error, not a hidden fallback.
 - Interactive harness sessions own one scope-scoped tool-runtime identity
@@ -141,3 +143,17 @@ older long polls when more than one consumer uses the same bot token.
 A reproducible Linux deploy artifact lives in `deploy/telegram-assistant/`.
 It packages docker-compose and systemd paths behind `install.sh` and
 `rollback.sh`; keep `deploy-artifact.test.ts` aligned with that contract.
+
+## Verification ownership
+
+Notification tests use the adapter's credential, event, scope and client ports;
+provider-shaped Bot API messages prove delivery and callback binding. Keep
+command checks for parsing, chat/scope admission and Telegram output limits.
+Exercise command delivery through the production command handler; polling checks
+must drive the interactive bot's live update stream, not the standalone status poller.
+Domain result matrices, scheduler transitions and inbound routing decisions stay
+with their shared owners. Retain daemon journeys only for distinct channel
+composition behavior, using the production channel and client namespace handlers.
+Scope fixtures supply the production adapter ports and use the provider registry;
+they do not fabricate module lifecycle, tool execution, or session creation.
+Do not recreate domain HTTP routes or client transport encoders in channel fixtures.

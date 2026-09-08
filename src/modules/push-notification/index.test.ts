@@ -5,47 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import pushNotificationModule from "./index.js";
 
 const REGISTERED_TOKEN = "ExponentPushToken[aaa]";
-
-function makeStubCtx(cwd: string, bus: EventBus): ModuleRuntimeContext {
-  return {
-    cwd,
-    verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage(cwd, "push-notification"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => undefined,
-    log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
-    events: makeStubEventProxy(bus),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
-  };
-}
 
 describe("pushNotificationModule bus subscriptions", () => {
   let scopeRoot: string;
@@ -75,8 +38,11 @@ describe("pushNotificationModule bus subscriptions", () => {
     globalThis.fetch = fetchMock as unknown as typeof globalThis.fetch;
 
     bus = new EventBus();
-    const activation = await pushNotificationModule.onLoad!(makeStubCtx(scopeRoot, bus));
-    dispose = activation?.dispose ?? (() => undefined);
+    const loader = new ModuleLoader({});
+    loader.setCwd(scopeRoot);
+    loader.setBus(bus);
+    await loader.load(pushNotificationModule);
+    dispose = () => loader.unloadAll();
   });
 
   afterEach(async () => {
@@ -153,8 +119,8 @@ describe("pushNotificationModule bus subscriptions", () => {
     });
   });
 
-  it("releases every subscription on unload", () => {
-    dispose();
+  it("releases every subscription on unload", async () => {
+    await dispose();
     expect(bus.listenerCount("approval.requested")).toBe(0);
     expect(bus.listenerCount("workflow.daily.digest")).toBe(0);
     expect(bus.listenerCount("workflow.attention.digest")).toBe(0);

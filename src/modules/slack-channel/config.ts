@@ -13,7 +13,7 @@ export type SlackChannelConfig = {
 	inboundSignals?: SlackChannelInboundSignalConfig;
 };
 
-export function getSlackChannelConfig(ctx: ModuleContext): SlackChannelConfig | null {
+export function getSlackChannelConfig(ctx: Pick<ModuleContext, "getModuleConfig" | "getSecret">): SlackChannelConfig | null {
 	const config = ctx.getModuleConfig<SlackChannelConfig>();
 	if (!config?.botToken || !config?.appToken) return null;
 	const botToken = resolveSecretReference(config.botToken, ctx.getSecret);

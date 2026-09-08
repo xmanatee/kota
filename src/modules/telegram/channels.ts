@@ -17,6 +17,7 @@ import {
   type TelegramConfig,
   telegramInteractiveBackendError,
 } from "./readiness.js";
+import type { TelegramRuntimePorts } from "./runtime-ports.js";
 import type { TelegramRuntimeState } from "./runtime-state.js";
 import {
   resolveTelegramScopeRouting,
@@ -30,7 +31,7 @@ import {
 } from "./status-poll.js";
 
 export function makeTelegramStatusChannel(
-  moduleCtx: ModuleContext,
+  moduleCtx: TelegramRuntimePorts,
 ): ChannelDef {
   return {
     name: "telegram-status",
@@ -66,7 +67,7 @@ export function makeTelegramStatusChannel(
 }
 
 export function makeTelegramInteractiveChannel(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts & Pick<ModuleContext, "verbose">,
   chatScopeBindings: TelegramChatScopeBinding[],
   runtimeState: TelegramRuntimeState,
   http: OutboundHttpRequestPort = outboundHttp,

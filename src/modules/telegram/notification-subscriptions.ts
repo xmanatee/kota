@@ -15,6 +15,7 @@ import {
   getCredentials,
   type TelegramConfig,
 } from "./readiness.js";
+import type { TelegramRuntimePorts } from "./runtime-ports.js";
 import type { TelegramRuntimeState } from "./runtime-state.js";
 import {
   resolveTelegramScopeRouting,
@@ -22,7 +23,7 @@ import {
 } from "./scope-routing.js";
 
 export function loadTelegramModule(
-  ctx: ModuleRuntimeContext,
+  ctx: TelegramRuntimePorts & Pick<ModuleRuntimeContext, "registerProvider">,
   runtimeState: TelegramRuntimeState,
 ): () => void {
   ctx.registerProvider(

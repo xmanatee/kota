@@ -55,7 +55,15 @@ secret store through `$SLACK_BOT_TOKEN` and `$SLACK_APP_TOKEN` config references
 ## Boundaries
 
 - Does not own the one-way Slack webhook notification path (that lives in `../slack/`).
-- Does not own the approval queue itself (`src/modules/approval-queue/queue.ts`).
+- Does not own the approval queue itself (`src/core/daemon/approval-queue.ts`).
 - Does not add HTTP routes — all inbound traffic comes through Socket Mode WebSocket.
 - Does not plan or classify chat-origin automation locally; it only normalizes
   configured updates into the shared inbound-signals dispatcher path.
+
+## Verification ownership
+
+Command tests exercise the production dispatcher through its narrow client ports.
+Keep Socket Mode scenarios for workspace/user admission, callback binding, session
+routing and connection behavior. Result variants and plain-text domain rendering
+belong to the corresponding client module; shared HTTP retries belong to
+`notification`. Do not start a socket/session fixture for each command result.

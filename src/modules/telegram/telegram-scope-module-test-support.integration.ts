@@ -6,14 +6,15 @@ import {
 } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
   getProviderRegistry,
   initProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { makeTelegramInteractiveChannel } from "./channels.js";
 import { callTelegramApi } from "./client.js";
+import type { loadTelegramModule } from "./notification-subscriptions.js";
 import {
   SCOPE_A,
   SCOPE_B,
@@ -89,26 +90,22 @@ export async function waitFor(
   throw new Error("Timed out waiting for condition");
 }
 
-export function makeCtx(
+type TelegramScopePorts = Parameters<typeof makeTelegramInteractiveChannel>[0] &
+  Parameters<typeof loadTelegramModule>[0];
+
+export function makeTelegramPorts(
   bus: EventBus,
   client: KotaClient,
   storage: ModuleStorage,
-): ModuleRuntimeContext {
+): TelegramScopePorts {
   return {
     cwd: SCOPE_A.scopeRoot,
     verbose: false,
     config: {
       model: "claude-sonnet-4-6",
       modelProvider: { type: "anthropic", apiKey: "sk-test" },
-    } as ModuleRuntimeContext["config"],
+    },
     storage,
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-    getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
     getModuleConfig: () => undefined,
     log: {
       info: () => {},
@@ -117,21 +114,12 @@ export function makeCtx(
       debug: () => {},
     },
     getSecret: (key) => process.env[key] ?? null,
-    listTools: () => [],
     events: makeStubEventProxy(bus),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
+    registerProvider: (token, provider) => {
+      const registry = getProviderRegistry() ?? initProviderRegistry();
+      registry.register(token, "telegram", provider);
+    },
     getProvider: (token) => getProviderRegistry()?.get(token) ?? null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
     client,
   };
 }

@@ -21,7 +21,6 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type {
   KotaModule,
   ModuleContext,
-  ModuleRuntimeContext,
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
@@ -35,6 +34,8 @@ import {
 import { githubIssueCommentMentionToInboundSignal } from "./inbound-signal.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
+
+type GitHubWebhookContext = Pick<ModuleContext, "cwd" | "getModuleConfig" | "events" | "log">;
 
 type GitHubWebhookConfig = {
   /** Webhook secret or "$ENV_VAR" reference. Required. */
@@ -440,7 +441,7 @@ function makeWebhookHandler(
   enabledEvents: Set<string>,
   issueCommentConfig: IssueCommentConfig | undefined,
   actorIntegrityConfig: ActorIntegrityConfig | undefined,
-  ctx: ModuleContext,
+  ctx: GitHubWebhookContext,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
   return async (req, res) => {
     const signature = req.headers["x-hub-signature-256"];
@@ -562,14 +563,14 @@ function makeWebhookHandler(
 
 // ─── Module ───────────────────────────────────────────────────────────────
 
-function resolveActiveSecret(ctx: ModuleContext): string | null {
+function resolveActiveSecret(ctx: GitHubWebhookContext): string | null {
   const config = ctx.getModuleConfig<GitHubWebhookConfig>();
   if (!config?.secret) return null;
   const secret = resolveSecret(config.secret);
   return secret || null;
 }
 
-const githubWebhookModule: KotaModule = {
+const githubWebhookModule = {
   name: "github-webhook",
   version: "1.0.0",
   description:
@@ -577,7 +578,7 @@ const githubWebhookModule: KotaModule = {
   dependencies: ["inbound-signals"],
   events: [githubPullRequestEvent],
 
-  routes: (ctx: ModuleContext): RouteRegistration[] => {
+  routes: (ctx: GitHubWebhookContext): RouteRegistration[] => {
     const secret = resolveActiveSecret(ctx);
     if (!secret) return [];
 
@@ -600,7 +601,7 @@ const githubWebhookModule: KotaModule = {
     ];
   },
 
-  onLoad: (ctx: ModuleRuntimeContext) => {
+  onLoad: (ctx: GitHubWebhookContext) => {
     const config = ctx.getModuleConfig<GitHubWebhookConfig>();
     if (!config?.secret) {
       ctx.log.warn(
@@ -615,6 +616,6 @@ const githubWebhookModule: KotaModule = {
       );
     }
   },
-};
+} satisfies KotaModule;
 
 export default githubWebhookModule;

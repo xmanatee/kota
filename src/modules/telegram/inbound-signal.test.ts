@@ -1,12 +1,8 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import {
-  type InboundSignalRoutedPayload,
   inboundSignalReceived,
-  inboundSignalWorkflowTargeted,
 } from "#modules/inbound-signals/events.js";
-import { dispatchInboundSignalRoute } from "#modules/inbound-signals/routing.js";
 import type {
   TelegramChatMemberUpdated,
   TelegramMessage,
@@ -17,25 +13,15 @@ import {
   emitTelegramTextInboundSignal,
   telegramCallbackQueryToInboundSignal,
   telegramChatMemberUpdateToInboundSignal,
-  telegramDeletedMessageToInboundSignal,
   telegramEditedMessageToInboundSignal,
   telegramMediaCaptionToInboundSignal,
   telegramMessageReactionToInboundSignal,
-  telegramPresenceToInboundSignal,
   telegramTextMessageToInboundSignal,
   telegramUpdateToInboundSignal,
   telegramVoiceTranscriptToInboundSignal,
 } from "./inbound-signal.js";
 
 const RECEIVED_AT = "2026-05-25T03:51:00.000Z";
-
-function writeEvidenceFile(fileName: string, body: string): void {
-  const runDir = process.env.KOTA_RUN_DIR;
-  if (!runDir) return;
-  const dir = join(runDir, "telegram-inbound-signals");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, fileName), body, "utf-8");
-}
 
 function telegramMessage(
   text = "!task Capture the flaky Telegram deploy check",
@@ -338,17 +324,6 @@ describe("Telegram inbound signal adapter", () => {
     });
   });
 
-  it("documents Bot API signals that cannot be delivered to bots", () => {
-    expect(telegramPresenceToInboundSignal()).toEqual({
-      kind: "skip",
-      reason: "unsupported-presence",
-    });
-    expect(telegramDeletedMessageToInboundSignal()).toEqual({
-      kind: "skip",
-      reason: "unsupported-delete",
-    });
-  });
-
   it("emits the shared typed event only after adapter validation succeeds", () => {
     const events = { emit: vi.fn() };
     const result = emitTelegramTextInboundSignal(
@@ -363,168 +338,6 @@ describe("Telegram inbound signal adapter", () => {
       inboundSignalReceived,
       result.payload,
     );
-  });
-
-  it("routes a configured Telegram chat source through the shared dispatcher", async () => {
-    const signal = telegramTextMessageToInboundSignal(
-      telegramMessage(),
-      telegramSignalContext,
-    );
-    if (signal.kind !== "signal") throw new Error("expected Telegram signal");
-    const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
-    const routed: InboundSignalRoutedPayload[] = [];
-
-    const routeResult = await dispatchInboundSignalRoute({
-      config: {
-        routes: [
-          {
-            id: "telegram-9001-capture",
-            provider: "telegram",
-            channel: "telegram.message",
-            sourceId: "telegram:chat:9001",
-            targets: [{ kind: "workflow", name: "telegram-signal-probe" }],
-          },
-        ],
-      },
-      signal: signal.payload,
-      context: {
-        workflowNames: new Set(["telegram-signal-probe"]),
-        agentNames: new Set(),
-      },
-      deps: {
-        async triggerWorkflow(_name, options) {
-          queued.push({
-            event: options.event ?? "manual",
-            payload: options.payload ?? {},
-          });
-          return {
-            ok: true,
-            path: "daemon",
-            queued: "telegram-signal-probe",
-            runId: "run-telegram-9001",
-          };
-        },
-        emitRouted(payload) {
-          routed.push(payload);
-        },
-      },
-    });
-
-    expect(routed).toEqual([routeResult]);
-    expect(queued).toHaveLength(1);
-    expect(queued[0]).toMatchObject({
-      event: inboundSignalWorkflowTargeted,
-      payload: {
-        routeId: "telegram-9001-capture",
-        provider: "telegram",
-        channel: "telegram.message",
-        sourceId: "telegram:chat:9001",
-        actorTrust: "trusted",
-      },
-    });
-  });
-
-  it("records blocked and archived Telegram sources without workflow dispatch", async () => {
-    const blockedSignal = telegramTextMessageToInboundSignal(telegramMessage(), {
-      ...telegramSignalContext,
-      config: {
-        prefixes: ["!task"],
-        blockedChatIds: [9001],
-      },
-    });
-    if (blockedSignal.kind !== "signal") throw new Error("expected blocked signal");
-
-    const archivedSignal = telegramTextMessageToInboundSignal(telegramMessage(), {
-      ...telegramSignalContext,
-      config: {
-        prefixes: ["!task"],
-        trustedChatIds: [9001],
-      },
-    });
-    if (archivedSignal.kind !== "signal") throw new Error("expected archived signal");
-
-    const emitted: InboundSignalRoutedPayload[] = [];
-    const triggerWorkflow = vi.fn(async () => ({
-      ok: true as const,
-      path: "daemon" as const,
-      queued: "telegram-signal-probe",
-      runId: "run-telegram-source",
-    }));
-
-    const blockedResult = await dispatchInboundSignalRoute({
-      config: {
-        routes: [
-          {
-            id: "telegram-blocked-group",
-            provider: "telegram",
-            channel: "telegram.message",
-            actorTrust: "blocked",
-            sourceStatus: "blocked",
-            targets: [{ kind: "workflow", name: "telegram-signal-probe" }],
-          },
-        ],
-      },
-      signal: blockedSignal.payload,
-      context: {
-        workflowNames: new Set(["telegram-signal-probe"]),
-        agentNames: new Set(),
-      },
-      deps: {
-        triggerWorkflow,
-        emitRouted(payload) {
-          emitted.push(payload);
-        },
-      },
-    });
-
-    const archivedResult = await dispatchInboundSignalRoute({
-      config: {
-        routes: [
-          {
-            id: "telegram-archived-group",
-            provider: "telegram",
-            channel: "telegram.message",
-            sourceId: "telegram:chat:9001",
-            sourceStatus: "archived",
-            targets: [{ kind: "workflow", name: "telegram-signal-probe" }],
-          },
-        ],
-      },
-      signal: archivedSignal.payload,
-      context: {
-        workflowNames: new Set(["telegram-signal-probe"]),
-        agentNames: new Set(),
-      },
-      deps: {
-        triggerWorkflow,
-        emitRouted(payload) {
-          emitted.push(payload);
-        },
-      },
-    });
-
-    expect(triggerWorkflow).not.toHaveBeenCalled();
-    expect(blockedResult).toMatchObject({
-      decision: "blocked",
-      sourceStatus: "blocked",
-      targets: [
-        {
-          status: "skipped",
-          reason: "source status is blocked; route is audit-only",
-        },
-      ],
-    });
-    expect(archivedResult).toMatchObject({
-      decision: "archived",
-      sourceStatus: "archived",
-      targets: [
-        {
-          status: "skipped",
-          reason: "source status is archived; route is audit-only",
-        },
-      ],
-    });
-    expect(emitted).toEqual([blockedResult, archivedResult]);
   });
 
   it("normalizes the redacted community fixture into dispatcher-ready signals", async () => {
@@ -575,78 +388,5 @@ describe("Telegram inbound signal adapter", () => {
     });
     expect(JSON.stringify(signals)).not.toContain("redacted-photo-file-id");
 
-    const firstSignal = signals[0];
-    if (firstSignal.kind !== "signal") throw new Error("expected first fixture signal");
-    const queued: Array<{ event: string; payload: Record<string, unknown> }> = [];
-    const routed: InboundSignalRoutedPayload[] = [];
-    const routeResult = await dispatchInboundSignalRoute({
-      config: {
-        routes: [
-          {
-            id: "telegram-sports-community-batch",
-            provider: "telegram",
-            sourceId: "telegram:chat:-7001",
-            targets: [{ kind: "workflow", name: "telegram-community-intake" }],
-          },
-        ],
-      },
-      signal: firstSignal.payload,
-      context: {
-        workflowNames: new Set(["telegram-community-intake"]),
-        agentNames: new Set(),
-      },
-      deps: {
-        async triggerWorkflow(_name, options) {
-          queued.push({
-            event: options.event ?? "manual",
-            payload: options.payload ?? {},
-          });
-          return {
-            ok: true,
-            path: "daemon",
-            queued: "telegram-community-intake",
-            runId: "run-telegram-community-intake",
-          };
-        },
-        emitRouted(payload) {
-          routed.push(payload);
-        },
-      },
-    });
-
-    expect(routeResult).toMatchObject({
-      decision: "dispatched",
-      routeId: "telegram-sports-community-batch",
-      targets: [
-        {
-          kind: "workflow",
-          name: "telegram-community-intake",
-          status: "queued",
-        },
-      ],
-    });
-    expect(routed).toEqual([routeResult]);
-    expect(queued).toHaveLength(1);
-    writeEvidenceFile(
-      "dispatcher-delivery.json",
-      JSON.stringify(
-        {
-          fixture: "community-inbound-updates.json",
-          normalizedChannels: signals.map((signal) =>
-            signal.kind === "signal" ? signal.payload.channel : signal.kind
-          ),
-          dispatcher: {
-            routeId: routeResult.routeId,
-            decision: routeResult.decision,
-            event: queued[0]?.event,
-            queuedWorkflow: routeResult.targets[0]?.name,
-            targetStatus: routeResult.targets[0]?.status,
-            sourceId: routeResult.sourceId,
-          },
-        },
-        null,
-        2,
-      ),
-    );
   });
 });

@@ -22,7 +22,7 @@
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import type { BusEvents } from "#core/events/event-bus.js";
-import type { KotaModule } from "#core/modules/module-types.js";
+import type { KotaModule, ModuleContext } from "#core/modules/module-types.js";
 import { type OutboundHttpRequestPort, outboundHttp } from "#core/outbound-http/index.js";
 import { WORKFLOW_DEFINITIONS_PROVIDER_TYPE } from "#core/workflow/workflow-definitions-provider.js";
 import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
@@ -61,7 +61,7 @@ type WebhookConfig = {
 
 export function createWebhookModule(
   http: OutboundHttpRequestPort = outboundHttp,
-): KotaModule {
+) {
   return {
   name: "webhook",
   version: "1.0.0",
@@ -70,7 +70,7 @@ export function createWebhookModule(
   dependencies: ["inbound-signals", "notification", "rendering"],
   configSlices: [webhookConfigSlice],
 
-  onLoad: (ctx) => {
+  onLoad: (ctx: Pick<ModuleContext, "getModuleConfig" | "events" | "log">) => {
     const config = ctx.getModuleConfig<WebhookConfig>();
     if (!config?.urls?.length) return;
 
@@ -141,7 +141,7 @@ export function createWebhookModule(
     };
     return { webhook };
   },
-  };
+  } satisfies KotaModule;
 }
 
 export default createWebhookModule();

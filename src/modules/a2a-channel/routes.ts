@@ -1,8 +1,9 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ModuleContext, RouteRegistration } from "#core/modules/module-types.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
 import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody, setCors } from "#core/server/session-pool.js";
 import { buildAgentCard } from "./agent-card.js";
+import type { A2AContext } from "./context.js";
 import type { A2ABackend } from "./daemon-session-client.js";
 import {
   A2A_EXTENDED_CARD_PATH,
@@ -47,7 +48,7 @@ export {
   stopSharedA2APushNotificationManagers,
 } from "./push-notification-runtime.js";
 
-export function a2aRoutes(ctx: ModuleContext, options: A2ARouteOptions = {}): RouteRegistration[] {
+export function a2aRoutes(ctx: A2AContext, options: A2ARouteOptions = {}): RouteRegistration[] {
   const backendFactory = backendFactoryFor(ctx, options);
   const pushNotifications = pushNotificationManagerFor(ctx, options);
   return [
@@ -72,7 +73,7 @@ export function a2aRoutes(ctx: ModuleContext, options: A2ARouteOptions = {}): Ro
 }
 
 function handleAgentCard(
-  ctx: ModuleContext,
+  ctx: A2AContext,
   req: IncomingMessage,
   res: ServerResponse,
   extended: boolean,

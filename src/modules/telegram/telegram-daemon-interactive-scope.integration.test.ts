@@ -11,14 +11,15 @@ import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
+import { makeTelegramInteractiveChannel } from "./channels.js";
 import { callTelegramApi } from "./client.js";
-import telegramModule from "./index.js";
+import { createTelegramRuntimeState } from "./runtime-state.js";
 import {
   buildDaemonScopeClient,
   readControlAddress,
 } from "./telegram-scope-daemon-test-support.integration.js";
 import {
-  makeCtx,
+  makeTelegramPorts,
   makeUpdate,
   sendBodies,
   waitFor,
@@ -93,7 +94,7 @@ describe("telegram scope integration", () => {
     process.env.TELEGRAM_ALERT_CHAT_ID = "99";
     let clientRef: KotaClient | null = null;
     const bus = new EventBus();
-    const ctx = makeCtx(
+    const ctx = makeTelegramPorts(
       bus,
       createKotaClientTestDouble(),
       new ModuleStorage(dir, "telegram"),
@@ -107,13 +108,7 @@ describe("telegram scope integration", () => {
     ctx.getModuleConfig = () =>
       ({ defaultAutonomyMode: "supervised" }) as never;
 
-    if (typeof telegramModule.channels !== "function") {
-      throw new Error("expected telegramModule.channels to be a factory");
-    }
-    const resolved = telegramModule.channels(ctx);
-    const channels = Array.isArray(resolved) ? resolved : await resolved;
-    const interactive = channels.find((c) => c.name === "telegram-interactive");
-    if (!interactive) throw new Error("telegram-interactive channel missing");
+    const interactive = makeTelegramInteractiveChannel(ctx, [], createTelegramRuntimeState());
     const wrappedInteractive: ChannelDef = {
       ...interactive,
       create(channelCtx) {

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChannelStartContext } from "#core/channels/channel.js";
 import { EventBus } from "#core/events/event-bus.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { resolveModuleChannels } from "#core/modules/module-types.js";
+import type { SlackChannelContext } from "./channel.js";
 
 vi.mock("./bot.js", () => {
   const SlackBot = vi.fn(function (this: Record<string, unknown>) {
@@ -38,13 +37,13 @@ const CHANNEL_START_CTX: ChannelStartContext = {
   }),
 };
 
-async function resolveStartResult(ctx: ModuleRuntimeContext) {
-  const channels = await resolveModuleChannels(slackChannelModule, ctx);
+async function resolveStartResult(ctx: SlackChannelContext) {
+  const channels = slackChannelModule.channels(ctx);
   const def = channels[0];
   return def.create(CHANNEL_START_CTX);
 }
 
-async function resolveAdapter(ctx: ModuleRuntimeContext) {
+async function resolveAdapter(ctx: SlackChannelContext) {
   const result = await resolveStartResult(ctx);
   return result.status === "started" ? result.adapter : null;
 }
@@ -57,7 +56,7 @@ describe("slackChannelModule channel adapter", () => {
   it("create returns disabled result and logs when config is missing", async () => {
     const logFn = vi.fn();
     const ctx = makeStubCtx(undefined, undefined);
-    const channels = await resolveModuleChannels(slackChannelModule, ctx);
+    const channels = slackChannelModule.channels(ctx);
     const result = channels[0].create({
       ...CHANNEL_START_CTX,
       log: logFn,
@@ -131,7 +130,7 @@ describe("slackChannelModule channel adapter", () => {
         appToken: "xapp-test",
         defaultAutonomyMode: "autonomous",
       },
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
+      { serve: { defaultAutonomyMode: "passive" } } as SlackChannelContext["config"],
     );
     await resolveAdapter(ctx);
 		expect(MockedSlackBot).toHaveBeenCalledWith(
@@ -144,7 +143,7 @@ describe("slackChannelModule channel adapter", () => {
     const ctx = makeStubCtx(
       undefined,
       { botToken: "xoxb-test", appToken: "xapp-test" },
-      { serve: { defaultAutonomyMode: "passive" } } as ModuleRuntimeContext["config"],
+      { serve: { defaultAutonomyMode: "passive" } } as SlackChannelContext["config"],
     );
     await resolveAdapter(ctx);
 		expect(MockedSlackBot).toHaveBeenCalledWith(

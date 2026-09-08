@@ -103,3 +103,6 @@ This directory owns:
   daemon-control core no longer carries a webhook handler.
 - Does not own Slack or Telegram notification (those belong in
   `slack/` and `telegram/`) or retry logic (that lives in `notification`).
+- Event-trigger tests supply scope identity and event ports to the production
+  route. Keep payload rejection and typed-event delivery oracles without
+  fabricating a module host.

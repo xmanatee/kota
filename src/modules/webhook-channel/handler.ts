@@ -25,6 +25,8 @@ export { resolveSourceId, verifyHmacSignature } from "./request.js";
 export type { WebhookSessionFactory } from "./sessions.js";
 export { clearSessions, listWebhookSessionIds } from "./sessions.js";
 
+export type WebhookHandlerContext = Pick<ModuleContext, "config" | "log" | "events" | "createSession">;
+
 export type WebhookPayload = {
   agent?: string;
   message: string;
@@ -59,7 +61,7 @@ function parsePayload(raw: unknown): WebhookPayload | null {
 }
 
 export function makeWebhookChannelHandler(
-  ctx: ModuleContext,
+  ctx: WebhookHandlerContext,
   config: WebhookChannelConfig,
   createSession: WebhookSessionFactory = createAgentSession,
 ): (req: IncomingMessage, res: ServerResponse) => Promise<void> {
@@ -141,7 +143,7 @@ export function makeWebhookChannelHandler(
 }
 
 async function handleSourceRequest(
-  ctx: ModuleContext,
+  ctx: WebhookHandlerContext,
   res: ServerResponse,
   payload: WebhookPayload,
   sourceId: string,
@@ -205,7 +207,7 @@ async function handleSourceRequest(
 }
 
 async function handleDirectRequest(
-  ctx: ModuleContext,
+  ctx: WebhookHandlerContext,
   config: WebhookChannelConfig,
   res: ServerResponse,
   payload: WebhookPayload,

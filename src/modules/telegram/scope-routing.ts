@@ -1,7 +1,7 @@
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import { directoryScopesFromProjection } from "#core/daemon/scope-registry.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
+import type { TelegramRuntimePorts } from "./runtime-ports.js";
 import { type TelegramChatScopeBinding, TelegramScopeSelection } from "./scope-selection.js";
 
 export type TelegramScopeRouting = {
@@ -20,7 +20,7 @@ export function hasScopeRoutingClient(client: KotaClient): boolean {
 // Once the daemon is constructing the channel, its in-process registry provider
 // is the authoritative scope-list source.
 export function resolveDaemonScopeSource(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
 ): TelegramScopeSource | undefined {
   const scopeProvider = ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE);
   if (!scopeProvider) return undefined;
@@ -38,7 +38,7 @@ export function resolveDaemonScopeSource(
 }
 
 export function resolveTelegramScopeRouting(
-  ctx: ModuleContext,
+  ctx: TelegramRuntimePorts,
   chatScopeBindings: TelegramChatScopeBinding[],
 ): TelegramScopeRouting | undefined {
   const client = tryResolveTelegramClient(ctx);
@@ -56,7 +56,7 @@ export function resolveTelegramScopeRouting(
   };
 }
 
-export function tryResolveTelegramClient(ctx: ModuleContext): KotaClient | undefined {
+export function tryResolveTelegramClient(ctx: TelegramRuntimePorts): KotaClient | undefined {
   try {
     return ctx.client;
   } catch {

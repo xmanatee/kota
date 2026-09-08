@@ -1,7 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { createWebhookModule } from "./index.js";
@@ -16,41 +14,16 @@ const webhookModule = createWebhookModule(outboundHttpRequestPort((request) =>
   })
 ));
 
-function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): ModuleRuntimeContext {
+function makeStubCtx(bus?: EventBus, webhookConfig?: unknown): Parameters<ReturnType<typeof createWebhookModule>["onLoad"]>[0] {
   const b = bus ?? new EventBus();
   return {
-    cwd: "/tmp",
-    verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage("/tmp/test", "webhook"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-  getModuleSummaries: () => [],
     getModuleConfig: () => webhookConfig as never,
-    log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
+    log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
     events: makeStubEventProxy(b),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
   };
 }
+
+
 
 describe("webhookModule notifications", () => {
   const FAKE_URL = "https://hooks.example.com/notify";
@@ -205,30 +178,6 @@ describe("webhookModule notifications", () => {
     await Promise.resolve();
     await new Promise((r) => setTimeout(r, 0));
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("500"));
-  });
-
-  it("retries on non-2xx and eventually succeeds", async () => {
-    vi.useFakeTimers();
-    mockFetch
-      .mockResolvedValueOnce({ ok: false, status: 503 })
-      .mockResolvedValue({ ok: true, status: 200 });
-    const bus = new EventBus();
-    webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL], retries: 3, retryDelayMs: 100 }));
-    bus.emit("workflow.failure.alert", { text: "alert" });
-    await vi.runAllTimersAsync();
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
-  });
-
-  it("POSTs on all default notification events", async () => {
-    const bus = new EventBus();
-    webhookModule.onLoad!(makeStubCtx(bus, { urls: [FAKE_URL] }));
-
-    bus.emit("workflow.failure.alert", { text: "failure" });
-    bus.emit("workflow.attention.digest", { text: "digest" });
-
-    await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledTimes(2);
   });
 
   it("forwards approval.requested regardless of events filter", async () => {

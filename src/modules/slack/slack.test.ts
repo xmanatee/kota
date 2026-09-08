@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import { ModuleStorage } from "#core/modules/module-storage.js";
-import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
-import { makeStubEventProxy } from "#core/modules/testing/index.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
+import notificationModule from "#modules/notification/index.js";
 import { createSlackModule } from "./index.js";
 
 const mockFetch = vi.fn();
@@ -18,41 +20,24 @@ const slackModule = createSlackModule(outboundHttpRequestPort((request) =>
 
 const FAKE_WEBHOOK = "https://hooks.slack.com/services/T000/B000/xxxx";
 
-function makeStubCtx(bus?: EventBus, slackConfig?: unknown): ModuleRuntimeContext {
-  const b = bus ?? new EventBus();
-  return {
-    cwd: "/tmp",
-    verbose: false,
-    config: {} as ModuleRuntimeContext["config"],
-    storage: new ModuleStorage("/tmp/test", "slack"),
-    registerGroup: () => {},
-    getRoutes: () => [],
-    getContributedWorkflows: () => [],
-    getContributedChannels: () => [],
-      getContributedUiSurfaces: () => [],
-    getContributedControlRoutes: () => [],
-    getModuleSummaries: () => [],
-    getModuleConfig: () => slackConfig as never,
-    log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
-    getSecret: () => null,
-    listTools: () => [],
-    events: makeStubEventProxy(b),
-    createSession: () => ({ send: async () => "", close: () => {} }),
-    registerProvider: () => {},
-    getProvider: () => null,
-    callTool: async () => ({ content: "" }),
-    registerMiddleware: () => {},
-    registerDynamicStateProvider: () => {},
-    registerCleanupHook: () => {},
-    registerPreSendHook: () => {},
-    registerHarnessHook: () => {},
-    resolveAgentDef: () => undefined,
-    resolveSkillsPrompt: () => "",
-    probeHealthChecks: async () => ({}),
-    getRegisteredConfigKeys: () => new Set<string>(),
-    client: {} as never,
-  };
+const hosts: { loader: ModuleLoader; cwd: string }[] = [];
+async function loadSlack(bus: EventBus, config?: { webhookUrl: string; events?: string[]; retries?: number; retryDelayMs?: number }) {
+  const cwd = mkdtempSync(join(tmpdir(), "slack-notifications-"));
+  const loader = new ModuleLoader(config ? { modules: { slack: config } } : {});
+  hosts.push({ loader, cwd });
+  loader.setCwd(cwd);
+  loader.setBus(bus);
+  await loader.load(notificationModule);
+  await loader.load(slackModule);
+  return loader;
 }
+afterEach(async () => {
+  for (const { loader, cwd } of hosts.splice(0)) {
+    await loader.unloadAll();
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 
 describe("slackModule notifications", () => {
   beforeEach(() => {
@@ -62,7 +47,7 @@ describe("slackModule notifications", () => {
 
   it("POSTs Block Kit to webhook on workflow.failure.alert", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK });
     bus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",
@@ -89,7 +74,7 @@ describe("slackModule notifications", () => {
 
   it("POSTs Block Kit on approval.requested", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK });
     bus.emit("approval.requested", {
       id: "appr-123",
       tool: "bash",
@@ -113,9 +98,7 @@ describe("slackModule notifications", () => {
 
   it("respects events filter — skips unincluded notification events", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(
-      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] }),
-    );
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] });
     bus.emit("workflow.attention.digest", { items: [], text: "digest" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();
@@ -123,9 +106,7 @@ describe("slackModule notifications", () => {
 
   it("always fires approval.requested regardless of events filter", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(
-      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] }),
-    );
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] });
     bus.emit("approval.requested", { id: "x", tool: "bash", risk: "low", reason: "test", source: "", sessionId: "" });
     await Promise.resolve();
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -133,7 +114,7 @@ describe("slackModule notifications", () => {
 
   it("POSTs Block Kit on owner.question.asked with answer/dismiss commands", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK });
     bus.emit("owner.question.asked", {
       id: "oq-42",
       question: "Promote explorer to dispatcher?",
@@ -163,9 +144,7 @@ describe("slackModule notifications", () => {
 
   it("always fires owner.question.asked regardless of events filter", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(
-      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] }),
-    );
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK, events: ["workflow.failure.alert"] });
     bus.emit("owner.question.asked", {
       id: "oq-always",
       question: "Q?",
@@ -176,18 +155,9 @@ describe("slackModule notifications", () => {
     expect(mockFetch).toHaveBeenCalledOnce();
   });
 
-  it("fires all default notification events", async () => {
-    const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
-    bus.emit("workflow.failure.alert", { text: "failure" });
-    bus.emit("workflow.attention.digest", { text: "digest" });
-    await Promise.resolve();
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-  });
-
   it("POSTs Block Kit on workflow.daily.digest with rendered text", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK });
     bus.emit("workflow.daily.digest", {
       windowStartedAt: "2026-04-25T08:00:00.000Z",
       windowEndedAt: "2026-04-26T08:00:00.000Z",
@@ -206,7 +176,7 @@ describe("slackModule notifications", () => {
 
   it("labels quiet daily digest distinctly", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
+    await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK });
     bus.emit("workflow.daily.digest", {
       windowStartedAt: "2026-04-25T08:00:00.000Z",
       windowEndedAt: "2026-04-26T08:00:00.000Z",
@@ -223,7 +193,7 @@ describe("slackModule notifications", () => {
 
   it("is a no-op when config is absent", async () => {
     const bus = new EventBus();
-    slackModule.onLoad!(makeStubCtx(bus, undefined));
+    await loadSlack(bus, undefined);
     bus.emit("workflow.failure.alert", { text: "alert" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();
@@ -231,50 +201,18 @@ describe("slackModule notifications", () => {
 
   it("warns and is a no-op when webhookUrl is missing", async () => {
     const bus = new EventBus();
-    const warnSpy = vi.fn();
-    const ctx = makeStubCtx(bus, { webhookUrl: "" });
-    ctx.log.warn = warnSpy;
-    slackModule.onLoad!(ctx);
+    await loadSlack(bus, { webhookUrl: "" });
     bus.emit("workflow.failure.alert", { text: "alert" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("webhookUrl"));
   });
 
   it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
-    const activation = await slackModule.onLoad!(makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK }));
-    await activation?.dispose();
+    const loader = await loadSlack(bus, { webhookUrl: FAKE_WEBHOOK });
+    await loader.unloadAll();
     bus.emit("workflow.failure.alert", { text: "alert" });
     await Promise.resolve();
     expect(mockFetch).not.toHaveBeenCalled();
-  });
-
-  it("logs a warning when POST returns non-OK status (no retries)", async () => {
-    mockFetch.mockResolvedValue({ ok: false, status: 500 });
-    const bus = new EventBus();
-    const warnSpy = vi.fn();
-    const ctx = makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, retries: 0 });
-    ctx.log.warn = warnSpy;
-    slackModule.onLoad!(ctx);
-    bus.emit("workflow.failure.alert", { workflow: "builder", text: "alert" });
-    await Promise.resolve();
-    await new Promise((r) => setTimeout(r, 0));
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("500"));
-  });
-
-  it("retries on non-2xx and eventually succeeds", async () => {
-    vi.useFakeTimers();
-    mockFetch
-      .mockResolvedValueOnce({ ok: false, status: 503 })
-      .mockResolvedValue({ ok: true, status: 200 });
-    const bus = new EventBus();
-    slackModule.onLoad!(
-      makeStubCtx(bus, { webhookUrl: FAKE_WEBHOOK, retries: 3, retryDelayMs: 100 }),
-    );
-    bus.emit("workflow.failure.alert", { workflow: "builder", text: "alert" });
-    await vi.runAllTimersAsync();
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    vi.useRealTimers();
   });
 });

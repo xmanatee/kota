@@ -6,8 +6,9 @@ import { resetScheduler } from "#core/daemon/scheduler.js";
 import { EventBus, resetEventBus } from "#core/events/event-bus.js";
 import { ModuleStorage } from "#core/modules/module-storage.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
+import { makeTelegramInteractiveChannel } from "./channels.js";
 import { callTelegramApi } from "./client.js";
-import telegramModule from "./index.js";
+import { createTelegramRuntimeState } from "./runtime-state.js";
 import {
   makeClient,
   makeSpies,
@@ -19,7 +20,7 @@ import {
   SCOPE_B,
 } from "./telegram-scope-daemon-test-support.integration.js";
 import {
-  makeCtx,
+  makeTelegramPorts,
   makeUpdate,
   registerDaemonScopeProvider,
   sendBodies,
@@ -112,16 +113,10 @@ describe("telegram scope integration", () => {
       return { message_id: 100 };
     });
 
-    if (typeof telegramModule.channels !== "function") {
-      throw new Error("expected telegramModule.channels to be a factory");
-    }
-    const ctx = makeCtx(new EventBus(), localClient, storage);
+    const ctx = makeTelegramPorts(new EventBus(), localClient, storage);
     ctx.getModuleConfig = () =>
       ({ defaultAutonomyMode: "supervised" }) as never;
-    const resolved = telegramModule.channels(ctx);
-    const channels = Array.isArray(resolved) ? resolved : await resolved;
-    const interactive = channels.find((c) => c.name === "telegram-interactive");
-    if (!interactive) throw new Error("telegram-interactive channel missing");
+    const interactive = makeTelegramInteractiveChannel(ctx, [], createTelegramRuntimeState());
     const runtimeA = makeScopeRuntime(SCOPE_A);
     const runtimeB = makeScopeRuntime(SCOPE_B);
     const started = interactive.create({
