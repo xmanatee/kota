@@ -17,6 +17,7 @@ import {
 import {
   builderHarnessPreflightStep,
   inspectTargetTaskStep,
+  taskIssueEvidenceStep,
 } from "./queue-preflight-steps.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import {
@@ -70,6 +71,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
   steps: [
     inspectTargetTaskStep,
     builderHarnessPreflightStep,
+    taskIssueEvidenceStep,
     {
       id: "build",
       type: "agent",
