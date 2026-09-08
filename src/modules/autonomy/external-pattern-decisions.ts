@@ -24,6 +24,31 @@ export type ExternalPatternDecision = {
 
 export const EXTERNAL_PATTERN_DECISIONS: readonly ExternalPatternDecision[] = [
   {
+    pattern: "MiMo Code long-horizon computation, memory, and evolution",
+    verdict: "read",
+    source:
+      "https://mimo.xiaomi.com/blog/mimo-code-long-horizon — " +
+      "operator capture dated 2026-09-08, retained in " +
+      "data/tasks/archive/task-review-owner-captured-automated-research-and-mimo-.md",
+    date: "2026-09-08",
+    kotaPrimitives: ["workflow", "session", "store", "agent", "eval fixture", "tool"],
+    // Read, no action: deterministic orchestration and independent completion
+    // review fit existing workflows and critic policy. Checkpoint writers and
+    // scheduled memory distillation are reference designs for sessions/stores,
+    // not demonstrated gaps in fresh handoffs and evidence-led improvement.
+    // The vendor's Max Mode and A/B claims do not isolate a KOTA benefit; its
+    // proposed tool syntax is explicitly not yet shipped. Retain artifact-first
+    // evaluation rather than adopting reasoning-trace selection.
+    revisitWhen:
+      "A reproducible KOTA session loses intent across a context rebuild " +
+      "despite existing stores and artifact handoffs, or a matched local eval " +
+      "demonstrates that candidate selection, independent checkpoint writing, " +
+      "or memory maintenance improves verified completion and stale-memory " +
+      "rejection with recorded model, harness, repetitions, and resource use. " +
+      "MiMo model rollout evidence already belongs to " +
+      "task-run-live-openrouter-and-local-model-rollout-evalua.",
+  },
+  {
     pattern: "Workflow DSLs (crewAI Flows, LangGraph Pregel)",
     verdict: "reject",
     source: "crewAI Flows guide and LangGraph Pregel reference docs",
