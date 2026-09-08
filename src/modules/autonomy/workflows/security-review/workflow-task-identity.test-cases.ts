@@ -135,16 +135,13 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
   runId: string;
   taskId: string;
   workflow: WorkflowDefinitionInput;
-  workspaceRoot?: string;
 }): Promise<void> {
-  const workspaceRoot = args.workspaceRoot ?? args.fixture.workspaceRoot;
-  args.fixture.commitProjectState("published security review", workspaceRoot);
+  const workspaceRoot = args.fixture.workspaceRoot;
   const taskPath = join(workspaceRoot, "data/tasks", `${args.taskId}.md`);
   const taskBeforeReplay = readFileSync(taskPath, "utf-8");
   const replay = await new WorkflowScenarioDriver(args.workflow, {
     workspaceRoot,
-    workspaceDir: workspaceRoot,
-    runId: args.runId,
+    runId: `${args.runId}-replay`,
     trigger: { event: "autonomy.security-review.requested", payload: {} },
     stepOutputs: {
       "investigate-candidates": args.investigation,
@@ -159,7 +156,7 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
   });
   expect(
     readFileSync(
-      join(replay.workspaceDir, "data/tasks", `${args.taskId}.md`),
+      join(workspaceRoot, "data/tasks", `${args.taskId}.md`),
       "utf-8",
     ),
   ).toBe(taskBeforeReplay);

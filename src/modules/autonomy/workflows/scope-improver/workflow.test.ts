@@ -1,8 +1,9 @@
-import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
@@ -259,44 +260,7 @@ describe("scope-improver semantic boundaries", () => {
       .filter((entry) => entry.endsWith(".md"))).toEqual([]);
   });
 
-  it("waits for proposed-task effects before publishing the review", async () => {
-    const workspaceRoot = track("writer-handoff");
-    const childActions = {
-      createdTaskIds: [],
-      ownerQuestionIds: [],
-      applied: [{
-        kind: "owner-question-pending",
-        signature: `${deriveDirectoryScopeId(workspaceRoot)}:missing-scope-guidance`,
-      }],
-      requiresCommit: false,
-      parkedReason: null,
-    };
-    const run = await new WorkflowScenarioDriver(scopeImproverWorkflow, {
-      workspaceRoot,
-      trigger: {
-        event: "autonomy.scope-improvement.requested",
-        payload: { reason: "explicit writer handoff fixture" },
-      },
-      scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot),
-      stepOutputs: {
-        "apply-recommendations": {
-          runId: "scope-improvement-actions-child",
-          status: "completed",
-          childOutput: childActions,
-        },
-      },
-    }).run();
-
-    expect(run).toMatchObject({
-      status: "success",
-      steps: {
-        "apply-recommendations": { status: "success", output: childActions },
-        "emit-scope-improvement-publication": { status: "success" },
-      },
-    });
-  });
-
-  it("publishes a late writer-policy denial as deferred instead of failing", async () => {
+  it("waits for the writer's live-policy denial before publishing a deferred review", async () => {
     const workspaceRoot = track("late-writer-policy-denial");
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
     const policySnapshot = scopePolicySnapshotForTest(workspaceRoot);
@@ -313,17 +277,32 @@ describe("scope-improver semantic boundaries", () => {
         deliveryAttempt: 0,
       },
     );
-    const transactionalState = createTestTransactionalRunState();
+    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), scopeId);
     transactionalState.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,
       initialState,
     );
-    const parkedReason =
-      "scope-improvement actions are parked because current policy denies task writes";
+    const runId = "scope-review-policy-revocation";
+    let writerStarted = false;
+    const revokedPolicy = scopePolicySnapshotForTest(workspaceRoot, [{
+      scopeId,
+      reason: "Task writes revoked after the review.",
+      autonomy: { defaultMode: "supervised", maxMode: "supervised" },
+      writes: { mode: "none" },
+    }]);
     const run = await new WorkflowScenarioDriver(scopeImproverWorkflow, {
       workspaceRoot,
-      scopePolicySnapshot: policySnapshot,
+      runId,
+      get scopePolicySnapshot() { return writerStarted ? revokedPolicy : policySnapshot; },
+      workflows: [scopeImprovementActionsWorkflow],
+      setupWorkspace: (workspaceDir) => {
+        if (!existsSync(join(workspaceDir, ".git"))) return;
+        writerStarted = true;
+        const parent = new WorkflowRunStore(workspaceRoot).getRun(runId)!;
+        expect(parent.steps.some((step) => step.id === "emit-scope-improvement-publication")).toBe(false);
+        expect(existsSync(join(workspaceRoot, ".kota", "runs", runId, "scope-improvement.json"))).toBe(false);
+      },
       ports: { state: transactionalState },
       trigger: {
         event: "autonomy.scope-improvement.requested",
@@ -339,21 +318,23 @@ describe("scope-improver semantic boundaries", () => {
           ),
         },
       },
-      stepOutputs: {
-        "apply-recommendations": {
-          runId: "scope-improvement-actions-policy-denied",
-          status: "completed",
-          childOutput: {
-            createdTaskIds: [],
-            ownerQuestionIds: [],
-            applied: [],
-            requiresCommit: false,
-            parkedReason,
-          },
-        },
-      },
     }).run();
-    expect(run.status).toBe("success");
+    expect(run.status, run.error).toBe("success");
+    expect(writerStarted).toBe(true);
+    expect(run.steps["apply-recommendations"].output).toMatchObject({
+      applied: [],
+      parkedReason: expect.stringContaining("current scope policy denies task-queue writes"),
+    });
+
+    const store = new WorkflowRunStore(workspaceRoot);
+    const child = store.listRuns().find((entry) => entry.workflow === "scope-improvement-actions")!;
+    expect(child.status).toBe("success");
+    expect(child.steps.find((step) => step.id === "return-actions")?.output)
+      .toEqual(run.steps["apply-recommendations"].output);
+    expect(run.emitted).toContainEqual(expect.objectContaining({
+      event: "autonomy.scope-improvement.publication.requested",
+    }));
+    expect(readdirSync(join(workspaceRoot, "data", "tasks")).filter((file) => file.endsWith(".md"))).toEqual([]);
 
     expect(publishScopeImprovement({
       scopeRoot: workspaceRoot,
@@ -393,7 +374,7 @@ describe("scope-improver semantic boundaries", () => {
         deliveryAttempt: 0,
       },
     );
-    const transactionalState = createTestTransactionalRunState();
+    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     transactionalState.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,
@@ -418,7 +399,7 @@ describe("scope-improver semantic boundaries", () => {
         },
       },
     }).run();
-    expect(run.status).toBe("success");
+    expect(run.status, run.error).toBe("success");
 
     const published = publishScopeImprovement({
       scopeRoot: workspaceRoot,
@@ -522,7 +503,7 @@ describe("scope-improver semantic boundaries", () => {
         deliveryAttempt: 0,
       },
     );
-    const transactionalState = createTestTransactionalRunState();
+    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     transactionalState.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,
@@ -549,7 +530,7 @@ describe("scope-improver semantic boundaries", () => {
       scopePolicySnapshot: policySnapshot,
       ports: { state: transactionalState },
     }).run();
-    expect(run.status).toBe("success");
+    expect(run.status, run.error).toBe("success");
 
     const first = publishScopeImprovement({
       scopeRoot: workspaceRoot,

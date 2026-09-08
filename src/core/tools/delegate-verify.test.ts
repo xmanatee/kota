@@ -18,7 +18,7 @@ import {
 import {
   assembleDelegateResult,
   type DelegateMetadata,
-} from "./core/tools/delegate-format.js";
+} from "#core/tools/delegate-format.js";
 
 function makeMeta(overrides: Partial<DelegateMetadata> = {}): DelegateMetadata {
   return {

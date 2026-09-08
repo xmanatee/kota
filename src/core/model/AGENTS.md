@@ -28,3 +28,6 @@ routing, the `Preset` abstraction, and streaming behavior.
   shipped preset ids, model names, tier maps, token limits, or pricing rows into
   expected test catalogs; derive behavioral expectations from the canonical
   registry.
+
+Scripted model responses are internal test support. They are not exported by
+the production model barrel or included in the runtime build.

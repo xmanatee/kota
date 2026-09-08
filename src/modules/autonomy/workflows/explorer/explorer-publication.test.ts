@@ -40,7 +40,7 @@ describe("explorer post-integration publication", () => {
     execFileSync("git", ["commit", "--quiet", "-m", "scenario input"], {
       cwd: workspaceRoot,
     });
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     const result = await new WorkflowScenarioDriver(explorerWorkflow, {
       workspaceRoot,
       trigger: { event: "autonomy.queue.empty", payload: {} },
@@ -50,7 +50,7 @@ describe("explorer post-integration publication", () => {
       ports: { state, runCommand: successfulWorkflowCommandRun },
     }).run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     const stateDir = join(workspaceRoot, ".kota");
     const runDirPath = result.runDirPath;
     const sourceRunId = basename(runDirPath);

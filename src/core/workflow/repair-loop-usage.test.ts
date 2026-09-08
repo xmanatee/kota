@@ -90,7 +90,7 @@ describe("repair-loop usage", () => {
       workspaceRoot: scopeRoot,
       scopeRoot: scopeRoot,
       stateDir: join(scopeRoot, ".kota"),
-      state: createTestTransactionalRunState(),
+      state: createTestTransactionalRunState(join(scopeRoot, ".kota", "test-state")),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "fixture",
@@ -233,7 +233,7 @@ describe("repair-loop usage", () => {
       workspaceRoot: scopeRoot,
       scopeRoot: scopeRoot,
       stateDir: join(scopeRoot, ".kota"),
-      state: createTestTransactionalRunState(),
+      state: createTestTransactionalRunState(join(scopeRoot, ".kota", "test-state")),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {
         name: "fixture",

@@ -4,10 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import {
 	multiToolResponse,
-	resetMockIds,
+
 	textResponse,
 	toolUseResponse,
-} from "#core/model/mock-client.js";
+} from "#core/model/mock-client.test-support.js";
 import {
 	createTestSession,
 	makeTempDir,
@@ -17,7 +17,7 @@ describe("Composition: multi-turn state persistence", () => {
 	let testDir: string;
 
 	beforeEach(() => {
-		resetMockIds();
+
 		testDir = makeTempDir("multiturn");
 	});
 
@@ -67,7 +67,7 @@ describe("Composition: multi-turn state persistence", () => {
 
 describe("Composition: task tracking + shell execution", () => {
 	beforeEach(() => {
-		resetMockIds();
+
 	});
 
 	afterEach(() => {
@@ -142,7 +142,7 @@ describe("Composition: parallel tool execution in multi-step workflow", () => {
 	let testDir: string;
 
 	beforeEach(() => {
-		resetMockIds();
+
 		testDir = makeTempDir("parallel");
 		mkdirSync(join(testDir, "src"), { recursive: true });
 		writeFileSync(join(testDir, "src", "math.js"), 'function add(a, b) {\n  return a + b;\n}\nmodule.exports = { add };\n', "utf-8");

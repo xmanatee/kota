@@ -90,7 +90,7 @@ function makeContext(workspaceRoot: string, workspaceDir: string): WorkflowStepC
     requestRestart: vi.fn(),
     readPrompt: (promptPath) => readFileSync(join(workspaceRoot, promptPath), "utf-8"),
     readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state")),
     reportProgress: vi.fn(),
     triggerWorkflow: async () => ({ runId: "queued-run", status: "queued" }),
   };

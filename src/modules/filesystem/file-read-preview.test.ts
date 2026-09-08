@@ -8,7 +8,7 @@ import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { runFileRead } from "./modules/filesystem/file-read.js";
+import { runFileRead } from "#modules/filesystem/file-read.js";
 
 function tmpFile(name: string, content: string): string {
   const p = join(tmpdir(), `kota-test-${Date.now()}-${name}`);
@@ -79,42 +79,6 @@ describe("file-read × json-preview integration", () => {
     expect(result.is_error).toBeFalsy();
     expect(result.content).toMatch(/\[JSONL: 3 lines/);
     expect(result.content).toContain("ts: string");
-  });
-});
-
-describe("file-read × csv-preview integration", () => {
-  it("prepends CSV metadata with column types and ranges", async () => {
-    const csv = [
-      "name,age,score",
-      "Alice,30,95.5",
-      "Bob,25,88.0",
-      "Carol,35,92.3",
-    ].join("\n");
-    const p = tmpFile("data.csv", csv);
-    cleanup.push(p);
-
-    const result = await runFileRead({ path: p });
-    expect(result.is_error).toBeFalsy();
-    // CSV metadata header
-    expect(result.content).toMatch(/\[CSV: 3 rows × 3 cols/);
-    expect(result.content).toContain("age:numeric");
-    expect(result.content).toContain("score:numeric");
-    // Numeric ranges
-    expect(result.content).toMatch(/\[Ranges:/);
-    // Raw content still present
-    expect(result.content).toContain("Alice");
-  });
-
-  it("prepends TSV metadata for .tsv files", async () => {
-    const tsv = ["host\tstatus\tlatency", "a.com\t200\t45", "b.com\t500\t120"].join("\n");
-    const p = tmpFile("servers.tsv", tsv);
-    cleanup.push(p);
-
-    const result = await runFileRead({ path: p });
-    expect(result.is_error).toBeFalsy();
-    expect(result.content).toMatch(/\[CSV: 2 rows × 3 cols/);
-    expect(result.content).toContain("status:numeric");
-    expect(result.content).toContain("latency:numeric");
   });
 });
 

@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import type { WorkflowCodeStepContext } from "#core/workflow/step-input-code.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
@@ -15,6 +19,10 @@ import {
   resolveCadenceIsolationBackend,
   runHarness,
 } from "./cadence-workflow.js";
+
+let stateRoot: string;
+beforeEach(() => { stateRoot = mkdtempSync(join(tmpdir(), "kota-state-owner-")); });
+afterEach(() => { rmSync(stateRoot, { recursive: true, force: true }); });
 
 const liveNetworkPolicy = {
   kind: "provider-egress",
@@ -175,7 +183,7 @@ describe("eval-harness cadence isolation backend selection", () => {
       baselineToRecord,
     });
     const emit = vi.fn();
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(stateRoot);
     state.compareAndSet(
       EVAL_HARNESS_CADENCE_BASELINE_STATE_KEY,
       0,

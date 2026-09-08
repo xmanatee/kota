@@ -178,7 +178,7 @@ describe("dispatcher workflow", () => {
         directoryRoot,
         scopePolicySnapshot.policy,
       );
-      const state = createTestTransactionalRunState();
+      const state = createTestTransactionalRunState(join(directoryRoot, ".kota", "test-state"));
       state.compareAndSet(
         SCOPE_IMPROVEMENT_STATE_KEY,
         0,
@@ -197,7 +197,7 @@ describe("dispatcher workflow", () => {
       }).run();
 
       expect(result.error).toBeUndefined();
-      expect(result.status).toBe("success");
+      expect(result.status, result.error).toBe("success");
       expect(result.emitted).toEqual(expect.arrayContaining([
         expect.objectContaining({
           event: scopeImprovementChanged.name,
@@ -520,7 +520,7 @@ describe("dispatcher workflow", () => {
       workspaceRoot,
       scopePolicySnapshot.policy,
     );
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     state.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,

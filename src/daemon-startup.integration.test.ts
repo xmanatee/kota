@@ -2,7 +2,6 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
-import { RESTART_EXIT_CODE } from "#core/daemon/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import {
   makeDaemon,
@@ -12,15 +11,6 @@ import {
 } from "./daemon-test-support.integration.js";
 
 describe("Daemon startup and channels", () => {
-  it("constructs without errors", () => {
-    const daemon = makeDaemon();
-    expect(daemon.isRunning()).toBe(false);
-    expect(daemon.hasActiveWorkflow()).toBe(false);
-  });
-
-  it("exports RESTART_EXIT_CODE as 75", () => {
-    expect(RESTART_EXIT_CODE).toBe(75);
-  });
 
   it("starts and stops cleanly", async () => {
     writeFileSync(

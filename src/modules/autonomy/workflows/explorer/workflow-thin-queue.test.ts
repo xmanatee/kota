@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
   WorkflowScenarioDriver,
@@ -14,6 +14,8 @@ import explorerWorkflow from "./workflow.js";
 
 describe("explorer workflow thin queue gating", () => {
   let tempDir: string;
+
+  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
@@ -64,7 +66,7 @@ describe("explorer workflow thin queue gating", () => {
       runtimeState: { workflows: {} },
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       actionableCount: 1,
       activeCount: 1,
@@ -74,7 +76,7 @@ describe("explorer workflow thin queue gating", () => {
   });
 
   it("skips explore when the queue is empty but the refresh window is not due", async () => {
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(join(tempDir, ".kota", "test-state"));
     state.compareAndSet(EXPLORER_STATE_KEY, 0, {
       lastExplorationAt: new Date().toISOString(),
     });
@@ -85,7 +87,7 @@ describe("explorer workflow thin queue gating", () => {
       ports: { state },
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       explorationRefreshDue: false,
       needsAttention: false,

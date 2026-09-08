@@ -1,4 +1,4 @@
-import { existsSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
@@ -80,33 +80,6 @@ describe("Daemon runtime state", () => {
       .list()
       .filter((item) => item.status === "fired");
     expect(fired.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("saves daemon state in the scope-local state directory", async () => {
-    const daemon = makeDaemon({ workflows: [] });
-    const startPromise = daemon.start();
-    await daemon.stop();
-    await startPromise;
-
-    const statePath = join(stateDir, "daemon-state.json");
-    expect(existsSync(statePath)).toBe(true);
-  });
-
-  it("stays running while idle until explicitly stopped", async () => {
-    const daemon = makeDaemon({ workflows: [] });
-    let resolved = false;
-    const startPromise = daemon.start().then(() => {
-      resolved = true;
-    });
-
-    await wait(150);
-
-    expect(daemon.isRunning()).toBe(true);
-    expect(resolved).toBe(false);
-
-    await daemon.stop();
-    await startPromise;
-    expect(resolved).toBe(true);
   });
 
 });

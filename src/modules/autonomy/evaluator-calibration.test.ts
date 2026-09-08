@@ -104,7 +104,7 @@ function makeStepContext(
     workspaceRoot: overrides.workspaceRoot,
     scopeRoot: overrides.workspaceRoot,
     stateDir: join(overrides.workspaceRoot, ".kota"),
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(join(overrides.workspaceRoot, ".kota", "test-state")),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "builder",

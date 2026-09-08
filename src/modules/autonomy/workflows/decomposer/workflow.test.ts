@@ -55,6 +55,7 @@ function project(): string {
     cwd: workspaceRoot,
   });
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  writeFileSync(join(workspaceRoot, "package.json"), JSON.stringify({ scripts: { "validate-tasks": "true" } }));
   roots.push(workspaceRoot);
   return workspaceRoot;
 }
@@ -236,7 +237,7 @@ describe("decomposer workflow", () => {
   it("skips decomposition for a builder failure outside the rescope classes", async () => {
     const result = await runFixture(failureFixture(undefined));
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["assess-failure"].output).toMatchObject({
       shouldDecompose: false,
       failureKind: null,
@@ -249,9 +250,10 @@ describe("decomposer workflow", () => {
     ["timeout", "step-timeout" as const, "task-oversized"],
     ["repair exhaustion", "repair-no-progress" as const, "task-needs-rescope"],
   ])("decomposes an unchanged task after %s", async (_label, errorKind, taskId) => {
-    const result = await runFixture(failureFixture(errorKind, taskId));
+    const fixture = failureFixture(errorKind, taskId);
+    const result = await runFixture(fixture);
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["assess-failure"].output).toMatchObject({
       shouldDecompose: true,
       failureKind: errorKind === "step-timeout" ? "timeout" : "repair-exhausted",
@@ -259,8 +261,8 @@ describe("decomposer workflow", () => {
       taskPath: `data/tasks/${taskId}.md`,
     });
     expect(result.steps.decompose.status).toBe("success");
-    expect(readFileSync(join(result.workspaceDir, "data/tasks/archive", `${taskId}.md`), "utf8")).toContain("status: dropped");
-    expect(readFileSync(join(result.workspaceDir, "data/tasks/task-scoped-subtask.md"), "utf8")).toContain("status: open");
+    expect(readFileSync(join(fixture.workspaceRoot, "data/tasks/archive", `${taskId}.md`), "utf8")).toContain("status: dropped");
+    expect(readFileSync(join(fixture.workspaceRoot, "data/tasks/task-scoped-subtask.md"), "utf8")).toContain("status: open");
   });
 
   it("skips a task whose immutable contract changed after builder admission", async () => {
@@ -282,8 +284,9 @@ describe("decomposer workflow", () => {
   });
 
   it("rejects a semantically misaligned plan before task mutation", async () => {
+    const fixture = failureFixture("step-timeout");
     const result = await runFixture(
-      failureFixture("step-timeout"),
+      fixture,
       decomposeStepMocks({
         "review-decomposition": {
           decision: "reject",
@@ -297,7 +300,7 @@ describe("decomposer workflow", () => {
     expect(result.steps["require-decomposition-approval"].error).toContain(
       "solve a different vulnerability",
     );
-    expect(readFileSync(join(result.workspaceDir, "data/tasks", `${TASK_ID}.md`), "utf8")).toContain("status: open");
+    expect(readFileSync(join(fixture.workspaceRoot, "data/tasks", `${TASK_ID}.md`), "utf8")).toContain("status: open");
   });
 
   it("rechecks the immutable task contract immediately before mutation", async () => {
@@ -325,6 +328,6 @@ describe("decomposer workflow", () => {
     expect(result.steps["apply-decomposition"].error).toContain(
       "failed-run ownership changed after assessment",
     );
-    expect(readFileSync(join(result.workspaceDir, "data/tasks", `${TASK_ID}.md`), "utf8")).toContain("status: open");
+    expect(readFileSync(join(fixture.workspaceRoot, "data/tasks", `${TASK_ID}.md`), "utf8")).toContain("status: open");
   });
 });

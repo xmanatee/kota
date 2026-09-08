@@ -431,7 +431,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["review-evidence"].status, JSON.stringify(result.steps["review-evidence"])).toBe("success");
     const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
@@ -515,7 +515,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["review-evidence"].status, JSON.stringify(result.steps["review-evidence"])).toBe("success");
     const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
@@ -640,7 +640,6 @@ describe("progress-reviewer workflow", () => {
 
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       ports: {
         runCommand: async (input) => ({
           command: input.command,
@@ -668,7 +667,7 @@ describe("progress-reviewer workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     const actions = result.steps["apply-actions"].output as ProgressReviewActionResult;
     expect(actions.createdTaskIds).toEqual([
       "task-generated-2a2c3d885f63407d",
@@ -687,7 +686,6 @@ describe("progress-reviewer workflow", () => {
     repeatedReview.ownerQuestions = [];
     const repeated = await new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         payload,

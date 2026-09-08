@@ -87,6 +87,7 @@ export function makeProgressReviewScopeRoot(label = "progress-reviewer"): string
       "",
     ].join("\n"),
   );
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts: { "validate-tasks": "true" } }));
   mkdirSync(join(dir, "data", "tasks", "archive"), { recursive: true });
   execFileSync("git", ["init", "--quiet"], { cwd: dir });
   execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: dir });

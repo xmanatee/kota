@@ -155,7 +155,7 @@ describe("improver issue disposition workflow", () => {
   }
 
   function stateForProjection() {
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, 0, projection);
     return state;
   }
@@ -192,7 +192,6 @@ describe("improver issue disposition workflow", () => {
     };
     const first = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger,
       stepOutputs: { "review-issue": OBSERVED_DISPOSITION },
       ports: {
@@ -213,7 +212,6 @@ describe("improver issue disposition workflow", () => {
 
     const repeated = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger,
       stepOutputs: { "review-issue": OBSERVED_DISPOSITION },
       ports: {
@@ -222,7 +220,7 @@ describe("improver issue disposition workflow", () => {
       },
     }).run();
 
-    expect(repeated.status).toBe("success");
+    expect(repeated.status, repeated.error).toBe("success");
     expect(repeated.steps["select-issue"].output).toMatchObject({ eligible: false });
     expect(repeated.steps["review-issue"].status).toBe("skipped");
     const invariant = improverWorkflow.integration!.postReconcile!;
@@ -249,7 +247,6 @@ describe("improver issue disposition workflow", () => {
     const issue = openDoctorIssue();
     const result = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger: {
         event: autonomyIssueDecisionRequested.name,
         payload: {
@@ -330,7 +327,6 @@ describe("improver issue disposition workflow", () => {
     });
     const created = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger: triggerFor(1, "opened"),
       stepOutputs: { "review-issue": TASK_DISPOSITION },
       ports: {
@@ -445,7 +441,6 @@ describe("improver issue disposition workflow", () => {
     const revised = revisedResult.transitions[0]!;
     const resolved = await new WorkflowScenarioDriver(improverWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger: triggerFor(revised.semanticRevision, "revised"),
       stepOutputs: { "review-issue": ACCEPTED_DISPOSITION },
       ports: {

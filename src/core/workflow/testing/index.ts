@@ -2,7 +2,6 @@ import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -27,19 +26,21 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import type {
-  DurableEffectValue,
-  RunContext,
-  TransactionalRunState,
-} from "#core/workflow/run-context.js";
+import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { EMITTED_EVENTS_LOG_FILENAME } from "#core/workflow/run-event-evidence.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
-import { RunSandboxManager } from "#core/workflow/run-sandbox.js";
+import { workflowUsesAgent } from "#core/workflow/run-executor-utils.js";
+import { validateRunIntegration, verifyRunPostReconcileInvariant } from "#core/workflow/run-integration-policy.js";
+import { RunLifecycle } from "#core/workflow/run-lifecycle.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
+import { RunResourceAllocator } from "#core/workflow/run-resources.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import type {
   WorkflowRuntimeSummary,
   WorkflowStepResult,
 } from "#core/workflow/run-types.js";
+import { triggerWorkflowFromStep } from "#core/workflow/runtime-dispatch-trigger.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type {
@@ -49,6 +50,7 @@ import type {
 } from "#core/workflow/types.js";
 import { validateWorkflowDefinitions } from "#core/workflow/validation.js";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { WorkflowQueueManager } from "#core/workflow/workflow-queue.js";
 import { unexpectedWorkflowCommandRun } from "./command-runner.js";
 
 export type WorkflowScenarioStepResult = Pick<
@@ -87,7 +89,7 @@ export type WorkflowScenarioOutput =
   | undefined;
 
 export type WorkflowScenarioOptions = {
-  /** Stable identity for restart/replay and idempotency scenarios. */
+  /** Stable identity for run artifacts and step idempotency. */
   runId?: string;
   trigger?: {
     event: string;
@@ -96,8 +98,10 @@ export type WorkflowScenarioOptions = {
   };
   /** Canonical scope root visible to workflow code. */
   workspaceRoot?: string;
-  /** Isolated checkout visible as `ctx.workspaceRoot`. */
-  workspaceDir?: string;
+  /** Seed scenario inputs inside the runtime-owned checkout before execution. */
+  setupWorkspace?: (workspaceDir: string) => void | Promise<void>;
+  /** Additional production definitions available to child triggers. */
+  workflows?: readonly WorkflowDefinitionInput[];
   /** Ordered adapter outputs keyed by the declarative step id. */
   stepOutputs?: Record<
     string,
@@ -120,7 +124,7 @@ export type WorkflowScenarioOptions = {
     payload: Record<string, unknown>;
   }>;
   ports?: {
-    state?: TransactionalRunState;
+    state?: Readonly<{ stateDir: string; scopeId: string }>;
     runAgent?: (input: {
       stepId: string;
       cwd: string;
@@ -176,36 +180,6 @@ export type WorkflowScenarioTrigger = NonNullable<
   WorkflowScenarioOptions["trigger"]
 >;
 
-function createTransactionalState(): TransactionalRunState {
-  const values = new Map<
-    string,
-    { revision: number; value: DurableEffectValue }
-  >();
-  return {
-    read<T extends DurableEffectValue>(key: string) {
-      const current = values.get(key);
-      return current === undefined
-        ? { revision: 0, value: null }
-        : {
-            revision: current.revision,
-            value: structuredClone(current.value) as T,
-          };
-    },
-    compareAndSet(key, expectedRevision, value) {
-      const currentRevision = values.get(key)?.revision ?? 0;
-      if (currentRevision !== expectedRevision) {
-        throw new Error(
-          `Scenario state revision mismatch for "${key}": expected ${expectedRevision}, received ${currentRevision}`,
-        );
-      }
-      values.set(key, {
-        revision: currentRevision + 1,
-        value: structuredClone(value),
-      });
-    },
-  };
-}
-
 function flattenAgentSteps(
   steps: WorkflowDefinition["steps"],
   target = new Map<string, WorkflowAgentStep>(),
@@ -222,19 +196,19 @@ function flattenAgentSteps(
   return target;
 }
 
-function scenarioDefinition(
-  input: WorkflowDefinitionInput,
+function scenarioDefinitions(
+  inputs: readonly WorkflowDefinitionInput[],
   scopeRoot: string,
-): WorkflowDefinition {
-  const registered: RegisteredWorkflowDefinitionInput = {
+): WorkflowDefinition[] {
+  const registered: RegisteredWorkflowDefinitionInput[] = inputs.map((input) => ({
     ...input,
     definitionPath: `${input.name}.scenario.ts`,
     moduleRoot: input.moduleRoot ?? process.cwd(),
-  };
-  return validateWorkflowDefinitions([registered], scopeRoot, {
+  }));
+  return validateWorkflowDefinitions(registered, scopeRoot, {
     defaultAgentHarness: "scenario",
     defaultAgentEffort: "high",
-  })[0];
+  });
 }
 
 function initializeOwnedScenarioRepository(scopeRoot: string): void {
@@ -250,17 +224,6 @@ function initializeOwnedScenarioRepository(scopeRoot: string): void {
   execFileSync("git", ["commit", "--quiet", "-m", "scenario baseline"], {
     cwd: scopeRoot,
   });
-}
-
-function createScenarioSandbox(
-  scopeRoot: string,
-  runId: string,
-  repository: WorkflowDefinition["repository"],
-): RunContext["sandbox"] {
-  const manager = new RunSandboxManager(scopeRoot);
-  if (repository === "none") return manager.create({ runId, repository });
-  if (repository === "read") return manager.create({ runId, repository });
-  return manager.create({ runId, repository });
 }
 
 function readEmittedEvents(runDirPath: string): WorkflowScenarioResult["emitted"] {
@@ -286,7 +249,8 @@ function readEmittedEvents(runDirPath: string): WorkflowScenarioResult["emitted"
 /**
  * Runs a workflow scenario through the production validator and executor.
  * The driver replaces only host-owned external ports (agent, tool, command,
- * policy, and durable state); it contains no workflow-step interpreter.
+ * and policy); the production lifecycle and coordinator own settlement,
+ * integration, state and deferred publications. The driver contains no workflow-step interpreter.
  */
 export class WorkflowScenarioDriver {
   constructor(
@@ -298,240 +262,230 @@ export class WorkflowScenarioDriver {
     const ownsRoot = this.options.workspaceRoot === undefined;
     const scopeRoot = this.options.workspaceRoot
       ?? mkdtempSync(join(tmpdir(), "kota-workflow-scenario-"));
-    const definition = scenarioDefinition(this.workflow, scopeRoot);
+    const definitions = scenarioDefinitions([this.workflow, ...(this.options.workflows ?? [])], scopeRoot);
+    const definition = definitions[0];
+    const definitionFor = (name: string) => {
+      const found = definitions.find((entry) => entry.name === name);
+      if (!found) throw new Error(`Unknown scenario workflow "${name}"`);
+      return found;
+    };
     const runId = this.options.runId ?? `scenario-${randomUUID()}`;
-    if (ownsRoot && definition.repository !== "none") {
+    if (ownsRoot && definitions.some((entry) => entry.repository !== "none")) {
       initializeOwnedScenarioRepository(scopeRoot);
     }
-    const sandbox = this.options.workspaceDir === undefined
-      ? createScenarioSandbox(scopeRoot, runId, definition.repository)
-      : {
-          runId,
-          repository: definition.repository,
-          rootDir: join(scopeRoot, ".kota", "scenario-runtime", runId),
-          workspaceDir: this.options.workspaceDir,
-          tempDir: join(scopeRoot, ".kota", "scenario-runtime", runId, "tmp"),
-          artifactDir: join(
-            scopeRoot,
-            ".kota",
-            "scenario-runtime",
-            runId,
-            "artifacts",
-          ),
-          ...(definition.repository === "none"
-            ? {}
-            : { baseCommit: "0".repeat(40) }),
-          ...(definition.repository === "write"
-            ? { branch: `scenario/${runId}`, targetBranch: "scenario" }
-            : {}),
-        } as RunContext["sandbox"];
-    const { rootDir: runtimeRoot, workspaceDir, tempDir, artifactDir } = sandbox;
-    const agentDir = join(runtimeRoot, "agent");
-    const packageCacheDir = join(tempDir, "package-cache");
-    for (const path of [workspaceDir, tempDir, artifactDir, agentDir, packageCacheDir]) {
-      mkdirSync(path, { recursive: true });
-    }
-
     const trigger: WorkflowRunTrigger = {
       event: this.options.trigger?.event ?? "runtime.idle",
       schemaRef: this.options.trigger?.schemaRef ?? null,
       payload: this.options.trigger?.payload ?? {},
     };
-    const scopeId = deriveDirectoryScopeId(scopeRoot);
+    const scopeId = this.options.ports?.state?.scopeId ?? deriveDirectoryScopeId(scopeRoot);
+    const database = new RunStateDatabase(this.options.ports?.state?.stateDir ?? join(scopeRoot, ".kota", "scenario-state"));
+    const now = () => new Date().toISOString();
     const bus = new EventBus();
-    const store = new WorkflowRunStore(scopeRoot);
-    const runtimeState: WorkflowRuntimeSummary = {
-      completedRuns: this.options.runtimeState?.completedRuns ?? 0,
-      workflows: this.options.runtimeState?.workflows ?? {},
-    };
-    const stagedEvents: WorkflowScenarioResult["emitted"] = [];
-    const runContext: RunContext = {
-      run: { id: runId, attempt: 1, daemonEpoch: 1 },
-      scope: { id: scopeId, root: scopeRoot },
-      workflow: definition.name,
-      trigger,
-      sandbox,
-      resources: {
-        runId,
-        attempt: 1,
-        daemonEpoch: 1,
-        workspaceDir,
-        runDir: runtimeRoot,
-        tempDir,
-        artifactDir,
-        agentDir,
-        packageCacheDir,
-        ports: { start: 41_000, end: 41_003, size: 4, values: [41_000, 41_001, 41_002, 41_003] },
-        env: {
-          TMPDIR: tempDir,
-          KOTA_RUN_DIR: agentDir,
-          KOTA_RUN_ARTIFACT_DIR: artifactDir,
-        },
-      },
-      signal: new AbortController().signal,
-      processes: { register: () => undefined },
-      effects: { execute: (effect) => effect.execute() },
-      publications: {
-        stageEmit: (_stepId, event, payload) => {
-          stagedEvents.push({ event, schemaRef: null, payload: { ...payload } });
-        },
-      },
-      state: this.options.ports?.state ?? createTransactionalState(),
-    };
-
-    const agentSteps = flattenAgentSteps(definition.steps);
-    const agentPort = this.options.ports?.runAgent;
-    const cursors = new Map<string, number>();
-    const nextOutput = (stepId: string): WorkflowScenarioOutput => {
-      const configured = this.options.stepOutputs?.[stepId];
-      if (configured === undefined) {
-        throw new Error(
-          `Agent or declarative tool step "${stepId}" requires a scenario output`,
-        );
-      }
-      if (!Array.isArray(configured)) return configured;
-      const index = cursors.get(stepId) ?? 0;
-      if (index >= configured.length) {
-        throw new Error(`Scenario output sequence for step "${stepId}" is exhausted`);
-      }
-      cursors.set(stepId, index + 1);
-      return configured[index];
-    };
-    const resolveAgentHarness = (name: string): AgentHarness => ({
-      name,
-      description: "Workflow scenario agent port",
-      supportsMultiTurn: false,
-      supportedHookKinds: [],
-      askOwnerToolName: "ask_owner",
-      emitsAgentMessageStream: true,
-      toolControl: "kota",
-      async run(options: AgentHarnessRunOptions): Promise<AgentHarnessResult> {
-        const stepId = options.workflowContext?.stepId;
-        if (!stepId) throw new Error("Scenario agent call has no workflow step identity");
-        const step = agentSteps.get(stepId);
-        if (!step) throw new Error(`Unknown scenario agent step "${stepId}"`);
-        const output = agentPort
-          ? await agentPort({
-              stepId,
-              cwd: options.cwd ?? workspaceDir,
-            })
-          : nextOutput(stepId);
-        const record = output !== null && typeof output === "object"
-          ? output as Record<string, unknown>
-          : undefined;
-        const text = step.outputFormat === "json"
-          ? `\`\`\`json\n${JSON.stringify(output)}\n\`\`\``
-          : typeof output === "string"
-            ? output
-            : typeof record?.content === "string"
-              ? record.content
-              : "";
-        return {
-          text,
-          streamedText: text,
-          turns: typeof record?.turns === "number" ? record.turns : 1,
-          usage: {
-            tokens:
-              typeof record?.inputTokens === "number" &&
-                typeof record?.outputTokens === "number"
-                ? {
-                    state: "complete" as const,
-                    inputTokens: record.inputTokens,
-                    outputTokens: record.outputTokens,
-                  }
-                : { state: "unknown" as const },
-            cost: typeof record?.totalCostUsd === "number"
-              ? { state: "complete" as const, usd: record.totalCostUsd }
-              : { state: "unknown" as const },
-          },
-          isError: false,
-        };
-      },
-    });
-    const policyAuthority: ScopePolicyAuthority | undefined =
-      this.options.scopePolicySnapshot === undefined
-        ? undefined
-        : {
-            getSnapshot: () => this.options.scopePolicySnapshot!,
-            subscribeRestrictiveChanges: () => () => undefined,
-          };
-    const pbus = new ScopedEventBus(bus, scopeId);
-    const deliveredEvents = new Set<number>();
-    const unsubscribeScenarioEvents = bus.on(
-      "workflow.step.started",
-      (payload) => {
-        this.options.events?.forEach((scheduled, index) => {
-          if (
-            deliveredEvents.has(index) ||
-            payload.runId !== runId ||
-            payload.stepId !== scheduled.afterStep
-          ) return;
-          deliveredEvents.add(index);
-          setTimeout(
-            () => bus.emit(scheduled.event, {
-              ...scheduled.payload,
-              scopeId,
-            }),
-            0,
-          );
-        });
-      },
-    );
-    const approvalQueue = new ScenarioApprovalQueue(
-      join(runtimeRoot, "approvals"),
-      pbus,
-      this.options.approvals ?? {},
-    );
-
+    let unsubscribeScenarioEvents: () => void = () => undefined;
+    let coordinator: RunCoordinator | undefined;
     try {
-      const { promise } = executeWorkflowRun(definition, trigger, {
-        runContext,
-        bus,
-        pbus,
-        store,
-        readRuntimeState: () => runtimeState,
-        approvalQueue,
-        log: () => undefined,
-        runCommand: this.options.ports?.runCommand ?? unexpectedWorkflowCommandRun,
-        runTool: async (name, input, context) => {
-          if (this.options.ports?.runTool) {
-            return this.options.ports.runTool(name, input);
-          }
-          const output = nextOutput(context?.stepId ?? name);
-          return output !== null && typeof output === "object" &&
-              typeof (output as Record<string, unknown>).content === "string"
-            ? output as ToolResult
-            : { content: JSON.stringify(output) };
-        },
-        resolveAgentHarness,
-        scopePolicyAuthority: policyAuthority,
-        triggerWorkflow: async (_workflowName, _payload, _waitFor, _signal, triggerId) => {
-          const output = nextOutput(triggerId ?? "trigger");
-          if (output === null || typeof output !== "object") {
-            throw new Error(`Trigger step "${triggerId ?? "unknown"}" has an invalid scenario output`);
-          }
-          return output as { runId: string; status: "queued" | "completed" | "failed" };
+      database.registerScope({ id: scopeId, rootPath: scopeRoot, createdAt: now() });
+      const { epoch } = database.beginDaemonSession(now());
+      database.admitRun({ id: runId, scopeId, workflow: definition.name, repository: definition.repository, trigger, resources: definition.resources?.({ scopeRoot, stateDir: join(scopeRoot, ".kota"), workflowName: definition.name, trigger }) ?? [], admittedAt: now() });
+      const store = new WorkflowRunStore(scopeRoot);
+      const runtimeState: WorkflowRuntimeSummary = {
+        completedRuns: this.options.runtimeState?.completedRuns ?? 0,
+        workflows: this.options.runtimeState?.workflows ?? {},
+      };
+      let workspaceDir = "";
+      const agentPort = this.options.ports?.runAgent;
+      const cursors = new Map<string, number>();
+      const nextOutput = (stepId: string): WorkflowScenarioOutput => {
+        const configured = this.options.stepOutputs?.[stepId];
+        if (configured === undefined) {
+          throw new Error(
+            `Agent or declarative tool step "${stepId}" requires a scenario output`,
+          );
+        }
+        if (!Array.isArray(configured)) return configured;
+        const index = cursors.get(stepId) ?? 0;
+        if (index >= configured.length) {
+          throw new Error(`Scenario output sequence for step "${stepId}" is exhausted`);
+        }
+        cursors.set(stepId, index + 1);
+        return configured[index];
+      };
+      const resolveAgentHarness = (definition: WorkflowDefinition, name: string): AgentHarness => ({
+        name,
+        description: "Workflow scenario agent port",
+        supportsMultiTurn: false,
+        supportedHookKinds: [],
+        askOwnerToolName: "ask_owner",
+        emitsAgentMessageStream: true,
+        toolControl: "kota",
+        async run(options: AgentHarnessRunOptions): Promise<AgentHarnessResult> {
+          const stepId = options.workflowContext?.stepId;
+          if (!stepId) throw new Error("Scenario agent call has no workflow step identity");
+          const step = flattenAgentSteps(definition.steps).get(stepId);
+          if (!step) throw new Error(`Unknown scenario agent step "${stepId}"`);
+          const output = agentPort
+            ? await agentPort({
+                stepId,
+                cwd: options.cwd ?? workspaceDir,
+              })
+            : nextOutput(stepId);
+          const record = output !== null && typeof output === "object"
+            ? output as Record<string, unknown>
+            : undefined;
+          const text = step.outputFormat === "json"
+            ? `\`\`\`json\n${JSON.stringify(output)}\n\`\`\``
+            : typeof output === "string"
+              ? output
+              : typeof record?.content === "string"
+                ? record.content
+                : "";
+          return {
+            text,
+            streamedText: text,
+            turns: typeof record?.turns === "number" ? record.turns : 1,
+            usage: {
+              tokens:
+                typeof record?.inputTokens === "number" &&
+                  typeof record?.outputTokens === "number"
+                  ? {
+                      state: "complete" as const,
+                      inputTokens: record.inputTokens,
+                      outputTokens: record.outputTokens,
+                    }
+                  : { state: "unknown" as const },
+              cost: typeof record?.totalCostUsd === "number"
+                ? { state: "complete" as const, usd: record.totalCostUsd }
+                : { state: "unknown" as const },
+            },
+            isError: false,
+          };
         },
       });
-      const execution = await promise;
-      const runDirPath = join(scopeRoot, execution.metadata.runDir);
-      const steps = Object.fromEntries(
-        execution.metadata.steps.map((step) => [step.id, step]),
+      const policyAuthority: ScopePolicyAuthority | undefined =
+        this.options.scopePolicySnapshot === undefined
+          ? undefined
+          : {
+              getSnapshot: () => this.options.scopePolicySnapshot!,
+              subscribeRestrictiveChanges: () => () => undefined,
+            };
+      const pbus = new ScopedEventBus(bus, scopeId);
+      const deliveredEvents = new Set<number>();
+      unsubscribeScenarioEvents = bus.on(
+        "workflow.step.started",
+        (payload) => {
+          this.options.events?.forEach((scheduled, index) => {
+            if (
+              deliveredEvents.has(index) ||
+              payload.runId !== runId ||
+              payload.stepId !== scheduled.afterStep
+            ) return;
+            deliveredEvents.add(index);
+            setTimeout(
+              () => bus.emit(scheduled.event, {
+                ...scheduled.payload,
+                scopeId,
+              }),
+              0,
+            );
+          });
+        },
       );
-      const emitted = [...readEmittedEvents(runDirPath), ...stagedEvents];
+      const approvalQueue = new ScenarioApprovalQueue(
+        join(scopeRoot, ".kota", "scenario-approvals"),
+        pbus,
+        this.options.approvals ?? {},
+      );
+
+      let wfQueue: WorkflowQueueManager;
+      const lifecycle = new RunLifecycle({
+        store: database,
+        daemonEpoch: epoch,
+        createResourceAllocator: (state) => new RunResourceAllocator(state, {
+          portStart: 41_000, portEnd: 41_999, portRangeSize: 4,
+          isPortAvailable: async () => true,
+        }),
+        validate: (context, input) => validateRunIntegration(context, definitionFor(context.workflow).integration!, input),
+        verifyPostReconcile: (context, input) => verifyRunPostReconcileInvariant(
+          context, definitionFor(context.workflow).integration!, store.rootDir, input,
+          <T = unknown>(key: string) => database.readScopeStateValue<T>(scopeId, key),
+        ),
+        continueIntegration: async (_context, issue) => {
+          throw new Error(`Scenario requires integration repair: ${issue.kind === "validation" ? issue.evidence.join("\n") : issue.conflictPaths.join(", ")}`);
+        },
+        executeWorkflow: async (runContext, run) => {
+          const currentDefinition = definitionFor(run.workflow);
+          if (run.id === runId) workspaceDir = runContext.sandbox.workspaceDir;
+          await this.options.setupWorkspace?.(runContext.sandbox.workspaceDir);
+          const { promise } = executeWorkflowRun(currentDefinition, run.trigger, {
+            runContext,
+            bus,
+            pbus,
+            store,
+            readRuntimeState: () => runtimeState,
+            approvalQueue,
+            log: () => undefined,
+            runCommand: this.options.ports?.runCommand ?? unexpectedWorkflowCommandRun,
+            runTool: async (name, input, context) => {
+              if (this.options.ports?.runTool) {
+                return this.options.ports.runTool(name, input);
+              }
+              const output = nextOutput(context?.stepId ?? name);
+              return output !== null && typeof output === "object" &&
+                  typeof (output as Record<string, unknown>).content === "string"
+                ? output as ToolResult
+                : { content: JSON.stringify(output) };
+            },
+            resolveAgentHarness: (name) => resolveAgentHarness(currentDefinition, name),
+            scopePolicyAuthority: policyAuthority,
+            triggerWorkflow: (workflowName, payload, waitFor, signal, triggerId) =>
+              triggerWorkflowFromStep(
+                { definitions, wfQueue, runCoordinator: coordinator!, store },
+                run.id, workflowName, payload, waitFor, signal, triggerId,
+              ),
+          });
+          const execution = await promise;
+          const metadata = execution.metadata;
+          return metadata.status === "success" || metadata.status === "completed-with-warnings"
+            ? { kind: "completed" }
+            : { kind: "terminal", state: "failed", error: [...metadata.steps].reverse().find((step) => step.error)?.error };
+        },
+      });
+      coordinator = new RunCoordinator({
+        store: database,
+        daemonEpoch: epoch,
+        concurrency: 1,
+        execute: (run, signal) => lifecycle.execute(run, signal),
+      });
+      wfQueue = new WorkflowQueueManager({
+        store, runState: database, coordinator, scopeId, scopeRoot,
+        getScopeId: () => scopeId,
+        getActiveBackoff: () => null,
+        workflowUsesAgent,
+        getDefinitions: () => definitions,
+        log: () => undefined,
+      });
+      coordinator.refill();
+      await coordinator.whenIdle();
+      const settled = database.getRun(runId)!;
+      const runDirPath = join(store.runsDir, runId);
+      const metadata = readWorkflowRunMetadataFile(join(runDirPath, "metadata.json"));
+      const steps = Object.fromEntries(
+        (metadata?.steps ?? []).map((step) => [step.id, step]),
+      );
+      const published = database.listPendingPublications(Number.MAX_SAFE_INTEGER).filter((entry) => entry.runId === runId);
+      const emitted = [...readEmittedEvents(runDirPath), ...published.map((entry) => ({ event: entry.event, schemaRef: null, payload: { ...entry.payload } }))];
       const restart = emitted.find(
         (entry) => entry.event === "runtime.restart_requested",
       );
-      const failedStep = [...execution.metadata.steps]
+      const failedStep = [...(metadata?.steps ?? [])]
         .reverse()
         .find((step) => step.status === "failed");
       return {
-        status: execution.metadata.status === "failed" ||
-            execution.metadata.status === "interrupted"
-          ? "failed"
-          : "success",
+        status: settled.state === "succeeded" ? "success" : "failed",
         steps,
-        ...(failedStep?.error !== undefined ? { error: failedStep.error } : {}),
+        ...((settled.lastError ?? failedStep?.error) != null
+          ? { error: settled.lastError ?? failedStep?.error } : {}),
         emitted,
         ...(typeof restart?.payload.reason === "string"
           ? { restartRequested: restart.payload.reason }
@@ -540,6 +494,8 @@ export class WorkflowScenarioDriver {
         workspaceDir,
       };
     } finally {
+      await coordinator?.dispose();
+      database.close();
       unsubscribeScenarioEvents();
       bus.clear();
       if (ownsRoot) rmSync(scopeRoot, { recursive: true, force: true });

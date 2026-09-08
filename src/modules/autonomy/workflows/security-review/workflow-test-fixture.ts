@@ -25,7 +25,10 @@ export class SecurityReviewProjectFixture {
       cwd: this.workspaceRoot,
       stdio: "ignore",
     });
-    execFileSync("git", ["add", ".gitignore"], {
+    execFileSync("git", ["config", "user.name", "KOTA Test"], { cwd: this.workspaceRoot });
+    execFileSync("git", ["config", "user.email", "kota@example.invalid"], { cwd: this.workspaceRoot });
+    writeFileSync(join(this.workspaceRoot, "package.json"), JSON.stringify({ scripts: { "validate-tasks": "true" } }));
+    execFileSync("git", ["add", ".gitignore", "package.json"], {
       cwd: this.workspaceRoot,
       stdio: "ignore",
     });
@@ -54,12 +57,9 @@ export class SecurityReviewProjectFixture {
     writeFileSync(fullPath, content, "utf-8");
   }
 
-  commitProjectState(
-    message = "scenario input",
-    workspaceRoot = this.workspaceRoot,
-  ): void {
+  commitProjectState(message = "scenario input"): void {
     execFileSync("git", ["add", "-A"], {
-      cwd: workspaceRoot,
+      cwd: this.workspaceRoot,
       stdio: "ignore",
     });
     execFileSync(
@@ -74,7 +74,7 @@ export class SecurityReviewProjectFixture {
         "-m",
         message,
       ],
-      { cwd: workspaceRoot, stdio: "ignore" },
+      { cwd: this.workspaceRoot, stdio: "ignore" },
     );
   }
 

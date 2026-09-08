@@ -1,18 +1,10 @@
 /**
  * Model subsystem — LLM client abstraction, adaptive model routing,
- * streaming, and mock client for testing.
+ * and streaming.
  *
  * Implementations (Anthropic, OpenAI) live in src/modules/model-clients/.
  */
 
-export {
-	createMockClient,
-	type MockApiCall,
-	multiToolResponse,
-	resetMockIds,
-	textResponse,
-	toolUseResponse,
-} from "./mock-client.js";
 export {
 	createModelClient,
 	type MessageCreateParams,

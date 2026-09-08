@@ -224,7 +224,7 @@ export function createOwnerDecisionWorkflowFixture() {
       processes: { register: vi.fn() },
       effects: { execute: (effect) => effect.execute() },
       publications: { stageEmit: vi.fn() },
-      state: createTestTransactionalRunState(),
+      state: createTestTransactionalRunState(join(root, ".kota", "test-state")),
     };
   }
 

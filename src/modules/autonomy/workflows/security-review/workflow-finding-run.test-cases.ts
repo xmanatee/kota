@@ -99,7 +99,7 @@ export function describeSecurityReviewFindingRunTests(
 
       const result = await harness.run();
 
-      expect(result.status).toBe("success");
+      expect(result.status, result.error).toBe("success");
       const created = result.steps["create-follow-up-tasks"].output as { createdTaskIds: string[] };
       expect(created.createdTaskIds).toHaveLength(1);
       const createdTaskId = created.createdTaskIds[0];
@@ -132,7 +132,6 @@ export function describeSecurityReviewFindingRunTests(
         runId,
         taskId: createdTaskId,
         workflow: securityReviewWorkflow,
-        workspaceRoot: result.workspaceDir,
       });
       expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
@@ -289,7 +288,7 @@ export function describeSecurityReviewFindingRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("failed");
-      expect(result.steps["record-revalidation"].error).toContain("missing-secret");
+      expect(result.steps["record-revalidation"].error).toContain("omitted investigation finding");
       expect(result.steps["create-follow-up-tasks"]).toBeUndefined();
     });
   });

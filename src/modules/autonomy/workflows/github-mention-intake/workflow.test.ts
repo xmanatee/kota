@@ -137,11 +137,12 @@ function makeScopeRoot(): string {
     cwd: workspaceRoot,
   });
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  writeFileSync(join(workspaceRoot, "package.json"), JSON.stringify({ scripts: { "validate-tasks": "true" } }));
   for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
     mkdirSync(join(workspaceRoot, "data", "tasks", state), { recursive: true });
   }
   mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
-  execFileSync("git", ["add", ".gitignore"], { cwd: workspaceRoot });
+  execFileSync("git", ["add", ".gitignore", "package.json"], { cwd: workspaceRoot });
   execFileSync("git", ["commit", "--quiet", "-m", "scenario baseline"], {
     cwd: workspaceRoot,
   });
@@ -179,7 +180,6 @@ describe("github-mention-intake workflow", () => {
     const runCommand = successfulCommandRunner();
     const harness = new WorkflowScenarioDriver(githubMentionIntakeWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger: makeTrigger(),
       ports: {
         runTool: tools.runTool,
@@ -325,7 +325,7 @@ describe("github-mention-intake workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["assess-mention-intake"].output).toMatchObject({
       decision: "needs_detail",
       detailReason: "vague",
@@ -360,7 +360,7 @@ describe("github-mention-intake workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["assess-mention-intake"].output).toMatchObject({
       decision: "needs_detail",
       detailReason: "unsafe",
@@ -394,7 +394,7 @@ describe("github-mention-intake workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["assess-mention-intake"].output).toMatchObject({
       decision: "needs_detail",
       detailReason: "unsafe",
@@ -449,7 +449,6 @@ describe("github-mention-intake workflow", () => {
     ].join("\n");
     const harness = new WorkflowScenarioDriver(githubMentionIntakeWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
       trigger: makeTrigger({ commentBody }),
       ports: {
         runTool: tools.runTool,

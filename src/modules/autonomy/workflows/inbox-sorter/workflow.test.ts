@@ -17,6 +17,7 @@ function createInboxRepo(captures: readonly string[] = []): string {
     cwd: workspaceRoot,
   });
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
+  writeFileSync(join(workspaceRoot, "package.json"), JSON.stringify({ scripts: { "validate-tasks": "true" } }));
   mkdirSync(join(workspaceRoot, "data/tasks/archive"), { recursive: true });
   const inboxDir = join(workspaceRoot, "data", "inbox");
   mkdirSync(inboxDir, { recursive: true });
@@ -51,7 +52,7 @@ describe("inbox-sorter workflow", () => {
       trigger: { event: "autonomy.inbox.available", payload: {} },
     }).run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["inspect-inbox"].output).toMatchObject({
       inboxCount: 0,
       needsAttention: false,
@@ -61,13 +62,14 @@ describe("inbox-sorter workflow", () => {
 
   it("rejects untracked files outside inbox", async () => {
     const workspaceRoot = createInboxRepo();
-    writeFileSync(join(workspaceRoot, "data", "inbox", "capture.md"), "Sort me.\n");
-    mkdirSync(join(workspaceRoot, "tmp"));
-    writeFileSync(join(workspaceRoot, "tmp", "scratch.txt"), "unrelated\n");
 
     const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, "data", "inbox", "capture.md"), "Sort me.\n");
+        mkdirSync(join(workspaceDir, "tmp"));
+        writeFileSync(join(workspaceDir, "tmp", "scratch.txt"), "unrelated\n");
+      },
       trigger: { event: "autonomy.inbox.available", payload: {} },
     }).run();
 
@@ -79,11 +81,12 @@ describe("inbox-sorter workflow", () => {
 
   it("allows untracked inbox entries", async () => {
     const workspaceRoot = createInboxRepo();
-    writeFileSync(join(workspaceRoot, "data", "inbox", "capture.md"), "Sort me.\n");
 
     const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, "data", "inbox", "capture.md"), "Sort me.\n");
+      },
       trigger: { event: "autonomy.inbox.available", payload: {} },
       stepOutputs: sorterAgentOutputs(),
       ports: { runCommand: successfulWorkflowCommandRun },
@@ -99,11 +102,12 @@ describe("inbox-sorter workflow", () => {
 
   it("rejects tracked changes outside inbox", async () => {
     const workspaceRoot = createInboxRepo(["Sort me."]);
-    writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n*.local\n");
 
     const result = await new WorkflowScenarioDriver(inboxSorterWorkflow, {
       workspaceRoot,
-      workspaceDir: workspaceRoot,
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, ".gitignore"), ".kota/\n*.local\n");
+      },
       trigger: { event: "autonomy.inbox.available", payload: {} },
     }).run();
 

@@ -7,16 +7,6 @@ import {
 import type { AgentHarness } from "#core/agent-harness/types.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
-import {
-  buildAgentPrompt,
-  buildRepairPrompt,
-  executeAgentStep,
-  executeEmitStep,
-  executeStep,
-  executeToolStep,
-  withRetry,
-} from "#core/workflow/steps/step-executor.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinition } from "#core/workflow/types.js";
 import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
@@ -103,15 +93,4 @@ export const SUCCESS_RESULT = {
   usage: pricedAgentUsage(undefined, undefined, 0.01),
   subtype: "success",
   isError: false,
-};
-
-export {
-  buildAgentPrompt,
-  buildRepairPrompt,
-  classifyAgentRuntimeFailure,
-  executeAgentStep,
-  executeEmitStep,
-  executeStep,
-  executeToolStep,
-  withRetry,
 };

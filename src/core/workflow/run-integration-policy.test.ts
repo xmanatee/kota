@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
 import {
   type AgentCanUseToolContext,
   type AgentHarnessRunOptions,
@@ -15,6 +19,10 @@ import {
 } from "./run-integration-policy.js";
 import { createAgentBackoffTestFixture } from "./testing/agent-backoff-test-fixture.js";
 import { createTestTransactionalRunState } from "./testing/run-context-fixture.js";
+
+let stateRoot: string;
+beforeEach(() => { stateRoot = mkdtempSync(join(tmpdir(), "kota-state-owner-")); });
+afterEach(() => { rmSync(stateRoot, { recursive: true, force: true }); });
 
 const HARNESS_NAME = "integration-policy-fixture";
 
@@ -53,7 +61,7 @@ function context(): RunContext {
     processes: { register: () => undefined },
     effects: { execute: async (input) => input.execute() },
     publications: { stageEmit: () => undefined },
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(stateRoot),
   };
 }
 

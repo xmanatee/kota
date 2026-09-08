@@ -1,45 +1,10 @@
-// biome-ignore-all lint/correctness/noUnusedImports: split integration suites share one runtime fixture
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { describe, expect, it, vi } from "vitest";
+import type { WorkflowToolStep } from "#core/workflow/step-types.js";
 import {
-  type AgentHarness,
-  registerAgentHarness,
-} from "#core/agent-harness/index.js";
-import { EventBus } from "#core/events/event-bus.js";
-import { resolveAgentRuntime } from "#core/model/preset.js";
-import { RepairAgentRuntimeError } from "#core/workflow/repair-loop.js";
-import type {
-  WorkflowRunMetadata,
-  WorkflowStepContext,
-} from "#core/workflow/run-types.js";
-import type { WorkflowNotifyConfig } from "#core/workflow/step-input-base.js";
-import type { WorkflowAgentStep, WorkflowEmitStep, WorkflowToolStep } from "#core/workflow/step-types.js";
-import type { AgentStepConfig } from "#core/workflow/steps/step-executor.js";
-import {
-  buildAgentPrompt,
-  buildRepairPrompt,
-  executeAgentStep,
-  executeEmitStep,
-  executeStep,
   executeToolStep,
   withRetry,
 } from "#core/workflow/steps/step-executor.js";
-import { classifyAgentRuntimeFailure } from "#core/workflow/steps/step-executor-retry.js";
-import { createWorkflowAgentHarnessRunner } from "#core/workflow/steps/workflow-agent-harness-runner.js";
-import {
-  KOTA_OWNER_QUESTIONS_MCP_SERVER,
-  KOTA_OWNER_QUESTIONS_MCP_TOOL,
-} from "#modules/claude-agent-harness/kota-tools-mcp.js";
-import {
-  makeDefinition,
-  makeMetadata,
-  makeStep,
-  mockedExecuteWithAgentSDK,
-  SUCCESS_RESULT,
-  TRIGGER,
-} from "./workflow-step-executor-fixture.integration.js";
 
 describe("withRetry", () => {
   it("returns result on first success", async () => {
@@ -160,32 +125,5 @@ describe("executeToolStep retry", () => {
 
     await expect(executeToolStep(step, context)).rejects.toThrow("fail");
     expect(context.runTool).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("buildRepairPrompt", () => {
-  it("includes attempt info and failed check output", () => {
-    const step = makeStep("/test-module-root", { id: "build" });
-    const failures = [{ id: "verify-lint", passed: false, output: "error: semicolon", severity: "error" as const }];
-    const prompt = buildRepairPrompt(1, 3, failures, step);
-    expect(prompt).toContain("repair attempt 1/3");
-    expect(prompt).toContain('"build"');
-    expect(prompt).toContain("## verify-lint");
-    expect(prompt).toContain("error: semicolon");
-    expect(prompt).toContain("Fix these issues now");
-    expect(prompt).toContain("commit-message.txt");
-  });
-
-  it("includes all failures", () => {
-    const step = makeStep("/test-module-root");
-    const failures = [
-      { id: "check-a", passed: false, output: "error A", severity: "error" as const },
-      { id: "check-b", passed: false, output: "error B", severity: "error" as const },
-    ];
-    const prompt = buildRepairPrompt(2, 5, failures, step);
-    expect(prompt).toContain("## check-a");
-    expect(prompt).toContain("error A");
-    expect(prompt).toContain("## check-b");
-    expect(prompt).toContain("error B");
   });
 });

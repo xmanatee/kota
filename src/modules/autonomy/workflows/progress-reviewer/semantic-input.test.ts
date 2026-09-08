@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { StateValueConflictError } from "#core/workflow/run-state-database.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   completeProgressReviewSemanticInput,
@@ -8,6 +13,10 @@ import {
   type ProgressReviewConsumptionState,
   planProgressReviewPublication,
 } from "./semantic-input.js";
+
+let stateRoot: string;
+beforeEach(() => { stateRoot = mkdtempSync(join(tmpdir(), "kota-state-owner-")); });
+afterEach(() => { rmSync(stateRoot, { recursive: true, force: true }); });
 
 describe("progress review semantic consumption", () => {
   const scopeRoot = process.cwd();
@@ -23,7 +32,7 @@ describe("progress review semantic consumption", () => {
   };
 
   it("publishes the consumed watermark through compare-and-set", () => {
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(stateRoot);
     const input = inspectProgressReviewSemanticInput({
       scopeRoot,
       state,
@@ -57,7 +66,7 @@ describe("progress review semantic consumption", () => {
   });
 
   it("rejects a stale competing publication instead of overwriting it", () => {
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(stateRoot);
     const first = state.read<ProgressReviewConsumptionState>(
       PROGRESS_REVIEW_STATE_KEY,
     );
@@ -78,11 +87,11 @@ describe("progress review semantic consumption", () => {
         input: { automatic: true, inputRevision: 4 },
         consumedAt: "2026-08-15T12:01:00.000Z",
       }),
-    )).toThrow(/revision mismatch/);
+    )).toThrow(StateValueConflictError);
   });
 
   it("keeps explicit requests reviewable without advancing automatic state", () => {
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(stateRoot);
     const trigger = {
       event: "autonomy.progress-review.requested",
       schemaRef: null,
@@ -107,7 +116,7 @@ describe("progress review semantic consumption", () => {
   });
 
   it("rejects malformed automatic requests before review work starts", () => {
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(stateRoot);
     expect(() => inspectProgressReviewSemanticInput({
       scopeRoot,
       state,

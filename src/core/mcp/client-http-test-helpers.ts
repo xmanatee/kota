@@ -77,39 +77,6 @@ export function jsonRpcHttpResponse(
   });
 }
 
-export function jsonRpcHttpError(
-  id: number | undefined,
-  code: number,
-  message: string,
-  data?: unknown,
-): Response {
-  return new Response(
-    JSON.stringify({
-      jsonrpc: "2.0",
-      id,
-      error: { code, message, ...(data !== undefined ? { data } : {}) },
-    }),
-    {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    },
-  );
-}
-
-export function sseMessage(message: Record<string, any>): string {
-  return `event: message\ndata: ${JSON.stringify(message)}\n\n`;
-}
-
-export function sseJsonRpcHttpResponse(
-  id: number | undefined,
-  result: Record<string, any>,
-): Response {
-  return new Response(sseMessage({ jsonrpc: "2.0", id, result }), {
-    status: 200,
-    headers: { "content-type": "text/event-stream" },
-  });
-}
-
 export async function waitForAssertion(
   assertion: () => void,
   timeoutMs = 2_000,
@@ -126,25 +93,6 @@ export async function waitForAssertion(
     }
   }
   throw lastError ?? new Error("Timed out waiting for assertion");
-}
-
-export function captureTerminalStderr(): { output: () => string; restore: () => void } {
-  const chunks: string[] = [];
-  const spy = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-    chunks.push(String(chunk));
-    return true;
-  });
-  return {
-    output: () => chunks.join(""),
-    restore: () => spy.mockRestore(),
-  };
-}
-
-export function terminalDiagnosticLines(output: string): string[] {
-  return output
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 export function expectCompletedResult(
@@ -168,15 +116,6 @@ export function privateKeyJwtTestKeyPair(): PrivateKeyJwtTestKeyPair {
   };
 }
 
-export function privateKeyJwtEcPrivateKey(): string {
-  const keyPair = generateKeyPairSync("ec", {
-    namedCurve: "P-256",
-    privateKeyEncoding: { format: "pem", type: "pkcs8" },
-    publicKeyEncoding: { format: "pem", type: "spki" },
-  });
-  return keyPair.privateKey;
-}
-
 export function decodeBase64Url(value: string): Buffer {
   const base64 = value
     .replace(/-/g, "+")
@@ -187,10 +126,6 @@ export function decodeBase64Url(value: string): Buffer {
 
 export function decodeBase64UrlJson(value: string): Record<string, any> {
   return JSON.parse(decodeBase64Url(value).toString("utf8"));
-}
-
-export function base64UrlJson(value: Record<string, any>): string {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
 }
 
 export function verifyPrivateKeyJwtAssertion(
@@ -223,45 +158,6 @@ export function verifyPrivateKeyJwtAssertion(
     ),
   ).toBe(true);
   return payload;
-}
-
-export function fakeEnterpriseIdJagJwt(
-  overrides: {
-    header?: Record<string, any>;
-    payload?: Record<string, any>;
-  } = {},
-): string {
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const header = {
-    typ: "oauth-id-jag+jwt",
-    alg: "none",
-    ...(overrides.header ?? {}),
-  };
-  const payload = {
-    iss: "https://idp.example.test",
-    sub: "user-1",
-    aud: "https://auth.example.test",
-    resource: "https://mcp.example.test/mcp",
-    client_id: "kota-client",
-    jti: "id-jag-1",
-    iat: nowSeconds,
-    exp: nowSeconds + 300,
-    scope: "files:read",
-    ...(overrides.payload ?? {}),
-  };
-  return `${base64UrlJson(header)}.${base64UrlJson(payload)}.signature`;
-}
-
-export function fakeEnterpriseIdentityProviderMetadata(
-  overrides: Record<string, any> = {},
-): Record<string, any> {
-  return {
-    issuer: "https://idp.example.test",
-    token_endpoint: "https://idp.example.test/token",
-    token_endpoint_auth_methods_supported: ["client_secret_basic"],
-  scopes_supported: ["files:read", "files:write"],
-    ...overrides,
-  };
 }
 
 export type StdioMcpPeerConfig = {

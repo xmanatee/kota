@@ -34,8 +34,6 @@ ${body}
 `;
 }
 
-export const TASK_MARKDOWN = taskMarkdown();
-
 export function prepareTaskProject(workspaceRoot: string): void {
   mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
 }

@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import {
-	resetMockIds,
+
 	textResponse,
 	toolUseResponse,
-} from "#core/model/mock-client.js";
+} from "#core/model/mock-client.test-support.js";
 import {
 	createTestSession,
 	makeTempDir,
@@ -16,7 +16,7 @@ describe("Composition: code fix workflow (grep → read → edit → read-back)"
 	let testDir: string;
 
 	beforeEach(() => {
-		resetMockIds();
+
 		testDir = makeTempDir("codefix");
 		writeFileSync(
 			join(testDir, "greet.js"),
@@ -99,7 +99,7 @@ describe("Composition: error recovery (read fails → grep → read correct)", (
 	let testDir: string;
 
 	beforeEach(() => {
-		resetMockIds();
+
 		testDir = makeTempDir("recovery");
 		mkdirSync(join(testDir, "src"), { recursive: true });
 		writeFileSync(
@@ -178,7 +178,7 @@ describe("Composition: write → edit → read roundtrip", () => {
 	let testDir: string;
 
 	beforeEach(() => {
-		resetMockIds();
+
 		testDir = makeTempDir("roundtrip");
 	});
 

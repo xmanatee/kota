@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { StateValueConflictError } from "#core/workflow/run-state-database.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
@@ -132,7 +133,7 @@ describe("durable autonomy issue projection", () => {
   it("stages one CAS and materializes only from the published state row", async () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-publish-"));
     scopeRoots.push(workspaceRoot);
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     const current = emptyAutonomyIssueProjection();
     const next = applyAutonomyIssueObservations({
       current,
@@ -174,7 +175,7 @@ describe("durable autonomy issue projection", () => {
       },
       ports: { state },
     }).run();
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(readAutonomyIssueProjection(workspaceRoot)).toEqual(next);
     expect(state.read<AutonomyIssueProjection>(
       AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
@@ -182,7 +183,9 @@ describe("durable autonomy issue projection", () => {
   });
 
   it("rejects a stale competing projection publication", () => {
-    const state = createTestTransactionalRunState();
+    const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-stale-"));
+    scopeRoots.push(workspaceRoot);
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     const current = emptyAutonomyIssueProjection();
     const next = applyAutonomyIssueObservations({
       current,
@@ -208,6 +211,6 @@ describe("durable autonomy issue projection", () => {
       next,
       emit: vi.fn(),
       stepId: "publish:stale",
-    })).toThrow(/revision mismatch/);
+    })).toThrow(StateValueConflictError);
   });
 });

@@ -28,9 +28,9 @@ typed builder or semantic scenario over a root-level data catalog.
 - Entrypoint sources (`cli.ts`, `init.ts`, `module-api.ts`,
   `validate-queue.ts`) and their paired unit tests (`cli.test.ts`,
   `init.test.ts`).
-- Cross-subsystem integration, e2e, and repo-wide tests:
-  `*.integration.test.ts`, `e2e*.test.ts`, `integration.test.ts`,
-  `module-e2e.test.ts`, and `distributable-surfaces.test.ts`.
+- Cross-subsystem integration and repo-wide journeys: `*.integration.test.ts`.
+  Each retained journey identifies the real composition failure it catches;
+  single-owner checks remain beside their owner in the owner portfolio.
 - Shared fixtures co-located with cross-cutting integration tests when
   they span multiple subsystems and have no single owning module
   (e.g. `conversational-cross-store-fixture.integration.ts`).

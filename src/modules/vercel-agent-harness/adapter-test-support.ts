@@ -253,23 +253,6 @@ export function createStreamTextStub(options?: {
   };
 }
 
-export function createRejectedStreamTextStub(message: string): StreamTextStub {
-  const error = new Error(message);
-  return {
-    text: Promise.reject(error),
-    totalUsage: Promise.reject(error),
-    steps: Promise.reject(error),
-    finishReason: Promise.reject(error),
-  };
-}
-
-export function silenceRejectedStreamTextStub(stub: StreamTextStub): void {
-  stub.text.catch(() => {});
-  stub.totalUsage.catch(() => {});
-  stub.steps.catch(() => {});
-  stub.finishReason.catch(() => {});
-}
-
 export function captureStreamTextArgs(): StreamTextArgs {
   expect(streamTextMock).toHaveBeenCalled();
   const call = streamTextMock.mock.calls.at(-1);

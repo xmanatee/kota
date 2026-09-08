@@ -107,10 +107,10 @@ function runLoadedVerification(
   loaded: ReturnType<typeof loadScenario>,
   workDir: string,
 ): ReturnType<typeof spawnSync> {
-  return spawnSync(loaded.spec.verification.command, {
+  return spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
     shell: true,
     cwd: workDir,
-    timeout: loaded.spec.verification.timeoutMs,
+    timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
     encoding: "utf-8",
   });
 }
@@ -236,9 +236,9 @@ describe("scenario loader", () => {
     );
     const loaded = loadScenario(scenariosRoot, "demo");
     expect(loaded.spec.id).toBe("demo");
-    expect(loaded.spec.prompt).toBe("do the thing");
-    expect(loaded.spec.verification.timeoutMs).toBe(10_000);
-    expect(loaded.spec.previewArtifacts).toEqual([]);
+    expect(loaded.spec.stages[0].prompt).toBe("do the thing");
+    expect(loaded.spec.stages.at(-1)!.verification.timeoutMs).toBe(10_000);
+    expect(loaded.spec.stages[0].previewArtifacts).toEqual([]);
   });
 
   it("defaults verification.timeoutMs when omitted", () => {
@@ -254,7 +254,7 @@ describe("scenario loader", () => {
       { "hello.txt": "hi" },
     );
     const loaded = loadScenario(scenariosRoot, "demo");
-    expect(loaded.spec.verification.timeoutMs).toBe(60_000);
+    expect(loaded.spec.stages.at(-1)!.verification.timeoutMs).toBe(60_000);
   });
 
   it("loads a well-formed staged scenario", () => {
@@ -283,9 +283,9 @@ describe("scenario loader", () => {
 
     const loaded = loadScenario(scenariosRoot, "demo");
     expect(loaded.spec.stageMode).toBe("staged");
-    expect(loaded.spec.prompt).toBe("apply v2 release notes");
-    expect(loaded.spec.verification.command).toBe("node test-v3.js");
-    expect(loaded.spec.previewArtifacts).toEqual([]);
+    expect(loaded.spec.stages[0].prompt).toBe("apply v2 release notes");
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test-v3.js");
+    expect(loaded.spec.stages[0].previewArtifacts).toEqual([]);
     expect(loaded.spec.stages.map((stage) => stage.id)).toEqual([
       "upgrade-v2",
       "upgrade-v3",
@@ -308,7 +308,7 @@ describe("scenario loader", () => {
       { "hello.txt": "hi" },
     );
     const loaded = loadScenario(scenariosRoot, "demo");
-    expect(loaded.spec.previewArtifacts).toEqual([
+    expect(loaded.spec.stages[0].previewArtifacts).toEqual([
       "preview.html",
       "nested/preview-check.json",
     ]);
@@ -343,7 +343,7 @@ describe("scenario loader", () => {
       { "hello.txt": "hi" },
     );
     const loaded = loadScenario(scenariosRoot, "demo");
-    expect(loaded.spec.contextRetrieval?.targets).toEqual([
+    expect(loaded.spec.stages[0].contextRetrieval?.targets).toEqual([
       { id: "main-file", kind: "path", path: "src/main.js" },
       { id: "source-files", kind: "glob", glob: "src/*.js" },
       {
@@ -358,7 +358,7 @@ describe("scenario loader", () => {
       },
     ]);
     expect(loaded.spec.stages[0]?.contextRetrieval).toEqual(
-      loaded.spec.contextRetrieval,
+      loaded.spec.stages[0].contextRetrieval,
     );
   });
 
@@ -391,7 +391,6 @@ describe("scenario loader", () => {
     );
 
     const loaded = loadScenario(scenariosRoot, "demo");
-    expect(loaded.spec.contextRetrieval).toBeUndefined();
     expect(loaded.spec.stages[0]?.contextRetrieval?.targets).toEqual([
       { id: "ledger-kit", kind: "path", path: "packages/ledger-kit/index.js" },
     ]);
@@ -704,18 +703,18 @@ describe("shipped scenarios", () => {
       "codebase-investigation-answer",
     );
     expect(loaded.spec.id).toBe("codebase-investigation-answer");
-    expect(loaded.spec.prompt).toMatch(/answer\.json/);
-    expect(loaded.spec.prompt).toMatch(/runtime-evidence\.txt/);
-    expect(loaded.spec.prompt).toMatch(/node verify-answer\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/checkout\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/catalog\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/regions\.js/);
-    expect(loaded.spec.verification.command).toMatch(/verify-answer\.js/);
-    expect(loaded.spec.previewArtifacts).toEqual([
+    expect(loaded.spec.stages[0].prompt).toMatch(/answer\.json/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/runtime-evidence\.txt/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/node verify-answer\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/checkout\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/catalog\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/regions\.js/);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toMatch(/verify-answer\.js/);
+    expect(loaded.spec.stages[0].previewArtifacts).toEqual([
       "answer.json",
       "runtime-evidence.txt",
     ]);
-    expect(loaded.spec.contextRetrieval?.targets).toEqual([
+    expect(loaded.spec.stages[0].contextRetrieval?.targets).toEqual([
       {
         id: "checkout-flow",
         kind: "path-group",
@@ -794,18 +793,18 @@ describe("shipped scenarios", () => {
   it("rank-relevant-regions loads with a budgeted exploration prompt and context targets", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rank-relevant-regions");
     expect(loaded.spec.id).toBe("rank-relevant-regions");
-    expect(loaded.spec.prompt).toMatch(/exploration\.json/);
-    expect(loaded.spec.prompt).toMatch(/rank/i);
-    expect(loaded.spec.prompt).toMatch(/24 lines/);
-    expect(loaded.spec.prompt).toMatch(/node verify-exploration\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/review\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/pricing\.js/);
-    expect(loaded.spec.verification.command).toMatch(/verify-exploration\.js/);
-    expect(loaded.spec.previewArtifacts).toEqual([
+    expect(loaded.spec.stages[0].prompt).toMatch(/exploration\.json/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/rank/i);
+    expect(loaded.spec.stages[0].prompt).toMatch(/24 lines/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/node verify-exploration\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/review\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/pricing\.js/);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toMatch(/verify-exploration\.js/);
+    expect(loaded.spec.stages[0].previewArtifacts).toEqual([
       "exploration.json",
       "exploration-check.json",
     ]);
-    expect(loaded.spec.contextRetrieval?.targets).toEqual([
+    expect(loaded.spec.stages[0].contextRetrieval?.targets).toEqual([
       {
         id: "review-threshold-evidence",
         kind: "path-group",
@@ -1006,21 +1005,21 @@ describe("shipped scenarios", () => {
   it("frontend-preview starts a local preview server, fails before the CSS fix, and writes preview artifacts after the fix", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "frontend-preview");
     expect(loaded.spec.id).toBe("frontend-preview");
-    expect(loaded.spec.verification.command).toBe("node verify-preview.js");
-    expect(loaded.spec.previewArtifacts).toEqual([
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node verify-preview.js");
+    expect(loaded.spec.stages[0].previewArtifacts).toEqual([
       "preview.html",
       "preview-check.json",
     ]);
-    expect(loaded.spec.prompt).toMatch(/preview\.html/);
-    expect(loaded.spec.prompt).toMatch(/preview-check\.json/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/preview\.html/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/preview-check\.json/);
 
     const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-preview-"));
     try {
       cpSync(loaded.initialStateDir, workDir, { recursive: true });
-      const beforeFix = spawnSync(loaded.spec.verification.command, {
+      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(beforeFix.status).not.toBe(0);
@@ -1037,10 +1036,10 @@ describe("shipped scenarios", () => {
         cssPath,
         readFileSync(cssPath, "utf-8").replace("display: none;", "display: flex;"),
       );
-      const afterFix = spawnSync(loaded.spec.verification.command, {
+      const afterFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(afterFix.status).toBe(0);
@@ -1068,10 +1067,10 @@ describe("shipped scenarios", () => {
   it("extract-shared-helper loads with prompt and verification resolved", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "extract-shared-helper");
     expect(loaded.spec.id).toBe("extract-shared-helper");
-    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.prompt).toMatch(/src\/sanitize\.js/);
-    expect(loaded.spec.verification.command).toBe("node test.js");
-    expect(loaded.spec.verification.timeoutMs).toBeGreaterThan(0);
+    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.stages[0].prompt).toMatch(/src\/sanitize\.js/);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
+    expect(loaded.spec.stages.at(-1)!.verification.timeoutMs).toBeGreaterThan(0);
     expect(existsSync(loaded.initialStateDir)).toBe(true);
     expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
   });
@@ -1087,10 +1086,10 @@ describe("shipped scenarios", () => {
 
       // Verification fails before the fix — sanitize.js does not exist and
       // farewell() throws. The capability-gap path relies on that.
-      const beforeFix = spawnSync(loaded.spec.verification.command, {
+      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(beforeFix.status).not.toBe(0);
@@ -1116,10 +1115,10 @@ describe("shipped scenarios", () => {
           '  return `Goodbye, ${sanitize(raw)}!`;\n' +
           '}\n\nmodule.exports = { farewell };\n',
       );
-      const afterFix = spawnSync(loaded.spec.verification.command, {
+      const afterFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(afterFix.status).toBe(0);
@@ -1132,15 +1131,15 @@ describe("shipped scenarios", () => {
   it("discover-failing-source loads with a symptom-only prompt that does not name the buggy file", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "discover-failing-source");
     expect(loaded.spec.id).toBe("discover-failing-source");
-    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.verification.command).toBe("node test.js");
+    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
     // The prompt names only the verification command and the project as a
     // whole — no `src/...` file path leaks the location of the bug. The
     // agent must search the project on its own.
-    expect(loaded.spec.prompt).not.toMatch(/src\/normalize\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/slugify\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/tokenize\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/assemble\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/normalize\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/slugify\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/tokenize\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/assemble\.js/);
     expect(existsSync(loaded.initialStateDir)).toBe(true);
     expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
   });
@@ -1162,10 +1161,10 @@ describe("shipped scenarios", () => {
 
       // Verification fails before the fix — exit non-zero is the only signal
       // an operator gives, mirroring symptom-level prompting.
-      const beforeFix = spawnSync(loaded.spec.verification.command, {
+      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(beforeFix.status).not.toBe(0);
@@ -1176,10 +1175,10 @@ describe("shipped scenarios", () => {
         join(workDir, "src/normalize.js"),
         'function normalize(token) {\n  return token.toLowerCase();\n}\n\nmodule.exports = { normalize };\n',
       );
-      const afterFix = spawnSync(loaded.spec.verification.command, {
+      const afterFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(afterFix.status).toBe(0);
@@ -1192,18 +1191,18 @@ describe("shipped scenarios", () => {
   it("rename-across-files loads with a prompt that names the rename target and the verification command but does not enumerate caller files", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "rename-across-files");
     expect(loaded.spec.id).toBe("rename-across-files");
-    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.verification.command).toBe("node test.js");
+    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
     // The prompt names the rename target verbatim and the verification
     // command, so the agent has the contract.
-    expect(loaded.spec.prompt).toMatch(/format/);
-    expect(loaded.spec.prompt).toMatch(/renderLine/);
-    expect(loaded.spec.prompt).toMatch(/node test\.js/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/format/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/renderLine/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/node test\.js/);
     // The prompt does not enumerate the caller files. The agent must search
     // the project to find every call site.
-    expect(loaded.spec.prompt).not.toMatch(/src\/greeting\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/warning\.js/);
-    expect(loaded.spec.prompt).not.toMatch(/src\/notice\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/greeting\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/warning\.js/);
+    expect(loaded.spec.stages[0].prompt).not.toMatch(/src\/notice\.js/);
     expect(existsSync(loaded.initialStateDir)).toBe(true);
     expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
   });
@@ -1248,10 +1247,10 @@ describe("shipped scenarios", () => {
           "}\n\n" +
           "module.exports = { greeting };\n",
       );
-      const partial = spawnSync(loaded.spec.verification.command, {
+      const partial = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(partial.status).not.toBe(0);
@@ -1277,10 +1276,10 @@ describe("shipped scenarios", () => {
           "}\n\n" +
           "module.exports = { notice };\n",
       );
-      const complete = spawnSync(loaded.spec.verification.command, {
+      const complete = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(complete.status).toBe(0);
@@ -1293,9 +1292,9 @@ describe("shipped scenarios", () => {
   it("revise-from-test-output loads, fails verification before any edit, and surfaces the expected value in the failure output", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "revise-from-test-output");
     expect(loaded.spec.id).toBe("revise-from-test-output");
-    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.prompt).toMatch(/src\/secret\.js/);
-    expect(loaded.spec.verification.command).toBe("node test.js");
+    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.stages[0].prompt).toMatch(/src\/secret\.js/);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node test.js");
 
     const workDir = mkdtempSync(join(tmpdir(), "kota-harness-parity-revise-"));
     try {
@@ -1305,10 +1304,10 @@ describe("shipped scenarios", () => {
 
       // The naive initial tree must fail verification — a harness that
       // never runs the test cannot discover the expected value.
-      const beforeFix = spawnSync(loaded.spec.verification.command, {
+      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(beforeFix.status).not.toBe(0);
@@ -1329,10 +1328,10 @@ describe("shipped scenarios", () => {
         join(workDir, "src/secret.js"),
         `function secret() {\n  return ${JSON.stringify(revealedExpected)};\n}\n\nmodule.exports = { secret };\n`,
       );
-      const afterFix = spawnSync(loaded.spec.verification.command, {
+      const afterFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(afterFix.status).toBe(0);
@@ -1345,13 +1344,13 @@ describe("shipped scenarios", () => {
   it("builder-scoped-fix loads with a prompt declaring the task, scope constraints, and commit-message artifact requirement", () => {
     const loaded = loadScenario(SHIPPED_SCENARIOS_ROOT, "builder-scoped-fix");
     expect(loaded.spec.id).toBe("builder-scoped-fix");
-    expect(loaded.spec.prompt.length).toBeGreaterThan(0);
-    expect(loaded.spec.verification.command).toBe("node verify.js");
-    expect(loaded.spec.prompt).toMatch(/src\/calc\.js/);
-    expect(loaded.spec.prompt).toMatch(/multiply/);
-    expect(loaded.spec.prompt).toMatch(/divide/);
-    expect(loaded.spec.prompt).toMatch(/commit-message\.txt/);
-    expect(loaded.spec.prompt).toMatch(/Do NOT modify `test\.js`, `src\/format\.js`, or `src\/constants\.js`/);
+    expect(loaded.spec.stages[0].prompt.length).toBeGreaterThan(0);
+    expect(loaded.spec.stages.at(-1)!.verification.command).toBe("node verify.js");
+    expect(loaded.spec.stages[0].prompt).toMatch(/src\/calc\.js/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/multiply/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/divide/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/commit-message\.txt/);
+    expect(loaded.spec.stages[0].prompt).toMatch(/Do NOT modify `test\.js`, `src\/format\.js`, or `src\/constants\.js`/);
     expect(existsSync(loaded.initialStateDir)).toBe(true);
     expect(statSync(loaded.initialStateDir).isDirectory()).toBe(true);
   });
@@ -1364,10 +1363,10 @@ describe("shipped scenarios", () => {
       cpSync(loaded.initialStateDir, workDir, { recursive: true });
 
       // 1. Initial tree fails: multiply bug + missing commit-message.txt
-      const beforeFix = spawnSync(loaded.spec.verification.command, {
+      const beforeFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(beforeFix.status).not.toBe(0);
@@ -1377,10 +1376,10 @@ describe("shipped scenarios", () => {
         join(workDir, "src/calc.js"),
         "function multiply(a, b) {\n  return a * b;\n}\nfunction divide(a, b) {\n  if (b === 0) throw new Error(\"Cannot divide by zero\");\n  return a / b;\n}\nmodule.exports = { multiply, divide };\n",
       );
-      const fixWithoutCommit = spawnSync(loaded.spec.verification.command, {
+      const fixWithoutCommit = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(fixWithoutCommit.status).not.toBe(0);
@@ -1390,10 +1389,10 @@ describe("shipped scenarios", () => {
 
       // 3. Functional fix with placeholder/empty commit-message.txt -> fails
       writeFileSync(join(workDir, "commit-message.txt"), "ok\n");
-      const fixWithShortCommit = spawnSync(loaded.spec.verification.command, {
+      const fixWithShortCommit = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(fixWithShortCommit.status).not.toBe(0);
@@ -1404,10 +1403,10 @@ describe("shipped scenarios", () => {
       // 4. Valid commit message but modified protected file (test.js) -> fails
       writeFileSync(join(workDir, "commit-message.txt"), "fix: fix multiply function in calc.js\n");
       writeFileSync(join(workDir, "test.js"), "// modified\n");
-      const modifiedProtected = spawnSync(loaded.spec.verification.command, {
+      const modifiedProtected = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(modifiedProtected.status).not.toBe(0);
@@ -1420,10 +1419,10 @@ describe("shipped scenarios", () => {
 
       // 5. Unexpected file created -> fails
       writeFileSync(join(workDir, "src/extra.js"), "// extra\n");
-      const withExtraFile = spawnSync(loaded.spec.verification.command, {
+      const withExtraFile = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(withExtraFile.status).not.toBe(0);
@@ -1435,10 +1434,10 @@ describe("shipped scenarios", () => {
       rmSync(join(workDir, "src/extra.js"));
 
       // 6. Clean fix + valid commit-message.txt -> passes
-      const afterCleanFix = spawnSync(loaded.spec.verification.command, {
+      const afterCleanFix = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
         shell: true,
         cwd: workDir,
-        timeout: loaded.spec.verification.timeoutMs,
+        timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
         encoding: "utf-8",
       });
       expect(afterCleanFix.status).toBe(0);

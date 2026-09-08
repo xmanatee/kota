@@ -152,7 +152,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
               type: "tool_use",
               id: "run_failing",
               name: "shell",
-              input: { command: loaded.spec.verification.command },
+              input: { command: loaded.spec.stages.at(-1)!.verification.command },
             },
           ] as KotaContentBlock[],
           usage: { input_tokens: 10, output_tokens: 4 },
@@ -194,7 +194,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
               type: "tool_use",
               id: "run_passing",
               name: "shell",
-              input: { command: loaded.spec.verification.command },
+              input: { command: loaded.spec.stages.at(-1)!.verification.command },
             },
           ] as KotaContentBlock[],
           usage: { input_tokens: 8, output_tokens: 4 },
@@ -217,7 +217,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
     );
 
     const result = await openaiToolsAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       cwd: workingDir,
@@ -229,7 +229,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
     expect(result.text).toBe("Scenario solved.");
 
     expect(streamCallSnapshots[0].messages).toEqual([
-      { role: "user", content: loaded.spec.prompt },
+      { role: "user", content: loaded.spec.stages[0].prompt },
     ]);
 
     const toolCallNames = executeToolMock.mock.calls.map(([name]) => name);
@@ -240,7 +240,7 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
     );
     expect(shellCalls).toHaveLength(2);
     for (const [, input] of shellCalls) {
-      expect(input).toEqual({ command: loaded.spec.verification.command });
+      expect(input).toEqual({ command: loaded.spec.stages.at(-1)!.verification.command });
     }
 
     // Prove the failure-output bytes flowed through the harness's message
@@ -264,11 +264,11 @@ describe("openai-tools harness × revise-from-test-output scenario", () => {
     expect(writeInput.path).toBe("src/secret.js");
     expect(String(writeInput.content)).toContain(JSON.stringify(expectedValue));
 
-    const verify = spawnSync(loaded.spec.verification.command, {
+    const verify = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
       shell: true,
       cwd: workingDir,
       encoding: "utf-8",
-      timeout: loaded.spec.verification.timeoutMs,
+      timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
     });
     expect(verify.status).toBe(0);
     expect(verify.stdout).toContain("ok");

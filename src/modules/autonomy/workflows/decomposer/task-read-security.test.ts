@@ -79,13 +79,11 @@ describe("decomposer task read security", () => {
       },
     ],
   ])("rejects %s", async (_label, payload) => {
-    const result = await new WorkflowScenarioDriver(decomposerWorkflow, {
+    await expect(new WorkflowScenarioDriver(decomposerWorkflow, {
       trigger: { event: "workflow.completed", schemaRef: null, payload },
-    }).run();
-    expect(result.steps["assess-failure"].error).toMatch(
+    }).run()).rejects.toThrow(
       /path-safe segment|canonical run directory/i,
     );
-    expect(result.steps.decompose).toBeUndefined();
   });
 
   it.each([
@@ -101,11 +99,9 @@ describe("decomposer task read security", () => {
     } as WorkflowRunMetadata;
     writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await runScenario(workspaceRoot);
-    expect(result.steps["assess-failure"].error).toContain(
+    await expect(runScenario(workspaceRoot)).rejects.toThrow(
       "must identify failed builder run",
     );
-    expect(result.steps.decompose).toBeUndefined();
   });
 
   it("rejects source metadata without the immutable builder task contract", async () => {
@@ -119,11 +115,9 @@ describe("decomposer task read security", () => {
     };
     writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
-    const result = await runScenario(workspaceRoot);
-    expect(result.steps["assess-failure"].error).toContain(
+    await expect(runScenario(workspaceRoot)).rejects.toThrow(
       "immutable task contract",
     );
-    expect(result.steps.decompose).toBeUndefined();
   });
 
   it("does not expose a sibling-project task reached through a task symlink", async () => {

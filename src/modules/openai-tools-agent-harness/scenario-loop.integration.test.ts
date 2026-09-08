@@ -192,7 +192,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
               type: "tool_use",
               id: "run_verify",
               name: "shell",
-              input: { command: loaded.spec.verification.command },
+              input: { command: loaded.spec.stages.at(-1)!.verification.command },
             },
           ] as KotaContentBlock[],
           usage: { input_tokens: 8, output_tokens: 4 },
@@ -232,7 +232,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
     });
 
     const result = await openaiToolsAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "openai/gpt-5.6-luna",
       effort: "xhigh",
       cwd: workingDir,
@@ -246,7 +246,7 @@ describe("openai-tools harness × extract-shared-helper scenario", () => {
 
     // The very first turn received the scenario prompt verbatim.
     expect(streamCallSnapshots[0].messages).toEqual([
-      { role: "user", content: loaded.spec.prompt },
+      { role: "user", content: loaded.spec.stages[0].prompt },
     ]);
 
     // Every scripted tool call reached the tool registry.

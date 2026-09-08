@@ -22,7 +22,7 @@ import { BufferTransport } from "#core/loop/transport.js";
 import {
 	createMockClient,
 	type MockApiCall,
-} from "#core/model/mock-client.js";
+} from "#core/model/mock-client.test-support.js";
 import { TASK_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import { setSkipConfirmations } from "#core/util/confirm.js";
 

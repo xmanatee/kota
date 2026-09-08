@@ -1,4 +1,5 @@
 import { rmSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
@@ -25,7 +26,7 @@ describe("scope improvement onboarding workflow", () => {
     const workspaceRoot = makeScopeFixture("production-onboarding");
     scopeRoots.push(workspaceRoot);
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    const state = createTestTransactionalRunState();
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     const options = {
       workspaceRoot,
       trigger: {
@@ -47,9 +48,9 @@ describe("scope improvement onboarding workflow", () => {
     const first = await new WorkflowScenarioDriver(onboardingWorkflow, options).run();
     const second = await new WorkflowScenarioDriver(onboardingWorkflow, options).run();
 
-    expect(first.status).toBe("success");
+    expect(first.status, first.error).toBe("success");
     expect(first.emitted).toHaveLength(1);
-    expect(second.status).toBe("success");
+    expect(second.status, second.error).toBe("success");
     expect(second.emitted).toEqual([]);
     const payload = first.emitted[0]?.payload;
     expect(payload).toMatchObject({

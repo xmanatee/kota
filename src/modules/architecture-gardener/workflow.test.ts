@@ -67,7 +67,7 @@ describe("Architecture Gardener Workflow", () => {
   });
 
   it("executes workflow on explicit request and stages an implementation task", async () => {
-    const transactionalState = createTestTransactionalRunState();
+    const transactionalState = createTestTransactionalRunState(join(testWorkspace, ".kota", "test-state"));
     const trigger = {
       event: ARCHITECTURE_REVIEW_REQUESTED_EVENT,
       schemaRef: null,
@@ -83,7 +83,7 @@ describe("Architecture Gardener Workflow", () => {
       ports: { state: transactionalState },
     }).run();
 
-    expect(run.status).toBe("success");
+    expect(run.status, run.error).toBe("success");
     const artifactPath = join(run.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT);
     expect(existsSync(artifactPath)).toBe(true);
 
@@ -102,7 +102,7 @@ describe("Architecture Gardener Workflow", () => {
   });
 
   it("suppresses unchanged evidence on subsequent runs", async () => {
-    const transactionalState = createTestTransactionalRunState();
+    const transactionalState = createTestTransactionalRunState(join(testWorkspace, ".kota", "test-state"));
     const trigger = {
       event: ARCHITECTURE_REVIEW_REQUESTED_EVENT,
       schemaRef: null,

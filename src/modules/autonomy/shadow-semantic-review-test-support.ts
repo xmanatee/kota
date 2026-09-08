@@ -19,7 +19,7 @@ export function makeShadowReviewContext(
     workspaceRoot,
     scopeRoot: workspaceRoot,
     stateDir: join(workspaceRoot, ".kota"),
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state")),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "fixture-workflow",

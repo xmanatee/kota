@@ -12,7 +12,9 @@ judged against real runs rather than aspiration.
 - Scenarios are self-contained: `scenarios/<id>/scenario.json` plus an
   `initial/` tree that defines the starting repo state. Single-stage
   scenarios declare one prompt and verifier; staged scenarios declare two or
-  three ordered stages, each with its own prompt and verifier.
+  three ordered stages, each with its own prompt and verifier. Both input
+  shapes normalize to the same stage list; consumers read stage fields, with
+  no duplicate top-level prompt, verifier, or preview aliases.
 - The runner reuses `runAgentHarness` — the same entry point the main `kota
   run` path calls. No parallel benchmarking framework lives here.
 - Every harness runs against a fresh `tmpdir` copy of the scenario's

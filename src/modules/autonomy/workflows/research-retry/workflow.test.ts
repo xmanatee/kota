@@ -120,7 +120,7 @@ describe("research-retry workflow", () => {
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["inspect-candidates"].output).toMatchObject({
       candidate: null,
       candidateCount: 0,
@@ -136,12 +136,13 @@ describe("research-retry workflow", () => {
         urls: ["https://example.com/article"],
       },
     ]);
-    writeFileSync(join(workspaceRoot, "dirty.txt"), "uncommitted\n");
 
     const harness = new WorkflowScenarioDriver(researchRetryWorkflow, {
       trigger: researchRetryTrigger(),
       workspaceRoot,
-      workspaceDir: workspaceRoot,
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, "dirty.txt"), "uncommitted\n");
+      },
     });
 
     const result = await harness.run();

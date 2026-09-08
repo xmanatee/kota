@@ -3,10 +3,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import {
-	resetMockIds,
+
 	textResponse,
 	toolUseResponse,
-} from "#core/model/mock-client.js";
+} from "#core/model/mock-client.test-support.js";
 import {
 	createTestSession,
 	makeTempDir,
@@ -16,7 +16,7 @@ describe("Composition: lint-gated edit recovery", () => {
 	let testDir: string;
 
 	beforeEach(() => {
-		resetMockIds();
+
 		testDir = makeTempDir("lint");
 		writeFileSync(
 			join(testDir, "app.js"),

@@ -80,7 +80,7 @@ function makeContext(scopeRoot: string): WorkflowStepContext {
     workspaceRoot: scopeRoot,
     scopeRoot: scopeRoot,
     stateDir: join(scopeRoot, ".kota"),
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(join(scopeRoot, ".kota", "test-state")),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "test-workflow",

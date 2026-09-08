@@ -24,25 +24,6 @@ export async function waitUntil(
   }
 }
 
-export async function waitForCompletedWorkflows(
-  completedRuns: Array<{ workflow: string }>,
-  workflowNames: readonly string[],
-  timeoutMs: number,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (true) {
-    const seen = new Set(completedRuns.map((run) => run.workflow));
-    if (workflowNames.every((name) => seen.has(name))) return;
-    if (Date.now() >= deadline) break;
-    await wait(25);
-  }
-  throw new Error(
-    `Timed out waiting for workflows ${workflowNames.join(", ")}; saw ${
-      completedRuns.map((run) => run.workflow).join(", ") || "none"
-    }`,
-  );
-}
-
 export async function loadAutonomyWorkflowDefinitions(): Promise<
   RegisteredWorkflowDefinitionInput[]
 > {

@@ -9,12 +9,18 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const TIMEOUT_MS = 120_000;
+const require = createRequire(import.meta.url);
+const dependencyRoot = require.resolve.paths("typescript")?.find(
+  candidate => existsSync(join(candidate, "typescript/package.json")),
+);
+if (!dependencyRoot) throw new Error("Installed package dependencies are required");
 
 function run(command: string, args: string[], cwd: string) {
   return spawnSync(command, args, {
@@ -68,10 +74,10 @@ describe("published package", () => {
       throw new Error("The published declaration graph requires @types/node as a dependency.");
     }
     mkdirSync(join(consumerDir, "node_modules"), { recursive: true });
-    symlinkSync(join(REPO_ROOT, "node_modules"), join(packageRoot, "node_modules"), "dir");
+    symlinkSync(dependencyRoot, join(packageRoot, "node_modules"), "dir");
     symlinkSync(packageRoot, join(consumerDir, "node_modules", "kota"), "dir");
     symlinkSync(
-      join(REPO_ROOT, "node_modules", "@types"),
+      join(dependencyRoot, "@types"),
       join(consumerDir, "node_modules", "@types"),
       "dir",
     );
@@ -137,7 +143,7 @@ describe("published package", () => {
 
     expectRunOk(
       process.execPath,
-      [join(REPO_ROOT, "node_modules/typescript/bin/tsc"), "-p", "tsconfig.json"],
+      [require.resolve("typescript/bin/tsc"), "-p", "tsconfig.json"],
       consumerDir,
     );
   });

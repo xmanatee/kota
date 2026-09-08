@@ -105,15 +105,15 @@ describe("blocked-promoter owner-decision authorization", () => {
         ports: { runCommand: successfulWorkflowCommandRun },
       }).run();
 
-      expect(result.status).toBe("success");
+      expect(result.status, result.error).toBe("success");
       const after = readFileSync(
-        join(result.workspaceDir, "data", "tasks", "task-owner-decision.md"),
+        join(workspaceRoot, "data", "tasks", "task-owner-decision.md"),
         "utf-8",
       );
       expect(after).toContain("blocked-promoter-asked: slot=remain-blocked");
       expect(after).not.toContain("blocked-promoter-resolved");
       expect(existsSync(join(
-        result.workspaceDir,
+        workspaceRoot,
         "data",
         "tasks",
         "task-owner-decision.md",
@@ -143,7 +143,7 @@ describe("blocked-promoter owner-decision authorization", () => {
       "precondition changed while awaiting an answer",
     );
     const after = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "task-owner-decision.md"),
+      join(workspaceRoot, "data", "tasks", "task-owner-decision.md"),
       "utf-8",
     );
     expect(after).not.toContain("blocked-promoter-asked");

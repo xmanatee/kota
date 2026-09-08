@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,10 +19,16 @@ describe("daily digest cadence publication", () => {
     const root = mkdtempSync(join(tmpdir(), "daily-digest-workflow-"));
     roots.push(root);
     mkdirSync(join(root, "data/tasks/archive"), { recursive: true });
-    const state = createTestTransactionalRunState();
+    writeFileSync(join(root, ".gitignore"), ".kota/\n");
+    execFileSync("git", ["init", "--quiet"], { cwd: root });
+    const commitInput = () => {
+      execFileSync("git", ["add", "-A"], { cwd: root });
+      execFileSync("git", ["-c", "user.name=Scenario", "-c", "user.email=scenario@example.test", "commit", "--quiet", "-m", "digest input"], { cwd: root });
+    };
+    commitInput();
+    const state = createTestTransactionalRunState(join(root, ".kota", "test-state"));
     const run = () => new WorkflowScenarioDriver(workflow, {
       workspaceRoot: root,
-      workspaceDir: root,
       trigger: { event: "schedule", payload: {} },
       ports: { state },
     }).run();
@@ -36,6 +43,7 @@ describe("daily digest cadence publication", () => {
 
     writeFileSync(join(root, "data/tasks/task-newcomer.md"),
       "---\nstatus: open\npriority: p2\n---\n\n# Newcomer\n");
+    commitInput();
     const second = await run();
     expect(second.status, second.error).toBe("success");
     expect(second.steps["build-digest"].output).toMatchObject({

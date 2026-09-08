@@ -181,23 +181,23 @@ describe("blocked-promoter workflow", () => {
     // The task-needs-storage one stayed blocked (capability not present).
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "task-needs-storage.md"),
+        join(workspaceRoot, "data", "tasks", "task-needs-storage.md"),
       ),
     ).toBe(true);
     expect(
       readFileSync(
-        join(result.workspaceDir, "data", "tasks", "task-needs-storage.md"),
+        join(workspaceRoot, "data", "tasks", "task-needs-storage.md"),
         "utf-8",
       ),
     ).toContain("status: blocked");
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "task-needs-capture.md"),
+        join(workspaceRoot, "data", "tasks", "task-needs-capture.md"),
       ),
     ).toBe(true);
     expect(
       readFileSync(
-        join(result.workspaceDir, "data", "tasks", "task-needs-capture.md"),
+        join(workspaceRoot, "data", "tasks", "task-needs-capture.md"),
         "utf-8",
       ),
     ).toContain("status: open");
@@ -239,12 +239,12 @@ describe("blocked-promoter workflow", () => {
     );
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "task-needs-telegram-proof.md"),
+        join(workspaceRoot, "data", "tasks", "task-needs-telegram-proof.md"),
       ),
     ).toBe(true);
     expect(
       readFileSync(
-        join(result.workspaceDir, "data", "tasks", "task-needs-telegram-proof.md"),
+        join(workspaceRoot, "data", "tasks", "task-needs-telegram-proof.md"),
         "utf-8",
       ),
     ).toContain("status: blocked");
@@ -260,7 +260,7 @@ describe("blocked-promoter workflow", () => {
     });
     expect(instructions[0].reason).toContain("no operator-visible proof");
     const taskBody = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "task-needs-telegram-proof.md"),
+      join(workspaceRoot, "data", "tasks", "task-needs-telegram-proof.md"),
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(taskBody)).not.toBeNull();
@@ -319,12 +319,12 @@ describe("blocked-promoter workflow", () => {
     expect(followups.map((p) => p.id)).toContain("task-pick-variant");
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+        join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       ),
     ).toBe(true);
     expect(
       readFileSync(
-        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+        join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
         "utf-8",
       ),
     ).toContain("status: open");
@@ -358,7 +358,7 @@ describe("blocked-promoter workflow", () => {
 
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
     const taskBody = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+      join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       "utf-8",
     );
     expect(taskBody).toContain("blocked-promoter-asked: slot=pick-variant");
@@ -434,7 +434,7 @@ describe("blocked-promoter workflow", () => {
       payload: {},
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     const instructions = (
       result.steps["instruct-operator-capture"].output as {
         instructions: Array<{ taskId: string; capturePath: string }>;
@@ -443,7 +443,7 @@ describe("blocked-promoter workflow", () => {
     expect(instructions.map((i) => i.taskId)).toEqual(["task-aged-capture"]);
     // The marker is written to the task body.
     const body = readFileSync(
-      join(result.workspaceDir, "data", "tasks", "task-aged-capture.md"),
+      join(workspaceRoot, "data", "tasks", "task-aged-capture.md"),
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(body)).not.toBeNull();
@@ -569,12 +569,12 @@ describe("blocked-promoter workflow", () => {
     expect(promotion.promotions.map((p) => p.id)).toContain("task-pick-variant");
     expect(
       existsSync(
-        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+        join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
       ),
     ).toBe(true);
     expect(
       readFileSync(
-        join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
+        join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
         "utf-8",
       ),
     ).toContain("status: open");

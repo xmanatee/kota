@@ -126,7 +126,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
 
     const messages: KotaAgentMessage[] = [];
     const result = await antigravityCliAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "gemini-3.7-flash",
       effort: "xhigh",
       cwd: workingDir,
@@ -151,7 +151,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
         "agy",
         "--new-project",
         "--print",
-        expect.stringContaining(loaded.spec.prompt),
+        expect.stringContaining(loaded.spec.stages[0].prompt),
         "--model",
         "gemini-3.7-flash",
         "--effort",
@@ -178,7 +178,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     expect(promptArg).toContain(WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION);
     expect(promptArg).toContain("Antigravity CLI owns its native tool loop");
     expect(promptArg).toContain("## Task");
-    expect(promptArg).toContain(loaded.spec.prompt);
+    expect(promptArg).toContain(loaded.spec.stages[0].prompt);
 
     // Apply the fix that AGY simulates performing
     writeFileSync(
@@ -191,10 +191,10 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     );
 
     // Run scenario verification
-    const verification = spawnSync(loaded.spec.verification.command, {
+    const verification = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
       shell: true,
       cwd: workingDir,
-      timeout: loaded.spec.verification.timeoutMs,
+      timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
       encoding: "utf-8",
     });
     expect(verification.status).toBe(0);
@@ -216,7 +216,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     });
 
     const result = await antigravityCliAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "gemini-3.7-flash",
       effort: "xhigh",
       cwd: workingDir,
@@ -227,10 +227,10 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     writeFileSync(join(workingDir, "test.js"), "// overwritten test.js\n");
     writeFileSync(join(workingDir, "commit-message.txt"), "fix: update test\n");
 
-    const verification = spawnSync(loaded.spec.verification.command, {
+    const verification = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
       shell: true,
       cwd: workingDir,
-      timeout: loaded.spec.verification.timeoutMs,
+      timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
       encoding: "utf-8",
     });
     expect(verification.status).not.toBe(0);
@@ -246,7 +246,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     });
 
     await antigravityCliAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "gemini-3.7-flash",
       effort: "xhigh",
       cwd: workingDir,
@@ -258,10 +258,10 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
       "function multiply(a, b) { return a * b; }\nfunction divide(a, b) { if (b === 0) throw new Error('Cannot divide by zero'); return a / b; }\nmodule.exports = { multiply, divide };\n",
     );
 
-    const verification = spawnSync(loaded.spec.verification.command, {
+    const verification = spawnSync(loaded.spec.stages.at(-1)!.verification.command, {
       shell: true,
       cwd: workingDir,
-      timeout: loaded.spec.verification.timeoutMs,
+      timeout: loaded.spec.stages.at(-1)!.verification.timeoutMs,
       encoding: "utf-8",
     });
     expect(verification.status).not.toBe(0);
@@ -278,7 +278,7 @@ describe("antigravity-cli agent harness × builder-scoped-fix scenario", () => {
     });
 
     const result = await antigravityCliAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "gemini-3.7-flash",
       effort: "xhigh",
       cwd: workingDir,

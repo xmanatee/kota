@@ -1,8 +1,11 @@
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { join } from "node:path";
 import type {
   DurableEffectValue,
   RunContext,
   TransactionalRunState,
 } from "../run-context.js";
+import { RunStateDatabase } from "../run-state-database.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
 
 const DEFAULT_TRIGGER: WorkflowRunTrigger = {
@@ -11,32 +14,33 @@ const DEFAULT_TRIGGER: WorkflowRunTrigger = {
   payload: {},
 };
 
-export function createTestTransactionalRunState(): TransactionalRunState {
-  const values = new Map<
-    string,
-    { revision: number; value: DurableEffectValue }
-  >();
+/** Fixture seeding and inspection use the real scope-state owner. Scenario runs
+ * receive the location and stage mutations through createRunContext instead. */
+export function createTestTransactionalRunState(
+  stateRoot: string,
+  scopeId = "test-scope",
+): TransactionalRunState & { stateDir: string; scopeId: string } {
+  mkdirSync(stateRoot, { recursive: true });
+  const stateDir = mkdtempSync(join(stateRoot, "state-"));
+  function withDatabase<T>(run: (database: RunStateDatabase) => T): T {
+    const database = new RunStateDatabase(stateDir);
+    try {
+      return run(database);
+    } finally {
+      database.close();
+    }
+  }
+  withDatabase((database) => database.registerScope({ id: scopeId, rootPath: stateDir, createdAt: new Date().toISOString() }));
   return {
+    stateDir,
+    scopeId,
     read<T extends DurableEffectValue>(key: string) {
-      const current = values.get(key);
-      return current === undefined
-        ? { revision: 0, value: null }
-        : {
-            revision: current.revision,
-            value: structuredClone(current.value) as T,
-          };
+      return withDatabase((database) => database.readScopeStateValue<T>(scopeId, key));
     },
     compareAndSet(key, expectedRevision, value) {
-      const currentRevision = values.get(key)?.revision ?? 0;
-      if (currentRevision !== expectedRevision) {
-        throw new Error(
-          `Test state revision mismatch for "${key}": expected ${expectedRevision}, received ${currentRevision}`,
-        );
-      }
-      values.set(key, {
-        revision: currentRevision + 1,
-        value: structuredClone(value),
-      });
+      withDatabase((database) => database.compareAndSetScopeStateValue({
+        scopeId, key, expectedRevision, value, updatedAt: new Date().toISOString(),
+      }));
     },
   };
 }
@@ -89,9 +93,6 @@ export function createTestRunContext(
     processes: { register: () => undefined },
     effects: { execute: (effect) => effect.execute() },
     publications: { stageEmit: () => undefined },
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(join(rootDir, "state")),
   };
 }
-
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";

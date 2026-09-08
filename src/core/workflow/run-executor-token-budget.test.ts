@@ -54,7 +54,7 @@ function makeRunContext(
     processes: { register: vi.fn() },
     effects: { execute: (effect) => effect.execute() },
     publications: { stageEmit: vi.fn() },
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state")),
   };
 }
 

@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
   WorkflowScenarioDriver,
@@ -12,14 +12,16 @@ import { createTestTransactionalRunState } from "#core/workflow/testing/run-cont
 import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
 import explorerWorkflow from "./workflow.js";
 
-function stateWithLastExplorationAt(lastExplorationAt: string) {
-  const state = createTestTransactionalRunState();
+function stateWithLastExplorationAt(tempDir: string, lastExplorationAt: string) {
+  const state = createTestTransactionalRunState(join(tempDir, ".kota", "test-state"));
   state.compareAndSet(EXPLORER_STATE_KEY, 0, { lastExplorationAt });
   return state;
 }
 
 describe("explorer workflow refresh", () => {
   let tempDir: string;
+
+  afterEach(() => { rmSync(tempDir, { recursive: true, force: true }); });
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
@@ -66,7 +68,7 @@ describe("explorer workflow refresh", () => {
       runtimeState: { workflows: {} },
     });
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       explorationRefreshDue: true,
       needsAttention: true,
@@ -75,7 +77,7 @@ describe("explorer workflow refresh", () => {
   });
 
   it("does not write lastExplorationAt when explore step is skipped", async () => {
-    const state = stateWithLastExplorationAt(new Date().toISOString());
+    const state = stateWithLastExplorationAt(tempDir, new Date().toISOString());
     const before = state.read<ExplorerState>(EXPLORER_STATE_KEY);
 
     await runExplorerScenario({
@@ -88,17 +90,17 @@ describe("explorer workflow refresh", () => {
   });
 
   it("skips explore when worktree is dirty", async () => {
-    writeFileSync(join(tempDir, "dirty.txt"), "uncommitted\n");
     const harness = new WorkflowScenarioDriver(explorerWorkflow, {
       trigger: { event: "autonomy.queue.empty", payload: {} },
       runtimeState: { workflows: {} },
       workspaceRoot: tempDir,
-      workspaceDir: tempDir,
+      setupWorkspace: (workspaceDir) => {
+        writeFileSync(join(workspaceDir, "dirty.txt"), "uncommitted\n");
+      },
     });
 
     const result = await harness.run();
 
-    expect(result.status).toBe("success");
     expect(result.steps["inspect-queue"].output).toMatchObject({
       dirty: true,
       needsAttention: false,
@@ -110,7 +112,7 @@ describe("explorer workflow refresh", () => {
     const thirtyFiveMinutesAgo = new Date(
       Date.now() - 35 * 60 * 1000,
     ).toISOString();
-    const state = stateWithLastExplorationAt(thirtyFiveMinutesAgo);
+    const state = stateWithLastExplorationAt(tempDir, thirtyFiveMinutesAgo);
 
     const result = await runExplorerScenario({
       trigger: { event: "autonomy.queue.empty", payload: {} },

@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -472,13 +472,7 @@ describe("workflow step context scope policy", () => {
       );
       expect(hostedRunner).toHaveBeenCalledTimes(1);
       expect(runAgentHarness).toHaveBeenCalledTimes(1);
-      expect(readFileSync(
-        join(
-          workspaceRoot,
-          ".kota/runs/run-1/steps/merge.agent-attempts.jsonl",
-        ),
-        "utf8",
-      )).toContain("Exercise direct hosted authorization.");
+
     } finally {
       rmSync(workspaceRoot, { recursive: true, force: true });
     }

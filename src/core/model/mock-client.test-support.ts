@@ -6,6 +6,7 @@
  * next response in a pre-configured sequence.
  */
 
+import { randomUUID } from "node:crypto";
 import type {
 	KotaContentBlock,
 	KotaMessage,
@@ -111,19 +112,11 @@ export function createMockClient(
 
 // --- Response builders ---
 
-/**
- * Sentinel model id stamped onto every mock response. Production code must not
- * read this constant as a default — the negative grep test enforces that no
- * literal `claude-*`/`gpt-*`/`gemini-*` id leaks into production paths, and a
- * sentinel keeps the mock untangled from any active preset.
- */
+/** Synthetic provider identity for scripted model responses. */
 export const MOCK_MODEL_ID = "mock-test-model";
 
-let msgCounter = 0;
-
 function nextId(): string {
-	msgCounter++;
-	return `msg_mock_${msgCounter}`;
+	return randomUUID();
 }
 
 function defaultUsage(outputTokens: number): KotaModelUsage {
@@ -163,7 +156,7 @@ export function toolUseResponse(
 	}
 	content.push({
 		type: "tool_use",
-		id: opts?.toolId ?? `toolu_mock_${++msgCounter}`,
+		id: opts?.toolId ?? nextId(),
 		name: toolName,
 		input: toolInput,
 	});
@@ -184,7 +177,7 @@ export function multiToolResponse(
 ): KotaModelResponse {
 	const content: KotaContentBlock[] = tools.map((t) => ({
 		type: "tool_use",
-		id: t.id ?? `toolu_mock_${++msgCounter}`,
+		id: t.id ?? nextId(),
 		name: t.name,
 		input: t.input,
 	}));
@@ -199,7 +192,3 @@ export function multiToolResponse(
 	};
 }
 
-/** Reset the internal message counter (call between tests). */
-export function resetMockIds(): void {
-	msgCounter = 0;
-}

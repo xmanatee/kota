@@ -133,7 +133,7 @@ describe("vercel agent harness × fix-arithmetic-bug scenario", () => {
         );
         const verify = writes.then(() =>
           args.tools.shell.execute(
-            { command: loaded.spec.verification.command },
+            { command: loaded.spec.stages.at(-1)!.verification.command },
             { toolCallId: "s1" },
           ),
         );
@@ -171,7 +171,7 @@ describe("vercel agent harness × fix-arithmetic-bug scenario", () => {
     );
 
     const result = await vercelAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "openai/gpt-4o-mini",
       effort: "xhigh",
       cwd: workingDir,

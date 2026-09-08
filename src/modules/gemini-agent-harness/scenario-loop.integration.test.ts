@@ -156,7 +156,7 @@ describe("gemini agent harness × fix-arithmetic-bug scenario", () => {
         Promise.resolve(
           streamOf([
             functionCallChunk("s1", "shell", {
-              command: loaded.spec.verification.command,
+              command: loaded.spec.stages.at(-1)!.verification.command,
             }),
           ]),
         ),
@@ -181,7 +181,7 @@ describe("gemini agent harness × fix-arithmetic-bug scenario", () => {
     );
 
     const result = await geminiAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "gemini-2.5-flash",
       effort: "xhigh",
       cwd: workingDir,

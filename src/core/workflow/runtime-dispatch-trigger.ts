@@ -10,7 +10,7 @@ export type TriggerWorkflowFromStepResult = {
 };
 
 export async function triggerWorkflowFromStep(
-  state: WorkflowRuntimeDispatchState,
+  state: Pick<WorkflowRuntimeDispatchState, "definitions" | "wfQueue" | "runCoordinator" | "store">,
   parentRunId: string,
   workflowName: string,
   payload: WorkflowRunTrigger["payload"],

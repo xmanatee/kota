@@ -99,7 +99,7 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
     const process = mockCodexScenarioProcess();
 
     const result = await codexAgentHarness.run({
-      prompt: loaded.spec.prompt,
+      prompt: loaded.spec.stages[0].prompt,
       model: "gpt-5.6-sol",
       effort: "xhigh",
       cwd: workingDir,
@@ -122,7 +122,7 @@ describe("codex agent harness x fix-arithmetic-bug scenario", () => {
       expect.objectContaining({ cwd: workingDir, writableRoots: [workingDir] }),
       expect.any(Function),
     );
-    expect(process.stdinText()).toContain(loaded.spec.prompt);
+    expect(process.stdinText()).toContain(loaded.spec.stages[0].prompt);
 		expect(result).toMatchObject({
 			text: "Scenario solved.",
 			streamedText: "Scenario solved.",

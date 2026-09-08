@@ -1,233 +1,75 @@
-/**
- * Cross-module integration tests: tool-runner × tool-retry middleware
- *
- * These tests use the REAL retry middleware (not mocked) with a mocked executeTool.
- * They verify that retry policies fire correctly through executeToolCalls —
- * the actual integration boundary between these two modules.
- */
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getToolMiddleware, resetToolMiddleware } from "#core/tools/tool-middleware.js";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createRuntimeModuleLoader } from "#core/modules/module-context.test-helpers.js";
+import { localWriteEffect } from "#core/tools/effect.js";
+import { deregisterTool, registerTool } from "#core/tools/index.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
-import { createRetryMiddleware, resetRetryStats } from "#modules/tool-retry/tool-retry.js";
+import renderingModule from "#modules/rendering/index.js";
+import toolRetryModule from "#modules/tool-retry/index.js";
 
-// Mock executeTool and truncateToolResult, but NOT tool-retry.
-// Autonomy-mode gating calls `assess()` → `classifyRisk()` → `getCoreRegistrations()`,
-// so the registrations list must come through real.
-vi.mock(import("#core/tools/index.js"), async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    executeTool: vi.fn(),
-    getAllTools: () => [
-      "shell",
-      "file_read",
-      "web_fetch",
-      "web_search",
-      "http_request",
-    ].map((name) => ({
-      name,
-      description: "test tool",
-      input_schema: { type: "object" as const, properties: {} },
-    })),
+// The process result is controlled; registration, middleware activation, retry
+// input mutation and approval binding all run through their production owners.
+describe("registered retry middleware through the tool runner", () => {
+  let loader: ReturnType<typeof createRuntimeModuleLoader>;
+  let timeouts: unknown[];
+
+  beforeEach(async () => {
+    timeouts = [];
+    loader = createRuntimeModuleLoader({});
+    await loader.loadAll([renderingModule, toolRetryModule]);
+    registerTool({
+      name: "shell",
+      description: "Controlled process result",
+      input_schema: { type: "object", properties: {
+        command: { type: "string" },
+        timeout_ms: { type: "number" },
+      } },
+    }, async (input) => {
+      timeouts.push(input.timeout_ms);
+      return timeouts.length === 1
+        ? { content: "command timed out", is_error: true }
+        : { content: `completed with timeout=${input.timeout_ms}` };
+    }, undefined, { effect: localWriteEffect() });
+  });
+
+  afterEach(async () => {
+    deregisterTool("shell");
+    await loader.unloadAll();
+  });
+
+  const call = {
+    type: "tool_use" as const,
+    id: "retry-process",
+    name: "shell",
+    input: { command: "echo ready", timeout_ms: 120_000 },
   };
-});
-vi.mock("#core/loop/context.js", () => ({
-  truncateToolResult: vi.fn((text: string) => text),
-}));
 
-import { executeTool } from "#core/tools/index.js";
-
-const mockExecuteTool = vi.mocked(executeTool);
-
-function toolBlock(
-  name: string,
-  input: Record<string, unknown> = {},
-  id = "t1",
-) {
-  return { type: "tool_use" as const, id, name, input };
-}
-
-describe("tool-runner × tool-retry middleware integration", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    // Register retry middleware (normally done by module loader)
-    resetToolMiddleware();
-    resetRetryStats();
-    getToolMiddleware().add("tool-retry", createRetryMiddleware(), { priority: 20 });
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    resetToolMiddleware();
-    resetRetryStats();
-  });
-
-  it("retries shell timeout with doubled timeout_ms", async () => {
-    let callCount = 0;
-    mockExecuteTool.mockImplementation(async (_name, input) => {
-      callCount++;
-      if (callCount === 1) {
-        return { content: "Error: command timed out after 120s", is_error: true };
-      }
-      return { content: `done with timeout=${(input as Record<string, unknown>).timeout_ms}` };
+  it("propagates adjusted retry input to the registered runner", async () => {
+    const [result] = await executeToolCalls([call], {
+      resultLimit: 50_000,
+      verbose: false,
+      autonomyMode: "autonomous",
     });
-
-    const results = await executeToolCalls(
-      [toolBlock("shell", { command: "npm test", timeout_ms: 120_000 })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(callCount).toBe(2);
-    expect(results[0].content).toContain("done with timeout=240000");
-    expect(results[0].content).toContain("auto-retry");
-    expect(results[0].is_error).toBeUndefined();
+    expect(timeouts).toEqual([120_000, 240_000]);
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("completed with timeout=240000");
   });
 
-  it("blocks retry input drift after client approval", async () => {
-    mockExecuteTool.mockResolvedValueOnce({
-      content: "command timed out after 120s",
-      is_error: true,
-    });
-    const clientApprovalResolver = vi.fn().mockResolvedValue({ outcome: "allow" });
-
-    const results = await executeToolCalls(
-      [toolBlock("shell", { command: "npm test", timeout_ms: 120_000 })],
-      {
-        resultLimit: 50_000,
-        verbose: false,
-        autonomyMode: "supervised",
-        clientApprovalResolver,
+  it("rejects adjusted retry input after approval without executing it", async () => {
+    const approvedInputs: unknown[] = [];
+    const [result] = await executeToolCalls([call], {
+      resultLimit: 50_000,
+      verbose: false,
+      autonomyMode: "supervised",
+      clientApprovalResolver: async (request) => {
+        approvedInputs.push(request.input);
+        return { outcome: "allow" };
       },
-    );
-
-    expect(clientApprovalResolver).toHaveBeenCalledWith(expect.objectContaining({
-      input: { command: "npm test", timeout_ms: 120_000 },
-    }));
-    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
-    expect(results[0]).toMatchObject({
+    });
+    expect(approvedInputs).toEqual([call.input]);
+    expect(timeouts).toEqual([120_000]);
+    expect(result).toMatchObject({
       is_error: true,
       content: expect.stringContaining("tool input changed after client approval"),
     });
-  });
-
-  it("does not retry shell when doubled timeout exceeds max (300s)", async () => {
-    mockExecuteTool.mockResolvedValue({
-      content: "command timed out",
-      is_error: true,
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("shell", { command: "slow", timeout_ms: 200_000 })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    // 200000 * 2 = 400000 > 300000 max → no retry
-    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
-    expect(results[0].is_error).toBe(true);
-  });
-
-  it("retries web_fetch on ECONNRESET and succeeds", async () => {
-    let callCount = 0;
-    mockExecuteTool.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) {
-        return { content: "Error: ECONNRESET", is_error: true };
-      }
-      return { content: "fetched content" };
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("web_fetch", { url: "https://example.com" })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(callCount).toBe(2);
-    expect(results[0].content).toContain("fetched content");
-    expect(results[0].content).toContain("auto-retry");
-    expect(results[0].is_error).toBeUndefined();
-  }, 10_000);
-
-  it("returns combined error when web_search retry also fails", async () => {
-    mockExecuteTool.mockResolvedValue({
-      content: "HTTP 502 Bad Gateway",
-      is_error: true,
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("web_search", { query: "test" })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(mockExecuteTool).toHaveBeenCalledTimes(2);
-    expect(results[0].content).toContain("Auto-retry also failed");
-    expect(results[0].content).toContain("HTTP 502");
-    expect(results[0].is_error).toBe(true);
-  }, 10_000);
-
-  it("does not retry tools without a retry policy (file_read)", async () => {
-    mockExecuteTool.mockResolvedValue({
-      content: "Error: file not found",
-      is_error: true,
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("file_read", { path: "/nope" })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
-    expect(results[0].content).toBe("Error: file not found");
-    expect(results[0].is_error).toBe(true);
-  });
-
-  it("retries http_request on transient HTTP 503", async () => {
-    let callCount = 0;
-    mockExecuteTool.mockImplementation(async () => {
-      callCount++;
-      if (callCount === 1) {
-        return { content: "HTTP 503 Service Unavailable", is_error: true };
-      }
-      return { content: '{"status":"ok"}' };
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("http_request", { url: "https://api.example.com" })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(callCount).toBe(2);
-    expect(results[0].content).toContain('{"status":"ok"}');
-    expect(results[0].is_error).toBeUndefined();
-  }, 10_000);
-
-  it("does not retry shell on non-timeout errors", async () => {
-    mockExecuteTool.mockResolvedValue({
-      content: "Error: command not found: foobar",
-      is_error: true,
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("shell", { command: "foobar" })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
-    expect(results[0].is_error).toBe(true);
-  });
-
-  it("does not retry web_fetch on non-transient errors (404)", async () => {
-    mockExecuteTool.mockResolvedValue({
-      content: "Error: HTTP 404 Not Found",
-      is_error: true,
-    });
-
-    const results = await executeToolCalls(
-      [toolBlock("web_fetch", { url: "https://example.com/missing" })],
-      { resultLimit: 50_000, verbose: false, autonomyMode: "autonomous" },
-    );
-
-    expect(mockExecuteTool).toHaveBeenCalledTimes(1);
-    expect(results[0].is_error).toBe(true);
   });
 });

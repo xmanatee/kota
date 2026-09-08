@@ -8,11 +8,12 @@ import { tmpdir } from "node:os";
 import { basename, join, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initGitTestRepository } from "#core/util/git-repository-test-support.js";
-import type { DurableEffectValue } from "#core/workflow/run-context.js";
 import { DEFAULT_MAX_STEP_OUTPUT_BYTES } from "#core/workflow/run-executor-step.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   emptyAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
@@ -92,7 +93,8 @@ describe("autonomy-health-reviewer workflow", () => {
 
   it("commits the issue transition and follow-up effects in the reviewer run", async () => {
     const projection = emptyAutonomyIssueProjection();
-    let staged: DurableEffectValue | null = null;
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, 0, projection);
     const result = await new WorkflowScenarioDriver(autonomyHealthReviewerWorkflow, {
       workspaceRoot,
       trigger: {
@@ -116,17 +118,7 @@ describe("autonomy-health-reviewer workflow", () => {
           createdAt: "2026-08-26T12:00:00.000Z",
         },
       },
-      ports: {
-        state: {
-          read: <T extends DurableEffectValue>() => ({
-            revision: 0,
-            value: projection as unknown as T,
-          }),
-          compareAndSet: (_key, _revision, value) => {
-            staged = value;
-          },
-        },
-      },
+      ports: { state },
     }).run();
 
     expect(autonomyHealthReviewerWorkflow.resources?.({
@@ -139,8 +131,8 @@ describe("autonomy-health-reviewer workflow", () => {
         payload: {},
       },
     })).toEqual([AUTONOMY_ISSUE_PROJECTION_RESOURCE]);
-    expect(result.status).toBe("success");
-    expect(staged).toMatchObject({
+    expect(result.status, result.error).toBe("success");
+    expect(state.read(AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value).toMatchObject({
       issues: [expect.objectContaining({ status: "needs-decision" })],
     });
     expect(result.emitted.map((event) => event.event)).toEqual([
@@ -206,7 +198,7 @@ describe("autonomy-health-reviewer workflow", () => {
       typeof runtimeHealthAuditStepOutput
     >;
 
-    expect(result.status).toBe("success");
+    expect(result.status, result.error).toBe("success");
     expect(output).not.toHaveProperty("audit");
     expect(output.artifactPath.startsWith(
       `${join(workspaceRoot, ".kota", "runs")}${sep}`,

@@ -94,17 +94,6 @@ export type ScenarioSpecFile = {
   id: string;
   /** One-line human description surfaced in `harness-parity list`. */
   description: string;
-  /** Backwards-compatible single prompt; staged scenarios expose the first stage prompt here. */
-  prompt: string;
-  /** Backwards-compatible verifier; staged scenarios expose the final stage verifier here. */
-  verification: ScenarioVerification;
-  /**
-   * Files the verification command may write under the scenario working
-   * directory for operator preview. Paths are normalized POSIX-relative paths.
-   */
-  previewArtifacts: readonly string[];
-  /** Optional expected context targets for the single-stage scenario shape. */
-  contextRetrieval?: ScenarioContextRetrievalSpec;
   /** Whether the source metadata was the original single-stage shape or staged. */
   stageMode: "single" | "staged";
   /** Ordered prompts and verifiers executed by the runner. */
@@ -517,14 +506,9 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
       );
     }
     const stages = parseStages(r.stages, scenarioDir);
-    const firstStage = stages[0]!;
-    const finalStage = stages[stages.length - 1]!;
     return {
       id: r.id as string,
       description: r.description as string,
-      prompt: firstStage.prompt,
-      verification: finalStage.verification,
-      previewArtifacts: [],
       stageMode: "staged",
       stages,
     };
@@ -546,10 +530,6 @@ function parseScenarioSpec(rawJson: string, scenarioDir: string): ScenarioSpecFi
   return {
     id: r.id as string,
     description: r.description as string,
-    prompt,
-    verification,
-    previewArtifacts,
-    ...(contextRetrieval !== undefined ? { contextRetrieval } : {}),
     stageMode: "single",
     stages: [
       {

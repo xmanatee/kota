@@ -51,26 +51,6 @@ export function makeWorkflowCompletedEvent(
   };
 }
 
-export function makeWorkflowStepCompletedEvent(
-  overrides: Partial<BusEvents["workflow.step.completed"]> = {},
-): DaemonSseEvent {
-  return {
-    type: "workflow.step.completed",
-    payload: {
-      scopeId: DEFAULT_SCOPE_ID,
-      workflow: "builder",
-      runId: DEFAULT_RUN_ID,
-      stepId: "step-1",
-      stepType: "agent",
-      status: "success",
-      durationMs: 0,
-      runDir: "",
-      definitionPath: "",
-      ...overrides,
-    },
-  };
-}
-
 export function makeDaemonConfigReloadEvent(
   overrides: Partial<Extract<BusEvents["daemon.config.reload"], { outcome: "success" }>> = {},
 ): DaemonSseEvent {

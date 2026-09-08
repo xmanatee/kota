@@ -1,4 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import type { WorkflowStepContext } from "../run-types.js";
 import type { WorkflowTriggerStep } from "../step-types.js";
@@ -6,6 +10,10 @@ import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runn
 import { unexpectedWorkflowCommandRun } from "../testing/command-runner.js";
 import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import { executeTriggerStep } from "./step-executor-trigger.js";
+
+let stateRoot: string;
+beforeEach(() => { stateRoot = mkdtempSync(join(tmpdir(), "kota-state-owner-")); });
+afterEach(() => { rmSync(stateRoot, { recursive: true, force: true }); });
 
 function makeContext(
   overrides: Partial<WorkflowStepContext> = {},
@@ -35,7 +43,7 @@ function makeContext(
       completedRuns: 0,
       workflows: {},
     }),
-    state: createTestTransactionalRunState(),
+    state: createTestTransactionalRunState(stateRoot),
     reportProgress: () => {},
     triggerWorkflow: vi.fn().mockResolvedValue({ runId: "child-run-1", status: "queued" }),
     ...overrides,
