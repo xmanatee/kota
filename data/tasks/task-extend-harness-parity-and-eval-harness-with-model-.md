@@ -3,7 +3,6 @@ status: blocked
 priority: p1
 depends_on: [task-preserve-rich-tool-results-reasoning-and-agent-mes, task-add-kota-owned-session-resume-for-model-client-har]
 ---
-
 # Extend harness parity and eval harness with model-matrix evidence
 
 ## Problem
@@ -118,3 +117,10 @@ The configured-key live GLM/Kimi comparison was not executed in this builder
 run because neither `OPENROUTER_API_KEY` nor KOTA's OpenRouter secret resolution
 returned a credential. The remaining evidence is an operator-captured live-key
 matrix run under this task's run directory once an OpenRouter key is configured.
+
+
+## Operator Preflight (2026-09-08)
+
+An existing project OpenRouter credential passed the provider authentication endpoint (HTTP 200), with a $5 limit and $5 remaining. The live model catalog includes both z-ai/glm-5.2 and moonshotai/kimi-k2.7-code. No secret value is included here, and no production provider was changed. The operator can supply the existing credential to a scoped live validation. Missing credential ownership is therefore not the remaining problem.
+
+The recorded validation command needs correction before spending retries: it applies --harness codex to OpenRouter candidates. The current matrix applies every model to every selected harness. The Codex adapter passes the model directly to Codex CLI under its Codex-only provider/auth/egress contract, whereas the shipped OpenRouter preset uses openai-tools. Validate real provider/harness pairing through the existing model resolution and harness owners; do not label a Codex-provider request as an OpenRouter benchmark. Preserve an actual Codex baseline comparison and provider-auth failures honestly. This preflight is not configured-key coding-task evidence or task completion.
