@@ -33,6 +33,9 @@ their CLI, HTTP, and cadence surfaces.
   dispatch through the production builder task owner after materialization and
   after each round input. Do not copy task digests into fixture data.
 - Persistent scenarios use ordered multi-round fixtures.
+- Round-input destination writes use verified, pinned directories and atomic
+  leaf replacement. Retained candidate symlinks must never redirect host writes;
+  lexical path checks alone do not establish filesystem containment.
 - Retain a fixture only for a named model-dependent failure and a model/prompt
   decision that deterministic owner checks cannot settle. Record that rationale
   with the fixture. Scorers measure outcomes, not prescribed test names, source

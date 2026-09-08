@@ -3,20 +3,21 @@ import { spawnSync } from "node:child_process";
 import {
   cpSync,
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   renameSync,
   rmSync,
   statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, isAbsolute, join, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import type {
   FixtureRoundTaskInput,
   LoadedFixture,
 } from "./fixture.js";
+import { ROUND_INPUT_WRITER_SOURCE } from "./round-input-writer-source.js";
 import type { WorkflowExecutionRequest } from "./runner-types.js";
 
 function runGitSync(cwd: string, args: string[]): void {
@@ -140,8 +141,22 @@ export function applyRoundTaskInput(
           `round taskInput.sourcePath ${taskInput.sourcePath} must reference an existing fixture file.`,
         );
       }
-      mkdirSync(dirname(target), { recursive: true });
-      cpSync(source, target);
+      const result = spawnSync(process.execPath, [
+        "--input-type=module", "-e", ROUND_INPUT_WRITER_SOURCE,
+        resolve(workingDir), relative(resolve(workingDir), target),
+        String(statSync(source).mode & 0o777),
+      ], {
+        // Do not load candidate-controlled Node startup hooks or config.
+        env: {},
+        cwd: tmpdir(),
+        input: readFileSync(source),
+        encoding: "utf8",
+        timeout: 30_000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      if (result.error !== undefined || result.status !== 0) {
+        throw new Error(result.error?.message ?? (result.stderr.trim() || "Round input copy failed."));
+      }
       return undefined;
     }
   }

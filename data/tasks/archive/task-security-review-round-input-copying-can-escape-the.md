@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Round-input copying can escape the fixture workspace through a symlink in a destination ancestor. The host reuses the previous round's writable workspace, checks only lexical path containment, then creates directories and copies files before entering the executor. A symlink left in that workspace can therefore redirect the host write outside the container-mounted tree, creating or overwriting a host file with fixture-input contents.
 
@@ -123,3 +122,30 @@ excerpt:
 >         agentExecutionOverride: params.agentExecutionOverride,
 >       }),
 >       workingDir,
+
+## Resolution
+
+Round-input copying now uses a dedicated Node helper with an empty environment.
+It opens destination directories with `O_DIRECTORY | O_NOFOLLOW`, pins each as
+its process working directory, and verifies the entered inode against the open
+descriptor before any relative write. Descendant path replacements cannot
+redirect writes through an ancestor symlink. Exclusive temporary-file creation,
+descriptor-based writes, and atomic leaf replacement also avoid truncating a
+symlink or hard-linked external file. Unsupported traversal fails closed.
+
+The containment argument relies on the existing host-owned workspace parent and
+the candidate's workspace-only writable mount; an attacker with independent host
+access that can move pinned directories outside that mount is outside this boundary.
+
+Verification: 12 focused owner tests passed across `runner-materialize.test.ts`
+and `runner-multi-round.test.ts`. The public `runFixture` regression retains an
+external ancestor symlink after a passing first round, then observes rejection
+before the second executor call and unchanged external contents. Materialization
+checks cover missing and existing external targets, nested directory creation,
+root and leaf symlinks, hard links, and normal binary input replacement. The six
+existing `runner.test.ts` checks also passed. Production and test typechecks and
+Biome checks on all changed TypeScript files passed.
+
+These deterministic owner checks and inspection of the pinned-directory and
+atomic-replacement operations prove the host filesystem boundary directly. No
+live model/container evaluation or adversarial race stress run was performed.

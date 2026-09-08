@@ -1,7 +1,9 @@
 import {
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
@@ -29,6 +31,36 @@ describe("runFixture multi-round", () => {
 
   afterEach(() => {
     cleanup();
+  });
+
+  it("rejects a later input redirected outside by a passing round", async () => {
+    writeMultiRoundFixture(fixturesRoot);
+    const fixture = loadFixture(fixturesRoot, "multi-round-mini");
+    const outside = join(fixturesRoot, "outside");
+    mkdirSync(outside);
+    writeFileSync(join(outside, "task-round-2.md"), "untouched");
+    const workspaces: string[] = [];
+    const executor: WorkflowExecutor = {
+      preflight: () => TEST_EXECUTION_PROFILE,
+      execute: async ({ workingDir }) => {
+        workspaces.push(workingDir);
+        writeFileSync(join(workingDir, "state/round-1.txt"), "done");
+        mkdirSync(join(workingDir, "data"));
+        symlinkSync(outside, join(workingDir, "data/tasks"));
+        return { kind: "completed", durationMs: 1, runArtifactPath: null };
+      },
+    };
+    try {
+      await expect(runFixture({
+        fixture, executor, executionProfile: TEST_EXECUTION_PROFILE,
+        runArtifactBaseDir: runsRoot, runIndex: 0, repeatCount: 1,
+      })).rejects.toThrow(/Round input copy refused/);
+      expect(workspaces).toHaveLength(1);
+      expect(readFileSync(join(outside, "task-round-2.md"), "utf8")).toBe("untouched");
+      expect(readdirSync(outside)).toEqual(["task-round-2.md"]);
+    } finally {
+      for (const workspace of workspaces) cleanupFixtureWorkingDir(workspace);
+    }
   });
 
   it("executes multi-round fixtures in order against one preserved workspace", async () => {
