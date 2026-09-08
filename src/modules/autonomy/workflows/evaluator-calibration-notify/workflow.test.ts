@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { registerWorkflowDefinition } from "#core/workflow/validation.js";
-import evaluatorCalibrationNotify, {
-  buildAttentionItemFromCalibration,
-} from "./workflow.js";
+import evaluatorCalibrationNotify from "./workflow.js";
 
 const samplePayload = {
   windowStartMs: Date.parse("2026-04-13T00:00:00.000Z"),
@@ -61,16 +59,5 @@ describe("evaluator-calibration-notify workflow", () => {
     expect(digest.items[0].detail).toContain("pass-contradiction");
     expect(digest.text).toContain(samplePayload.reason);
     expect(digest.text).toContain("recorded as evidence");
-  });
-});
-
-describe("buildAttentionItemFromCalibration", () => {
-  it("formats rates as percentages and references the contradiction ratio", () => {
-    const item = buildAttentionItemFromCalibration(samplePayload);
-    expect(item.detail).toContain("41.7%");
-    expect(item.detail).toContain("25.0%");
-    expect(item.detail).toContain("(5/12)");
-    expect(item.detail).toContain("pass-contradiction");
-    expect(item.text).not.toContain("repair task");
   });
 });

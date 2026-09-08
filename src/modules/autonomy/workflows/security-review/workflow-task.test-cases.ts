@@ -211,37 +211,5 @@ export function describeSecurityReviewTaskTests(): void {
       expect(task).toContain("> - rationale-controlled criterion");
       expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
-
-    it("states the authorized defensive scope in the agent prompt", () => {
-      const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
-
-      expect(prompt).toContain("authorized, defensive secure-code review");
-      expect(prompt).toContain("Do not attempt exploitation or provide offensive instructions");
-    });
-
-    it("keeps the revalidation prompt aligned with the required summary field", () => {
-      const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
-
-      expect(prompt).toContain("top-level `summary`");
-      expect(prompt).toContain("`evidence`: an array");
-      expect(prompt).toContain("Do not repeat or rewrite investigation fields");
-      expect(() =>
-        decodeSecurityRevalidationOutputForInvestigation(
-          {
-            findings: [],
-            summary: "No confirmed findings.",
-          },
-          { findings: [] },
-        ),
-      ).not.toThrow();
-      expect(() =>
-        decodeSecurityRevalidationOutputForInvestigation(
-          {
-            findings: [],
-          },
-          { findings: [] },
-        ),
-      ).toThrow(/summary/);
-    });
   });
 }

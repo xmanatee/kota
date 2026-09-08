@@ -32,6 +32,13 @@ function seedCalibration(
 ): void {
   const runDir = join(runsDir, runId);
   mkdirSync(runDir, { recursive: true });
+  writeFileSync(join(runDir, "metadata.json"), JSON.stringify({
+    metadataVersion: 1, id: runId, workflow: "builder",
+    definitionPath: "builder-fixture", runDir: `.kota/runs/${runId}`,
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    startedAt: completedAt, completedAt,
+    status: verdict === "fail" ? "failed" : "success", steps: [],
+  }));
   const artifact: EvaluatorCalibrationArtifact = {
     runId,
     workflow: "builder",

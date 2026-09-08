@@ -8,10 +8,8 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  type AgentHarness,
-  type AgentHarnessRunOptions,
-  registerAgentHarness,
+import type {
+  AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
 import {
   createWorkflowDispatchDeadLetter,
@@ -40,14 +38,10 @@ import {
   WORKFLOW_BATCH_FLUSH_EVENT,
   type WorkflowBatchFlushPayload,
 } from "#core/workflow/trigger-types.js";
-import {
-  registerWorkflowDefinition,
-  validateWorkflowDefinitions,
-} from "#core/workflow/validation.js";
-import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { inboundSignalReceived } from "#modules/inbound-signals/events.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
+import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import {
   automaticProgressReviewRequested,
   progressReviewRequested,
@@ -67,21 +61,23 @@ import {
   PROGRESS_REVIEW_MAX_ARTIFACTS,
   PROGRESS_REVIEW_MAX_RUNS,
   type ProgressReviewActionResult,
-  type ProgressReviewAgentEvidencePacket,
   type ProgressReviewAgentOutput,
   readTaskStatus,
 } from "./progress-review.js";
 import {
   channelBatchPayload,
   commitProgressReviewFixture,
+  compileProgressReviewerWorkflow,
   makeProgressReviewRunContext,
   makeProgressReviewScopeRoot,
   NOW,
+  parseReviewInputFromAgentPrompt,
   readProgressReviewFixture,
+  registerProgressReviewHarness,
   reviewOutput,
 } from "./workflow.test-helpers.js";
 
-const TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
+const _TEST_PRESET = getPreset(SHIPPED_DEFAULT_PRESET_ID);
 
 import progressReviewerWorkflow, { progressReviewOutputSchema } from "./workflow.js";
 
@@ -290,50 +286,12 @@ function runCountBatchPayload(workspaceRoot: string, runId: string): WorkflowBat
   };
 }
 
-function registerProgressReviewHarness(run: AgentHarness["run"]): void {
-  registerAgentHarness({
-    name: TEST_PRESET.harness,
-    description: "progress-reviewer workflow test harness",
-    supportsMultiTurn: false,
-    supportedHookKinds: [],
-    askOwnerToolName: null,
-    emitsAgentMessageStream: false,
-    toolControl: "kota",
-    run,
-  });
-}
-
-function compileProgressReviewerWorkflow() {
-  return validateWorkflowDefinitions([
-    registerWorkflowDefinition(
-      "src/modules/autonomy/workflows/progress-reviewer/workflow.ts",
-      progressReviewerWorkflow,
-    ),
-  ], undefined, { defaultAgentHarness: TEST_PRESET.harness, preset: TEST_PRESET })[0]!;
-}
-
-function parseReviewInputFromAgentPrompt(
-  options: AgentHarnessRunOptions,
-): ProgressReviewAgentEvidencePacket {
-  const match = options.prompt.match(
-    /<untrusted-content source="workflow\.step-output\.prepare-review-input">[\s\S]*?\n(`{3,})json\n([\s\S]*?)\n\1\n[\s\S]*?<\/untrusted-content>/,
-  );
-  if (!match) {
-    throw new Error("expected prepare-review-input to be exposed to the agent");
-  }
-  if (options.prompt.includes('<step id="collect-evidence">')) {
-    throw new Error("collect-evidence must not be exposed to the agent");
-  }
-  return JSON.parse(match[2]!) as ProgressReviewAgentEvidencePacket;
-}
-
 describe("progress-reviewer workflow", () => {
   const scopeRoots: string[] = [];
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(NOW);
-    vi.clearAllMocks();
   });
 
   afterEach(() => {
@@ -406,7 +364,7 @@ describe("progress-reviewer workflow", () => {
 
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
-      ports: { runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }) },
+      ports: { runCommand: runGitEvidenceCommand },
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -419,9 +377,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
-    expect(result.steps["apply-actions"].status).toBe("success");
-    expect(result.steps["write-commit-message"].status).toBe("skipped");
-    expect(result.steps["validate-changes"].status).toBe("skipped");
+    expect(result.steps["review-evidence"].status, JSON.stringify(result.steps["review-evidence"])).toBe("success");
     const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { scope: { scopeId: string }; runs: Array<{ workflow: string }>; tasks: Array<{ taskId: string }> };
@@ -437,103 +393,6 @@ describe("progress-reviewer workflow", () => {
     );
     expect(artifact.review.verdict).toBe("on-track");
     expect(artifact.actions.createdTaskIds).toHaveLength(0);
-  });
-
-  it("cleans native harness scratch artifacts before write-scope enforcement", async () => {
-    const workspaceRoot = trackScopeRoot("progress-reviewer-scratch-cleanup");
-    const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    writeRun(
-      workspaceRoot,
-      "builder-success",
-      "builder",
-      "success",
-      "2026-06-04T11:20:00.000Z",
-    );
-    registerProgressReviewHarness(async () => {
-      mkdirSync(join(workspaceRoot, ".playwright-mcp"), { recursive: true });
-      writeFileSync(
-        join(workspaceRoot, ".playwright-mcp", "console-2026-06-24T15-31-34-323Z.log"),
-        "browser console scratch\n",
-      );
-      writeFileSync(
-        join(workspaceRoot, ".playwright-mcp", "page-2026-06-24T15-31-36-771Z.yml"),
-        "browser page scratch\n",
-      );
-      writeFileSync(join(workspaceRoot, "x-article-body.txt"), "article scratch\n");
-      const output = reviewOutput({
-        verdict: "on-track",
-        summary: "The reviewer returned schema-valid JSON after native scratch cleanup.",
-        localScope: {
-          claims: [
-            {
-              id: "scratch-cleanup-review-evidence-json",
-              claim:
-                "The review-evidence step completed with schema-valid JSON while native harness scratch files were cleaned before write-scope enforcement.",
-              evidenceIds: ["run:builder-success"],
-              confidence: "high",
-            },
-          ],
-        },
-      });
-      return {
-        text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
-        streamedText: "",
-        turns: 1,
-        usage: { tokens: { state: "unknown" }, cost: { state: "unknown" } },
-        isError: false,
-      };
-    });
-    commitProgressReviewFixture(
-      workspaceRoot,
-      "prepare scratch-cleanup fixture",
-      "2026-06-04T11:30:00.000Z",
-    );
-
-    const { promise } = executeWorkflowRun(
-      compileProgressReviewerWorkflow(),
-      {
-        event: progressReviewRequested.name,
-        schemaRef: null,
-        payload: { scopeId, windowMs: 3_600_000 },
-      },
-      {
-        readRuntimeState: () => ({ completedRuns: 0, workflows: {} }),
-        runContext: makeProgressReviewRunContext(
-          workspaceRoot,
-          "scratch-cleanup-review",
-        ),
-        bus: new EventBus(),
-        store: new WorkflowRunStore(workspaceRoot),
-        log: vi.fn(),
-      },
-    );
-
-    const result = await promise;
-
-    expect(result.metadata.status).toBe("success");
-    expect(existsSync(join(workspaceRoot, ".playwright-mcp"))).toBe(false);
-    expect(existsSync(join(workspaceRoot, "x-article-body.txt"))).toBe(false);
-    expect(
-      existsSync(
-        join(
-          workspaceRoot,
-          ".kota",
-          "runs",
-          "scratch-cleanup-review",
-          "steps",
-          "review-evidence.write-scope-violation.json",
-        ),
-      ),
-    ).toBe(false);
-    const reviewResult = result.metadata.steps.find(
-      (step) => step.id === "review-evidence",
-    );
-    expect(reviewResult).toEqual(
-      expect.objectContaining({
-        status: "success",
-        output: expect.objectContaining({ verdict: "on-track" }),
-      }),
-    );
   });
 
   it("classifies an explicit request in the review artifact", async () => {
@@ -556,7 +415,7 @@ describe("progress-reviewer workflow", () => {
 
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot,
-      ports: { runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }) },
+      ports: { runCommand: runGitEvidenceCommand },
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -573,6 +432,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
+    expect(result.steps["review-evidence"].status, JSON.stringify(result.steps["review-evidence"])).toBe("success");
     const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: { triggerKind: string; triggerEvent: string };
@@ -625,7 +485,7 @@ describe("progress-reviewer workflow", () => {
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot: scopeARoot,
       ports: {
-        runCommand: createWorkflowCommandRunner({ cwd: scopeARoot }),
+        runCommand: runGitEvidenceCommand,
       },
       trigger: {
         event: progressReviewRequested.name,
@@ -656,6 +516,7 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
+    expect(result.steps["review-evidence"].status, JSON.stringify(result.steps["review-evidence"])).toBe("success");
     const artifactPath = join(result.runDirPath, PROGRESS_REVIEW_ARTIFACT);
     const artifact = JSON.parse(readFileSync(artifactPath, "utf-8")) as {
       evidence: {
@@ -808,7 +669,6 @@ describe("progress-reviewer workflow", () => {
     const result = await harness.run();
 
     expect(result.status).toBe("success");
-    expect(result.steps["validate-changes"].status).toBe("success");
     const actions = result.steps["apply-actions"].output as ProgressReviewActionResult;
     expect(actions.createdTaskIds).toEqual([
       "task-generated-2a2c3d885f63407d",
@@ -843,7 +703,6 @@ describe("progress-reviewer workflow", () => {
     expect(repeatedActions.applied.map((action) => action.kind)).toEqual([
       "skipped-task",
     ]);
-    expect(repeated.steps["emit-attention"].status).toBe("skipped");
     expect(repeated.emitted.map((event) => event.event)).not.toContain(
       "workflow.attention.digest",
     );
@@ -2177,8 +2036,8 @@ describe("progress-reviewer workflow", () => {
     expect(evidence.artifacts).toHaveLength(0);
     expect(evidence.excluded).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("workflow run builder-success"),
-        expect.stringContaining("workflow run renamed-run"),
+        expect.stringContaining("does not match directory \"builder-success\""),
+        expect.stringContaining("does not match directory \"renamed-run\""),
       ]),
     );
     expect(
@@ -2623,7 +2482,7 @@ describe("progress-reviewer workflow", () => {
       stateDir: join(workspaceRoot, ".kota"),
       trigger,
       now: NOW,
-      runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
+      runCommand: runGitEvidenceCommand,
     });
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,

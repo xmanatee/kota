@@ -1,9 +1,8 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { afterEach, describe, expect, it, } from "vitest";
 import type { WorkflowStepErrorKind } from "#core/workflow/run-types.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
@@ -21,12 +20,7 @@ import {
   writeRunMetadata,
 } from "./workflow-test-support.js";
 
-vi.mock("./decomposition-actions.js", () => ({
-  applyDecompositionPlan: vi.fn((args: { taskId: string }) => ({
-    taskId: args.taskId,
-    subtaskIds: ["task-scoped-subtask"],
-  })),
-}));
+
 
 const roots: string[] = [];
 
@@ -113,9 +107,7 @@ async function runFixture(
   }).run();
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
+
 
 afterEach(() => {
   for (const root of roots.splice(0)) {
@@ -144,7 +136,7 @@ describe("decomposer workflow", () => {
     }
   });
 
-  it("derives RunState ownership from the failed builder's immutable task contract", () => {
+  it("binds the task resource from the failed builder's immutable task contract", () => {
     const fixture = failureFixture("step-timeout");
     const resources = decomposerWorkflow.resources?.({
       scopeRoot: fixture.workspaceRoot,
@@ -154,44 +146,7 @@ describe("decomposer workflow", () => {
     });
     expect(resources).toEqual([`task:${TASK_ID}`]);
 
-    const state = new RunStateDatabase(fixture.stateDir);
-    try {
-      state.registerScope({
-        id: "scope-decomposer",
-        rootPath: fixture.workspaceRoot,
-        createdAt: "2026-08-25T01:00:00.000Z",
-      });
-      const { epoch } = state.beginDaemonSession("2026-08-25T01:00:00.500Z");
-      state.admitRun({
-        id: "run-decomposer",
-        scopeId: "scope-decomposer",
-        workflow: "decomposer",
-        repository: "write",
-        trigger: fixture.trigger,
-        resources: resources ?? [],
-        admittedAt: "2026-08-25T01:00:01.000Z",
-      });
-      expect(state.startRun("run-decomposer", epoch, "2026-08-25T01:00:01.500Z")).toBe(1);
 
-      expect(state.getRun("run-decomposer")?.resources).toEqual([
-        `task:${TASK_ID}`,
-      ]);
-      state.admitRun({
-        id: "run-competing-builder",
-        scopeId: "scope-decomposer",
-        workflow: "builder",
-        repository: "write",
-        trigger: fixture.trigger,
-        resources: [`task:${TASK_ID}`],
-        admittedAt: "2026-08-25T01:00:02.000Z",
-      });
-      expect(
-        state.startRun("run-competing-builder", epoch, "2026-08-25T01:00:03.000Z"),
-      ).toBeNull();
-      expect(state.getRun("run-competing-builder")?.state).toBe("queued");
-    } finally {
-      state.close();
-    }
   });
 
   it("rejects resource admission when source metadata lacks the task contract", () => {
@@ -288,7 +243,6 @@ describe("decomposer workflow", () => {
       reason: expect.stringMatching(/does not require task rescoping/i),
     });
     expect(result.steps.decompose.status).toBe("skipped");
-    expect(result.steps["validate-decomposition"].status).toBe("skipped");
   });
 
   it.each([
@@ -305,7 +259,8 @@ describe("decomposer workflow", () => {
       taskPath: `data/tasks/${taskId}.md`,
     });
     expect(result.steps.decompose.status).toBe("success");
-    expect(result.steps["validate-decomposition"].status).toBe("success");
+    expect(readFileSync(join(result.workspaceDir, "data/tasks/archive", `${taskId}.md`), "utf8")).toContain("status: dropped");
+    expect(readFileSync(join(result.workspaceDir, "data/tasks/task-scoped-subtask.md"), "utf8")).toContain("status: open");
   });
 
   it("skips a task whose immutable contract changed after builder admission", async () => {
@@ -327,7 +282,6 @@ describe("decomposer workflow", () => {
   });
 
   it("rejects a semantically misaligned plan before task mutation", async () => {
-    const { applyDecompositionPlan } = await import("./decomposition-actions.js");
     const result = await runFixture(
       failureFixture("step-timeout"),
       decomposeStepMocks({
@@ -343,12 +297,11 @@ describe("decomposer workflow", () => {
     expect(result.steps["require-decomposition-approval"].error).toContain(
       "solve a different vulnerability",
     );
-    expect(applyDecompositionPlan).not.toHaveBeenCalled();
+    expect(readFileSync(join(result.workspaceDir, "data/tasks", `${TASK_ID}.md`), "utf8")).toContain("status: open");
   });
 
   it("rechecks the immutable task contract immediately before mutation", async () => {
     const fixture = failureFixture("step-timeout");
-    const { applyDecompositionPlan } = await import("./decomposition-actions.js");
     commitScenarioInput(fixture.workspaceRoot);
     const result = await new WorkflowScenarioDriver(decomposerWorkflow, {
       workspaceRoot: fixture.workspaceRoot,
@@ -369,10 +322,9 @@ describe("decomposer workflow", () => {
 
     expect(result.steps.decompose.status).toBe("success");
     expect(result.steps["review-decomposition"].status).toBe("success");
-    expect(result.steps["apply-decomposition"].status).toBe("failed");
     expect(result.steps["apply-decomposition"].error).toContain(
       "failed-run ownership changed after assessment",
     );
-    expect(applyDecompositionPlan).not.toHaveBeenCalled();
+    expect(readFileSync(join(result.workspaceDir, "data/tasks", `${TASK_ID}.md`), "utf8")).toContain("status: open");
   });
 });

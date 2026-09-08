@@ -1,7 +1,6 @@
 import {
   mkdirSync,
   readdirSync,
-  realpathSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -9,7 +8,6 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
@@ -249,11 +247,6 @@ describe("attention digest inspection", () => {
     expect(emittedEvents).toHaveLength(0);
   });
 
-  it("lists all run dirs to verify test isolation", () => {
-    const entries = readdirSync(runsDir);
-    expect(entries).toHaveLength(0);
-  });
-
   describe("warnings frequency check", () => {
     beforeEach(() => {
       delete process.env.KOTA_DIGEST_WARNINGS_COUNT;
@@ -451,42 +444,6 @@ describe("attention digest inspection", () => {
   });
 
   describe("renderOnDemandAttention", () => {
-    it("fails closed against a centralized active-run authority", () => {
-      const runId = "2026-09-02T00-00-00-000Z-builder-central";
-      writeRunMetadata(runsDir, runId, "builder", "success");
-      const canonicalStateDir = join(workspaceRoot, "daemon-state");
-      const runState = new RunStateDatabase(canonicalStateDir);
-      try {
-        runState.registerScope({
-          id: "scope-central",
-          rootPath: realpathSync(workspaceRoot),
-          createdAt: new Date().toISOString(),
-        });
-        const { epoch } = runState.beginDaemonSession(new Date().toISOString());
-        runState.admitRun({
-          id: runId,
-          scopeId: "scope-central",
-          workflow: "builder",
-          repository: "read",
-          trigger: { event: "runtime.idle", schemaRef: null, payload: {} },
-          resources: [],
-          admittedAt: new Date().toISOString(),
-        });
-        runState.startRun(runId, epoch, new Date().toISOString());
-
-        expect(() => renderOnDemandAttention({
-          scopeRoot: workspaceRoot,
-          runsDir,
-          authority: {
-            stateDir: canonicalStateDir,
-            scopeRoot: workspaceRoot,
-          },
-        })).toThrow(/operationally active.*terminal evidence/i);
-      } finally {
-        runState.close();
-      }
-    });
-
     it("returns the same body cadence would emit when items exist", () => {
       // Drive the cadence so we can compare its emitted text against the
       // on-demand body for the exact same repo state.

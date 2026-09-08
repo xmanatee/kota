@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
@@ -10,27 +10,7 @@ import { RUN_STATE_READER_PROVIDER_TYPE } from "#core/workflow/run-state-reader-
 import { digestStateFromCounts, type QueueCounts } from "./aggregate.js";
 import { renderOnDemandDigest } from "./on-demand.js";
 
-vi.mock("#core/daemon/owner-question-queue.js", async () => {
-  const actual =
-    await vi.importActual<
-      typeof import("#core/daemon/owner-question-queue.js")
-    >("#core/daemon/owner-question-queue.js");
-  let queue: InstanceType<typeof actual.OwnerQuestionQueue> | null = null;
-  return {
-    ...actual,
-    getOwnerQuestionQueue: (dir?: string) => {
-      if (!queue) {
-        queue = new actual.OwnerQuestionQueue(
-          dir ?? join(process.cwd(), ".kota", "owner-questions"),
-        );
-      }
-      return queue;
-    },
-    resetOwnerQuestionQueue: () => {
-      queue = null;
-    },
-  };
-});
+
 
 describe("renderOnDemandDigest", () => {
   let workspaceRoot: string;
@@ -47,9 +27,6 @@ describe("renderOnDemandDigest", () => {
       observed.push({ event: "workflow.daily.digest", payload });
     };
     unsubscribe = bus.on("workflow.daily.digest", handler as never);
-    const ownerMod = await import("#core/daemon/owner-question-queue.js");
-    ownerMod.resetOwnerQuestionQueue();
-    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
   });
 
   afterEach(() => {
@@ -113,8 +90,7 @@ describe("renderOnDemandDigest", () => {
 
   it("reads pending owner questions from the requested scope directory", async () => {
     const ownerMod = await import("#core/daemon/owner-question-queue.js");
-    ownerMod.resetOwnerQuestionQueue();
-    const defaultQueue = ownerMod.getOwnerQuestionQueue(
+    const defaultQueue = new ownerMod.OwnerQuestionQueue(
       join(workspaceRoot, "default-project", ".kota", "owner-questions"),
     );
     defaultQueue.enqueue({

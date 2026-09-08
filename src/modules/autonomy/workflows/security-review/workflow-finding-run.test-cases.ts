@@ -100,9 +100,6 @@ export function describeSecurityReviewFindingRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("success");
-      expect(result.steps["record-investigation-findings"].status).toBe("success");
-      expect(result.steps["record-revalidation"].status).toBe("success");
-      expect(result.steps["create-follow-up-tasks"].status).toBe("success");
       const created = result.steps["create-follow-up-tasks"].output as { createdTaskIds: string[] };
       expect(created.createdTaskIds).toHaveLength(1);
       const createdTaskId = created.createdTaskIds[0];
@@ -292,7 +289,6 @@ export function describeSecurityReviewFindingRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("failed");
-      expect(result.steps["record-revalidation"].status).toBe("failed");
       expect(result.steps["record-revalidation"].error).toContain("missing-secret");
       expect(result.steps["create-follow-up-tasks"]).toBeUndefined();
     });

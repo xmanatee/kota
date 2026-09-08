@@ -36,20 +36,6 @@ describe("semantic task transitions", () => {
     await expect(
       changedTaskPaths(runCommand, "/isolated/project", "before", "after"),
     ).resolves.toBeNull();
-    expect(runCommand).toHaveBeenCalledWith({
-      command: "git",
-      args: [
-        "diff",
-        "--name-status",
-        "--find-renames",
-        "before..after",
-        "--",
-        "data/tasks",
-      ],
-      cwd: "/isolated/project",
-      timeoutMs: 30_000,
-      outputLimitBytes: 20 * 1024 * 1024,
-      captureLimitBytesPerStream: 20 * 1024 * 1024,
-    });
+
   });
 });

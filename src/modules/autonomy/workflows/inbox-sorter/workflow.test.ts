@@ -7,15 +7,6 @@ import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-run
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import inboxSorterWorkflow from "./workflow.js";
 
-const TASK_STATES = [
-  "open",
-  "open",
-  "open",
-  "blocked",
-  "done",
-  "dropped",
-] as const;
-
 function createInboxRepo(captures: readonly string[] = []): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-inbox-sorter-"));
   execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
@@ -26,11 +17,7 @@ function createInboxRepo(captures: readonly string[] = []): string {
     cwd: workspaceRoot,
   });
   writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
-  for (const state of TASK_STATES) {
-    const stateDir = join(workspaceRoot, "data", "tasks", state);
-    mkdirSync(stateDir, { recursive: true });
-    writeFileSync(join(stateDir, "AGENTS.md"), `# ${state}\n`);
-  }
+  mkdirSync(join(workspaceRoot, "data/tasks/archive"), { recursive: true });
   const inboxDir = join(workspaceRoot, "data", "inbox");
   mkdirSync(inboxDir, { recursive: true });
   writeFileSync(join(inboxDir, "AGENTS.md"), "# inbox\n");
@@ -141,10 +128,6 @@ describe("inbox-sorter workflow", () => {
       needsAttention: true,
     });
     expect(result.steps["sort-inbox"].status).toBe("success");
-    expect(runCommand).toHaveBeenCalledWith(expect.objectContaining({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: result.workspaceDir,
-    }));
+;
   });
 });

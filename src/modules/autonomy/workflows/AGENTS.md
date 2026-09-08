@@ -60,3 +60,7 @@ satisfied task back to `open` before dispatcher can emit a builder event.
   and publication behavior.
 - Do not freeze config catalogs, helper call order, filenames, private phases,
   or retired concurrency/recovery mechanics in tests.
+- Resource observations compare workflow bindings; allocation, contention, and
+  cross-scope isolation stay with the core resource owner. Agent and subprocess
+  ports may be controlled, while task mutations and owner-question resolution
+  use their production owners.

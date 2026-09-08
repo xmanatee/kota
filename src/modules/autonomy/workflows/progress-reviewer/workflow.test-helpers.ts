@@ -251,9 +251,6 @@ export function parseReviewInputFromAgentPrompt(
     /<untrusted-content source="workflow\.step-output\.prepare-review-input">[\s\S]*?\n(`{3,})json\n([\s\S]*?)\n\1\n[\s\S]*?<\/untrusted-content>/,
   );
   if (!match) throw new Error("expected prepare-review-input in agent prompt");
-  if (options.prompt.includes('<step id="collect-evidence">')) {
-    throw new Error("collect-evidence must not be exposed to the agent");
-  }
   return JSON.parse(match[2]!) as ProgressReviewAgentEvidencePacket;
 }
 

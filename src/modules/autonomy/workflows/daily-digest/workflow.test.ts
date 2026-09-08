@@ -1,265 +1,47 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolveAgentRuntime } from "#core/model/preset.js";
-import type { WorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
-import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
-import { unexpectedWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
-import { registerWorkflowDefinition } from "#core/workflow/validation.js";
 import type { DigestState } from "./aggregate.js";
-import {
-  buildDailyDigestInWorker,
-  type DailyDigestBuildOperationInput,
-  dailyDigestBuildOperation,
-} from "./blocking-operations.js";
 import { DAILY_DIGEST_STATE_KEY } from "./on-demand.js";
-import dailyDigestWorkflow, {
-  DAILY_DIGEST_DIGEST_JSON,
-  DAILY_DIGEST_DIGEST_TXT,
-  DAILY_DIGEST_EVENT,
-} from "./workflow.js";
+import workflow, { DAILY_DIGEST_EVENT } from "./workflow.js";
 
-async function runBlockingInline<TInput, TOutput>(
-  operation: WorkflowBlockingOperation<TInput, TOutput>,
-  input: TInput,
-): Promise<TOutput> {
-  expect(operation).toBe(dailyDigestBuildOperation);
-  return buildDailyDigestInWorker(
-    input as DailyDigestBuildOperationInput,
-  ) as TOutput;
-}
-
-vi.mock("#core/daemon/owner-question-queue.js", async () => {
-  const actual =
-    await vi.importActual<
-      typeof import("#core/daemon/owner-question-queue.js")
-    >("#core/daemon/owner-question-queue.js");
-  let queue: InstanceType<typeof actual.OwnerQuestionQueue> | null = null;
-  return {
-    ...actual,
-    getOwnerQuestionQueue: (dir?: string) => {
-      if (!queue) {
-        queue = new actual.OwnerQuestionQueue(
-          dir ?? join(process.cwd(), ".kota", "owner-questions"),
-        );
-      }
-      return queue;
-    },
-    resetOwnerQuestionQueue: () => {
-      queue = null;
-    },
-  };
+const roots: string[] = [];
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("daily-digest workflow definition", () => {
-  it("registers without errors and exposes one cron-scheduled code step", () => {
-    const registered = registerWorkflowDefinition(
-      "src/modules/autonomy/workflows/daily-digest/workflow.ts",
-      dailyDigestWorkflow,
-    );
-    expect(registered.name).toBe("daily-digest");
-    expect(registered.steps).toHaveLength(1);
-    expect(registered.steps[0].id).toBe("build-digest");
-    expect(registered.steps[0].type).toBe("code");
-    expect(registered.triggers).toHaveLength(1);
-    expect(registered.triggers[0].schedule).toBe("0 8 * * *");
-  });
-
-  it("has no runtime.idle trigger (workflows AGENTS.md rule)", () => {
-    const registered = registerWorkflowDefinition(
-      "src/modules/autonomy/workflows/daily-digest/workflow.ts",
-      dailyDigestWorkflow,
-    );
-    for (const trigger of registered.triggers) {
-      expect(trigger.event).not.toBe("runtime.idle");
-    }
-  });
-
-  it("does not subscribe to its own completion (no self-trigger loop)", () => {
-    const registered = registerWorkflowDefinition(
-      "src/modules/autonomy/workflows/daily-digest/workflow.ts",
-      dailyDigestWorkflow,
-    );
-    for (const trigger of registered.triggers) {
-      if (trigger.event === "workflow.completed") {
-        const filterWorkflows = trigger.filter?.workflow;
-        const list = Array.isArray(filterWorkflows)
-          ? filterWorkflows
-          : filterWorkflows
-            ? [filterWorkflows]
-            : [];
-        expect(list).not.toContain("daily-digest");
-      }
-    }
-  });
-});
-
-describe("daily-digest build-digest step", () => {
-  let workspaceRoot: string;
-  let runDir: string;
-  let runDirPath: string;
-  let emitted: Array<{ event: string; payload: Record<string, unknown> }>;
-
-  beforeEach(async () => {
-    workspaceRoot = mkdtempSync(join(tmpdir(), "daily-digest-"));
-    mkdirSync(join(workspaceRoot, ".kota", "runs"), { recursive: true });
-    mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
-    runDirPath = mkdtempSync(join(tmpdir(), "daily-digest-run-"));
-    runDir = ".kota/runs/test-run";
-    emitted = [];
-    const ownerMod = await import("#core/daemon/owner-question-queue.js");
-    ownerMod.resetOwnerQuestionQueue();
-    // Bind the mocked queue to a scope-local directory.
-    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
-  });
-
-  afterEach(() => {
-    rmSync(workspaceRoot, { recursive: true, force: true });
-    rmSync(runDirPath, { recursive: true, force: true });
-  });
-
-  it("emits workflow.daily.digest event and writes both artifact files", async () => {
-    const buildStep = dailyDigestWorkflow.steps[0];
-    if (buildStep.type !== "code") throw new Error("expected code step");
-
+describe("daily digest cadence publication", () => {
+  it("publishes a quiet digest and advances the next queue delta from the completed snapshot", async () => {
+    const root = mkdtempSync(join(tmpdir(), "daily-digest-workflow-"));
+    roots.push(root);
+    mkdirSync(join(root, "data/tasks/archive"), { recursive: true });
     const state = createTestTransactionalRunState();
-    await buildStep.run({
-      scopeId: "test-scope",
-      workspaceRoot,
-      scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
-      state,
-      agentRuntime: resolveAgentRuntime(undefined),
-      workflow: {
-        name: "daily-digest",
-        definitionPath: "src/modules/autonomy/workflows/daily-digest/workflow.ts",
-        runId: "test-run",
-        runDir,
-        runDirPath,
-      },
-      trigger: { event: "schedule", schemaRef: null, payload: {} },
-      previousOutput: undefined,
-      stepOutputs: {},
-      stepResults: {},
-      stepOutputList: [],
-      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
-      runCommand: unexpectedWorkflowCommandRun,
-      runTool: () => {
-        throw new Error("not used");
-      },
-      emit: (event, payload) => emitted.push({ event, payload }),
-      requestRestart: () => {},
-      readPrompt: () => "",
-      readRuntimeState: () => ({
-        completedRuns: 0,
-        pendingRuns: [],
-        workflows: {},
-      }),
-      reportProgress: () => {},
-      runBlocking: runBlockingInline,
-      triggerWorkflow: async () => ({ runId: "x", status: "queued" as const }),
+    const run = () => new WorkflowScenarioDriver(workflow, {
+      workspaceRoot: root,
+      workspaceDir: root,
+      trigger: { event: "schedule", payload: {} },
+      ports: { state },
+    }).run();
+
+    const first = await run();
+    expect(first.status, first.error).toBe("success");
+    expect(first.emitted).toEqual([expect.objectContaining({
+      event: DAILY_DIGEST_EVENT,
+      payload: expect.objectContaining({ quiet: true, text: expect.stringContaining("Daily digest") }),
+    })]);
+    expect(state.read<DigestState>(DAILY_DIGEST_STATE_KEY).value?.counts).toEqual({ open: 0, blocked: 0 });
+
+    writeFileSync(join(root, "data/tasks/task-newcomer.md"),
+      "---\nstatus: open\npriority: p2\n---\n\n# Newcomer\n");
+    const second = await run();
+    expect(second.status, second.error).toBe("success");
+    expect(second.steps["build-digest"].output).toMatchObject({
+      queueDelta: { previous: { open: 0, blocked: 0 }, delta: { open: 1, blocked: 0 } },
     });
-
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0].event).toBe(DAILY_DIGEST_EVENT);
-    expect(emitted[0].payload.text).toContain("Daily digest");
-    expect(emitted[0].payload.quiet).toBe(true);
-
-    const txt = readFileSync(join(runDirPath, DAILY_DIGEST_DIGEST_TXT), "utf-8");
-    expect(txt).toContain("Daily digest");
-    const json = JSON.parse(
-      readFileSync(join(runDirPath, DAILY_DIGEST_DIGEST_JSON), "utf-8"),
-    );
-    expect(json.quiet).toBe(true);
-    expect(json.queueDelta).toBeDefined();
-
-    expect(state.read<DigestState>(DAILY_DIGEST_STATE_KEY)).toEqual({
-      revision: 1,
-      value: expect.objectContaining({
-        capturedAt: expect.any(String),
-        counts: expect.any(Object),
-      }),
-    });
-  });
-
-  it("computes a delta on the second invocation using the persisted snapshot", async () => {
-    const buildStep = dailyDigestWorkflow.steps[0];
-    if (buildStep.type !== "code") throw new Error("expected code step");
-
-    const state = createTestTransactionalRunState();
-    const ctxBase = {
-      scopeId: "test-scope",
-      workspaceRoot,
-      scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
-      state,
-      agentRuntime: resolveAgentRuntime(undefined),
-      trigger: { event: "schedule", schemaRef: null, payload: {} },
-      previousOutput: undefined,
-      stepOutputs: {},
-      stepResults: {},
-      stepOutputList: [],
-      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
-      runCommand: unexpectedWorkflowCommandRun,
-      runTool: () => {
-        throw new Error("not used");
-      },
-      requestRestart: () => {},
-      readPrompt: () => "",
-      readRuntimeState: () => ({
-        completedRuns: 0,
-        pendingRuns: [],
-        workflows: {},
-      }),
-      reportProgress: () => {},
-      runBlocking: runBlockingInline,
-      triggerWorkflow: async () => ({ runId: "x", status: "queued" as const }),
-    };
-
-    await buildStep.run({
-      ...ctxBase,
-      workflow: {
-        name: "daily-digest",
-        definitionPath: "x",
-        runId: "first",
-        runDir: ".kota/runs/first",
-        runDirPath,
-      },
-      emit: () => {},
-    });
-
-    // Add an open task between snapshots so the second run sees a +1 delta.
-    mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
-    const fs = await import("node:fs");
-    fs.writeFileSync(
-      join(workspaceRoot, "data", "tasks", "task-newcomer.md"),
-      "---\nstatus: open\npriority: p2\n---\n\n# task-newcomer\n",
-    );
-
-    const secondRunDirPath = mkdtempSync(join(tmpdir(), "daily-digest-second-"));
-    const secondEmitted: Array<{ event: string; payload: Record<string, unknown> }> = [];
-    await buildStep.run({
-      ...ctxBase,
-      workflow: {
-        name: "daily-digest",
-        definitionPath: "x",
-        runId: "second",
-        runDir: ".kota/runs/second",
-        runDirPath: secondRunDirPath,
-      },
-      emit: (event, payload) => secondEmitted.push({ event, payload }),
-    });
-
-    const secondJson = JSON.parse(
-      readFileSync(join(secondRunDirPath, DAILY_DIGEST_DIGEST_JSON), "utf-8"),
-    );
-    expect(secondJson.queueDelta.previous).toEqual({
-      open: 0,
-      blocked: 0,
-    });
-    expect(secondJson.queueDelta.delta.open).toBe(1);
-    rmSync(secondRunDirPath, { recursive: true, force: true });
+    expect(state.read<DigestState>(DAILY_DIGEST_STATE_KEY).value?.counts).toEqual({ open: 1, blocked: 0 });
+    expect(second.emitted).toEqual([expect.objectContaining({ event: DAILY_DIGEST_EVENT })]);
   });
 });

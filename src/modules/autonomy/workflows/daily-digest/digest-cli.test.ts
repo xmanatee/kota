@@ -6,27 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildDigestCommand } from "./digest-cli.js";
 import { renderOnDemandDigest } from "./on-demand.js";
 
-vi.mock("#core/daemon/owner-question-queue.js", async () => {
-  const actual =
-    await vi.importActual<
-      typeof import("#core/daemon/owner-question-queue.js")
-    >("#core/daemon/owner-question-queue.js");
-  let queue: InstanceType<typeof actual.OwnerQuestionQueue> | null = null;
-  return {
-    ...actual,
-    getOwnerQuestionQueue: (dir?: string) => {
-      if (!queue) {
-        queue = new actual.OwnerQuestionQueue(
-          dir ?? join(process.cwd(), ".kota", "owner-questions"),
-        );
-      }
-      return queue;
-    },
-    resetOwnerQuestionQueue: () => {
-      queue = null;
-    },
-  };
-});
+
 
 async function captureStdout(fn: () => Promise<void> | void): Promise<string> {
   const chunks: string[] = [];
@@ -72,9 +52,6 @@ describe("kota digest CLI", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-26T03:30:00.000Z"));
 
-    const ownerMod = await import("#core/daemon/owner-question-queue.js");
-    ownerMod.resetOwnerQuestionQueue();
-    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
   });
 
   afterEach(() => {

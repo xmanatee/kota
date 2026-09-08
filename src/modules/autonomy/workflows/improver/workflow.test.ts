@@ -203,7 +203,6 @@ describe("improver issue disposition workflow", () => {
 
     expect(first.status, JSON.stringify(first, null, 2)).toBe("success");
     expect(first.steps["review-issue"].status).toBe("success");
-    expect(first.steps["write-disposition-artifact"].status).toBe("success");
     expect(projection.issues[0]?.disposition.kind).toBe("needs-decision");
     projection = publishImproverDisposition({
       scopeRoot: workspaceRoot,
@@ -399,7 +398,6 @@ describe("improver issue disposition workflow", () => {
       currentProjection: projection,
     }).nextProjection;
     expect(projection.issues[0]?.links.taskIds).toEqual([taskId]);
-    expect(created.steps["validate-changes"].status).toBe("success");
     execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
     execFileSync("git", ["commit", "--quiet", "-m", "integrate repair task"], {
       cwd: workspaceRoot,
@@ -473,7 +471,6 @@ describe("improver issue disposition workflow", () => {
     expect(
       existsSync(join(workspaceRoot, "data", "tasks", "archive", `${taskId}.md`)),
     ).toBe(true);
-    expect(resolved.steps["validate-changes"].status).toBe("success");
     projection = publishImproverDisposition({
       scopeRoot: workspaceRoot,
       sourceRunId: basename(resolved.runDirPath),

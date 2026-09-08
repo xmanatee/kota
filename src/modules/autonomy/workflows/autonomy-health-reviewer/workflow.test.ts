@@ -217,7 +217,6 @@ describe("autonomy-health-reviewer workflow", () => {
       readFileSync(output.artifactPath, "utf-8"),
     ) as RuntimeHealthAudit;
     expect(artifact.signals).toEqual(output.signals);
-    expect(result.steps["verify-runtime-audit-artifact"].status).toBe("success");
     expect(result.steps["publish-runtime-health-signals"].output).toEqual({
       published: output.signals.length,
     });

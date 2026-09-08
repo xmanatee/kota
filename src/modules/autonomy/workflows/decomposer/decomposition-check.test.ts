@@ -1,13 +1,11 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { listWorkflowMutatedPaths } from "#core/workflow/steps/agent-write-scope.js";
+import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { checkDecompositionApplied } from "./decomposition-check.js";
 
-vi.mock("#core/workflow/steps/agent-write-scope.js", () => ({
-  listWorkflowMutatedPaths: vi.fn(),
-}));
+
 
 const ORIGINAL_ID = "task-original";
 const SUBTASK_ID = "task-subtask";
@@ -43,7 +41,7 @@ describe("checkDecompositionApplied", () => {
 
   beforeEach(() => {
     workspaceRoot = mkdtempSync(join(tmpdir(), "kota-decomposition-check-"));
-    vi.mocked(listWorkflowMutatedPaths).mockReturnValue([]);
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
   });
 
   afterEach(() => {
@@ -58,10 +56,6 @@ describe("checkDecompositionApplied", () => {
       `## Decomposed\n\n- ${SUBTASK_ID}`,
     );
     writeTask(workspaceRoot, "open", SUBTASK_ID, "## Problem\n\nScoped work.");
-    vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
-      `data/tasks/archive/${ORIGINAL_ID}.md`,
-      `data/tasks/${SUBTASK_ID}.md`,
-    ]);
 
     expect(checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toBe(
       `OK: archived ${ORIGINAL_ID} as dropped and prepared 1 open subtask(s)`,
@@ -77,10 +71,6 @@ describe("checkDecompositionApplied", () => {
       `## Decomposed\n\n- ${subtaskId}`,
     );
     writeTask(workspaceRoot, "open", subtaskId, "## Problem\n\nScoped work.");
-    vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
-      `data/tasks/archive/${ORIGINAL_ID}.md`,
-      `data/tasks/${subtaskId}.md`,
-    ]);
 
     expect(checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toBe(
       `OK: archived ${ORIGINAL_ID} as dropped and prepared 1 open subtask(s)`,
@@ -124,9 +114,9 @@ describe("checkDecompositionApplied", () => {
       `## Decomposed\n\n- ${SUBTASK_ID}`,
     );
     writeTask(workspaceRoot, "open", SUBTASK_ID, "## Problem\n\nScoped work.");
-    vi.mocked(listWorkflowMutatedPaths).mockReturnValue([
-      `data/tasks/archive/${ORIGINAL_ID}.md`,
-    ]);
+
+    execFileSync("git", ["add", `data/tasks/${SUBTASK_ID}.md`], { cwd: workspaceRoot });
+    execFileSync("git", ["-c", "user.name=Fixture", "-c", "user.email=fixture@example.test", "commit", "--quiet", "-m", "existing subtask"], { cwd: workspaceRoot });
 
     expect(() => checkDecompositionApplied(workspaceRoot, ORIGINAL_ID)).toThrow(
       `Decomposition must create or update its task files: data/tasks/${SUBTASK_ID}.md`,

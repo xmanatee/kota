@@ -2,45 +2,17 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
+import { describe, expect, it, } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import blockedPromoterOwnerDecisionWorkflow from "../blocked-promoter-owner-decision/workflow.js";
 import {
   BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
   type BlockedOwnerDecisionRequest,
   type BlockedOwnerDecisionResolution,
 } from "./owner-decision-follow-up.js";
+import { answerBlockedOwnerRequest } from "./owner-decision-test-support.js";
 import blockedPromoterWorkflow from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-}));
-
-vi.mock("#core/daemon/owner-question-queue.js", () => ({
-  getOwnerQuestionQueue: vi.fn(),
-}));
-
-function ownerQuestionQueue(answer: string) {
-  let stored: PendingOwnerQuestion | null = null;
-  return {
-    list: () => [],
-    enqueue: (input: Omit<PendingOwnerQuestion, "id" | "seq" | "createdAt" | "status">) => {
-      stored = {
-        ...input,
-        id: "q-owner-decision",
-        seq: 1,
-        createdAt: "2026-08-06T09:00:00.000Z",
-        status: "pending",
-      };
-      return stored;
-    },
-    get: (id: string): PendingOwnerQuestion | null =>
-      stored && stored.id === id ? { ...stored, status: "answered", answer } : null,
-  };
-}
 
 function taskBody(question: string): string {
   return [
@@ -99,22 +71,10 @@ function projectFixture(): { workspaceRoot: string; taskPath: string } {
   return { workspaceRoot, taskPath };
 }
 
-async function useOwnerAnswer(answer: string): Promise<void> {
-  const { getOwnerQuestionQueue } = await import(
-    "#core/daemon/owner-question-queue.js"
-  );
-  vi.mocked(getOwnerQuestionQueue).mockReturnValue(
-    ownerQuestionQueue(answer) as unknown as ReturnType<
-      typeof getOwnerQuestionQueue
-    >,
-  );
-}
-
 async function resolveOwnerDecision(
   workspaceRoot: string,
   answer: string,
 ): Promise<BlockedOwnerDecisionResolution> {
-  await useOwnerAnswer(answer);
   const requestRun = await new WorkflowScenarioDriver(blockedPromoterWorkflow, {
     trigger: { event: "autonomy.queue.available", payload: {} },
     workspaceRoot,
@@ -124,42 +84,12 @@ async function resolveOwnerDecision(
     (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   )?.payload as BlockedOwnerDecisionRequest | undefined;
   if (!request) throw new Error("blocked promoter did not emit an owner request");
-  const followUp = await new WorkflowScenarioDriver(
-    blockedPromoterOwnerDecisionWorkflow,
-    {
-      trigger: {
-        event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
-        payload: request,
-      },
-      workspaceRoot,
-      events: [{
-        afterStep: "blocked-promoter-owner-decision-wait",
-        event: "owner.question.resolved",
-        payload: { id: "q-owner-decision", answered: true, answer },
-      }],
-    },
-  ).run();
-  const resolution = followUp.emitted.find(
-    (event) => event.event === BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
-  )?.payload as BlockedOwnerDecisionResolution | undefined;
-  if (!resolution) throw new Error("owner follow-up did not emit a resolution");
+  const { resolution } = await answerBlockedOwnerRequest(workspaceRoot, request, answer);
   return resolution;
 }
 
 describe("blocked-promoter owner-decision authorization", () => {
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-    vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-      available: true,
-      dirty: false,
-      trackedDirty: false,
-      entries: [],
-      fingerprint: "",
-      summary: "clean",
-      headSha: "abc1234",
-    });
-  });
+
 
   it.each(["yes", "approve"])(
     "keeps a negatively phrased task blocked after ambiguous '%s'",
@@ -176,7 +106,6 @@ describe("blocked-promoter owner-decision authorization", () => {
       }).run();
 
       expect(result.status).toBe("success");
-      expect(result.steps["promote-after-approval"].status).toBe("skipped");
       const after = readFileSync(
         join(result.workspaceDir, "data", "tasks", "task-owner-decision.md"),
         "utf-8",

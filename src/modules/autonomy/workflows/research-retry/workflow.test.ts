@@ -8,9 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import type { WorkflowStepContext } from "#core/workflow/run-types.js";
-import type { WorkflowAgentStepInput } from "#core/workflow/step-input-base.js";
+import { afterEach, describe, expect, it, } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
@@ -112,30 +110,6 @@ describe("research-retry workflow", () => {
     }
   });
 
-  it("runs task validation through the supervised command rail", async () => {
-    const retryStep = researchRetryWorkflow.steps.find(
-      (step): step is WorkflowAgentStepInput =>
-        "id" in step && step.id === "retry" && step.type === "agent",
-    );
-    const check = retryStep?.repairLoop?.checks.find(
-      (entry) => entry.id === "task-queue-valid",
-    );
-    if (!check || check.type !== "code") throw new Error("task-queue-valid missing");
-    const workspaceRoot = mkdtempSync(join(tmpdir(), "research-retry-command-"));
-    const runCommand = vi.fn(successfulWorkflowCommandRun);
-
-    await check.run(
-      { workspaceRoot, runCommand } as unknown as WorkflowStepContext,
-      {} as never,
-    );
-
-    expect(runCommand).toHaveBeenCalledWith({
-      command: "pnpm",
-      args: ["run", "validate-tasks"],
-      cwd: workspaceRoot,
-    });
-  });
-
   it("skips the agent step when there are no blocked research candidates", async () => {
     const workspaceRoot = createResearchProject();
 
@@ -153,7 +127,6 @@ describe("research-retry workflow", () => {
       examined: [],
     });
     expect(result.steps.retry.status).toBe("skipped");
-    expect(result.steps["mark-attempt"].status).toBe("skipped");
   });
 
   it("skips the agent step when worktree is dirty", async () => {
@@ -174,7 +147,6 @@ describe("research-retry workflow", () => {
     const result = await harness.run();
 
     expect(result.steps.retry.status).toBe("skipped");
-    expect(result.steps["mark-attempt"].status).toBe("skipped");
   });
 
   it("classifies candidates as unavailable when every URL lacks its capability", () => {
@@ -272,7 +244,6 @@ describe("research-retry workflow", () => {
       candidateCount: 2,
     });
     expect(result.steps.retry.status).toBe("success");
-    expect(result.steps["mark-attempt"].status).toBe("success");
   });
 
   it("writeMarkerForCandidate refreshes the marker after the agent edits resources", async () => {

@@ -193,8 +193,8 @@ describe("aggregateDailyDigest", () => {
           id: "promote-deterministic",
           type: "code",
           status: "success",
-          startedAt: "",
-          completedAt: "",
+          startedAt: new Date(NOW - 60_000).toISOString(),
+          completedAt: new Date(NOW - 30_000).toISOString(),
           durationMs: 0,
           output: {
             promotions: [
@@ -207,8 +207,8 @@ describe("aggregateDailyDigest", () => {
           id: "emit-promoted",
           type: "emit",
           status: "success",
-          startedAt: "",
-          completedAt: "",
+          startedAt: new Date(NOW - 60_000).toISOString(),
+          completedAt: new Date(NOW - 30_000).toISOString(),
           durationMs: 0,
         },
       ],

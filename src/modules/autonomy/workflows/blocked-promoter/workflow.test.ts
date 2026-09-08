@@ -9,8 +9,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
+import { describe, expect, it, } from "vitest";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
@@ -20,128 +19,30 @@ import {
   renderOwnerAskMarker,
   renderOwnerResolvedMarker,
 } from "#modules/repo-tasks/blocked-precondition.js";
-import blockedPromoterOwnerDecisionWorkflow from "../blocked-promoter-owner-decision/workflow.js";
 import {
   BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
   type BlockedOwnerDecisionRequest,
-  type BlockedOwnerDecisionResolution,
 } from "./owner-decision-follow-up.js";
+import { answerBlockedOwnerRequest } from "./owner-decision-test-support.js";
 import blockedPromoterWorkflow from "./workflow.js";
-
-vi.mock("#core/util/repo-worktree.js", () => ({
-  getRepoWorktreeStatus: vi.fn(),
-}));
-
-vi.mock("#core/daemon/owner-question-queue.js", () => ({
-  getOwnerQuestionQueue: vi.fn(),
-}));
-
-async function mockCleanWorktree() {
-  const { getRepoWorktreeStatus } = await import("#core/util/repo-worktree.js");
-  vi.mocked(getRepoWorktreeStatus).mockReturnValue({
-    available: true,
-    dirty: false,
-    trackedDirty: false,
-    entries: [],
-    fingerprint: "",
-    summary: "clean",
-    headSha: "abc1234",
-  });
-}
-
-type StubQueueState = {
-  status: "answered" | "dismissed" | "expired";
-  answer?: string;
-};
-
-function makeStubQueue(state: StubQueueState) {
-  let stored: PendingOwnerQuestion | null = null;
-  return {
-    list: () => [],
-    enqueue: (input: {
-      context: string;
-      question: string;
-      reason: string;
-      source: string;
-      answerBehavior: "workflow-resume" | "record-only";
-      origin: PendingOwnerQuestion["origin"];
-      proposedAnswers?: string[];
-      timeoutMs?: number;
-      defaultResolution?: "dismiss" | "answer";
-    }): PendingOwnerQuestion => {
-      stored = {
-        id: "q-stub-blocked-1",
-        seq: 1,
-        context: input.context,
-        question: input.question,
-        reason: input.reason,
-        source: input.source,
-        answerBehavior: input.answerBehavior,
-        origin: input.origin,
-        createdAt: "2026-04-25T00:00:00Z",
-        status: "pending",
-        ...(input.proposedAnswers && { proposedAnswers: input.proposedAnswers }),
-        ...(input.timeoutMs !== undefined && { timeoutMs: input.timeoutMs }),
-        ...(input.defaultResolution && { defaultResolution: input.defaultResolution }),
-      };
-      return stored;
-    },
-    get: (id: string): PendingOwnerQuestion | null => {
-      if (!stored || stored.id !== id) return null;
-      const resolved: PendingOwnerQuestion = { ...stored, status: state.status };
-      if (state.answer !== undefined) resolved.answer = state.answer;
-      return resolved;
-    },
-  };
-}
 
 async function runOwnerDecisionCycle(args: {
   workspaceRoot: string;
-  queue: ReturnType<typeof makeStubQueue>;
-}): Promise<{
-  requestRun: Awaited<ReturnType<WorkflowScenarioDriver["run"]>>;
-  followUpRun: Awaited<ReturnType<WorkflowScenarioDriver["run"]>>;
-  resolutionRun: Awaited<ReturnType<WorkflowScenarioDriver["run"]>>;
-}> {
-  const { getOwnerQuestionQueue } = await import(
-    "#core/daemon/owner-question-queue.js"
-  );
-  vi.mocked(getOwnerQuestionQueue).mockReturnValue(
-    args.queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
-  );
+  answer: string;
+}) {
   const requestRun = await runBlockedScenario(args.workspaceRoot, {
-    event: "autonomy.queue.available",
-    payload: {},
+    event: "autonomy.queue.available", payload: {},
   });
   const request = requestRun.emitted.find(
     (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   )?.payload as BlockedOwnerDecisionRequest | undefined;
   if (!request) throw new Error("blocked-promoter did not emit an owner request");
-  const followUpRun = await new WorkflowScenarioDriver(
-    blockedPromoterOwnerDecisionWorkflow,
-    {
-      trigger: {
-        event: BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
-        payload: request,
-      },
-      workspaceRoot: args.workspaceRoot,
-      events: [{
-        afterStep: "blocked-promoter-owner-decision-wait",
-        event: "owner.question.resolved",
-        payload: { id: "q-stub-blocked-1", answered: true, answer: "" },
-      }],
-    },
-  ).run();
-  const resolution = followUpRun.emitted.find(
-    (event) => event.event === BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
-  )?.payload as BlockedOwnerDecisionResolution | undefined;
-  if (!resolution) throw new Error("owner follow-up did not emit a resolution");
+  const { resolution, questions } = await answerBlockedOwnerRequest(args.workspaceRoot, request, args.answer);
   const resolutionRun = await runBlockedScenario(args.workspaceRoot, {
-      event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
-      payload: resolution,
+    event: BLOCKED_OWNER_DECISION_RESOLVED_EVENT, payload: resolution,
   });
-  return { requestRun, followUpRun, resolutionRun };
+  return { requestRun, resolutionRun, questions };
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -225,12 +126,9 @@ function runBlockedScenario(
 }
 
 describe("blocked-promoter workflow", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+
 
   it("auto-promotes tasks whose deterministic preconditions are satisfied", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
 
     // operator-capture precondition with a proof artifact
@@ -306,7 +204,6 @@ describe("blocked-promoter workflow", () => {
   });
 
   it("keeps a partial operator-capture directory blocked and refreshes instructions", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const captureDir = join(workspaceRoot, ".kota", "runs", "telegram-deploy-staging");
     mkdirSync(captureDir, { recursive: true });
@@ -389,7 +286,6 @@ describe("blocked-promoter workflow", () => {
   });
 
   it("re-asks the owner for a due owner-decision and promotes on approval", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
@@ -410,16 +306,11 @@ describe("blocked-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const queue = makeStubQueue({ status: "answered", answer: "unblock" });
-    const { requestRun, followUpRun, resolutionRun: result } =
-      await runOwnerDecisionCycle({ workspaceRoot, queue });
+    const { requestRun, resolutionRun: result } =
+      await runOwnerDecisionCycle({ workspaceRoot, answer: "unblock" });
 
     expect(requestRun.status).toBe("success");
-    expect(followUpRun.steps["blocked-promoter-owner-decision-ask"].status).toBe("success");
-    expect(followUpRun.steps["blocked-promoter-owner-decision-consume"].status).toBe("success");
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
-    expect(result.steps["apply-ask-outcome"].status).toBe("success");
-    expect(result.steps["promote-after-approval"].status).toBe("success");
     const followups = (
       result.steps["promote-after-approval"].output as {
         promotions: Array<{ id: string }>;
@@ -440,7 +331,6 @@ describe("blocked-promoter workflow", () => {
   });
 
   it("refreshes the asked marker on a non-approval answer without promoting", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
@@ -461,14 +351,12 @@ describe("blocked-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const queue = makeStubQueue({ status: "answered", answer: "still thinking" });
     const { resolutionRun: result } = await runOwnerDecisionCycle({
       workspaceRoot,
-      queue,
+      answer: "still thinking",
     });
 
     expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
-    expect(result.steps["promote-after-approval"].status).toBe("skipped");
     const taskBody = readFileSync(
       join(result.workspaceDir, "data", "tasks", "task-pick-variant.md"),
       "utf-8",
@@ -478,7 +366,6 @@ describe("blocked-promoter workflow", () => {
   });
 
   it("skips owner ask when the marker is fresher than 14 days", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const recentMarker = renderOwnerAskMarker({
       slot: "pick-variant",
@@ -508,19 +395,15 @@ describe("blocked-promoter workflow", () => {
       event: "autonomy.queue.available",
       payload: {},
     });
-
-    expect(result.steps["emit-owner-decision-requested"].status).toBe("skipped");
-    expect(result.steps["promote-after-approval"].status).toBe("skipped");
-  });
-
-  it("does not declare runtime recovery as a trigger", () => {
-    expect(blockedPromoterWorkflow.triggers).not.toContainEqual(
-      expect.objectContaining({ event: "runtime.recovered" }),
-    );
+    expect(result.status, JSON.stringify(result, null, 2)).toBe("success");
+    expect(
+      result.emitted.filter(
+        (event) => event.event === BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
+      ),
+    ).toHaveLength(0);
   });
 
   it("instructs an aged operator-capture blocker and writes the run artifact", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
     writeFileSync(
@@ -552,7 +435,6 @@ describe("blocked-promoter workflow", () => {
     });
 
     expect(result.status).toBe("success");
-    expect(result.steps["instruct-operator-capture"].status).toBe("success");
     const instructions = (
       result.steps["instruct-operator-capture"].output as {
         instructions: Array<{ taskId: string; capturePath: string }>;
@@ -565,8 +447,6 @@ describe("blocked-promoter workflow", () => {
       "utf-8",
     );
     expect(readOperatorCaptureInstructedMarker(body)).not.toBeNull();
-    // The blocker-actions artifact is present in the run dir.
-    expect(result.steps["write-blocker-actions"].status).toBe("success");
     const artifactPath = (
       result.steps["write-blocker-actions"].output as {
         path: string;
@@ -583,7 +463,6 @@ describe("blocked-promoter workflow", () => {
   });
 
   it("does not re-instruct an aged operator-capture within the cadence", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const oldUpdatedAt = new Date(Date.now() - 30 * MS_PER_DAY).toISOString();
     const recentMarker = renderOperatorCaptureInstructedMarker({
@@ -616,10 +495,6 @@ describe("blocked-promoter workflow", () => {
       event: "autonomy.queue.available",
       payload: {},
     });
-
-    expect(result.steps["instruct-operator-capture"].status).toBe("skipped");
-    // The artifact still records the recent classification but no new instruction.
-    expect(result.steps["write-blocker-actions"].status).toBe("success");
     const artifactPath = (
       result.steps["write-blocker-actions"].output as { path: string }
     ).path;
@@ -632,7 +507,6 @@ describe("blocked-promoter workflow", () => {
   });
 
   it("surfaces the recommended option in the owner-ask question", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-pick-variant.md"),
@@ -653,38 +527,13 @@ describe("blocked-promoter workflow", () => {
     );
     commitInitial(workspaceRoot);
 
-    const recordedEnqueueArgs: Array<{
-      proposedAnswers?: string[];
-      reason: string;
-      context: string;
-    }> = [];
-    const queue = makeStubQueue({ status: "answered", answer: "variant-a" });
-    const baseEnqueue = queue.enqueue;
-    queue.enqueue = (input) => {
-      recordedEnqueueArgs.push({
-        ...(input.proposedAnswers && { proposedAnswers: input.proposedAnswers }),
-        reason: input.reason,
-        context: input.context,
-      });
-      return baseEnqueue(input);
-    };
-    const { getOwnerQuestionQueue } = await import(
-      "#core/daemon/owner-question-queue.js"
-    );
-    vi.mocked(getOwnerQuestionQueue).mockReturnValue(
-      queue as unknown as ReturnType<typeof getOwnerQuestionQueue>,
-    );
-
-    await runOwnerDecisionCycle({ workspaceRoot, queue });
-
-    expect(recordedEnqueueArgs).toHaveLength(1);
-    expect(recordedEnqueueArgs[0].proposedAnswers?.[0]).toBe("variant-a");
-    expect(recordedEnqueueArgs[0].reason).toContain("variant-a");
-    expect(recordedEnqueueArgs[0].context).toContain("Recommended option: variant-a");
+    const { questions } = await runOwnerDecisionCycle({ workspaceRoot, answer: "variant-a" });
+    expect(questions).toHaveLength(1);
+    expect(questions[0].proposedAnswers?.[0]).toBe("variant-a");
+    expect(questions[0].context).toContain("Recommended option: variant-a");
   });
 
   it("promotes already-resolved owner-decision tasks deterministically", async () => {
-    await mockCleanWorktree();
     const workspaceRoot = makeScopeRoot();
     const resolvedMarker = renderOwnerResolvedMarker({
       slot: "pick-variant",

@@ -157,7 +157,6 @@ export async function expectSecurityReviewWorkflowReplayNoop(args: {
     updatedTaskIds: [],
     unchangedFindingIds: ["confirmed-fetch"],
   });
-  expect(replay.steps["write-commit-message"].status).toBe("skipped");
   expect(
     readFileSync(
       join(replay.workspaceDir, "data/tasks", `${args.taskId}.md`),

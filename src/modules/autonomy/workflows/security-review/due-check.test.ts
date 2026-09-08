@@ -3,8 +3,8 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { WRITER_INTEGRATION_EVIDENCE } from "#core/workflow/writer-integration-evidence.js";
+import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import {
   collectSecurityReviewGitEvidence,
   type InspectSecurityReviewDueOptions,
@@ -146,7 +146,7 @@ describe("security-review due check", () => {
       workspaceRoot,
       scopeRoot: workspaceRoot,
       stateDir: options.stateDir,
-      runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
+      runCommand: runGitEvidenceCommand,
     });
     return inspectSecurityReviewDue(workspaceRoot, options, gitEvidence);
   }

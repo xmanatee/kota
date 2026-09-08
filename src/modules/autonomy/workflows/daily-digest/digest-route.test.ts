@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import type { Scheduler } from "#core/daemon/scheduler.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
 import { buildRequestHandler } from "#core/server/server-routes.js";
@@ -10,27 +10,7 @@ import { SessionPool } from "#core/server/session-pool.js";
 import { digestRoutes } from "./digest-route.js";
 import { renderOnDemandDigest } from "./on-demand.js";
 
-vi.mock("#core/daemon/owner-question-queue.js", async () => {
-  const actual =
-    await vi.importActual<
-      typeof import("#core/daemon/owner-question-queue.js")
-    >("#core/daemon/owner-question-queue.js");
-  let queue: InstanceType<typeof actual.OwnerQuestionQueue> | null = null;
-  return {
-    ...actual,
-    getOwnerQuestionQueue: (dir?: string) => {
-      if (!queue) {
-        queue = new actual.OwnerQuestionQueue(
-          dir ?? join(process.cwd(), ".kota", "owner-questions"),
-        );
-      }
-      return queue;
-    },
-    resetOwnerQuestionQueue: () => {
-      queue = null;
-    },
-  };
-});
+
 
 const TOKEN = "digest-route-test-token";
 
@@ -53,9 +33,6 @@ describe("GET /api/digest", () => {
     };
     unsubscribe = bus.on("workflow.daily.digest", handler as never);
 
-    const ownerMod = await import("#core/daemon/owner-question-queue.js");
-    ownerMod.resetOwnerQuestionQueue();
-    ownerMod.getOwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
 
     const pool = new SessionPool();
     const requestHandler = buildRequestHandler({

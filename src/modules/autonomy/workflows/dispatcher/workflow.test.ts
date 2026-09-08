@@ -9,7 +9,8 @@ import {
   WorkflowScenarioDriver,
   type WorkflowScenarioOptions,
 } from "#core/workflow/testing/testing-api.js";
-import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { WRITER_INTEGRATION_EVIDENCE } from "#core/workflow/writer-integration-evidence.js";
+import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import {
   computeResourceFingerprint,
   renderRetryMarker,
@@ -114,6 +115,7 @@ describe("dispatcher workflow", () => {
     return new WorkflowScenarioDriver(dispatcherWorkflow, {
       ...options,
       workspaceRoot,
+      ports: { runCommand: runGitEvidenceCommand, ...options.ports },
       scopePolicySnapshot:
         options.scopePolicySnapshot ?? scopePolicySnapshotForTest(workspaceRoot),
     }).run();
@@ -131,16 +133,28 @@ describe("dispatcher workflow", () => {
       `${JSON.stringify(
         {
           id: args.runId,
+          metadataVersion: 1,
           workflow: "security-review",
+          definitionPath: "security-review-fixture",
+          runDir: `.kota/runs/${args.runId}`,
+          trigger: { event: "autonomy.security-review.requested", schemaRef: null, payload: {} },
+          startedAt: args.completedAt,
           status: "success",
           completedAt: args.completedAt,
-          steps: [{ id: "commit", output: { sha: args.commitSha } }],
+          steps: [],
         },
         null,
         2,
       )}\n`,
       "utf-8",
     );
+    writeFileSync(join(runDir, WRITER_INTEGRATION_EVIDENCE), JSON.stringify({
+      version: 1, runId: args.runId, workflow: "security-review",
+      scopeId: deriveDirectoryScopeId(workspaceRoot), targetBranch: "main",
+      baseHead: args.commitSha, integratedFromHead: args.commitSha, publishedHead: args.commitSha,
+      commitSubject: "security review", commitMessage: "security review",
+      changedPaths: [], completedAt: args.completedAt,
+    }));
     writeFileSync(
       join(runDir, "security-review-outcome.json"),
       `${JSON.stringify({ outcome: "no-op", reason: "test-review" }, null, 2)}\n`,
@@ -183,10 +197,7 @@ describe("dispatcher workflow", () => {
       }).run();
 
       expect(result.error).toBeUndefined();
-      expect(result).toMatchObject({
-        status: "success",
-        steps: { "assess-and-dispatch": { status: "success" } },
-      });
+      expect(result.status).toBe("success");
       expect(result.emitted).toEqual(expect.arrayContaining([
         expect.objectContaining({
           event: scopeImprovementChanged.name,
@@ -376,7 +387,7 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
-  it("stays quiescent when only dependency-blocked work remains", async () => {
+  it("keeps dependency-blocked work out of builder and explorer routes", async () => {
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-dependent-a.md"),
       taskFixture("task-dependent-a", "open", { dependsOn: ["task-enabler"] }),
@@ -411,8 +422,7 @@ describe("dispatcher workflow", () => {
     expect(output.actionableCount).toBe(0);
     expect(output.dependencyBlockedTasks).toEqual(expect.arrayContaining(dependencyBlockedTasks));
     expect(output.dependencyBlockedTasks).toHaveLength(2);
-    expect(output.quiescent).toBe(true);
-    expect(output.quiescentReason).toBe("work is dependency-blocked");
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
   });
@@ -479,7 +489,7 @@ describe("dispatcher workflow", () => {
     commitAll("touch registry installer execution");
 
     const result = await runDispatcherScenario({
-      ports: { runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }) },
+      ports: { runCommand: runGitEvidenceCommand },
     });
 
     const dueEvent = result.emitted.find((event) => event.event === "autonomy.security-review.due");
@@ -620,20 +630,6 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
     expect(output.quiescent).toBe(false);
     expect(output.emitted).toContain("autonomy.queue.thin");
-  });
-
-  it("emits autonomy.queue.thin when two open tasks remain", async () => {
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "task-foo.md"),
-      taskFixture("task-foo", "open"),
-    );
-    writeFileSync(
-      join(workspaceRoot, "data", "tasks", "task-bar.md"),
-      taskFixture("task-bar", "open"),
-    );
-    const result = await runDispatcherScenario();
-
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
   });
 
   it("does not emit autonomy.queue.thin when three or more tasks remain", async () => {

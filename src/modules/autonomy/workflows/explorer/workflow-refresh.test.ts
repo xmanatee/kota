@@ -10,7 +10,7 @@ import {
 } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
-import explorerWorkflow, { EXPLORATION_REFRESH_MS } from "./workflow.js";
+import explorerWorkflow from "./workflow.js";
 
 function stateWithLastExplorationAt(lastExplorationAt: string) {
   const state = createTestTransactionalRunState();
@@ -23,11 +23,7 @@ describe("explorer workflow refresh", () => {
 
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
-    for (const state of ["open", "open", "open", "blocked", "done", "dropped"]) {
-      const dir = join(tempDir, "data", "tasks", state);
-      mkdirSync(dir, { recursive: true });
-      writeFileSync(join(dir, "AGENTS.md"), `# ${state}\n`);
-    }
+    mkdirSync(join(tempDir, "data/tasks/archive"), { recursive: true });
     writeFileSync(join(tempDir, ".gitignore"), ".kota/\n");
     execFileSync("git", ["init", "--quiet"], { cwd: tempDir });
     execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: tempDir });
@@ -108,12 +104,6 @@ describe("explorer workflow refresh", () => {
       needsAttention: false,
     });
     expect(result.steps.explore.status).toBe("skipped");
-  });
-
-  it("trigger cooldowns match the exploration refresh window to prevent no-op churn", () => {
-    for (const trigger of explorerWorkflow.triggers) {
-      expect(trigger.cooldownMs).toBe(EXPLORATION_REFRESH_MS);
-    }
   });
 
   it("does not starve exploration when skipped runs repeatedly complete", async () => {

@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import {
   inspectProgressSemanticBoundary,
   type ProgressBoundaryState,
@@ -127,7 +127,7 @@ async function inspect(workspaceRoot: string, scopeRoot = workspaceRoot) {
     scopeRoot,
     stateDir: join(scopeRoot, ".kota"),
     progressBoundaryState: boundaryStates.get(workspaceRoot) ?? null,
-    runCommand: createWorkflowCommandRunner({ cwd: workspaceRoot }),
+    runCommand: runGitEvidenceCommand,
   });
   if (result.nextState !== null) boundaryStates.set(workspaceRoot, result.nextState);
   return result;

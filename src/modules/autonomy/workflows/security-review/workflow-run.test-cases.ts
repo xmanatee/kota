@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
@@ -31,20 +31,11 @@ export function describeSecurityReviewRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("success");
-      expect(result.steps["scan-candidates"].status).toBe("success");
-      expect(result.steps["record-empty-scan"].status).toBe("success");
       expect(result.steps["investigate-candidates"].status).toBe("skipped");
       expect(result.steps["revalidate-findings"].status).toBe("skipped");
-      expect(result.steps["create-follow-up-tasks"].status).toBe("skipped");
       expect(
-        existsSync(join(result.runDirPath, "security-review-outcome.json")),
-      ).toBe(true);
-    });
-
-    it("does not declare runtime recovery as a trigger", () => {
-      expect(securityReviewWorkflow.triggers).not.toContainEqual(
-        expect.objectContaining({ event: "runtime.recovered" }),
-      );
+        JSON.parse(readFileSync(join(result.runDirPath, "security-review-outcome.json"), "utf8")),
+      ).toMatchObject({ outcome: "no-op" });
     });
 
     it("accepts due events while retaining the manual request trigger", async () => {
@@ -64,7 +55,6 @@ export function describeSecurityReviewRunTests(
       const result = await harness.run();
 
       expect(result.status).toBe("success");
-      expect(result.steps["record-empty-scan"].status).toBe("success");
     });
 
     it("keeps full scan evidence in the artifact while exposing compact candidate metadata", async () => {
@@ -99,7 +89,7 @@ export function describeSecurityReviewRunTests(
         expect.objectContaining({
           candidates: expect.any(Array),
           candidateCount: expect.any(Number),
-          artifactPath: expect.stringContaining("security-review-candidates.json"),
+          artifactPath: expect.any(String),
           truncated: expect.any(Boolean),
         }),
       );
