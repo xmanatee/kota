@@ -145,7 +145,11 @@ describe("browser lifecycle — authenticated profile", () => {
     const lifecycle = await loadConfiguredLifecycle(
       scopeARoot,
       { storageStatePath: relativePath },
-      { scopeRoot: scopeARoot },
+    );
+
+    await loadConfiguredLifecycle(
+      scopeBRoot,
+      { storageStatePath: relativePath },
     );
 
     const pageA = await lifecycle.getPage(
@@ -192,7 +196,6 @@ describe("browser lifecycle — authenticated profile", () => {
       const lifecycle = await loadConfiguredLifecycle(
         scopeARoot,
         { storageStatePath: configuredPath(workDir), persist: true },
-        { scopeRoot: scopeARoot },
       );
       const contextA = await activateRunnerContext(
         runnerContext(scopeARoot, "session-a", "scope-a"),
@@ -234,7 +237,6 @@ describe("browser lifecycle — authenticated profile", () => {
     const lifecycle = await loadConfiguredLifecycle(
       scopeARoot,
       { storageStatePath: relativePath, persist: true },
-      { scopeRoot: scopeARoot },
     );
     const contextA = await activateRunnerContext(
       runnerContext(scopeARoot, "session-a", "scope-a"),

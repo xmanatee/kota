@@ -1,9 +1,11 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { loadConfig } from "#core/config/config.js";
 import { isScopePolicyPathWithin } from "#core/daemon/scope-policy-paths.js";
 import type { BrowserSessionIdentity } from "./browser-session-identity.js";
 import {
   type BrowserNetworkProfile,
+  resolveBrowserProfileConfig,
   resolveStorageStatePath,
 } from "./config.js";
 
@@ -22,35 +24,21 @@ export type BrowserProfileOwner = {
 
 export type BrowserProfileSnapshot = {
   profile: BrowserProfileOptions;
-  profileOwner: BrowserProfileOwner | null;
+  profileOwner: BrowserProfileOwner;
 };
 
-let profile: BrowserProfileOptions = {
-  storageStatePath: null,
-  persist: false,
-  headless: true,
-  networkProfile: { name: "public-untrusted" },
-};
-let profileOwner: BrowserProfileOwner | null = null;
-
-/** Configure the profile used by subsequently-created session contexts. */
-export function configureBrowserProfile(
-  options: BrowserProfileOptions,
-  owner: BrowserProfileOwner,
-): void {
-  profile = options;
-  profileOwner = {
-    scopeId: owner.scopeId,
-    scopeRoot: resolve(owner.scopeRoot),
+/** Capture the invoking scope's trusted config, never the daemon's profile. */
+export function snapshotConfiguredBrowserProfile(
+  identity: BrowserProfileOwner,
+  authorityConfigPath: string | undefined,
+): BrowserProfileSnapshot {
+  const config = loadConfig(identity.scopeRoot, undefined, {
+    globalConfigPath: authorityConfigPath,
+  });
+  return {
+    profile: resolveBrowserProfileConfig(config.modules?.browser),
+    profileOwner: { ...identity },
   };
-}
-
-export function getConfiguredBrowserProfile(): BrowserProfileOptions {
-  return profile;
-}
-
-export function snapshotConfiguredBrowserProfile(): BrowserProfileSnapshot {
-  return { profile, profileOwner };
 }
 
 /**
@@ -125,7 +113,7 @@ export function resolveBrowserProfileStoragePath(
   if (!isExternalScope) return canonicalPath;
 
   const owner = snapshot.profileOwner;
-  return owner?.scopeId === identity.scopeId &&
+  return owner.scopeId === identity.scopeId &&
     owner.scopeRoot === identity.scopeRoot
     ? canonicalPath
     : null;

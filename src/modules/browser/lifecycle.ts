@@ -7,8 +7,8 @@ import {
   sessionEnvironmentVersionForExecution,
 } from "#core/tools/session-environment.js";
 import {
-  closeBrowserProcess,
-  ensureBrowserProcess,
+  type BrowserProcess,
+  launchBrowserProcess,
 } from "./browser-process.js";
 import {
   type BrowserProfileOptions,
@@ -30,10 +30,6 @@ export type {
   BrowserProfileOptions,
   BrowserProfileOwner,
 } from "./browser-profile.js";
-export {
-  configureBrowserProfile,
-  getConfiguredBrowserProfile,
-} from "./browser-profile.js";
 export { isPlaywrightAvailable } from "./playwright-availability.js";
 
 const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -41,9 +37,10 @@ const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 type BrowserSessionResource = {
   identity: BrowserSessionIdentity;
   profile: BrowserProfileOptions;
-  profileOwner: BrowserProfileOwner | null;
+  profileOwner: BrowserProfileOwner;
   storagePath: string | null;
   allowedWriteRoots: readonly string[] | undefined;
+  process: BrowserProcess | null;
   context: PlaywrightContext | null;
   page: PlaywrightPage | null;
   pagePromise: Promise<PlaywrightPage> | null;
@@ -91,7 +88,8 @@ function resolveStoragePath(resource: BrowserSessionResource): string | null {
 async function initializeResource(
   resource: BrowserSessionResource,
 ): Promise<void> {
-  const activeBrowser = await ensureBrowserProcess(resource.profile);
+  resource.process = await launchBrowserProcess(resource.profile);
+  const activeBrowser = resource.process.browser;
   const storagePath = resolveStoragePath(resource);
   const options: { storageState?: string } = {};
   if (storagePath && existsSync(storagePath)) {
@@ -109,7 +107,10 @@ function createResource(
   identity: BrowserSessionIdentity,
   runnerContext: ToolRunnerContext,
 ): BrowserSessionResource {
-  const configuredProfile = snapshotConfiguredBrowserProfile();
+  const configuredProfile = snapshotConfiguredBrowserProfile(
+    identity,
+    runnerContext.authorityConfigPath,
+  );
   const storagePath = resolveBrowserProfileStoragePath(
     configuredProfile,
     identity,
@@ -124,6 +125,7 @@ function createResource(
     ...configuredProfile,
     storagePath,
     allowedWriteRoots,
+    process: null,
     context: null,
     page: null,
     pagePromise: null,
@@ -142,7 +144,8 @@ function createResource(
     resource.closed = true;
     resource.detachSessionCleanup();
     removeResource(resource);
-    await closeSharedBrowserIfUnused();
+    await resource.process?.close();
+    resource.process = null;
     throw error;
   });
   return resource;
@@ -248,11 +251,6 @@ export async function persistBrowserProfile(
   await persistResource(resource);
 }
 
-async function closeSharedBrowserIfUnused(): Promise<void> {
-  if (resourcesByScope.size > 0) return;
-  await closeBrowserProcess();
-}
-
 async function closeSessionResource(
   resource: BrowserSessionResource,
 ): Promise<void> {
@@ -281,7 +279,8 @@ async function closeSessionResource(
         await resource.context.close().catch(() => {});
       }
       resource.context = null;
-      await closeSharedBrowserIfUnused();
+      await resource.process?.close();
+      resource.process = null;
     }
     if (persistenceError !== undefined) throw persistenceError;
   })();
@@ -303,8 +302,9 @@ export async function closeBrowserSession(
   await closeSessionResource(resource);
 }
 
-/** Module lifecycle cleanup: close every remaining session resource. */
-export async function closeBrowser(): Promise<void> {
-  await Promise.all(allResources().map((resource) => closeSessionResource(resource)));
-  await closeSharedBrowserIfUnused();
+/** Close a module scope's resources, or all resources during host shutdown. */
+export async function closeBrowser(scopeId?: string): Promise<void> {
+  await Promise.all(allResources()
+    .filter((resource) => scopeId === undefined || resource.identity.scopeId === scopeId)
+    .map((resource) => closeSessionResource(resource)));
 }

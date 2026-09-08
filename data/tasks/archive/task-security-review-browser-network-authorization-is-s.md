@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Browser network authorization is shared across scopes. Configuration is stored globally, and an existing Chromium process reuses its launch-time proxy without checking the invoking scope's network profile. If that proxy permits a configured private origin, another scope configured as public-untrusted can navigate to that origin through the same process. Session-isolated browser contexts do not isolate this network permission.
 
@@ -159,3 +158,18 @@ excerpt:
 >         throw new OutboundHttpTargetPolicyError(`target origin ${url.origin} is not selected by the ${profile.name} profile`);
 >       }
 >       return;
+
+## Resolution
+
+Browser sessions now resolve modules.browser through the shared trusted configuration loader using the invoking canonical scope directory and machine authority config path. Removed the global module-load profile and shared Chromium launch. Each scope/session owns its Chromium process, authenticated proxy, and captured connection policy; session cleanup closes them together, and scoped module disposal leaves other scopes active.
+
+The browser module owns the change. Its local instructions describe scope configuration and process/proxy ownership. Storage persistence still uses canonical-path and agent write-root checks; tool effects, proxy authentication, DNS pinning, and injection defenses retain their existing owners.
+
+## Verification
+
+- pnpm test:owner src/modules/browser: 89 tests passed across 13 files. The regression invokes browser_navigate with real trusted scope configuration, session resources, and production proxy authentication/authorization. A configured-provider scope can reach a private destination while a public-untrusted scope rejects it, in either startup order and during concurrent startup. It also covers an unconfigured scope, independent scope cleanup, changed policy for a new session, and cleanup/retry after Chromium launch failure. Existing browser tests cover profile persistence, write boundaries, and HTTP/CONNECT target policy including private DNS and rebinding.
+- pnpm typecheck: production and test projects passed, proving updated configuration and process ownership contracts compose with all callers.
+- pnpm exec biome check src/modules/browser and scoped git diff --check passed.
+- Chromium and socket I/O are controlled test ports. Configuration loading, browser lifecycle, and proxy authentication/authorization execute production code. A live Chromium/network run was not performed: this execution sandbox rejects loopback socket binding with EPERM. The original socket-dependent run reported that limitation; the lifecycle fixtures now replace socket I/O without replacing the policy under test.
+
+The confirmed claim and original evidence above are retained. The change uses one Chromium process per active session, increasing process count compared with the former shared process.

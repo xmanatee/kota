@@ -7,19 +7,11 @@ vi.mock("./lifecycle.js", () => ({
   closeBrowser: vi.fn(async () => {}),
   closeBrowserSession: vi.fn(async () => {}),
   getPage: vi.fn(),
-  configureBrowserProfile: vi.fn(),
-  getConfiguredBrowserProfile: vi.fn(() => ({
-    storageStatePath: null,
-    persist: false,
-    headless: true,
-    networkProfile: { name: "public-untrusted" },
-  })),
   persistBrowserProfile: vi.fn(async () => {}),
 }));
 
 const {
   closeBrowser,
-  configureBrowserProfile,
   isPlaywrightAvailable,
 } = await import("./lifecycle.js");
 
@@ -126,28 +118,6 @@ describe("browser module", () => {
     const activation = await mod.onLoad?.(ctx);
     await activation?.dispose();
     expect(closeBrowser).toHaveBeenCalledOnce();
-  });
-
-  it("binds an absolute profile to the scope that loaded its configuration", () => {
-    const cwd = process.cwd();
-    const ctx = {
-      cwd,
-      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-      registerCleanupHook: vi.fn(),
-      getModuleConfig: vi.fn(() => ({
-        storageStatePath: "/secure/profile.json",
-      })),
-    } as never;
-
-    mod.onLoad?.(ctx);
-
-    expect(configureBrowserProfile).toHaveBeenCalledWith(
-      expect.objectContaining({ storageStatePath: "/secure/profile.json" }),
-      {
-        scopeId: expect.any(String),
-        scopeRoot: cwd,
-      },
-    );
   });
 
   it("closes browser on unload", async () => {

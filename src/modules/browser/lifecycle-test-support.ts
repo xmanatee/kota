@@ -1,10 +1,9 @@
+import "./network-test-support.js";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { vi } from "vitest";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import type {
-  BrowserProfileOptions,
-  BrowserProfileOwner,
-} from "./browser-profile.js";
+import type { BrowserProfileOptions } from "./browser-profile.js";
+import type { BrowserModuleConfig } from "./config.js";
 
 type LaunchOptions = {
   headless?: boolean;
@@ -20,7 +19,8 @@ export type LifecycleTestState = {
   closedPages: number;
 };
 
-const { lifecycleTestState } = vi.hoisted(() => ({
+const { lifecycleTestState, scopeConfigs } = vi.hoisted(() => ({
+  scopeConfigs: new Map<string, BrowserModuleConfig>(),
   lifecycleTestState: {
     capturedContextOptions: [] as Array<{ storageState?: string }>,
     capturedLaunchOptions: [] as LaunchOptions[],
@@ -28,6 +28,11 @@ const { lifecycleTestState } = vi.hoisted(() => ({
     closedContexts: 0,
     closedPages: 0,
   } as LifecycleTestState,
+}));
+
+vi.mock("#core/config/config.js", async (importOriginal) => ({
+  ...await importOriginal<typeof import("#core/config/config.js")>(),
+  loadConfig: vi.fn((scopeRoot: string) => ({ modules: { browser: scopeConfigs.get(scopeRoot) } })),
 }));
 
 const activeRunnerContexts: ToolRunnerContext[] = [];
@@ -119,6 +124,7 @@ function makePage(loadedCookie: string | null) {
 }
 
 export function resetLifecycleTestState(): void {
+  scopeConfigs.clear();
   lifecycleTestState.capturedContextOptions = [];
   lifecycleTestState.capturedLaunchOptions = [];
   lifecycleTestState.lastContextStorageWrite = null;
@@ -152,22 +158,16 @@ export async function activateRunnerContext(
 export async function loadConfiguredLifecycle(
   scopeRoot: string,
   options: Partial<BrowserProfileOptions> = {},
-  owner: Partial<BrowserProfileOwner> = {},
 ) {
   const lifecycle = await import("./lifecycle.js");
-  lifecycle.configureBrowserProfile(
-    {
-      storageStatePath: null,
-      persist: false,
-      headless: true,
-      networkProfile: { name: "public-untrusted" },
-      ...options,
-    },
-    {
-      scopeId: owner.scopeId ?? "scope-a",
-      scopeRoot: owner.scopeRoot ?? scopeRoot,
-    },
-  );
+  scopeConfigs.set(scopeRoot, {
+    storageStatePath: options.storageStatePath ?? undefined,
+    persistProfile: options.persist,
+    headless: options.headless,
+    networkProfile: options.networkProfile?.name === "configured-provider"
+      ? { name: "configured-provider", allowedOrigins: [...options.networkProfile.allowedOrigins] }
+      : { name: "public-untrusted" },
+  });
   return lifecycle;
 }
 

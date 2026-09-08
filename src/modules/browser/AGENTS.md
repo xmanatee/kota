@@ -7,10 +7,15 @@ Provides Playwright automation and scoped content-ingest for auth-walled/JS-gate
   page-side JS and can trigger external side effects. `browser_close` is `safe`.
 - Playwright is lazy-imported at first use via `playwright-loader.ts`. The
   module loads cleanly without Playwright installed and logs a warning.
-- One Chromium process may be shared, but authenticated contexts/pages are isolated
-  by scope/session; each closes on idle timeout or cleanup and is never reused.
-- Chromium uses a module-owned authenticated loopback proxy to apply shared
-  outbound target policy and DNS-pin every connection, including redirects,
+- Each scope/session owns its Chromium process, authenticated context/pages, and
+  authenticated loopback proxy. They close together on idle timeout or session
+  cleanup; module unload closes only its scope's resources.
+- Each session resolves browser configuration through the shared trusted config
+  loader using its canonical scope directory and machine authority config path.
+  It captures that profile for its lifetime, never another scope's module-load
+  settings or the isolated writer's working directory.
+- Chromium's proxy applies that session's captured outbound target policy and
+  DNS-pins every connection, including redirects,
   click navigations, WebSocket tunnels, and subresources.
 - `modules.browser.networkProfile` defaults to `public-untrusted`, rejecting
   loopback, private, link-local, and rebinding targets. Private access requires

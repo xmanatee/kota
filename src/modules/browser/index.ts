@@ -10,7 +10,6 @@ import {
 import {
   type BrowserProfileOptions,
   closeBrowser,
-  configureBrowserProfile,
   isPlaywrightAvailable,
 } from "./lifecycle.js";
 import {
@@ -195,10 +194,7 @@ const browserModule: KotaModule = {
       );
     }
     const profile = resolveProfile(ctx);
-    configureBrowserProfile(profile, {
-      scopeId: deriveDirectoryScopeId(ctx.cwd),
-      scopeRoot: ctx.cwd,
-    });
+    const scopeId = deriveDirectoryScopeId(ctx.cwd);
     if (profile.networkProfile.name === "configured-provider") {
       ctx.log.info(
         `browser: configured-provider network profile selected for ${profile.networkProfile.allowedOrigins.length} operator-approved origin(s)`,
@@ -211,7 +207,11 @@ const browserModule: KotaModule = {
           (profile.headless ? "" : " (headed browser enabled)"),
       );
     }
-    return { dispose: closeBrowser };
+    return {
+      async dispose() {
+        await closeBrowser(scopeId);
+      },
+    };
   },
 };
 
