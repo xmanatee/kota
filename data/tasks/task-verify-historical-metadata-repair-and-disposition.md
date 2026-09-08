@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Verify historical metadata repair and disposition the cited runtime-health failure
