@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Review owner captured automated research and MiMo links
@@ -140,3 +140,38 @@ description: operator-provided readable content, screenshot transcript, or reach
 ## Source Access Restored
 
 On 2026-09-08 the original source https://mimo.xiaomi.com/blog/mimo-code-long-horizon returned readable article content, titled MiMo Code: Scaling Coding Agents to Long-Horizon Tasks, dated June 10, 2026. The source-access precondition is cleared; review the original article and retain source-grounded conclusions through the existing research decision mechanism. This observation does not claim that the research task is complete. If access fails again in the worker, record the actual failure rather than inventing source contents.
+
+## Worker Access Recheck — 2026-09-08
+
+Run: 2026-09-08T12-44-38-018Z-builder-quzo2p.
+
+- Attempted the original remaining URL with local curl, following redirects,
+  failing on HTTP errors, and allowing 35 seconds. Curl exited 7 immediately:
+  `Failed to connect to 127.0.0.1 port 63711 after 0 ms: Couldn't connect to server`.
+  This is a worker proxy connection failure, not evidence that the article
+  was removed or that its publisher is unavailable.
+- This worker exposes no general web-fetch or browser connector. Searches of
+  the accessible workspace for MiMo/source-access captures found no article
+  content; this run's artifact directory was empty. The earlier restored-access
+  observation contains a title and date, not the article body, so it cannot
+  substitute for reading the source.
+- The five 2026-06-20 reading dispositions above are retained as historical
+  evidence, not claimed as fresh reads in this run. The long-horizon article
+  remains unread and unprocessed. No new source-grounded decision, follow-up
+  task, watchlist entry, or runtime change is justified without its content.
+- Completion remains blocked. Once actual content is available, review it
+  against current KOTA concepts and retain the resulting source, rationale,
+  and revisit condition through the existing typed external-pattern decision
+  mechanism before completing this task.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/2026-06-20T20-54-52-875Z-builder-2jwlhx/source-access/mimo-code-long-horizon.md
+description: readable article content or screenshot transcript for https://mimo.xiaomi.com/blog/mimo-code-long-horizon, made available to the builder through a permitted evidence surface; a fresh successful fetch from the builder also clears this source-access blocker
+```
+
+The previous capture destination is retained. A title, reachability assertion,
+or successful fetch in another environment alone does not clear the worker's
+need for readable source content.
