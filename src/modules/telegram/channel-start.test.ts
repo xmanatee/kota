@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import {
   type AgentHarness,
   resolveAgentHarness,
@@ -20,7 +20,8 @@ import { callTelegramApi, TelegramApiError } from "./client.js";
 import {
   TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
 } from "./index.js";
-import { loadTelegramModule, unloadTelegramModule } from "./notification-subscriptions.js";
+import { loadTelegramModule } from "./notification-subscriptions.js";
+import { createTelegramRuntimeState } from "./runtime-state.js";
 
 vi.mock("./client.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./client.js")>();
@@ -170,7 +171,7 @@ it("reports the default Codex backend as ready through setup capability readines
       readiness.source = provider as unknown as CapabilityReadinessSource;
     };
 
-    loadTelegramModule(ctx);
+    onTestFinished(loadTelegramModule(ctx, createTelegramRuntimeState()));
     try {
       const source = readiness.source;
       if (!source) throw new Error("readiness source not registered");
@@ -186,7 +187,6 @@ it("reports the default Codex backend as ready through setup capability readines
     } finally {
       if (savedPreset !== undefined) process.env.KOTA_PRESET = savedPreset;
       else delete process.env.KOTA_PRESET;
-      unloadTelegramModule();
     }
   });
 
@@ -211,21 +211,17 @@ it("rejects a passive Telegram session when the selected harness cannot enforce 
       readiness.source = provider as unknown as CapabilityReadinessSource;
     };
 
-    loadTelegramModule(ctx);
-    try {
-      const source = readiness.source;
-      if (!source) throw new Error("readiness source not registered");
-      expect(source.probe()).toEqual([
-        expect.objectContaining({
-          id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
-          status: "unavailable",
-          reason: "interactive_backend_unavailable",
-          message: expect.stringContaining('cannot use autonomyMode "passive"'),
-        }),
-      ]);
-    } finally {
-      unloadTelegramModule();
-    }
+    onTestFinished(loadTelegramModule(ctx, createTelegramRuntimeState()));
+    const source = readiness.source;
+    if (!source) throw new Error("readiness source not registered");
+    expect(source.probe()).toEqual([
+      expect.objectContaining({
+        id: TELEGRAM_INTERACTIVE_BACKEND_CAPABILITY_ID,
+        status: "unavailable",
+        reason: "interactive_backend_unavailable",
+        message: expect.stringContaining('cannot use autonomyMode "passive"'),
+      }),
+    ]);
   });
 
 it("reports provider-backed backend setup as unavailable when its API key is missing", async () => {
@@ -245,7 +241,7 @@ it("reports provider-backed backend setup as unavailable when its API key is mis
     };
 
     try {
-      loadTelegramModule(ctx);
+      onTestFinished(loadTelegramModule(ctx, createTelegramRuntimeState()));
       const source = readiness.source;
       if (!source) throw new Error("readiness source not registered");
       const reports = await source.probe();
@@ -258,7 +254,6 @@ it("reports provider-backed backend setup as unavailable when its API key is mis
         }),
       ]);
     } finally {
-      unloadTelegramModule();
       if (savedOpenAiKey !== undefined) process.env.OPENAI_API_KEY = savedOpenAiKey;
       else delete process.env.OPENAI_API_KEY;
     }
@@ -288,7 +283,7 @@ it("telegram-interactive channel reports unavailable when token is missing", asy
     const savedToken = process.env.TELEGRAM_BOT_TOKEN;
     delete process.env.TELEGRAM_BOT_TOKEN;
     try {
-      const channel = makeTelegramInteractiveChannel(makeStubCtx(), []);
+      const channel = makeTelegramInteractiveChannel(makeStubCtx(), [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("unavailable");
@@ -315,7 +310,7 @@ it("telegram-interactive channel starts with the default Codex preset without a 
             model: "gpt-5.6-sol",
             serve: { defaultAutonomyMode: "passive" },
           } as ModuleRuntimeContext["config"],
-        ), []);
+        ), [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("started");
@@ -346,7 +341,7 @@ it("telegram-interactive channel reports unavailable when provider API key is mi
             modelProvider: { type: "openai" },
             serve: { defaultAutonomyMode: "passive" },
           } as ModuleRuntimeContext["config"],
-        ), []);
+        ), [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("unavailable");
@@ -381,7 +376,7 @@ it("telegram-interactive channel keeps provider/model notation on the regular se
             model: "openrouter/openrouter/auto",
             serve: { defaultAutonomyMode: "supervised" },
           } as ModuleRuntimeContext["config"],
-        ), []);
+        ), [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("started");
@@ -413,7 +408,7 @@ it("telegram-interactive channel validates provider/model notation before starti
             model: "openai/gpt-5.6-sol",
             serve: { defaultAutonomyMode: "supervised" },
           } as ModuleRuntimeContext["config"],
-        ), []);
+        ), [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
       expect(result.status).toBe("unavailable");
@@ -518,7 +513,7 @@ it("emits one deduped health signal when Telegram reports getUpdates conflicts",
           {
             serve: { defaultAutonomyMode: "passive" },
           } as ModuleRuntimeContext["config"],
-        ), []);
+        ), [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const startContext = makeChannelStartContext({
         reportFailure: (message: string) => {
@@ -552,7 +547,6 @@ it("emits one deduped health signal when Telegram reports getUpdates conflicts",
       else delete process.env.TELEGRAM_BOT_TOKEN;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
       else delete process.env.TELEGRAM_ALERT_CHAT_ID;
-      unloadTelegramModule();
     }
   });
 
@@ -590,7 +584,7 @@ it("reports poll-loop recovery after a healthy getUpdates request", async () => 
     ctx.log.operationRecovered = operationRecovered;
 
     try {
-      const channel = makeTelegramInteractiveChannel(ctx, []);
+      const channel = makeTelegramInteractiveChannel(ctx, [], createTelegramRuntimeState());
       if (!channel) throw new Error("telegram-interactive channel missing");
       const result = channel.create(makeChannelStartContext());
       if (result.status !== "started") {
@@ -610,7 +604,6 @@ it("reports poll-loop recovery after a healthy getUpdates request", async () => 
       else delete process.env.TELEGRAM_BOT_TOKEN;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
       else delete process.env.TELEGRAM_ALERT_CHAT_ID;
-      unloadTelegramModule();
     }
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import type { DirectoryScope } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -7,7 +7,8 @@ import { makeStubEventProxy } from "#core/modules/testing/index.js";
 import { createKotaClientTestDouble, type DeclaredKotaClientHandlers } from "#core/server/daemon-client-test-support.js";
 import { buildApprovalCallbackData } from "./approval-callback.js";
 import { callTelegramApi } from "./client.js";
-import { loadTelegramModule, unloadTelegramModule } from "./notification-subscriptions.js";
+import { loadTelegramModule } from "./notification-subscriptions.js";
+import { createTelegramRuntimeState } from "./runtime-state.js";
 
 vi.mock("./client.js", async (original) => ({ ...await original<typeof import("./client.js")>(), callTelegramApi: vi.fn() }));
 const mockedCallTelegramApi = vi.mocked(callTelegramApi);
@@ -42,10 +43,10 @@ describe("Telegram notification delivery", () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", FAKE_TOKEN);
     vi.stubEnv("TELEGRAM_ALERT_CHAT_ID", FAKE_CHAT_ID);
   });
-  afterEach(() => { unloadTelegramModule(); vi.unstubAllEnvs(); });
+  afterEach(() => { vi.unstubAllEnvs(); });
 it("sends Telegram message on workflow.failure.alert", async () => {
     const bus = new EventBus();
-    loadTelegramModule(makeStubCtx(bus));
+    onTestFinished(loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState()));
     bus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",
@@ -64,7 +65,7 @@ it("sends Telegram message on workflow.failure.alert", async () => {
 
 it("sends Telegram message on workflow.attention.digest", async () => {
     const bus = new EventBus();
-    loadTelegramModule(makeStubCtx(bus));
+    onTestFinished(loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState()));
     bus.emit("workflow.attention.digest", {
       items: [{ label: "Builder failure streak", detail: "3 consecutive failures" }],
       text: "Attention digest (1 item):\n• *Builder failure streak*: 3 consecutive failures",
@@ -81,7 +82,7 @@ it("sends Telegram message on workflow.attention.digest", async () => {
 
 it("sends Telegram message on workflow.daily.digest", async () => {
     const bus = new EventBus();
-    loadTelegramModule(makeStubCtx(bus));
+    onTestFinished(loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState()));
     bus.emit("workflow.daily.digest", {
       windowStartedAt: "2026-04-25T08:00:00.000Z",
       windowEndedAt: "2026-04-26T08:00:00.000Z",
@@ -100,7 +101,7 @@ it("sends Telegram message on workflow.daily.digest", async () => {
 
 it("sends Telegram message on owner.question.asked with CLI commands and Dismiss button", async () => {
     const bus = new EventBus();
-    loadTelegramModule(makeStubCtx(bus));
+    onTestFinished(loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState()));
     bus.emit("owner.question.asked", {
       scopeId: TEST_SCOPE.scopeId,
       id: "oq-xyz",
@@ -170,7 +171,7 @@ it("sends owner.question.asked with per-answer buttons when proposedAnswers is s
     }));
 
     const bus = new EventBus();
-    loadTelegramModule(
+    onTestFinished(loadTelegramModule(
       makeStubCtx(
         bus,
         makeStubClient({
@@ -180,8 +181,8 @@ it("sends owner.question.asked with per-answer buttons when proposedAnswers is s
             dismiss: vi.fn(),
           },
         }),
-      ),
-    );
+      ), createTelegramRuntimeState(),
+    ));
     bus.emit("owner.question.asked", {
       scopeId: TEST_SCOPE.scopeId,
       id: "oq-abc",
@@ -239,13 +240,13 @@ it("sends Telegram message with inline keyboard on approval.requested", async ()
         status: "pending" as const,
       }],
     }));
-    loadTelegramModule(makeStubCtx(bus, makeStubClient({
+    onTestFinished(loadTelegramModule(makeStubCtx(bus, makeStubClient({
       approvals: {
         list: approvalsList,
         approve: vi.fn(),
         reject: vi.fn(),
       },
-    })));
+    })), createTelegramRuntimeState()));
     bus.emit("approval.requested", {
       scopeId: TEST_SCOPE.scopeId,
       id: "abc123",
@@ -286,7 +287,7 @@ it("sends Telegram message with inline keyboard on approval.requested", async ()
 it("does not send Telegram message when credentials are missing", async () => {
     delete process.env.TELEGRAM_BOT_TOKEN;
     const bus = new EventBus();
-    loadTelegramModule(makeStubCtx(bus));
+    onTestFinished(loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState()));
     bus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",
@@ -301,8 +302,9 @@ it("does not send Telegram message when credentials are missing", async () => {
 
 it("unloads cleanly and stops receiving events", async () => {
     const bus = new EventBus();
-    loadTelegramModule(makeStubCtx(bus));
-    unloadTelegramModule();
+    const dispose = loadTelegramModule(makeStubCtx(bus), createTelegramRuntimeState());
+    onTestFinished(dispose);
+    dispose();
     bus.emit("workflow.failure.alert", {
       workflow: "builder",
       runId: "run-abc",
@@ -325,7 +327,7 @@ it("loads notification subscriptions without a CLI-resolved KotaClient", async (
       },
     });
 
-    expect(() => loadTelegramModule(ctx)).not.toThrow();
+    expect(() => onTestFinished(loadTelegramModule(ctx, createTelegramRuntimeState()))).not.toThrow();
     expect(mockedCallTelegramApi).not.toHaveBeenCalled();
   });
 });
