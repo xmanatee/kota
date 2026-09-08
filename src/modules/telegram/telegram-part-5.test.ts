@@ -309,7 +309,6 @@ describe("telegramModule", () => {
       else delete process.env.TELEGRAM_BOT_TOKEN;
       if (savedChatId !== undefined) process.env.TELEGRAM_ALERT_CHAT_ID = savedChatId;
       else delete process.env.TELEGRAM_ALERT_CHAT_ID;
-      unloadTelegramModule();
     }
   });
 });
