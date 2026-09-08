@@ -50,3 +50,5 @@ The cited dead letter was redriven through the owning control API as 2026-09-07T
 ## Decomposed
 
 - task-verify-historical-metadata-repair-and-disposition
+
+<!-- generated-work retirement: 590400a53ef3bc43d66ae3f73a84dfa0b1abfbfe1c2876affbe2a722834d8f67 -->
