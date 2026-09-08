@@ -11,6 +11,7 @@ import {
 } from "#modules/autonomy/evaluator-calibration.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
+  AUTONOMY_AGENT_TIER,
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
@@ -77,7 +78,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: null,
       idleTimeoutMs: AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,

@@ -40,11 +40,8 @@ export const AUTONOMY_AGENT_TIER = "capable" as const;
 // Registry defaults keep agent declarations complete. Workflow compilation
 // replaces this bundle from the active runtime whenever a step declares a
 // portable tier.
-function buildAutonomyAgentDefaults(): Pick<AgentDef, "model" | "effort"> & {
-  tier: typeof AUTONOMY_AGENT_TIER;
-} {
+function buildAutonomyAgentDefaults(): Pick<AgentDef, "model" | "effort"> {
   return {
-    tier: AUTONOMY_AGENT_TIER,
     model: resolveTierModel(AUTONOMY_AGENT_DEFINITION_PRESET, AUTONOMY_AGENT_TIER),
     effort: AUTONOMY_AGENT_DEFINITION_PRESET.defaultEffort,
   };

@@ -3,6 +3,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+  AUTONOMY_AGENT_TIER,
 } from "#modules/autonomy/shared.js";
 import {
   recordEmptyScan,
@@ -60,7 +61,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: Math.min(AUTONOMY_AGENT_HANG_TIMEOUT_MS, 45 * 60 * 1000),
       outputFormat: "json",
@@ -75,7 +76,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: Math.min(AUTONOMY_AGENT_HANG_TIMEOUT_MS, 30 * 60 * 1000),
       outputFormat: "json",

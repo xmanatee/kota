@@ -5,6 +5,7 @@ import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
+  AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
@@ -92,7 +93,7 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
       when: (ctx) => {

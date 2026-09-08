@@ -6,6 +6,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
+  AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import { repoAiChecksCompletedEvent } from "#modules/repo-ai-checks/events.js";
@@ -140,7 +141,7 @@ const repoAiChecksWorkflow: WorkflowDefinitionInput = {
           type: "agent",
           agentName: agent.name,
           promptPath: agent.promptPath,
-          tier: AUTONOMY_AGENT_DEFAULTS.tier,
+          tier: AUTONOMY_AGENT_TIER,
           effort: AUTONOMY_AGENT_DEFAULTS.effort,
           autonomyMode: "autonomous",
           timeoutMs: CHECK_AGENT_TIMEOUT_MS,

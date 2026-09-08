@@ -1,6 +1,7 @@
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
+  AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
 import {
@@ -65,7 +66,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       type: "agent",
       agentName: agent.name,
       promptPath: agent.promptPath,
-      tier: AUTONOMY_AGENT_DEFAULTS.tier,
+      tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: REVIEW_AGENT_TIMEOUT_MS,
       outputFormat: "json",
