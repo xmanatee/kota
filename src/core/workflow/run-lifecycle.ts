@@ -286,7 +286,12 @@ export class RunLifecycle {
       signal.throwIfAborted();
 
       if (sandbox.repository === "write" && run.integration) {
-        return await this.finalizeWriter(context, manager, readJournal(run.integration));
+        const journal = readJournal(run.integration);
+        // Semantic rejection invalidates the workflow result, not just its merge.
+        // Keep the rejected journal until fresh execution produces a replacement.
+        if (journal?.phase !== "pending" || journal.outcome?.status !== "invariant-failed") {
+          return await this.finalizeWriter(context, manager, journal);
+        }
       }
 
       const outcome = await this.options.executeWorkflow(context, run);
@@ -412,6 +417,11 @@ export class RunLifecycle {
         signal: context.signal,
       });
       if (invariant?.satisfied === false) {
+        this.persist(context, {
+          ...journal,
+          phase: "pending",
+          outcome: { status: "invariant-failed", reason: invariant.reason },
+        });
         return this.attention("integration-invariant-failed", [invariant.reason]);
       }
       journal = this.completeIntegrationJournal(

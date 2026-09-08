@@ -108,6 +108,46 @@ afterEach(() => {
 });
 
 describe("RunLifecycle", () => {
+  test.each([false, true])("reexecutes a semantically rejected writer in its retained sandbox (changed: %s)", async (changed) => {
+    const value = fixture(`semantic-retry-${changed}`, "write");
+    let accepted = false;
+    let workspace = "";
+    const runtime = new RunLifecycle({
+      store: value.store,
+      daemonEpoch: value.epoch,
+      executeWorkflow: async (context) => {
+        if (workspace) {
+          expect(context.sandbox.workspaceDir).toBe(workspace);
+          if (changed) expect(readFileSync(join(workspace, "feature.txt"), "utf8")).toBe("retained work\n");
+          accepted = true;
+        }
+        workspace = context.sandbox.workspaceDir;
+        if (changed) write(workspace, "feature.txt", "retained work\n");
+        return { kind: "completed" };
+      },
+      validate: async () => ({ status: "passed", evidence: ["verified"] }),
+      verifyPostReconcile: () => accepted
+        ? { satisfied: true }
+        : { satisfied: false, reason: "required review is missing" },
+      continueIntegration: async () => { throw new Error("merge repair cannot replace workflow review"); },
+      createResourceAllocator,
+    });
+    const rejected = await runtime.execute(value.run, new AbortController().signal);
+    expect(rejected.kind).toBe("suspended");
+    if (rejected.kind !== "suspended") throw new Error("expected semantic rejection");
+    expect(existsSync(join(value.root, "feature.txt"))).toBe(false);
+    value.store.suspendRun({ runId: value.run.id, epoch: value.epoch,
+      state: rejected.state, wait: rejected.wait, error: rejected.error,
+      suspendedAt: "2026-08-25T10:00:03.000Z" });
+    value.store.resumeRun(value.run.id, "2026-08-25T10:00:04.000Z");
+    value.store.startRun(value.run.id, value.epoch, "2026-08-25T10:00:05.000Z");
+    expect(await runtime.execute(value.store.getRun(value.run.id)!, new AbortController().signal))
+      .toEqual({ kind: "terminal", state: "succeeded" });
+    expect(accepted).toBe(true);
+    if (changed) expect(readFileSync(join(value.root, "feature.txt"), "utf8")).toBe("retained work\n");
+    expect(existsSync(workspace)).toBe(false);
+  });
+
   test("gives a reader an isolated checkout, durable effects, and safe cleanup", async () => {
     const value = fixture("reader", "read");
     let effectCalls = 0;
