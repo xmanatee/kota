@@ -2,7 +2,6 @@
 status: blocked
 priority: p2
 ---
-
 # Review owner captured automated research and MiMo links
 
 ## Problem
@@ -128,7 +127,7 @@ Attempted on 2026-06-20.
     surfaces such as Codex, Claude Code, Gemini CLI, OpenHands, and Mini
     SWE-agent. No normalized follow-up task was opened.
 
-## Blocked on
+## Previous Access Blocker (Cleared)
 ```
 kind: operator-capture
 path: .kota/runs/2026-06-20T20-54-52-875Z-builder-2jwlhx/source-access/mimo-code-long-horizon.md
@@ -136,3 +135,8 @@ description: operator-provided readable content, screenshot transcript, or reach
 ```
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-07T17:14:39.324Z -->
+
+
+## Source Access Restored
+
+On 2026-09-08 the original source https://mimo.xiaomi.com/blog/mimo-code-long-horizon returned readable article content, titled MiMo Code: Scaling Coding Agents to Long-Horizon Tasks, dated June 10, 2026. The source-access precondition is cleared; review the original article and retain source-grounded conclusions through the existing research decision mechanism. This observation does not claim that the research task is complete. If access fails again in the worker, record the actual failure rather than inventing source contents.
