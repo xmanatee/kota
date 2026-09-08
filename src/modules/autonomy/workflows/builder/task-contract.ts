@@ -11,8 +11,8 @@ import type { TaskReviewContract } from "#modules/autonomy/task-review-target.js
 import {
   listFullRepoTasks,
   type RepoTaskFullRecord,
+  selectActionableRepoTasks,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { findUnfinishedTaskDependencies } from "#modules/repo-tasks/task-dependencies.js";
 import { requireResolvedTargetTask } from "./task-state-repair-checks.js";
 
 export const BUILDER_TASK_EVENT = "autonomy.queue.available";
@@ -86,14 +86,7 @@ function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
 export function listBuilderTaskDispatches(
   workspaceRoot: string,
 ): BuilderTaskDispatchPayload[] {
-  const allTasks = listFullRepoTasks(workspaceRoot);
-  const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
-  return allTasks
-    .filter(
-      (task) =>
-        task.state === "open" &&
-        findUnfinishedTaskDependencies(task.dependsOn, stateByTaskId).length === 0,
-    )
+  return selectActionableRepoTasks(listFullRepoTasks(workspaceRoot))
     .sort((left, right) => {
       const priority =
         (PRIORITY_ORDER.get(left.priority!) ?? Number.MAX_SAFE_INTEGER) -

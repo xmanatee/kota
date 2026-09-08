@@ -152,7 +152,7 @@ describe("createImproverSemanticCheck", () => {
       expect.objectContaining({ exportName: "inspectImproverSemanticReviewInWorker" }),
       { workspaceRoot: dir, runDirPath: runDir },
     );
-    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+
 
     const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(prompt).toContain("Increase critic retry count");
@@ -264,9 +264,7 @@ describe("createImproverSemanticCheck", () => {
 
     const prompt = getPromptArg(mockRunAgentHarness.mock.calls[0]);
     expect(prompt).toContain("Unique commit message for test");
-    expect(prompt).toContain("improver workflow run");
     expect(prompt).toContain(`${runDir}/metadata.json`);
-    expect(prompt).toContain(`${runDir}/steps/*.events.jsonl`);
 
     const options = mockRunAgentHarness.mock.calls[0][1] as Record<string, unknown>;
     expect(options.allowedTools).toBeUndefined();

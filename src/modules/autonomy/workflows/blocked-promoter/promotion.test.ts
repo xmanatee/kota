@@ -15,11 +15,11 @@ import {
   renderOperatorCaptureInstructedMarker,
   renderOwnerAskMarker,
 } from "#modules/repo-tasks/blocked-precondition.js";
+import type { BlockerAction } from "./blocker-policy.js";
+import { extractRecommendedAnswer } from "./blocker-policy.js";
 import {
   applyOperatorCaptureInstruction,
-  type BlockerAction,
   classifyBlockedActions,
-  extractRecommendedAnswer,
   listBlockedTasksWithPreconditions,
   listOperatorCaptureInstructCandidates,
   pickOwnerAskCandidate,
@@ -114,7 +114,7 @@ describe("pickOwnerAskCandidate surfaces recommendedAnswer", () => {
       ],
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidate = pickOwnerAskCandidate(records, Date.now());
+    const candidate = pickOwnerAskCandidate(records, classifyBlockedActions(records, dir, Date.now()));
     expect(candidate).not.toBeNull();
     expect(candidate?.recommendedAnswer).toBe("variant-a");
   });
@@ -134,7 +134,7 @@ describe("pickOwnerAskCandidate surfaces recommendedAnswer", () => {
       ],
     });
     const records = listBlockedTasksWithPreconditions(dir);
-    const candidate = pickOwnerAskCandidate(records, Date.now());
+    const candidate = pickOwnerAskCandidate(records, classifyBlockedActions(records, dir, Date.now()));
     expect(candidate?.recommendedAnswer).toBeNull();
   });
 });

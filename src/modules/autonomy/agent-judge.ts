@@ -7,11 +7,10 @@ import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
 import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
 import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
-  AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
-  isEmptyAgentOutputSubtype,
 } from "#core/workflow/steps/step-executor-retry.js";
-import { parseVerdict } from "./critic-verdict.js";
+import type { CriticVerdict } from "./critic-verdict.js";
+import { decideJudgeResponse } from "./judge-response.js";
 import { AUTONOMY_DISALLOWED_TOOLS, sleep } from "./shared.js";
 
 export type AgentJudgeConfig = {
@@ -67,7 +66,7 @@ export async function invokeAgentJudge(
   config: AgentJudgeConfig,
   runAgentHarness: WorkflowAgentHarnessRunner,
   signal?: AbortSignal,
-): Promise<{ text: string; isError: boolean; subtype?: string }> {
+): Promise<CriticVerdict> {
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
   const harness = resolveAgentHarness(config.harness);
@@ -125,68 +124,17 @@ export async function invokeAgentJudge(
       continue;
     }
 
-    if (!response.isError) {
-      try {
-        parseVerdict(response.text);
-        return response;
-      } catch (error) {
-        if (isEmptyAgentOutputSubtype(response.subtype)) {
-          emptyOutputFailures += 1;
-        } else {
-          emptyOutputFailures = 0;
-        }
-        lastError = new Error(
-          `${config.label} returned unparseable response (attempt ${attempt + 1}/${maxRetries}): ${error instanceof Error ? error.message : String(error)}`,
-        );
-        if (emptyOutputFailures >= maxRetries) {
-          throw new AgentStepRuntimeError(
-            `${config.label} produced ${emptyOutputFailures} successful terminal results without a usable verdict (${response.subtype})`,
-            "output_contract",
-            false,
-          );
-        }
-        needsFormatReminder = true;
-        continue;
-      }
-    }
-
-    // isError=true path. Prefer to recover a parseable verdict from any
-    // emitted text before deciding whether to retry — an agent that hit
-    // max_turns may still have produced a valid JSON verdict before bailing.
-    if (response.text.trim()) {
-      if (isParseableVerdict(response.text)) {
-        return response;
-      }
-    }
-
-    const failureDetail = response.text.trim() || response.subtype || "unknown error";
-    lastError = new Error(
-      `${config.label} failed (attempt ${attempt + 1}/${maxRetries}): ${failureDetail}`,
-    );
-
-    // Runaway subtypes (error_max_turns, error_max_tokens) are deterministic
-    // budget exhaustion, not transient provider problems. Retrying burns
-    // budget without changing the turn/token ceiling. Fail fast on anything
-    // the classifier does not explicitly mark retryable — same policy the
-    // workflow step-executor applies to agent steps.
-    const classification = classifyAgentRuntimeFailure({
-      message: response.text,
-      subtype: response.subtype,
+    const decision = decideJudgeResponse({
+      response, label: config.label, attempt: attempt + 1, maxAttempts: maxRetries,
+      emptyOutputFailures,
     });
-    if (!classification?.retryable) throw lastError;
-    needsFormatReminder = false;
+    if (decision.kind === "verdict") return decision.verdict;
+    if (decision.kind === "reject") throw decision.error;
+    lastError = decision.error;
+    needsFormatReminder = decision.formatReminder;
+    emptyOutputFailures = decision.emptyOutputFailures;
   }
   throw lastError!;
-}
-
-function isParseableVerdict(text: string): boolean {
-  let parseable = true;
-  try {
-    parseVerdict(text);
-  } catch {
-    parseable = false;
-  }
-  return parseable;
 }
 
 /**

@@ -1,8 +1,8 @@
-import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal-types.js";
 import {
   type StagedGeneratedWorkProposalResult,
   stageGeneratedWorkProposal,
-} from "#modules/autonomy/generated-work-transaction.js";
+} from "#modules/autonomy/generated-work-proposal.js";
+import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal-types.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import type { ParetoEvaluation, SimplificationHypothesis } from "./types.js";
 

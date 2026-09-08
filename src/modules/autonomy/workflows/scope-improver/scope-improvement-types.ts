@@ -30,6 +30,7 @@ export type ScopeImprovementState = {
   scopeId: string;
   lastRunAt: string | null;
   consumedFingerprint: string | null;
+  consumedExplicitRunIds: string[];
   pendingFingerprint: string | null;
   pendingBoundary: "initial-onboarding" | "content-policy-changed" | null;
   pendingDelivery: "queued" | "deferred" | null;

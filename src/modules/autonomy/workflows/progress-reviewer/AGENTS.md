@@ -27,7 +27,9 @@ This workflow owns bounded evidence review for scoped activity.
 - Every review artifact must state its scope, trigger kind, evidence window,
   included evidence, excluded evidence, and applied actions.
 - Dedupe before creating tasks or owner questions so recurring reviews do not
-  spam the queue.
+  spam the queue. Publication records explicit source runs independently of
+  the automatic watermark. Per-topic observations preserve newer dispositions
+  while allowing out-of-order explicit requests about unrelated topics.
 - Validate citations against the collected evidence inside the agent contract.
   Exhausted output correction retains a typed rejection and finishes with
   warnings, without actions or semantic publication. Runtime and evidence
@@ -38,3 +40,7 @@ This workflow owns bounded evidence review for scoped activity.
   Owner-question reconciliation and the consumed semantic watermark publish
   through the staged `progress-review-publication` `repository: none`
   follow-up, using compare-and-set against the runtime state row.
+- A consumed review watermark does not cancel paired owner effects for an
+  integrated task change. Publication reconciles against canonical task state
+  and the retirement disposition recorded in archived tasks, so delayed effects
+  complete without undoing a later disposition.

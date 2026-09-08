@@ -20,7 +20,6 @@ import {
 import type {
   AskOutcomeApplication,
   OperatorCaptureInstruction,
-  OwnerAskCandidate,
 } from "./promotion.js";
 
 export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
@@ -55,26 +54,6 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
     runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot, scopeRoot }),
 });
-
-export function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
-  const proposed = candidate.proposedAnswers.length > 0
-    ? candidate.proposedAnswers
-    : ["unblock"];
-  const recommended = candidate.recommendedAnswer?.trim().toLowerCase();
-  const recommendedIndex = recommended
-    ? proposed.findIndex((answer) => answer.trim().toLowerCase() === recommended)
-    : -1;
-  const reordered = recommendedIndex > 0
-    ? [
-        proposed[recommendedIndex]!,
-        ...proposed.slice(0, recommendedIndex),
-        ...proposed.slice(recommendedIndex + 1),
-      ]
-    : proposed;
-  return reordered.some((answer) => answer.trim().toLowerCase() === "unblock")
-    ? reordered
-    : [...reordered, "unblock"];
-}
 
 export const inspectOwnerDecisionResolution =
   typedCodeStep<BlockedOwnerDecisionResolution>({

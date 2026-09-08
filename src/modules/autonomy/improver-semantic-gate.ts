@@ -8,7 +8,6 @@ import {
   invokeAgentJudge,
   isJudgeRunawayError,
   judgeUnavailableResult,
-  parseVerdict,
   resolveAgentJudgeRunContract,
 } from "./critic.js";
 import { improverSemanticInspectionOperation } from "./review-input-operations.js";
@@ -161,16 +160,7 @@ export function createImproverSemanticCheck(
         }
         throw err;
       }
-      if (response.isError) {
-        const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, ARTIFACT_NAME, {
-          ...verdictContext,
-          failureDetailMode: "artifact-reference",
-        });
-      }
-
-      const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, ARTIFACT_NAME, {
+      return handleVerdict(response, runDir, ARTIFACT_NAME, {
         ...verdictContext,
         failureDetailMode: "artifact-reference",
       });

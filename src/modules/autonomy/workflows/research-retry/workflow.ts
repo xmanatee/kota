@@ -1,6 +1,5 @@
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
-import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
@@ -17,6 +16,7 @@ import {
   createResearchRetryShadowReviewStep,
   type InspectResult,
 } from "./shadow-review.js";
+import { assertResearchRetryTrigger, RESEARCH_RETRY_EVENT } from "./trigger.js";
 
 export const agent: AgentDef = {
   name: "research-retry",
@@ -27,53 +27,6 @@ export const agent: AgentDef = {
   skills: [],
   writeScope: ["data/tasks/", "data/inbox/"],
 };
-
-const RESEARCH_RETRY_EVENT = "autonomy.blocked-research.attemptable";
-const QUEUE_COUNT_KEYS = [
-  "open",
-  "open",
-  "open",
-  "blocked",
-  "done",
-  "dropped",
-] as const;
-
-function isNonNegativeInteger(
-  value: WorkflowRunTrigger["payload"][string],
-): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function hasValidQueueCounts(
-  value: WorkflowRunTrigger["payload"][string],
-): boolean {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    QUEUE_COUNT_KEYS.every((key) => isNonNegativeInteger(Reflect.get(value, key)))
-  );
-}
-
-function assertResearchRetryTrigger(trigger: WorkflowRunTrigger): void {
-  if (trigger.event !== RESEARCH_RETRY_EVENT) {
-    throw new Error(`Research-retry accepts only ${RESEARCH_RETRY_EVENT} triggers`);
-  }
-  const { scopeId, candidateCount, attemptableCount, counts } = trigger.payload;
-  if (
-    typeof scopeId !== "string" ||
-    scopeId.length === 0 ||
-    !isNonNegativeInteger(candidateCount) ||
-    !isNonNegativeInteger(attemptableCount) ||
-    attemptableCount === 0 ||
-    attemptableCount > candidateCount ||
-    !hasValidQueueCounts(counts)
-  ) {
-    throw new Error(
-      `Research-retry trigger payload must match ${RESEARCH_RETRY_EVENT}`,
-    );
-  }
-}
 
 const inspectCandidates = typedCodeStep<InspectResult>({
   id: "inspect-candidates",

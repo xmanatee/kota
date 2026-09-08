@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-align-verification-ownership-and-cadences, task-centralize-approval-lifecycle-state, task-centralize-owner-decision-lifecycle-state]
+status: done
 ---
 
 # Extract autonomy decision owners
@@ -32,3 +30,21 @@ Provide the decision/owner/workflow/disposition matrix and before/after producti
 ## Initiative
 
 Child of `task-simplify-workflow-and-autonomy-tests`.
+
+## Implementation evidence
+
+The run's `decision-owners.md` records the decision/owner/workflow/disposition
+matrix. `decision-loc-before.json` and `decision-loc-after.json` retain per-file
+inventories; `repair-summary.md` records current proof and limitations.
+
+Queue/blocker decisions, judge responses, scoped decision observations, and
+shared task/question disposition now have typed owners consumed by workflows.
+Delayed scope-improvement publication reconciles integrated tasks independently
+of semantic freshness, while later task retirement and owner-question replay
+remain protected. The latest 17 focused owner tests, production/test types and
+scoped Biome checks pass. Earlier run evidence records the broader extraction
+checks and workflow-scenario limitations; no live model-quality eval is claimed.
+
+The normal terminal command was retried during this repair and still rejects
+with `Repo-task mutation requires the active workflow runtime`. The task remains
+open pending the runtime-authorized transition in this writer workspace.

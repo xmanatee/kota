@@ -20,6 +20,7 @@ import {
   evaluateCandidate,
   renderRetryMarker,
 } from "./precondition.js";
+import { assertResearchRetryTrigger } from "./trigger.js";
 import researchRetryWorkflow from "./workflow.js";
 
 function bodyFromUrls(urls: string[]): string {
@@ -95,27 +96,20 @@ describe("research-retry workflow", () => {
     ]);
   });
 
-  it("fails closed on unsupported triggers and malformed availability payloads", async () => {
-    const validTrigger = researchRetryTrigger();
-    const unsupported = await new WorkflowScenarioDriver(researchRetryWorkflow, {
-      trigger: {
-        event: "runtime.idle",
-        payload: validTrigger.payload,
-      },
-    }).run();
-    expect(unsupported.steps["inspect-candidates"].error).toContain(
-      "accepts only autonomy.blocked-research.attemptable triggers",
-    );
-
-    const malformed = await new WorkflowScenarioDriver(researchRetryWorkflow, {
-      trigger: {
-        event: "autonomy.blocked-research.attemptable",
-        payload: {},
-      },
-    }).run();
-    expect(malformed.steps["inspect-candidates"].error).toContain(
-      "payload must match autonomy.blocked-research.attemptable",
-    );
+  it("rejects unsupported triggers and malformed availability before candidate inspection", () => {
+    const valid = researchRetryTrigger();
+    expect(() => assertResearchRetryTrigger(valid)).not.toThrow();
+    expect(() => assertResearchRetryTrigger({ ...valid, event: "runtime.idle" }))
+      .toThrow("accepts only");
+    for (const payload of [
+      {},
+      { ...valid.payload, attemptableCount: 0 },
+      { ...valid.payload, attemptableCount: 2 },
+      { ...valid.payload, counts: { open: 0, blocked: -1, done: 0, dropped: 0 } },
+    ]) {
+      expect(() => assertResearchRetryTrigger({ ...valid, payload }))
+        .toThrow("payload must match");
+    }
   });
 
   it("runs task validation through the supervised command rail", async () => {

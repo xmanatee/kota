@@ -285,7 +285,13 @@ export function listRepoTaskDependencyWaits(
   repoRoot: string,
   states: readonly ActiveRepoTaskState[] = ACTIVE_REPO_TASK_STATES,
 ): RepoTaskDependencyWait[] {
-  const allTasks = listFullRepoTasks(repoRoot);
+  return taskDependencyWaits(listFullRepoTasks(repoRoot), states);
+}
+
+function taskDependencyWaits(
+  allTasks: readonly RepoTaskFullRecord[],
+  states: readonly ActiveRepoTaskState[],
+): RepoTaskDependencyWait[] {
   const stateByTaskId = new Map(allTasks.map((task) => [task.id, task.state]));
   const wanted = new Set(states);
   return allTasks
@@ -312,13 +318,25 @@ export function getUnfinishedTaskDependencies(
   return findUnfinishedTaskDependencies(dependencies, stateByTaskId);
 }
 
+/** Dependency-clear open tasks are the canonical actionable set for every consumer. */
+export function selectActionableRepoTasks(
+  tasks: readonly RepoTaskFullRecord[],
+): RepoTaskFullRecord[] {
+  const stateByTaskId = new Map(tasks.map((task) => [task.id, task.state]));
+  return tasks.filter((task) =>
+    task.state === "open" &&
+    findUnfinishedTaskDependencies(task.dependsOn, stateByTaskId).length === 0
+  );
+}
+
 export function getRepoTaskQueueSnapshot(repoRoot: string): RepoTaskQueueSnapshot {
+  const tasks = listFullRepoTasks(repoRoot);
   const counts = Object.fromEntries(
-    REPO_TASK_STATES.map((state) => [state, countRepoTaskState(repoRoot, state)]),
+    REPO_TASK_STATES.map((state) => [state, tasks.filter((task) => task.state === state).length]),
   ) as Record<RepoTaskState, number>;
   const inboxCount = countRepoInboxEntries(repoRoot);
-  const dependencyBlockedTasks = listRepoTaskDependencyWaits(repoRoot, ["open"]);
-  const actionableCount = counts.open - dependencyBlockedTasks.length;
+  const dependencyBlockedTasks = taskDependencyWaits(tasks, ["open"]);
+  const actionableCount = selectActionableRepoTasks(tasks).length;
   const dispatchableCount = inboxCount + actionableCount;
   return {
     counts,

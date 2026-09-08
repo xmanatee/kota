@@ -1,9 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import type { OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
 import type { AutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
+import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ProgressReviewSemanticInput } from "../semantic-input.js";
 import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
@@ -26,13 +23,9 @@ function stateRef(args: {
   };
 }
 
-function ownerDecisionCounts(stateDir: string): string {
-  const directory = join(stateDir, "owner-decisions");
-  if (!existsSync(directory)) return "none";
+function ownerDecisionCounts(stateDir: string, scopeId: string): string {
   const counts = new Map<string, number>();
-  for (const file of readdirSync(directory).filter((entry) => entry.endsWith(".json"))) {
-    const record = readOptionalJsonFile<OwnerDecisionRecord>(join(directory, file));
-    if (!record) continue;
+  for (const record of observeOwnerDecisions(stateDir, scopeId)) {
     counts.set(record.status, (counts.get(record.status) ?? 0) + 1);
   }
   return [...counts.entries()]
@@ -93,7 +86,7 @@ export function listCanonicalProgressState(args: {
       source: args.source,
       id: "owner-decisions",
       path: ".kota/owner-decisions/",
-      summary: `Owner decisions ${ownerDecisionCounts(args.source.stateDir)}`,
+      summary: `Owner decisions ${ownerDecisionCounts(args.source.stateDir, args.source.scopeId)}`,
     }),
     ...args.semanticInput.evidenceRefs.map((path, index) =>
       stateRef({

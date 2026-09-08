@@ -89,6 +89,7 @@ export function emptyScopeImprovementState(scopeId: string): ScopeImprovementSta
     scopeId,
     lastRunAt: null,
     consumedFingerprint: null,
+    consumedExplicitRunIds: [],
     pendingFingerprint: null,
     pendingBoundary: null,
     pendingDelivery: null,
@@ -116,6 +117,13 @@ export function decodeScopeImprovementState(
   const raw = value as Partial<ScopeImprovementState>;
   if (raw.scopeId !== scopeId) {
     throw new Error("scope improvement state does not belong to its runtime scope");
+  }
+  // Persisted states predating explicit-request consumption have no receipts.
+  const consumedExplicitRunIds = raw.consumedExplicitRunIds === undefined
+    ? [] : raw.consumedExplicitRunIds;
+  if (!Array.isArray(consumedExplicitRunIds) ||
+    consumedExplicitRunIds.some((id) => typeof id !== "string" || id.length === 0)) {
+    throw new Error("scope improvement state has invalid explicit run ids");
   }
   const pendingFingerprint = nullableString(
     raw.pendingFingerprint,
@@ -159,6 +167,7 @@ export function decodeScopeImprovementState(
   });
   return {
     scopeId,
+    consumedExplicitRunIds,
     lastRunAt: nullableString(raw.lastRunAt, "lastRunAt"),
     consumedFingerprint: nullableString(
       raw.consumedFingerprint,
@@ -218,24 +227,55 @@ export function deferScopeImprovementInput(
   });
 }
 
+export function canCompleteScopeImprovementInput(
+  current: ScopeImprovementState,
+  inputs: ScopeImprovementInputs,
+  sourceRunId: string,
+): boolean {
+  if (current.scopeId !== inputs.scope.scopeId) {
+    throw new Error("scope improvement state does not belong to its runtime scope");
+  }
+  return inputs.semanticInput.automatic
+    ? current.lastRunAt === null || current.lastRunAt < inputs.generatedAt
+    : !current.consumedExplicitRunIds.includes(sourceRunId);
+}
+
+export function hasNewerScopeImprovementSignature(
+  current: ScopeImprovementState,
+  signature: string,
+  generatedAt: string,
+): boolean {
+  return current.recentSignatures.some((entry) =>
+    entry.signature === signature && entry.lastSeenAt > generatedAt);
+}
+
+export function isScopeImprovementSignatureFresh(
+  current: ScopeImprovementState,
+  inputs: ScopeImprovementInputs,
+  sourceRunId: string,
+  signature: string,
+): boolean {
+  return canCompleteScopeImprovementInput(current, inputs, sourceRunId) &&
+    !hasNewerScopeImprovementSignature(current, signature, inputs.generatedAt);
+}
+
 export function completeScopeImprovementInput(input: {
   current: ScopeImprovementState;
   inputs: ScopeImprovementInputs;
   actions: readonly ScopeImprovementAppliedAction[];
+  sourceRunId: string;
 }): ScopeImprovementState {
   const { current, inputs } = input;
-  if (current.scopeId !== inputs.scope.scopeId) {
-    throw new Error("scope improvement state does not belong to its runtime scope");
-  }
+  if (!canCompleteScopeImprovementInput(current, inputs, input.sourceRunId)) return current;
   const now = inputs.generatedAt;
-  if (current.lastRunAt !== null && current.lastRunAt >= now) return current;
   const automatic = inputs.semanticInput.automatic;
   const preserveNewerPending = automatic &&
     current.pendingFingerprint !== null &&
     current.pendingFingerprint !== inputs.state.pendingFingerprint &&
     current.pendingFingerprint !== inputs.semanticInput.fingerprint;
   const recorded = input.actions
-    .filter((action) => action.kind !== "skipped")
+    .filter((action) => action.kind !== "skipped" &&
+      !hasNewerScopeImprovementSignature(current, action.signature, now))
     .map((action) => ({
       signature: action.signature,
       action: action.kind,
@@ -246,10 +286,15 @@ export function completeScopeImprovementInput(input: {
     ...current.recentSignatures.filter(
       (entry) => !recorded.some((item) => item.signature === entry.signature),
     ),
-  ].slice(0, SCOPE_IMPROVEMENT_MAX_SIGNATURES);
+  ].sort((a, b) => b.lastSeenAt.localeCompare(a.lastSeenAt))
+    .slice(0, SCOPE_IMPROVEMENT_MAX_SIGNATURES);
   return {
     scopeId: inputs.scope.scopeId,
-    lastRunAt: now,
+    lastRunAt: current.lastRunAt !== null && current.lastRunAt > now
+      ? current.lastRunAt : now,
+    consumedExplicitRunIds: automatic
+      ? current.consumedExplicitRunIds
+      : [...current.consumedExplicitRunIds, input.sourceRunId],
     consumedFingerprint: automatic
       ? inputs.semanticInput.fingerprint
       : current.consumedFingerprint,

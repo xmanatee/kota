@@ -4,6 +4,7 @@ import {
   type BlockedPrecondition,
   parseBlockedPrecondition,
 } from "#modules/repo-tasks/blocked-precondition.js";
+import type { OwnerAskCandidate } from "./promotion.js";
 
 const UNBLOCK_ANSWER = "unblock";
 
@@ -67,4 +68,24 @@ export function assertOwnerDecisionCandidateIsCurrent(
       `blocked-promoter: owner-decision precondition changed while awaiting an answer for ${candidate.taskId}; refusing to apply the stale outcome`,
     );
   }
+}
+
+export function displayedOwnerAnswers(candidate: OwnerAskCandidate): string[] {
+  const proposed = candidate.proposedAnswers.length > 0
+    ? candidate.proposedAnswers
+    : ["unblock"];
+  const recommended = candidate.recommendedAnswer?.trim().toLowerCase();
+  const recommendedIndex = recommended
+    ? proposed.findIndex((answer) => answer.trim().toLowerCase() === recommended)
+    : -1;
+  const reordered = recommendedIndex > 0
+    ? [
+        proposed[recommendedIndex]!,
+        ...proposed.slice(0, recommendedIndex),
+        ...proposed.slice(recommendedIndex + 1),
+      ]
+    : proposed;
+  return reordered.some((answer) => answer.trim().toLowerCase() === "unblock")
+    ? reordered
+    : [...reordered, "unblock"];
 }

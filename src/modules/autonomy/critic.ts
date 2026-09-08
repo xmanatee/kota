@@ -13,7 +13,6 @@ import { runProbeIfDeclared } from "./critic-runtime-probe.js";
 import {
   clearCriticOutcomeArtifacts,
   handleVerdict,
-  parseVerdict,
 } from "./critic-verdict.js";
 import {
   collectOperatorEvidenceRefs,
@@ -256,16 +255,7 @@ export function createCriticCheck(options?: CriticCheckOptions): WorkflowRepairC
         }
         throw err;
       }
-      if (response.isError) {
-        const recovered = parseVerdict(response.text);
-        return handleVerdict(recovered, runDir, "critic-review.json", {
-          ...verdictContext,
-          failureDetailMode: "artifact-reference",
-        });
-      }
-
-      const verdict = parseVerdict(response.text);
-      return handleVerdict(verdict, runDir, "critic-review.json", {
+      return handleVerdict(response, runDir, "critic-review.json", {
         ...verdictContext,
         failureDetailMode: "artifact-reference",
       });

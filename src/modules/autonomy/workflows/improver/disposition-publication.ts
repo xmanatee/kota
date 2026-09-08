@@ -16,7 +16,7 @@ import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-pro
 import {
   finalizeGeneratedWorkProposal,
   type StagedGeneratedWorkProposalResult,
-} from "#modules/autonomy/generated-work-transaction.js";
+} from "#modules/autonomy/generated-work-proposal.js";
 import {
   type DeterministicRecoveryResult,
   verifyDeterministicRecovery,

@@ -6,9 +6,9 @@ import {
   buildAutonomyIssueObservation,
   reduceAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import { findGeneratedWorkQuestion } from "#modules/autonomy/generated-work-owner-question.js";
+import { planGeneratedWorkQuestionDismissals } from "#modules/autonomy/generated-work-owner-question.js";
 import { normalizeGeneratedWorkProposalKey } from "#modules/autonomy/generated-work-proposal.js";
-import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
+import { findGeneratedWorkTask, planGeneratedWorkTaskRetirement } from "#modules/autonomy/generated-work-task.js";
 import {
   projectAutonomyHealthEvidenceRefsForReview,
   projectAutonomyHealthSummariesForReview,
@@ -70,24 +70,19 @@ export function planAutonomyHealthReviewActions(args: {
     args.currentProjection,
     observations,
   );
-  const taskMutations = observations.flatMap((observation) => {
-    if (observation.kind !== "cleared") return [];
+  const taskMutations = projected.transitions.flatMap((transition) => {
+    if (transition.kind !== "cleared") return [];
     const proposalKey = normalizeGeneratedWorkProposalKey(
-      `autonomy-issue:${observation.issueKey}`,
+      `autonomy-issue:${transition.issueKey}`,
     );
-    const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
-    if (
-      !existingTask ||
-      existingTask.task.state === "done" ||
-      existingTask.task.state === "dropped"
-    ) {
-      return [];
-    }
-    return [{ id: existingTask.task.id, state: "dropped" as const }];
+    const retirement = planGeneratedWorkTaskRetirement(
+      findGeneratedWorkTask(args.workspaceRoot, proposalKey),
+    );
+    return retirement ? [{ id: retirement.taskId, state: "dropped" as const }] : [];
   });
   return {
     taskMutations,
-    dismissedOwnerQuestionIds: [],
+    ownerQuestionMutations: [],
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
   };
@@ -119,33 +114,25 @@ export function applyAutonomyHealthReviewActions(args: {
   const issueByKey = new Map(
     projected.projection.issues.map((issue) => [issue.issueKey, issue]),
   );
-  const clearedGeneratedWorkQuestionIds = projected.transitions.flatMap((transition) => {
-    if (transition.kind !== "cleared") return [];
-    const question = findGeneratedWorkQuestion(
-      args.ownerQuestionQueue,
-      normalizeGeneratedWorkProposalKey(`autonomy-issue:${transition.issueKey}`),
-    );
-    return question?.status === "pending" ? [question.id] : [];
-  });
-  const linkedDismissedOwnerQuestionIds = projected.transitions.flatMap((transition) => {
+  const questionMutations = projected.transitions.flatMap((transition) => {
     if (transition.kind !== "cleared") return [];
     const issue = priorIssueByKey.get(transition.issueKey) ??
       issueByKey.get(transition.issueKey);
-    if (!issue) return [];
-    return issue.links.ownerQuestionIds.flatMap((questionId) => {
-      const item = args.ownerQuestionQueue.get(questionId);
-      if (item?.status !== "pending") return [];
-      return [questionId];
+    return planGeneratedWorkQuestionDismissals({
+      queue: args.ownerQuestionQueue,
+      proposalKey: normalizeGeneratedWorkProposalKey(`autonomy-issue:${transition.issueKey}`),
+      linkedQuestionIds: issue?.links.ownerQuestionIds ?? [],
+      reason: "Resolved by an explicit autonomy issue clear observation",
+      source: "autonomy-health-reviewer",
     });
   });
-  const dismissedOwnerQuestionIds = [...new Set([
-    ...clearedGeneratedWorkQuestionIds,
-    ...linkedDismissedOwnerQuestionIds,
-  ])].sort((a, b) => a.localeCompare(b));
+  const ownerQuestionMutations = [...new Map(
+    questionMutations.map((mutation) => [mutation.questionId, mutation]),
+  ).values()].sort((a, b) => a.questionId.localeCompare(b.questionId));
   return {
     projection: projected.projection,
     taskMutations: [...args.plannedActions.taskMutations],
-    dismissedOwnerQuestionIds,
+    ownerQuestionMutations,
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
   };

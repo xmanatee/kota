@@ -15,7 +15,9 @@ concrete failures or repeated health patterns into bounded follow-up actions.
 - An explicit source clear resolves the stable generated-work proposal without
   another AI decision. This workflow owns the resource-serialized issue state
   transition and stages task, decision, attention, materialization, and
-  owner-question mutation events in the same run transaction.
+  owner-question mutation events in the same run transaction. Shared generated-work
+  owners select retirement effects and their dismissal provenance; this read-only
+  workflow publishes those decisions after run success.
 - Batch by typed health labels and scope; avoid hardcoded workflow-name
   allowlists.
 - Treat health signals as explicit `present` / `changed` / `cleared`

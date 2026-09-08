@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import { createGeneratedWorkQuestionQueue } from "#modules/autonomy/generated-work-owner-question.js";
-import { finalizeGeneratedWorkOwnerEffects } from "#modules/autonomy/generated-work-transaction.js";
+import { canPublishGeneratedWorkOwnerEffects, finalizeGeneratedWorkOwnerEffects } from "#modules/autonomy/generated-work-proposal.js";
 import {
   progressReviewOwnerQuestionProposal,
   progressReviewResolutionProposal,
@@ -12,8 +12,8 @@ import { progressReviewFindingGroupEntries } from "./progress-review/agent-outpu
 import type { ProgressReviewArtifact } from "./progress-review.js";
 import { PROGRESS_REVIEW_ARTIFACT } from "./progress-review.js";
 import {
-  completeProgressReviewSemanticInput,
   type ProgressReviewConsumptionState,
+  planProgressReviewPublication,
 } from "./semantic-input.js";
 
 export const PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT =
@@ -81,43 +81,37 @@ export function publishProgressReview(args: {
     return { disposition: "absent", nextState: args.currentState };
   }
   const decoded = decodeArtifact(artifact);
+  const proposals = [
+    ...progressReviewFindingGroupEntries(decoded.review).flatMap(({ group }) =>
+      group.followUpTasks.map((task) => progressReviewTaskProposal({
+        runId: args.sourceRunId, review: decoded.review, task,
+      })),
+    ),
+    ...decoded.review.ownerQuestions.map((question) =>
+      progressReviewOwnerQuestionProposal({ runId: args.sourceRunId, question }),
+    ),
+    ...(decoded.review.resolutions ?? []).map(progressReviewResolutionProposal),
+  ];
+  const { replay, freshProposalKeys, nextState } = planProgressReviewPublication({
+    current: args.currentState,
+    input: decoded.evidence.semanticInput,
+    sourceRunId: args.sourceRunId,
+    generatedAt: decoded.generatedAt,
+    proposalKeys: proposals.map((proposal) => proposal.proposalKey),
+  });
   const proposalArgs = {
     workspaceRoot: args.scopeRoot,
     ownerQuestionQueue: createGeneratedWorkQuestionQueue(args.scopeRoot),
   };
-  for (const { group } of progressReviewFindingGroupEntries(decoded.review)) {
-    for (const task of group.followUpTasks) {
-      finalizeGeneratedWorkOwnerEffects({
-        ...proposalArgs,
-        proposal: progressReviewTaskProposal({
-          runId: args.sourceRunId,
-          review: decoded.review,
-          task,
-        }),
-      });
+  if (!replay) {
+    for (const proposal of proposals) {
+      const fresh = freshProposalKeys.has(proposal.proposalKey);
+      if (!canPublishGeneratedWorkOwnerEffects({ ...proposalArgs, proposal, fresh })) continue;
+      finalizeGeneratedWorkOwnerEffects({ ...proposalArgs, proposal });
     }
-  }
-  for (const question of decoded.review.ownerQuestions) {
-    finalizeGeneratedWorkOwnerEffects({
-      ...proposalArgs,
-      proposal: progressReviewOwnerQuestionProposal({
-        runId: args.sourceRunId,
-        question,
-      }),
-    });
-  }
-  for (const resolution of decoded.review.resolutions ?? []) {
-    finalizeGeneratedWorkOwnerEffects({
-      ...proposalArgs,
-      proposal: progressReviewResolutionProposal(resolution),
-    });
   }
   return {
     disposition: "published",
-    nextState: completeProgressReviewSemanticInput({
-      current: args.currentState,
-      input: decoded.evidence.semanticInput,
-      consumedAt: decoded.generatedAt,
-    }),
+    nextState,
   };
 }

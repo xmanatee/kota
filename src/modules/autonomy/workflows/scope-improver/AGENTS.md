@@ -19,7 +19,11 @@ onboarding, and material durable guidance or policy changes.
 - Confirmation-required task-write policy resolves the effective posture to
   observe/ask. It may create an owner question, but neither the review nor its
   isolated writer may create a task file until live authority resolves to allow.
-- Explicit requests remain lossless. Automatic inputs use their typed latest
+- Explicit requests remain lossless. Consumption records each explicit source
+  run independently, so out-of-order completion is distinct from replay.
+  Consuming an older request does not authorize replacing a newer disposition
+  for the same signature or overriding canonical task state.
+  Automatic inputs use their typed latest
   semantic boundary and are rechecked against current guidance at execution.
 - The review workflow is repository-free, reads the canonical scope root, and
   can therefore observe non-Git directories. Task proposals delegate to the
@@ -37,5 +41,15 @@ onboarding, and material durable guidance or policy changes.
   and semantic consumption disposition. The staged
   `scope-improvement-publication` `repository: none` follow-up updates the
   domain watermark and owner-question queue after integration.
+- Recommendations translate into shared generated-work proposals for repository
+  staging and owner-effect publication. The shared lifecycle owns task/question
+  disposition; this workflow owns posture authorization and action projection.
+- Observe questions publish alongside existing tasks without retiring or
+  editing them; semantic freshness still protects consumed requests and newer
+  signature observations.
+- Semantic freshness gates new owner questions. Integrated task changes retain
+  their paired owner effects across delayed publication. Canonical task state
+  and the retirement disposition recorded in archived tasks prevent a delayed
+  publication from undoing a later disposition.
 - Test semantic admission and observable actions without treating the domain
   fingerprint JSON as the run queue or duplicating runtime lifecycle tests.

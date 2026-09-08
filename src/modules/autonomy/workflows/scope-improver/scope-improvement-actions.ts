@@ -1,29 +1,23 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type {
-  OwnerQuestionEnqueueInput,
-  OwnerQuestionQueue,
-  PendingOwnerQuestion,
-} from "#core/daemon/owner-question-queue.js";
+import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
-  generatedWorkProvenanceContext,
-  generatedWorkQuestionDedupeKey,
-} from "#modules/autonomy/generated-work-owner-question.js";
-import type { GeneratedWorkProposalAction } from "#modules/autonomy/generated-work-proposal.js";
-import {
-  dropGeneratedWorkTask,
-  findGeneratedWorkTask,
-  writeGeneratedWorkTask,
-} from "#modules/autonomy/generated-work-task.js";
+  canPublishGeneratedWorkOwnerEffects,
+  finalizeGeneratedWorkOwnerEffects,
+  type GeneratedWorkProposal,
+  stageGeneratedWorkProposal,
+} from "#modules/autonomy/generated-work-proposal.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
+import { hasNewerScopeImprovementSignature, isScopeImprovementSignatureFresh } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_ARTIFACT,
   type ScopeImprovementActionResult,
   type ScopeImprovementAppliedAction,
   type ScopeImprovementArtifact,
   type ScopeImprovementRecommendation,
+  type ScopeImprovementState,
 } from "./scope-improvement-types.js";
 
 export function scopeImprovementProposalKey(signature: string): string {
@@ -50,185 +44,113 @@ function taskBody(args: {
   });
 }
 
-function taskPath(actions: readonly GeneratedWorkProposalAction[]): string | null {
-  return actions.find(
-    (action): action is Extract<GeneratedWorkProposalAction, { path: string }> =>
-      "path" in action,
-  )?.path ?? null;
-}
-
-function writeTask(args: {
-  workspaceRoot: string;
+function generatedWorkProposal(args: {
   runId: string;
-  recommendation: Extract<ScopeImprovementRecommendation, { kind: "create-task" }>;
-}): ScopeImprovementAppliedAction {
-  const proposalKey = scopeImprovementProposalKey(args.recommendation.signature);
-  const existing = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
-  const actions = writeGeneratedWorkTask({
-    workspaceRoot: args.workspaceRoot,
-    proposal: {
-      kind: "task",
-      proposalKey,
-      title: args.recommendation.title,
-      priority: "p2",
-      body: taskBody(args),
-      provenance: {
-        source: "scope-improver",
-        runId: args.runId,
-        evidenceRefs: args.recommendation.evidenceIds,
-      },
+  recommendation: Exclude<ScopeImprovementRecommendation, { kind: "skipped" }>;
+}): GeneratedWorkProposal {
+  const { recommendation, runId } = args;
+  const common = {
+    proposalKey: scopeImprovementProposalKey(recommendation.signature),
+    provenance: {
+      source: "scope-improver",
+      runId,
+      evidenceRefs: recommendation.evidenceIds,
     },
-    existing,
-  });
-  const created = actions.some((action) => action.kind === "created-task");
-  const updated = actions.some((action) =>
-    action.kind === "updated-task" || action.kind === "reopened-task"
-  );
-  const taskId = actions.find((action) => "taskId" in action)?.taskId ??
-    existing?.task.id ?? null;
-  if ((!created && !updated) || !taskId) {
-    return skipped(args.recommendation.signature, "stable generated-work task is current");
+  };
+  if (recommendation.kind === "create-task") {
+    return {
+      ...common,
+      kind: "task",
+      title: recommendation.title,
+      priority: "p2",
+      body: taskBody({ runId, recommendation }),
+    };
   }
   return {
-    kind: created ? "created-task" : "updated-task",
-    taskId,
-    path: taskPath(actions) ?? `data/tasks/${taskId}.md`,
-    signature: args.recommendation.signature,
-  };
-}
-
-function stageOwnerQuestion(args: {
-  workspaceRoot: string;
-  recommendation: Extract<ScopeImprovementRecommendation, { kind: "owner-question" }>;
-}): ScopeImprovementAppliedAction[] {
-  const existing = findGeneratedWorkTask(
-    args.workspaceRoot,
-    scopeImprovementProposalKey(args.recommendation.signature),
-  );
-  const droppedTasks: ScopeImprovementAppliedAction[] = dropGeneratedWorkTask(
-    args.workspaceRoot,
-    existing,
-  ).flatMap(
-    (action) => action.kind === "dropped-task"
-      ? [{
-        kind: "dropped-task" as const,
-        taskId: action.taskId,
-        fromState: action.fromState,
-        signature: args.recommendation.signature,
-      }]
-      : [],
-  );
-  return [...droppedTasks, {
-    kind: "owner-question-pending",
-    signature: args.recommendation.signature,
-  }];
-}
-
-function ownerQuestionInput(args: {
-  runId: string;
-  recommendation: Extract<ScopeImprovementRecommendation, { kind: "owner-question" }>;
-}): OwnerQuestionEnqueueInput & { dedupeKey: string } {
-  const proposalKey = scopeImprovementProposalKey(args.recommendation.signature);
-  return {
-    dedupeKey: generatedWorkQuestionDedupeKey(proposalKey),
-    context: generatedWorkProvenanceContext(
-      `Scope improvement run ${args.runId} cited evidence ids: ` +
-        args.recommendation.evidenceIds.join(", "),
-      proposalKey,
-      {
-        source: "scope-improver",
-        runId: args.runId,
-        evidenceRefs: args.recommendation.evidenceIds,
-      },
-    ),
-    question: args.recommendation.question,
-    reason: args.recommendation.reason,
-    source: "scope-improver",
-    answerBehavior: "record-only" as const,
-    proposedAnswers: args.recommendation.proposedAnswers,
+    ...common,
+    kind: "owner-question",
+    context: `Scope improvement run ${runId} cited evidence ids: ` +
+      recommendation.evidenceIds.join(", "),
+    question: recommendation.question,
+    reason: recommendation.reason,
+    proposedAnswers: recommendation.proposedAnswers,
     origin: {
-      kind: "workflow" as const,
+      kind: "workflow",
       workflowName: "scope-improver",
-      runId: args.runId,
+      runId,
       stepId: "apply-recommendations",
       taskId: null,
     },
   };
 }
 
-function pendingQuestion(
-  queue: OwnerQuestionQueue,
-  dedupeKey: string,
-): PendingOwnerQuestion | null {
-  const matches = queue.list("pending").filter((item) => item.dedupeKey === dedupeKey);
-  if (matches.length > 1) {
-    throw new Error(`scope improvement owner question ${dedupeKey} is duplicated`);
-  }
-  return matches[0] ?? null;
-}
-
-function questionMatches(
-  existing: PendingOwnerQuestion,
-  input: OwnerQuestionEnqueueInput & { dedupeKey: string },
-): boolean {
-  return existing.context === input.context &&
-    existing.question === input.question &&
-    existing.reason === input.reason &&
-    existing.source === input.source &&
-    existing.answerBehavior === input.answerBehavior &&
-    JSON.stringify(existing.proposedAnswers ?? []) ===
-      JSON.stringify(input.proposedAnswers ?? []);
+function stageRecommendation(args: {
+  workspaceRoot: string;
+  runId: string;
+  recommendation: Exclude<ScopeImprovementRecommendation, { kind: "skipped" }>;
+}): ScopeImprovementAppliedAction[] {
+  const staged = stageGeneratedWorkProposal({
+    workspaceRoot: args.workspaceRoot,
+    proposal: generatedWorkProposal(args),
+  });
+  const signature = args.recommendation.signature;
+  return staged.actions.flatMap((action): ScopeImprovementAppliedAction[] => {
+    switch (action.kind) {
+      case "created-task":
+      case "updated-task":
+      case "dropped-task":
+      case "owner-question-pending":
+        return [{ ...action, signature }];
+      case "reopened-task":
+        if (staged.actions.some((item) => item.kind === "updated-task")) return [];
+        return [{ kind: "updated-task", taskId: action.taskId, path: action.path, signature }];
+      case "noop":
+        return [skipped(signature, action.reason)];
+      default:
+        return [];
+    }
+  });
 }
 
 export function applyScopeImprovementOwnerQuestionEffects(args: {
+  workspaceRoot: string;
   ownerQuestionQueue: OwnerQuestionQueue;
   runId: string;
   recommendations: readonly ScopeImprovementRecommendation[];
   repositoryActions: readonly ScopeImprovementAppliedAction[];
+  inputs: ScopeImprovementArtifact["inputs"];
+  currentState: ScopeImprovementState;
 }): ScopeImprovementAppliedAction[] {
-  return args.recommendations.flatMap((recommendation) => {
-    if (recommendation.kind === "create-task") {
-      if (!args.repositoryActions.some((action) =>
-        action.signature === recommendation.signature
-      )) return [];
-      const existing = pendingQuestion(
-        args.ownerQuestionQueue,
-        generatedWorkQuestionDedupeKey(
-          scopeImprovementProposalKey(recommendation.signature),
-        ),
-      );
-      if (existing) args.ownerQuestionQueue.dismiss(
-        existing.id,
-        "The scope-improvement disposition now routes through a task.",
-        "scope-improver",
-      );
-      return [];
-    }
-    if (recommendation.kind !== "owner-question") return [];
+  return args.recommendations.flatMap((recommendation): ScopeImprovementAppliedAction[] => {
+    if (recommendation.kind === "skipped") return [];
     if (!args.repositoryActions.some((action) =>
-      action.kind === "owner-question-pending" &&
-      action.signature === recommendation.signature
+      action.signature === recommendation.signature &&
+      (recommendation.kind !== "owner-question" || action.kind === "owner-question-pending")
     )) return [];
-    const input = ownerQuestionInput({ runId: args.runId, recommendation });
-    const existing = pendingQuestion(args.ownerQuestionQueue, input.dedupeKey);
-    if (existing && questionMatches(existing, input)) {
-      return [{
-        kind: "owner-question",
-        questionId: existing.id,
-        signature: recommendation.signature,
-      }];
-    }
-    if (existing) {
-      args.ownerQuestionQueue.dismiss(
-        existing.id,
-        "The scope-improvement owner-question proposal was revised.",
-        "scope-improver",
-      );
-    }
-    const reconciled = args.ownerQuestionQueue.enqueueDeduplicated(input);
+    if (hasNewerScopeImprovementSignature(
+      args.currentState, recommendation.signature, args.inputs.generatedAt,
+    )) return [];
+    const proposal = generatedWorkProposal({ runId: args.runId, recommendation });
+    const fresh = isScopeImprovementSignatureFresh(
+      args.currentState, args.inputs, args.runId, recommendation.signature,
+    );
+    // Observe questions do not replace task disposition: this posture cannot
+    // stage the retirement that a repository-writing proposal would publish.
+    const canPublish = proposal.kind === "owner-question" && args.inputs.config.posture === "observe"
+      ? fresh
+      : canPublishGeneratedWorkOwnerEffects({ workspaceRoot: args.workspaceRoot, proposal, fresh });
+    if (!canPublish) return [];
+    const result = finalizeGeneratedWorkOwnerEffects({
+      workspaceRoot: args.workspaceRoot,
+      ownerQuestionQueue: args.ownerQuestionQueue,
+      proposal,
+    });
+    if (result.ownerQuestionId === null) return [];
     return [{
-      kind: existing ? "updated-owner-question" : "owner-question",
-      questionId: reconciled.item.id,
+      kind: result.actions.some((action) => action.kind === "updated-owner-question")
+        ? "updated-owner-question"
+        : "owner-question",
+      questionId: result.ownerQuestionId,
       signature: recommendation.signature,
     }];
   });
@@ -250,20 +172,15 @@ export function applyScopeImprovementRecommendations(
 ): ScopeImprovementActionResult {
   const applied = args.recommendations.flatMap(
     (recommendation): ScopeImprovementAppliedAction[] => {
-    if (recommendation.kind === "create-task") {
-      return [writeTask({ workspaceRoot: args.workspaceRoot, runId: args.runId, recommendation })];
-    }
-    if (recommendation.kind === "owner-question") {
-      if (args.inputs.config.posture === "observe") {
-        return [{
-          kind: "owner-question-pending",
-          signature: recommendation.signature,
-        }];
+      if (recommendation.kind === "skipped") {
+        return [skipped(recommendation.signature, recommendation.reason)];
       }
-      return stageOwnerQuestion({ workspaceRoot: args.workspaceRoot, recommendation });
-    }
-    return [skipped(recommendation.signature, recommendation.reason)];
-  });
+      if (recommendation.kind === "owner-question" && args.inputs.config.posture === "observe") {
+        return [{ kind: "owner-question-pending", signature: recommendation.signature }];
+      }
+      return stageRecommendation({ workspaceRoot: args.workspaceRoot, runId: args.runId, recommendation });
+    },
+  );
   return summarizeActions(applied);
 }
 

@@ -1,8 +1,10 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Mock, vi } from "vitest";
+import { clearAgentHarnessRegistryForTest, registerAgentHarness } from "#core/agent-harness/index.js";
+import * as taskProbeSandbox from "#core/agent-harness/task-probe-sandbox.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import type { CriticVerdict } from "./critic.js";
@@ -13,22 +15,7 @@ import {
 
 type RunAgentHarnessMock = Mock<(...args: unknown[]) => unknown>;
 
-const mockRunAgentHarness = vi.hoisted<RunAgentHarnessMock>(() => vi.fn());
-const mockResolveAgentHarness = vi.hoisted(() =>
-  vi.fn(() => ({
-    name: "claude-agent-sdk",
-    description: "mock",
-    supportsMultiTurn: true,
-    supportedHookKinds: ["preRun", "postRun"],
-    askOwnerToolName: "mcp__kota_owner_questions__ask_owner",
-    emitsAgentMessageStream: true,
-    toolControl: "kota",
-    run: vi.fn(),
-  })),
-);
-const mockCreateWorkflowAgentGuards = vi.hoisted(
-  () => vi.fn(() => vi.fn(async () => ({ behavior: "allow" }))),
-);
+const mockRunAgentHarness: RunAgentHarnessMock = vi.fn();
 const mockRunBlocking = vi.fn(
   async (
     operation: { exportName: string },
@@ -41,9 +28,22 @@ const mockRunBlocking = vi.fn(
   },
 );
 
-vi.mock("#core/agent-harness/task-probe-sandbox.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("#core/agent-harness/task-probe-sandbox.js")>()),
-  resolveTaskProbeSandbox: vi.fn(() => ({
+export function resetCriticTestMocks(): void {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+  clearAgentHarnessRegistryForTest();
+  registerAgentHarness({
+    name: "claude-agent-sdk",
+    description: "controlled reviewer port",
+    supportsMultiTurn: true,
+    supportedHookKinds: ["preRun", "postRun"],
+    askOwnerToolName: "mcp__kota_owner_questions__ask_owner",
+    emitsAgentMessageStream: true,
+    toolControl: "kota",
+    run: async () => { throw new Error("Use the run-context reviewer port"); },
+  });
+  vi.spyOn(taskProbeSandbox, "resolveTaskProbeSandbox").mockReturnValue({
     status: "available",
     kind: "linux-bubblewrap",
     processBoundary: "pid-namespace",
@@ -51,35 +51,7 @@ vi.mock("#core/agent-harness/task-probe-sandbox.js", async (importOriginal) => (
     prefixArgs: [],
     probeExecutable: "pnpm",
     evidence: "test process boundary",
-  })),
-}));
-
-vi.mock("#core/agent-harness/index.js", async () => {
-  const actual = await vi.importActual<typeof import("#core/agent-harness/index.js")>(
-    "#core/agent-harness/index.js",
-  );
-  return {
-    ...actual,
-    createWorkflowAgentGuards: mockCreateWorkflowAgentGuards,
-    resolveAgentHarness: mockResolveAgentHarness,
-    runAgentHarness: mockRunAgentHarness,
-  };
-});
-
-vi.mock("node:child_process", async () => {
-  const actual = await vi.importActual<typeof import("node:child_process")>(
-    "node:child_process",
-  );
-  return {
-    ...actual,
-    execFileSync: vi.fn(() => ""),
-  };
-});
-
-export function resetCriticTestMocks(): void {
-  vi.useRealTimers();
-  vi.clearAllMocks();
-  vi.mocked(execFileSync).mockReturnValue("");
+  });
 }
 
 export function getMockRunBlocking(): typeof mockRunBlocking {

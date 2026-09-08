@@ -18,7 +18,6 @@ import {
 import { stageAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection-publication.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
-  ownerQuestionMutationKey,
   ownerQuestionMutationRequested,
 } from "#modules/owner-questions/events.js";
 import {
@@ -162,25 +161,19 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
       id: "emit-owner-question-mutations",
       type: "code",
       run: (ctx) => {
-        const questionIds = publishReview.outputRequired(ctx).actions
-          .dismissedOwnerQuestionIds;
-        for (const questionId of questionIds) {
+        const mutations = publishReview.outputRequired(ctx).actions
+          .ownerQuestionMutations;
+        for (const mutation of mutations) {
           ctx.emit(
             ownerQuestionMutationRequested.name,
-            {
-              questionId,
-              mutation: "dismiss",
-              reason: "Resolved by an explicit autonomy issue clear observation",
-              resolutionSource: "autonomy-health-reviewer",
-              idempotencyKey: ownerQuestionMutationKey(questionId),
-            },
+            mutation,
             {
               delivery: "on-run-success",
-              stepId: `emit-owner-question-mutation:${questionId}`,
+              stepId: `emit-owner-question-mutation:${mutation.questionId}`,
             },
           );
         }
-        return { emitted: questionIds.length };
+        return { emitted: mutations.length };
       },
     },
     {

@@ -85,6 +85,12 @@ its entries, and tests exercise decision behavior rather than catalog identity.
   budget failures warn; unclassified SDK failures reject. Validation and runtime
   resolve the same declared agent contract.
 
+Deterministic policy returns typed decisions before workflow effects. Consumers
+project those decisions instead of reconstructing eligibility or verdicts.
+Review wording is evaluated behavior; schemas and runtime policy own rejection.
+Generated-work question reconciliation preserves terminal responses. Replaying
+unchanged proposals has no effect; revised questions receive new records.
+
 ## Queue Policy
 
 - Builder runs only from targeted, idempotent `autonomy.queue.available`
@@ -96,3 +102,8 @@ its entries, and tests exercise decision behavior rather than catalog identity.
   pace exploration and builder work without hard caps.
 - Operator reports and evaluator drift remain observation/governance surfaces
   and never leak cost bias into agent context.
+
+Generated-work task retirements retain their disposition identity in the archived
+task. A new disposition after completion records its identity while preserving
+`done`; delayed task effects cannot dismiss the resulting question. Deferred owner effects reconcile against that integrated record, including
+when a newer unrelated review has advanced the semantic watermark.

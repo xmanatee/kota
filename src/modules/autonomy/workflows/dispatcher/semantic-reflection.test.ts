@@ -9,6 +9,8 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   inspectProgressSemanticBoundary,
@@ -214,24 +216,22 @@ describe("semantic progress reflection", () => {
     commit(workspaceRoot, "seed fixture");
     await inspect(workspaceRoot);
 
-    write(
-      workspaceRoot,
-      ".kota/owner-decisions/a1b2c3d4.json",
-      `${JSON.stringify({
-        id: "a1b2c3d4",
-        // The dispatcher may observe after an authorized action already
-        // consumed the answer; that is still a resolved owner decision.
-        status: "consumed",
-        updatedAt: "2026-08-15T12:00:00.000Z",
-      })}\n`,
+    const store = new OwnerDecisionStore(
+      join(workspaceRoot, ".kota", "owner-decisions"), deriveDirectoryScopeId(workspaceRoot),
     );
+    const decision = store.create({
+      request: { kind: "single-choice", prompt: "Choose direction", options: [{ id: "proceed", label: "Proceed" }] },
+      requester: { kind: "workflow", workflowName: "builder", runId: "owner-reflection", stepId: "ask", taskId: null },
+      evidence: [],
+    });
+    store.answer(decision.id, { kind: "single-choice", optionId: "proceed" }, "operator");
     const resolved = await inspect(workspaceRoot);
     expect(resolved).toMatchObject({
       shouldEmit: true,
       payload: {
         boundary: "owner-decision-resolution",
         inputRevision: 1,
-        evidenceRefs: [".kota/owner-decisions/a1b2c3d4.json"],
+        evidenceRefs: [`.kota/owner-decisions/${decision.id}.json`],
       },
     });
     expect((await inspect(workspaceRoot)).shouldEmit).toBe(false);

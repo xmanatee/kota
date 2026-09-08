@@ -1,7 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AgentDef } from "#core/agents/agent-types.js";
-import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
   expectStructuredOutput,
   typedCodeStep,
@@ -10,27 +9,19 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import {
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-  type AutonomyIssue,
   type AutonomyIssueProjection,
   decodeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import {
-  autonomyIssueOwnerFingerprint,
-} from "#modules/autonomy/autonomy-issue-reconciliation.js";
-import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-transaction.js";
 import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { applyDispositionOperation } from "./apply-disposition.js";
 import {
   type ImproverWorktreeInspection,
   inspectImproverWorktreeOperation,
 } from "./blocking-operations.js";
-import {
-  type DeterministicRecoveryResult,
-  executeDeterministicRecovery,
-} from "./deterministic-recovery.js";
 import {
   type AppliedDisposition,
   IMPROVER_DISPOSITION_ARTIFACT,
@@ -42,11 +33,9 @@ import {
 } from "./disposition-publication.js";
 import {
   decodeIssueDisposition,
-  type IssueDisposition,
   issueDispositionOutputSchema,
 } from "./issue-disposition.js";
 import { selectIssue, selectIssueForProjection } from "./issue-selection.js";
-import { proposalFor } from "./issue-work-proposal.js";
 
 export const agent: AgentDef = {
   name: "improver",
@@ -67,53 +56,6 @@ const inspectWorktree = typedCodeStep<ImproverWorktreeInspection>({
   run: ({ workspaceRoot, runBlocking }) =>
     runBlocking(inspectImproverWorktreeOperation, { workspaceRoot }),
 });
-
-type ApplyDispositionInput = {
-  workspaceRoot: string;
-  scopeRoot: string;
-  disposition: IssueDisposition;
-  issue: AutonomyIssue;
-  workflowRunId: string;
-};
-
-export function applyDispositionInWorker(
-  input: ApplyDispositionInput,
-): AppliedDisposition {
-  const proposal = proposalFor(
-    input.issue,
-    input.disposition,
-    input.workflowRunId,
-  );
-  let recovery: DeterministicRecoveryResult | null = null;
-  if (input.disposition.action === "recover") {
-    if (input.disposition.recoveryAction !== "doctor.fix") {
-      throw new Error("Recover dispositions require the doctor.fix action");
-    }
-    recovery = executeDeterministicRecovery({
-      scopeRoot: input.scopeRoot,
-      issue: input.issue,
-      action: input.disposition.recoveryAction,
-    });
-  }
-  const materialized = stageGeneratedWorkProposal({
-    workspaceRoot: input.workspaceRoot,
-    proposal,
-  });
-  return {
-    issueKey: input.issue.issueKey,
-    semanticRevision: input.issue.semanticRevision,
-    ownerFingerprint: autonomyIssueOwnerFingerprint(input.issue),
-    disposition: input.disposition,
-    proposal,
-    materialized,
-    recovery,
-  };
-}
-
-const applyDispositionOperation = defineWorkflowBlockingOperation<
-  ApplyDispositionInput,
-  AppliedDisposition
->(import.meta.url, "applyDispositionInWorker");
 
 const applyDisposition = typedCodeStep<AppliedDisposition>({
   id: "apply-disposition",

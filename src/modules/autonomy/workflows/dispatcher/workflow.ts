@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { assessAutonomyQueue } from "#modules/autonomy/queue-policy.js";
 import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
 import {
   scopeImprovementChanged,
@@ -110,29 +111,25 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           : scopeBoundary.payload.boundary === "initial-onboarding"
             ? scopeImprovementRequested.name
             : scopeImprovementChanged.name;
-        const queueBlocked =
-          !queue.hasDispatchableWork &&
-          queue.dependencyBlockedTasks.length > 0;
-        const queueEmpty = !queue.hasDispatchableWork && !queueBlocked;
+        const queueDecision = assessAutonomyQueue(queue);
         const queueActionable = builderTasks.length > 0;
         const blockedResearchAttemptable =
           researchRetryAvailability.attemptableCount > 0;
         const securityReviewPayload = buildSecurityReviewDuePayload(
           securityReviewDue,
         );
-        const queueThin =
-          queue.inboxCount === 0 &&
-          queue.actionableCount > 0 &&
-          queue.actionableCount <= 2;
+        const emitted: string[] = [];
         const publish = (
           event: string,
           payload: Record<string, unknown>,
           intent: string,
-        ) =>
+        ) => {
           emit(event, payload, {
             delivery: "on-run-success",
             stepId: `assess-and-dispatch:${intent}`,
           });
+          emitted.push(event);
+        };
 
         if (queue.inboxCount > 0) {
           publish("autonomy.inbox.available", { inboxCount: queue.inboxCount }, "inbox");
@@ -142,7 +139,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             publish("autonomy.queue.available", task, `task:${task.taskId}`);
           }
         }
-        if (queueEmpty) {
+        if (queueDecision.empty) {
           publish(
             "autonomy.queue.empty",
             {
@@ -184,7 +181,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           );
           publish(scopeBoundaryEvent!, scopeBoundary.payload, "scope-improvement");
         }
-        if (queueThin) {
+        if (queueDecision.thin) {
           publish(
             "autonomy.queue.thin",
             {
@@ -196,16 +193,6 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             "queue-thin",
           );
         }
-        const emitted = [
-          queue.inboxCount > 0 && "autonomy.inbox.available",
-          ...builderTasks.map(() => queueActionable && "autonomy.queue.available"),
-          queueEmpty && "autonomy.queue.empty",
-          blockedResearchAttemptable && "autonomy.blocked-research.attemptable",
-          securityReviewDue.due && SECURITY_REVIEW_DUE_EVENT,
-          progressBoundary.shouldEmit && automaticProgressReviewRequested.name,
-          scopeBoundaryEvent,
-          queueThin && "autonomy.queue.thin",
-        ].filter((event): event is string => Boolean(event));
         const quiescent = emitted.length === 0;
 
         return {
@@ -231,7 +218,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           emitted,
           quiescent,
           quiescentReason: quiescent
-            ? queueBlocked
+            ? queueDecision.dependencyBlocked
               ? "work is dependency-blocked"
               : "no autonomy routing condition matched"
             : null,

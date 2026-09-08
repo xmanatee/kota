@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { displayedOwnerAnswers } from "./owner-decision-authorization.js";
 import {
   BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
@@ -9,7 +10,6 @@ import {
 } from "./owner-decision-follow-up.js";
 import {
   applyOutcome,
-  displayedOwnerAnswers,
   inspectBlocked,
   inspectOwnerDecisionResolution,
   instructOperatorCapture,

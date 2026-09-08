@@ -271,13 +271,3 @@ export const validateChanges = typedCodeStep<{ ok: true }>({
     return { ok: true } as const;
   },
 });
-
-export function needsAttention(actions: ProgressReviewActionResult): boolean {
-  return actions.applied.some((action) =>
-    action.kind === "created-task" ||
-    action.kind === "updated-task" ||
-    action.kind === "owner-question" ||
-    action.kind === "updated-owner-question" ||
-    action.kind === "owner-question-pending"
-  );
-}

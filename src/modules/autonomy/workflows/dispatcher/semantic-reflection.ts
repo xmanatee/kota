@@ -1,13 +1,11 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
-import type { OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
+import { isTerminalOwnerDecisionStatus, type OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { readOptionalJsonFile } from "#core/util/json-file.js";
 import {
   getRepoHeadSha,
   getRepoWorktreeStatus,
 } from "#core/util/repo-worktree.js";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
 import {
   getRepoTaskQueueSnapshot,
   listFullRepoTasks,
@@ -42,31 +40,15 @@ export type ProgressBoundaryInspection = {
   nextState: ProgressBoundaryState | null;
 };
 
-function ownerDecisionRecords(stateDir: string): OwnerDecisionRecord[] {
-  const directory = join(stateDir, "owner-decisions");
-  if (!existsSync(directory)) return [];
-  return readdirSync(directory)
-    .filter((file) => /^[0-9a-f]{8}\.json$/.test(file))
-    .flatMap((file) => {
-      const record = readOptionalJsonFile<OwnerDecisionRecord>(join(directory, file));
-      return record ? [record] : [];
-    });
-}
-
 function resolvedDecisionKey(record: OwnerDecisionRecord): string | null {
-  if (
-    record.status !== "answered" &&
-    record.status !== "canceled" &&
-    record.status !== "expired" &&
-    record.status !== "consumed"
-  ) {
+  if (!isTerminalOwnerDecisionStatus(record.status)) {
     return null;
   }
   return `${record.updatedAt}:${record.id}`;
 }
 
-function latestOwnerDecisionWatermark(stateDir: string): string | null {
-  return ownerDecisionRecords(stateDir)
+function latestOwnerDecisionWatermark(records: readonly OwnerDecisionRecord[]): string | null {
+  return records
     .flatMap((record) => {
       const key = resolvedDecisionKey(record);
       return key ? [key] : [];
@@ -95,7 +77,8 @@ export async function inspectProgressSemanticBoundary(args: {
   const head = getRepoHeadSha(args.workspaceRoot);
   const queue = getRepoTaskQueueSnapshot(args.workspaceRoot);
   const parked = queue.activeCount > 0 && !queue.hasDispatchableWork;
-  const ownerWatermark = latestOwnerDecisionWatermark(args.stateDir);
+  const ownerDecisions = observeOwnerDecisions(args.stateDir, scopeId);
+  const ownerWatermark = latestOwnerDecisionWatermark(ownerDecisions);
   const stored = args.progressBoundaryState;
   const previous = stored?.scopeId === scopeId ? stored : null;
   if (!previous || !head) {
@@ -152,7 +135,7 @@ export async function inspectProgressSemanticBoundary(args: {
       task: taskById.get(transition.id),
     })
   );
-  const newlyResolvedDecisions = ownerDecisionRecords(args.stateDir)
+  const newlyResolvedDecisions = ownerDecisions
     .flatMap((record) => {
       const key = resolvedDecisionKey(record);
       if (!key || (previous.ownerDecisionWatermark && key <= previous.ownerDecisionWatermark)) {

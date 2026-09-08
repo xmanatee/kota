@@ -4,12 +4,10 @@ import { relative } from "node:path";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
 import {
   type BlockedPrecondition,
-  type BlockedPreconditionKind,
   evaluateBlockedPrecondition,
   type OperatorCaptureInstructedMarker,
   type OwnerAskMarker,
   parseBlockedPrecondition,
-  readOperatorCaptureInstructedMarker,
   readOwnerAskMarkers,
   renderOwnerResolvedMarker,
   upsertOperatorCaptureInstructedMarker,
@@ -23,6 +21,7 @@ import {
   moveTaskById,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { type BlockerAction, decideBlockedAction, extractRecommendedAnswer } from "./blocker-policy.js";
 import { assertOwnerDecisionCandidateIsCurrent } from "./owner-decision-authorization.js";
 
 export type BlockedTaskRecord = {
@@ -95,20 +94,16 @@ export function promoteSatisfiedBlockedTasks(
   workspaceRoot: string,
   scopeRoot: string = workspaceRoot,
 ): DeterministicPromotionResult {
-  const records = listBlockedTasksWithPreconditions(workspaceRoot);
-  const promotions: MoveTaskResult[] = [];
-  for (const record of records) {
-    const waitingOn = getUnfinishedTaskDependencies(workspaceRoot, record.dependsOn);
-    if (waitingOn.length > 0) continue;
-    const evaluation = evaluateBlockedPrecondition(record.precondition, {
-      workspaceRoot,
-      scopeRoot,
-      taskBody: record.body,
-    });
-    if (!evaluation.satisfied) continue;
-    promotions.push(moveTaskById(workspaceRoot, record.id, "open"));
-  }
-  return { promotions };
+  const actions = classifyBlockedActions(
+    listBlockedTasksWithPreconditions(workspaceRoot), workspaceRoot, Date.now(), scopeRoot,
+  );
+  return {
+    promotions: actions.flatMap((action) =>
+      action.kind === "auto-promotable"
+        ? [moveTaskById(workspaceRoot, action.taskId, "open")]
+        : []
+    ),
+  };
 }
 
 export type OwnerAskCandidate = {
@@ -129,44 +124,29 @@ export type OwnerAskCandidate = {
   requestRevision: string;
 };
 
-const OWNER_ASK_MIN_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000;
-
-/**
- * Pick the oldest owner-decision precondition that is "due" for re-asking:
- * either no asked marker exists for the slot, or the existing marker is
- * older than the minimum cadence (14 days).
- */
+/** Select from the authoritative actions used for the operator projection. */
 export function pickOwnerAskCandidate(
   records: BlockedTaskRecord[],
-  nowMs: number,
+  actions: readonly BlockerAction[],
 ): OwnerAskCandidate | null {
-  const dueCandidates: OwnerAskCandidate[] = [];
-  for (const record of records) {
-    const precondition = record.precondition;
-    if (precondition.kind !== "owner-decision") continue;
-    const markers = readOwnerAskMarkers(record.body);
-    const existing = markers.find((m) => m.slot === precondition.slot);
-    if (existing) {
-      const askedMs = Date.parse(existing.lastAskedAt);
-      if (
-        !Number.isNaN(askedMs) &&
-        nowMs - askedMs < OWNER_ASK_MIN_INTERVAL_MS
-      ) {
-        continue;
-      }
-    }
-    dueCandidates.push({
-      taskId: record.id,
-      taskPath: record.path,
-      slot: precondition.slot,
-      question: precondition.question,
-      context: precondition.context,
-      proposedAnswers: precondition.proposedAnswers,
-      recommendedAnswer: extractRecommendedAnswer(precondition.context),
-      requestRevision: existing?.lastAskedAt ?? "initial",
-    });
+  const due = actions.find((action) => action.kind === "owner-ask-due");
+  if (!due) return null;
+  const record = records.find((record) => record.id === due.taskId)!;
+  const precondition = record.precondition;
+  if (precondition.kind !== "owner-decision") {
+    throw new Error("Owner ask action does not match its task precondition");
   }
-  return dueCandidates.length > 0 ? dueCandidates[0] : null;
+  const marker = readOwnerAskMarkers(record.body).find((m) => m.slot === precondition.slot);
+  return {
+    taskId: record.id,
+    taskPath: record.path,
+    slot: precondition.slot,
+    question: precondition.question,
+    context: precondition.context,
+    proposedAnswers: precondition.proposedAnswers,
+    recommendedAnswer: extractRecommendedAnswer(precondition.context),
+    requestRevision: marker?.lastAskedAt ?? "initial",
+  };
 }
 
 export type AskOutcomeApplication =
@@ -182,25 +162,6 @@ export type AskOutcomeApplication =
       taskPath: string;
       lastAskedAt: string;
     };
-
-const RECOMMENDED_LINE_RE = /(?:^|[\s.])recommended:\s*([a-z0-9][a-z0-9-_]*)/i;
-
-/**
- * Pull a recommended-answer hint out of an owner-decision precondition's
- * free-form `context` field. Many tasks already write a `Recommended:
- * <variant-id>` sentence so a future re-ask carries the original author's
- * default. The parse is intentionally narrow: only a single ASCII slug
- * following the literal `Recommended:` is recognized; anything else returns
- * `null` so the workflow falls back to surfacing only proposed answers.
- */
-export function extractRecommendedAnswer(
-  context: string | null | undefined,
-): string | null {
-  if (!context) return null;
-  const match = context.match(RECOMMENDED_LINE_RE);
-  if (!match) return null;
-  return match[1];
-}
 
 /**
  * Write either a resolved marker (operator approved) or refresh the asked
@@ -255,22 +216,6 @@ export function applyAskOutcome(args: {
   return applications;
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-/**
- * Operator-capture preconditions are surfaced once they have been blocked at
- * least this long. Matches `attention-digest`'s 14-day operator-gated
- * escalation window so the workflow only acts when the digest would
- * otherwise repeat a stale alert.
- */
-export const OPERATOR_CAPTURE_AGE_DAYS = 14;
-/**
- * Cadence between repeated operator-capture instruction emissions for the
- * same task. Matches the owner-ask cadence so both surfaces stay in lock
- * step.
- */
-export const OPERATOR_CAPTURE_INSTRUCT_INTERVAL_MS =
-  14 * 24 * 60 * 60 * 1000;
-
 export type OperatorCaptureInstructCandidate = {
   taskId: string;
   taskPath: string;
@@ -282,12 +227,6 @@ export type OperatorCaptureInstructCandidate = {
   reason: string;
   ageDays: number;
 };
-
-function ageDays(updatedAt: string, nowMs: number): number | null {
-  const ms = Date.parse(updatedAt);
-  if (Number.isNaN(ms)) return null;
-  return Math.floor((nowMs - ms) / MS_PER_DAY);
-}
 
 /**
  * Return every operator-capture blocker that is "due" for an instruction
@@ -301,44 +240,17 @@ export function listOperatorCaptureInstructCandidates(
   nowMs: number,
   scopeRoot: string = workspaceRoot,
 ): OperatorCaptureInstructCandidate[] {
-  const candidates: OperatorCaptureInstructCandidate[] = [];
-  for (const record of records) {
-    if (record.precondition.kind !== "operator-capture") continue;
-    const evaluation = evaluateBlockedPrecondition(record.precondition, {
-      workspaceRoot,
-      scopeRoot,
-      taskBody: record.body,
-    });
-    if (evaluation.satisfied) continue;
-    const age = ageDays(record.updatedAt, nowMs);
-    const partialCaptureNeedsInstruction =
-      evaluation.shouldRefreshInstruction === true;
-    if (
-      !partialCaptureNeedsInstruction &&
-      (age === null || age < OPERATOR_CAPTURE_AGE_DAYS)
-    ) {
-      continue;
-    }
-    const marker = readOperatorCaptureInstructedMarker(record.body);
-    if (marker) {
-      const lastMs = Date.parse(marker.lastInstructedAt);
-      if (
-        !Number.isNaN(lastMs) &&
-        nowMs - lastMs < OPERATOR_CAPTURE_INSTRUCT_INTERVAL_MS
-      ) {
-        continue;
-      }
-    }
-    candidates.push({
-      taskId: record.id,
-      taskPath: record.path,
-      capturePath: record.precondition.path,
-      description: record.precondition.description,
-      reason: evaluation.reason,
-      ageDays: age ?? 0,
-    });
-  }
-  return candidates;
+  return classifyBlockedActions(records, workspaceRoot, nowMs, scopeRoot)
+    .flatMap((action): OperatorCaptureInstructCandidate[] =>
+      action.kind === "operator-capture-due" ? [{
+        taskId: action.taskId,
+        taskPath: records.find((record) => record.id === action.taskId)!.path,
+        capturePath: action.capturePath,
+        description: action.description,
+        reason: action.reason,
+        ageDays: action.ageDays ?? 0,
+      }] : []
+    );
 }
 
 export type OperatorCaptureInstruction = {
@@ -387,244 +299,19 @@ export function applyOperatorCaptureInstruction(args: {
   };
 }
 
-/**
- * Per-task next-action a blocked task receives this cycle. The
- * `auto-promotable` and `still-awaiting` shapes carry no side-effect
- * follow-up; the workflow steps still drive promotion and ask/instruct
- * separately so this classifier stays a pure read against the inspected
- * records.
- */
-export type BlockerAction =
-  | {
-      kind: "auto-promotable";
-      taskId: string;
-      preconditionKind: "operator-capture" | "owner-decision";
-      reason: string;
-      ageDays: number | null;
-    }
-  | {
-      kind: "still-awaiting-dependency";
-      taskId: string;
-      preconditionKind: BlockedPreconditionKind;
-      waitingOn: string[];
-      ageDays: number | null;
-    }
-  | {
-      kind: "still-awaiting-capability";
-      taskId: string;
-      preconditionKind: "capability-installed";
-      probe: string;
-      ageDays: number | null;
-    }
-  | {
-      kind: "owner-ask-due";
-      taskId: string;
-      preconditionKind: "owner-decision";
-      slot: string;
-      recommendedAnswer: string | null;
-      proposedAnswers: string[];
-      ageDays: number | null;
-    }
-  | {
-      kind: "owner-ask-recent";
-      taskId: string;
-      preconditionKind: "owner-decision";
-      slot: string;
-      lastAskedAt: string;
-      ageDays: number | null;
-    }
-  | {
-      kind: "operator-capture-due";
-      taskId: string;
-      preconditionKind: "operator-capture";
-      capturePath: string;
-      description: string;
-      reason: string;
-      ageDays: number | null;
-    }
-  | {
-      kind: "operator-capture-recent";
-      taskId: string;
-      preconditionKind: "operator-capture";
-      capturePath: string;
-      lastInstructedAt: string;
-      ageDays: number | null;
-    }
-  | {
-      kind: "operator-capture-fresh";
-      taskId: string;
-      preconditionKind: "operator-capture";
-      capturePath: string;
-      ageDays: number | null;
-    };
-
-/**
- * Walk every blocked task and pick the single best-fit action label for
- * each. The classifier is pure: it inspects records, the project's `done/`
- * directory and existing markers — it does not mutate any
- * task body. Workflow steps consume this list to write a per-cycle
- * `blocker-actions.json` artifact and emit summary noise to operators.
- */
+/** Observe external preconditions once, then delegate every action to the policy owner. */
 export function classifyBlockedActions(
   records: BlockedTaskRecord[],
   workspaceRoot: string,
   nowMs: number,
   scopeRoot: string = workspaceRoot,
 ): BlockerAction[] {
-  const actions: BlockerAction[] = [];
-  for (const record of records) {
-    const age = ageDays(record.updatedAt, nowMs);
-    const waitingOn = getUnfinishedTaskDependencies(workspaceRoot, record.dependsOn);
-    if (waitingOn.length > 0) {
-      actions.push({
-        kind: "still-awaiting-dependency",
-        taskId: record.id,
-        preconditionKind: record.precondition.kind,
-        waitingOn,
-        ageDays: age,
-      });
-      continue;
-    }
-    const eval_ = evaluateBlockedPrecondition(record.precondition, {
-      workspaceRoot,
-      scopeRoot,
-      taskBody: record.body,
-    });
-    switch (record.precondition.kind) {
-      case "capability-installed": {
-        actions.push({
-          kind: "still-awaiting-capability",
-          taskId: record.id,
-          preconditionKind: "capability-installed",
-          probe: record.precondition.probe,
-          ageDays: age,
-        });
-        break;
-      }
-      case "owner-decision": {
-        const od = record.precondition;
-        if (eval_.satisfied) {
-          actions.push({
-            kind: "auto-promotable",
-            taskId: record.id,
-            preconditionKind: "owner-decision",
-            reason: eval_.reason,
-            ageDays: age,
-          });
-          break;
-        }
-        const askMarkers = readOwnerAskMarkers(record.body);
-        const existing = askMarkers.find((m) => m.slot === od.slot);
-        if (existing) {
-          const askedMs = Date.parse(existing.lastAskedAt);
-          if (
-            !Number.isNaN(askedMs) &&
-            nowMs - askedMs < OPERATOR_CAPTURE_INSTRUCT_INTERVAL_MS
-          ) {
-            actions.push({
-              kind: "owner-ask-recent",
-              taskId: record.id,
-              preconditionKind: "owner-decision",
-              slot: od.slot,
-              lastAskedAt: existing.lastAskedAt,
-              ageDays: age,
-            });
-            break;
-          }
-        }
-        actions.push({
-          kind: "owner-ask-due",
-          taskId: record.id,
-          preconditionKind: "owner-decision",
-          slot: od.slot,
-          recommendedAnswer: extractRecommendedAnswer(od.context),
-          proposedAnswers: od.proposedAnswers,
-          ageDays: age,
-        });
-        break;
-      }
-      case "operator-capture": {
-        const oc = record.precondition;
-        if (eval_.satisfied) {
-          actions.push({
-            kind: "auto-promotable",
-            taskId: record.id,
-            preconditionKind: "operator-capture",
-            reason: eval_.reason,
-            ageDays: age,
-          });
-          break;
-        }
-        if (eval_.shouldRefreshInstruction === true) {
-          const marker = readOperatorCaptureInstructedMarker(record.body);
-          if (marker) {
-            const lastMs = Date.parse(marker.lastInstructedAt);
-            if (
-              !Number.isNaN(lastMs) &&
-              nowMs - lastMs < OPERATOR_CAPTURE_INSTRUCT_INTERVAL_MS
-            ) {
-              actions.push({
-                kind: "operator-capture-recent",
-                taskId: record.id,
-                preconditionKind: "operator-capture",
-                capturePath: oc.path,
-                lastInstructedAt: marker.lastInstructedAt,
-                ageDays: age,
-              });
-              break;
-            }
-          }
-          actions.push({
-            kind: "operator-capture-due",
-            taskId: record.id,
-            preconditionKind: "operator-capture",
-            capturePath: oc.path,
-            description: oc.description,
-            reason: eval_.reason,
-            ageDays: age,
-          });
-          break;
-        }
-        if (age === null || age < OPERATOR_CAPTURE_AGE_DAYS) {
-          actions.push({
-            kind: "operator-capture-fresh",
-            taskId: record.id,
-            preconditionKind: "operator-capture",
-            capturePath: oc.path,
-            ageDays: age,
-          });
-          break;
-        }
-        const marker = readOperatorCaptureInstructedMarker(record.body);
-        if (marker) {
-          const lastMs = Date.parse(marker.lastInstructedAt);
-          if (
-            !Number.isNaN(lastMs) &&
-            nowMs - lastMs < OPERATOR_CAPTURE_INSTRUCT_INTERVAL_MS
-          ) {
-            actions.push({
-              kind: "operator-capture-recent",
-              taskId: record.id,
-              preconditionKind: "operator-capture",
-              capturePath: oc.path,
-              lastInstructedAt: marker.lastInstructedAt,
-              ageDays: age,
-            });
-            break;
-          }
-        }
-        actions.push({
-          kind: "operator-capture-due",
-          taskId: record.id,
-          preconditionKind: "operator-capture",
-          capturePath: oc.path,
-          description: oc.description,
-          reason: eval_.reason,
-          ageDays: age,
-        });
-        break;
-      }
-    }
-  }
-  return actions;
+  return records.map((record) => decideBlockedAction({
+    record,
+    nowMs,
+    waitingOn: getUnfinishedTaskDependencies(workspaceRoot, record.dependsOn),
+    evaluation: evaluateBlockedPrecondition(record.precondition, {
+      workspaceRoot, scopeRoot, taskBody: record.body,
+    }),
+  }));
 }

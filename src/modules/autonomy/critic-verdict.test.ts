@@ -1,7 +1,6 @@
-import "./critic-test-fixture.integration.js";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { createCriticCheck, getCriticPromptHash, handleVerdict } from "./critic.js";
 import {
   type CodeCheck,
@@ -162,22 +161,11 @@ describe("critic verdict handling", () => {
   });
 
   it("preserves a clean accepted verdict without manufacturing a warning", async () => {
-    const { execFileSync } = await import("node:child_process");
     const dir = makeTmpDir();
     writeOpenTask(dir, "task-thin.md", "---\nstatus: open\npriority: p2\n---\n\n# Do thin\n\nDo thin.");
     const runDir = makeRunDir(dir);
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const argStr = Array.isArray(args) ? args.join(" ") : "";
-      if (argStr.includes("--name-only")) return "src/modules/autonomy/critic.ts\n";
-      if (argStr.includes("--stat")) return " src/modules/autonomy/critic.ts | 1 +\n";
-      return [
-        "diff --git a/src/modules/autonomy/critic.ts b/src/modules/autonomy/critic.ts",
-        "--- a/src/modules/autonomy/critic.ts",
-        "+++ b/src/modules/autonomy/critic.ts",
-        "@@ -98,6 +98,7 @@ export function createCriticCheck() {",
-        "+  return true;",
-      ].join("\n");
-    });
+    mkdirSync(join(dir, "src"), { recursive: true });
+    writeFileSync(join(dir, "src", "feature.ts"), "export const enabled = true;\n");
     setApiResponse({
       verdict: "pass",
       critical_issues: [],

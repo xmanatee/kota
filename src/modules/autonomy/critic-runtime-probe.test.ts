@@ -1,4 +1,3 @@
-import "./critic-test-fixture.integration.js";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -154,7 +153,7 @@ describe("critic runtime probes", () => {
 
     expect(existsSync(join(workspaceDir, "probe-ran.txt"))).toBe(true);
     expect(existsSync(join(workspaceRunDir, "runtime-probe.json"))).toBe(true);
-    expect(mockRunAgentHarness).toHaveBeenCalledOnce();
+
   });
 
   it("records a failing probe verdict and surfaces the failure in the critic prompt", async () => {

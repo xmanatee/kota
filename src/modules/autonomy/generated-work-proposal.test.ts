@@ -51,7 +51,7 @@ describe("generated-work proposal materializer", () => {
     });
   }
 
-  it("revises and reopens one owner-question record across terminal states", () => {
+  it("opens a revised question while retaining the owner's previous answer", () => {
     const workspaceRoot = makeGeneratedWorkScopeRoot("question");
     const first = materializeGeneratedWorkProposal({
       workspaceRoot,
@@ -77,15 +77,20 @@ describe("generated-work proposal materializer", () => {
       }),
     });
 
-    expect(revised.ownerQuestionId).toBe(questionId);
+    expect(revised.ownerQuestionId).not.toBe(questionId);
     expect(revised.actions).toEqual([
       expect.objectContaining({
         kind: "reopened-owner-question",
-        questionId,
+        questionId: revised.ownerQuestionId,
       }),
     ]);
-    expect(queue.list()).toHaveLength(1);
+    expect(queue.list()).toHaveLength(2);
     expect(queue.get(questionId)).toMatchObject({
+      status: "answered",
+      answer: "Repair the protocol",
+      resolutionSource: "fixture",
+    });
+    expect(queue.get(revised.ownerQuestionId!)).toMatchObject({
       status: "pending",
       question: "Should builder repair the protocol now?",
     });
@@ -93,7 +98,7 @@ describe("generated-work proposal materializer", () => {
 
   it("reconciles task, question, and resolved dispositions under one key", () => {
     const workspaceRoot = makeGeneratedWorkScopeRoot("lifecycle");
-    materializeGeneratedWorkProposal({
+    const first = materializeGeneratedWorkProposal({
       workspaceRoot,
       proposal: questionProposal(),
     });
@@ -111,6 +116,28 @@ describe("generated-work proposal materializer", () => {
     expect(task.ownerQuestionId).toBeNull();
     expect(listFullRepoTasks(workspaceRoot)).toHaveLength(1);
 
+    const queue = new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
+    const terminalQuestion = queue.get(first.ownerQuestionId!);
+    const renewed = materializeGeneratedWorkProposal({
+      workspaceRoot,
+      proposal: questionProposal(),
+    });
+    expect(renewed.actions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "dropped-task", taskId: task.taskId }),
+      expect.objectContaining({ kind: "reopened-owner-question" }),
+    ]));
+    expect(renewed.ownerQuestionId).not.toBe(first.ownerQuestionId);
+    expect(queue.list("pending").map((item) => item.id)).toEqual([renewed.ownerQuestionId]);
+    expect(queue.get(first.ownerQuestionId!)).toEqual(terminalQuestion);
+    const replay = materializeGeneratedWorkProposal({ workspaceRoot, proposal: questionProposal() });
+    expect(replay.ownerQuestionId).toBe(renewed.ownerQuestionId);
+    expect(queue.list("pending")).toHaveLength(1);
+    queue.answer(renewed.ownerQuestionId!, "Use the protocol repair");
+    materializeGeneratedWorkProposal({ workspaceRoot, proposal: questionProposal() });
+    expect(queue.list("pending")).toEqual([]);
+    expect(queue.get(renewed.ownerQuestionId!)?.status).toBe("answered");
+
+    materializeGeneratedWorkProposal({ workspaceRoot, proposal: taskProposal() });
     const resolved = materializeGeneratedWorkProposal({
       workspaceRoot,
       proposal: {

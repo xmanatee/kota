@@ -6,6 +6,7 @@ import type {
   AutonomyHealthSeverity,
   AutonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
+import type { OwnerQuestionMutationRequest } from "#modules/owner-questions/events.js";
 
 export type AutonomyHealthReviewGroup = {
   dedupeKey: string;
@@ -63,7 +64,7 @@ export type AutonomyHealthAppliedAction =
 
 export type AutonomyHealthReviewActionResult = {
   taskMutations: Array<{ id: string; state: "dropped" }>;
-  dismissedOwnerQuestionIds: string[];
+  ownerQuestionMutations: OwnerQuestionMutationRequest[];
   issueTransitions: AutonomyIssueTransition[];
   applied: AutonomyHealthAppliedAction[];
 };

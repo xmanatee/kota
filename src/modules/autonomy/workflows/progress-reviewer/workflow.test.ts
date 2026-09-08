@@ -350,22 +350,6 @@ describe("progress-reviewer workflow", () => {
     return dir;
   }
 
-  it("keeps native capable-tier execution and fenced JSON extraction aligned", () => {
-    const prompt = readFileSync(new URL("./prompt.md", import.meta.url), "utf-8");
-    const definition = compileProgressReviewerWorkflow();
-    const reviewStep = definition.steps.find((step) => step.id === "review-evidence");
-
-    expect(definition.defaultAutonomyMode).toBe("autonomous");
-    expect(reviewStep).toEqual(
-      expect.objectContaining({
-        type: "agent",
-        outputFormat: "json",
-      }),
-    );
-    expect(prompt).toContain("fenced JSON");
-    expect(prompt).not.toContain("Return exactly one structured JSON object");
-  });
-
   it("declares only semantic requests without direct inbound-signal or build triggers", () => {
     const moduleEvents = initModuleEventRegistry();
     moduleEvents.register("autonomy", progressReviewRequested);

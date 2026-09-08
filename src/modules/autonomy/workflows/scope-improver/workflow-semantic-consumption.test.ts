@@ -221,6 +221,7 @@ describe("scope-improver semantic consumption", () => {
 
     const completed = completeScopeImprovementInput({
       current: resumed.nextState!,
+      sourceRunId: "scope-semantic-consumption",
       inputs,
       actions: [],
     });

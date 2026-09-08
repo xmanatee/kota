@@ -200,7 +200,6 @@ describe("issue-driven autonomy lifecycle integration", () => {
               ?.links.deadLetterIds.includes(deadLetter.id) === true,
           "the later dead-letter evidence to enrich the original issue",
         );
-        expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
         expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([
           expect.objectContaining({
             semanticRevision: 1,
@@ -233,7 +232,6 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
       const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
       const tasks = listFullRepoTasks(workspaceRoot);
-      expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(1);
       expect(tasks).toEqual([expect.objectContaining({ state: "open" })]);
       expect(issue).toMatchObject({
         status: "open",

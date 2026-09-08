@@ -1,8 +1,8 @@
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { assessAutonomyQueue } from "#modules/autonomy/queue-policy.js";
 import {
   getRepoTaskQueueSnapshot,
-  isThinDispatchableQueue,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const EXPLORATION_REFRESH_MS = 30 * 60 * 1000;
@@ -29,14 +29,12 @@ export function inspectExplorerAssessment(input: {
   const queue = getRepoTaskQueueSnapshot(workspaceRoot);
   const explorationRefreshDue = !lastExplorationAt ||
     Date.now() - new Date(lastExplorationAt).getTime() >= EXPLORATION_REFRESH_MS;
-  const queueNeedsExploration = !queue.hasDispatchableWork ||
-    isThinDispatchableQueue(queue);
-  const locallyBlocked = queue.dependencyBlockedTasks.length > 0;
+  const { explorationEligible } = assessAutonomyQueue(queue);
   return {
     ...queue,
     dirty,
     needsAttention:
-      !dirty && !locallyBlocked && queueNeedsExploration && explorationRefreshDue,
+      !dirty && explorationEligible && explorationRefreshDue,
     explorationRefreshDue,
   };
 }

@@ -1,7 +1,7 @@
+import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
   createGeneratedWorkQuestionQueue,
   dismissGeneratedWorkQuestion,
-  findGeneratedWorkQuestion,
   generatedWorkProvenanceContext,
   generatedWorkQuestionDedupeKey,
   reconcileGeneratedWorkQuestion,
@@ -14,6 +14,8 @@ import type {
 import {
   dropGeneratedWorkTask,
   findGeneratedWorkTask,
+  hasGeneratedWorkRetirement,
+  ownsGeneratedWorkRetirement,
   writeGeneratedWorkTask,
 } from "./generated-work-task.js";
 
@@ -59,93 +61,182 @@ export function normalizeGeneratedWorkProposalKey(key: string): string {
   return normalized;
 }
 
-export function materializeGeneratedWorkProposal(args: {
+export type StagedGeneratedWorkOwnerEffect =
+  | { kind: "owner-question-pending" }
+  | { kind: "owner-question-dismissal-pending" };
+
+export type StagedGeneratedWorkProposalResult = Omit<
+  GeneratedWorkProposalResult,
+  "actions"
+> & {
+  actions: Array<GeneratedWorkProposalAction | StagedGeneratedWorkOwnerEffect>;
+};
+
+export type FinalizedGeneratedWorkOwnerEffects = {
+  ownerQuestionId: string | null;
+  actions: GeneratedWorkProposalAction[];
+};
+
+export function stageGeneratedWorkProposal(args: {
   workspaceRoot: string;
   proposal: GeneratedWorkProposal;
-}): GeneratedWorkProposalResult {
+}): StagedGeneratedWorkProposalResult {
   const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
   const proposal = { ...args.proposal, proposalKey } as GeneratedWorkProposal;
-  const queue = createGeneratedWorkQuestionQueue(args.workspaceRoot);
   const existingTask = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
-  const actions: GeneratedWorkProposalAction[] = [];
+  const actions: StagedGeneratedWorkProposalResult["actions"] = [];
 
   if (proposal.kind === "task") {
-    actions.push(...dismissGeneratedWorkQuestion(
-      queue,
-      proposalKey,
-      "The generated-work disposition now routes through a task.",
-      proposal.provenance.source,
-    ));
+    actions.push({ kind: "owner-question-dismissal-pending" });
     actions.push(...writeGeneratedWorkTask({
       workspaceRoot: args.workspaceRoot,
       proposal,
       existing: existingTask,
     }));
   } else if (proposal.kind === "owner-question") {
-    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask));
-    const reconciled = reconcileGeneratedWorkQuestion({
-      workspaceRoot: args.workspaceRoot,
-      queue,
-      input: {
-        dedupeKey: generatedWorkQuestionDedupeKey(proposalKey),
-        context: generatedWorkProvenanceContext(
-          proposal.context,
-          proposalKey,
-          proposal.provenance,
-        ),
-        question: proposal.question,
-        reason: proposal.reason,
-        source: proposal.provenance.source,
-        answerBehavior: "record-only",
-        origin: proposal.origin,
-        proposedAnswers: proposal.proposedAnswers,
-      },
-    });
-    actions.push({
-      kind: reconciled.created
-        ? "created-owner-question"
-        : reconciled.reopened
-        ? "reopened-owner-question"
-        : reconciled.updated
-        ? "updated-owner-question"
-        : "noop",
-      ...(reconciled.created || reconciled.reopened || reconciled.updated
-        ? { questionId: reconciled.item.id }
-        : { reason: "owner question is current" }),
-    } as GeneratedWorkProposalAction);
+    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask, proposal));
+    actions.push({ kind: "owner-question-pending" });
   } else {
-    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask));
-    actions.push(...dismissGeneratedWorkQuestion(
-      queue,
-      proposalKey,
-      proposal.reason,
-      proposal.source,
-    ));
-    if (actions.length === 0) {
-      actions.push({ kind: "noop", reason: "proposal has no active work record" });
-    }
+    actions.push(...dropGeneratedWorkTask(args.workspaceRoot, existingTask, proposal));
+    actions.push({ kind: "owner-question-dismissal-pending" });
   }
 
   const taskAction = actions.find((action) => "taskId" in action);
-  const questionAction = actions.find((action) => "questionId" in action);
+  const taskId = proposal.kind === "task"
+    ? taskAction && "taskId" in taskAction
+      ? taskAction.taskId
+      : existingTask?.task.id ?? null
+    : null;
   return {
     proposalKey,
-    taskId: proposal.kind === "task"
-      ? taskAction && "taskId" in taskAction
-        ? taskAction.taskId
-        : existingTask?.task.id ?? null
-      : null,
-    ownerQuestionId: proposal.kind === "owner-question"
-      ? questionAction && "questionId" in questionAction
-        ? questionAction.questionId
-        : findGeneratedWorkQuestion(queue, proposalKey)?.id ?? null
-      : null,
+    taskId,
+    ownerQuestionId: null,
     actions,
-    touchedTaskQueue: actions.some((action) =>
-      action.kind === "created-task" ||
-      action.kind === "updated-task" ||
-      action.kind === "reopened-task" ||
-      action.kind === "dropped-task"
-    ),
+    touchedTaskQueue: generatedWorkTaskMutationPaths(
+      actions.filter(
+        (action): action is GeneratedWorkProposalAction =>
+          action.kind !== "owner-question-pending" &&
+          action.kind !== "owner-question-dismissal-pending",
+      ),
+    ).length > 0,
+  };
+}
+
+export function finalizeGeneratedWorkProposal(args: {
+  workspaceRoot: string;
+  ownerQuestionQueue: OwnerQuestionQueue;
+  proposal: GeneratedWorkProposal;
+  staged: StagedGeneratedWorkProposalResult;
+}): GeneratedWorkProposalResult {
+  const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
+  if (proposalKey !== args.staged.proposalKey) {
+    throw new Error("generated-work staged proposal identity changed before publication");
+  }
+  const repositoryActions = args.staged.actions.filter(
+    (action): action is GeneratedWorkProposalAction =>
+      action.kind !== "owner-question-pending" &&
+      action.kind !== "owner-question-dismissal-pending",
+  );
+  const ownerEffects = finalizeGeneratedWorkOwnerEffects({
+    workspaceRoot: args.workspaceRoot,
+    ownerQuestionQueue: args.ownerQuestionQueue,
+    proposal: args.proposal,
+  });
+
+  return {
+    proposalKey,
+    taskId: args.staged.taskId,
+    ownerQuestionId: ownerEffects.ownerQuestionId,
+    actions: [...repositoryActions, ...ownerEffects.actions],
+    touchedTaskQueue: args.staged.touchedTaskQueue,
+  };
+}
+
+export function finalizeGeneratedWorkOwnerEffects(args: {
+  workspaceRoot: string;
+  ownerQuestionQueue: OwnerQuestionQueue;
+  proposal: GeneratedWorkProposal;
+}): FinalizedGeneratedWorkOwnerEffects {
+  const proposalKey = normalizeGeneratedWorkProposalKey(args.proposal.proposalKey);
+  if (args.proposal.kind === "owner-question") {
+    const reconciled = reconcileGeneratedWorkQuestion({
+      workspaceRoot: args.workspaceRoot,
+      queue: args.ownerQuestionQueue,
+      input: {
+        dedupeKey: generatedWorkQuestionDedupeKey(proposalKey),
+        context: generatedWorkProvenanceContext(
+          args.proposal.context,
+          proposalKey,
+          args.proposal.provenance,
+        ),
+        question: args.proposal.question,
+        reason: args.proposal.reason,
+        source: args.proposal.provenance.source,
+        answerBehavior: "record-only",
+        origin: args.proposal.origin,
+        proposedAnswers: args.proposal.proposedAnswers,
+      },
+    });
+    return {
+      ownerQuestionId: reconciled.item.id,
+      actions: [{
+        kind: reconciled.created
+          ? "created-owner-question"
+          : reconciled.reopened
+            ? "reopened-owner-question"
+            : reconciled.updated
+              ? "updated-owner-question"
+              : "noop",
+        ...(reconciled.created || reconciled.reopened || reconciled.updated
+          ? { questionId: reconciled.item.id }
+          : { reason: "owner question is current" }),
+      } as GeneratedWorkProposalAction],
+    };
+  }
+  const actions = dismissGeneratedWorkQuestion(
+    args.ownerQuestionQueue,
+    proposalKey,
+    args.proposal.kind === "task"
+      ? "The generated-work disposition now routes through a task."
+      : args.proposal.reason,
+    args.proposal.kind === "task"
+      ? args.proposal.provenance.source
+      : args.proposal.source,
+  );
+  return {
+    ownerQuestionId: null,
+    actions,
+  };
+}
+
+/** Canonical task disposition takes precedence over semantic freshness. */
+export function canPublishGeneratedWorkOwnerEffects(args: {
+  workspaceRoot: string;
+  proposal: GeneratedWorkProposal;
+  fresh: boolean;
+}): boolean {
+  const task = findGeneratedWorkTask(args.workspaceRoot, args.proposal.proposalKey);
+  if (args.proposal.kind === "task") {
+    return task !== null && task.task.state !== "dropped" && !hasGeneratedWorkRetirement(task);
+  }
+  return task === null
+    ? args.fresh
+    : ownsGeneratedWorkRetirement(args.workspaceRoot, args.proposal);
+}
+
+/** Immediate callers compose the same task staging and owner-effect lifecycle as writers. */
+export function materializeGeneratedWorkProposal(args: {
+  workspaceRoot: string;
+  proposal: GeneratedWorkProposal;
+}): GeneratedWorkProposalResult {
+  const staged = stageGeneratedWorkProposal(args);
+  const result = finalizeGeneratedWorkProposal({
+    ...args,
+    staged,
+    ownerQuestionQueue: createGeneratedWorkQuestionQueue(args.workspaceRoot),
+  });
+  return result.actions.length > 0 ? result : {
+    ...result,
+    actions: [{ kind: "noop", reason: "proposal has no active work record" }],
   };
 }

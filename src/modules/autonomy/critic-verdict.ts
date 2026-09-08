@@ -40,8 +40,10 @@ function isString(value: JsonValue | undefined): value is string {
 }
 
 function readStringArray(value: JsonValue | undefined): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.every(isString) ? value : [];
+  if (!Array.isArray(value) || !value.every(isString)) {
+    throw new Error("Critic issue and warning fields must be string arrays");
+  }
+  return value;
 }
 
 function tryParseJsonObject(text: string): JsonObject | undefined {
@@ -85,11 +87,12 @@ export function parseVerdict(text: string): CriticVerdict {
   if (!isCriticVerdictValue(parsed.verdict)) {
     throw new Error(`Invalid verdict: ${parsed.verdict}`);
   }
+  if (typeof parsed.summary !== "string") throw new Error("Critic summary must be a string");
   return {
     verdict: parsed.verdict,
     critical_issues: readStringArray(parsed.critical_issues),
     warnings: readStringArray(parsed.warnings),
-    summary: typeof parsed.summary === "string" ? parsed.summary : "",
+    summary: parsed.summary,
   };
 }
 
@@ -143,7 +146,7 @@ export function handleVerdict(
     );
   }
 
-  if (verdict.verdict === "fail" && verdict.critical_issues.length > 0) {
+  if (verdict.verdict === "fail") {
     if (runDir && context?.failureDetailMode === "artifact-reference") {
       throw new Error(
         `Critic found ${verdict.critical_issues.length} critical issue(s). ` +

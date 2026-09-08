@@ -5,10 +5,16 @@ import {
   OwnerQuestionQueue,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
+import {
+  type OwnerQuestionMutationRequest,
+  ownerQuestionMutationKey,
+} from "#modules/owner-questions/events.js";
 import type {
   GeneratedWorkProposalAction,
   GeneratedWorkProvenance,
 } from "./generated-work-proposal-types.js";
+
+const DISPOSITION_RESOLUTION_SOURCE = "generated-work-disposition:";
 
 export type ReconciledGeneratedWorkQuestion = {
   item: PendingOwnerQuestion;
@@ -29,12 +35,21 @@ export function findGeneratedWorkQuestion(
   queue: OwnerQuestionQueue,
   proposalKey: string,
 ): PendingOwnerQuestion | null {
-  const dedupeKey = generatedWorkQuestionDedupeKey(proposalKey);
+  return findCurrentQuestion(queue, generatedWorkQuestionDedupeKey(proposalKey));
+}
+
+function findCurrentQuestion(
+  queue: OwnerQuestionQueue,
+  key: string,
+): PendingOwnerQuestion | null {
+  const dedupeKey = key.trim().toLowerCase();
+  if (!dedupeKey) throw new Error("Owner question dedupeKey must not be empty");
   const matches = queue.list().filter((item) => item.dedupeKey === dedupeKey);
-  if (matches.length > 1) {
-    throw new Error(`generated-work proposal ${proposalKey} has multiple owner questions`);
+  const pending = matches.filter((item) => item.status === "pending");
+  if (pending.length > 1) {
+    throw new Error(`generated-work key ${dedupeKey} has multiple pending owner questions`);
   }
-  return matches[0] ?? null;
+  return pending[0] ?? matches.at(-1) ?? null;
 }
 
 export function generatedWorkProvenanceContext(
@@ -58,24 +73,47 @@ function generatedWorkContextIdentity(context: string): string | null {
   return identity.startsWith("Generated-work proposal ") ? identity : null;
 }
 
+export function planGeneratedWorkQuestionDismissals(args: {
+  queue: OwnerQuestionQueue;
+  proposalKey: string;
+  linkedQuestionIds: readonly string[];
+  reason: string;
+  source: string;
+}): OwnerQuestionMutationRequest[] {
+  const existing = findGeneratedWorkQuestion(args.queue, args.proposalKey);
+  const ids = new Set(args.linkedQuestionIds);
+  if (existing) ids.add(existing.id);
+  return [...ids].sort().flatMap((questionId): OwnerQuestionMutationRequest[] => {
+    if (args.queue.get(questionId)?.status !== "pending") return [];
+    return [{
+      questionId,
+      mutation: "dismiss",
+      reason: args.reason,
+      resolutionSource: `${DISPOSITION_RESOLUTION_SOURCE}${args.source}`,
+      idempotencyKey: ownerQuestionMutationKey(questionId),
+    }];
+  });
+}
+
 export function dismissGeneratedWorkQuestion(
   queue: OwnerQuestionQueue,
   proposalKey: string,
   reason: string,
   source: string,
 ): GeneratedWorkProposalAction[] {
-  const existing = findGeneratedWorkQuestion(queue, proposalKey);
-  if (!existing || existing.status !== "pending") return [];
-  queue.dismiss(existing.id, reason, source);
-  return [{ kind: "dismissed-owner-question", questionId: existing.id }];
+  return planGeneratedWorkQuestionDismissals({
+    queue, proposalKey, linkedQuestionIds: [], reason, source,
+  }).map((mutation) => {
+    queue.dismiss(mutation.questionId, mutation.reason, mutation.resolutionSource);
+    return { kind: "dismissed-owner-question", questionId: mutation.questionId };
+  });
 }
 
 function changedQuestion(
   existing: PendingOwnerQuestion,
   input: OwnerQuestionEnqueueInput,
 ): boolean {
-  return existing.status !== "pending" ||
-    existing.context !== input.context ||
+  return existing.context !== input.context ||
     existing.question !== input.question ||
     existing.reason !== input.reason ||
     existing.source !== input.source ||
@@ -129,26 +167,34 @@ export function reconcileGeneratedWorkQuestion(args: {
   const dedupeKey = args.input.dedupeKey.trim().toLowerCase();
   if (!dedupeKey) throw new Error("Owner question dedupeKey must not be empty");
   const input = { ...args.input, dedupeKey };
-  const existing = args.queue.list().find((item) => item.dedupeKey === dedupeKey);
+  const existing = findCurrentQuestion(args.queue, dedupeKey);
   if (!existing) {
     const item = args.queue.enqueue(input);
     return { item, created: true, updated: false, reopened: false };
   }
+  if (existing.status === "dismissed" &&
+    existing.resolutionSource?.startsWith(DISPOSITION_RESOLUTION_SOURCE)) {
+    const item = args.queue.enqueue(input);
+    return { item, created: false, updated: false, reopened: true };
+  }
   if (
-    existing.status === "pending" &&
     generatedWorkContextIdentity(existing.context) ===
-      generatedWorkContextIdentity(input.context)
+      generatedWorkContextIdentity(input.context) &&
+    !changedQuestion(existing, { ...input, context: existing.context })
   ) {
     return { item: existing, created: false, updated: false, reopened: false };
   }
   if (!changedQuestion(existing, input)) {
     return { item: existing, created: false, updated: false, reopened: false };
   }
-  const reopened = existing.status !== "pending";
+  if (existing.status !== "pending") {
+    const item = args.queue.enqueue(input);
+    return { item, created: false, updated: false, reopened: true };
+  }
   const item = updatedQuestion(existing, input);
   writeFileSync(
     join(args.workspaceRoot, ".kota", "owner-questions", `${item.id}.json`),
     JSON.stringify(item, null, 2),
   );
-  return { item, created: false, updated: true, reopened };
+  return { item, created: false, updated: true, reopened: false };
 }

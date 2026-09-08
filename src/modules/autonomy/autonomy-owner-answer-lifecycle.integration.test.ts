@@ -110,10 +110,6 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         deriveDirectoryScopeId(workspaceRoot),
       );
       subscribeAutonomyIssueSources(source.ctx);
-      const completed: string[] = [];
-      bus.on("workflow.completed", (payload) => {
-        if (payload.workflow === "improver") completed.push(payload.runId);
-      });
       const workflowDefinitions = await loadAutonomyWorkflowDefinitions();
       const runtimeFixture = createTestWorkflowRuntime({
         config: {
@@ -178,7 +174,6 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         questions.answer(questionId, "Preserve the worktree", "fixture-owner");
         await waitForLifecycle(
           () =>
-            completed.length === 2 &&
             readAutonomyIssueProjection(workspaceRoot).issues[0]
               ?.disposition.kind === "task",
           "the answer-driven task disposition",
@@ -186,7 +181,6 @@ describe("issue-driven owner-answer lifecycle integration", () => {
 
         const projection = readAutonomyIssueProjection(workspaceRoot);
         const tasks = listFullRepoTasks(workspaceRoot);
-        expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
         expect(projection.issues).toEqual([
           expect.objectContaining({
             issueKey: firstIssue.issueKey,

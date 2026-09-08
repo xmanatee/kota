@@ -7,6 +7,7 @@ import {
   automaticProgressReviewRequested,
   progressReviewRequested,
 } from "./events.js";
+import { progressReviewNeedsAttention } from "./progress-review/actions.js";
 import {
   decodeProgressReviewAgentOutput,
   validateProgressReviewAgentStepOutput,
@@ -23,7 +24,6 @@ import {
   collectEvidence,
   emptyActions,
   inspectSemanticInput,
-  needsAttention,
   prepareReviewInput,
   REVIEW_AGENT_TIMEOUT_MS,
   recordReviewRejection,
@@ -101,7 +101,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
       type: "emit",
       when: (ctx) => {
         if (!stepSucceeded("write-artifact")(ctx)) return false;
-        return needsAttention(applyActions.output(ctx) ?? emptyActions());
+        return progressReviewNeedsAttention(applyActions.output(ctx) ?? emptyActions());
       },
       event: "workflow.attention.digest",
       payload: (ctx) => {

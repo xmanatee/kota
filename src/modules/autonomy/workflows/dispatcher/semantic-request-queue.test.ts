@@ -254,6 +254,8 @@ describe("semantic review request queue isolation", () => {
         schemaVersion: 1,
         scopeId: progressScopeId,
         lastConsumedRevision: 1,
+        consumedExplicitRunIds: [],
+        proposalObservations: [],
         consumedAt: "2026-08-15T12:00:00.000Z",
       } satisfies ProgressReviewConsumptionState,
     );
@@ -273,6 +275,7 @@ describe("semantic review request queue isolation", () => {
       pendingDelivery: null,
       pendingDeliveryAttempt: 0,
       recentSignatures: [],
+      consumedExplicitRunIds: [],
     });
     scope.pbus.emit(scopeImprovementChanged, {
       automatic: true,

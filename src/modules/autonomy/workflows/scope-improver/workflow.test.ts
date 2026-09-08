@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
@@ -555,6 +556,15 @@ describe("scope-improver semantic boundaries", () => {
       sourceRunId: basename(run.runDirPath),
       currentState: initialState,
     });
+    const queue = new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
+    const question = queue.list("pending")[0]!;
+    queue.answer(question.id, "Keep the current policy", "owner");
+    queue.enqueue({
+      ...question,
+      question: "A later review asks about a revised policy",
+      answerBehavior: "record-only",
+    });
+    const beforeReplay = queue.list();
     const second = publishScopeImprovement({
       scopeRoot: workspaceRoot,
       sourceRunId: basename(run.runDirPath),
@@ -569,6 +579,7 @@ describe("scope-improver semantic boundaries", () => {
       },
     });
     expect(second.disposition).toBe("published");
-    expect(readdirSync(join(workspaceRoot, ".kota", "owner-questions"))).toHaveLength(1);
+    expect(queue.list()).toEqual(beforeReplay);
+    expect(second.nextState).toEqual(first.nextState);
   });
 });

@@ -5,6 +5,9 @@ cleared.
 
 - This code-only workflow declares repository write access and task validation.
   Shared runtime owns its sandbox, recovery, commit, and publication.
+- Promotion, owner-question selection, capture instructions, and the action
+  artifact consume one blocker decision. Hard dependencies precede every
+  follow-up; the attention digest shares that decision owner’s cadence.
 - Never move terminal tasks. Use repo-tasks domain operations for every state
   transition.
 - The writer emits a stable owner-decision request only after integration.

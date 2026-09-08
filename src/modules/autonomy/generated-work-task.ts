@@ -10,6 +10,7 @@ import {
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
+  GeneratedWorkProposal,
   GeneratedWorkProposalAction,
   GeneratedWorkTaskProposal,
 } from "./generated-work-proposal-types.js";
@@ -71,11 +72,51 @@ export function writeGeneratedWorkTask(args: {
   return actions;
 }
 
+export function planGeneratedWorkTaskRetirement(
+  existing: GeneratedWorkTaskRecord | null,
+): Extract<GeneratedWorkProposalAction, { kind: "dropped-task" }> | null {
+  if (!existing || existing.task.state === "done" || existing.task.state === "dropped") return null;
+  return { kind: "dropped-task", taskId: existing.task.id, fromState: existing.task.state };
+}
+
 export function dropGeneratedWorkTask(
   workspaceRoot: string,
   existing: GeneratedWorkTaskRecord | null,
+  proposal: Exclude<GeneratedWorkProposal, { kind: "task" }>,
 ): GeneratedWorkProposalAction[] {
-  if (!existing || existing.task.state === "done" || existing.task.state === "dropped") return [];
-  moveTaskById(workspaceRoot, existing.task.id, "dropped");
+  if (!existing) return [];
+  const retirement = planGeneratedWorkTaskRetirement(existing);
+  const body = `${existing.task.body.replace(RETIREMENT_RECORD, "").trim()}\n\n${retirementRecord(proposal)}\n`;
+  if (!retirement && body.trim() === existing.task.body.trim()) return [];
+  if (retirement) moveTaskById(workspaceRoot, retirement.taskId, "dropped");
+  const state = existing.task.state === "done" ? "done" : "dropped";
+  const path = getRepoTaskPath(workspaceRoot, state, existing.task.id);
+  writeRepoTaskFile(workspaceRoot, path,
+    serializeFlatFrontMatter({ status: state }, body));
+  if (state === "done") {
+    return [{ kind: "updated-task", taskId: existing.task.id, path: join("data", "tasks", "archive", `${existing.task.id}.md`) }];
+  }
   return [{ kind: "dropped-task", taskId: existing.task.id, fromState: existing.task.state }];
+}
+
+const RETIREMENT_RECORD = /^<!-- generated-work retirement: [a-f0-9]{64} -->\s*$/gm;
+
+export function hasGeneratedWorkRetirement(existing: GeneratedWorkTaskRecord): boolean {
+  return (existing.task.state === "done" || existing.task.state === "dropped") &&
+    existing.task.body.match(RETIREMENT_RECORD) !== null;
+}
+
+function retirementRecord(proposal: Exclude<GeneratedWorkProposal, { kind: "task" }>): string {
+  const digest = createHash("sha256").update(JSON.stringify(proposal)).digest("hex");
+  return `<!-- generated-work retirement: ${digest} -->`;
+}
+
+/** The integrated task records which disposition owns its deferred effects. */
+export function ownsGeneratedWorkRetirement(
+  workspaceRoot: string,
+  proposal: Exclude<GeneratedWorkProposal, { kind: "task" }>,
+): boolean {
+  const existing = findGeneratedWorkTask(workspaceRoot, proposal.proposalKey);
+  return existing !== null && hasGeneratedWorkRetirement(existing) &&
+    existing.task.body.trim().endsWith(retirementRecord(proposal));
 }

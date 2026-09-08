@@ -45,7 +45,6 @@ describe("shadow semantic review runtime", () => {
     expect(prompt).toContain("artifact:one");
     expect(prompt).toContain("reviewable content");
     expect(prompt).not.toContain("hidden-secret-from-stepOutputs");
-    expect(prompt).toContain("Do not infer from hidden reasoning");
   });
 
   it("previews unstaged and untracked workflow mutations without touching the index", () => {

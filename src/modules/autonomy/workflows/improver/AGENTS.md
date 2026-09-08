@@ -4,6 +4,8 @@ This workflow is the single AI decision path for durable autonomy issues.
 
 - Trigger from a new, reopened, or materially revised issue transition, or a
   bounded same-revision reconciliation attempt after the prior owner failed.
+- Disposition application belongs to its typed action owner; the definition
+  invokes it and retains routing, agent authorization, validation, and publication.
 - Keep the agent read-only. Source implementation belongs to builder.
 - Route task and owner-question proposals through the shared generated-work
   transaction using the issue key as stable proposal identity. Repository task

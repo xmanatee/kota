@@ -4,6 +4,7 @@ import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
 import { applyScopeImprovementOwnerQuestionEffects } from "./scope-improvement-actions.js";
 import {
+  canCompleteScopeImprovementInput,
   completeScopeImprovementInput,
   deferScopeImprovementInput,
 } from "./scope-improvement-state.js";
@@ -98,24 +99,37 @@ export function publishScopeImprovement(args: {
     };
   }
 
-  const ownerQuestionActions = applyScopeImprovementOwnerQuestionEffects({
+  const canComplete = canCompleteScopeImprovementInput(
+    args.currentState, decoded.inputs, args.sourceRunId,
+  );
+  const ownerEffectArgs = {
+    workspaceRoot: args.scopeRoot,
     ownerQuestionQueue: new OwnerQuestionQueue(
       join(args.scopeRoot, ".kota", "owner-questions"),
     ),
     runId: args.sourceRunId,
-    recommendations: decoded.recommendations,
     repositoryActions: decoded.actions.applied,
+  };
+  const ownerQuestionActions = applyScopeImprovementOwnerQuestionEffects({
+    ...ownerEffectArgs,
+    recommendations: decoded.recommendations,
+    inputs: decoded.inputs,
+    currentState: args.currentState,
   });
+  if (!canComplete) {
+    return { disposition: "published", nextState: args.currentState };
+  }
   return {
     disposition: "published",
     nextState: completeScopeImprovementInput({
       current: args.currentState,
+      sourceRunId: args.sourceRunId,
       inputs: decoded.inputs,
       actions: [
-      ...decoded.actions.applied.filter(
-        (action) => action.kind !== "owner-question-pending",
-      ),
-      ...ownerQuestionActions,
+        ...decoded.actions.applied.filter(
+          (action) => action.kind !== "owner-question-pending",
+        ),
+        ...ownerQuestionActions,
       ],
     }),
   };

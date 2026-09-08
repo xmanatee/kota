@@ -139,9 +139,49 @@ export function completeProgressReviewSemanticInput(args: {
     return args.current;
   }
   return {
-    schemaVersion: 1,
-    scopeId: args.current.scopeId,
+    ...args.current,
     lastConsumedRevision: args.input.inputRevision,
     consumedAt: args.consumedAt,
+  };
+}
+
+/** Explicit requests are lossless, but cannot replay or replace newer topics. */
+export function planProgressReviewPublication(args: {
+  current: ProgressReviewConsumptionState;
+  input: Pick<ProgressReviewSemanticInput, "automatic" | "inputRevision">;
+  sourceRunId: string;
+  generatedAt: string;
+  proposalKeys: readonly string[];
+}): {
+  replay: boolean;
+  freshProposalKeys: Set<string>;
+  nextState: ProgressReviewConsumptionState;
+} {
+  const replay = !args.input.automatic &&
+    args.current.consumedExplicitRunIds.includes(args.sourceRunId);
+  const consumed = completeProgressReviewSemanticInput({
+    current: args.current, input: args.input, consumedAt: args.generatedAt,
+  });
+  const fresh = !replay && (!args.input.automatic || consumed !== args.current);
+  const freshProposalKeys = new Set(args.proposalKeys.filter((proposalKey) =>
+    fresh && !args.current.proposalObservations.some((entry) =>
+      entry.proposalKey === proposalKey && entry.generatedAt > args.generatedAt),
+  ));
+  if (replay || (args.input.automatic && !fresh)) {
+    return { replay, freshProposalKeys, nextState: args.current };
+  }
+  return {
+    replay,
+    freshProposalKeys,
+    nextState: {
+      ...consumed,
+      consumedExplicitRunIds: args.input.automatic
+        ? consumed.consumedExplicitRunIds
+        : [...consumed.consumedExplicitRunIds, args.sourceRunId],
+      proposalObservations: [
+        ...consumed.proposalObservations.filter((entry) => !freshProposalKeys.has(entry.proposalKey)),
+        ...[...freshProposalKeys].map((proposalKey) => ({ proposalKey, generatedAt: args.generatedAt })),
+      ],
+    },
   };
 }

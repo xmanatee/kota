@@ -11,6 +11,7 @@ import {
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
 import { materializeGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
+import type { GeneratedWorkQuestionProposal } from "#modules/autonomy/generated-work-proposal-types.js";
 import {
   type AutonomyHealthSignalInput,
   normalizeHealthSignal,
@@ -209,7 +210,9 @@ describe("autonomy health issue projection", () => {
       ),
     );
 
-    expect(cleared.dismissedOwnerQuestionIds).toEqual([question.id]);
+    expect(cleared.ownerQuestionMutations).toEqual([
+      expect.objectContaining({ questionId: question.id, mutation: "dismiss" }),
+    ]);
     expect(cleared.applied).toEqual([
       expect.objectContaining({ kind: "resolved", transition: "cleared" }),
     ]);
@@ -275,6 +278,71 @@ describe("autonomy health issue projection", () => {
     expect(readAutonomyIssueProjection(workspaceRoot).issues[0]?.status).toBe(
       "resolved",
     );
+  });
+
+  it("retires a generated question once and renews it when the same issue returns", () => {
+    const opened = applyReview(workspaceRoot, review([signal()]));
+    const issueKey = opened.applied[0]!.issueKey;
+    const proposal: GeneratedWorkQuestionProposal = {
+      kind: "owner-question",
+      proposalKey: `autonomy-issue:${issueKey}`,
+      question: "Which runtime policy should apply?",
+      context: "The health issue requires an owner decision.",
+      reason: "Choose the recovery policy.",
+      proposedAnswers: ["Retry", "Pause"],
+      origin: { kind: "manual", source: "improver" },
+      provenance: {
+        source: "improver",
+        runId: "improver-run",
+        issueKey,
+        semanticRevision: 1,
+        evidenceRefs: [".kota/runs/builder-1/metadata.json"],
+      },
+    };
+    const initial = materializeGeneratedWorkProposal({ workspaceRoot, proposal });
+    const queue = new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
+    const answered = queue.enqueue({
+      context: "Prior question",
+      question: "Retry the earlier failure?",
+      reason: "Earlier issue",
+      source: "improver",
+      answerBehavior: "record-only",
+      origin: { kind: "manual", source: "improver" },
+    });
+    queue.answer(answered.id, "Retry");
+    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot),
+      updates: [{
+        issueKey,
+        semanticRevision: 1,
+        kind: "owner-question",
+        decidedAt: NOW,
+        taskIds: [],
+        ownerQuestionIds: [initial.ownerQuestionId!, answered.id],
+      }],
+    }));
+    const history = queue.list();
+    const cleared = applyReview(workspaceRoot, review([signal({
+      observation: "cleared",
+      createdAt: "2026-06-17T13:00:00.000Z",
+    })], "2026-06-17T13:00:00.000Z"));
+
+    expect(cleared.ownerQuestionMutations).toEqual([
+      expect.objectContaining({ questionId: initial.ownerQuestionId, mutation: "dismiss" }),
+    ]);
+    expect(queue.list()).toEqual(history);
+    for (const mutation of cleared.ownerQuestionMutations) {
+      queue.dismiss(mutation.questionId, mutation.reason, mutation.resolutionSource);
+    }
+    const retired = queue.get(initial.ownerQuestionId!);
+    const renewed = materializeGeneratedWorkProposal({ workspaceRoot, proposal });
+    expect(renewed.actions).toEqual([
+      { kind: "reopened-owner-question", questionId: renewed.ownerQuestionId },
+    ]);
+    expect(renewed.ownerQuestionId).not.toBe(initial.ownerQuestionId);
+    expect(queue.get(initial.ownerQuestionId!)).toEqual(retired);
+    expect(queue.get(answered.id)).toEqual(history.find((item) => item.id === answered.id));
+    expect(queue.list("pending").map((item) => item.id)).toEqual([renewed.ownerQuestionId]);
   });
 
   it("persists bounded projected evidence instead of raw runtime text", () => {

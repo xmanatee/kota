@@ -6,6 +6,7 @@ import {
   inspectProgressReviewSemanticInput,
   PROGRESS_REVIEW_STATE_KEY,
   type ProgressReviewConsumptionState,
+  planProgressReviewPublication,
 } from "./semantic-input.js";
 
 describe("progress review semantic consumption", () => {
@@ -117,4 +118,48 @@ describe("progress review semantic consumption", () => {
       },
     })).toThrow(/inputRevision/);
   });
+});
+
+
+it("retains explicit publication receipts when automatic consumption advances", () => {
+  const scopeRoot = process.cwd();
+  const planned = planProgressReviewPublication({
+    current: decodeProgressReviewConsumptionState(null, scopeRoot),
+    input: { automatic: false, inputRevision: null },
+    sourceRunId: "explicit-review", generatedAt: "2026-09-07T10:00:00.000Z",
+    proposalKeys: ["progress-reviewer:direction"],
+  });
+  const advanced = completeProgressReviewSemanticInput({
+    current: planned.nextState,
+    input: { automatic: true, inputRevision: 4 },
+    consumedAt: "2026-09-07T11:00:00.000Z",
+  });
+  const restored = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(advanced)), scopeRoot);
+  expect(restored.consumedExplicitRunIds).toEqual(["explicit-review"]);
+  expect(restored.proposalObservations).toEqual(planned.nextState.proposalObservations);
+  expect(restored.lastConsumedRevision).toBe(4);
+  expect(planProgressReviewPublication({
+    current: restored, input: { automatic: false, inputRevision: null },
+    sourceRunId: "explicit-review", generatedAt: "2026-09-07T10:00:00.000Z",
+    proposalKeys: ["progress-reviewer:direction"],
+  })).toMatchObject({ replay: true, nextState: restored });
+});
+
+it("upgrades persisted automatic watermarks and rejects malformed publication receipts", () => {
+  const scopeRoot = process.cwd();
+  const empty = decodeProgressReviewConsumptionState(null, scopeRoot);
+  const legacy = {
+    schemaVersion: empty.schemaVersion, scopeId: empty.scopeId,
+    lastConsumedRevision: 4, consumedAt: "2026-09-07T10:00:00.000Z",
+  };
+  expect(decodeProgressReviewConsumptionState(legacy, scopeRoot)).toEqual({
+    ...empty, ...legacy,
+  });
+  for (const malformed of [
+    { consumedExplicitRunIds: null },
+    { consumedExplicitRunIds: [42] },
+    { proposalObservations: [{ proposalKey: "direction", generatedAt: "invalid" }] },
+  ]) {
+    expect(() => decodeProgressReviewConsumptionState({ ...legacy, ...malformed }, scopeRoot)).toThrow(/semantic state is invalid/);
+  }
 });

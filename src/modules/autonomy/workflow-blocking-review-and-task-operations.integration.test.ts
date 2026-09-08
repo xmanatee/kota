@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { applyAutonomyIssueObservations, buildAutonomyIssueObservation, emptyAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   criticReviewInspectionOperation,
   improverSemanticInspectionOperation,
@@ -19,10 +20,13 @@ import { promoteSatisfiedBlockedTasksOperation } from "#modules/autonomy/workflo
 import {
   builderRepairCheckOperation,
 } from "#modules/autonomy/workflows/builder/blocking-operations.js";
+import { applyDispositionOperation } from "#modules/autonomy/workflows/improver/apply-disposition.js";
+import { decodeIssueDisposition } from "#modules/autonomy/workflows/improver/issue-disposition.js";
 import {
   applyScopeImprovementRecommendationsOperation,
   type ScopeImprovementInputs,
 } from "#modules/autonomy/workflows/scope-improver/scope-improvement.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 describe("autonomy workflow blocking review and task operations", () => {
   it("loads review and task operations through real workers", async () => {
@@ -136,6 +140,7 @@ describe("autonomy workflow blocking review and task operations", () => {
           pendingDelivery: null,
           pendingDeliveryAttempt: 0,
           recentSignatures: [],
+      consumedExplicitRunIds: [],
         },
         instructions: [],
         changedFiles: [],
@@ -206,6 +211,34 @@ describe("autonomy workflow blocking review and task operations", () => {
           "utf8",
         ),
       ).toContain("The worker creates and stages the task.");
+      const issue = applyAutonomyIssueObservations({
+        current: emptyAutonomyIssueProjection(),
+        observations: [buildAutonomyIssueObservation({
+          kind: "present", rootCauseKey: "worker-boundary:missed-output",
+          observedAt: "2026-09-07T12:00:00Z", signalIds: ["worker-output-failure"],
+          source: { kind: "workflow", id: "builder" }, severity: "error", actionability: "local-code",
+          labels: ["workflow"], summaries: ["A completed worker omitted its required output."],
+          evidenceRefs: [{ kind: "artifact", ref: ".kota/runs/failed-worker/metadata.json" }],
+          observationCount: 1,
+        })],
+      }).projection.issues[0]!;
+      const disposition = await runWorkflowBlockingOperation(applyDispositionOperation, {
+        workspaceRoot, scopeRoot: workspaceRoot, issue, workflowRunId: "disposition-boundary",
+        disposition: decodeIssueDisposition({
+          action: "create-task", recoveryAction: "", rationale: "The missed output requires a repair.",
+          taskTitle: "Restore the required worker output", taskSummary: "Completed workers omit the required output.",
+          taskPriority: "p1", taskHowWeWillKnow: "A completed worker returns the required output.",
+          ownerQuestion: "", ownerReason: "", proposedAnswers: [],
+        }),
+      });
+      expect(listFullRepoTasks(workspaceRoot)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: disposition.materialized.taskId, state: "open" }),
+      ]));
+      expect(disposition).toMatchObject({
+        issueKey: issue.issueKey, semanticRevision: issue.semanticRevision,
+        materialized: { touchedTaskQueue: true, ownerQuestionId: null },
+      });
+
     } finally {
       rmSync(workspaceRoot, { recursive: true, force: true });
     }

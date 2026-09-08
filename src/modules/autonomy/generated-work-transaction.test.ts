@@ -7,7 +7,7 @@ import type { GeneratedWorkProposal } from "./generated-work-proposal.js";
 import {
   finalizeGeneratedWorkOwnerEffects,
   stageGeneratedWorkProposal,
-} from "./generated-work-transaction.js";
+} from "./generated-work-proposal.js";
 
 function questionProposal(): GeneratedWorkProposal {
   return {

@@ -7,8 +7,9 @@ import type {
   GeneratedWorkProposal,
   GeneratedWorkProposalAction,
 } from "#modules/autonomy/generated-work-proposal.js";
-import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-transaction.js";
+import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   ProgressReviewAgentOutput,
   ProgressReviewAppliedAction,
@@ -118,6 +119,15 @@ export function writeFollowUpTask(args: {
   };
 }
 
+function projectUpdatedTask(
+  workspaceRoot: string,
+  action: Extract<GeneratedWorkProposalAction, { kind: "updated-task" }>,
+): ProgressReviewAppliedAction {
+  const task = listFullRepoTasks(workspaceRoot).find((item) => item.id === action.taskId);
+  if (!task) throw new Error(`Updated generated task ${action.taskId} is missing`);
+  return { ...action, title: task.title };
+}
+
 export function enqueueOwnerQuestion(args: {
   workspaceRoot: string;
   runId: string;
@@ -127,16 +137,18 @@ export function enqueueOwnerQuestion(args: {
     workspaceRoot: args.workspaceRoot,
     proposal: progressReviewOwnerQuestionProposal(args),
   });
-  const droppedTasks: ProgressReviewAppliedAction[] = result.actions.flatMap(
+  const taskActions: ProgressReviewAppliedAction[] = result.actions.flatMap(
     (action) => action.kind === "dropped-task"
       ? [{
         kind: "dropped-task" as const,
         taskId: action.taskId,
         fromState: action.fromState,
       }]
-      : [],
+      : action.kind === "updated-task"
+        ? [projectUpdatedTask(args.workspaceRoot, action)]
+        : [],
   );
-  return [...droppedTasks, {
+  return [...taskActions, {
     kind: "owner-question-pending",
     question: args.question.question,
   }];
@@ -151,6 +163,7 @@ export function resolveGeneratedWork(args: {
     proposal: progressReviewResolutionProposal(args.resolution),
   });
   return result.actions.map((action): ProgressReviewAppliedAction => {
+    if (action.kind === "updated-task") return projectUpdatedTask(args.workspaceRoot, action);
     if (action.kind === "dropped-task") {
       return {
         kind: "dropped-task",

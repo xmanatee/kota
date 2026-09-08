@@ -1,4 +1,3 @@
-import "./critic-test-fixture.integration.js";
 import {
   existsSync,
   lstatSync,

@@ -1,20 +1,17 @@
 import {
   parseBlockedPrecondition,
-  readOperatorCaptureInstructedMarker,
-  readOwnerAskMarkers,
 } from "#modules/repo-tasks/blocked-precondition.js";
 import {
   countRepoTaskState,
   listRepoTasksInState,
   type RepoTaskRecord,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { freshBlockerActionAt, OPERATOR_CAPTURE_AGE_DAYS } from "../blocked-promoter/blocker-policy.js";
 import type { AttentionItem } from "./step.js";
 
 const DEFAULT_BLOCKED_AGE_DAYS = 3;
-const DEFAULT_BLOCKED_AGED_DAYS = 14;
 const MAX_INDIVIDUAL_BLOCKED_ITEMS = 5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const ACTION_COOLDOWN_MS = 14 * MS_PER_DAY;
 
 type LongBlockedEntry = { record: RepoTaskRecord; ageDays: number };
 
@@ -26,19 +23,7 @@ function hasOwnerBlocker(body: string): boolean {
 function hasFreshActionMarker(record: RepoTaskRecord, nowMs: number): boolean {
   const parsed = parseBlockedPrecondition(`---\n---\n${record.body}`);
   if (!parsed.ok) return false;
-  const precondition = parsed.precondition;
-  if (precondition.kind === "owner-decision") {
-    return readOwnerAskMarkers(record.body).some((marker) => {
-      if (marker.slot !== precondition.slot) return false;
-      const markedAt = Date.parse(marker.lastAskedAt);
-      return !Number.isNaN(markedAt) && nowMs - markedAt < ACTION_COOLDOWN_MS;
-    });
-  }
-  if (precondition.kind !== "operator-capture") return false;
-  const marker = readOperatorCaptureInstructedMarker(record.body);
-  if (!marker) return false;
-  const markedAt = Date.parse(marker.lastInstructedAt);
-  return !Number.isNaN(markedAt) && nowMs - markedAt < ACTION_COOLDOWN_MS;
+  return freshBlockerActionAt(parsed.precondition, record.body, nowMs) !== null;
 }
 
 function ageInDays(record: RepoTaskRecord, nowMs: number): number | null {
@@ -101,7 +86,7 @@ export function blockedAttentionItems(workspaceRoot: string): AttentionItem[] {
   );
   const operatorGatedAged = findOperatorGatedAged(
     records,
-    Number(process.env.KOTA_DIGEST_BLOCKED_AGED_DAYS) || DEFAULT_BLOCKED_AGED_DAYS,
+    Number(process.env.KOTA_DIGEST_BLOCKED_AGED_DAYS) || OPERATOR_CAPTURE_AGE_DAYS,
     nowMs,
   );
   const items: AttentionItem[] = [];
