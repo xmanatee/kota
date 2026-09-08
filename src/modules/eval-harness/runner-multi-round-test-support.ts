@@ -17,7 +17,7 @@ export function writeMultiRoundFixture(fixturesRoot: string, id = "multi-round-m
       rounds: [
         {
           id: "round-1",
-          workflowName: "builder",
+          workflowName: "fixture-worker",
           budgetMs: 60_000,
           taskInput: { kind: "initial-state" },
           preRunExpectations: [
@@ -27,7 +27,7 @@ export function writeMultiRoundFixture(fixturesRoot: string, id = "multi-round-m
         },
         {
           id: "round-2",
-          workflowName: "builder",
+          workflowName: "fixture-worker",
           budgetMs: 70_000,
           taskInput: {
             kind: "copy-fixture-file",

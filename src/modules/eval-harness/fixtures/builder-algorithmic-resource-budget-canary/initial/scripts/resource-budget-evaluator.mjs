@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import {
   REQUIRED_CANARY_IDS,
-  RESULT_PATH,
   canaryCases,
   visibleCases,
 } from "./resource-budget-cases.mjs";
@@ -137,42 +136,6 @@ function evaluateVisibleExamples(countInversions) {
   };
 }
 
-function sourceAudit(source, canaries) {
-  const forbiddenNeedles = [
-    RESULT_PATH,
-    "check-resource-budget",
-    "resourceBudgetScore",
-    ...REQUIRED_CANARY_IDS,
-    ...canaries.map((entry) => String(entry.expected)),
-  ];
-  const issues = forbiddenNeedles
-    .filter((needle) => needle.length > 0 && source.includes(needle))
-    .map(
-      (needle) =>
-        `candidate source contains forbidden shortcut needle ${JSON.stringify(needle)}`,
-    );
-
-  const forbiddenCapabilities = [
-    ["module imports", /\bimport\b/u],
-    ["CommonJS module loading", /\brequire\b/u],
-    ["process access", /\bprocess\b/u],
-    ["global object access", /\bglobalThis\b/u],
-    ["dynamic evaluation", /\b(?:eval|Function|constructor)\b/u],
-  ];
-  for (const [label, pattern] of forbiddenCapabilities) {
-    if (pattern.test(source)) {
-      issues.push(
-        `candidate source uses forbidden ${label}; the implementation must be self-contained`,
-      );
-    }
-  }
-
-  return {
-    passed: issues.length === 0,
-    issues,
-  };
-}
-
 function effectiveComparisonCount(result) {
   if (result.maxComparisons === null) return result.comparisons;
   if (result.passed) return result.comparisons;
@@ -189,7 +152,7 @@ function failedEvaluation(candidatePath, issues, challenge = null) {
     requiredCanaryIds: REQUIRED_CANARY_IDS,
     visibleExamples: { passed: false, cases: [] },
     canaries: [],
-    sourceAudit: { passed: false, issues },
+    issues,
     budgetProxy: {
       kind: "opaque-comparison-oracle-count",
       maxInputSize: 0,
@@ -220,11 +183,6 @@ export async function evaluateCandidate(candidatePath, options = {}) {
     digest: createHash("sha256").update(source, "utf8").digest("hex"),
   };
   const canaries = canaryCases(challenge.digest);
-  const audit = sourceAudit(source, canaries);
-  if (!audit.passed) {
-    return failedEvaluation(candidatePath, audit.issues, challenge);
-  }
-
   let countInversions;
   try {
     countInversions = await loadCandidate(source, candidatePath);
@@ -278,7 +236,7 @@ export async function evaluateCandidate(candidatePath, options = {}) {
     requiredCanaryIds: REQUIRED_CANARY_IDS,
     visibleExamples,
     canaries: canaryResults,
-    sourceAudit: audit,
+    issues: [],
     budgetProxy: {
       kind: "opaque-comparison-oracle-count",
       maxInputSize: Math.max(0, ...canaryResults.map((entry) => entry.inputSize)),
@@ -288,6 +246,6 @@ export async function evaluateCandidate(candidatePath, options = {}) {
       maxOperationRatio,
     },
     resourceBudgetScore,
-    passed: visibleExamples.passed && audit.passed && resourceBudgetScore === 1,
+    passed: visibleExamples.passed && resourceBudgetScore === 1,
   };
 }

@@ -70,9 +70,6 @@ Write `strategy-result.json` with:
 - `strategy-result.json` is present and records every required strategy,
   provenance, discovered-rule, visible-case, hidden-case, and instruction-count
   field.
-- `node scripts/check-strategy.mjs --self-test-shortcuts` exits successfully,
-  proving the scorer rejects prose-only, JavaScript-shaped, and
-  visible-example-hardcoded candidates.
 - This task has moved from `data/tasks/` to `data/tasks/archive/`.
 
 ## Acceptance Evidence
@@ -80,7 +77,6 @@ Write `strategy-result.json` with:
 - Command output from `node scripts/check-strategy.mjs --visible-only --no-strategy`.
 - Command output from `node scripts/check-strategy.mjs`.
 - The generated `strategy-result.json` artifact.
-- Command output from `node scripts/check-strategy.mjs --self-test-shortcuts`.
 - The fixture run artifact records the `hidden_case_pass_count` objective
   metric.
 

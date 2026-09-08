@@ -1,16 +1,10 @@
 import {
   existsSync,
-  mkdirSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
-  writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
 import {
   cleanupSubprocessTestDirs,
@@ -75,40 +69,18 @@ describe("createSubprocessExecutor container execution", () => {
     expect(existsSync(fakeContainerLog)).toBe(false);
   });
 
-  it("runs the fixture command through the container backend with remapped env, replay, shims, and copy-back", async () => {
+  it("runs the fixture command through the container backend with isolated environment and copy-back", async () => {
     const fakeContainer = join(dirs.binariesDir, "fake-container.mjs");
     const fakeKota = join(dirs.binariesDir, "kota-container-env.mjs");
     const containerKotaBinaryPath = "/opt/kota/bin/kota.mjs";
     const fakeContainerLog = join(dirs.workingDir, "container-log.jsonl");
-    const replayRoot = mkdtempSync(join(tmpdir(), "kota-subprocess-replay-"));
-    const shimDir = join(dirs.workingDir, ".kota", "shims");
-    mkdirSync(shimDir, { recursive: true });
-    mkdirSync(join(replayRoot, "recordings"), { recursive: true });
-    writeFileSync(join(replayRoot, "recordings", "noop.json"), "recorded");
     writeFakeContainerBackend(fakeContainer);
-    writeFakeKotaScript(
-      join(shimDir, "fake-gh"),
-      [
-        "#!/usr/bin/env node",
-        "import { writeFileSync } from 'node:fs';",
-        "import { join } from 'node:path';",
-        "writeFileSync(join(process.env.KOTA_SCOPE_ROOT, 'shim-hit.txt'), JSON.stringify({ argv: process.argv.slice(2) }));",
-      ].join("\n"),
-    );
     writeFakeKotaScript(
       fakeKota,
       [
         "import { spawnSync } from 'node:child_process';",
         "import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';",
         "import { join } from 'node:path';",
-        `const replayRoot = process.env.${REPLAY_AGENT_HARNESS_NAME_ENV};`,
-        "const visibleMounts = JSON.parse(process.env.KOTA_FAKE_CONTAINER_VISIBLE_MOUNTS ?? '[]');",
-        "if (!visibleMounts.some((mount) => replayRoot === mount || replayRoot.startsWith(`${mount}/`))) {",
-        "  console.error(`replay root ${replayRoot} is not visible through a container mount`);",
-        "  process.exit(70);",
-        "}",
-        "const replayContent = readFileSync(join(replayRoot, 'recordings', 'noop.json'), 'utf8');",
-        "spawnSync('fake-gh', ['status'], { stdio: 'ignore' });",
         "writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({",
         "  home: process.env.HOME,",
         "  workspaceRoot: process.env.KOTA_SCOPE_ROOT,",
@@ -118,8 +90,6 @@ describe("createSubprocessExecutor container execution", () => {
         "  nodeOptions: process.env.NODE_OPTIONS,",
         "  path: process.env.PATH,",
         `  preset: process.env.${PRESET_ENV_VAR},`,
-        `  replayRoot: process.env.${REPLAY_AGENT_HARNESS_NAME_ENV},`,
-        "  replayContent,",
         "}));",
         "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-container');",
         "mkdirSync(runDir, { recursive: true });",
@@ -145,20 +115,16 @@ describe("createSubprocessExecutor container execution", () => {
     process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_PATH = containerKotaBinaryPath;
     process.env.KOTA_FAKE_CONTAINER_KOTA_BINARY_SOURCE = fakeKota;
     process.env.KOTA_FAKE_CONTAINER_LOG = fakeContainerLog;
-    try {
+    {
       const outcome = await executor.execute({
         workflowName: "noop",
         workingDir: dirs.workingDir,
         budgetMs: 5_000,
         executionProfile: preflight,
-        replayRecordingsRoot: replayRoot,
-        externalCallShimDir: shimDir,
       });
 
       expect(outcome.kind).toBe("completed");
       expect(outcome.runArtifactPath).toContain("run-1-noop-container");
-    } finally {
-      rmSync(replayRoot, { recursive: true, force: true });
     }
 
     const envCapture = JSON.parse(
@@ -175,12 +141,7 @@ describe("createSubprocessExecutor container execution", () => {
       expect(envCapture.storeDir).toBe(
         join(dirs.workingDir, "node_modules", ".kota-eval-runtime", "pnpm-store"),
       );
-    expect(envCapture.preset).toBe("claude");
-    expect(envCapture.replayRoot).toBe(replayRoot);
-    expect(envCapture.replayContent).toBe("recorded");
-    expect(envCapture.path.startsWith(`${shimDir}:`)).toBe(true);
     expect(envCapture.nodeOptions).toBeUndefined();
-    expect(existsSync(join(dirs.workingDir, "shim-hit.txt"))).toBe(true);
 
     const log = JSON.parse(
       readFileSync(fakeContainerLog, "utf8").trim().split("\n")[0]!,
@@ -216,10 +177,9 @@ describe("createSubprocessExecutor container execution", () => {
         "2048m",
       ]),
     );
-    expect(log.args.filter((arg) => arg === "--mount")).toHaveLength(2);
+    expect(log.args.filter((arg) => arg === "--mount")).toHaveLength(1);
     expect(log.mounts).toEqual([
       `type=bind,source=${dirs.workingDir},target=${dirs.workingDir}`,
-      `type=bind,source=${replayRoot},target=${replayRoot},readonly`,
     ]);
     const networkIndex = log.args.indexOf("--network");
     expect(log.args[networkIndex + 1]).toBe("none");

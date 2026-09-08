@@ -21,35 +21,6 @@ export function evidenceChanged(
   return !sameStructuredValue(prior, candidate);
 }
 
-export function promptSkillFacts(runs: readonly FixtureRun[]): {
-  skillAblationRunCount: number;
-  selectedSkills: readonly string[];
-  failedPromptResolutionCount: number;
-  unresolvedSkillCount: number;
-} {
-  let failedPromptResolutionCount = 0;
-  let unresolvedSkillCount = 0;
-  const selectedSkills: string[] = [];
-  let skillAblationRunCount = 0;
-  for (const run of runs) {
-    if (run.skillAblation === undefined) continue;
-    skillAblationRunCount += 1;
-    for (const variant of run.skillAblation.variants) {
-      selectedSkills.push(...variant.selectedSkills);
-      if (!variant.promptResolution.passed) failedPromptResolutionCount += 1;
-      unresolvedSkillCount += variant.promptResolution.resolvedSkills.filter(
-        (skill) => !skill.resolved,
-      ).length;
-    }
-  }
-  return {
-    skillAblationRunCount,
-    selectedSkills: uniqueSorted(selectedSkills),
-    failedPromptResolutionCount,
-    unresolvedSkillCount,
-  };
-}
-
 export function fixtureManifestChanged(
   prior: PriorEvalSetReport | null,
   candidate: EvalRunConfiguration,

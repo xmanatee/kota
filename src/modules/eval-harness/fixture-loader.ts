@@ -1,44 +1,8 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import {
-  type AgentStepRecording,
-  AgentStepRecordingError,
-  loadAgentStepRecordings,
-  recordingsDirForFixture,
-} from "./agent-step-recording.js";
-import { FixtureRecordingProvenanceError } from "./fixture-errors.js";
 import { parseFixtureSpec } from "./fixture-spec-parser.js";
-import type { FixtureSpecFile, LoadedFixture } from "./fixture-spec-types.js";
-
-function validateRecordingProvenance(
-  fixtureDir: string,
-  spec: FixtureSpecFile,
-  recordings: readonly AgentStepRecording[],
-): void {
-  if (recordings.length === 0) return;
-  // Real-failure fixtures pin every recording to the same source run id so
-  // the recording is provable evidence of a past run rather than a synthesized
-  // shape. Smoke fixtures opt out of that pin: they exist to lock harness
-  // plumbing for a workflow whose target failure mode has no real-run history
-  // yet, and a synthesized recording is the legitimate way to exercise that
-  // plumbing. Honesty for smoke fixtures lives in the written
-  // `justification`, which the loader already enforces is non-empty; the
-  // recording's own `sourceRunId` field (also enforced non-empty by
-  // `parseAgentStepRecording`) carries traceability for the recording's
-  // origin without forcing a fake "real-failure" claim onto a synthesized
-  // shape.
-  if (spec.provenance.kind !== "real-failure") return;
-  const expected = spec.provenance.sourceRunId;
-  for (const recording of recordings) {
-    if (recording.sourceRunId !== expected) {
-      throw new FixtureRecordingProvenanceError(
-        fixtureDir,
-        `recording for step "${recording.stepId}" cites sourceRunId "${recording.sourceRunId}" but fixture provenance.sourceRunId is "${expected}".`,
-      );
-    }
-  }
-}
+import type { LoadedFixture } from "./fixture-spec-types.js";
 
 /**
  * Load a single fixture by id from the fixtures root. Fails loudly when the
@@ -53,6 +17,9 @@ export function loadFixture(fixturesRoot: string, id: string): LoadedFixture {
   if (!existsSync(specPath)) {
     throw new Error(`Fixture "${id}" missing fixture.json at "${specPath}".`);
   }
+  if (existsSync(join(fixtureDir, "recordings")) && readdirSync(join(fixtureDir, "recordings")).length > 0) {
+    throw new Error(`Fixture "${id}" contains unsupported agent recordings; capability evaluations require live models.`);
+  }
   const spec = parseFixtureSpec(readFileSync(specPath, "utf-8"), fixtureDir);
   if (spec.id !== id) {
     throw new Error(
@@ -65,19 +32,7 @@ export function loadFixture(fixturesRoot: string, id: string): LoadedFixture {
       `Fixture "${id}" missing required initial/ directory at "${initialStateDir}".`,
     );
   }
-  let agentStepRecordings: readonly AgentStepRecording[];
-  try {
-    agentStepRecordings = loadAgentStepRecordings(fixtureDir);
-  } catch (err) {
-    if (err instanceof AgentStepRecordingError) {
-      throw new Error(
-        `Fixture "${id}" has invalid agent-step recording (${recordingsDirForFixture(fixtureDir)}): ${err.message}`,
-      );
-    }
-    throw err;
-  }
-  validateRecordingProvenance(fixtureDir, spec, agentStepRecordings);
-  return { spec, fixtureDir, initialStateDir, agentStepRecordings };
+  return { spec, fixtureDir, initialStateDir };
 }
 
 /**

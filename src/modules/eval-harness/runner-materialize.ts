@@ -13,14 +13,10 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
-import { installExternalCallShims } from "./external-call-shim.js";
 import type {
   FixtureRoundTaskInput,
   LoadedFixture,
-  VerifierCalibrationSetupOperation,
 } from "./fixture.js";
-import type { FixtureRunExecutionMode } from "./fixture-run.js";
-import { applyFixtureTemplates } from "./fixture-templating.js";
 import type { WorkflowExecutionRequest } from "./runner-types.js";
 
 function runGitSync(cwd: string, args: string[]): void {
@@ -91,96 +87,13 @@ function initFixtureGit(workingDir: string): void {
  * The directory is created under the OS tmp dir by default so harness runs
  * never mutate the operator's repo even if something misbehaves.
  */
-function applySetupOperation(params: {
-  fixtureDir: string;
-  workingDir: string;
-  operation: VerifierCalibrationSetupOperation;
-  sourceLabel: string;
-  targetLabel: string;
-}): void {
-  const source = relativePathInside(
-    params.fixtureDir,
-    params.operation.sourcePath,
-    params.sourceLabel,
-  );
-  const target = relativePathInside(
-    params.workingDir,
-    params.operation.targetPath,
-    params.targetLabel,
-  );
-  if (!existsSync(source) || !statSync(source).isFile()) {
-    throw new Error(
-      `${params.sourceLabel} ${params.operation.sourcePath} must reference an existing fixture file.`,
-    );
-  }
-  mkdirSync(dirname(target), { recursive: true });
-  cpSync(source, target);
-}
-
-export function materializeFixtureWorkingDirAt(params: {
-  fixture: LoadedFixture;
-  workingDir: string;
-  setup?: readonly VerifierCalibrationSetupOperation[];
-}): {
-  workingDir: string;
-  shimDir: string | null;
-} {
-  const { fixture, workingDir } = params;
-  mkdirSync(workingDir, { recursive: true });
-  copyFixtureInitialState(fixture.initialStateDir, workingDir);
-  // Rewrite `{{NOW_MINUS_HOURS:N}}` / `{{NOW_MINUS_MINUTES:N}}` placeholders so
-  // fixtures that depend on a sliding time window (e.g. improver reading a
-  // "failed in the last 24h" run under .kota/runs/) stay deterministic
-  // without a second setup surface. No-op for fixtures without templates.
-  applyFixtureTemplates(workingDir, Date.now());
-  for (const operation of params.setup ?? []) {
-    applySetupOperation({
-      fixtureDir: fixture.fixtureDir,
-      workingDir,
-      operation,
-      sourceLabel: "variant setup sourcePath",
-      targetLabel: "variant setup targetPath",
-    });
-  }
-  initFixtureGit(workingDir);
-  let shimDir: string | null = null;
-  if (
-    fixture.spec.externalCallShims !== undefined &&
-    fixture.spec.externalCallShims.length > 0
-  ) {
-    const installed = installExternalCallShims(
-      workingDir,
-      fixture.spec.externalCallShims,
-    );
-    shimDir = installed.shimDir;
-  }
-  return { workingDir, shimDir };
-}
-
 export function materializeFixtureWorkingDir(fixture: LoadedFixture): {
   workingDir: string;
-  shimDir: string | null;
 } {
-  return materializeFixtureWorkingDirAt({
-    fixture,
-    workingDir: mkdtempSync(join(tmpdir(), `kota-eval-${fixture.spec.id}-`)),
-  });
-}
-
-export function usesAgentStepReplay(
-  fixture: LoadedFixture,
-  hasAgentExecutionOverride: boolean,
-): boolean {
-  return !hasAgentExecutionOverride && fixture.agentStepRecordings.length > 0;
-}
-
-export function fixtureExecutionMode(
-  fixture: LoadedFixture,
-  hasAgentExecutionOverride: boolean,
-): FixtureRunExecutionMode {
-  return usesAgentStepReplay(fixture, hasAgentExecutionOverride)
-    ? "replay"
-    : "live";
+  const workingDir = mkdtempSync(join(tmpdir(), `kota-eval-${fixture.spec.id}-`));
+  copyFixtureInitialState(fixture.initialStateDir, workingDir);
+  initFixtureGit(workingDir);
+  return { workingDir };
 }
 
 export function relativePathInside(root: string, relativePath: string, label: string): string {
@@ -199,17 +112,6 @@ export function relativePathInside(root: string, relativePath: string, label: st
     throw new Error(`${label} must point at a file below ${absoluteRoot}.`);
   }
   return resolved;
-}
-
-export function resolveSkillAblationVariantWorkingDir(
-  parentWorkingDir: string,
-  variantId: string,
-): string {
-  return relativePathInside(
-    parentWorkingDir,
-    variantId,
-    `skill-ablation variant "${variantId}" working directory`,
-  );
 }
 
 export function applyRoundTaskInput(

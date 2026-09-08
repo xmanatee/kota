@@ -1,0 +1,10 @@
+{
+  "name": "inbox-sorter-dedup-against-open-tasks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "check:fast": "pnpm validate-tasks",
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+  }
+}

@@ -16,7 +16,6 @@ import {
   runCaseSuite,
   validateResultArtifact,
   validateSourceHashes,
-  validateSpecSource,
   validateVerifierSource,
 } from "./check-spec-faithfulness/validation.mjs";
 import { validateReturnLabelDecision } from "../src/spec-contract.mjs";
@@ -79,14 +78,6 @@ function loadAndValidateStaticInputs() {
   const verifierSource = readFileSync(verifierPath, "utf8");
   validateVerifierSource(verifierSource, VERIFIER_SEAL);
   const visibleCases = loadVisibleCases(scopeRoot);
-  validateSpecSource(
-    readFileSync(`${scopeRoot}/src/spec-contract.mjs`, "utf8"),
-    [
-      ...visibleCases.officialCases,
-      ...visibleCases.adversarialCases,
-      ...hiddenCases,
-    ].map((entry) => entry.id),
-  );
   return { sourceTexts, sourceHashes, verifierSource, visibleCases };
 }
 

@@ -8,7 +8,8 @@ import {
   rmSync,
   statSync,
 } from "node:fs";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
+import { checkRunnerVariations } from "./check-runner-variations.mjs";
 
 const ALLOWED_METRIC_KEYS = new Set([
   "total_cases",
@@ -23,8 +24,7 @@ const EXPECTED_BAD_VIOLATIONS = new Map([
 ]);
 
 function fail(message) {
-  console.error(message);
-  process.exit(1);
+  throw new Error(message);
 }
 
 function parseArgs(argv) {
@@ -85,7 +85,9 @@ function loadCaseExpectations(casesDir) {
     if (expected === null) {
       fail(`case ${filePath} must live under cases/good/ or cases/bad/`);
     }
-    cases.push({ id: testCase.id, expected, filePath });
+    const violations = expected === "pass" ? [] : [EXPECTED_BAD_VIOLATIONS.get(testCase.id)];
+    if (violations.includes(undefined)) fail(`unknown bad case: ${testCase.id}`);
+    cases.push({ id: testCase.id, expected, filePath, relativePath: rel, violations });
   }
   if (!cases.some((testCase) => testCase.expected === "pass")) {
     fail("at least one good case is required");
@@ -158,26 +160,18 @@ function validateCaseResults(result, expectedCases) {
     if (actual.expected !== expectedCase.expected) {
       fail(`case ${expectedCase.id} expected=${actual.expected}, should be ${expectedCase.expected}`);
     }
-    if (expectedCase.expected === "pass") {
-      if (actual.passed !== true) fail(`good case ${expectedCase.id} did not pass`);
-      if (actual.violations.length !== 0) {
-        fail(`good case ${expectedCase.id} reported violations`);
-      }
-      goodCasesPassed += 1;
-      continue;
+    const shouldPass = expectedCase.violations.length === 0;
+    if (actual.passed !== shouldPass) {
+      fail(`case ${expectedCase.id}: verdict does not match the runner trace`);
     }
-
-    if (actual.passed !== false) fail(`bad case ${expectedCase.id} was not caught`);
-    const expectedViolation = EXPECTED_BAD_VIOLATIONS.get(expectedCase.id);
-    if (expectedViolation === undefined) {
-      fail(`checker has no expected violation for bad case ${expectedCase.id}`);
+    if (
+      actual.violations.length !== expectedCase.violations.length ||
+      !expectedCase.violations.every((violation) => actual.violations.includes(violation))
+    ) {
+      fail(`case ${expectedCase.id}: violations do not match the runner trace`);
     }
-    if (!actual.violations.includes(expectedViolation)) {
-      fail(
-        `bad case ${expectedCase.id} must include violation ${expectedViolation}; got ${actual.violations.join(", ")}`,
-      );
-    }
-    badCasesCaught += 1;
+    if (expectedCase.expected === "pass" && actual.passed) goodCasesPassed += 1;
+    if (expectedCase.expected === "fail" && !actual.passed) badCasesCaught += 1;
     violationsFound += actual.violations.length;
   }
 
@@ -222,17 +216,18 @@ function validateMetrics(result, expectedCases, observed) {
   return metrics;
 }
 
-function runEvaluator({ casesDir, outputPath }) {
+function runEvaluator({ casesDir, outputPath }, cwd = process.cwd()) {
   const evaluatorPath = "scripts/evaluate-traces.mjs";
-  if (!existsSync(evaluatorPath)) {
+  if (!existsSync(join(cwd, evaluatorPath))) {
     fail(`missing evaluator: ${evaluatorPath}`);
   }
-  mkdirSync(dirname(outputPath), { recursive: true });
-  rmSync(outputPath, { force: true });
+  mkdirSync(dirname(resolve(cwd, outputPath)), { recursive: true });
+  rmSync(resolve(cwd, outputPath), { force: true });
   const result = spawnSync(
     process.execPath,
     [evaluatorPath, "--cases", casesDir, "--output", outputPath],
     {
+      cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 10000,
@@ -257,6 +252,13 @@ if (result.schemaVersion !== 1) {
 }
 const observed = validateCaseResults(result, expectedCases);
 const metrics = validateMetrics(result, expectedCases, observed);
+checkRunnerVariations(expectedCases, (cwd, cases) => {
+  const options = { casesDir: "cases", outputPath: "artifacts/evaluation-result.json" };
+  runEvaluator(options, cwd);
+  const variation = ensurePlainObject(readResult(join(cwd, options.outputPath)), "variation result");
+  if (variation.schemaVersion !== 1) fail("variation schemaVersion must be 1");
+  validateMetrics(variation, cases, validateCaseResults(variation, cases));
+});
 
 if (args.metricOnly !== null) {
   const key = args.metricOnly.replaceAll("-", "_");

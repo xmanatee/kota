@@ -6,7 +6,6 @@ import {
   assertNoModeFields,
   isJsonObject,
   parseBudgetMs,
-  parseExternalCallShims,
   parseJsonPayload,
   parseObjectiveMetrics,
   parseOptionalTags,
@@ -15,7 +14,6 @@ import {
 import { parsePredicates, parsePreRunExpectations } from "./fixture-predicate-parser.js";
 import { parseControlDecisions, parseProvenance } from "./fixture-provenance-parser.js";
 import { parseRounds } from "./fixture-round-parser.js";
-import { parseSkillAblationExpectedDirection, parseSkillAblationVariants } from "./fixture-skill-ablation-parser.js";
 import type { FixtureSpecCommon, FixtureSpecFile } from "./fixture-spec-types.js";
 import { parseVerifierCalibration } from "./fixture-verifier-parser.js";
 
@@ -30,7 +28,6 @@ function parseCommonSpecFields(
     );
   }
   const controlDecisions = parseControlDecisions(r.controlDecisions, fixtureDir);
-  const externalCallShims = parseExternalCallShims(r.externalCallShims, fixtureDir);
   const tags = parseOptionalTags(r.tags, fixtureDir);
   const codeHealthDiagnostics = parseCodeHealthDiagnosticsConfig(
     r.codeHealthDiagnostics,
@@ -46,7 +43,6 @@ function parseCommonSpecFields(
     role: parseRequiredString(r, "role", fixtureDir) as FixtureAutonomyRole,
     provenance,
     controlDecisions,
-    ...(externalCallShims !== undefined && { externalCallShims }),
     ...(tags !== undefined && { tags }),
     ...(codeHealthDiagnostics !== undefined && { codeHealthDiagnostics }),
     ...(verifierCalibration !== undefined && { verifierCalibration }),
@@ -66,6 +62,9 @@ export function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSp
     throw new Error(`Fixture at "${fixtureDir}" fixture.json must be a JSON object.`);
   }
   const r = raw;
+  if (r.externalCallShims !== undefined || r.variants !== undefined || r.expectedDirection !== undefined) {
+    throw new Error(`Fixture at "${fixtureDir}" declares unsupported replay or ablation fields.`);
+  }
   const mode = r.mode ?? "single-workflow";
   const common = parseCommonSpecFields(r, fixtureDir);
   if (mode === "multi-round") {
@@ -96,35 +95,9 @@ export function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSp
     assertRequiredVerifierCalibration(spec, fixtureDir);
     return spec;
   }
-  if (mode === "skill-ablation") {
-    assertNoModeFields(r, fixtureDir, "skill-ablation", [
-      "workflowName",
-      "triggerPayload",
-      "predicates",
-      "preRunExpectations",
-      "objectiveMetrics",
-      "rounds",
-      "aggregatePredicates",
-      "aggregateObjectiveMetrics",
-    ]);
-    const variants = parseSkillAblationVariants(r.variants, fixtureDir);
-    const spec: FixtureSpecFile = {
-      ...common,
-      mode: "skill-ablation",
-      budgetMs: parseBudgetMs(r.budgetMs, fixtureDir),
-      variants,
-      expectedDirection: parseSkillAblationExpectedDirection(
-        r.expectedDirection,
-        fixtureDir,
-        variants,
-      ),
-    };
-    assertRequiredVerifierCalibration(spec, fixtureDir);
-    return spec;
-  }
   if (mode !== "single-workflow") {
     throw new Error(
-      `Fixture at "${fixtureDir}" has unknown mode ${JSON.stringify(mode)}. Legal values are "single-workflow", "multi-round", and "skill-ablation".`,
+      `Fixture at "${fixtureDir}" has unknown mode ${JSON.stringify(mode)}. Legal values are "single-workflow" and "multi-round".`,
     );
   }
   assertNoModeFields(r, fixtureDir, "single-workflow", [
@@ -145,6 +118,7 @@ export function parseFixtureSpec(rawJson: string, fixtureDir: string): FixtureSp
     ...common,
     mode: "single-workflow",
     workflowName: parseRequiredString(r, "workflowName", fixtureDir),
+    ...(r.builderTaskId !== undefined && { builderTaskId: parseRequiredString(r, "builderTaskId", fixtureDir) }),
     ...(triggerEvent !== undefined && { triggerEvent }),
     budgetMs: parseBudgetMs(r.budgetMs, fixtureDir),
     predicates: parsePredicates(r.predicates, fixtureDir, "predicate"),

@@ -22,7 +22,6 @@ import { runEvalSet } from "./eval-set.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import {
   isMultiRoundFixtureSpec,
-  isSkillAblationFixtureSpec,
   loadAllFixtures,
   loadFixture,
   summarizeControlDecisionCoverage,
@@ -51,8 +50,6 @@ export function listEvalFixtures(): EvalListResult {
       role: f.spec.role,
       workflowName: isMultiRoundFixtureSpec(f.spec)
         ? f.spec.rounds.map((round) => round.workflowName).join(" → ")
-        : isSkillAblationFixtureSpec(f.spec)
-          ? f.spec.variants.map((variant) => variant.workflowName).join(" <-> ")
         : f.spec.workflowName,
       controlDecisions: [...f.spec.controlDecisions],
       tags: [...(f.spec.tags ?? [])],

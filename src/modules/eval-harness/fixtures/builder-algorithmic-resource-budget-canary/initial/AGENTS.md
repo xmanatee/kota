@@ -4,8 +4,8 @@ This is a tiny eval fixture. Keep changes scoped to the task.
 
 - The assigned task stays `open` while the builder run is active.
 - Improve only `src/inversions.mjs`.
-- Keep the implementation self-contained. Module imports and runtime access to
-  fixture files are rejected by the scorer.
+- Keep the implementation self-contained. The scorer loads source independently of
+  the fixture module tree and measures behavior with opaque comparison inputs.
 - Preserve the exported `countInversions(values, hooks)` API and call
   `hooks.recordComparison(left, right)` for each logical value comparison.
   When the callback returns `-1`, `0`, or `1`, use that ordering instead of

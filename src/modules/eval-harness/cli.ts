@@ -5,12 +5,10 @@
  * the current scope's subprocess workflow trigger. CLI subcommands route
  * through `ctx.client.evalHarness.<method>()` so daemon-up and daemon-down
  * operators see the same fixture set, run report shape, and calibration
- * aggregate. The `record-agent-step` developer subcommand stays local —
- * it extracts a fixture from a project run artifact and is not part of the
- * operator KotaClient surface.
+ * aggregate.
  */
 
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, } from "node:path";
 import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveActivePresetFromConfig } from "#core/model/preset.js";
@@ -37,8 +35,6 @@ import {
   providerEgressProviderForPreset,
   validateProviderEgressProxyUrl,
 } from "./provider-egress.js";
-import { extractAgentStepRecording, extractJudgeCallRecording } from "./recorder.js";
-import { resolveRecordingFixtureDir } from "./recorder-paths.js";
 
 function parsePositiveInt(raw: string, name: string): number {
   const parsed = Number.parseInt(raw, 10);
@@ -453,104 +449,6 @@ export function buildEvalCommand(ctx: ModuleContext): Command {
       if (passHatK < 1) {
         process.exitCode = 1;
       }
-    });
-
-  cmd
-    .command("record-agent-step")
-    .description(
-      "Extract an agent-step or judge-call recording from a real .kota/runs/<id>/ artifact into a fixture.",
-    )
-    .requiredOption("--run-id <id>", "Source run id under .kota/runs/")
-    .option("--step <id>", "Agent step id to extract (e.g. decompose) — mutually exclusive with --judge")
-    .option(
-      "--judge <label>",
-      "Judge artifact label to extract (e.g. critic-review, semantic-gate-review); reads <runDir>/<label>.json — mutually exclusive with --step",
-    )
-    .requiredOption(
-      "--fixture <id>",
-      "Target fixture id under src/modules/eval-harness/fixtures/",
-    )
-    .action((opts: { runId: string; step?: string; judge?: string; fixture: string }) => {
-      const fixturesRoot = join(ctx.cwd, "src/modules/eval-harness/fixtures");
-      const fixtureDir = resolveRecordingFixtureDir(fixturesRoot, opts.fixture);
-      if (!opts.step === !opts.judge) {
-        throw new Error(
-          "record-agent-step requires exactly one of --step or --judge.",
-        );
-      }
-      if (opts.judge !== undefined) {
-        const result = extractJudgeCallRecording({
-          workspaceRoot: ctx.cwd,
-          sourceRunId: opts.runId,
-          label: opts.judge,
-          fixtureDir,
-        });
-        print(stack(
-          line(
-            plain("wrote recording: "),
-            span(result.recordingPath, "accent"),
-          ),
-          line(
-            plain("  workflow="),
-            span(result.recording.workflowName, "info"),
-            plain("  judge="),
-            span(result.recording.stepId, "info"),
-            plain("  source="),
-            span(result.recording.sourceRunId, "muted"),
-          ),
-        ));
-        return;
-      }
-      const result = extractAgentStepRecording({
-        workspaceRoot: ctx.cwd,
-        sourceRunId: opts.runId,
-        stepId: opts.step!,
-        fixtureDir,
-      });
-      print(stack(
-        line(
-          plain("wrote recording: "),
-          span(result.recordingPath, "accent"),
-        ),
-        line(
-          plain("  workflow="),
-          span(result.recording.workflowName, "info"),
-          plain("  step="),
-          span(result.recording.stepId, "info"),
-          plain("  source="),
-          span(result.recording.sourceRunId, "muted"),
-          plain("  sourceCommit="),
-          span(result.sourceCommitSha.slice(0, 12), "muted"),
-        ),
-        line(
-          plain("  response turns="),
-          span(String(result.recording.response.turns), "info"),
-          plain(" cost="),
-          span(
-            result.recording.response.usage.cost.state === "complete"
-              ? `$${result.recording.response.usage.cost.usd.toFixed(6)}`
-              : result.recording.response.usage.cost.state,
-            "info",
-          ),
-        ),
-        line(
-          plain("  file operations extracted: "),
-          span(String(result.recording.fileOperations.length), "accent"),
-        ),
-        ...(result.skippedWritesOutsideWorkspace.length > 0
-          ? [
-              line(
-                span(
-                  `  skipped ${result.skippedWritesOutsideWorkspace.length} path(s) outside the project (audit if relevant):`,
-                  "warn",
-                ),
-              ),
-              ...result.skippedWritesOutsideWorkspace.map((p) =>
-                line(span(`    ${p}`, "muted")),
-              ),
-            ]
-          : []),
-      ));
     });
 
   cmd

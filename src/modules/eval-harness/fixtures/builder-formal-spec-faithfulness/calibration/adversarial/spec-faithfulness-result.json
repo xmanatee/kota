@@ -4,8 +4,7 @@
   "specContractPath": "src/spec-contract.mjs",
   "verificationCommand": "node scripts/check-spec-faithfulness.mjs",
   "localVerificationCommands": [
-    "node scripts/check-spec-faithfulness.mjs",
-    "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts"
+    "node scripts/check-spec-faithfulness.mjs"
   ],
   "acceptedValidCases": [
     "official-standard-approved",

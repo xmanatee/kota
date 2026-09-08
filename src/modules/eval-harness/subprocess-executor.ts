@@ -152,7 +152,6 @@ function buildChildSpec(params: {
       backend,
       executionProfile: params.request.executionProfile,
       workingDir: params.request.workingDir,
-      replayRecordingsRoot: params.request.replayRecordingsRoot,
       envFilePath: containerEnvFile.path,
       command: "node",
       commandArgs: workflowExecArgs(backend.kotaBinaryPath, params.request),

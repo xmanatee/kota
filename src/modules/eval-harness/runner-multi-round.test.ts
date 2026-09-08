@@ -72,8 +72,8 @@ describe("runFixture multi-round", () => {
 
     expect(report.run.outcome).toBe("pass");
     expect(calls).toEqual([
-      { workflowName: "builder", workingDir: report.workingDir, budgetMs: 60_000 },
-      { workflowName: "builder", workingDir: report.workingDir, budgetMs: 70_000 },
+      { workflowName: "fixture-worker", workingDir: report.workingDir, budgetMs: 60_000 },
+      { workflowName: "fixture-worker", workingDir: report.workingDir, budgetMs: 70_000 },
     ]);
     expect(report.run.rounds?.map((round) => round.outcome)).toEqual([
       "pass",
@@ -162,7 +162,7 @@ describe("runFixture multi-round", () => {
         rounds: [
           {
             id: "round-1",
-            workflowName: "builder",
+            workflowName: "fixture-worker",
             budgetMs: 60_000,
             taskInput: { kind: "initial-state" },
             preRunExpectations: [
@@ -172,7 +172,7 @@ describe("runFixture multi-round", () => {
           },
           {
             id: "round-2",
-            workflowName: "builder",
+            workflowName: "fixture-worker",
             budgetMs: 60_000,
             taskInput: { kind: "initial-state" },
             preRunExpectations: [

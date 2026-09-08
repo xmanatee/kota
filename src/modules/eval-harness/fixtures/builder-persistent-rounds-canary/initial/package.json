@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node scripts/check-ledger.mjs --round=2"
+    "check": "node scripts/check-ledger.mjs --round=2",
+    "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
+    "check:fast": "pnpm validate-tasks"
   }
 }

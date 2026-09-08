@@ -19,6 +19,7 @@ import {
   type EvalHarnessCadenceResult,
   evalHarnessCadenceOperation,
 } from "./cadence-operation.js";
+import { validateEvalRunRequest } from "./eval-request-validation.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import type { SubprocessIsolationBackend } from "./subprocess-executor.js";
 
@@ -29,6 +30,9 @@ export const EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV =
 export const EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV =
   "KOTA_EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH";
 
+export const EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV =
+  "KOTA_EVAL_HARNESS_CADENCE_NETWORK_POLICY";
+
 export function isCadenceIsolationConfigured(
   env: NodeJS.ProcessEnv = process.env,
 ): boolean {
@@ -36,6 +40,7 @@ export function isCadenceIsolationConfigured(
     env[EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV],
     env[EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV],
     env[EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV],
+    env[EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV],
   ];
   if (values.every((value) => value === undefined)) return false;
   resolveCadenceIsolationBackend(env);
@@ -66,7 +71,19 @@ export function resolveCadenceIsolationBackend(
       `${EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV} must be an absolute container path.`,
     );
   }
-  return { kind: "container", executable, image, kotaBinaryPath };
+  const policyJson = env[EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV];
+  if (policyJson === undefined || policyJson.length === 0) {
+    throw new Error(`${EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV} must declare provider-egress for live evaluation.`);
+  }
+  const options = validateEvalRunRequest({ isolationBackend: {
+    kind: "container", executable, image, kotaBinaryPath,
+    networkPolicy: JSON.parse(policyJson),
+  } });
+  const backend = options.isolationBackend;
+  if (backend?.kind !== "container" || backend.networkPolicy?.kind !== "provider-egress") {
+    throw new Error("Live evaluation cadence requires provider-egress; offline replay is unsupported.");
+  }
+  return backend;
 }
 
 export const runHarness = typedCodeStep<EvalHarnessCadenceResult>({

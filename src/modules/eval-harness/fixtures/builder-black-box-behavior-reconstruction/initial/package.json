@@ -2,12 +2,9 @@
   "name": "kota-eval-harness-black-box-behavior-fixture",
   "private": true,
   "scripts": {
-    "build": "true",
-    "typecheck": "true",
-    "lint": "true",
-    "lint:fix": "true",
     "test": "node scripts/score.mjs --max-mismatches 0",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
-    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\"",
+    "check:fast": "pnpm validate-tasks"
   }
 }

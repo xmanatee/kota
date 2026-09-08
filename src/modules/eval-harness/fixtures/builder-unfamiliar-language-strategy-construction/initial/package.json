@@ -3,15 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "true",
-    "dev": "true",
-    "typecheck": "true",
-    "lint": "true",
-    "lint:fix": "true",
     "examples": "node scripts/check-strategy.mjs --visible-only --no-strategy",
     "test": "node scripts/check-strategy.mjs",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
     "finish-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-write-spool-route-strategy done",
-    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\"",
+    "check:fast": "pnpm validate-tasks"
   }
 }

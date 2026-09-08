@@ -60,23 +60,6 @@ export type WorkflowExecutionRequest = {
    * matrix harness/model instead of only labelling the row with them.
    */
   agentExecutionOverride?: WorkflowAgentExecutionOverride;
-  /**
-   * Absolute path to the fixture directory when its `recordings/` tree has
-   * at least one agent-step recording. The subprocess executor forwards
-   * this via `KOTA_EVAL_HARNESS_REPLAY_ROOT` so the eval-harness module
-   * installs its replay adapter in place of the claude-agent-sdk
-   * registration inside the child. Absent for smoke fixtures whose
-   * workflows never invoke an agent step.
-   */
-  replayRecordingsRoot?: string;
-  /**
-   * Absolute path to the fixture-scoped fake-binary shim directory. When
-   * set, the subprocess executor prepends this directory to `PATH` so any
-   * shadowed binary (e.g. `gh`) resolves to the recording shim instead of
-   * the host's real binary. Absent when the fixture declared no
-   * `externalCallShims`.
-   */
-  externalCallShimDir?: string;
 };
 
 /** Outcome a WorkflowExecutor reports back to the runner. */

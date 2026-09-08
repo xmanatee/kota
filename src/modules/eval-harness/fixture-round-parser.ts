@@ -74,6 +74,7 @@ function parseRoundSpec(
   return {
     id,
     workflowName: parseRequiredString(raw, "workflowName", fixtureDir),
+    ...(raw.builderTaskId !== undefined && { builderTaskId: parseRequiredString(raw, "builderTaskId", fixtureDir) }),
     budgetMs: parseBudgetMs(raw.budgetMs, fixtureDir, `${roundLabel} budgetMs`),
     taskInput: parseTaskInput(raw.taskInput, fixtureDir, id),
     preRunExpectations: parsePreRunExpectations(

@@ -75,7 +75,7 @@ async function runSelfTestShortcuts() {
     },
     {
       candidate: CASE_METADATA_SHORTCUT_CANDIDATE,
-      expectedRejection: "source-audit-module-import",
+      expectedRejection: "module-resolution-failure",
     },
   ];
   for (const { candidate, expectedRejection } of shortcutCases) {
@@ -85,10 +85,8 @@ async function runSelfTestShortcuts() {
     const result = await evaluateCandidate(candidate);
     const failedCanaries = result.canaries.filter((entry) => !entry.passed);
     const rejectedForExpectedReason =
-      expectedRejection === "source-audit-module-import"
-        ? result.sourceAudit.issues.some((issue) =>
-            issue.includes("forbidden module imports"),
-          )
+      expectedRejection === "module-resolution-failure"
+        ? result.issues.length > 0 && result.canaries.length === 0
         : result.visibleExamples.passed && failedCanaries.length > 0;
     candidates.push({
       candidate,

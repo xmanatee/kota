@@ -38,12 +38,6 @@ type FixtureRunArtifactFile = {
     execution?: WorkflowExecutionArtifact;
     predicateResults?: readonly PredicateArtifactResult[];
   }[];
-  skillAblation?: {
-    variants?: readonly {
-      runArtifactPath?: string | null;
-      predicateResults?: readonly PredicateArtifactResult[];
-    }[];
-  };
 };
 
 type TrajectoryDiagnosticsArtifactFile = {
@@ -99,9 +93,6 @@ function childArtifactPaths(
     ...(payload.rounds ?? []).flatMap((round) =>
       childRunArtifactPath(round.execution?.runArtifactPath),
     ),
-    ...(payload.skillAblation?.variants ?? []).flatMap((variant) =>
-      childRunArtifactPath(variant.runArtifactPath),
-    ),
   ]);
 }
 
@@ -113,9 +104,6 @@ function allPredicateResults(
     ...(payload.predicateResults ?? []),
     ...(payload.aggregatePredicateResults ?? []),
     ...(payload.rounds ?? []).flatMap((round) => round.predicateResults ?? []),
-    ...(payload.skillAblation?.variants ?? []).flatMap(
-      (variant) => variant.predicateResults ?? [],
-    ),
   ];
 }
 

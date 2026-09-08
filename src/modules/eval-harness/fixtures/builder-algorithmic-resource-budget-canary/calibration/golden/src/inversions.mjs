@@ -1,3 +1,4 @@
+// Large inputs require bounded comparisons.
 export function countInversions(values, hooks = {}) {
   const work = [...values];
   const scratch = new Array(work.length);

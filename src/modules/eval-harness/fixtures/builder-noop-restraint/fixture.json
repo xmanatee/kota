@@ -39,7 +39,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic canary for the no-op restraint invariant surfaced by already-fixed task research: an already-satisfied task can pass through task-state movement only, and changed-path predicates must fail unnecessary production edits. No KOTA real-failure run is available for this exact failure shape yet."
+    "justification": "A model makes unnecessary production changes while completing an already-satisfied task. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose builder prompts/models that recognize justified no-op completion. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -60,5 +60,6 @@
   ],
   "controlDecisions": [
     "stop"
-  ]
+  ],
+  "builderTaskId": "task-verify-existing-noop-marker"
 }

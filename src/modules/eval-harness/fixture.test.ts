@@ -237,4 +237,26 @@ describe("loadFixture basics", () => {
     });
     expect(() => loadFixture(root, "bad")).toThrow(/invalid predicate/);
   });
+  it("rejects retired replay input instead of silently running a live model", () => {
+    writeFixture(root, "retired", {
+      id: "retired", description: "obsolete", role: "builder",
+      workflowName: "builder", budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "result" }],
+      externalCallShims: ["gh"],
+    });
+    expect(() => loadFixture(root, "retired")).toThrow(/unsupported replay/);
+  });
+
+  it("rejects recorded agent answers before starting a model", () => {
+    writeFixture(root, "recorded", {
+      id: "recorded", description: "obsolete", role: "builder",
+      workflowName: "builder", budgetMs: 600_000,
+      predicates: [{ kind: "file-exists", path: "result" }],
+    });
+    const recordings = join(root, "recorded", "recordings");
+    mkdirSync(recordings);
+    writeFileSync(join(recordings, "build.json"), "{}");
+    expect(() => loadFixture(root, "recorded")).toThrow(/unsupported agent recordings/);
+  });
+
 });

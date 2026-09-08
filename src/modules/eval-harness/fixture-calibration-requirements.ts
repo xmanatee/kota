@@ -3,7 +3,6 @@ import { FixtureVerifierCalibrationError } from "./fixture-errors.js";
 import {
   type FixtureSpecFile,
   isSingleWorkflowFixtureSpec,
-  isSkillAblationFixtureSpec,
 } from "./fixture-spec-types.js";
 import type { ObjectiveMetricSpec } from "./objective-metrics.js";
 import type { FixturePredicate } from "./predicates.js";
@@ -27,9 +26,6 @@ function predicateRequiresVerifierCalibration(
 function objectiveMetricsForSpec(spec: FixtureSpecFile): ObjectiveMetricSpec[] {
   if (isSingleWorkflowFixtureSpec(spec)) {
     return [...(spec.objectiveMetrics ?? [])];
-  }
-  if (isSkillAblationFixtureSpec(spec)) {
-    return [];
   }
   return [
     ...spec.rounds.flatMap((round) => round.objectiveMetrics ?? []),
@@ -60,9 +56,7 @@ export function verifierCalibrationPredicatesForSpec(
 ): FixturePredicate[] {
   const predicates = isSingleWorkflowFixtureSpec(spec)
     ? spec.predicates
-    : isSkillAblationFixtureSpec(spec)
-      ? spec.variants.flatMap((variant) => variant.predicates)
-      : [
+    : [
         ...spec.rounds.flatMap((round) => round.predicates),
         ...(spec.aggregatePredicates ?? []),
       ];

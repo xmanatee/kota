@@ -85,7 +85,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic live-builder canary for ProgramBench-shaped black-box reconstruction work: the generator must infer behavior from executable observations and docs, while local predicates and objective metrics prove the result. No past KOTA failure run exists for this exact measurement gap."
+    "justification": "A model fails to infer behavior from oracle observations or copies the oracle instead of reconstructing it. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose models/prompts for unfamiliar tool and program reconstruction. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -106,5 +106,6 @@
   ],
   "controlDecisions": [
     "act"
-  ]
+  ],
+  "builderTaskId": "task-reconstruct-badge-code-cli"
 }

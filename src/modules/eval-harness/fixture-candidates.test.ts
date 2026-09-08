@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowRunMetadataAuthorityError } from "#core/workflow/run-metadata.js";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
+import { loadAllFixtures } from "./fixture.js";
 import {
   type FixtureCandidateReport,
   mineFixtureCandidates,
@@ -151,7 +152,10 @@ describe("fixture candidate mining", () => {
   });
 
   it("rejects runs already covered by existing real-failure fixture provenance", () => {
-    const sourceRunId = "2026-04-23T00-03-55-062Z-research-retry-u92f1u";
+    const fixture = loadAllFixtures(join(process.cwd(), "src/modules/eval-harness/fixtures"))
+      .find((entry) => entry.spec.provenance.kind === "real-failure");
+    if (!fixture || fixture.spec.provenance.kind !== "real-failure") throw new Error("Missing regression fixture");
+    const sourceRunId = fixture.spec.provenance.sourceRunId;
     seedRun(workspaceRoot, sourceRunId, {
       commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
       artifacts: { "verification.json": { ok: true } },
@@ -167,7 +171,7 @@ describe("fixture candidate mining", () => {
     expect(candidate.disposition).toBe("duplicate");
     expect(candidate.reasonCodes).toContain("duplicate-existing-fixture");
     expect(candidate.duplicateCoverage.fixtureIds).toEqual([
-      "research-retry-agent-call-replay",
+      fixture.spec.id,
     ]);
   });
 

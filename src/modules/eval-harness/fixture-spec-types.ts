@@ -1,5 +1,4 @@
 
-import type { AgentStepRecording } from "./agent-step-recording.js";
 import type { CodeHealthDiagnosticsConfig } from "./code-health-diagnostics.js";
 import type {
   FixtureAutonomyRole,
@@ -7,7 +6,7 @@ import type {
   FixtureJsonObject,
   FixtureProvenance,
 } from "./fixture-common-types.js";
-import type { VerifierCalibrationSetupOperation, VerifierCalibrationSpec } from "./fixture-verifier-types.js";
+import type { VerifierCalibrationSpec } from "./fixture-verifier-types.js";
 import type { ObjectiveMetricSpec } from "./objective-metrics.js";
 import type { FixturePredicate, FixturePredicateExpectation } from "./predicates.js";
 
@@ -21,6 +20,8 @@ export type FixtureRoundSpec = {
   id: string;
   /** The workflow name to invoke for this round. */
   workflowName: string;
+  /** Authored task identity; the runtime dispatch digest is resolved after materialization. */
+  builderTaskId?: string;
   /**
    * Explicit round budget in milliseconds. A timeout in any round stops the
    * multi-round attempt and records the fixture attempt as `timeout`.
@@ -53,18 +54,6 @@ export type FixtureSpecCommon = {
    */
   controlDecisions: readonly FixtureControlDecision[];
   /**
-   * Optional list of external binary names the runner should shadow with a
-   * fixture-scoped recording shim (e.g. ["gh"]). Each declared name has a
-   * Node-script shim installed under `<workingDir>/.kota/shims/<binary>`,
-   * the shim directory is prepended to `PATH` for the subprocess, and the
-   * shim records every invocation as a JSONL line under
-   * `<workingDir>/.kota/external-calls/<binary>.jsonl` for an
-   * `external-call-log` predicate to inspect. Production code paths leave
-   * `PATH` untouched. Allowed name characters are `[A-Za-z0-9._-]` so a
-   * malformed declaration cannot escape the shim directory.
-   */
-  externalCallShims?: readonly string[];
-  /**
    * Optional tags operators use to slice the fixture set (e.g. "smoke",
    * "regression-2026-04", "slow"). Not load-bearing — scoring does not read
    * them.
@@ -88,6 +77,8 @@ export type SingleWorkflowFixtureSpecFile = FixtureSpecCommon & {
   mode: "single-workflow";
   /** The workflow name to invoke against the fixture's initial state. */
   workflowName: string;
+  /** Authored task identity; the runtime dispatch digest is resolved after materialization. */
+  builderTaskId?: string;
   /** Exact trigger event being replayed. Absence intentionally means manual. */
   triggerEvent?: string;
   /**
@@ -148,66 +139,9 @@ export type MultiRoundFixtureSpecFile = FixtureSpecCommon & {
   aggregateObjectiveMetrics?: readonly ObjectiveMetricSpec[];
 };
 
-export type SkillAblationSkillProvenance = "none" | "imported";
-
-export type SkillAblationExpectedOutcome = "pass" | "fail";
-
-export type SkillAblationPromptEvidenceSpec = {
-  requiredNeedles?: readonly string[];
-  forbiddenNeedles?: readonly string[];
-};
-
-export type SkillAblationExpectedDirection = {
-  kind: "treatment-passes-control-fails";
-  controlVariantId: string;
-  treatmentVariantId: string;
-  noisyVariantId?: string;
-  summary: string;
-};
-
-export type SkillAblationVariantSpec = {
-  /** Stable id, unique within the fixture and ordered by array position. */
-  id: string;
-  /** The fixture-local workflow invoked for this variant. */
-  workflowName: string;
-  /** Agent definition expected to resolve the variant's skill selection. */
-  agentName: string;
-  /** Agent step id whose prompt input artifact carries skill evidence. */
-  agentStepId: string;
-  /** Explicit skill names selected by that agent. Empty is the control. */
-  selectedSkills: readonly string[];
-  /** Provenance class expected for selected skills. */
-  skillProvenance: SkillAblationSkillProvenance;
-  /** Expected post-run predicate outcome for this variant. */
-  expectedOutcome: SkillAblationExpectedOutcome;
-  /** Optional fixture-owned files copied into the materialized variant before git init. */
-  setup?: readonly VerifierCalibrationSetupOperation[];
-  /** Optional trigger payload forwarded verbatim to workflow exec. */
-  triggerPayload?: FixtureJsonObject;
-  /** Expectations evaluated immediately before this variant executes. */
-  preRunExpectations: readonly FixturePredicateExpectation[];
-  /** Predicates evaluated immediately after this variant executes. */
-  predicates: readonly FixturePredicate[];
-  /** Evidence checks against the actual agent-step input artifact. */
-  promptEvidence: SkillAblationPromptEvidenceSpec;
-};
-
-export type SkillAblationFixtureSpecFile = FixtureSpecCommon & {
-  mode: "skill-ablation";
-  /**
-   * Shared budget for each variant execution. A timeout in any variant is
-   * recorded as timeout evidence and fails unless the variant explicitly
-   * expected that observable outcome.
-   */
-  budgetMs: number;
-  variants: readonly SkillAblationVariantSpec[];
-  expectedDirection: SkillAblationExpectedDirection;
-};
-
 export type FixtureSpecFile =
   | SingleWorkflowFixtureSpecFile
-  | MultiRoundFixtureSpecFile
-  | SkillAblationFixtureSpecFile;
+  | MultiRoundFixtureSpecFile;
 
 export function isSingleWorkflowFixtureSpec(
   spec: FixtureSpecFile,
@@ -221,12 +155,6 @@ export function isMultiRoundFixtureSpec(
   return spec.mode === "multi-round";
 }
 
-export function isSkillAblationFixtureSpec(
-  spec: FixtureSpecFile,
-): spec is SkillAblationFixtureSpecFile {
-  return spec.mode === "skill-ablation";
-}
-
 /**
  * A fully-loaded fixture with its on-disk paths resolved. Callers pass this
  * to the runner; the loader guarantees every field is correct before handing
@@ -238,12 +166,4 @@ export type LoadedFixture = {
   fixtureDir: string;
   /** Absolute path to this fixture's `initial/` directory. */
   initialStateDir: string;
-  /**
-   * Recorded agent-step responses discovered under `<fixtureDir>/recordings/`.
-   * Empty when the fixture does not exercise any agent-call path. The loader
-   * pre-validates every recording before the runner executes so a malformed
-   * or provenance-mismatched recording fails eagerly rather than inside a
-   * fixture subprocess.
-   */
-  agentStepRecordings: readonly AgentStepRecording[];
 };

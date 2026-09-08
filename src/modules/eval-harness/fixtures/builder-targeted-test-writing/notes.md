@@ -1,30 +1,13 @@
-# builder-targeted-test-writing
+# Test generation
 
-## Source
+A model writes tests that pass but fail to detect threshold, tier, or delivery regressions.
 
-No source run id. This is a smoke fixture prompted by test-writing benchmarks
-where coding agents often add broad, misplaced, or source-masking tests instead
-of precise production-style coverage.
+Decision: Choose models/prompts for useful tests-only coding work.
 
-## Why no real-run source
+Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners.
 
-KOTA has implementation and eval-authoring fixtures, but no matching failed
-builder run for a tests-only task where product behavior is already correct.
-The fixture is synthetic and intentionally narrow: one cart-pricing module, one
-existing test bucket with helpers, one manifest contract, and a replay recording
-so the builder branch runs deterministically without network access.
+Provenance: Synthetic scenario; no matching historical KOTA failure is claimed.
 
-## What the fixture grades
-
-The task asks the builder to extend `test/pricing.test.mjs` and add
-`test/targeted-tests.json`. `scripts/check-targeted-tests.mjs` validates the
-manifest, rejects a new test bucket, runs only the manifest-listed tests on the
-baseline, then applies three deterministic source mutations and requires those
-targeted tests to fail. The final changed-path predicate keeps the builder from
-editing `src/cart-pricing.mjs`, the checker, package metadata, or fixture
-metadata instead of adding tests.
-
-The checker also has a shortcut self-test for three common failures:
-production-code edits, unrelated test names, and placing tests in a new bucket.
-The objective metric `mutations_caught` reports how many deterministic
-mutations the targeted tests catch.
+Run through explicit live evaluation or the configured weekly cadence. The fixture
+manifest owns its time budget; the run report owns actual time, model usage, and
+resource comparability. Calibration checks the scorer before any model call.

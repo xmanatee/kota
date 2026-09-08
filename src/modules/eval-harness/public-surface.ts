@@ -1,15 +1,3 @@
-export type {
-  AgentStepFileOperation,
-  AgentStepRecording,
-  AgentStepRecordingResponse,
-} from "./agent-step-recording.js";
-export {
-  AgentStepRecordingError,
-  loadAgentStepRecordings,
-  parseAgentStepRecording,
-  recordingPathForStep,
-  recordingsDirForFixture,
-} from "./agent-step-recording.js";
 export {
   parseAgyAvailableModels,
   probeAgyModelAvailability,
@@ -85,12 +73,6 @@ export {
 } from "./eval-attribution.js";
 export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
-export type { InstalledShims } from "./external-call-shim.js";
-export {
-  EXTERNAL_CALL_LOG_SUBDIR,
-  installExternalCallShims,
-  SHIM_SUBDIR,
-} from "./external-call-shim.js";
 export type {
   FixtureAutonomyRole,
   FixtureControlDecision,
@@ -106,20 +88,12 @@ export type {
   LoadedFixture,
   MultiRoundFixtureSpecFile,
   SingleWorkflowFixtureSpecFile,
-  SkillAblationExpectedDirection,
-  SkillAblationExpectedOutcome,
-  SkillAblationFixtureSpecFile,
-  SkillAblationPromptEvidenceSpec,
-  SkillAblationSkillProvenance,
-  SkillAblationVariantSpec,
 } from "./fixture.js";
 export {
   FIXTURE_CONTROL_DECISIONS,
   FixtureProvenanceError,
-  FixtureRecordingProvenanceError,
   isMultiRoundFixtureSpec,
   isSingleWorkflowFixtureSpec,
-  isSkillAblationFixtureSpec,
   loadAllFixtures,
   loadFixture,
   summarizeControlDecisionCoverage,
@@ -158,13 +132,6 @@ export type {
   FixtureRun,
   FixtureRunOutcome,
   ResourceProfile,
-  SkillAblationObjectiveMetric,
-  SkillAblationPromptNeedleResult,
-  SkillAblationPromptResolution,
-  SkillAblationResolvedSkill,
-  SkillAblationRun,
-  SkillAblationUsageFacts,
-  SkillAblationVariantRun,
   TimingEnvelope,
 } from "./fixture-run.js";
 export {
@@ -200,7 +167,6 @@ export {
   parseObjectiveMetricSpec,
 } from "./objective-metrics.js";
 export type {
-  ExternalCallArgvMatch,
   FixturePredicate,
   FixturePredicateExpectation,
   PredicateEvalResult,
@@ -234,11 +200,6 @@ export {
   unavailableProviderEgressNetworkPolicy,
   validateProviderEgressProxyUrl,
 } from "./provider-egress.js";
-export {
-  createReplayAgentHarness,
-  REPLAY_AGENT_HARNESS_NAME_ENV,
-  resolveReplayRootFromEnv,
-} from "./replay-harness.js";
 export type {
   EvalRunConfiguration,
   EvalRunConfigurationComparison,

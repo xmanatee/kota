@@ -23,14 +23,3 @@ export class FixtureVerifierCalibrationError extends Error {
     this.reason = reason;
   }
 }
-
-export class FixtureRecordingProvenanceError extends Error {
-  readonly fixtureDir: string;
-  constructor(fixtureDir: string, reason: string) {
-    super(
-      `Fixture at "${fixtureDir}" has inconsistent agent-step recording provenance: ${reason}`,
-    );
-    this.name = "FixtureRecordingProvenanceError";
-    this.fixtureDir = fixtureDir;
-  }
-}

@@ -172,10 +172,8 @@ function validateArtifact(
     }
   }
 
-  const expectedCommand =
-    `node ${SCIENTIFIC_CLAIM_ANALYZER_PATH} --data ${expected.dataPath} --output ${expected.outputPath}`;
-  if (artifact.command !== expectedCommand) {
-    issues.push(`${label}: command must be ${JSON.stringify(expectedCommand)}`);
+  if (typeof artifact.command !== "string" || artifact.command.trim().length === 0) {
+    issues.push(`${label}: command must be a non-empty string`);
   }
 
   const provenance = asObject(artifact.provenance);

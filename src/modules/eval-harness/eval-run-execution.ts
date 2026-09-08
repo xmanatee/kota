@@ -130,6 +130,7 @@ export function createEvalRunExecution(
   workspaceRoot: string,
   options: EvalRunOptions,
   env: NodeJS.ProcessEnv = process.env,
+  signal?: AbortSignal,
 ): EvalRunExecution {
   const isolationBackend = isolationBackendForRun(options);
   const executorEnv = executorExtraEnvForRun(workspaceRoot, isolationBackend, env);
@@ -138,6 +139,7 @@ export function createEvalRunExecution(
       kotaBinaryPath: resolveKotaBinary(),
       isolationBackend,
       extraEnv: executorEnv,
+      signal,
       providerEgressTaskBoundary: providerEgressTaskBoundaryForRun(
         workspaceRoot,
         isolationBackend,

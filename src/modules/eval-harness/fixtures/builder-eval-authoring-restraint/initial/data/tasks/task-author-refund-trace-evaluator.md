@@ -26,6 +26,9 @@ returned trace, and write bounded JSON evidence to
 
 ## Evaluation Requirements
 
+- Derive `passed` and violation codes from the returned trace, independently of
+  the case id, behavior hint, or folder. The folder only supplies `expected`.
+  The checker also varies runner outputs while preserving those labels.
 - Good cases under `cases/good/` must pass.
 - Bad cases under `cases/bad/` must fail.
 - Refund traces must call `lookup_order` and `issue_refund` for the same
@@ -60,7 +63,7 @@ Metric vocabulary is intentionally bounded. Use only `total_cases`,
 ## Constraints
 
 - Only add `scripts/evaluate-traces.mjs`, write
-  `artifacts/evaluation-result.json`, and move this task to `done/`.
+  `artifacts/evaluation-result.json`, and move this task to `data/tasks/archive/`.
 - Do not change `src/refund-agent-runner.mjs`, `cases/`,
   `scripts/check-evaluation.mjs`, `package.json`, fixture metadata, or task
   requirements.

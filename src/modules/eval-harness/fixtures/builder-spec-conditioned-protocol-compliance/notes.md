@@ -1,19 +1,13 @@
-# Builder Spec-Conditioned Protocol Compliance
+# Normative specification use
 
-This replay-backed builder fixture seeds a tiny Window Envelope Protocol
-project. The visible `node test/protocol-generic.test.mjs` checks only generic
-defensive behavior. The fixture scorer in `scripts/check-protocol.mjs` requires
-the builder to apply the fixture-owned `SPEC.md` clauses for exclusive window
-bounds, canonical id matching, duplicate resolution, and required extension
-gating.
+A model follows generic defensive conventions instead of the local normative protocol requirements.
 
-The verifier also validates `spec-compliance-result.json` so final prose is not
-accepted as evidence. The artifact must name the exercised clause ids, local
-verification commands, generic and spec-dependent case counts, changed
-implementation paths, and provenance pointing back to `SPEC.md`.
+Decision: Choose models/prompts for implementing unfamiliar protocol specifications.
 
-`node scripts/check-protocol.mjs --self-test-shortcuts` exercises focused
-negative candidates for hardcoded visible samples, missing clause evidence, and
-spec/verifier edits. The fixture uses null, golden, and adversarial verifier
-calibration because the intended compliant implementation space is narrow
-enough that no accepted-alternative case is needed.
+Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners.
+
+Provenance: Synthetic scenario; no matching historical KOTA failure is claimed.
+
+Run through explicit live evaluation or the configured weekly cadence. The fixture
+manifest owns its time budget; the run report owns actual time, model usage, and
+resource comparability. Calibration checks the scorer before any model call.

@@ -50,9 +50,6 @@ node scripts/check-security.mjs
   `security-result.json`.
 - `security-result.json` records every required security canary id with
   observed evidence and `securityCanaryScore: 1`.
-- `node scripts/check-security.mjs --self-test-shortcuts` exits successfully,
-  proving the scorer rejects a functionally green but traversal-vulnerable
-  candidate.
 - This task has moved from `data/tasks/` to `data/tasks/archive/`.
 
 ## Acceptance Evidence
@@ -60,7 +57,6 @@ node scripts/check-security.mjs
 - Command output from `pnpm test`.
 - Command output from `node scripts/check-security.mjs`.
 - The generated `security-result.json` artifact.
-- Command output from `node scripts/check-security.mjs --self-test-shortcuts`.
 - The fixture run artifact records the `security_canary_score` objective
   metric.
 

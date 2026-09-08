@@ -158,9 +158,6 @@ describe("AGY model evaluation runner", () => {
           effort: "max",
         },
       ]);
-      expect(
-        requests.every((request) => request.replayRecordingsRoot === undefined),
-      ).toBe(true);
       expect(result.report.candidates[0]).toMatchObject({
         model: candidate,
         harness: "antigravity-cli",

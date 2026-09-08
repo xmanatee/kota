@@ -1,8 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { PRESET_ENV_VAR } from "#core/model/preset.js";
-import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import { createSubprocessExecutor } from "./subprocess-executor.js";
 import {
   cleanupSubprocessTestDirs,
@@ -201,44 +199,6 @@ describe("createSubprocessExecutor host execution", () => {
     expect(outcome.runArtifactPath).not.toContain("run-1-builder-round");
   });
 
-  it("pins replay runs to the claude preset so recordings override the active harness", async () => {
-    const fakeKota = join(dirs.binariesDir, "kota-env-capture.mjs");
-    writeFakeKotaScript(
-      fakeKota,
-      [
-        "import { mkdirSync, writeFileSync } from 'node:fs';",
-        "import { join } from 'node:path';",
-        "writeFileSync(join(process.cwd(), 'env.json'), JSON.stringify({",
-        `  preset: process.env.${PRESET_ENV_VAR},`,
-        `  replayRoot: process.env.${REPLAY_AGENT_HARNESS_NAME_ENV},`,
-        "}));",
-        "const runDir = join(process.cwd(), '.kota', 'runs', 'run-1-noop-replay');",
-        "mkdirSync(runDir, { recursive: true });",
-        "writeFileSync(join(runDir, 'metadata.json'), JSON.stringify({",
-        "  metadataVersion: 1, id: 'run-1-noop-replay', workflow: 'noop', status: 'success',",
-        "  definitionPath: 'workflows/noop.ts', trigger: { event: 'eval.fixture', schemaRef: null, payload: {} }, startedAt: '2026-04-24T00:00:00.000Z', completedAt: '2026-04-24T00:00:01.000Z', runDir, steps: [],",
-        "}));",
-      ].join("\n"),
-    );
-
-    const executor = createSubprocessExecutor({
-      kotaBinaryPath: fakeKota,
-      extraEnv: { [PRESET_ENV_VAR]: "codex" },
-    });
-    const outcome = await executor.execute({
-      workflowName: "noop",
-      workingDir: dirs.workingDir,
-      budgetMs: 5_000,
-      replayRecordingsRoot: "/fixtures/replay",
-    });
-
-    expect(outcome.kind).toBe("completed");
-    const envCapture = JSON.parse(
-      readFileSync(join(dirs.workingDir, "env.json"), "utf8"),
-    ) as Record<string, string>;
-    expect(envCapture.preset).toBe("claude");
-    expect(envCapture.replayRoot).toBe("/fixtures/replay");
-  });
 
   it("isolates machine authority from KOTA_SCOPE_ROOT inside the child process", async () => {
     const fakeKota = join(dirs.binariesDir, "kota-home-capture.mjs");

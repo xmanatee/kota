@@ -1,25 +1,19 @@
-# builder-eval-authoring-restraint
+# Evaluator authoring
 
-## Source
+A model writes an always-pass evaluator or prose instead of detecting refund-trace violations.
 
-No source run id. This is a smoke fixture prompted by AgentEvalBench's
-reported eval-authoring failure shape: coding assistants often produce
-over-broad, non-executing agent evaluations when the task lacks local,
-domain-specific evaluation requirements.
+Decision: Choose models/prompts for focused executable evaluator authoring.
 
-## Why no real-run source
+Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners.
 
-KOTA has no matching failed builder run for this exact meta-work shape. The
-fixture is synthetic and intentionally narrow: a deterministic refund-agent
-trace runner, two good cases, two bad cases, one verifier script that requires
-executable JSON evidence, and a replay recording so the builder branch runs
-deterministically without network access.
+Provenance: Synthetic scenario; no matching historical KOTA failure is claimed.
 
-## Why this fixture captures it
+Run through explicit live evaluation or the configured weekly cadence. The fixture
+manifest owns its time budget; the run report owns actual time, model usage, and
+resource comparability. Calibration checks the scorer before any model call.
 
-The task asks the builder to add only `scripts/evaluate-traces.mjs` plus its
-result artifact. `scripts/check-evaluation.mjs` runs that evaluator, validates
-the result contract, proves the good cases pass, proves the bad cases are
-caught, and rejects unrelated metric sprawl. The final changed-path predicate
-keeps the builder from fixing the runner or cases instead of authoring the
-evaluation.
+The scorer executes candidates against runner variations with unchanged case
+labels. Repaired traces, missing calls, mismatched order IDs, and email leaks
+must change the observed verdicts. Constant-result fabrication is the adversarial
+calibration case. This measures trace-sensitive evaluator behavior, not a
+self-reported account of how the evaluator was written.

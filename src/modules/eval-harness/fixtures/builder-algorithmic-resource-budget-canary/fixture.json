@@ -11,43 +11,8 @@
       "timeoutMs": 20000
     },
     {
-      "kind": "shell-succeeds",
-      "command": "node scripts/check-resource-budget.mjs --self-test-shortcuts",
-      "timeoutMs": 10000
-    },
-    {
       "kind": "file-exists",
       "path": "resource-budget-result.json"
-    },
-    {
-      "kind": "file-contains",
-      "path": "resource-budget-result.json",
-      "needle": "\"seeded-distinct-4096\""
-    },
-    {
-      "kind": "file-contains",
-      "path": "resource-budget-result.json",
-      "needle": "\"seeded-sawtooth-4096\""
-    },
-    {
-      "kind": "file-contains",
-      "path": "resource-budget-result.json",
-      "needle": "\"seeded-clustered-duplicates-4096\""
-    },
-    {
-      "kind": "file-contains",
-      "path": "resource-budget-result.json",
-      "needle": "\"resourceBudgetScore\": 1"
-    },
-    {
-      "kind": "file-contains",
-      "path": "resource-budget-result.json",
-      "needle": "\"kind\": \"opaque-comparison-oracle-count\""
-    },
-    {
-      "kind": "file-contains",
-      "path": "resource-budget-result.json",
-      "needle": "\"kind\": \"candidate-source-sha256\""
     },
     {
       "kind": "file-absent",
@@ -115,7 +80,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic live-builder canary for the ProjDevBench-shaped gap where agents pass basic examples but fail time-complexity and resource-management requirements under larger deterministic inputs. The fixture keeps execution local and artifact-graded through existing shell predicates, resource-profile reporting, and objective metrics instead of importing ProjDevBench or adding an online-judge integration. No past KOTA failure run exists for this exact measurement gap."
+    "justification": "A model chooses an algorithm that passes small examples but exceeds comparison/resource bounds on larger inputs. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose a builder model/prompt capable of scalable algorithms. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -136,14 +101,6 @@
     },
     {
       "predicate": {
-        "kind": "shell-succeeds",
-        "command": "node scripts/check-resource-budget.mjs --self-test-shortcuts",
-        "timeoutMs": 10000
-      },
-      "expected": "pass"
-    },
-    {
-      "predicate": {
         "kind": "file-exists",
         "path": "data/tasks/task-implement-scalable-inversion-counter.md"
       },
@@ -159,5 +116,6 @@
   ],
   "controlDecisions": [
     "act"
-  ]
+  ],
+  "builderTaskId": "task-implement-scalable-inversion-counter"
 }

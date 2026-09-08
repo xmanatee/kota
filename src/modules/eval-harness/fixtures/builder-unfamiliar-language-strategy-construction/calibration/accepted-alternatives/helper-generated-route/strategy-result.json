@@ -4,8 +4,8 @@
   "programPath": "programs/solution.spool",
   "validationCommands": [
     "node scripts/generate-solution.mjs",
-    "node scripts/check-strategy.mjs --visible-only --no-strategy",
-    "node scripts/check-strategy.mjs"
+    "pnpm run examples",
+    "pnpm test"
   ],
   "discoveredRules": {
     "alphabet": "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
@@ -26,8 +26,8 @@
       "visible-edge"
     ],
     "localFeedbackCommands": [
-      "node scripts/check-strategy.mjs --visible-only --no-strategy",
-      "node scripts/check-strategy.mjs"
+      "pnpm run examples",
+      "pnpm test"
     ],
     "hardcodedVisibleExamples": false
   },

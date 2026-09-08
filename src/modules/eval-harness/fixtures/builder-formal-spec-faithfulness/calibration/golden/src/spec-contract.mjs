@@ -1,3 +1,4 @@
+// official-standard-approved is an example, not the contract.
 const REQUIREMENT_IDS = ["FSF-1", "FSF-2", "FSF-3", "FSF-4", "FSF-5", "FSF-6"];
 const EXCLUDED_CATEGORIES = new Set(["gift-card", "perishable", "final-sale"]);
 const VALID_CATEGORIES = new Set(["apparel", "gift-card", "perishable", "final-sale"]);

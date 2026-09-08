@@ -7,7 +7,6 @@ import {
   executionModeEvidence,
   fixtureManifestChanged,
   networkPolicyEvidence,
-  promptSkillFacts,
   tierEvidence,
   timeoutEnvelopeEvidence,
 } from "./eval-attribution-component-helpers.js";
@@ -82,7 +81,6 @@ export function buildComponents(params: {
         priorConfig.components.executionProfile,
         params.currentRunConfiguration.components.executionProfile,
       ));
-  const promptFacts = promptSkillFacts(params.currentRuns);
   const priorPromptDiagnostics =
     params.priorReport?.componentAttribution?.diagnostics.contextRetrievalDiagnostics;
   const promptDiagnosticDelta = evidenceChanged(
@@ -154,16 +152,12 @@ export function buildComponents(params: {
         hasBaseline,
         null,
         false,
-        promptDiagnosticDelta ||
-          promptFacts.failedPromptResolutionCount > 0 ||
-          promptFacts.unresolvedSkillCount > 0,
+        promptDiagnosticDelta,
       ),
       promptDiagnosticDelta
         ? "context-retrieval diagnostics changed"
         : "prompt, skill, and context evidence is bounded to declared artifacts",
       [
-        `skillAblationRuns=${promptFacts.skillAblationRunCount}`,
-        `selectedSkills=${promptFacts.selectedSkills.join(",") || "none"}`,
         `contextWarnings=${params.diagnostics.contextRetrievalDiagnostics.warningCount}`,
       ],
       promptDiagnosticDelta

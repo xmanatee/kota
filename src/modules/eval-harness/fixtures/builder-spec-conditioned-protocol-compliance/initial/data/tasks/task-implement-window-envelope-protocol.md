@@ -23,7 +23,6 @@ Use these commands as local evidence:
 ```sh
 node test/protocol-generic.test.mjs
 node scripts/check-protocol.mjs
-node scripts/check-protocol.mjs --self-test-shortcuts
 ```
 
 ## Constraints
@@ -42,16 +41,12 @@ node scripts/check-protocol.mjs --self-test-shortcuts
 - `spec-compliance-result.json` names clause ids, local commands, generic and
   spec-dependent case counts, changed implementation paths, and provenance
   pointing to `SPEC.md`.
-- `node scripts/check-protocol.mjs --self-test-shortcuts` rejects shortcut
-  candidates for hardcoded visible samples, missing clause evidence, and
-  spec/verifier edits.
 - This task is moved from `data/tasks/` to `data/tasks/archive/`.
 
 ## Acceptance Evidence
 
 - Command output from the generic test and protocol verifier.
 - The generated `spec-compliance-result.json` artifact.
-- Command output from the shortcut self-test.
 - The fixture run artifact records the `spec_dependent_cases_passed`
   objective metric.
 

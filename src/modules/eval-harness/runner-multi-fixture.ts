@@ -11,7 +11,7 @@ import {
 import type { PredicateEvalResult } from "./predicates.js";
 import { evaluatePredicates } from "./predicates.js";
 import { codeHealthBaselineFor } from "./runner-code-health.js";
-import { fixtureExecutionMode, materializeFixtureWorkingDir } from "./runner-materialize.js";
+import { materializeFixtureWorkingDir } from "./runner-materialize.js";
 import { roundRunSummary, writeMultiRoundRunArtifact } from "./runner-multi-artifact.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import { executeRound } from "./runner-rounds.js";
@@ -27,7 +27,7 @@ export async function runMultiRoundFixture(
       `runMultiRoundFixture received non-multi-round fixture "${spec.id}".`,
     );
   }
-  const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const { workingDir } = materializeFixtureWorkingDir(params.fixture);
   const scoringContext = fixtureScoringContext({
     capabilities: params.executor.predicateContext,
     fixture: params.fixture,
@@ -75,10 +75,7 @@ export async function runMultiRoundFixture(
       fixtureId: spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
-      executionMode: fixtureExecutionMode(
-        params.fixture,
-        params.agentExecutionOverride !== undefined,
-      ),
+      executionMode: "live",
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -130,7 +127,6 @@ export async function runMultiRoundFixture(
         agentExecutionOverride: params.agentExecutionOverride,
       }),
       workingDir,
-      shimDir,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
     });
@@ -211,10 +207,7 @@ export async function runMultiRoundFixture(
     fixtureId: spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
-    executionMode: fixtureExecutionMode(
-      params.fixture,
-      params.agentExecutionOverride !== undefined,
-    ),
+    executionMode: "live",
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,

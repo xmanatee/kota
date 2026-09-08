@@ -16,14 +16,12 @@ import {
   providerEgressAuthEnvKeysFor,
   providerEgressEndpointLabelValue,
 } from "./provider-egress.js";
-import { REPLAY_AGENT_HARNESS_NAME_ENV } from "./replay-harness.js";
 import type { WorkflowExecutionRequest } from "./runner.js";
 import type {
   ContainerEnvFile,
   SubprocessExecutorOptions,
 } from "./subprocess-executor-types.js";
 
-const REPLAY_PRESET_ID = "claude";
 const CONTAINER_DEFAULT_PATH =
   "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 const DOCKER_ENV_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -37,17 +35,6 @@ const HOST_RUNTIME_PARENT_ENV_KEYS = [
   "TEMP",
   "TMP",
 ] as const;
-
-function envWithReplay(
-  request: WorkflowExecutionRequest,
-): Record<string, string> {
-  return request.replayRecordingsRoot !== undefined
-    ? {
-        [PRESET_ENV_VAR]: REPLAY_PRESET_ID,
-        [REPLAY_AGENT_HARNESS_NAME_ENV]: request.replayRecordingsRoot,
-      }
-    : {};
-}
 
 function distCliExecutionEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return envWithoutSourceConditionNodeOption(env);
@@ -105,19 +92,14 @@ export function hostExecutionEnv(
 ): NodeJS.ProcessEnv {
   const basePath =
     options.extraEnv?.PATH ?? process.env.PATH ?? CONTAINER_DEFAULT_PATH;
-  const pathWithShims =
-    request.externalCallShimDir !== undefined
-      ? `${request.externalCallShimDir}:${basePath}`
-      : basePath;
   return distCliExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...hostParentExecutionEnv(options),
       ...(options.extraEnv ?? {}),
       KOTA_SCOPE_ROOT: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
-      PATH: pathWithShims,
+      PATH: basePath,
       ...prepareFixtureRuntimeEnv(request.workingDir),
-      ...envWithReplay(request),
     }),
   );
 }
@@ -129,19 +111,14 @@ export function containerExecutionEnv(
   networkPolicy: ExecutionNetworkPolicy,
 ): Record<string, string> {
   const basePath = options.extraEnv?.PATH ?? CONTAINER_DEFAULT_PATH;
-  const pathWithShims =
-    request.externalCallShimDir !== undefined
-      ? `${request.externalCallShimDir}:${basePath}`
-      : basePath;
   const env = distCliExecutionEnv(
     withProtectedGitBareRepositoryEnv({
       ...(options.extraEnv ?? {}),
       KOTA_SCOPE_ROOT: request.workingDir,
       KOTA_DIST_DIR: kotaDistDir,
-      PATH: pathWithShims,
+      PATH: basePath,
       ...prepareFixtureRuntimeEnv(request.workingDir),
       ...containerNetworkEnv(networkPolicy),
-      ...envWithReplay(request),
     }),
   );
   return Object.fromEntries(

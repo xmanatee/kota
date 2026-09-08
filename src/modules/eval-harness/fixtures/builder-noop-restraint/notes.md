@@ -1,22 +1,13 @@
-# builder-noop-restraint
+# Weak-model restraint
 
-## Source
+A model makes unnecessary production changes while completing an already-satisfied task.
 
-No source run id. This is a smoke fixture that protects an eval-harness
-invariant prompted by already-fixed task research: when the requested
-production state is already true, the builder can complete honestly without
-making a production patch.
+Decision: Choose builder prompts/models that recognize justified no-op completion.
 
-## Why no real-run source
+Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners.
 
-No matching KOTA run artifact was available for this exact failure shape. The
-fixture is synthetic and narrow: one preexisting marker, one open task, and a
-changed-path predicate that allows task-state movement while rejecting any
-production-file edit.
+Provenance: Synthetic scenario; no matching historical KOTA failure is claimed.
 
-## Why this fixture captures it
-
-The marker-content predicate proves the requested state remains present. The
-task predicates prove the task closed. The `git-changes-within` predicate
-compares the final fixture repo against its initial commit and allows only the
-open-to-archived-done task move, so unnecessary edits under `data/markers/` fail.
+Run through explicit live evaluation or the configured weekly cadence. The fixture
+manifest owns its time budget; the run report owns actual time, model usage, and
+resource comparability. Calibration checks the scorer before any model call.

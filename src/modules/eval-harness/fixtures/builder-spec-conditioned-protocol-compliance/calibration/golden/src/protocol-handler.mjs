@@ -1,3 +1,4 @@
+// Device-7 is an example; protocol behavior applies to every device.
 const SUPPORTED_EXTENSIONS = new Set(["basic", "priority"]);
 
 function assertEnvelope(envelope) {

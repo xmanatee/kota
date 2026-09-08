@@ -23,7 +23,6 @@ Use these local commands as evidence:
 
 ```sh
 node scripts/check-spec-faithfulness.mjs
-node scripts/check-spec-faithfulness.mjs --self-test-shortcuts
 ```
 
 ## Constraints
@@ -41,7 +40,6 @@ node scripts/check-spec-faithfulness.mjs --self-test-shortcuts
 ## Done When
 
 - `node scripts/check-spec-faithfulness.mjs` passes.
-- `node scripts/check-spec-faithfulness.mjs --self-test-shortcuts` passes.
 - The executable spec accepts official valid examples and valid adversarial
   alternatives.
 - The executable spec rejects adversarial invalid approvals for omitted input
@@ -55,7 +53,6 @@ node scripts/check-spec-faithfulness.mjs --self-test-shortcuts
 ## Acceptance Evidence
 
 - Command output from `node scripts/check-spec-faithfulness.mjs`.
-- Command output from `node scripts/check-spec-faithfulness.mjs --self-test-shortcuts`.
 - The generated `spec-faithfulness-result.json` artifact.
 - The fixture run artifact records the `adversarial_rejections` objective
   metric.

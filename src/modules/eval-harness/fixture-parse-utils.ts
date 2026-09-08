@@ -1,5 +1,4 @@
 
-import { isAbsolute, win32 } from "node:path";
 import type { FixtureJsonObject, FixtureJsonValue } from "./fixture-common-types.js";
 import { type ObjectiveMetricSpec, ObjectiveMetricValidationError, parseObjectiveMetricSpec } from "./objective-metrics.js";
 
@@ -43,29 +42,7 @@ export function parseRequiredString(
   return value;
 }
 
-const SAFE_SKILL_ABLATION_VARIANT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
 
-export function parseSkillAblationVariantId(
-  raw: FixtureJsonObject,
-  fixtureDir: string,
-  index: number,
-): string {
-  const id = parseRequiredString(raw, "id", fixtureDir);
-  if (
-    !SAFE_SKILL_ABLATION_VARIANT_ID.test(id) ||
-    id === "." ||
-    id === ".." ||
-    id.includes("/") ||
-    id.includes("\\") ||
-    isAbsolute(id) ||
-    win32.isAbsolute(id)
-  ) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" skill-ablation variants[${index}].id must be a safe single path component matching ${SAFE_SKILL_ABLATION_VARIANT_ID}: ${JSON.stringify(id)}.`,
-    );
-  }
-  return id;
-}
 
 export function parseBudgetMs(
   raw: FixtureJsonValue | undefined,
@@ -108,26 +85,6 @@ export function parseJsonPayload(
   throw new Error(
     `Fixture at "${fixtureDir}" has invalid ${label}; must be a JSON object.`,
   );
-}
-
-export function parseExternalCallShims(
-  raw: FixtureJsonValue | undefined,
-  fixtureDir: string,
-): string[] | undefined {
-  if (raw === undefined) return undefined;
-  if (!isStringArray(raw)) {
-    throw new Error(
-      `Fixture at "${fixtureDir}" has invalid externalCallShims; must be an array of binary-name strings.`,
-    );
-  }
-  for (const name of raw) {
-    if (!/^[A-Za-z0-9._-]+$/.test(name)) {
-      throw new Error(
-        `Fixture at "${fixtureDir}" externalCallShims entry ${JSON.stringify(name)} contains characters outside [A-Za-z0-9._-]. Refuse to install a shim with that name.`,
-      );
-    }
-  }
-  return raw;
 }
 
 export function parseObjectiveMetrics(

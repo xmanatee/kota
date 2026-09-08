@@ -12,7 +12,6 @@ import {
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import {
   isMultiRoundFixtureSpec,
-  isSkillAblationFixtureSpec,
   type LoadedFixture,
 } from "./fixture.js";
 import type {
@@ -55,7 +54,7 @@ export type EvalRunConfigurationActivePreset = {
 
 export type EvalRunConfigurationFixtureEntry = {
   id: string;
-  mode: "single-workflow" | "multi-round" | "skill-ablation";
+  mode: "single-workflow" | "multi-round";
   role: string;
   workflowNames: readonly string[];
   specHash: string;
@@ -390,9 +389,6 @@ function fixtureWorkflowNames(fixture: LoadedFixture): readonly string[] {
   if (isMultiRoundFixtureSpec(fixture.spec)) {
     return fixture.spec.rounds.map((round) => round.workflowName);
   }
-  if (isSkillAblationFixtureSpec(fixture.spec)) {
-    return fixture.spec.variants.map((variant) => variant.workflowName);
-  }
   return [fixture.spec.workflowName];
 }
 
@@ -543,18 +539,6 @@ export function addFixtureRunHarnessModelEvidence(
         runIndex: report.run.runIndex,
         workflowName: round.workflowName,
         workflowRunArtifactPath: round.runArtifactPath,
-      });
-    }
-    return;
-  }
-  if (isSkillAblationFixtureSpec(fixture.spec)) {
-    for (const variant of report.run.skillAblation?.variants ?? []) {
-      recordWorkflowRunEvidence({
-        accumulator,
-        fixtureId: report.run.fixtureId,
-        runIndex: report.run.runIndex,
-        workflowName: variant.workflowName,
-        workflowRunArtifactPath: variant.runArtifactPath,
       });
     }
     return;

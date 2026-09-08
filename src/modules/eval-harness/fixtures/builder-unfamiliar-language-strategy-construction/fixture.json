@@ -11,28 +11,8 @@
       "timeoutMs": 15000
     },
     {
-      "kind": "shell-succeeds",
-      "command": "node scripts/check-strategy.mjs --self-test-shortcuts",
-      "timeoutMs": 15000
-    },
-    {
       "kind": "file-exists",
       "path": "strategy-result.json"
-    },
-    {
-      "kind": "file-contains",
-      "path": "strategy-result.json",
-      "needle": "\"hiddenCasePassCount\": 6"
-    },
-    {
-      "kind": "file-contains",
-      "path": "strategy-result.json",
-      "needle": "\"shiftIndexBase\": 1"
-    },
-    {
-      "kind": "file-contains",
-      "path": "strategy-result.json",
-      "needle": "\"checksumModulus\": 1296"
     },
     {
       "kind": "file-absent",
@@ -133,7 +113,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic live-builder canary inspired by unfamiliar-language strategy construction research: the builder must learn a tiny local target language, debug against examples and hidden verifier cases, and leave an auditable strategy artifact. No past KOTA failure run exists for this exact measurement gap."
+    "justification": "A model fails to learn local language semantics and construct a strategy that passes unseen routes. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose planning models/prompts for unfamiliar languages and toolchains. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -146,14 +126,6 @@
     },
     {
       "predicate": {
-        "kind": "shell-succeeds",
-        "command": "node scripts/check-strategy.mjs --self-test-shortcuts",
-        "timeoutMs": 15000
-      },
-      "expected": "pass"
-    },
-    {
-      "predicate": {
         "kind": "file-exists",
         "path": "data/tasks/task-write-spool-route-strategy.md"
       },
@@ -162,5 +134,6 @@
   ],
   "controlDecisions": [
     "act"
-  ]
+  ],
+  "builderTaskId": "task-write-spool-route-strategy"
 }

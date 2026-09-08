@@ -51,7 +51,7 @@
     "test:protocol": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=protocol",
     "test:resilience": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=resilience",
     "test:integration": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=integration",
-    "test:eval": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=eval",
+    "test:eval": "pnpm kota eval run",
     "test:cli": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --project=cli",
     "test:changed": "TMPDIR=\"$(cd \"${TMPDIR:-/tmp}\" && pwd -P)\" NODE_OPTIONS=--conditions=source vitest run --configLoader runner --silent=true --changed",
     "test:preset-parity": "NODE_OPTIONS=--conditions=source vitest run src/preset-parity-model-sweep.integration.test.ts src/preset-parity.integration.test.ts",

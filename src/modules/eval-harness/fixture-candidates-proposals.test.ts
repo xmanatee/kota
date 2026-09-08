@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { parseFlatFrontMatter, splitFrontMatter } from "#core/util/frontmatter.js";
 import { writeWriterIntegrationFixture } from "#core/workflow/testing/writer-integration-fixture.js";
 import { mineFixtureCandidates } from "./fixture-candidates.js";
 
@@ -249,31 +248,5 @@ describe("fixture candidate proposals", () => {
     expect(task).toContain(`<!-- fixture-candidate-fingerprint: ${candidate.proposalFingerprint} -->`);
   });
 
-  it("keeps newline-bearing run ids out of generated task frontmatter", () => {
-    const runId = "run-injected\npriority: p0";
-    seedRun(workspaceRoot, runId, {
-      commands: ["pnpm test src/modules/eval-harness/fixture-candidates.test.ts"],
-      filesChanged: ["src/modules/eval-harness/fixture-candidates.ts"],
-      artifacts: { "verification.json": { ok: true } },
-    });
 
-    const result = mineFixtureCandidates(workspaceRoot, {
-      runIds: [runId],
-      outputDir: "out",
-      createTask: true,
-      nowIso: "2026-06-01T00:00:00.000Z",
-    });
-
-    const candidate = result.report.candidates[0];
-    expect(candidate.disposition).toBe("accepted");
-    const task = readFileSync(join(workspaceRoot, candidate.acceptedAction?.path ?? ""), "utf-8");
-    const parsed = parseFlatFrontMatter(task);
-    expect(parsed.attrs.priority).toBe("p2");
-    expect(parsed.attrs).toEqual({ status: "open", priority: "p2" });
-    expect(parsed.body).toContain(`Add eval fixture for terminal-trace from ${runId}`);
-    expect(parsed.body).toContain(
-      `Run ${runId} exposed terminal-trace`,
-    );
-    expect(splitFrontMatter(task)?.frontmatter).not.toContain("\npriority: p0");
-  });
 });

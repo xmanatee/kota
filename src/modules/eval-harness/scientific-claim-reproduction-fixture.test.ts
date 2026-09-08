@@ -62,16 +62,13 @@ const shortcutAnalyzer = readFileSync(
 );
 
 describe("builder scientific claim reproduction fixture", () => {
-  it("runs as a live-builder fixture without replay recordings", async () => {
+  it("scores candidate behavior through the fixture runner", async () => {
     const fixture = loadFixture(FIXTURES_ROOT, FIXTURE_ID);
-    expect(fixture.agentStepRecordings).toHaveLength(0);
 
-    let replayRecordingsRoot: string | undefined;
     const executor: WorkflowExecutor = {
       predicateContext: TEST_PREDICATE_CONTEXT,
       preflight: () => TEST_EXECUTION_PROFILE,
       execute: async (request): Promise<WorkflowExecutionOutcome> => {
-        replayRecordingsRoot = request.replayRecordingsRoot;
         writeFileSync(
           join(request.workingDir, "scripts/analyze-claim.mjs"),
           passingAnalyzer,
@@ -115,7 +112,6 @@ describe("builder scientific claim reproduction fixture", () => {
       repeatCount: 1,
     });
     try {
-      expect(replayRecordingsRoot).toBeUndefined();
       expect(
         report.predicateResults.find(
           (result) => result.predicate.kind === "lx12-scientific-claim-result",

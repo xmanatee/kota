@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, } from "node:path";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
 import type { ExecutionNetworkPolicy } from "./provider-egress.js";
 import type { WorkflowExecutionRequest } from "./runner.js";
@@ -52,7 +52,6 @@ export function containerRunArgs(params: {
   backend: ContainerIsolationBackend;
   executionProfile: ExecutionProfilePreflightResult;
   workingDir: string;
-  replayRecordingsRoot?: string;
   envFilePath: string;
   command: string;
   commandArgs: string[];
@@ -61,7 +60,6 @@ export function containerRunArgs(params: {
   const networkPolicy = params.executionProfile.networkPolicy;
   const mountArgs = containerMountArgs({
     workingDir: params.workingDir,
-    replayRecordingsRoot: params.replayRecordingsRoot,
   });
   return [
     "run",
@@ -99,21 +97,10 @@ function bindMountArg(source: string, readonly: boolean): string {
   return `type=bind,source=${source},target=${source}${readonly ? ",readonly" : ""}`;
 }
 
-function pathIsInsideOrEqual(parent: string, child: string): boolean {
-  const rel = relative(parent, child);
-  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-}
 
 function containerMountArgs(params: {
   workingDir: string;
-  replayRecordingsRoot?: string;
 }): string[] {
   const mounts = [bindMountArg(params.workingDir, false)];
-  if (
-    params.replayRecordingsRoot !== undefined &&
-    !pathIsInsideOrEqual(params.workingDir, params.replayRecordingsRoot)
-  ) {
-    mounts.push(bindMountArg(params.replayRecordingsRoot, true));
-  }
   return mounts.flatMap((mount) => ["--mount", mount]);
 }

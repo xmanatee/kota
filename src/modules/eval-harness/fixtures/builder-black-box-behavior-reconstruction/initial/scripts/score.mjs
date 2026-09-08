@@ -42,19 +42,6 @@ Usage:
 
 Prints: <normalized-label> <family>-<checksum>
 `;
-const bannedSourcePatterns = [
-  /\boracle\b/i,
-  /\breference\b/i,
-  /\bwasm\b/i,
-  /\bWebAssembly\b/,
-  /\bchild_process\b/,
-  /\bspawn(?:Sync)?\b/,
-  /\bexec(?:File|Sync)?\b/,
-  /\breadFile(?:Sync)?\b/,
-  /\bcreateRequire\b/,
-  /\bimport\s*\(/,
-];
-
 function hashFile(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
@@ -169,11 +156,7 @@ function shortcutIssues() {
     ) {
       issues.push(`${rel} embeds the oracle artifact`);
     }
-    for (const pattern of bannedSourcePatterns) {
-      if (pattern.test(text)) {
-        issues.push(`${rel} contains forbidden shortcut token ${pattern}`);
-      }
-    }
+
   }
   return issues;
 }

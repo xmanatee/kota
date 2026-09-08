@@ -13,12 +13,9 @@
  * There is no parallel metrics store.
  */
 
-import { registerAgentHarness } from "#core/agent-harness/index.js";
 import { EventBus } from "#core/events/event-bus.js";
 import type { KotaModule } from "#core/modules/module-types.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
-import { line, span } from "#modules/rendering/primitives.js";
-import { printToStderr } from "#modules/rendering/transport.js";
 import { runAgyModelEvaluationSuite } from "./agy-model-evaluation.js";
 import evalHarnessCadence from "./cadence-workflow.js";
 import { buildEvalCommand } from "./cli-command.js";
@@ -38,35 +35,7 @@ import {
 } from "./eval-operations.js";
 import { evalHarnessSetCompleted } from "./events.js";
 import evalHarnessRegressionNotify from "./regression-notify-workflow.js";
-import {
-  createReplayAgentHarness,
-  resolveReplayRootFromEnv,
-} from "./replay-harness.js";
-import { createReplayToolFixtureDefs } from "./replay-tool-fixtures.js";
 import { evalHarnessRoutes } from "./routes.js";
-
-const replayRoot = resolveReplayRootFromEnv();
-
-// Register the replay adapter at import time when the env-gated seam is
-// armed. This has to happen outside `onLoad` because the CLI surface loads
-// modules in `"commands"` lifecycle mode (onLoad skipped), and the
-// subprocess executor invokes `kota workflow exec` through that same CLI
-// surface.
-// Module discovery imports installed modules in alphabetical directory order
-// — `claude-agent-harness` < `eval-harness` — so this registration runs
-// after the claude adapter's import-time `registerAgentHarness` and the
-// `Map.set` override lands cleanly. Production paths leave the env unset
-// and skip registration.
-(() => {
-  if (replayRoot === null) return;
-  registerAgentHarness(createReplayAgentHarness(replayRoot));
-  // Parent eval-harness CLI forwards child stderr to the operator, so this
-  // diagnostic surfaces in `pnpm kota eval run` output when replay is on.
-  printToStderr(line(span(
-    `[eval-harness] replay adapter active; claude-agent-sdk overridden from ${replayRoot}`,
-    "warn",
-  )));
-})();
 
 export * from "./public-surface.js";
 
@@ -75,21 +44,14 @@ const evalHarnessModule: KotaModule = {
   version: "0.2.0",
   description:
     "Autonomy eval harness: fixture-run contract, scoring, regression gate, fixture runner, CLI + HTTP route, and weekly cadence workflow.",
-  // Depend on claude-agent-harness so its top-level registerAgentHarness
-  // runs first; the replay adapter below then overwrites the
-  // "claude-agent-sdk" slot when KOTA_EVAL_HARNESS_REPLAY_ROOT is set. The
-  // subprocess executor is the only production caller that sets that env,
-  // so operator and daemon runs are unaffected.
   dependencies: [
     "antigravity-cli-agent-harness",
     "autonomy",
     "rendering",
-    "claude-agent-harness",
     "repo-tasks",
   ],
   events: [evalHarnessSetCompleted],
   commands: (ctx) => [buildEvalCommand(ctx)],
-  tools: () => createReplayToolFixtureDefs(replayRoot),
   routes: (ctx) => evalHarnessRoutes(ctx),
   controlRoutes: (ctx) => evalHarnessControlRoutes(ctx),
   workflows: [evalHarnessCadence, evalHarnessRegressionNotify],

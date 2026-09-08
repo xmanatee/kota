@@ -6,11 +6,10 @@
     "sha256": "ac00243c726cb17607ba028decb53b9b9b7afc3fa4d7a99c0d72005c782d76aa",
     "clauseIds": ["WEP-1", "WEP-2", "WEP-3", "WEP-4", "WEP-5"]
   },
-  "verificationCommand": "node scripts/check-protocol.mjs",
+  "verificationCommand": "node ./scripts/check-protocol.mjs",
   "localVerificationCommands": [
-    "node test/protocol-generic.test.mjs",
-    "node scripts/check-protocol.mjs",
-    "node scripts/check-protocol.mjs --self-test-shortcuts"
+    "node ./test/protocol-generic.test.mjs",
+    "node ./scripts/check-protocol.mjs"
   ],
   "genericCasesPassed": 3,
   "genericCaseNames": [
@@ -30,9 +29,8 @@
   "provenance": {
     "specSource": "SPEC.md",
     "localTests": [
-      "node test/protocol-generic.test.mjs",
-      "node scripts/check-protocol.mjs",
-      "node scripts/check-protocol.mjs --self-test-shortcuts"
+      "node ./test/protocol-generic.test.mjs",
+      "node ./scripts/check-protocol.mjs"
     ],
     "generatedBy": "local-verifier"
   }

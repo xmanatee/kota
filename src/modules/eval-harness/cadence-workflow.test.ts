@@ -10,10 +10,17 @@ import {
   EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV,
   EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV,
   EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV,
+  EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV,
   isCadenceIsolationConfigured,
   resolveCadenceIsolationBackend,
   runHarness,
 } from "./cadence-workflow.js";
+
+const liveNetworkPolicy = {
+  kind: "provider-egress",
+  provider: "openai",
+  enforcement: { kind: "docker-internal-proxy", networkName: "eval-provider", proxyUrl: "http://proxy:8080" },
+};
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -29,6 +36,7 @@ describe("eval-harness cadence isolation backend selection", () => {
 
   it("selects a strict container backend only when all cadence env fields are set", () => {
     const env = {
+      [EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV]: JSON.stringify(liveNetworkPolicy),
       [EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV]: "docker",
       [EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV]: "node:22-bookworm",
       [EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV]:
@@ -37,10 +45,21 @@ describe("eval-harness cadence isolation backend selection", () => {
     expect(isCadenceIsolationConfigured(env)).toBe(true);
     expect(resolveCadenceIsolationBackend(env)).toEqual({
       kind: "container",
+      networkPolicy: liveNetworkPolicy,
       executable: "docker",
       image: "node:22-bookworm",
       kotaBinaryPath: "/opt/kota/bin/kota.mjs",
     });
+  });
+
+
+  it("rejects offline policy for live cadence", () => {
+    expect(() => resolveCadenceIsolationBackend({
+      [EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV]: "docker",
+      [EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV]: "node:22",
+      [EVAL_HARNESS_CADENCE_CONTAINER_KOTA_BINARY_PATH_ENV]: "/opt/kota/bin/kota.mjs",
+      [EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV]: JSON.stringify({ kind: "offline" }),
+    })).toThrow(/requires provider-egress/);
   });
 
   it("fails loudly on incomplete cadence container config", () => {
@@ -72,6 +91,7 @@ describe("eval-harness cadence isolation backend selection", () => {
   });
 
   it("delegates cadence work to the blocking-operation worker before emitting events", async () => {
+    vi.stubEnv(EVAL_HARNESS_CADENCE_NETWORK_POLICY_ENV, JSON.stringify(liveNetworkPolicy));
     vi.stubEnv(EVAL_HARNESS_CADENCE_CONTAINER_EXECUTABLE_ENV, "docker");
     vi.stubEnv(EVAL_HARNESS_CADENCE_CONTAINER_IMAGE_ENV, "node:22-bookworm");
     vi.stubEnv(
@@ -174,6 +194,7 @@ describe("eval-harness cadence isolation backend selection", () => {
       workspaceRoot: "/project",
       runDirPath: "/run",
       isolationBackend: {
+        networkPolicy: liveNetworkPolicy,
         kind: "container",
         executable: "docker",
         image: "node:22-bookworm",

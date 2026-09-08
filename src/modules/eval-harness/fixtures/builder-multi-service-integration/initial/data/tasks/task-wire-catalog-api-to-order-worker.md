@@ -44,15 +44,12 @@ node scripts/check-integration.mjs
 - `integration-result.json` records both `catalog-api` and `order-worker`, the
   request path and status, the dynamic run token, and the expected summary
   line.
-- `node scripts/check-integration.mjs --self-test-shortcuts` exits
-  successfully, proving hardcoded artifacts and API bypasses are rejected.
 - This task has moved from `data/tasks/` to `data/tasks/archive/`.
 
 ## Acceptance Evidence
 
 - Command output from `node scripts/check-integration.mjs`.
 - The generated `integration-result.json` artifact.
-- Command output from `node scripts/check-integration.mjs --self-test-shortcuts`.
 - The fixture run artifact records the `integration_validation_nodes`
   objective metric.
 

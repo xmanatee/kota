@@ -22,32 +22,7 @@ describe("loadFixture external shims and metrics", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  it("accepts an optional externalCallShims list and validates entry shape", () => {
-    writeFixture(root, "withShims", {
-      id: "withShims",
-      description: "x",
-      role: "pr-reviewer",
-      workflowName: "pr-reviewer",
-      budgetMs: 600_000,
-      predicates: [{ kind: "file-exists", path: "foo" }],
-      externalCallShims: ["gh"],
-    });
-    const loaded = loadFixture(root, "withShims");
-    expect(loaded.spec.externalCallShims).toEqual(["gh"]);
-  });
 
-  it("rejects externalCallShims entries with unsafe characters", () => {
-    writeFixture(root, "badShims", {
-      id: "badShims",
-      description: "x",
-      role: "pr-reviewer",
-      workflowName: "pr-reviewer",
-      budgetMs: 600_000,
-      predicates: [{ kind: "file-exists", path: "foo" }],
-      externalCallShims: ["../escape"],
-    });
-    expect(() => loadFixture(root, "badShims")).toThrow(/externalCallShims/);
-  });
 
   it("accepts typed objective metric declarations", () => {
     writeFixture(root, "withMetric", {

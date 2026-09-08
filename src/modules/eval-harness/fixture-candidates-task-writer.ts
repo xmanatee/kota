@@ -82,7 +82,7 @@ function candidateTaskBody(candidate: FixtureCandidateRecord): string {
     "",
     "## Product / Safety Link",
     "",
-    "Safety: keeps recurring autonomy failures from being patched without a replayable regression target.",
+    "Safety: keeps recurring autonomy failures from being patched without a justified model-dependent evaluation or deterministic owner check.",
     "",
     "## Acceptance Evidence",
     "",

@@ -1,7 +1,6 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  resolveKotaBinary,
   resolveKotaRuntimeAsset,
 } from "#core/util/kota-install-paths.js";
 import {
@@ -13,14 +12,13 @@ import {
   type BaselineAssessment,
 } from "./baseline-assessment.js";
 import type { PersistedBaseline } from "./baseline-state.js";
+import { createEvalRunExecution } from "./eval-run-execution.js";
 import { runEvalSet } from "./eval-set.js";
 import type { EvalHarnessSetCompletedPayload } from "./events.js";
 import { loadAllFixtures } from "./fixture.js";
 import type { FixtureDiagnosticAggregate } from "./scoring.js";
-import {
-  createSubprocessExecutor,
-  detectHostSubprocessResourceProfile,
-  type SubprocessIsolationBackend,
+import type {
+  SubprocessIsolationBackend,
 } from "./subprocess-executor.js";
 
 const CADENCE_HOST_CLASS = "autonomy-cadence";
@@ -150,14 +148,17 @@ export async function runEvalHarnessCadenceInWorker(
     );
   }
 
-  const executor = createSubprocessExecutor({
-    kotaBinaryPath: resolveKotaBinary(),
-    isolationBackend: input.isolationBackend,
-    signal: context.signal,
-  });
+  const networkPolicy = input.isolationBackend.networkPolicy;
+  if (networkPolicy?.kind !== "provider-egress") {
+    throw new Error("Live cadence requires provider-egress");
+  }
+  const { executor, requestedProfile } = createEvalRunExecution(
+    input.workspaceRoot,
+    { isolationBackend: input.isolationBackend, hostClass: CADENCE_HOST_CLASS },
+    process.env,
+    context.signal,
+  );
   const runArtifactBaseDir = join(input.runDirPath, "eval-runs");
-  const requestedProfile =
-    detectHostSubprocessResourceProfile(CADENCE_HOST_CLASS);
   const progressHeartbeat = setInterval(
     () => context.reportProgress("eval-harness cadence fixtures running"),
     CADENCE_PROGRESS_INTERVAL_MS,

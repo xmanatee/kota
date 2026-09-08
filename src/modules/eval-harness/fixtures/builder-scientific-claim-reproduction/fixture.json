@@ -9,21 +9,11 @@
       "kind": "lx12-scientific-claim-result",
       "mainPath": "claim-result.json",
       "holdoutPath": "claim-holdout-result.json",
-      "maxErrorPct": 0.000001
+      "maxErrorPct": 1e-06
     },
     {
       "kind": "file-exists",
       "path": "claim-result.json"
-    },
-    {
-      "kind": "file-contains",
-      "path": "claim-result.json",
-      "needle": "\"verdict\": \"refuted\""
-    },
-    {
-      "kind": "file-contains",
-      "path": "claim-result.json",
-      "needle": "\"median_uplift_pct\""
     },
     {
       "kind": "file-absent",
@@ -128,7 +118,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic AutoMat-shaped live-builder canary for scientific claim reproduction: the generator must reconstruct an underspecified local analysis, execute it, and record whether deterministic evidence supports or refutes a claim. No past KOTA failure run exists for this exact measurement gap."
+    "justification": "A model repeats expected claim numbers instead of computing the required procedure on both datasets. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose models/prompts for reproducible quantitative research. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -136,7 +126,7 @@
         "kind": "lx12-scientific-claim-result",
         "mainPath": "claim-result.json",
         "holdoutPath": "claim-holdout-result.json",
-        "maxErrorPct": 0.000001
+        "maxErrorPct": 1e-06
       },
       "expected": "fail"
     },
@@ -150,5 +140,6 @@
   ],
   "controlDecisions": [
     "act"
-  ]
+  ],
+  "builderTaskId": "task-reproduce-lx12-biomass-claim"
 }

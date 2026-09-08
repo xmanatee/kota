@@ -58,7 +58,7 @@ describe("evalHarnessControlRoutes GET /eval/list", () => {
     expect(body.fixtures.length).toBeGreaterThan(0);
     expect(body.fixtures).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: "builder-agent-call-replay",
+        id: expect.any(String),
         controlDecisions: expect.any(Array),
       }),
     ]));

@@ -181,13 +181,15 @@ portfolios have explicit membership and no accidental overlap.
 | Cadence | Command | Scope & Membership | Purpose |
 | --- | --- | --- | --- |
 | deterministic fast | `pnpm check:fast` | Typecheck production and test/support projects, lint source, and validate task integrity. | Fast deterministic static gate. |
-| owner behavior | `pnpm test:owner` | `src/**/*.test.ts` (excluding CLI, eval, integration, protocol, resilience) | Exercise the decisions and observable behavior owned by the changed component. |
+| owner behavior | `pnpm test:owner` | `src/**/*.test.ts` (excluding CLI, integration, protocol, resilience) | Exercise the decisions and observable behavior owned by the changed component. |
 | protocol | `pnpm test:protocol` | MCP client/server protocol, OAuth endpoint/redirect policy, ACP wire formats | Exercise wire compatibility, framing, redirect, OAuth, and interoperability behavior. |
 | resilience | `pnpm test:resilience` | `foreign-module-resilient.test.ts`, `module-error-resilience.integration.test.ts` | Exercise failure isolation and recovery scenarios that are intentionally slower than owner feedback. |
 | component integration | `pnpm test:integration` | `src/**/*.integration.test.ts` (excluding CLI, resilience) | Exercise declared multi-owner process, persistence, network, or runtime-host boundaries. |
-| evaluation | `pnpm test:eval` | `src/modules/eval-harness/**/*.test.ts` | Exercise eval-harness behavior and replay-backed workflow smoke cases without invoking live model fixtures. |
+| evaluation | `pnpm test:eval` | Explicit live fixture execution; configured weekly cadence uses the same runner. | Measure model-dependent capability with calibrated outcome scorers. Model cost and resource evidence are reported per run; deterministic harness checks belong to owner behavior. |
 | CLI | `pnpm test:cli` | `src/cli.test.ts` | Exercise CLI subcommands, argument parsing, and terminal interface commands. |
-| broad confidence | `pnpm check` | Full build + all non-overlapping test partitions | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
+| broad confidence | `pnpm check` | Full build + all non-overlapping deterministic test partitions | Build production output and run all server test partitions on main, schedule, release, or a deliberately broad high-risk change. |
+
+Live evaluation is excluded from `pnpm test` and `pnpm check`; select it deliberately for model or prompt decisions.
 
 Tests without an explicit cadence stay with their behavior owner. Security and
 restart scenarios stay beside that owner; protocol and resilience scenarios

@@ -29,10 +29,18 @@ their CLI, HTTP, and cadence surfaces.
 - Git, shell, agent-verifier, and objective-metric execution uses fail-closed
   offline containers with bounded resources and stripped credentials. Only the
   candidate tree is writable; scorer overlays remain immutable.
-- Persistent scenarios use ordered multi-round fixtures. Skill ablations run
-  explicit control and treatment variants with prompt/provenance evidence.
+- Builder fixtures name `builderTaskId`; the runner resolves its immutable
+  dispatch through the production builder task owner after materialization and
+  after each round input. Do not copy task digests into fixture data.
+- Persistent scenarios use ordered multi-round fixtures.
+- Retain a fixture only for a named model-dependent failure and a model/prompt
+  decision that deterministic owner checks cannot settle. Record that rationale
+  with the fixture. Scorers measure outcomes, not prescribed test names, source
+  spelling, implementation paths, or authored reasoning narratives.
 - Objective metrics are deterministic evidence, not a second runner. Metric
   errors fail passing runs; failed runs retain diagnostic metrics.
+- Scorer self-tests belong to owner verification, never live predicates,
+  pre-run expectations, or candidate task completion requirements.
 - Verifier calibration runs before the workflow and fails as fixture error.
   Accepted alternatives exist only for deterministic, genuinely broad answer
   spaces.
@@ -47,34 +55,21 @@ while gated regressions hold it until a clear run or manual reset. A config
 fingerprint change starts a fresh baseline rather than becoming quality signal.
 
 Each run materializes a fresh OS tmpdir and fixtures run sequentially. The
-shared `runFixture` plus subprocess executor serves three paths:
+shared `runFixture` plus subprocess executor serves live CLI and cadence runs.
+`pnpm test:eval` invokes the live CLI; it is explicit and can incur model cost.
+Deterministic harness and scorer checks run in `test:owner`; ordinary `pnpm test`
+and `pnpm check` do not invoke models.
 
-- the standard-test smoke gate runs representative recorded fixtures once,
-  without baseline comparison;
-- cadence runs the calibrated repeat count and requires the complete container
-  backend for gating; and
-- CLI runs are operator-driven and do not persist cadence baselines.
+Cadence requires its container settings and
+`KOTA_EVAL_HARNESS_CADENCE_NETWORK_POLICY`, a JSON provider-egress policy in the
+same shape accepted by the eval run API. It uses the provider's declared auth
+environment and rejects offline configuration. Scoring remains offline.
+CLI runs do not persist cadence baselines. Resource and provider preflight
+still determine whether evidence can gate; configuration is not proof of isolation.
 
 Cadence discovery, materialization, subprocesses, and artifact writes declare
 daemon-owned blocking operations. Baseline publication uses runtime state
 compare-and-set, and events publish only after run success.
-
-## Recorded Agent Replay
-
-Agent-call fixtures keep one recording per call. The subprocess points the eval
-module at a read-only recording root and replaces only the selected harness
-slot; production selection remains unchanged.
-
-The adapter expands run-directory placeholders, applies operations inside the
-fixture workspace, and stages them for repair checks. Recording provenance must
-match the source failure. Workflow prompts route by step identity and judge
-prompts by their leading header. Time-sliding placeholders resolve during
-materialization before runtime clocks are read.
-
-Replay-only tools are compiled into this trusted module. Local simulated
-effects must write through the workflow runner's explicit `cwd`, never the host
-process directory; they do not use fixture code, credentials, network access,
-or scope trust.
 
 ## Boundaries
 
@@ -82,9 +77,9 @@ or scope trust.
 - Use typed completion/regression events, run artifacts, and one baseline row;
   do not add parallel metrics stores.
 - Never leak cost signals into agent context.
-- Keep auth behind non-secret adapter locators and replay mocks out of core.
+- Keep auth behind non-secret adapter locators. Agent replay and binary-call
+  shims are unsupported; deterministic product checks belong with their owner.
 - Candidate mining is bounded advisory output and never creates fixtures or
   changes regression scores.
 - Provider/model evaluations require their declared container, egress policy,
-  candidate availability, and artifact evidence; they do not fall back to live
-  or replay execution silently.
+  candidate availability, and artifact evidence; they fail visibly when prerequisites are unavailable.

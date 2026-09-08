@@ -1,7 +1,7 @@
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { isMultiRoundFixtureSpec, isSkillAblationFixtureSpec, type LoadedFixture, verifierCalibrationPredicatesForSpec } from "./fixture.js";
+import { isMultiRoundFixtureSpec, type LoadedFixture, verifierCalibrationPredicatesForSpec } from "./fixture.js";
 import type { ExecutionProfilePreflightResult, FixtureRunConfigurationError } from "./fixture-run.js";
 import type { ObjectiveMetricSpec } from "./objective-metrics.js";
 import type { PredicateEvaluationContext } from "./predicates.js";
@@ -20,9 +20,6 @@ function collectObjectiveMetricSpecs(
       ...spec.rounds.flatMap((round) => round.objectiveMetrics ?? []),
       ...(spec.aggregateObjectiveMetrics ?? []),
     ];
-  }
-  if (isSkillAblationFixtureSpec(spec)) {
-    return [];
   }
   return [...(spec.objectiveMetrics ?? [])];
 }

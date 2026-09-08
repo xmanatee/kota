@@ -7,7 +7,6 @@ import {
   loadFixture,
 } from "./fixture.js";
 import {
-  singleSpec,
   writeFixture,
 } from "./fixture-test-support.js";
 
@@ -78,43 +77,7 @@ describe("loadFixture diagnostics", () => {
     );
   });
 
-  it("accepts a well-formed external-call-log predicate", () => {
-    writeFixture(root, "withExtCall", {
-      id: "withExtCall",
-      description: "x",
-      role: "pr-reviewer",
-      workflowName: "pr-reviewer",
-      budgetMs: 600_000,
-      predicates: [
-        {
-          kind: "external-call-log",
-          binary: "gh",
-          match: { kind: "argv-prefix", argv: ["pr", "review"] },
-          exitClass: "zero",
-        },
-      ],
-    });
-    const loaded = loadFixture(root, "withExtCall");
-    expect(singleSpec(loaded).predicates).toHaveLength(1);
-  });
 
-  it("rejects an external-call-log predicate with a malformed match", () => {
-    writeFixture(root, "badExtCall", {
-      id: "badExtCall",
-      description: "x",
-      role: "pr-reviewer",
-      workflowName: "pr-reviewer",
-      budgetMs: 600_000,
-      predicates: [
-        {
-          kind: "external-call-log",
-          binary: "gh",
-          match: { kind: "argv-prefix", argv: [] },
-        },
-      ],
-    });
-    expect(() => loadFixture(root, "badExtCall")).toThrow(/invalid predicate/);
-  });
 
   it("rejects unknown provenance kinds", () => {
     writeFixture(root, "unknownKind", {

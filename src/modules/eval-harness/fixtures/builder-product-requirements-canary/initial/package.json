@@ -3,12 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "true",
-    "typecheck": "true",
-    "lint": "true",
-    "lint:fix": "true",
     "test": "node scripts/check-requirements.mjs",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
-    "kota": "node \"$KOTA_DIST_DIR/cli.js\""
+    "kota": "node \"$KOTA_DIST_DIR/cli.js\"",
+    "check:fast": "pnpm validate-tasks"
   }
 }

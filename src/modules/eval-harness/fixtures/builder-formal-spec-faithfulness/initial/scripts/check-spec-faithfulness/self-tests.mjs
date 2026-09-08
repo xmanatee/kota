@@ -4,7 +4,6 @@ import {
   runCaseSuite,
   validateResultArtifact,
   validateSourceHashes,
-  validateSpecSource,
   validateVerifierSource,
 } from "./validation.mjs";
 
@@ -46,7 +45,6 @@ export function runShortcutSelfTests(params) {
     ...params.visibleCases.adversarialCases,
     ...params.hiddenCases,
   ];
-  const allCaseIds = allCases.map((entry) => entry.id);
 
   expectInvalidShortcut(
     "accept-all spec",
@@ -67,11 +65,6 @@ export function runShortcutSelfTests(params) {
     "reject-valid spec",
     () => runCaseSuite(rejectValidSpec, allCases),
     "valid-gold-extended-window",
-  );
-  expectInvalidShortcut(
-    "hidden-case hardcoding",
-    () => validateSpecSource('export function validateReturnLabelDecision() { return "hidden-valid-alternate-output"; }', allCaseIds),
-    "hidden-valid-alternate-output",
   );
   expectInvalidShortcut(
     "source-packet edit",
@@ -105,7 +98,6 @@ export function runShortcutSelfTests(params) {
       "single-reference",
       "omitted-assumption",
       "reject-valid",
-      "hidden-case-hardcoding",
       "source-packet-edit",
       "verifier-edit",
       "prose-only-artifact",

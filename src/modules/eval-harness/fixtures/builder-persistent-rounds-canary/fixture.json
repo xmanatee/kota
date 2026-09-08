@@ -47,7 +47,8 @@
           "path": "data/tasks/archive/task-implement-ledger-summary-round-1.md",
           "needle": "status: done"
         }
-      ]
+      ],
+      "builderTaskId": "task-implement-ledger-summary-round-1"
     },
     {
       "id": "export-round",
@@ -106,7 +107,8 @@
           "path": "data/tasks/archive/task-add-ledger-export-round-2.md",
           "needle": "status: done"
         }
-      ]
+      ],
+      "builderTaskId": "task-add-ledger-export-round-2"
     }
   ],
   "aggregatePredicates": [
@@ -163,7 +165,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic persistent-workspace canary for the multi-round eval mode: the second builder round must preserve first-round ledger summary behavior while adding an export requirement. No past KOTA failure run exists for this exact harness capability."
+    "justification": "A model implements a later export requirement while regressing the earlier summary behavior. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose models/prompts for incremental work across task rounds. No historical KOTA regression is claimed."
   },
   "controlDecisions": [
     "act"

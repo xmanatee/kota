@@ -1,3 +1,4 @@
+# Routes require the specified base36 transformation.
 READ phrase
 CLEAN36
 SHIFT36 seed 3

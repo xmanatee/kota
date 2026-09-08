@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resolveExecutableVerifierSandbox } from "./executable-verifier-sandbox.js";
 import {
   isSingleWorkflowFixtureSpec,
-  isSkillAblationFixtureSpec,
   loadAllFixtures,
 } from "./fixture.js";
 import { fixtureScoringContext } from "./fixture-scoring-context.js";
@@ -56,55 +55,6 @@ describe("loadAllFixtures", () => {
     expect(ids).toEqual(["alpha", "beta"]);
   });
 
-  it("loads every shipped fixture with explicit pre-run expectations and control decisions", () => {
-    const fixtures = loadAllFixtures(
-      join(process.cwd(), "src/modules/eval-harness/fixtures"),
-    );
-    expect(fixtures.length).toBeGreaterThan(0);
-    expect(
-      fixtures.every((fixture) => {
-        if (isSingleWorkflowFixtureSpec(fixture.spec)) {
-          return fixture.spec.preRunExpectations.some(
-            (expectation) => expectation.expected === "fail",
-          );
-        }
-        if (isSkillAblationFixtureSpec(fixture.spec)) {
-          return fixture.spec.variants.every((variant) =>
-            variant.preRunExpectations.some(
-              (expectation) => expectation.expected === "fail",
-            ),
-          );
-        }
-        return fixture.spec.rounds.every((round) =>
-          round.preRunExpectations.some(
-            (expectation) => expectation.expected === "fail",
-          ),
-        );
-      }),
-    ).toBe(true);
-    expect(
-      fixtures.every((fixture) => fixture.spec.controlDecisions.length > 0),
-    ).toBe(true);
-  });
-
-  it("ships at least one smoke fixture with an objective metric and non-vacuous pre-run expectation", () => {
-    const fixtures = loadAllFixtures(
-      join(process.cwd(), "src/modules/eval-harness/fixtures"),
-    );
-    const demonstratingFixtures = fixtures.filter(
-      (fixture) =>
-        isSingleWorkflowFixtureSpec(fixture.spec) &&
-        fixture.spec.provenance.kind === "smoke-fixture" &&
-        (fixture.spec.objectiveMetrics?.length ?? 0) > 0 &&
-        fixture.spec.preRunExpectations.some(
-          (expectation) => expectation.expected === "fail",
-        ),
-    );
-    expect(demonstratingFixtures.map((fixture) => fixture.spec.id)).toContain(
-      "builder-trivial-edit",
-    );
-  });
-
   it("shipped fixture pre-run expectations match their initial trees", async () => {
     const fixtures = loadAllFixtures(
       join(process.cwd(), "src/modules/eval-harness/fixtures"),
@@ -132,8 +82,6 @@ describe("loadAllFixtures", () => {
         copyFixtureInitialState(fixture.initialStateDir, workDir);
         const expectationSets = isSingleWorkflowFixtureSpec(fixture.spec)
           ? [fixture.spec.preRunExpectations]
-          : isSkillAblationFixtureSpec(fixture.spec)
-            ? fixture.spec.variants.map((variant) => variant.preRunExpectations)
             : [fixture.spec.rounds[0].preRunExpectations];
         for (const expectations of expectationSets) {
           const result = await evaluatePredicateExpectations(

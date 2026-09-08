@@ -2,7 +2,6 @@
 import type { FixtureJsonObject, FixtureJsonValue } from "./fixture-common-types.js";
 import {
   isJsonObject,
-  isSafeRelativeAuditPath,
   isStringArray,
 } from "./fixture-parse-utils.js";
 import type { FixturePredicate, FixturePredicateExpectation } from "./predicates.js";
@@ -35,108 +34,9 @@ function isFixturePredicate(
         typeof value.command === "string" &&
         (value.timeoutMs === undefined || typeof value.timeoutMs === "number")
       );
-    case "run-emits-event":
-      return (
-        typeof value.event === "string" &&
-        (value.workflow === undefined || typeof value.workflow === "string") &&
-        (value.payloadMatch === undefined || isJsonObject(value.payloadMatch))
-      );
-    case "run-omits-event":
-      return (
-        typeof value.event === "string" &&
-        (value.workflow === undefined || typeof value.workflow === "string")
-      );
-    case "external-call-log":
-      return (
-        typeof value.binary === "string" &&
-        value.binary.length > 0 &&
-        isValidExternalCallMatch(value.match) &&
-        (value.exitClass === undefined ||
-          value.exitClass === "zero" ||
-          value.exitClass === "non-zero")
-      );
-    case "environment-state-audit":
-      return isValidEnvironmentStateAuditFiles(value.files);
     default:
       return false;
   }
-}
-
-function isValidExternalCallMatch(value: FixtureJsonValue | undefined): boolean {
-  if (!isJsonObject(value)) return false;
-  switch (value.kind) {
-    case "argv-equals":
-    case "argv-prefix":
-      return isStringArray(value.argv) && value.argv.length > 0;
-    case "argv-includes":
-      return typeof value.arg === "string" && value.arg.length > 0;
-    default:
-      return false;
-  }
-}
-
-function isValidEnvironmentStateExpectedEffect(
-  value: FixtureJsonValue | undefined,
-): boolean {
-  if (!isJsonObject(value)) return false;
-  return (
-    isJsonObject(value.match) &&
-    typeof value.count === "number" &&
-    Number.isInteger(value.count) &&
-    value.count > 0
-  );
-}
-
-function isValidEnvironmentStateForbiddenEffect(
-  value: FixtureJsonValue | undefined,
-): boolean {
-  if (!isJsonObject(value)) return false;
-  return isJsonObject(value.match);
-}
-
-function isValidOptionalEffectArray(
-  value: FixtureJsonValue | undefined,
-  validator: (entry: FixtureJsonValue | undefined) => boolean,
-): boolean {
-  return (
-    value === undefined ||
-    (Array.isArray(value) && value.length > 0 && value.every(validator))
-  );
-}
-
-function isValidEnvironmentStateAuditFile(
-  value: FixtureJsonValue | undefined,
-): boolean {
-  if (!isJsonObject(value)) return false;
-  if (typeof value.path !== "string" || !isSafeRelativeAuditPath(value.path)) {
-    return false;
-  }
-  if (value.format !== "json-array" && value.format !== "jsonl") {
-    return false;
-  }
-  if (
-    !isValidOptionalEffectArray(
-      value.expectedEffects,
-      isValidEnvironmentStateExpectedEffect,
-    ) ||
-    !isValidOptionalEffectArray(
-      value.forbiddenEffects,
-      isValidEnvironmentStateForbiddenEffect,
-    )
-  ) {
-    return false;
-  }
-  return value.expectedEffects !== undefined || value.forbiddenEffects !== undefined;
-}
-
-function isValidEnvironmentStateAuditFiles(
-  value: FixtureJsonValue | undefined,
-): boolean {
-  return (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every(isValidEnvironmentStateAuditFile)
-  );
 }
 
 export function parsePredicates(

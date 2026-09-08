@@ -124,7 +124,7 @@ describe("runEvalSet metrics", () => {
         rounds: [
           {
             id: "round-1",
-            workflowName: "builder",
+            workflowName: "fixture-worker",
             budgetMs: 60_000,
             taskInput: { kind: "initial-state" },
             preRunExpectations: [

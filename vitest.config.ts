@@ -7,7 +7,6 @@ const SRC_MODULES = fileURLToPath(new URL("./src/modules", import.meta.url));
 const CLI_TEST_FILES = [
   "src/cli.test.ts",
 ];
-const EVAL_TEST_FILES = "src/modules/eval-harness/**/*.test.ts";
 const INTEGRATION_TEST_FILES = "src/**/*.integration.test.ts";
 const PROTOCOL_TEST_FILES = [
   "src/core/agent-harness/neutral-protocol-shape.test.ts",
@@ -41,7 +40,6 @@ const CLI_PROJECT_EXCLUDES = [
 const OWNER_PROJECT_EXCLUDES = [
   ...TEST_EXCLUDES,
   ...CLI_TEST_FILES,
-  EVAL_TEST_FILES,
   INTEGRATION_TEST_FILES,
   ...PROTOCOL_TEST_FILES,
   ...RESILIENCE_TEST_FILES,
@@ -58,10 +56,7 @@ export default defineConfig({
   },
   test: {
     include: [],
-    // Eval-harness fixture `initial/` trees are verbatim snapshots of repo
-    // source (pulled via `git show <commit>^:<path>` by the recorder). They
-    // are not part of the KOTA codebase; running them as tests picks up
-    // stale imports and violates architecture contracts.
+    // Candidate fixture projects belong to live eval execution, not Vitest.
     exclude: TEST_EXCLUDES,
     // Many tests spawn subprocesses (Python REPL, CLI binary, MCP servers).
     // Capping at 4 prevents resource starvation under full parallel load.
@@ -112,22 +107,11 @@ export default defineConfig({
           include: [INTEGRATION_TEST_FILES],
           exclude: [
             ...TEST_EXCLUDES,
-            EVAL_TEST_FILES,
             ...CLI_TEST_FILES,
             ...RESILIENCE_TEST_FILES,
           ],
           maxWorkers: 2,
           sequence: { groupOrder: 3 },
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: "eval",
-          include: [EVAL_TEST_FILES],
-          exclude: TEST_EXCLUDES,
-          maxWorkers: 2,
-          sequence: { groupOrder: 4 },
         },
       },
       {

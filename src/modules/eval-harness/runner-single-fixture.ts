@@ -1,16 +1,14 @@
-
 import { join } from "node:path";
 import { finalizeCodeHealthDiagnostics } from "./code-health-diagnostics.js";
 import { type FixtureRun, resourceProfileFromExecutionProfile } from "./fixture-run.js";
 import { fixtureScoringContext } from "./fixture-scoring-context.js";
+import { fixtureWorkflowTrigger } from "./fixture-trigger.js";
 import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import { writeRunArtifact } from "./runner-artifact.js";
 import { codeHealthBaselineFor, finalCodeHealthFor } from "./runner-code-health.js";
 import {
-  fixtureExecutionMode,
   materializeFixtureWorkingDir,
-  usesAgentStepReplay,
 } from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import type { FixtureRunReport, RunFixtureParams, WorkflowExecutionOutcome } from "./runner-types.js";
@@ -25,7 +23,7 @@ export async function runSingleWorkflowFixture(
       `runSingleWorkflowFixture received non-single fixture "${spec.id}".`,
     );
   }
-  const { workingDir, shimDir } = materializeFixtureWorkingDir(params.fixture);
+  const { workingDir } = materializeFixtureWorkingDir(params.fixture);
   const scoringContext = fixtureScoringContext({
     capabilities: params.executor.predicateContext,
     fixture: params.fixture,
@@ -78,10 +76,7 @@ export async function runSingleWorkflowFixture(
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
-      executionMode: fixtureExecutionMode(
-        params.fixture,
-        params.agentExecutionOverride !== undefined,
-      ),
+      executionMode: "live",
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -139,10 +134,7 @@ export async function runSingleWorkflowFixture(
       fixtureId: params.fixture.spec.id,
       runIndex: params.runIndex,
       repeatCount: params.repeatCount,
-      executionMode: fixtureExecutionMode(
-        params.fixture,
-        params.agentExecutionOverride !== undefined,
-      ),
+      executionMode: "live",
       outcome: outcomeFromExecution(executionOutcome, false),
       resourceProfile,
       executionProfile: params.executionProfile,
@@ -183,23 +175,13 @@ export async function runSingleWorkflowFixture(
   try {
     executionOutcome = await params.executor.execute({
       workflowName: spec.workflowName,
-      ...(spec.triggerEvent !== undefined && { triggerEvent: spec.triggerEvent }),
+      ...fixtureWorkflowTrigger({ ...spec, workingDir }),
       workingDir,
       budgetMs: spec.budgetMs,
       executionProfile: params.executionProfile,
       ...(params.agentExecutionOverride !== undefined && {
         agentExecutionOverride: params.agentExecutionOverride,
       }),
-      ...(spec.triggerPayload !== undefined && {
-        triggerPayload: spec.triggerPayload,
-      }),
-      ...(usesAgentStepReplay(
-        params.fixture,
-        params.agentExecutionOverride !== undefined,
-      ) && {
-        replayRecordingsRoot: params.fixture.fixtureDir,
-      }),
-      ...(shimDir !== null && { externalCallShimDir: shimDir }),
     });
   } catch (err) {
     executionOutcome = {
@@ -238,10 +220,7 @@ export async function runSingleWorkflowFixture(
     fixtureId: params.fixture.spec.id,
     runIndex: params.runIndex,
     repeatCount: params.repeatCount,
-    executionMode: fixtureExecutionMode(
-      params.fixture,
-      params.agentExecutionOverride !== undefined,
-    ),
+    executionMode: "live",
     outcome,
     resourceProfile,
     executionProfile: params.executionProfile,

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// The reference oracle uses WebAssembly; this candidate reconstructs its behavior.
 const families = ["amber", "cobalt", "fern", "slate", "violet"];
 const help = `badge-code
 

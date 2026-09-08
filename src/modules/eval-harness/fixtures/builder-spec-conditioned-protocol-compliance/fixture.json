@@ -1,6 +1,6 @@
 {
   "id": "builder-spec-conditioned-protocol-compliance",
-  "description": "Replay-backed builder fixture for applying a compact normative protocol spec to edge cases and writing structured compliance evidence.",
+  "description": "Live model builder fixture for applying a compact normative protocol spec to edge cases and writing structured compliance evidence.",
   "role": "builder",
   "workflowName": "builder",
   "budgetMs": 1800000,
@@ -11,33 +11,8 @@
       "timeoutMs": 20000
     },
     {
-      "kind": "shell-succeeds",
-      "command": "node scripts/check-protocol.mjs --self-test-shortcuts",
-      "timeoutMs": 10000
-    },
-    {
       "kind": "file-exists",
       "path": "spec-compliance-result.json"
-    },
-    {
-      "kind": "file-contains",
-      "path": "spec-compliance-result.json",
-      "needle": "\"specDependentCasesPassed\": 4"
-    },
-    {
-      "kind": "file-contains",
-      "path": "spec-compliance-result.json",
-      "needle": "\"clauseIdsExercised\": [\"WEP-1\", \"WEP-2\", \"WEP-3\", \"WEP-4\", \"WEP-5\"]"
-    },
-    {
-      "kind": "file-contains",
-      "path": "spec-compliance-result.json",
-      "needle": "\"changedImplementationPaths\": [\"src/protocol-handler.mjs\"]"
-    },
-    {
-      "kind": "file-contains",
-      "path": "spec-compliance-result.json",
-      "needle": "\"verificationCommand\": \"node scripts/check-protocol.mjs\""
     },
     {
       "kind": "file-absent",
@@ -110,12 +85,12 @@
     "builder-discipline",
     "protocol",
     "spec-conditioned",
-    "agent-call-replay",
+    "live-llm",
     "objective-metric"
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic replay-backed builder canary for KOTA-shaped protocol work: the builder receives a compact local normative spec, must repair spec-dependent edge cases, and must write structured compliance evidence that the scorer can validate. The fixture uses the existing replay path and local verifier so `pnpm kota eval run` remains deterministic and network-free while predicates and an objective metric grade spec-dependent behavior. No past KOTA failure run exists for this exact measurement gap."
+    "justification": "A model follows generic defensive conventions instead of the local normative protocol requirements. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose models/prompts for implementing unfamiliar protocol specifications. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -136,14 +111,6 @@
     },
     {
       "predicate": {
-        "kind": "shell-succeeds",
-        "command": "node scripts/check-protocol.mjs --self-test-shortcuts",
-        "timeoutMs": 10000
-      },
-      "expected": "pass"
-    },
-    {
-      "predicate": {
         "kind": "file-exists",
         "path": "data/tasks/task-implement-window-envelope-protocol.md"
       },
@@ -159,5 +126,6 @@
   ],
   "controlDecisions": [
     "act"
-  ]
+  ],
+  "builderTaskId": "task-implement-window-envelope-protocol"
 }

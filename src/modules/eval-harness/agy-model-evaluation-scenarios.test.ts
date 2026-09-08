@@ -15,10 +15,6 @@ import { AGY_MODEL_EVALUATION_SCENARIOS } from "./agy-model-evaluation-types.js"
 import { fixturesRootFor } from "./eval-operations.js";
 import { loadFixture } from "./fixture.js";
 import type { FixtureRunReport } from "./runner.js";
-import {
-  fixtureExecutionMode,
-  usesAgentStepReplay,
-} from "./runner-materialize.js";
 
 const rubricTempDirs: string[] = [];
 
@@ -124,10 +120,6 @@ describe("AGY scenario contract", () => {
         sourceNeedle: "do not run `git add`, `git commit`",
       });
     }
-    const replayBacked = loadFixture(root, "builder-targeted-test-writing");
-    expect(replayBacked.agentStepRecordings.length).toBeGreaterThan(0);
-    expect(usesAgentStepReplay(replayBacked, true)).toBe(false);
-    expect(fixtureExecutionMode(replayBacked, true)).toBe("live");
   });
 
   it("makes instruction and unrelated-path violations first-class failures", () => {

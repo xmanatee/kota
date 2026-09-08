@@ -86,7 +86,7 @@
   ],
   "provenance": {
     "kind": "smoke-fixture",
-    "justification": "Synthetic live-builder canary for optimization-shaped autonomy work: the generator must improve code against a deterministic numeric holdout score, while predicates and objective metrics prove the result through artifacts instead of prose. No past KOTA failure run exists for this exact measurement gap."
+    "justification": "A model changes a predictor without improving held-out numerical error. Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners. Choose models/prompts for measured optimization work. No historical KOTA regression is claimed."
   },
   "preRunExpectations": [
     {
@@ -107,5 +107,6 @@
   ],
   "controlDecisions": [
     "act"
-  ]
+  ],
+  "builderTaskId": "task-improve-forecast-predictor"
 }

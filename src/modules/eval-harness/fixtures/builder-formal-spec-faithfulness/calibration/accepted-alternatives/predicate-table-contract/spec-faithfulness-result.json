@@ -2,10 +2,9 @@
   "schemaVersion": 1,
   "requirementIds": ["FSF-1", "FSF-2", "FSF-3", "FSF-4", "FSF-5", "FSF-6"],
   "specContractPath": "src/spec-contract.mjs",
-  "verificationCommand": "node scripts/check-spec-faithfulness.mjs",
+  "verificationCommand": "pnpm run verify",
   "localVerificationCommands": [
-    "node scripts/check-spec-faithfulness.mjs",
-    "node scripts/check-spec-faithfulness.mjs --self-test-shortcuts"
+    "pnpm run verify"
   ],
   "acceptedValidCases": [
     "official-standard-approved",

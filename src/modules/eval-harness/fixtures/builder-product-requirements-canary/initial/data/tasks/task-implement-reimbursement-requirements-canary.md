@@ -51,16 +51,12 @@ node scripts/check-requirements.mjs
 - Validation rejects claims with missing receipts or non-positive amounts.
 - The follow-up policy-exception rule is enforced without regressing the
   original requirements.
-- `node scripts/check-requirements.mjs --self-test-shortcuts` exits
-  successfully, proving shortcut artifacts and follow-up regressions are
-  rejected.
 - This task has moved from `data/tasks/` to `data/tasks/archive/`.
 
 ## Acceptance Evidence
 
 - Command output from `node scripts/check-requirements.mjs`.
 - The generated `requirements-result.json` artifact.
-- Command output from `node scripts/check-requirements.mjs --self-test-shortcuts`.
 - The fixture run artifact records the `product_requirements_canary_score`
   objective metric.
 

@@ -1,18 +1,13 @@
-# Builder Multi-Service Integration
+# Multi-component coding
 
-This replay-backed builder fixture seeds a tiny two-component Node project:
+A model patches one service while failing the API-worker exchange and dynamic-token propagation.
 
-- `catalog-api` starts as a service process and serves catalog bundle data.
-- `order-worker` consumes that API through a local request directory and writes
-  `integration-result.json`.
+Decision: Choose models/prompts for end-to-end component integration.
 
-The seeded bug is a stale API route contract in `src/catalog-routes.mjs`: the
-worker requests `/api/bundles/starter-kit`, while the API initially serves
-`/api/catalog/starter-kit`. The scorer starts both components, requires a
-successful API request envelope through the expected route, and validates a
-dynamic run token that is passed only to the API process. A hardcoded artifact
-or a worker that bypasses the API cannot produce the token and request-log
-evidence the scorer expects.
+Deterministic checks can grade a submitted candidate, but cannot establish whether the selected model will discover and produce that candidate. Runtime, task, and workflow invariants remain with their production owners.
 
-`node scripts/check-integration.mjs --self-test-shortcuts` exercises the
-shortcut guard logic without mutating the fixture project.
+Provenance: Synthetic scenario; no matching historical KOTA failure is claimed.
+
+Run through explicit live evaluation or the configured weekly cadence. The fixture
+manifest owns its time budget; the run report owns actual time, model usage, and
+resource comparability. Calibration checks the scorer before any model call.

@@ -1,12 +1,6 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
-import { getCriticPromptHash } from "#modules/autonomy/critic.js";
-import {
-  EVALUATOR_CALIBRATION_ARTIFACT,
-  type EvaluatorCalibrationArtifact,
-} from "#modules/autonomy/evaluator-calibration.js";
 import type {
   AgyModelEvaluationOptions,
   AgyModelEvaluationResult,
@@ -170,36 +164,5 @@ export function makeAgyRecordingCtx(
   return { cwd: "/tmp/project", client } as ModuleContext;
 }
 
-export function seedCalibration(
-  runsDir: string,
-  runId: string,
-  completedAt: string,
-  verdict: EvaluatorCalibrationArtifact["verdict"],
-  sourceFilesChanged: string[],
-): void {
-  const runDir = join(runsDir, runId);
-  mkdirSync(runDir, { recursive: true });
-  const artifact: EvaluatorCalibrationArtifact = {
-    runId,
-    workflow: "builder",
-    completedAt,
-    verdict,
-    warningCount: 0,
-    criticalIssueCount: 0,
-    repairIterations: 1,
-    finalIterationFailures: [],
-    criticFailureCount: 0,
-    terminalRunStatus: verdict === "fail" ? "failed" : "success",
-    taskId: null,
-    taskFinalState: null,
-    sourceRevision: "1111111111111111111111111111111111111111",
-    sourceFilesChanged,
-    criticPromptHash: getCriticPromptHash(),
-  };
-  writeFileSync(
-    join(runDir, EVALUATOR_CALIBRATION_ARTIFACT),
-    JSON.stringify(artifact, null, 2),
-  );
-}
 
 export { SAMPLE_RUN_CONFIGURATION };

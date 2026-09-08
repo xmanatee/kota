@@ -1,12 +1,11 @@
-
 import type { FixtureRoundSpec, LoadedFixture } from "./fixture.js";
 import type { ExecutionProfilePreflightResult } from "./fixture-run.js";
 import { fixtureScoringContext } from "./fixture-scoring-context.js";
+import { fixtureWorkflowTrigger } from "./fixture-trigger.js";
 import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import {
   applyRoundTaskInput,
-  usesAgentStepReplay,
 } from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import type {
@@ -24,7 +23,6 @@ export async function executeRound(params: {
   executionProfile: ExecutionProfilePreflightResult;
   agentExecutionOverride?: WorkflowAgentExecutionOverride;
   workingDir: string;
-  shimDir: string | null;
   runIndex: number;
   repeatCount: number;
 }): Promise<RoundRunReport> {
@@ -79,14 +77,7 @@ export async function executeRound(params: {
       ...(params.agentExecutionOverride !== undefined && {
         agentExecutionOverride: params.agentExecutionOverride,
       }),
-      ...(triggerPayload !== undefined && { triggerPayload }),
-      ...(usesAgentStepReplay(
-        params.fixture,
-        params.agentExecutionOverride !== undefined,
-      ) && {
-        replayRecordingsRoot: params.fixture.fixtureDir,
-      }),
-      ...(params.shimDir !== null && { externalCallShimDir: params.shimDir }),
+      ...fixtureWorkflowTrigger({ ...params.round, workingDir: params.workingDir, triggerPayload }),
     });
   } catch (err) {
     executionOutcome = {
