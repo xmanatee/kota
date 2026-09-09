@@ -5,6 +5,7 @@ import { getEligibleAtMs, matchesFilter } from "./run-executor-utils.js";
 import { formatRunId, workflowRunIdFromPayload } from "./run-io.js";
 import {
   AdmissionKeyConflictError,
+  RetainedRunResourceError,
   type RunAdmissionDisposition,
   type RunStateDatabase,
   type StoredRun,
@@ -468,7 +469,7 @@ export class WorkflowQueueManager {
       );
       return disposition;
     } catch (error) {
-      if (error instanceof AdmissionKeyConflictError) {
+      if (error instanceof AdmissionKeyConflictError || error instanceof RetainedRunResourceError) {
         this.config.log(
           `Rejected workflow "${definition.name}" from event "${trigger.event}": ${error.message}`,
         );

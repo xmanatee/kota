@@ -53,6 +53,10 @@ Owns KOTA's autonomous workflows and their shared policy.
   contract, production run, durable record, direct inspection, or behavior test;
   review guidance explicitly permits omitting new tests when an architectural
   mechanism already proves the behavior.
+- **Incomplete dispositions.** Critic distinguishes full completion from safe
+  blocked or retired work, then independently reviews every retained change.
+  External unavailability never excuses unsafe partial code. Suspended writers
+  retain issue ownership until their runtime owner resolves the same run.
 - **Canary evidence.** Continuous-agent canaries establish a persisted start
   observation, then advance through one three-hour and consecutive,
   non-overwriting six-hour windows. They collect runtime runs, tasks,

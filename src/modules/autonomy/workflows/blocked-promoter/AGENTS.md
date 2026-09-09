@@ -10,6 +10,11 @@ cleared.
   follow-up; the attention digest shares that decision owner’s cadence.
 - Never move terminal tasks. Use repo-tasks domain operations for every state
   transition.
+- Capture paths are discovery hints. File existence, names, and extensions
+  never satisfy acceptance. Review outcome, execution provenance, and required
+  positive/negative behavior before reopening through normal task operations.
+  Use already authorized collection and equivalent evidence wherever available;
+  an operator need not repeat permission or run an otherwise permitted command.
 - The writer emits a stable owner-decision request only after integration.
   `blocked-promoter-owner-decision` owns `askOwnerSteps` on a separate
   `repository: none` follow-up, then emits a stable resolution for a new writer

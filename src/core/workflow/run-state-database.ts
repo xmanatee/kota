@@ -14,6 +14,7 @@ import {
   type PendingRunPublication,
   PublicationIntentConflictError,
   type RestartRecoveryAttempt,
+  RetainedRunResourceError,
   type RunAdmissionDisposition,
   type RunAdmissionIdentity,
   type RunPublication,
@@ -40,6 +41,7 @@ export type {
 export {
   AdmissionKeyConflictError,
   PublicationIntentConflictError,
+  RetainedRunResourceError,
   StaleDaemonEpochError,
   StateValueConflictError,
 } from "./run-state-types.js";
@@ -300,6 +302,11 @@ export class RunStateDatabase {
           this.insertAdmission(input.admission, input.id, input.admittedAt);
         }
         return { status: "duplicate", runId: input.id };
+      }
+      const retainedOwner = this.listRuns(input.scopeId, ["needs_attention"])
+        .find((run) => run.resources.some((resource) => input.resources.includes(resource)));
+      if (retainedOwner !== undefined) {
+        throw new RetainedRunResourceError(retainedOwner.id);
       }
       this.database
         .prepare(

@@ -183,6 +183,23 @@ export function inspectAutonomyIssueOwner(args: {
   }
 
   const attempts = investigationRuns(issue, runs);
+  const retained = runs.find((run) =>
+    run.state === "needs_attention" &&
+    (attempts.some((attempt) => attempt.id === run.id) ||
+      (run.workflow === "improver-disposition-publication" &&
+        attempts.some((attempt) => attempt.id === run.trigger.payload.sourceRunId)) ||
+      issue.links.taskIds.some((taskId) => run.resources.includes(`task:${taskId}`)))
+  );
+  if (retained !== undefined) {
+    return {
+      issueKey: issue.issueKey,
+      semanticRevision: issue.semanticRevision,
+      phase: "genuinely-blocked",
+      owned: true,
+      reason: `retained run ${retained.id} requires same-run recovery; its ownership has not ended`,
+      investigationAttempts: attempts.length,
+    };
+  }
   const activeAttempt = attempts.some((run) => ACTIVE_RUN_STATES.has(run.state));
   if (activeAttempt || activePublicationFor(attempts, runs)) {
     return {

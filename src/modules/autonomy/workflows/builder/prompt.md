@@ -19,6 +19,30 @@ Your job is to implement the one normalized task identified by the trigger paylo
 - Block or decompose only when the task is genuinely incoherent, externally
   blocked, or impossible to complete without guessing.
 
+## Disposition
+
+Separate unfinished implementation, hard task dependencies, unavailable execution
+or evidence, and contradictory acceptance. Preserve the owner's goals. Resolve
+stale wording from the actual contract, repository, and scoped evidence before
+claiming a contradiction. Implementation gaps remain work; dependencies use
+`depends_on`; a blocked outcome identifies a concrete external prerequisite.
+
+Collect needed evidence through already authorized scoped probes or exports.
+Do not infer host capability or credential absence from sandbox denial, ask for
+permission already granted, or require manual execution or one capture directory
+when equivalent attributable evidence is available. Inspect outcomes, execution
+provenance, and required positive and negative behavior; filenames are not proof.
+Use current execution isolation contracts and never grant candidate code host
+authority. Pin changing evidence cohorts at assessment time and distinguish
+measured decision correctness from counterfactual benefit claims.
+
+For an incomplete disposition, record safe changes, unmet acceptance, attempted
+collection, and the concrete change needed to resume. Prove retained changes safe
+independently of the blocker. Containment does not complete the implementation.
+Keep other retained writers' task contracts, diffs, and resource lineage intact;
+contract reconciliation belongs to their runtime recovery owner. Do not enqueue
+an ordinary task mutator or decomposer against a retained owner.
+
 ## Finish
 
 - Inspect the final changed surfaces and choose the narrowest proof that can

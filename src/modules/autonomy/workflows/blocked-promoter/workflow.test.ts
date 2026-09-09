@@ -128,10 +128,10 @@ function runBlockedScenario(
 describe("blocked-promoter workflow", () => {
 
 
-  it("auto-promotes tasks whose deterministic preconditions are satisfied", async () => {
+  it("keeps discovered capture files blocked until their outcome is reviewed", async () => {
     const workspaceRoot = makeScopeRoot();
 
-    // operator-capture precondition with a proof artifact
+    // A plausible artifact name and a success claim do not establish acceptance.
     const completeCaptureDir = join(workspaceRoot, ".kota", "runs", "harness-parity-x");
     mkdirSync(completeCaptureDir, { recursive: true });
     writeFileSync(join(completeCaptureDir, "capture-proof.md"), "operator proof\n");
@@ -177,7 +177,7 @@ describe("blocked-promoter workflow", () => {
       promotions: Array<{ id: string; toState: string }>;
     };
     const promotedIds = promotion.promotions.map((p) => p.id).sort();
-    expect(promotedIds).toEqual(["task-needs-capture"]);
+    expect(promotedIds).toEqual([]);
     // The task-needs-storage one stayed blocked (capability not present).
     expect(
       existsSync(
@@ -200,7 +200,7 @@ describe("blocked-promoter workflow", () => {
         join(workspaceRoot, "data", "tasks", "task-needs-capture.md"),
         "utf-8",
       ),
-    ).toContain("status: open");
+    ).toContain("status: blocked");
   });
 
   it("keeps a partial operator-capture directory blocked and refreshes instructions", async () => {
@@ -258,7 +258,7 @@ describe("blocked-promoter workflow", () => {
       taskId: "task-needs-telegram-proof",
       capturePath: ".kota/runs/telegram-deploy-staging",
     });
-    expect(instructions[0].reason).toContain("no operator-visible proof");
+    expect(instructions[0].reason).toContain("outcome and provenance require review");
     const taskBody = readFileSync(
       join(workspaceRoot, "data", "tasks", "task-needs-telegram-proof.md"),
       "utf-8",
@@ -278,7 +278,7 @@ describe("blocked-promoter workflow", () => {
       kind: "operator-capture-due",
       taskId: "task-needs-telegram-proof",
     });
-    expect(artifact.actions[0].reason).toContain("no operator-visible proof");
+    expect(artifact.actions[0].reason).toContain("outcome and provenance require review");
     expect(artifact.operatorCaptureInstructionsEmitted[0]).toMatchObject({
       taskId: "task-needs-telegram-proof",
       capturePath: ".kota/runs/telegram-deploy-staging",

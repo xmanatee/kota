@@ -275,7 +275,7 @@ describe("classifyBlockedActions", () => {
     expect(actions).toHaveLength(1);
     expect(actions[0].kind).toBe("operator-capture-due");
     if (actions[0].kind === "operator-capture-due") {
-      expect(actions[0].reason).toContain("no operator-visible proof");
+      expect(actions[0].reason).toContain("outcome and provenance require review");
     }
   });
 
@@ -365,7 +365,7 @@ describe("listOperatorCaptureInstructCandidates", () => {
 
     expect(candidates).toHaveLength(1);
     expect(candidates[0].taskId).toBe("task-partial");
-    expect(candidates[0].reason).toContain("no operator-visible proof");
+    expect(candidates[0].reason).toContain("outcome and provenance require review");
   });
 
   it("skips fresh blockers (under threshold)", () => {

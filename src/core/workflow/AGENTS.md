@@ -38,6 +38,9 @@ and publication.
 - `WorkflowQueueManager` is a trigger-admission adapter over durable run state.
   Do not add an in-memory or JSON queue, task-claim file, workflow-owned
   worktree, merge gate, process registry, port lease, or recovery side channel.
+- New admissions cannot compete with a suspended run's retained resources.
+  Reconciliation and resumption must enter through that run's recovery owner;
+  ordinary mutators cannot queue behind it to revise its contract.
 - Daemon startup may repair authority-critical or restart-recovered malformed
   run metadata only when the durable run, `workflow.json`, and `trigger.json`
   agree. Terminal history otherwise keeps its quarantinable inspection

@@ -112,6 +112,13 @@ export class AdmissionKeyConflictError extends Error {
   }
 }
 
+export class RetainedRunResourceError extends Error {
+  constructor(readonly runId: string) {
+    super(`Resources are held by retained run "${runId}"; reconcile through that run's recovery owner`);
+    this.name = "RetainedRunResourceError";
+  }
+}
+
 export class PublicationIntentConflictError extends Error {
   constructor(
     readonly runId: string,

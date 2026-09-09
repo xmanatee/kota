@@ -150,7 +150,7 @@ describe("targeted builder contract", () => {
     const persist = () => writeFileSync(join(runDir, "metadata.json"), JSON.stringify(metadata));
     persist();
     expect(invariant(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("successful build") });
-    metadata.steps = [{
+    const successfulBuild = {
       id: "build", type: "agent", status: "success",
       startedAt: "2026-09-07T00:00:00.000Z",
       completedAt: "2026-09-07T00:00:01.000Z", durationMs: 1000,
@@ -158,9 +158,17 @@ describe("targeted builder contract", () => {
         tokens: { state: "complete", inputTokens: 100, outputTokens: 20 },
         cost: { state: "complete", usd: 0.01 },
       },
-    }];
+    } satisfies WorkflowStepResult;
+    metadata.steps = [successfulBuild];
     persist();
     expect(invariant(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("must move targeted task") });
+    writeTask(workspace, "blocked", "## Blocked on\nkind: operator-capture\npath: evidence\ndescription: Scoped execution proof unavailable");
+    expect(invariant(input)).toEqual({ satisfied: true });
+    metadata.steps[0] = { ...successfulBuild, status: "failed" };
+    persist();
+    expect(invariant(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("successful build") });
+    metadata.steps[0] = successfulBuild;
+    persist();
     rmSync(join(workspace, "data/tasks/task-target.md"));
     writeTask(workspace, "done");
     expect(invariant(input)).toEqual({ satisfied: true });

@@ -176,7 +176,21 @@ function makeBlockedTaskTree(): { workspaceRoot: string } {
 }
 
 describe("evaluateBlockedPrecondition", () => {
-  it("operator-capture matches a glob path", () => {
+  it("distinguishes failed discovery from an absent capture", () => {
+    const { workspaceRoot } = makeBlockedTaskTree();
+    writeFileSync(join(workspaceRoot, "inaccessible-parent"), "not a directory");
+    const result = evaluateBlockedPrecondition({
+      kind: "operator-capture",
+      path: "inaccessible-parent/capture",
+      description: "live result",
+    }, { workspaceRoot, taskBody: "" });
+    expect(result).toMatchObject({
+      satisfied: false,
+      reason: expect.stringContaining("capture discovery unavailable"),
+    });
+  });
+
+  it("capture discovery finds glob candidates without accepting their claims", () => {
     const { workspaceRoot } = makeBlockedTaskTree();
     const proofDir = join(workspaceRoot, ".kota", "runs", "harness-parity-2026-04-25");
     mkdirSync(proofDir, {
@@ -191,7 +205,7 @@ describe("evaluateBlockedPrecondition", () => {
       },
       { workspaceRoot, taskBody: "" },
     );
-    expect(matched.satisfied).toBe(true);
+    expect(matched.satisfied).toBe(false);
 
     const missing = evaluateBlockedPrecondition(
       {
@@ -204,7 +218,7 @@ describe("evaluateBlockedPrecondition", () => {
     expect(missing.satisfied).toBe(false);
   });
 
-  it("operator-capture treats smoke-only directories as partial proof", () => {
+  it("neither preflight output nor a named transcript proves capture acceptance", () => {
     const { workspaceRoot } = makeBlockedTaskTree();
     const captureDir = join(workspaceRoot, ".kota", "runs", "telegram-deploy-staging");
     mkdirSync(captureDir, { recursive: true });
@@ -221,7 +235,7 @@ describe("evaluateBlockedPrecondition", () => {
     expect(partial.satisfied).toBe(false);
     if (!partial.satisfied) {
       expect(partial.shouldRefreshInstruction).toBe(true);
-      expect(partial.reason).toContain("no operator-visible proof");
+      expect(partial.reason).toContain("outcome and provenance require review");
     }
 
     writeFileSync(
@@ -236,7 +250,7 @@ describe("evaluateBlockedPrecondition", () => {
       },
       { workspaceRoot, taskBody: "" },
     );
-    expect(complete.satisfied).toBe(true);
+    expect(complete.satisfied).toBe(false);
   });
 
   it("owner-decision is satisfied only when a matching resolved marker exists", () => {

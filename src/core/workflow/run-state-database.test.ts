@@ -10,6 +10,7 @@ import {
   StaleDaemonEpochError,
   StateValueConflictError,
 } from "./run-state-database.js";
+import { RUN_STATE_SCHEMA_VERSION } from "./run-state-schema.js";
 
 const roots: string[] = [];
 
@@ -280,7 +281,7 @@ describe("RunStateDatabase", () => {
     migrated.close();
 
     const verified = new Database(path, { readonly: true });
-    expect(verified.pragma("user_version", { simple: true })).toBe(5);
+    expect(verified.pragma("user_version", { simple: true })).toBe(RUN_STATE_SCHEMA_VERSION);
     const legacyObjects = verified.prepare(`
       SELECT name FROM sqlite_master
       WHERE name IN ('projects', 'project_state_values')

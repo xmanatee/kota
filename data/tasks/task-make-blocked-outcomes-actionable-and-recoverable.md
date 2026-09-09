@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Make blocked outcomes actionable and recoverable
@@ -76,3 +76,38 @@ disposition through its owner; relevant changes resume the same lineage without
 duplicate tasks or sandboxes. Record which blockers were actually removed and
 which concrete external prerequisite remains. New files alone cannot promote
 the eight blocked evidence tasks or claim their live acceptance passed.
+
+## Builder disposition (2026-09-09)
+
+Partial implementation is retained: disposition-aware critic/builder guidance,
+capture discovery separated from acceptance (including unavailable discovery),
+suspended issue ownership, and atomic rejection of competing resource admissions
+while preserving duplicate deliveries and same-run identity. No live blocker of
+the four retained runs was proven removed, and none of the eight evidence tasks
+was promoted. The owner's 70% goal and all admitted task contracts remain intact.
+
+The required live owner inspection/recovery is unavailable in this step. Scoped
+canonical run-directory enumeration returned EPERM; local CLI history is not
+canonical evidence. Workflow/probe subprocess verification also encounters
+spawnSync /bin/ps EPERM. This establishes execution-context limits, not missing
+host credentials/tools. This writer cannot dispatch other retained owners before
+integration. Existing permission does not need to be requested again.
+
+Remaining implementation is explicit: automatic semantic capture collection and
+review, relevant-change retry admission, and safe contract reconciliation through
+the retained recovery owner. New files alone cannot reopen evidence work. The
+ordinary terminal-failure decomposer must not contend with a suspended writer.
+The four case-specific acceptance obligations in this task are still outstanding.
+
+Proof: production/test typechecking, scoped lint, focused module and database
+admission tests, and production discovery of the eight blocked task contracts.
+Broader subprocess journeys and empirical critic calibration are not claimed.
+Full comparison, case dispositions, commands/limitations, and discovery results
+are retained in builder run 2026-09-09T16-49-09-994Z-builder-omacue agent artifacts
+blocked-outcomes-summary.md and blocked-discovery.json.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Runtime-owned scoped inspection/export and same-run recovery access for qj0mm4, hjhox7, 720nnv and un8vlq, plus execution capability for the required subprocess/Linux/live evidence. Permission is already granted; use authorized collection and equivalent attributable evidence wherever available. Review the evidence and remaining implementation before reopening; no named file or directory alone satisfies this precondition.

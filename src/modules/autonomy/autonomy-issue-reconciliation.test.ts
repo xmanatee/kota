@@ -70,6 +70,53 @@ function improverRun(
 }
 
 describe("autonomy issue disposition-owner reconciliation", () => {
+  it.each(["investigation", "publication", "task"] as const)(
+    "preserves a suspended %s owner without scheduling another investigation",
+    (kind) => {
+      const projection = openProjection();
+      const issue = projection.issues[0]!;
+      const investigation = improverRun("source", "failed", issue.issueKey, issue.semanticRevision);
+      const retained: StoredRun = {
+        ...investigation,
+        id: "retained",
+        state: "needs_attention",
+        ...(kind === "publication" ? {
+          workflow: "improver-disposition-publication",
+          trigger: { event: "publication", schemaRef: null, payload: { sourceRunId: investigation.id } },
+        } : kind === "task" ? {
+          workflow: "builder",
+          trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+          resources: ["task:task-repair"],
+        } : {}),
+      };
+      const current = kind === "task" ? recordAutonomyIssueDispositions({
+        current: projection,
+        updates: [{
+          issueKey: issue.issueKey,
+          semanticRevision: issue.semanticRevision,
+          kind: "task",
+          decidedAt: NOW,
+          taskIds: ["task-repair"],
+          ownerQuestionIds: [],
+        }],
+      }) : projection;
+      const input = {
+        projection: current,
+        runs: [investigation, retained],
+        tasks: [],
+        questions: [],
+        requestedAt: "2026-09-09T11:00:00.000Z",
+      };
+      expect(planAutonomyIssueOwnerReconciliation(input)).toEqual([]);
+      expect(publishExhaustedInvestigationAttention(input)).toEqual(current);
+      // The existing owner may be reconsidered only after runtime releases it.
+      expect(planAutonomyIssueOwnerReconciliation({
+        ...input,
+        runs: [investigation, { ...retained, state: "failed" }],
+      })).toHaveLength(1);
+    },
+  );
+
   it("re-admits one failed investigation for the unchanged semantic revision", () => {
     const projection = openProjection();
     const issue = projection.issues[0]!;
@@ -236,13 +283,13 @@ describe("autonomy issue disposition-owner reconciliation", () => {
   it("backs off failures and publishes durable attention after three terminal attempts", () => {
     const projection = openProjection();
     const issue = projection.issues[0]!;
-    const attention = {
-      ...improverRun("improver-attention", "needs_attention", issue.issueKey, 1),
+    const failure = {
+      ...improverRun("improver-failure", "failed", issue.issueKey, 1),
       admittedAt: "2026-09-03T10:40:00.000Z",
     };
     expect(planAutonomyIssueOwnerReconciliation({
       projection,
-      runs: [attention],
+      runs: [failure],
       tasks: [],
       questions: [],
       requestedAt: "2026-09-03T10:41:00.000Z",
@@ -253,7 +300,7 @@ describe("autonomy issue disposition-owner reconciliation", () => {
     })]);
     expect(planAutonomyIssueOwnerReconciliation({
       projection,
-      runs: [attention],
+      runs: [failure],
       tasks: [],
       questions: [],
       requestedAt: "2026-09-03T10:46:00.000Z",

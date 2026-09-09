@@ -12,6 +12,7 @@ import {
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
+import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 const SCOPE_ID = "scope-queue-restoration";
@@ -239,6 +240,58 @@ describe("durable workflow queue restoration", () => {
       expect(refill).not.toHaveBeenCalled();
     },
   );
+
+  it("rejects a competing admission while the retained owner can resume with its identity intact", () => {
+    const definition = workflow(scopeRoot);
+    const originalTrigger = trigger("review.changed", { taskId: "held", revision: 2, idempotencyKey: "held-contract" });
+    runState.admitRun({
+      id: "retained-owner",
+      scopeId: SCOPE_ID,
+      workflow: definition.name,
+      trigger: originalTrigger,
+      repository: definition.repository,
+      resources: ["task:held"],
+      admission: workflowDispatchIdempotency(SCOPE_ID, definition.name, originalTrigger)!,
+      admittedAt: "2026-08-25T10:00:00.000Z",
+    });
+    runState.requireRunAttention("retained-owner", "requires evidence review", []);
+    const logs: string[] = [];
+    const queue = new WorkflowQueueManager({
+      store: new WorkflowRunStore(scopeRoot),
+      runState,
+      coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
+      scopeId: SCOPE_ID,
+      scopeRoot,
+      getScopeId: () => SCOPE_ID,
+      getActiveBackoff: () => null,
+      workflowUsesAgent: () => false,
+      getDefinitions: () => [definition],
+      log: (message) => logs.push(message),
+    });
+    expect(queue.appendRun({
+      runId: "duplicate-delivery",
+      workflowName: definition.name,
+      trigger: originalTrigger,
+      enqueuedAtMs: Date.now(),
+      notBeforeMs: Date.now(),
+    })).toEqual({ status: "duplicate", runId: "retained-owner" });
+    expect(queue.appendRun({
+      runId: "competing-mutator",
+      workflowName: definition.name,
+      trigger: trigger("review.changed", { taskId: "held", revision: 3, idempotencyKey: "new-contract" }),
+      enqueuedAtMs: Date.now(),
+      notBeforeMs: Date.now(),
+    })).toBeNull();
+    expect(runState.getRun("competing-mutator")).toBeNull();
+    expect(logs).toContainEqual(expect.stringContaining('retained run "retained-owner"'));
+    expect(queue.resumeRetainedRun("retained-owner", Date.now())).toBe(true);
+    expect(runState.getRun("retained-owner")).toMatchObject({
+      state: "queued",
+      trigger: originalTrigger,
+      resources: ["task:held"],
+    });
+    expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
+  });
 
   it.each(["manual", "resume", "workflow.triggered"] as const)(
     "revalidates the current payload schema before resuming a retained %s run",

@@ -1,6 +1,6 @@
-import { type Dirent, existsSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { basename, extname, isAbsolute, join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 /**
  * Typed unblock-precondition vocabulary for tasks with `status: blocked` in `data/tasks/`.
@@ -11,7 +11,7 @@ import { basename, extname, isAbsolute, join, resolve } from "node:path";
  * returns the task to `open` when the
  * condition is satisfied; `owner-decision` gets re-asked through the
  * `askOwnerSteps` recipe on a 14-day cadence; `operator-capture` promotes
- * only after its named evidence path contains operator-visible proof, and its
+ * only after semantic review through the normal task mutation owner, and its
  * aging is surfaced through `attention-digest` while the evidence is absent.
  *
  * The vocabulary is intentionally small. The parser rejects unknown kinds and
@@ -63,7 +63,7 @@ export type OwnerDecisionPrecondition = {
 export type OperatorCapturePrecondition = {
   kind: "operator-capture";
   /**
-   * Repo-relative path that must exist for the precondition to fire. May be
+   * Evidence discovery hint, not an acceptance predicate. May be
    * a literal file/directory path, or a glob containing `*` characters;
    * globs are matched against immediate children of the parent directory.
    */
@@ -239,128 +239,46 @@ function fileExists(path: string): boolean {
   }
 }
 
-type OperatorCapturePathEvaluation =
-  | { status: "complete"; reason: string }
-  | { status: "partial"; reason: string }
-  | { status: "missing"; reason: string };
+type CaptureDiscovery =
+  | { status: "found" | "missing" }
+  | { status: "unavailable"; reason: string };
 
-const VISUAL_PROOF_EXTENSIONS = new Set([
-  ".gif",
-  ".html",
-  ".jpeg",
-  ".jpg",
-  ".mov",
-  ".mp4",
-  ".png",
-  ".webm",
-  ".webp",
-]);
-const TEXT_PROOF_EXTENSIONS = new Set([".json", ".md", ".txt"]);
-const TEXT_PROOF_NAME_RE =
-  /(^|[-_.])(capture|chat|conversation|exchange|fixture|message|messages|proof|rendered|reply|screenshot|screencast|snapshot|slack|status|telegram|transcript)([-_.]|$)/;
-const PREFLIGHT_ONLY_TEXT_RE =
-  /^(build|install|lint|setup|smoke|smoke-test|static-test|test|tests|typecheck|unit|validation)([-_.].*)?\.(log|txt)$/;
-const MAX_OPERATOR_CAPTURE_SCAN_DEPTH = 4;
+function captureDiscoveryFailure(error: unknown): CaptureDiscovery {
+  const code = error instanceof Error && "code" in error && typeof error.code === "string"
+    ? error.code : "unclassified filesystem error";
+  return code === "ENOENT"
+    ? { status: "missing" }
+    : { status: "unavailable", reason: `capture discovery unavailable (${code})` };
+}
 
-function resolveOperatorCaptureCandidates(
+function discoverOperatorCapture(
   workspaceRoot: string,
   capturePath: string,
-): string[] {
+): CaptureDiscovery {
   const star = capturePath.indexOf("*");
   if (star === -1) {
     const absolute = isAbsolute(capturePath)
       ? capturePath
       : resolve(workspaceRoot, capturePath);
-    return fileExists(absolute) ? [absolute] : [];
+    try {
+      statSync(absolute);
+      return { status: "found" };
+    } catch (error) {
+      return captureDiscoveryFailure(error);
+    }
   }
   const before = capturePath.slice(0, star);
   const after = capturePath.slice(star + 1);
   const baseSlash = before.lastIndexOf("/");
   const baseDirRel = baseSlash === -1 ? "" : before.slice(0, baseSlash);
   const prefix = baseSlash === -1 ? before : before.slice(baseSlash + 1);
-  const suffix = after;
   const baseDir = isAbsolute(baseDirRel) ? baseDirRel : resolve(workspaceRoot, baseDirRel);
-  if (!existsSync(baseDir)) return [];
-  let entries: string[];
   try {
-    entries = readdirSync(baseDir);
-  } catch {
-    return [];
+    const found = readdirSync(baseDir).some((entry) => entry.startsWith(prefix) && entry.endsWith(after));
+    return { status: found ? "found" : "missing" };
+  } catch (error) {
+    return captureDiscoveryFailure(error);
   }
-  return entries
-    .filter((entry) => entry.startsWith(prefix) && entry.endsWith(suffix))
-    .map((entry) => join(baseDir, entry));
-}
-
-function fileLooksLikeOperatorProof(path: string): boolean {
-  let stats: ReturnType<typeof statSync>;
-  try {
-    stats = statSync(path);
-  } catch {
-    return false;
-  }
-  if (!stats.isFile() || stats.size === 0) return false;
-
-  const name = basename(path).toLowerCase();
-  if (PREFLIGHT_ONLY_TEXT_RE.test(name)) return false;
-
-  const ext = extname(name);
-  if (VISUAL_PROOF_EXTENSIONS.has(ext)) return true;
-  return TEXT_PROOF_EXTENSIONS.has(ext) && TEXT_PROOF_NAME_RE.test(name);
-}
-
-function directoryContainsOperatorProof(path: string, depth = 0): boolean {
-  if (depth > MAX_OPERATOR_CAPTURE_SCAN_DEPTH) return false;
-  let entries: Dirent[];
-  try {
-    entries = readdirSync(path, { withFileTypes: true });
-  } catch {
-    return false;
-  }
-  for (const entry of entries) {
-    const childPath = join(path, entry.name);
-    if (entry.isFile() && fileLooksLikeOperatorProof(childPath)) return true;
-    if (
-      entry.isDirectory() &&
-      directoryContainsOperatorProof(childPath, depth + 1)
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function pathContainsOperatorProof(path: string): boolean {
-  let stats: ReturnType<typeof statSync>;
-  try {
-    stats = statSync(path);
-  } catch {
-    return false;
-  }
-  if (stats.isFile()) return fileLooksLikeOperatorProof(path);
-  if (stats.isDirectory()) return directoryContainsOperatorProof(path);
-  return false;
-}
-
-function evaluateOperatorCapturePath(
-  workspaceRoot: string,
-  capturePath: string,
-): OperatorCapturePathEvaluation {
-  const candidates = resolveOperatorCaptureCandidates(workspaceRoot, capturePath);
-  if (candidates.length === 0) {
-    return { status: "missing", reason: `operator capture missing at ${capturePath}` };
-  }
-  const complete = candidates.find(pathContainsOperatorProof);
-  if (complete) {
-    return {
-      status: "complete",
-      reason: `operator capture proof exists at ${capturePath}`,
-    };
-  }
-  return {
-    status: "partial",
-    reason: `operator capture at ${capturePath} has no operator-visible proof artifact`,
-  };
 }
 
 export type BlockedPreconditionEvaluation =
@@ -485,10 +403,10 @@ function preconditionPathRoot(ctx: EvaluationContext, path: string): string {
  * whether to auto-promote the task. `owner-decision` never auto-resolves from
  * probe data alone: it requires a matching
  * `<!-- blocked-promoter-resolved -->` marker in the body (written by the
- * workflow when the operator approves). `operator-capture` promotes only when
- * the named path contains operator-visible proof; a directory with only
- * preflight/smoke output is treated as a partial capture and refreshes the
- * operator instructions instead of promoting.
+ * workflow when the operator approves). Capture discovery never establishes
+ * acceptance. A reviewer must inspect outcome, provenance, and required
+ * positive/negative behavior before using the normal task mutation operation
+ * to reopen the task. Equivalent evidence may live outside the discovery hint.
  */
 export function evaluateBlockedPrecondition(
   precondition: BlockedPrecondition,
@@ -531,21 +449,26 @@ export function evaluateBlockedPrecondition(
       };
     }
     case "operator-capture": {
-      const evaluation = evaluateOperatorCapturePath(
+      const discovery = discoverOperatorCapture(
         preconditionPathRoot(ctx, precondition.path),
         precondition.path,
       );
-      if (evaluation.status === "complete") {
-        return { satisfied: true, reason: evaluation.reason };
-      }
-      if (evaluation.status === "partial") {
+      if (discovery.status === "unavailable") {
         return {
           satisfied: false,
-          reason: evaluation.reason,
-          shouldRefreshInstruction: true,
+          reason: `${discovery.reason} at ${precondition.path}; this does not establish evidence absence`,
         };
       }
-      return { satisfied: false, reason: evaluation.reason };
+      return discovery.status === "found"
+        ? {
+            satisfied: false,
+            reason: `Evidence found at ${precondition.path}; outcome and provenance require review before promotion`,
+            shouldRefreshInstruction: true,
+          }
+        : {
+            satisfied: false,
+            reason: `No evidence discovered at ${precondition.path}; use authorized scoped collection or inspect equivalent evidence`,
+          };
     }
   }
 }
