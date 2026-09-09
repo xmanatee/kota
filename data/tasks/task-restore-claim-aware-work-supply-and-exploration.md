@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p0
 ---
 # Restore claim-aware work supply and exploration
