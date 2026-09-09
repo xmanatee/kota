@@ -48,6 +48,9 @@ the protocol and registry.
   Raw daemon databases and SQLite journals never cross the agent read boundary.
   Linux read denials cover every mounted surface, including writable roots and
   runtime write boundaries that have no explicit read grant.
+- Dependency discovery grants only physical `node_modules` locations along the
+  canonical workspace ancestry. Scope-controlled links cannot authorize their
+  targets; external package stores require explicit runtime read grants.
 - Native CLI adapters compose their workflow Git and daemon instructions from
   the shared native workflow rails. Keep Git metadata read-only for agents and
   leave staging, rebase continuation, commits, and publication runtime-owned.

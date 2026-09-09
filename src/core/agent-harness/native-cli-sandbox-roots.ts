@@ -106,11 +106,17 @@ function safeExecutableDirectory(path: string, cwd: string): boolean {
 
 function dependencyReadRoots(cwd: string): string[] {
   const roots: string[] = [];
-  let directory = resolve(cwd);
+  let directory = realpathSync.native(cwd);
   while (true) {
     const dependencyRoot = join(directory, "node_modules");
     // Node continues through ancestors when a local dependency directory lacks a package.
-    if (existsSync(dependencyRoot)) roots.push(realpathSync.native(dependencyRoot));
+    // Discovery authorizes only the physical ancestor's dependency location,
+    // never a scope-controlled link target. External stores require an explicit
+    // runtime read grant; links into already readable roots need no extra grant.
+    if (
+      existsSync(dependencyRoot) &&
+      realpathSync.native(dependencyRoot) === dependencyRoot
+    ) roots.push(dependencyRoot);
     const parent = dirname(directory);
     if (parent === directory) return roots;
     directory = parent;

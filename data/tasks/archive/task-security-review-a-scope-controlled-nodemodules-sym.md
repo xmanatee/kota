@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: A scope-controlled node_modules symlink can expand a subsequent native agent's filesystem read authority outside the approved workspace. dependencyReadRoots accepts its resolved target without checking that it is an authorized dependency location. Sandbox construction grants recursive read access to that target, potentially exposing unrelated host files and credentials not covered by explicit denials.
 
@@ -120,3 +119,16 @@ excerpt:
 >       path,
 >       path,
 >     ]) ?? [];
+
+
+## Resolution
+
+Dependency discovery now starts at the canonical workspace and admits only a node_modules path whose physical identity equals the expected ancestor dependency location. A scope-controlled symlink cannot add its resolved target to read authority. Existing independent runtime readOnlyHostRoots grants continue to authorize external package stores; ordinary ancestor dependency directories remain readable. The core agent-harness instructions document this boundary. Original finding and evidence are preserved above.
+
+## Verification
+
+- The new owner regression exercises withNativeCliSandbox's native runtime projection, then inspects both macOS sandbox profiles and Linux read-only mounts. It covers local and ancestor dependency symlinks, an unauthorized target itself named node_modules, inherited physical dependencies, and an external store with and without an explicit runtime grant.
+- Restoring the vulnerable target-following statement makes both regression cases fail; the fixed implementation passes.
+- Focused dependency/root suites: 7 tests passed. Expanded dependency/root/native-sandbox/machine-authority selection: 15 passed, with one unrelated provider-proxy test unable to bind 127.0.0.1 (EPERM in this agent sandbox).
+- pnpm typecheck passed for production and tests. Scoped Biome checks passed.
+- Platform grant construction is deterministic proof of the reported authority expansion. Linux kernel enforcement was not executed here, and nested sandbox/live network checks are constrained by the enclosing agent sandbox.
