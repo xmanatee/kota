@@ -87,6 +87,32 @@ dispatch failure was reproduced with the original runtime projection restored.
 Run-local evidence and the detailed validation summary are retained under builder
 run 2026-09-09T16-49-08-994Z-builder-q22o30.
 
+## Live verification (2026-09-09 20:03 UTC)
+
+The operator drained active work, restarted the supervised daemon onto
+1461431af, and resumed normal dispatch. Dispatcher
+2026-09-09T20-03-03-492Z-dispatcher-4c50ui reports ownershipAvailable=true,
+available=0, retained=4, capacity=2 and no builder targets. It correctly admitted
+explorer 2026-09-09T20-03-14-123Z-explorer-24y64f with the same four retained owners.
+Explorer inspect-queue agreed; inspect-watchlist failed at 20:03:27.449Z:
+response body exceeded max_length (20000 bytes); Content-Length was 92841 bytes.
+The failed run has no sandbox or retained resources. Fresh source review,
+unchanged-input suppression and builder refill remain unproven in production.
+
+This is now actionable implementation work, not a missing owner permission.
+refreshExplorerSources expects returned is_error results, but production
+step-context.runTool throws for failed tools when deps.runTool is absent; injected
+test runners can return those same errors. One failed external source therefore
+rejects the whole source batch before its inaccessible observation is recorded.
+Repair the owning tool-result/collection contract consistently, inspect other
+callers before changing it, and retain bounded fetches and source-level failure
+evidence. Do not catch all failures as no-action, bypass authority/cancellation,
+raise limits without analysis, or weaken the web-access security boundary.
+Use the existing scenarios to prove the real runner contract with mixed healthy,
+oversized and inaccessible sources; preserve genuinely fatal runtime failures.
+Then complete the original live acceptance. The capture below remains an
+acceptance obligation, not a reason to defer this already reproduced repair.
+
 ## Blocked on
 
 kind: operator-capture
