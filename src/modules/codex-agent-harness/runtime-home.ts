@@ -13,6 +13,7 @@ import {
   PROTECTED_SCOPE_ENV_GLOBS,
   PROTECTED_SCOPE_RUNTIME_FILES,
 } from "#core/tools/protected-scope-paths.js";
+import { resolvePathIdentities } from "#core/util/real-path.js";
 
 const CODEX_PERMISSION_PROFILE = "kota-native";
 
@@ -37,7 +38,7 @@ export function prepareCodexRuntimeEnvironment(
   }
   writeFileSync(
     join(runtimeHome, "config.toml"),
-    codexPermissionProfile(context, runtimeHome),
+    codexPermissionProfile(context, runtimeHome, sourceAuthPath),
     { mode: 0o600 },
   );
   return { ...env, CODEX_HOME: runtimeHome };
@@ -46,7 +47,13 @@ export function prepareCodexRuntimeEnvironment(
 function codexPermissionProfile(
   context: NativeCliRuntimeContext,
   runtimeHome: string,
+  sourceAuthPath: string,
 ): string {
+  const readProtectedPaths = [
+    ...context.readProtectedPaths,
+    ...resolvePathIdentities(runtimeHome, process.cwd()),
+    ...resolvePathIdentities(sourceAuthPath, process.cwd()),
+  ];
   const access = new Map<string, "deny" | "read" | "write">();
   for (const path of context.readableRoots) access.set(path, "read");
   for (const path of context.writableRoots) access.set(path, "write");
@@ -55,12 +62,12 @@ function codexPermissionProfile(
   for (const path of context.writeProtectedPaths) {
     if (pathIsWithinRoots(path, grantedRoots)) access.set(path, "read");
   }
-  for (const path of [...context.readProtectedPaths, runtimeHome]) {
+  for (const path of readProtectedPaths) {
     access.set(path, "deny");
   }
   // A more-specific grant must not reopen a protected directory or token.
   for (const [path, permission] of access) {
-    if (pathIsWithinRoots(path, [...context.readProtectedPaths, runtimeHome])) {
+    if (pathIsWithinRoots(path, readProtectedPaths)) {
       access.set(path, "deny");
     } else if (permission === "write" && pathIsWithinRoots(path, context.writeProtectedPaths)) {
       access.set(path, "read");

@@ -186,3 +186,36 @@ describe("Codex machine authority protection", () => {
     expect(profile).toContain(`${JSON.stringify(join(authorityDirectory, "scope-authority-token.json"))} = "deny"`);
   });
 });
+
+describe("Codex provider credential protection", () => {
+  it.each(["workspace", "host", "directory-alias", "file-alias", "missing"] as const)(
+    "denies source login identities despite overlapping grants (%s)",
+    async (location) => {
+      const { workspace, sourceHome } = fixture(false);
+      const host = dirname(workspace);
+      let loginHome = sourceHome;
+      if (location === "workspace") {
+        loginHome = join(workspace, "login");
+        mkdirSync(loginHome);
+      } else if (location === "directory-alias") {
+        loginHome = join(workspace, "login-alias");
+        symlinkSync(sourceHome, loginHome);
+      }
+      const sourceAuth = join(loginHome, "auth.json");
+      const resolvedAuth = location === "file-alias"
+        ? join(host, "provider-login.json")
+        : join(location === "directory-alias" ? sourceHome : loginHome, "auth.json");
+      if (location !== "missing") writeFileSync(resolvedAuth, '{"auth_mode":"synthetic"}');
+      if (location === "file-alias") symlinkSync(resolvedAuth, sourceAuth);
+      const profile = await launchProfile(workspace, loginHome, [host, sourceAuth, resolvedAuth], {
+        agentWriteScope: undefined,
+      });
+      expect(profile).toContain(`${JSON.stringify(workspace)} = "write"`);
+      expect(profile).toContain(`${JSON.stringify(host)} = "read"`);
+      for (const path of new Set([sourceAuth, resolvedAuth])) {
+        expect(profile).toContain(`${JSON.stringify(path)} = "deny"`);
+        expect(grantedPaths(profile)).not.toContain(path);
+      }
+    },
+  );
+});

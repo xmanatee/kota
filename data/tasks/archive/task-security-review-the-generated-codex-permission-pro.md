@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: The generated Codex permission profile protects the copied runtime credentials but omits the original login auth.json. When the original CODEX_HOME falls within the workspace or an independently granted host root, native agent tools retain read access to the provider credential, crossing the provider-to-agent credential boundary. This finding is based on static data-flow inspection; current-host exposure was not established.
 
@@ -134,3 +133,11 @@ excerpt:
 > env: buildCodexEnvironment(args.env),
 > allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
 > prepareEnvironment: prepareCodexRuntimeEnvironment,
+
+## Resolution and verification
+
+The Codex harness now passes the original login credential path into permission-profile generation. The shared path-identity resolver preserves its lexical and resolved identities, including file and directory symlinks and missing paths. These identities and both identities of the runtime home enter the existing deny-precedence pass after read/write grants, so overlapping authority cannot reopen them. Provider login copying remains available. Local harness instructions describe the boundary.
+
+Verification: all five new adapter-launch regressions failed before the fix and passed afterward. They use synthetic login files under writable workspace and independently readable host roots, explicit credential grants, directory/file aliases, and a missing credential. The complete Codex harness owner suite passed (6 files, 48 tests); the runtime-home test also passed after adding an explicit runtime-copy denial assertion. Production and test typechecking and scoped Biome checks passed. These checks exercise the owning generated-profile boundary and catch the credential-path omission without duplicating native sandbox implementation.
+
+Only synthetic credentials were used. This establishes generated-profile protection; current-host exposure and live Codex sandbox exploitation were not tested. The original finding and evidence remain above.
