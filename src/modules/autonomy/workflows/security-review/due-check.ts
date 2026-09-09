@@ -1,15 +1,10 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { extname, join } from "node:path";
-import { enumerateWorkflowRunMetadataWithDurableAuthority } from "#core/workflow/run-operational-projection.js";
+import { extname } from "node:path";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
-import {
-  WRITER_INTEGRATION_EVIDENCE,
-  type WriterIntegrationEvidence,
-} from "#core/workflow/writer-integration-evidence.js";
 import {
   listVerifiedFullRepoTasks,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { decodeSecurityReviewState, type SecurityReviewState } from "./review-state.js";
 import { securityReviewSurfacesForChangedPath } from "./security-review-file-scan.js";
 import {
   SECURITY_REVIEW_MAX_DUE_PATHS,
@@ -50,8 +45,7 @@ export type SecurityReviewLastEvidence =
 
 export type SecurityReviewComparison =
   | { kind: "commit-range"; baseSha: string; headSha: string }
-  | { kind: "since-time"; since: string }
-  | { kind: "full-tree"; reason: "no-review-evidence" | "missing-review-baseline" }
+  | { kind: "full-tree"; reason: "no-review-evidence" }
   | { kind: "unavailable"; reason: string };
 
 export type SecurityReviewChangedSurface = {
@@ -76,7 +70,6 @@ export type SecurityReviewDueReason =
   | "security-sensitive-change"
   | "high-risk-security-sensitive-change"
   | "no-security-sensitive-change"
-  | "open-security-task-pressure"
   | "cooldown-active"
   | "git-unavailable";
 
@@ -120,244 +113,80 @@ export type SecurityReviewGitEvidence = {
   lastReview: SecurityReviewLastEvidence;
   comparison: SecurityReviewComparison;
   changedPaths: string[];
+  contentDigests: Record<string, string>;
+  previousSurfaces: Record<string, SecurityReviewSurface[]>;
+  pendingEvidence: boolean;
 };
-
-type RunMetadataJson = {
-  id?: string;
-  workflow?: string;
-  status?: string;
-  completedAt?: string;
-};
-
-type SecurityReviewOutcomeJson = {
-  outcome?: string;
-  reason?: string;
-};
-
-type SecurityReviewChangedPathClassification = {
-  path: string;
-  surfaces: SecurityReviewSurface[];
-};
-
-function outputLines(output: string): string[] {
-  return output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-}
-
-async function tryGitLines(
-  runCommand: WorkflowCommandRunner,
-  workspaceRoot: string,
-  args: readonly string[],
-): Promise<string[] | null> {
-  try {
-    const result = await runCommand({
-      command: "git",
-      args,
-      cwd: workspaceRoot,
-      captureLimitBytesPerStream: 1_000_000,
-    });
-    return outputLines(result.stdout.text);
-  } catch {
-    return null;
-  }
-}
-
-function readJsonFile<T>(path: string): T | null {
-  if (!existsSync(path)) return null;
-  try {
-    return JSON.parse(readFileSync(path, "utf-8")) as T;
-  } catch {
-    return null;
-  }
-}
-
-function parseTimestamp(value: string | undefined): SecurityReviewTimestamp {
-  if (!value) {
-    return { kind: "unavailable", reason: "missing-completed-at" };
-  }
-  const epochMs = Date.parse(value);
-  if (!Number.isFinite(epochMs)) {
-    return { kind: "unavailable", reason: "invalid-completed-at" };
-  }
-  return { kind: "timestamp", value, epochMs };
-}
-
-function extractRecordedCommitHead(runDirPath: string): SecurityReviewGitHead {
-  const integration = readJsonFile<WriterIntegrationEvidence>(
-    join(runDirPath, WRITER_INTEGRATION_EVIDENCE),
-  );
-  if (integration?.publishedHead) {
-    return { kind: "commit", sha: integration.publishedHead };
-  }
-
-  return { kind: "unavailable", reason: "review-commit-unavailable" };
-}
-
-function outcomeLabel(outcome: SecurityReviewOutcomeJson | null): string {
-  if (!outcome) return "unknown";
-  if (outcome.reason) return outcome.reason;
-  return outcome.outcome ?? "unknown";
-}
-
-function findLastSecurityReviewEvidence(
-  stateDir: string,
-  scopeRoot: string,
-): SecurityReviewLastEvidence {
-  const runsDir = join(stateDir, "runs");
-  if (!existsSync(runsDir)) return { kind: "none" };
-
-  const candidates: Array<{
-    runId: string;
-    runDirPath: string;
-    metadata: RunMetadataJson;
-    outcome: SecurityReviewOutcomeJson | null;
-    completedAt: SecurityReviewTimestamp;
-    sortMs: number;
-  }> = [];
-
-  for (const runMetadata of enumerateWorkflowRunMetadataWithDurableAuthority({
-    runsDir,
-    stateDir,
-    scopeRoot,
-  }).runs) {
-    const runId = runMetadata.id;
-    const runDirPath = join(runsDir, runId);
-    const outcomePath = join(runDirPath, "security-review-outcome.json");
-    const candidatesPath = join(runDirPath, "security-review-candidates.json");
-    if (!existsSync(outcomePath) && !existsSync(candidatesPath)) continue;
-
-    const metadata: RunMetadataJson = runMetadata;
-    if (metadata.status && metadata.status !== "success") continue;
-    const outcome = readJsonFile<SecurityReviewOutcomeJson>(outcomePath);
-    const completedAt = parseTimestamp(metadata.completedAt);
-    candidates.push({
-      runId,
-      runDirPath,
-      metadata,
-      outcome,
-      completedAt,
-      sortMs:
-        completedAt.kind === "timestamp"
-          ? completedAt.epochMs
-          : statSync(runDirPath).mtimeMs,
-    });
-  }
-
-  const last = candidates.sort((a, b) => b.sortMs - a.sortMs || b.runId.localeCompare(a.runId))[0];
-  if (!last) return { kind: "none" };
-
-  return {
-    kind: "found",
-    runId: last.runId,
-    runDir: `.kota/runs/${last.runId}`,
-    workflow: last.metadata.workflow ?? "unknown",
-    outcome: outcomeLabel(last.outcome),
-    completedAt: last.completedAt,
-    head: extractRecordedCommitHead(last.runDirPath),
-  };
-}
-
-function buildComparison(
-  currentHead: SecurityReviewGitHead,
-  lastReview: SecurityReviewLastEvidence,
-): SecurityReviewComparison {
-  if (currentHead.kind !== "commit") {
-    return { kind: "unavailable", reason: currentHead.reason };
-  }
-  if (lastReview.kind === "none") {
-    return { kind: "full-tree", reason: "no-review-evidence" };
-  }
-  if (lastReview.head.kind === "commit") {
-    return {
-      kind: "commit-range",
-      baseSha: lastReview.head.sha,
-      headSha: currentHead.sha,
-    };
-  }
-  if (lastReview.completedAt.kind === "timestamp") {
-    return { kind: "since-time", since: lastReview.completedAt.value };
-  }
-  return { kind: "full-tree", reason: "missing-review-baseline" };
-}
-
-async function changedPathsForComparison(
-  runCommand: WorkflowCommandRunner,
-  workspaceRoot: string,
-  comparison: SecurityReviewComparison,
-): Promise<string[]> {
-  if (comparison.kind === "unavailable") return [];
-  const gitArgs = (() => {
-    if (comparison.kind === "commit-range") {
-      return [
-        "diff",
-        "--name-only",
-        `${comparison.baseSha}..${comparison.headSha}`,
-        "--",
-      ];
-    }
-    if (comparison.kind === "since-time") {
-      return [
-        "log",
-        "--format=",
-        "--name-only",
-        `--since=${comparison.since}`,
-        "--",
-      ];
-    }
-    return ["ls-files"];
-  })();
-  const paths = await tryGitLines(runCommand, workspaceRoot, gitArgs);
-
-  return Array.from(new Set(paths ?? [])).sort();
-}
 
 export async function collectSecurityReviewGitEvidence(args: {
   workspaceRoot: string;
   scopeRoot: string;
   stateDir: string;
   runCommand: WorkflowCommandRunner;
+  reviewState?: SecurityReviewState;
+  evidencePaths?: readonly string[];
 }): Promise<SecurityReviewGitEvidence> {
-  const headLines = await tryGitLines(args.runCommand, args.workspaceRoot, [
-    "rev-parse",
-    "HEAD",
-  ]);
-  const currentHead: SecurityReviewGitHead = headLines?.[0]
-    ? { kind: "commit", sha: headLines[0] }
-    : { kind: "unavailable", reason: "git-head-unavailable" };
-  const recordedReview = findLastSecurityReviewEvidence(
-    args.stateDir,
-    args.scopeRoot,
-  );
-  const lastReview =
-    recordedReview.kind === "found" && recordedReview.head.kind === "commit" &&
-      (await tryGitLines(args.runCommand, args.workspaceRoot, [
-        "cat-file",
-        "-e",
-        `${recordedReview.head.sha}^{commit}`,
-      ])) === null
-      ? {
-          ...recordedReview,
-          head: {
-            kind: "unavailable",
-            reason: "review-commit-unavailable",
-          } as const,
-        }
-      : recordedReview;
-  const comparison = buildComparison(currentHead, lastReview);
-  const changedPaths = await changedPathsForComparison(
-    args.runCommand,
-    args.workspaceRoot,
-    comparison,
-  );
-  return { currentHead, lastReview, comparison, changedPaths };
+  const state = args.reviewState ?? decodeSecurityReviewState(null);
+  const lastReview: SecurityReviewLastEvidence = state.lastReview ? {
+    kind: "found", runId: state.lastReview.runId,
+    runDir: `.kota/runs/${state.lastReview.runId}`, workflow: "security-review",
+    outcome: "explicit-path-coverage",
+    head: { kind: "commit", sha: state.lastReview.head },
+    completedAt: { kind: "timestamp", value: state.lastReview.completedAt, epochMs: Date.parse(state.lastReview.completedAt) },
+  } : { kind: "none" };
+  try {
+    const head = (await args.runCommand({ command: "git", args: ["rev-parse", "HEAD"], cwd: args.workspaceRoot })).stdout.text.trim();
+    if (!/^[a-f0-9]{40,64}$/.test(head)) throw new Error("Security review Git head is malformed");
+    const tree = await args.runCommand({ command: "git", args: ["ls-tree", "-r", "-z", head], cwd: args.workspaceRoot, captureLimitBytesPerStream: 10_000_000 });
+    if (tree.stdout.truncated) throw new Error("Security Git evidence was truncated");
+    const contentDigests: Record<string, string> = {};
+    for (const entry of tree.stdout.text.split("\0").filter(Boolean)) {
+      const match = /^(100644|100755|120000) blob ([a-f0-9]+)\t(.+)$/s.exec(entry);
+      if (match) contentDigests[match[3]!] = match[2]!;
+    }
+    const retainedPaths = new Set([
+      ...Object.keys(state.reviewed),
+      ...Object.keys(state.unreviewedSurfaces),
+      ...args.evidencePaths ?? [],
+      ...state.evidenceRequests.flatMap(({ request }) => request.paths),
+    ]);
+    for (const path of retainedPaths) {
+      if (!(path in contentDigests)) contentDigests[path] = "deleted";
+    }
+    const changedPaths = Object.keys(contentDigests).filter((path) => contentDigests[path] !== state.reviewed[path]?.digest).sort();
+    const previousSurfaces: Record<string, SecurityReviewSurface[]> = {};
+    for (const path of changedPaths) {
+      const surfaces = securityReviewSurfacesForChangedPath(args.workspaceRoot, path, [
+        ...state.reviewed[path]?.surfaces ?? [],
+        ...state.unreviewedSurfaces[path] ?? [],
+      ]);
+      if (surfaces.length) previousSurfaces[path] = surfaces;
+    }
+    return {
+      currentHead: { kind: "commit", sha: head }, lastReview,
+      comparison: lastReview.kind === "found" && lastReview.head.kind === "commit"
+        ? { kind: "commit-range", baseSha: lastReview.head.sha, headSha: head }
+        : { kind: "full-tree", reason: "no-review-evidence" },
+      changedPaths, contentDigests, previousSurfaces, pendingEvidence: state.evidenceRequests.length > 0,
+    };
+  } catch (error) {
+    return {
+      currentHead: { kind: "unavailable", reason: String(error) }, lastReview,
+      comparison: { kind: "unavailable", reason: "git-evidence-unavailable" }, changedPaths: [], contentDigests: {}, previousSurfaces: {}, pendingEvidence: state.evidenceRequests.length > 0,
+    };
+  }
 }
+
+type SecurityReviewChangedPathClassification = { path: string; surfaces: SecurityReviewSurface[] };
 
 function classifyChangedPaths(
   workspaceRoot: string,
   paths: readonly string[],
+  previousSurfaces: SecurityReviewGitEvidence["previousSurfaces"],
 ): SecurityReviewChangedPathClassification[] {
   return paths.map((path) => ({
     path,
-    surfaces: securityReviewSurfacesForChangedPath(workspaceRoot, path),
+    surfaces: securityReviewSurfacesForChangedPath(workspaceRoot, path, previousSurfaces[path]),
   }));
 }
 
@@ -423,6 +252,7 @@ function computeCooldown(
 }
 
 function decideDue(args: {
+  pendingEvidence: boolean;
   lastReview: SecurityReviewLastEvidence;
   comparison: SecurityReviewComparison;
   changedSurfaces: readonly SecurityReviewChangedSurface[];
@@ -433,14 +263,12 @@ function decideDue(args: {
   if (args.comparison.kind === "unavailable") {
     return { due: false, reason: "git-unavailable" };
   }
+  if (args.pendingEvidence) return { due: true, reason: "security-sensitive-change" };
   if (args.changedSurfaces.length === 0) {
     return { due: false, reason: "no-security-sensitive-change" };
   }
   if (args.cooldown.remainingMs > 0) {
     return { due: false, reason: "cooldown-active" };
-  }
-  if (args.openSecurityTasks.length > 0 && args.highRiskChangedPaths.length === 0) {
-    return { due: false, reason: "open-security-task-pressure" };
   }
   if (args.lastReview.kind === "none") {
     return { due: true, reason: "no-review-evidence" };
@@ -459,7 +287,7 @@ export function inspectSecurityReviewDue(
   const cooldownMs = options.cooldownMs ?? SECURITY_REVIEW_ROUTINE_COOLDOWN_MS;
   const nowMs = (options.now ?? new Date()).getTime();
   const { currentHead, lastReview, comparison, changedPaths } = git;
-  const changedPathClassifications = classifyChangedPaths(workspaceRoot, changedPaths);
+  const changedPathClassifications = classifyChangedPaths(workspaceRoot, changedPaths, git.previousSurfaces);
   const changedSurfaces = changedSurfacesForPaths(changedPathClassifications);
   const highRiskChangedPaths = changedPathClassifications
     .filter(isHighRiskChangedPath)
@@ -467,6 +295,7 @@ export function inspectSecurityReviewDue(
   const openSecurityTasks = listOpenSecurityReviewTasks(workspaceRoot);
   const cooldown = computeCooldown(lastReview, nowMs, cooldownMs);
   const decision = decideDue({
+    pendingEvidence: git.pendingEvidence,
     lastReview,
     comparison,
     changedSurfaces,

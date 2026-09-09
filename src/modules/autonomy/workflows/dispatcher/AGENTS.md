@@ -38,3 +38,7 @@ autonomous repository writes. Observe/ask, proposed-task, disabled improvement,
 and denied or confirmation-required builder authority keep tasks visible
 without admitting builder runs. Path-bounded policies are evaluated against
 their projected writable roots rather than the enclosing scope root.
+
+Security observations publish through revisioned state before their due events.
+Observed boundary identity is distinct from completed coverage, so a failed review
+or later removal of scanner keywords cannot silently erase outstanding work.

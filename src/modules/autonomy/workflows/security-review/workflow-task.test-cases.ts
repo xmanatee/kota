@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
@@ -26,10 +26,13 @@ export function describeSecurityReviewTaskTests(): void {
 
     it("decodes investigation and revalidation output before creating confirmed follow-up tasks", () => {
       const investigation: SecurityInvestigationOutput = decodeSecurityInvestigationOutput({
+        coverage: [],
         findings: [
           {
             id: "finding-confirmed",
             candidateId: "external-fetch:src/modules/web-access/web-fetch.ts:12",
+            existingTaskId: null, productionOwner: "core/outbound-http", violatedInvariant: "trusted-destination",
+            repair: "Validate the destination at the shared transport", exploitPreconditions: "Caller controls the destination URL", evidenceIdentity: "direct-fetch-v1",
             claim: "Untrusted URL reaches fetch without an allowlist.",
             severity: "high",
             affectedPath: "src/modules/web-access/web-fetch.ts",
@@ -45,6 +48,8 @@ export function describeSecurityReviewTaskTests(): void {
           {
             id: "finding-rejected",
             candidateId: "secret-handling:src/modules/secrets/index.ts:2",
+            existingTaskId: null, productionOwner: "core/outbound-http", violatedInvariant: "trusted-destination",
+            repair: "Validate the destination at the shared transport", exploitPreconditions: "Caller controls the destination URL", evidenceIdentity: "direct-fetch-v1",
             claim: "Secret value is printed.",
             severity: "medium",
             affectedPath: "src/modules/secrets/index.ts",
@@ -100,39 +105,15 @@ export function describeSecurityReviewTaskTests(): void {
       expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
     });
 
-    it("allocates a unique active id when terminal task ids collide with the finding slug", () => {
-      const claim = "Terminal slug collision hides actionable remediation.";
-      const baseId = fixture.securityFindingTaskIdForClaim(claim);
-      fixture.writeTerminalSecurityTask(baseId, "done", "done collision owner");
-      fixture.writeTerminalSecurityTask(`${baseId}-2`, "dropped", "dropped collision owner");
-
-      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
-        runId: "security-review-run",
-        findings: [fixture.confirmedFindingForClaim(claim)],
-      });
-
-      expect(result.createdTaskIds).toEqual([`${baseId}-3`]);
-      expect(result.updatedTaskIds).toEqual([]);
-      expect(result.unchangedFindingIds).toEqual([]);
-      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/archive", `${baseId}.md`))).toBe(true);
-      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/archive", `${baseId}-2.md`))).toBe(
-        true,
-      );
-      const activeTask = readFileSync(
-        join(fixture.workspaceRoot, "data/tasks", `${baseId}-3.md`),
-        "utf-8",
-      );
-      const parsed = parseFlatFrontMatter(activeTask);
-      expect(parsed.attrs.status).toBe("open");
-      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
-    });
-
     it("quotes agent-generated task content before it can become task structure", () => {
       const investigation: SecurityInvestigationOutput = decodeSecurityInvestigationOutput({
+        coverage: [],
         findings: [
           {
             id: "finding-content-injection",
             candidateId: "task-workflow-mutation:src/modules/example.ts:12",
+            existingTaskId: null, productionOwner: "core/outbound-http", violatedInvariant: "trusted-destination",
+            repair: "Validate the destination at the shared transport", exploitPreconditions: "Caller controls the destination URL", evidenceIdentity: "direct-fetch-v1",
             claim: [
               "Unsafe task text.",
               "status: done",

@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { extname, join, relative } from "node:path";
+import { lstatSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { extname, join, relative, sep } from "node:path";
 import {
   isSafeRepoRelativePath,
   MAX_SCANNED_FILE_BYTES,
@@ -109,6 +109,8 @@ export function scanSecurityReviewCandidatesForPath(
   const fullPath = join(workspaceRoot, normalized);
   let fileSize = 0;
   try {
+    const resolved = realpathSync(fullPath);
+    if (!resolved.startsWith(`${realpathSync(workspaceRoot)}${sep}`) || lstatSync(fullPath).isSymbolicLink()) return [];
     const stats = statSync(fullPath);
     if (!stats.isFile()) return [];
     fileSize = stats.size;
@@ -117,7 +119,8 @@ export function scanSecurityReviewCandidatesForPath(
   }
   if (fileSize > MAX_SCANNED_FILE_BYTES) return [];
 
-  const content = readFileSync(fullPath, "utf-8");
+  let content: string;
+  try { content = readFileSync(fullPath, "utf-8"); } catch { return []; }
   if (Buffer.byteLength(content, "utf-8") > MAX_SCANNED_FILE_BYTES) {
     return [];
   }
@@ -148,8 +151,9 @@ export function scanSecurityReviewCandidatesForPath(
 export function securityReviewSurfacesForChangedPath(
   workspaceRoot: string,
   path: string,
+  previousSurfaces: readonly SecurityReviewSurface[] = [],
 ): SecurityReviewSurface[] {
-  const surfaces = new Set<SecurityReviewSurface>(securityReviewSurfacesForPath(path));
+  const surfaces = new Set<SecurityReviewSurface>([...securityReviewSurfacesForPath(path), ...previousSurfaces]);
   for (const candidate of scanSecurityReviewCandidatesForPath(workspaceRoot, path)) {
     surfaces.add(candidate.surface);
   }

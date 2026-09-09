@@ -7,21 +7,21 @@ import {
 } from "#modules/autonomy/shared.js";
 import {
   recordEmptyScan,
+  refreshReviewInput,
+  retainReviewInput,
   scanCandidates,
 } from "./candidate-steps.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
-  createFollowUpTasks,
   recordInvestigationFindings,
-  recordNoFindings,
   recordRevalidation,
-  writeCommitMessage,
+  recordReview,
 } from "./finding-steps.js";
 import {
   securityInvestigationOutputSchema,
   securityRevalidationOutputSchema,
 } from "./output-schemas.js";
-import { validateChanges } from "./preflight-step.js";
+import { SECURITY_REVIEW_RESOURCE } from "./review-state.js";
 import {
   decodeSecurityInvestigationOutput,
   decodeSecurityRevalidationVerdictOutput,
@@ -37,23 +37,27 @@ export const agent: AgentDef = {
 
 const securityReviewWorkflow: WorkflowDefinitionInput = {
   name: "security-review",
+  // Keep the existing native writer isolation contract while non-writer
+  // database confinement remains separately tracked. Agents still deny all writes.
   repository: "write",
   integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  resources: () => [SECURITY_REVIEW_RESOURCE],
   description:
-    "Scan KOTA for security-sensitive candidates, investigate a bounded batch, revalidate findings, and create normal follow-up tasks for confirmed vulnerabilities.",
+    "Scan KOTA for security-sensitive candidates, investigate a bounded batch, revalidate findings, and stage confirmed repair families for resource-aware task publication.",
   tags: ["monitored"],
   defaultAutonomyMode: "autonomous",
   triggers: [
     {
       event: "autonomy.security-review.requested",
-      cooldownMs: 60 * 60 * 1000,
+      queueMode: "all",
     },
     {
       event: SECURITY_REVIEW_DUE_EVENT,
-      cooldownMs: 60 * 60 * 1000,
     },
   ],
   steps: [
+    retainReviewInput,
+    refreshReviewInput,
     scanCandidates,
     recordEmptyScan,
     {
@@ -70,8 +74,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
       when: (ctx) => (scanCandidates.output(ctx)?.candidateCount ?? 0) > 0,
     },
     recordInvestigationFindings,
-    recordNoFindings,
-    {
+      {
       id: "revalidate-findings",
       type: "agent",
       agentName: agent.name,
@@ -86,9 +89,7 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
         (recordInvestigationFindings.output(ctx)?.findings.length ?? 0) > 0,
     },
     recordRevalidation,
-    createFollowUpTasks,
-    writeCommitMessage,
-    validateChanges,
+    recordReview,
   ],
 };
 

@@ -3,7 +3,6 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
-import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import {
   decodeSecurityInvestigationOutput,
   decodeSecurityRevalidationOutputForInvestigation,
@@ -78,16 +77,15 @@ export class SecurityReviewProjectFixture {
     );
   }
 
-  securityFindingTaskIdForClaim(claim: string): string {
-    return `task-${slugifyTaskTitle(`Security review: ${claim}`)}`;
-  }
-
   confirmedFindingForClaim(claim: string): SecurityRevalidationOutput["findings"][number] {
     const investigation: SecurityInvestigationOutput = decodeSecurityInvestigationOutput({
+      coverage: [],
       findings: [
         {
           id: "finding-terminal-task-regression",
           candidateId: "task-workflow-mutation:src/modules/example.ts:12",
+          existingTaskId: null, productionOwner: "core/workflow", violatedInvariant: "task-authority",
+          repair: "Protect the task mutation boundary", exploitPreconditions: "Untrusted task input", evidenceIdentity: "task-write-v1",
           claim,
           severity: "medium",
           affectedPath: "src/modules/example.ts",
@@ -118,29 +116,6 @@ export class SecurityReviewProjectFixture {
     const finding = revalidation.findings[0];
     if (!finding) throw new Error("fixture did not produce a confirmed finding");
     return finding;
-  }
-
-  writeTerminalSecurityTask(id: string, state: "done" | "dropped", marker: string): void {
-    const path = `data/tasks/archive/${id}.md`;
-    const body = renderRepoTaskIntent({
-      problem: marker,
-      desiredOutcome: "Keep this terminal task as historical context.",
-      constraints: "- Do not reopen this fixture directly.",
-      howWeWillKnow: "- Historical task state is preserved.",
-    });
-    this.writeProjectFile(
-      path,
-      [
-        "---",
-        `status: ${state}`,
-        "---",
-        "",
-        `# ${marker}`,
-        "",
-        body,
-      ].join("\n"),
-    );
-    execFileSync("git", ["add", path], { cwd: this.workspaceRoot, stdio: "ignore" });
   }
 
   writeLegacySecurityFindingTask(args: {

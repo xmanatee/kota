@@ -12,6 +12,7 @@ export const SECURITY_REVIEW_SURFACES = [
   "secret-handling",
   "mcp-transport",
   "task-workflow-mutation",
+  "reported-boundary",
 ] as const;
 
 export type SecurityReviewSurface = (typeof SECURITY_REVIEW_SURFACES)[number];
@@ -68,6 +69,9 @@ export type SecurityReviewScanOptions = {
   maxCandidates?: number;
   maxCandidatesPerSurface?: number;
   dueTargets?: readonly SecurityReviewDueTarget[];
+  paths?: readonly string[];
+  evidencePaths?: readonly string[];
+  previousSurfaces?: Readonly<Record<string, readonly SecurityReviewSurface[]>>;
 };
 
 export type SecurityReviewScanResult = {
@@ -123,6 +127,7 @@ export const SOURCE_CODE_EXTENSIONS = new Set([
 export const PREFERRED_SOURCE_PREFIXES: {
   readonly [Surface in SecurityReviewSurface]: readonly string[];
 } = {
+  "reported-boundary": [],
   "auth-approval-boundary": [
     "src/modules/approval-queue/",
     "src/modules/owner-questions/",

@@ -36,6 +36,8 @@ import {
   resolveScopeImprovementAuthority,
 } from "./workflows/scope-improver/scope-improvement-authority.js";
 
+import { securityFindingPublicationRequested } from "./workflows/security-review/events.js";
+
 type AutonomyWorkflowModule = {
   default: WorkflowDefinitionInput;
   agent?: AgentDef;
@@ -114,6 +116,7 @@ const autonomyModule: KotaModule = {
     "doctor",
   ],
   events: [
+    securityFindingPublicationRequested,
     progressReviewRequested,
     automaticProgressReviewRequested,
     scopeImprovementRequested,

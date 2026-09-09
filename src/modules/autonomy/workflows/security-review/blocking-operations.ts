@@ -11,11 +11,15 @@ import {
   scanAndWriteSecurityReviewCandidates,
   securityReviewDueTargetsFromPayload,
 } from "./security-review.js";
+import type { SecurityReviewScanOptions } from "./security-review-scan-model.js";
 
 type SecurityReviewScanOperationInput = {
   workspaceRoot: string;
   runDirPath: string;
   trigger: Pick<WorkflowRunTrigger, "event" | "payload">;
+  paths?: string[];
+  evidencePaths?: string[];
+  previousSurfaces?: SecurityReviewScanOptions["previousSurfaces"];
 };
 
 export function scanSecurityReviewCandidatesInWorker(
@@ -25,6 +29,9 @@ export function scanSecurityReviewCandidatesInWorker(
     input.workspaceRoot,
     input.runDirPath,
     {
+      paths: input.paths,
+      evidencePaths: input.evidencePaths,
+      previousSurfaces: input.previousSurfaces,
       maxCandidates: SECURITY_REVIEW_MAX_CANDIDATES,
       maxCandidatesPerSurface: SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
       dueTargets:

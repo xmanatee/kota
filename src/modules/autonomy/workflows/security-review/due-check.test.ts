@@ -3,18 +3,22 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { WRITER_INTEGRATION_EVIDENCE } from "#core/workflow/writer-integration-evidence.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
+import { scanSecurityReviewCandidatesInWorker } from "./blocking-operations.js";
 import {
   collectSecurityReviewGitEvidence,
   type InspectSecurityReviewDueOptions,
   inspectSecurityReviewDue,
 } from "./due-check.js";
+import { decodeSecurityReviewState, type SecurityReviewState } from "./review-state.js";
+import { securityReviewSurfacesForChangedPath } from "./security-review-file-scan.js";
 
 describe("security-review due check", () => {
   let workspaceRoot: string;
+  let reviewState: SecurityReviewState;
 
   beforeEach(() => {
+    reviewState = decodeSecurityReviewState(null);
     workspaceRoot = join(
       tmpdir(),
       `kota-security-review-due-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -66,55 +70,14 @@ describe("security-review due check", () => {
     completedAt: string;
     commitSha: string;
   }): void {
-    const runDir = join(workspaceRoot, ".kota", "runs", args.runId);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      `${JSON.stringify(
-        {
-          metadataVersion: 1,
-          id: args.runId,
-          workflow: "security-review",
-          definitionPath: "src/modules/autonomy/workflows/security-review/workflow.ts",
-          trigger: { event: "manual", schemaRef: null, payload: {} },
-          startedAt: args.completedAt,
-          status: "success",
-          completedAt: args.completedAt,
-          runDir: `.kota/runs/${args.runId}`,
-          steps: [],
-        },
-        null,
-        2,
-      )}\n`,
-      "utf-8",
-    );
-    writeFileSync(
-      join(runDir, WRITER_INTEGRATION_EVIDENCE),
-      `${JSON.stringify(
-        {
-          version: 1,
-          runId: args.runId,
-          workflow: "security-review",
-          scopeId: "security-review-test",
-          targetBranch: "main",
-          baseHead: args.commitSha,
-          integratedFromHead: args.commitSha,
-          publishedHead: args.commitSha,
-          commitSubject: "security review",
-          commitMessage: "security review",
-          changedPaths: [],
-          completedAt: args.completedAt,
-        },
-        null,
-        2,
-      )}\n`,
-      "utf-8",
-    );
-    writeFileSync(
-      join(runDir, "security-review-outcome.json"),
-      `${JSON.stringify({ outcome: "no-op", reason: "test-review" }, null, 2)}\n`,
-      "utf-8",
-    );
+    const entries = git(["ls-tree", "-r", args.commitSha]).split("\n");
+    reviewState = { ...reviewState, lastReview: { runId: args.runId, head: args.commitSha, completedAt: args.completedAt },
+      reviewed: Object.fromEntries(entries.flatMap((entry) => {
+        const [meta, path] = entry.split("\t");
+        const surfaces = securityReviewSurfacesForChangedPath(workspaceRoot, path!);
+        return surfaces.length ? [[path!, { digest: meta!.split(" ")[2]!, surfaces }]] : [];
+      })),
+    };
   }
 
   function writeOpenSecurityTask(): void {
@@ -147,6 +110,7 @@ describe("security-review due check", () => {
       scopeRoot: workspaceRoot,
       stateDir: options.stateDir,
       runCommand: runGitEvidenceCommand,
+      reviewState,
     });
     return inspectSecurityReviewDue(workspaceRoot, options, gitEvidence);
   }
@@ -224,6 +188,25 @@ describe("security-review due check", () => {
     ]);
   });
 
+  it.each(["replace", "delete"])("keeps a known authorization boundary eligible after %s removes the scanner signal", async (change) => {
+    const path = "src/service/gate.ts";
+    writeProjectFile(path, "export const mayRead = (user) => user.permission === 'read';\n");
+    const reviewedSha = commitAll("authorization gate");
+    writeReviewEvidence({ runId: "reviewed-gate", completedAt: "2026-05-24T00:00:00.000Z", commitSha: reviewedSha });
+    if (change === "replace") writeProjectFile(path, "export const mayRead = () => true;\n");
+    else rmSync(join(workspaceRoot, path));
+    commitAll("remove authorization check");
+    const evidence = await collectSecurityReviewGitEvidence({ workspaceRoot, scopeRoot: workspaceRoot,
+      stateDir: join(workspaceRoot, ".kota"), reviewState, runCommand: runGitEvidenceCommand });
+    const due = inspectSecurityReviewDue(workspaceRoot, { stateDir: join(workspaceRoot, ".kota"), cooldownMs: 0 }, evidence);
+    expect(due.due).toBe(true);
+    expect(due.changedSurfaces).toEqual([{ surface: "auth-approval-boundary", paths: [path] }]);
+    const scan = scanSecurityReviewCandidatesInWorker({ workspaceRoot, runDirPath: join(workspaceRoot, ".kota/review"),
+      trigger: { event: "autonomy.security-review.due", payload: {} }, paths: evidence.changedPaths, previousSurfaces: evidence.previousSurfaces });
+    expect(scan.candidates).toMatchObject([{ path, surface: "auth-approval-boundary", matcher: "changed-boundary" }]);
+    expect(evidence.contentDigests[path]).toBe(change === "delete" ? "deleted" : git(["rev-parse", `HEAD:${path}`]));
+  });
+
   it("reports not due when the current head has already been reviewed", async () => {
     writeProjectFile("src/modules/web-access/web-fetch.ts", "await fetch(url);\n");
     const reviewedSha = commitAll("reviewed security surface");
@@ -243,7 +226,7 @@ describe("security-review due check", () => {
     expect(decision.changedSurfaces).toEqual([]);
   });
 
-  it("defers routine review when open security follow-up tasks already exist", async () => {
+  it("does not suppress distinct changed boundaries because a security task is open", async () => {
     writeProjectFile("README.md", "initial\n");
     const reviewedSha = commitAll("initial");
     writeReviewEvidence({
@@ -263,8 +246,8 @@ describe("security-review due check", () => {
       stateDir: join(workspaceRoot, ".kota"),
     });
 
-    expect(decision.due).toBe(false);
-    expect(decision.reason).toBe("open-security-task-pressure");
+    expect(decision.due).toBe(true);
+    expect(decision.reason).toBe("security-sensitive-change");
     expect(decision.openSecurityTasks.map((task) => task.id)).toEqual([
       "task-security-review-open-finding",
     ]);

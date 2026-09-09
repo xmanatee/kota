@@ -7,9 +7,15 @@ const evidenceSchema = z.object({
   line: z.number().int().positive(),
   excerpt: z.string().min(1),
 }).strict();
-const investigationFindingSchema = z.object({
+export const investigationFindingSchema = z.object({
   id: z.string().min(1),
   candidateId: z.string().min(1),
+  existingTaskId: z.string().regex(/^task-[a-z0-9][a-z0-9-]*$/).nullable(),
+  productionOwner: z.string().regex(/^[a-z0-9][a-z0-9/._-]*$/),
+  violatedInvariant: z.string().regex(/^[a-z0-9][a-z0-9._-]*$/),
+  repair: z.string().min(1),
+  exploitPreconditions: z.string().min(1),
+  evidenceIdentity: z.string().min(1),
   claim: z.string().min(1),
   severity: severitySchema,
   affectedPath: z.string().min(1),
@@ -26,6 +32,7 @@ const revalidationVerdictSchema = z.object({
   rationale: z.string().min(1),
 }).strict();
 const investigationOutputSchema = z.object({
+  coverage: z.array(z.object({ path: z.string().min(1), disposition: z.enum(["reviewed", "unreviewed"]), rationale: z.string().min(1) }).strict()),
   findings: z.array(investigationFindingSchema),
 }).strict();
 const revalidationOutputSchema = z.object({
@@ -52,7 +59,11 @@ type RawRevalidationOutput = Parameters<typeof revalidationVerdictOutputSchema.p
 export function decodeSecurityInvestigationOutput(
   raw: RawInvestigationOutput,
 ): SecurityInvestigationOutput {
-  return investigationOutputSchema.parse(raw);
+  const result = investigationOutputSchema.parse(raw);
+  if (new Set(result.findings.map((finding) => finding.id)).size !== result.findings.length) {
+    throw new Error("Security investigation returned duplicate finding IDs");
+  }
+  return result;
 }
 
 export function decodeSecurityRevalidationVerdictOutput(

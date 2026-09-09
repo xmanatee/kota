@@ -10,7 +10,6 @@ import {
   WorkflowScenarioDriver,
   type WorkflowScenarioOptions,
 } from "#core/workflow/testing/testing-api.js";
-import { WRITER_INTEGRATION_EVIDENCE } from "#core/workflow/writer-integration-evidence.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import {
   computeResourceFingerprint,
@@ -23,6 +22,7 @@ import {
   SCOPE_IMPROVEMENT_STATE_KEY,
 } from "../scope-improver/scope-improvement-state.js";
 import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-support.js";
+import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "../security-review/review-state.js";
 import dispatcherWorkflow from "./workflow.js";
 
 function taskFixture(
@@ -130,40 +130,13 @@ describe("dispatcher workflow", () => {
     completedAt: string;
     commitSha: string;
   }): void {
-    const runDir = join(workspaceRoot, ".kota", "runs", args.runId);
-    mkdirSync(runDir, { recursive: true });
-    writeFileSync(
-      join(runDir, "metadata.json"),
-      `${JSON.stringify(
-        {
-          id: args.runId,
-          metadataVersion: 1,
-          workflow: "security-review",
-          definitionPath: "security-review-fixture",
-          runDir: `.kota/runs/${args.runId}`,
-          trigger: { event: "autonomy.security-review.requested", schemaRef: null, payload: {} },
-          startedAt: args.completedAt,
-          status: "success",
-          completedAt: args.completedAt,
-          steps: [],
-        },
-        null,
-        2,
-      )}\n`,
-      "utf-8",
-    );
-    writeFileSync(join(runDir, WRITER_INTEGRATION_EVIDENCE), JSON.stringify({
-      version: 1, runId: args.runId, workflow: "security-review",
-      scopeId: deriveDirectoryScopeId(workspaceRoot), targetBranch: "main",
-      baseHead: args.commitSha, integratedFromHead: args.commitSha, publishedHead: args.commitSha,
-      commitSubject: "security review", commitMessage: "security review",
-      changedPaths: [], completedAt: args.completedAt,
-    }));
-    writeFileSync(
-      join(runDir, "security-review-outcome.json"),
-      `${JSON.stringify({ outcome: "no-op", reason: "test-review" }, null, 2)}\n`,
-      "utf-8",
-    );
+    const db = new RunStateDatabase(join(workspaceRoot, ".kota/scenario-state"));
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    db.registerScope({ id: scopeId, rootPath: workspaceRoot, createdAt: args.completedAt });
+    const snapshot = db.readScopeStateValue(scopeId, SECURITY_REVIEW_STATE_KEY);
+    db.compareAndSetScopeStateValue({ scopeId, key: SECURITY_REVIEW_STATE_KEY, expectedRevision: snapshot.revision,
+      value: { ...decodeSecurityReviewState(null), lastReview: { runId: args.runId, head: args.commitSha, completedAt: args.completedAt } }, updatedAt: args.completedAt });
+    db.close();
   }
 
   it("runs the ongoing semantic observer without a Git repository", async () => {

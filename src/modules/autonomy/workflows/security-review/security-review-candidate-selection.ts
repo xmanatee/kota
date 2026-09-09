@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
 import {
   collectSecurityReviewCandidates,
+  scanSecurityReviewCandidatesForPath,
   securityReviewSurfacesForChangedPath,
 } from "./security-review-file-scan.js";
 import {
@@ -60,7 +61,7 @@ export function securityReviewDueTargetsFromPayload(
 
 function boundCandidates(
   candidates: readonly SecurityReviewCandidate[],
-  options: Required<SecurityReviewScanOptions>,
+  options: Required<Omit<SecurityReviewScanOptions, "paths" | "evidencePaths" | "previousSurfaces">>,
 ): SecurityReviewCandidate[] {
   const dueTargetKeys = new Set(
     options.dueTargets.map(dueTargetKey),
@@ -91,7 +92,7 @@ function boundCandidates(
 
 function boundCandidatesByPriority(
   candidates: readonly SecurityReviewCandidate[],
-  options: Required<SecurityReviewScanOptions>,
+  options: Required<Omit<SecurityReviewScanOptions, "paths" | "evidencePaths" | "previousSurfaces">>,
   dueCandidateIds: ReadonlySet<string>,
 ): SecurityReviewCandidate[] {
   const selected: SecurityReviewCandidate[] = [];
@@ -224,13 +225,36 @@ export function scanSecurityReviewCandidates(
   workspaceRoot: string,
   options: SecurityReviewScanOptions = {},
 ): SecurityReviewScanResult {
+  const evidencePaths = new Set(options.evidencePaths ?? []);
+  const evidenceCandidates = [...evidencePaths].map((path): SecurityReviewCandidate => {
+    if (!isSafeRepoRelativePath(path)) throw new Error("Security evidence path is outside the repository");
+    // Evidence is itself a reason for semantic review, regardless of scanner
+    // vocabulary, source directory, extension, or excerpt availability.
+    return {
+      id: `reported-boundary:${path}:1`, surface: "reported-boundary", path, line: 1,
+      matcher: "explicit-evidence", excerpt: "Inspect the reported boundary and evidence preconditions.",
+    };
+  });
   const resolvedOptions = {
     maxCandidates: options.maxCandidates ?? SECURITY_REVIEW_MAX_CANDIDATES,
     maxCandidatesPerSurface:
       options.maxCandidatesPerSurface ?? SECURITY_REVIEW_MAX_CANDIDATES_PER_SURFACE,
-    dueTargets: options.dueTargets ?? [],
+    dueTargets: [
+      ...evidenceCandidates.map(({ surface, path }) => ({ surface, path })),
+      ...(options.dueTargets ?? []).filter((target) => !evidencePaths.has(target.path)),
+    ],
   };
-  const allCandidates = collectSecurityReviewCandidates(workspaceRoot);
+  const routineCandidates = options.paths === undefined ? collectSecurityReviewCandidates(workspaceRoot)
+    : options.paths.flatMap((path) => {
+        if (evidencePaths.has(path)) return [];
+        const matches = scanSecurityReviewCandidatesForPath(workspaceRoot, path);
+        // One entry invites review of the whole changed path and its data flow.
+        // Line match counts do not determine semantic review occupancy.
+        if (matches[0]) return [matches[0]];
+        const surface = securityReviewSurfacesForChangedPath(workspaceRoot, path, options.previousSurfaces?.[path])[0];
+        return surface ? [{ id: `${surface}:${path}:1`, surface, path, line: 1, matcher: "changed-boundary", excerpt: "Inspect the changed boundary, including removed checks." }] : [];
+      });
+  const allCandidates = [...evidenceCandidates, ...routineCandidates.filter((candidate) => !evidencePaths.has(candidate.path))];
   const candidates = boundCandidates(allCandidates, resolvedOptions);
   return {
     candidates,

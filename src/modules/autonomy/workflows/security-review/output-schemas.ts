@@ -16,6 +16,7 @@ const securityInvestigationFindingSchema = {
   required: [
     "id",
     "candidateId",
+    "existingTaskId", "productionOwner", "violatedInvariant", "repair", "exploitPreconditions", "evidenceIdentity",
     "claim",
     "severity",
     "affectedPath",
@@ -26,6 +27,12 @@ const securityInvestigationFindingSchema = {
   properties: {
     id: { type: "string" },
     candidateId: { type: "string" },
+    existingTaskId: { type: ["string", "null"] },
+    productionOwner: { type: "string" },
+    violatedInvariant: { type: "string" },
+    repair: { type: "string" },
+    exploitPreconditions: { type: "string" },
+    evidenceIdentity: { type: "string" },
     claim: { type: "string" },
     severity: { type: "string" },
     affectedPath: { type: "string" },
@@ -40,9 +47,14 @@ const securityInvestigationFindingSchema = {
 
 export const securityInvestigationOutputSchema = {
   type: "object",
-  required: ["findings"],
+  required: ["findings", "coverage"],
   additionalProperties: false,
   properties: {
+    coverage: {
+      type: "array",
+      items: { type: "object", required: ["path", "disposition", "rationale"], additionalProperties: false,
+        properties: { path: { type: "string" }, disposition: { enum: ["reviewed", "unreviewed"] }, rationale: { type: "string" } } },
+    },
     findings: {
       type: "array",
       description: "return [] when there are no plausible findings",

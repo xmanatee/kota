@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
@@ -18,6 +19,9 @@ import {
   collectSecurityReviewGitEvidence,
   SECURITY_REVIEW_DUE_EVENT,
 } from "../security-review/due-check.js";
+import { securityFindingPublicationRequested } from "../security-review/events.js";
+import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "../security-review/review-state.js";
+import { resolveSecurityFindingTaskTarget, securityFindingEvidenceKey } from "../security-review/security-review-task-identity.js";
 import { dispatcherInspectionOperation } from "./inspection.js";
 import {
   inspectProgressSemanticBoundary,
@@ -65,12 +69,22 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           deriveDirectoryScopeId(scopeRoot),
         );
         const scopeId = deriveDirectoryScopeId(scopeRoot);
+        const securitySnapshot = state.read(SECURITY_REVIEW_STATE_KEY);
+        const securityState = decodeSecurityReviewState(securitySnapshot.value);
         const securityReviewGitEvidence = await collectSecurityReviewGitEvidence({
           workspaceRoot: scopeRoot,
           scopeRoot,
           stateDir,
           runCommand,
+          reviewState: securityState,
         });
+        // Retain observed identities before publishing review work. A failed
+        // investigation must not let later keyword removal erase admission.
+        const unreviewedSurfaces = { ...securityState.unreviewedSurfaces, ...securityReviewGitEvidence.previousSurfaces };
+        if (!isDeepStrictEqual(unreviewedSurfaces, securityState.unreviewedSurfaces)) {
+          securityState.unreviewedSurfaces = unreviewedSurfaces;
+          state.compareAndSet(SECURITY_REVIEW_STATE_KEY, securitySnapshot.revision, securityState);
+        }
         const [inspection, progressBoundary] = await Promise.all([
           runBlocking(dispatcherInspectionOperation, {
             workspaceRoot: scopeRoot,
@@ -162,6 +176,25 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             "blocked-research",
           );
         }
+        const parkedSecurityPublications: Array<{ findingId: string; reason: string }> = [];
+        if (queue.ownershipAvailable) {
+          const pendingTasks = new Map<string, string[]>();
+          for (const entry of securityState.pending) {
+            try {
+              const { id } = resolveSecurityFindingTaskTarget(scopeRoot, entry.finding);
+              if (queue.owners.some((owner) => owner.taskId === id)) continue;
+              pendingTasks.set(id, [...(pendingTasks.get(id) ?? []), securityFindingEvidenceKey(entry.finding)]);
+            } catch (error) {
+              parkedSecurityPublications.push({ findingId: entry.finding.id, reason: String(error) });
+            }
+          }
+          for (const [taskId, evidence] of pendingTasks) {
+            publish(securityFindingPublicationRequested.name, {
+              scopeId, taskId,
+              idempotencyKey: `security-publication:${taskId}:${createHash("sha256").update(evidence.sort().join(":")).digest("hex")}`,
+            }, `security-publication:${taskId}`);
+          }
+        }
         if (securityReviewDue.due) {
           publish(SECURITY_REVIEW_DUE_EVENT, securityReviewPayload, "security-review");
         }
@@ -208,6 +241,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           researchRetryCandidateCount: researchRetryAvailability.candidateCount,
           researchRetryAttemptableCount: researchRetryAvailability.attemptableCount,
           securityReviewDue: securityReviewPayload,
+          parkedSecurityPublications,
           progressBoundary: {
             shouldEmit: progressBoundary.shouldEmit,
             reason: progressBoundary.reason,

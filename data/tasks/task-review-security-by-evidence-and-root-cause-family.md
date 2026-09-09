@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Review security by evidence and root-cause family
@@ -76,3 +76,105 @@ https://semgrep.dev/docs/category/local-and-cli-scans and
 https://semgrep.dev/docs/semgrep-ci/sample-ci-configs describe established local
 and baseline-aware scanning. Findings are inputs to investigation, not proof that
 all related code is safe or that an ignored finding was fixed.
+
+## Retained implementation and evidence
+
+Run `2026-09-09T16-49-10-933Z-builder-8sf2yv` implements per-path Git-content
+coverage in revisioned runtime state, execution-head refresh, explicit critical
+new-evidence requests, common-owner/invariant family identity, evidence replay
+suppression, preserved variant and completed-task evidence, and deferred publication
+through the existing writer/task-resource/CAS runtime. The reviewer keeps its
+existing writer isolation contract while the separate non-writer database issue
+remains unresolved. Independent revalidation checks exploit preconditions and
+common repair; no finding quota was introduced.
+
+The pinned `763e14b14` Git cohort reproduces all 14 distinct findings across 13
+finding-bearing runs: 12 completed tasks and two open tasks. Eleven repair families
+are proposed, including three native two-variant families; this does not demonstrate
+three duplicate reviews or a measured capacity saving. The wider 28-run/87.1-minute
+baseline remains attributed to the supplied task evidence until its original traces
+can be inspected. The local Biome experiment distinguished its existing direct-HTTP
+rule's positive/clean cases, but did not distinguish known vulnerable and repaired
+native-authority snapshots; no additional scanner or rule was adopted.
+
+Evidence, fix diffs, scanner results, and the detailed comparison are under this
+run's `agent/security-review-evidence/`, including `review-summary.md`, `cohort.json`,
+`scanner-experiment.json`, and validation logs. `pnpm check:fast` passed; 49 focused
+owner tests, the blocking-worker integration test, and both workflow definition
+validators passed. The enabled full publication scenario reaches task materialization
+but cannot start runtime validation because its `/bin/ps` identity probe is denied.
+The code's task identity, preservation, coverage, failed-review retry, and queued/
+retained ownership decisions have separate passing behavioral proofs. Live agent
+occupancy and production outcome improvement have not been measured.
+
+Critic repair removes scanner classification from explicit-evidence admission:
+reported paths receive semantic candidates, take priority within the bounded scan,
+and retain cap-miss diagnostics. Explicit requests use the runtime's queue-all
+admission so a later request cannot replace earlier critical evidence. The repaired
+keyword-free boundary/replay and durable queue scenarios pass. The repair's focused
+portfolio reports 46 passed and one failure at the same `/bin/ps` publication
+barrier; the worker integration test and `pnpm check:fast` pass. Details are in
+`agent/security-review-evidence/repair-summary.md` and `repair-owner-validation.log`.
+
+The second critic repair persists partial explicit-request coverage by path and Git
+content digest and lets dispatcher resume the remaining paths without routine
+cooldown. Changed request content invalidates prior coverage. Admission and scanning
+also inspect previously reviewed Git blobs, keeping removed authorization checks
+eligible, and runtime retries rescan before investigation. The production workflow
+scenarios cover a 36-path cap with an unreviewed path, failed continuation, content
+change and replay, plus a real `retryOf` run at a newer head; modified and deleted
+keyword-only guards remain due and selected. The owner portfolio reports 50 passed
+and the same single `/bin/ps` publication failure; worker integration passes.
+Details are in `agent/security-review-evidence/repair-2-summary.md` and its validation
+logs. The existing external prerequisites below remain unchanged.
+
+The third critic repair retains established semantic surfaces alongside reviewed
+content digests, so completed explicit reports remain reviewable after keyword-free
+edits, deletion and recreation. Admission reads this retained identity directly;
+reconstructing it from scanner matches on old blobs is removed. A production-workflow
+regression first reproduced the critic's false-negative admission, then passed
+through each content transition, failed-review retry and unchanged replay. The owner
+portfolio reports 51 passed and the same single `/bin/ps` publication failure;
+`pnpm check:fast` passes. Details are in
+`agent/security-review-evidence/repair-3-summary.md` and its validation logs.
+
+The fourth critic repair preserves pinned deletion evidence for every pending
+request path, including unchecked paths and paths omitted by the candidate cap.
+The extended batch-continuation regression reproduced the missing-digest scan
+failure before the fix, then passed deletion, provider-failure retention, successful
+consumption and unchanged replay. The affected security-review, publication and
+dispatcher owner portfolio reports 61 passed and the same single `/bin/ps`
+publication failure; `pnpm check:fast` passes. Details are in
+`agent/security-review-evidence/repair-4-summary.md` and its validation logs.
+
+The fifth critic repair separates unreviewed semantic observations from completed
+coverage. Dispatcher persists observed boundaries before due events, partial reviews
+retain unchecked/capped identity, and runtime retries replay initial review identity
+before refreshing current Git content. New explicit requests now pin missing paths
+as deletion evidence before scanning, including a first failed report retried after
+deletion. Five focused cases reproduced the defects before the fix; the final six
+regressions pass. The affected owner portfolio reports 65 passed and the existing
+single `/bin/ps` publication failure; worker integration and `pnpm check:fast` pass.
+Details are in `agent/security-review-evidence/repair-5-summary.md` and its logs.
+The existing external prerequisites remain unchanged.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/*security-review*
+description: Attributable original review/critic transcripts, successful full publication validation in an authorized execution profile, and a pinned after-change cohort with elapsed agent-step durations and actionable outcomes. The path is a discovery hint; equivalent scoped exports and runtime evidence are acceptable, without mandatory manual execution.
+
+Equivalent scoped access to the original September 3–9 review and relevant critic
+repair transcripts, plus an authorized execution profile for the full publication
+scenario and a pinned after-change review cohort. The current workspace's normal
+workflow-list command returns no recent runs; selecting the canonical scope fails
+on its daemon-discovery read (EPERM), and canonical run-artifact enumeration is also
+denied. These restrictions do not establish that host credentials or capabilities
+are absent. Runtime publication validation additionally fails at `/bin/ps` (EPERM),
+not at task validation. No privileged fallback or candidate host authority was used.
+
+Resume by making equivalent attributable exports and runtime execution available,
+then inspect the original traces, complete publication validation, and compare actual
+elapsed agent-step time and actionable outcomes over a pinned after-change cohort.
+No particular capture directory or manual-execution procedure is required. The
+retained implementation is not claimed as full completion of this task.

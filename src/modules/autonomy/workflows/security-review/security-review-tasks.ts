@@ -5,16 +5,16 @@ import {
   reopenTaskById,
   writeRepoTaskFile,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { slugifyTaskTitle } from "#modules/repo-tasks/repo-tasks-operations.js";
 import { writeJsonArtifact } from "./security-review-candidates.js";
 import type {
   SecurityFindingSeverity,
   SecurityRevalidatedFinding,
 } from "./security-review-output.js";
-import { resolveSecurityFindingTaskTarget } from "./security-review-task-identity.js";
+import { resolveSecurityFindingTaskTarget, securityFindingEvidenceKey } from "./security-review-task-identity.js";
 
-function taskPriorityForSeverity(severity: SecurityFindingSeverity): "p1" | "p2" | "p3" {
-  if (severity === "critical" || severity === "high") return "p1";
+function taskPriorityForSeverity(severity: SecurityFindingSeverity): "p0" | "p1" | "p2" | "p3" {
+  if (severity === "critical") return "p0";
+  if (severity === "high") return "p1";
   if (severity === "medium") return "p2";
   return "p3";
 }
@@ -116,6 +116,11 @@ function buildFindingTaskBody(args: {
     "",
     ...args.reviewRunIds.map((runId) => `- ${bodyScalar(runId)}`),
     "",
+    `security evidence: ${securityFindingEvidenceKey(finding)}`,
+    `production owner: ${bodyScalar(finding.productionOwner)}`,
+    `violated invariant: ${bodyScalar(finding.violatedInvariant)}`,
+    "Common repair:", quoteMarkdown(finding.repair),
+    "Exploit preconditions:", quoteMarkdown(finding.exploitPreconditions),
     `finding id: ${bodyScalar(finding.id)}`,
     `candidate id: ${bodyScalar(finding.candidateId)}`,
     `verdict: ${finding.verdict}`,
@@ -129,8 +134,9 @@ function buildFindingTaskBody(args: {
   ].join("\n");
   return renderRepoTaskIntent({
     problem,
-    desiredOutcome: quoteMarkdown(finding.recommendedOutcome),
+    desiredOutcome: `${quoteMarkdown(finding.repair)}\n\n${quoteMarkdown(finding.recommendedOutcome)}`,
     constraints: [
+    "- Resolve every retained variant at the common owner; preserve distinct exploit preconditions and regression obligations.",
     "- Preserve the confirmed security claim and cited evidence until the fix lands.",
     "- Do not weaken authorization, approval, tool-risk, secret-handling, or injection-defense boundaries to make the finding disappear.",
     ].join("\n"),
@@ -155,7 +161,7 @@ function taskPriorityForUpdate(
   existing: string | string[] | undefined,
   incoming: ReturnType<typeof taskPriorityForSeverity>,
 ): ReturnType<typeof taskPriorityForSeverity> {
-  if (typeof existing !== "string" || !/^(p1|p2|p3)$/.test(existing)) return incoming;
+  if (typeof existing !== "string" || !/^(p0|p1|p2|p3)$/.test(existing)) return incoming;
   return Number(existing.slice(1)) <= Number(incoming.slice(1))
     ? existing as ReturnType<typeof taskPriorityForSeverity>
     : incoming;
@@ -181,43 +187,31 @@ export function createOrUpdateSecurityFindingTasks(
     }
     const safeClaim = frontMatterScalar(finding.claim);
     const title = `Security review: ${safeClaim}`;
-    const resolution = resolveSecurityFindingTaskTarget(workspaceRoot, {
-      baseId: `task-${slugifyTaskTitle(title)}`,
-      candidateId: finding.candidateId,
-      findingId: finding.id,
-      persistedCandidateId: bodyScalar(finding.candidateId),
-      persistedFindingId: bodyScalar(finding.id),
-      reviewRunId: normalizeControlWhitespace(args.runId),
-    });
+    const resolution = resolveSecurityFindingTaskTarget(workspaceRoot, finding);
     if (resolution.current) {
       unchangedFindingIds.push(finding.id);
       continue;
     }
-    const { reviewRunIds: mergedReviewRunIds, target } = resolution;
-    const priority = taskPriorityForUpdate(
-      target.kind === "update" ? target.priority ?? undefined : undefined,
-      taskPriorityForSeverity(finding.severity),
-    );
-    if (target.kind === "update" && (target.state === "done" || target.state === "dropped")) {
-      const moved = reopenTaskById(workspaceRoot, target.id, priority);
-      target.path = join(workspaceRoot, moved.path);
-      target.state = "open";
+    const { existing } = resolution;
+    const priority = taskPriorityForUpdate(existing?.priority ?? undefined, taskPriorityForSeverity(finding.severity));
+    let path = resolution.path;
+    let state = existing?.state ?? "open";
+    if (state === "done" || state === "dropped") {
+      const moved = reopenTaskById(workspaceRoot, resolution.id, priority);
+      path = join(workspaceRoot, moved.path);
+      state = "open";
     }
-    const attrs: Record<string, string | string[]> = {
-      status: target.state,
-      ...((target.state === "open" || target.state === "blocked") ? { priority } : {}),
-    };
-    writeRepoTaskFile(
-      workspaceRoot,
-      target.path,
-      serializeFlatFrontMatter(
-        attrs,
-        `# ${title}\n\n${buildFindingTaskBody({ finding, reviewRunIds: mergedReviewRunIds })}`,
-      ),
-    );
-    taskPaths.push(target.path);
-    if (target.kind === "update") updatedTaskIds.push(target.id);
-    else createdTaskIds.push(target.id);
+    const attrs = { ...resolution.attrs, status: state, priority };
+    const addition = buildFindingTaskBody({ finding, reviewRunIds: [normalizeControlWhitespace(args.runId)] });
+    const familyMarker = existing && new RegExp(`^security family: ${resolution.key}$`, "m").test(existing.body) ? "" : `security family: ${resolution.key}\n\n`;
+    const body = existing
+      ? `${existing.body.trimEnd()}\n\n${familyMarker}## Additional confirmed evidence\n\n${addition}`
+      : `# ${title}\n\nsecurity family: ${resolution.key}\n\n${addition}`;
+    writeRepoTaskFile(workspaceRoot, path, serializeFlatFrontMatter(attrs, body));
+    if (!taskPaths.includes(path)) taskPaths.push(path);
+    if (existing) {
+      if (!createdTaskIds.includes(resolution.id) && !updatedTaskIds.includes(resolution.id)) updatedTaskIds.push(resolution.id);
+    } else createdTaskIds.push(resolution.id);
   }
 
   return {

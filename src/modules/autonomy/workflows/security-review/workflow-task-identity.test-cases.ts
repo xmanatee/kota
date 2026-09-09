@@ -1,173 +1,60 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
-import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
-import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
-import {
-  createOrUpdateSecurityFindingTasks,
-  type SecurityInvestigationOutput,
-  type SecurityRevalidationVerdictOutput,
-} from "./security-review.js";
+import { moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { createOrUpdateSecurityFindingTasks } from "./security-review.js";
 import { SecurityReviewProjectFixture } from "./workflow-test-fixture.js";
 
 export function describeSecurityReviewTaskIdentityTests(): void {
-  describe("finding task stable identity", () => {
+  describe("security repair families", () => {
     let fixture: SecurityReviewProjectFixture;
+    beforeEach(() => { fixture = new SecurityReviewProjectFixture(); });
+    afterEach(() => fixture.cleanup());
 
-    beforeEach(() => {
-      fixture = new SecurityReviewProjectFixture();
-    });
-
-    afterEach(() => {
-      fixture.cleanup();
-    });
-
-    it("reopens a terminal task with new provenance instead of creating a duplicate", () => {
-      const claim = "Terminal task retains repeated confirmed finding provenance.";
-      const baseId = fixture.securityFindingTaskIdForClaim(claim);
-      fixture.writeLegacySecurityFindingTask({
-        id: baseId,
-        state: "done",
-        runId: "security-review-run-one",
-        claim,
-      });
-      const finding = fixture.confirmedFindingForClaim(claim);
-
-      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
-        runId: "security-review-run-two",
-        findings: [finding],
-      });
-
-      expect(result.createdTaskIds).toEqual([]);
-      expect(result.updatedTaskIds).toEqual([baseId]);
-      expect(result.unchangedFindingIds).toEqual([]);
-      const activePath = join(fixture.workspaceRoot, "data/tasks", `${baseId}.md`);
-      const activeTask = readFileSync(activePath, "utf-8");
-      expect(parseFlatFrontMatter(activeTask).attrs).toEqual({
-        status: "open",
-        priority: "p2",
-      });
-      expect(activeTask).toContain("security-review-run-one");
-      expect(activeTask).toContain("security-review-run-two");
-      expect(activeTask).toContain("Terminal task retains repeated confirmed finding provenance.");
-      expect(existsSync(join(fixture.workspaceRoot, "data/tasks/archive", `${baseId}.md`))).toBe(false);
-      expect(existsSync(join(fixture.workspaceRoot, "data/tasks", `${baseId}-2.md`))).toBe(
-        false,
-      );
-
+    it("coalesces common-owner variants, ignores unchanged evidence, and preserves distinct invariants", () => {
+      const first = fixture.confirmedFindingForClaim("Credential reads bypass authority");
+      const second = { ...first, id: "database", evidenceIdentity: "database-sidecars-v1", exploitPreconditions: "Candidate can read the daemon database sidecar", evidence: [{ path: "src/core/workflow/database.ts", line: 9, excerpt: "readFileSync(sidecar)" }] };
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, { runId: "review-one", findings: [first, second] });
+      expect(result.createdTaskIds).toHaveLength(1);
+      expect(result.updatedTaskIds).toEqual([]);
+      const path = result.taskPaths[0]!;
+      const original = readFileSync(path, "utf8");
+      expect(original).toContain(first.exploitPreconditions);
+      expect(original).toContain(second.exploitPreconditions);
       const replay = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
-        runId: "security-review-run-two",
-        findings: [finding],
+        runId: "review-two", findings: [{ ...first, id: "renamed", candidateId: "line-moved", claim: "New wording", evidence: first.evidence.map((entry) => ({ ...entry, path: "src/core/workflow/moved.ts", line: 999 })) }],
       });
-      expect(replay.createdTaskIds).toEqual([]);
-      expect(replay.updatedTaskIds).toEqual([]);
-      expect(replay.unchangedFindingIds).toEqual([finding.id]);
-      expect(readFileSync(activePath, "utf-8")).toBe(activeTask);
-      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
+      expect(replay.unchangedFindingIds).toEqual(["renamed"]);
+      expect(readFileSync(path, "utf8")).toBe(original);
+      const distinct = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, { runId: "review-three", findings: [{ ...first, violatedInvariant: "network-egress", evidenceIdentity: "new-exploit" }] });
+      expect(distinct.createdTaskIds).toHaveLength(1);
+      expect(distinct.createdTaskIds).not.toEqual(result.createdTaskIds);
     });
 
-    it("merges an explicitly superseded duplicate into the canonical stable-identity record", () => {
-      const canonicalClaim = "First wording for a stable trust-boundary finding.";
-      const repeatedClaim = "Later wording for the same stable trust-boundary finding.";
-      const canonicalId = fixture.securityFindingTaskIdForClaim(canonicalClaim);
-      const supersededId = fixture.securityFindingTaskIdForClaim(repeatedClaim);
-      fixture.writeLegacySecurityFindingTask({
-        id: canonicalId,
-        state: "open",
-        runId: "security-review-run-one",
-        claim: canonicalClaim,
-      });
-      fixture.writeLegacySecurityFindingTask({
-        id: supersededId,
-        state: "dropped",
-        runId: "security-review-run-two",
-        claim: repeatedClaim,
-        supersededBy: canonicalId,
-      });
-      const supersededPath = join(
-        fixture.workspaceRoot,
-        "data/tasks/archive",
-        `${supersededId}.md`,
-      );
-      const supersededBefore = readFileSync(supersededPath, "utf-8");
-      const finding = fixture.confirmedFindingForClaim(repeatedClaim);
-
-      const merged = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
-        runId: "security-review-run-two",
-        findings: [finding],
-      });
-
-      expect(merged.createdTaskIds).toEqual([]);
-      expect(merged.updatedTaskIds).toEqual([canonicalId]);
-      expect(merged.unchangedFindingIds).toEqual([]);
-      const canonicalPath = join(
-        fixture.workspaceRoot,
-        "data/tasks",
-        `${canonicalId}.md`,
-      );
-      const canonicalAfterMerge = readFileSync(canonicalPath, "utf-8");
-      const canonicalAttrs = parseFlatFrontMatter(canonicalAfterMerge).attrs;
-      expect(canonicalAttrs).toEqual({ status: "open", priority: "p2" });
-      expect(canonicalAfterMerge).toContain("security-review-run-one");
-      expect(canonicalAfterMerge).toContain("security-review-run-two");
-      expect(canonicalAfterMerge).toContain(repeatedClaim);
-      expect(readFileSync(supersededPath, "utf-8")).toBe(supersededBefore);
-
-      const replay = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, {
-        runId: "security-review-run-two",
-        findings: [finding],
-      });
-      expect(replay.createdTaskIds).toEqual([]);
-      expect(replay.updatedTaskIds).toEqual([]);
-      expect(replay.unchangedFindingIds).toEqual([finding.id]);
-      expect(readFileSync(canonicalPath, "utf-8")).toBe(canonicalAfterMerge);
-      expect(() => assertTaskQueueValid(fixture.workspaceRoot)).not.toThrow();
+    it("reopens only new evidence and retains completed resolution and proof", () => {
+      const finding = fixture.confirmedFindingForClaim("Writer authority bypass");
+      const created = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, { runId: "review-one", findings: [finding] });
+      const id = created.createdTaskIds[0]!;
+      moveTaskById(fixture.workspaceRoot, id, "done");
+      const archive = join(fixture.workspaceRoot, "data/tasks/archive", `${id}.md`);
+      const before = readFileSync(archive, "utf8");
+      expect(createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, { runId: "review-two", findings: [finding] }).unchangedFindingIds).toEqual([finding.id]);
+      expect(readFileSync(archive, "utf8")).toBe(before);
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, { runId: "review-three", findings: [{ ...finding, evidenceIdentity: "non-writer-bypass-v2", exploitPreconditions: "Read-only reviewer has no writer identity" }] });
+      expect(result.updatedTaskIds).toEqual([id]);
+      const reopened = readFileSync(result.taskPaths[0]!, "utf8");
+      expect(reopened).toContain("review-one");
+      expect(reopened).toContain("review-three");
+      expect(reopened).toContain("Read-only reviewer has no writer identity");
     });
-  });
-}
 
-export async function expectSecurityReviewWorkflowReplayNoop(args: {
-  fixture: SecurityReviewProjectFixture;
-  investigation: SecurityInvestigationOutput;
-  revalidation: SecurityRevalidationVerdictOutput;
-  runId: string;
-  taskId: string;
-  workflow: WorkflowDefinitionInput;
-}): Promise<void> {
-  const workspaceRoot = args.fixture.workspaceRoot;
-  const taskPath = join(workspaceRoot, "data/tasks", `${args.taskId}.md`);
-  const taskBeforeReplay = readFileSync(taskPath, "utf-8");
-  const replay = await new WorkflowScenarioDriver(args.workflow, {
-    workspaceRoot,
-    runId: `${args.runId}-replay`,
-    trigger: { event: "autonomy.security-review.requested", payload: {} },
-    stepOutputs: {
-      "investigate-candidates": args.investigation,
-      "revalidate-findings": args.revalidation,
-    },
-  }).run();
-  expect(replay.status).toBe("success");
-  expect(replay.steps["create-follow-up-tasks"].output).toMatchObject({
-    createdTaskIds: [],
-    updatedTaskIds: [],
-    unchangedFindingIds: ["confirmed-fetch"],
-  });
-  expect(
-    readFileSync(
-      join(workspaceRoot, "data/tasks", `${args.taskId}.md`),
-      "utf-8",
-    ),
-  ).toBe(taskBeforeReplay);
-  const replayOutcome = JSON.parse(
-    readFileSync(
-      join(replay.runDirPath, "security-review-outcome.json"),
-      "utf-8",
-    ),
-  ) as { outcome: string; reason: string };
-  expect(replayOutcome).toMatchObject({
-    outcome: "no-op",
-    reason: "confirmed-findings-current",
+    it("adopts an explicitly reviewed existing repair task without replacing its contract", () => {
+      fixture.writeLegacySecurityFindingTask({ id: "task-existing-repair", state: "open", runId: "old-review", claim: "Protect native authority" });
+      const finding = { ...fixture.confirmedFindingForClaim("Related database sink"), existingTaskId: "task-existing-repair" };
+      const before = readFileSync(join(fixture.workspaceRoot, "data/tasks/task-existing-repair.md"), "utf8");
+      const result = createOrUpdateSecurityFindingTasks(fixture.workspaceRoot, { runId: "new-review", findings: [finding] });
+      expect(result.updatedTaskIds).toEqual(["task-existing-repair"]);
+      expect(readFileSync(result.taskPaths[0]!, "utf8")).toContain(before.split("---")[2]!.trim());
+    });
   });
 }

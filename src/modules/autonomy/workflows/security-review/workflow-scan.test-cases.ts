@@ -26,6 +26,27 @@ export function describeSecurityReviewScanTests(): void {
       fixture.cleanup();
     });
 
+    it("prioritizes explicit evidence without scanner matches and diagnoses bounded omissions", () => {
+      const evidencePaths = ["src/service/gate.ts", "src/service/other.ts"];
+      for (const path of evidencePaths) fixture.writeProjectFile(path, "export const mayRead = () => true;\n");
+      const routinePath = "src/modules/web-access/fetch.ts";
+      fixture.writeProjectFile(routinePath, "await fetch(url);\n");
+
+      const result = scanSecurityReviewCandidates(fixture.workspaceRoot, {
+        paths: [routinePath, ...evidencePaths], evidencePaths,
+        dueTargets: externalFetchDueTargets(fixture, [routinePath]),
+        maxCandidates: 1,
+      });
+
+      expect(result.candidates).toMatchObject([{ path: evidencePaths[0], matcher: "explicit-evidence" }]);
+      expect(result.truncated).toBe(true);
+      expect(result.dueTargets.diagnostics).toEqual([
+        expect.objectContaining({ path: evidencePaths[0], status: "matched" }),
+        expect.objectContaining({ path: evidencePaths[1], status: "missed", reason: "candidate-cap" }),
+        expect.objectContaining({ path: routinePath, status: "missed", reason: "candidate-cap" }),
+      ]);
+    });
+
     it("discovers repo-local candidates across KOTA security-sensitive surfaces", () => {
       fixture.writeProjectFile(
         "src/modules/approval-queue/index.ts",

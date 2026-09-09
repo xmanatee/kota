@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
+import { EventBus } from "#core/events/event-bus.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import { createTestWorkflowRuntime } from "#core/workflow/testing/runtime-fixture.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
+import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import type { SecurityReviewCandidate } from "./security-review.js";
 import { SecurityReviewProjectFixture } from "./workflow-test-fixture.js";
@@ -21,16 +26,44 @@ export function describeSecurityReviewRunTests(
       fixture.cleanup();
     });
 
+    it("durably retains distinct explicit evidence requests while dispatch is occupied", async () => {
+      const unregisterHarness = registerAgentHarness(codexAgentHarness);
+      const bus = new EventBus();
+      const host = createTestWorkflowRuntime({
+        bus, scopeRoot: fixture.workspaceRoot, idleIntervalMs: 60_000,
+        workflows: [{ ...securityReviewWorkflow, definitionPath: "src/modules/autonomy/workflows/security-review/workflow.ts", moduleRoot: process.cwd() }],
+      });
+      const first = { evidence: { id: "critical-boundary", paths: ["src/service/gate.ts"], critical: true, reason: "New exploit on unchanged code" } };
+      const second = { evidence: { id: "other-boundary", paths: ["src/service/other.ts"], critical: false, reason: "Independent report" } };
+      try {
+        host.runtime.start();
+        host.runtime.setDispatchPaused(true);
+        bus.emit("autonomy.security-review.requested", first);
+        bus.emit("autonomy.security-review.requested", second);
+        await host.runtime.stop();
+        const pending = host.runtime.getState().pendingRuns;
+        expect(pending.map((run) => run.trigger.payload)).toEqual([first, second]);
+        expect(pending.map((run) => {
+          if (!run.runId) throw new Error("Security request has no durable run identity");
+          return host.runState.getRun(run.runId)?.trigger.payload;
+        })).toEqual([first, second]);
+      } finally {
+        await host.stop();
+        unregisterHarness();
+      }
+    });
+
     it("completes as an explicit no-op when the deterministic scan is empty", async () => {
       const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
+        ports: { runCommand: runGitEvidenceCommand },
         trigger: { event: "autonomy.security-review.requested", payload: {} },
         stepOutputs: {},
       });
 
       const result = await harness.run();
 
-      expect(result.status).toBe("success");
+      expect(result.status, result.error).toBe("success");
       expect(result.steps["investigate-candidates"].status).toBe("skipped");
       expect(result.steps["revalidate-findings"].status).toBe("skipped");
       expect(
@@ -48,13 +81,14 @@ export function describeSecurityReviewRunTests(
 
       const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
+        ports: { runCommand: runGitEvidenceCommand },
         trigger: { event: SECURITY_REVIEW_DUE_EVENT, payload: {} },
         stepOutputs: {},
       });
 
       const result = await harness.run();
 
-      expect(result.status).toBe("success");
+      expect(result.status, result.error).toBe("success");
     });
 
     it("keeps full scan evidence in the artifact while exposing compact candidate metadata", async () => {
@@ -68,6 +102,7 @@ export function describeSecurityReviewRunTests(
 
       const harness = new WorkflowScenarioDriver(securityReviewWorkflow, {
         workspaceRoot: fixture.workspaceRoot,
+        ports: { runCommand: runGitEvidenceCommand },
         trigger: {
           event: SECURITY_REVIEW_DUE_EVENT,
           payload: {
@@ -78,13 +113,16 @@ export function describeSecurityReviewRunTests(
           },
         },
         stepOutputs: {
-          "investigate-candidates": { findings: [] },
+          "investigate-candidates": { findings: [], coverage: [
+            { path: "src/modules/web-access/z-due.ts", disposition: "reviewed", rationale: "Caller URLs were inspected" },
+            { path: "src/modules/web-access/a-full-tree.ts", disposition: "reviewed", rationale: "Literal destination" },
+          ] },
         },
       });
 
       const result = await harness.run();
 
-      expect(result.status).toBe("success");
+      expect(result.status, result.error).toBe("success");
       expect(result.steps["scan-candidates"].output).toEqual(
         expect.objectContaining({
           candidates: expect.any(Array),
