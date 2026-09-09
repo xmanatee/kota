@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Review security by evidence and root-cause family
@@ -180,6 +180,41 @@ Prove initial review, retry and current-head refresh preserve all required
 coverage, then complete the original publication and after-cohort acceptance.
 The observations below remain acceptance work; they do not prevent repairing
 this already evidenced failure now.
+
+## Persistence repair (2026-09-09)
+
+Run `2026-09-09T20-13-53-810Z-builder-eqwnyy` reproduced the live failure
+through the real workflow executor and persisted metadata using a committed
+2,500-path repository: retain-review-input succeeded with a truncation marker,
+then refresh-review-input rejected the missing evidenceRequest field before
+investigation. Both the semantic-surface map and Git-content map exceed the
+unchanged 262144-byte step-output limit.
+
+Initial identity and current-head input now remain in ordinary run artifacts.
+Bounded typed run references and SHA-256 digests cross the step boundary;
+reload validates integrity and the full schema. Runtime retry replays the
+original reference and refreshes current Git content in its own run artifact.
+Request and accumulated request-coverage maps also stay out of the exposed
+candidate output. Publication and admission state remain with their existing
+runtime owners; no output cap or review quota changed.
+
+The repository-sized regression passes initial persistence, provider-failure
+retention, retry at a changed head, guard removal and deletion, explicit request
+consumption, and preservation of every unselected boundary. Missing and altered
+retained artifacts fail closed without consuming coverage. The affected portfolio
+had 72 passing tests and the same publication failure at the denied /bin/ps
+identity probe; two additional negative persistence cases pass (74 distinct
+passing owner cases total). The worker integration test, security-review
+workflow definition validation, and pnpm check:fast pass. This distinguishes the
+repaired persistence defect from the unresolved execution-profile prerequisite.
+
+Evidence and before/after interpretation are in this run's
+`agent/security-review-evidence/repair-summary.md`. The workspace workflow list
+returns no security-review runs; canonical run-directory enumeration again
+returns EPERM. No original transcript cohort or after-change live agent durations
+were obtained, and no occupancy saving or production yield improvement is claimed.
+The existing Blocked on acceptance below still applies; these safe retained
+changes do not constitute full completion of the original task.
 
 ## Blocked on
 

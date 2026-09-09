@@ -19,8 +19,11 @@ Review admission consumes explicit path coverage at the examined Git content,
 never a later publication head. Runtime retries rescan before dependent judgments.
 Dispatcher retains observed semantic surfaces in revisioned state before emitting
 review work, separately from reviewed content. Successful partial reviews retain
-unchecked and capped surfaces too. The initial review input is an ordinary durable
-step output that runtime retries replay before refreshing the execution-head scan.
+unchecked and capped surfaces too. Repository-wide review inputs stay in run
+artifacts, with schema and integrity checks on reload. Ordinary durable step
+outputs carry bounded references that runtime retries replay before refreshing
+the execution-head scan; request histories and coverage maps never travel in the
+agent candidate packet.
 This preserves first-attempt boundaries and explicit requests across failure;
 editing or deleting a keyword-free guard cannot erase its review eligibility. Failed, capped,
 uncertain, or unchecked evidence remains eligible. A no-finding verdict describes the boundary examined and its

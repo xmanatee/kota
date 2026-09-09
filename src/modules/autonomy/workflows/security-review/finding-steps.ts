@@ -2,6 +2,7 @@ import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import { refreshReviewInput, scanCandidates } from "./candidate-steps.js";
+import { refreshedReviewInputArtifact } from "./review-input-artifact.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "./review-state.js";
 import {
   decodeSecurityInvestigationOutput,
@@ -108,7 +109,8 @@ export const recordReview = typedCodeStep<{ reviewedPaths: string[]; pendingFind
     const unresolved = new Set(revalidation?.findings.filter((finding) => finding.verdict === "follow-up-needed").map((finding) => finding.candidateId) ?? []);
     const reviewedPaths = investigation.coverage.filter((entry) => entry.disposition === "reviewed" &&
       !packet.candidates.some((candidate) => candidate.path === entry.path && unresolved.has(candidate.id))).map((entry) => entry.path);
-    state.unreviewedSurfaces = { ...state.unreviewedSurfaces, ...refreshReviewInput.outputRequired(ctx).previousSurfaces };
+    const input = refreshedReviewInputArtifact.read(ctx.workflow.runDirPath, refreshReviewInput.outputRequired(ctx));
+    state.unreviewedSurfaces = { ...state.unreviewedSurfaces, ...input.previousSurfaces };
     for (const path of reviewedPaths) {
       state.reviewed[path] = {
         digest: packet.contentDigests[path]!,
@@ -126,9 +128,9 @@ export const recordReview = typedCodeStep<{ reviewedPaths: string[]; pendingFind
         state.pending.push({ runId: ctx.workflow.runId, finding: { ...finding, verdict: "confirmed" } });
       }
     }
-    if (packet.evidenceRequest) {
-      const request = packet.evidenceRequest;
-      const reviewed = { ...packet.evidenceReviewed };
+    if (input.evidenceRequest) {
+      const request = input.evidenceRequest;
+      const reviewed = { ...input.evidenceReviewed };
       for (const path of reviewedPaths) {
         if (request.paths.includes(path)) reviewed[path] = packet.contentDigests[path]!;
       }
