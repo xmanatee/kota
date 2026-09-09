@@ -137,6 +137,13 @@ export type AgentHarnessRunOptions = {
   env?: Record<string, string>;
   /** Machine-owned config path excluded from every agent execution sandbox. */
   authorityConfigPath?: string;
+  /**
+   * Independent runtime-owned read grants for host files or directories.
+   * These are additional permissions, never inferred from workspace links,
+   * prompts, or scope configuration. Existing protected-path denials prevail.
+   * Omission grants no additional host access.
+   */
+  readOnlyHostRoots?: readonly string[];
   verbose?: boolean;
   systemPrompt?: AgentSystemPrompt;
   maxTurns?: number;

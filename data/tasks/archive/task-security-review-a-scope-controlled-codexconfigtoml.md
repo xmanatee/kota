@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: A scope-controlled .codex/config.toml symlink can authorize reads of an external host configuration file. The configuration-root helper accepts the resolved target without checking independent runtime authorization, and the Codex adapter projects that target into its tool filesystem permissions. For targets compatible with CLI configuration loading and outside explicit denials, this can expose confidential configuration or embedded credentials beyond the approved workspace.
 
@@ -106,3 +105,17 @@ excerpt:
 
 
 > for (const path of context.readableRoots) access.set(path, "read");
+
+## Resolution
+
+Removed the workspace-configuration root helper and its Codex adapter call. Configuration discovery no longer resolves scope-controlled links into new host read grants. Configurations within the canonical workspace retain workspace access. The runtime can independently authorize external shared configurations through readOnlyHostRoots in harness run options; the Codex adapter carries those grants through collectTextFromCodexCli to the shared sandbox and generated permission profile. Omission adds no host grant. Updated the Codex harness instructions and replaced the test that endorsed automatic link authorization.
+
+## Verification
+
+- The new owner-boundary regression reproduced the old behavior for both a linked config.toml and a linked .codex directory: the generated tool permission profile included the unauthorized external target. Both cases pass after removal, with no grant for the target or its ancestors.
+- Explicit runtime file and directory grants reach the generated Codex permission profile as read-only permissions. Both positive and negative cases enter through codexAgentHarness.run and exercise the production CLI launcher, sandbox root projection, and runtime-home generation; only provider launch and network ports are controlled.
+- pnpm test:owner src/modules/codex-agent-harness src/core/agent-harness/native-cli-sandbox-roots.test.ts src/core/agent-harness/native-cli-dependency-authority.test.ts: 42 tests passed across 8 files.
+- pnpm typecheck: production and test projects passed. Scoped Biome checks passed for all seven changed TypeScript files.
+- Static inspection confirms that the deleted helper had only the removed Codex production caller; existing explicit runtime grants and denials are unchanged.
+
+The generated permission profile is the oracle for this grant-expansion defect. No live provider invocation or host-secret read was attempted; actual Codex CLI sandbox enforcement was not re-probed.

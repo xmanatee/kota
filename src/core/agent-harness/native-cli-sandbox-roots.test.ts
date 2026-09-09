@@ -14,7 +14,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   nativeCliGitMetadataRoots,
   nativeCliReadableRoots,
-  nativeCliWorkspaceConfigurationReadRoots,
   resolveNativeCliExecutable,
 } from "./native-cli-sandbox-roots.js";
 
@@ -88,24 +87,6 @@ describe("native CLI sandbox roots", () => {
     expect(readableRoots).toContain(operatorBin);
     expect(readableRoots).toContain(nvmRoot);
     expect(readableRoots).not.toContain(operatorHome);
-  });
-
-  it("resolves declared workspace configuration through physical symlink targets", () => {
-    const root = mkdtempSync(join(tmpdir(), "kota-native-config-root-"));
-    roots.push(root);
-    const scopeRoot = join(root, "project");
-    const sharedConfigDir = join(root, "shared-config");
-    mkdirSync(scopeRoot);
-    mkdirSync(sharedConfigDir);
-    writeFileSync(join(sharedConfigDir, "settings.json"), "{}");
-    symlinkSync(sharedConfigDir, join(scopeRoot, ".client"));
-
-    expect(nativeCliWorkspaceConfigurationReadRoots(scopeRoot, [
-      ".client/settings.json",
-      ".client/missing.json",
-    ])).toEqual([
-      realpathSync.native(join(sharedConfigDir, "settings.json")),
-    ]);
   });
 
   it("exposes linked-worktree Git metadata as read-only roots", () => {

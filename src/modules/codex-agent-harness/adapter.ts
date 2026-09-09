@@ -261,6 +261,7 @@ export const codexAgentHarness: AgentHarness = {
       effort: options.effort,
       writableRoots: scope.writableRoots,
       authorityConfigPath: options.authorityConfigPath,
+      readOnlyHostRoots: options.readOnlyHostRoots ?? [],
       env: options.env,
       abortController: options.abortController,
       writer,

@@ -69,6 +69,12 @@ live policy revision aborts the process.
 fake `ask_owner` tool. Workflows that need owner escalation should use the
 deterministic `askOwnerSteps` recipe outside the agent step.
 
+Workspace configuration uses existing workspace read access. Configuration
+symlinks confer no authority over external targets; shared configurations
+require independent runtime-owned read grants supplied in harness run options.
+The adapter carries those grants through the launcher into the generated tool
+permission profile; scope configuration and prompts cannot supply them.
+
 The adapter still carries KOTA's shared native workflow rails in the prompt:
 agents treat Git metadata as read-only, leave workspace changes unstaged for
 runtime-owned commits, and must not stop or control the daemon that launched

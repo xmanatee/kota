@@ -17,9 +17,6 @@ import {
   type NativeCliSandboxProcess,
   withNativeCliSandbox,
 } from "#core/agent-harness/native-cli-sandbox.js";
-import {
-  nativeCliWorkspaceConfigurationReadRoots,
-} from "#core/agent-harness/native-cli-sandbox-roots.js";
 import { unpricedAgentUsage } from "#core/agent-harness/usage.js";
 import { ProcessSupervisor } from "#core/execution/process-supervisor.js";
 import { prepareCodexRuntimeEnvironment } from "./runtime-home.js";
@@ -105,6 +102,7 @@ type CollectTextFromCodexCliArgs = {
   model: string;
   effort: AgentEffort;
   writableRoots: readonly string[];
+  readOnlyHostRoots: readonly string[];
   authorityConfigPath: string | undefined;
   env: Record<string, string> | undefined;
   abortController: AbortController | undefined;
@@ -356,11 +354,9 @@ export async function collectTextFromCodexCli(
       machineAuthorityOwner: "native-cli",
       authorityConfigPath: args.authorityConfigPath,
       writableRoots: args.writableRoots,
+      readOnlyHostRoots: args.readOnlyHostRoots,
       env: buildCodexEnvironment(args.env),
       allowedEgressHosts: CODEX_PROVIDER_EGRESS_HOSTS,
-      readOnlyHostRoots: nativeCliWorkspaceConfigurationReadRoots(args.cwd, [
-        ".codex/config.toml",
-      ]),
       prepareEnvironment: prepareCodexRuntimeEnvironment,
     },
     (sandboxedProcess) => runCodexCliProcess(args, sandboxedProcess),
