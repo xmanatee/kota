@@ -2,9 +2,12 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import { assessAutonomyQueue } from "#modules/autonomy/queue-policy.js";
 import { resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
+import { decodeProgressReviewConsumptionState, PROGRESS_REVIEW_STATE_KEY } from "../progress-reviewer/semantic-input.js";
+import { PROGRESS_REVIEW_PUBLICATION_RESOURCE, progressReviewHandoffPayload, reconcileProgressReviewHandoffs } from "../progress-reviewer/semantic-publication.js";
 import {
   scopeImprovementChanged,
   scopeImprovementRequested,
@@ -39,6 +42,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
   // Keeping this repository-free also lets observe-only directory scopes
   // continue reflecting after their initial onboarding request.
   repository: "none",
+  resources: () => [PROGRESS_REVIEW_PUBLICATION_RESOURCE],
   triggers: [
     {
       event: "runtime.idle",
@@ -61,6 +65,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const progressState = state.read<ProgressBoundaryState>(
           PROGRESS_BOUNDARY_STATE_KEY,
         );
+        const consumptionSnapshot = state.read(PROGRESS_REVIEW_STATE_KEY);
+        const consumptionState = decodeProgressReviewConsumptionState(consumptionSnapshot.value, scopeRoot);
         const scopeState = state.read<ScopeImprovementState>(
           SCOPE_IMPROVEMENT_STATE_KEY,
         );
@@ -102,6 +108,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
             scopeRoot,
             stateDir,
             progressBoundaryState: progressState.value,
+            consumedRevision: consumptionState.lastConsumedRevision,
             runCommand,
           }),
         ]);
@@ -146,6 +153,14 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           });
           emitted.push(event);
         };
+
+        const handoffResult = reconcileProgressReviewHandoffs({ scopeRoot, currentState: consumptionState });
+        if (!isDeepStrictEqual(handoffResult.nextState, consumptionState)) {
+          state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, consumptionSnapshot.revision, handoffResult.nextState);
+        }
+        for (const handoff of handoffResult.handoffs) {
+          publish(improvementHandoffRequested.name, progressReviewHandoffPayload(handoff), `handoff:${handoff.topicKey}`);
+        }
 
         if (queue.inboxCount > 0) {
           publish("autonomy.inbox.available", { inboxCount: queue.inboxCount }, "inbox");

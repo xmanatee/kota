@@ -2,14 +2,12 @@ import { resolve } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { scopeImprovementRequested } from "../scope-improver/events.js";
-import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
 import {
   decodeScopeImprovementState,
-  reserveScopeImprovementInput,
   SCOPE_IMPROVEMENT_STATE_KEY,
 } from "../scope-improver/scope-improvement-state.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
-import { scopeImprovementDispatchKey } from "../scope-improver/semantic-request.js";
+import { prepareInitialScopeImprovement } from "./initial-request.js";
 
 const workflow: WorkflowDefinitionInput = {
   name: "scope-improvement-onboarding",
@@ -84,39 +82,15 @@ const workflow: WorkflowDefinitionInput = {
         ) {
           return { disposition: "already-reserved" };
         }
-        const fingerprint = computeScopeContentFingerprint(
-          ctx.scopeRoot,
-          ctx.scopePolicySnapshot.policy,
-          ctx.stateDir,
-        );
-        const deliveryAttempt = 0;
-        ctx.state.compareAndSet(
-          SCOPE_IMPROVEMENT_STATE_KEY,
-          snapshot.revision,
-          reserveScopeImprovementInput(currentState, {
-            fingerprint: fingerprint.fingerprint,
-            boundary: "initial-onboarding",
-            delivery: "queued",
-            deliveryAttempt,
-          }),
-        );
+        const initial = prepareInitialScopeImprovement({
+          scopeRoot: ctx.scopeRoot, stateDir: ctx.stateDir,
+          scopePolicySnapshot: ctx.scopePolicySnapshot, state: currentState,
+        });
+        if (!initial.shouldEmit || !initial.payload || !initial.nextState) return { disposition: "deferred", reason: initial.reason };
+        ctx.state.compareAndSet(SCOPE_IMPROVEMENT_STATE_KEY, snapshot.revision, initial.nextState);
         ctx.emit(
           scopeImprovementRequested.name,
-          {
-            automatic: true,
-            boundary: "initial-onboarding",
-            fingerprint: fingerprint.fingerprint,
-            deliveryAttempt,
-            idempotencyKey: scopeImprovementDispatchKey(
-              scopeId,
-              fingerprint.fingerprint,
-              deliveryAttempt,
-            ),
-            evidenceRefs: fingerprint.refs,
-            reason:
-              "newly activated scope is ready for its initial improvement review",
-            requestedBy: "scope-lifecycle:registered",
-          },
+          initial.payload,
           {
             delivery: "on-run-success",
             stepId: "reserve-initial-scope-improvement",

@@ -1,5 +1,6 @@
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
+import { prepareInitialScopeImprovement } from "../scope-improvement-onboarding/initial-request.js";
 import type { ScopeImprovementRequest } from "../scope-improver/events.js";
 import { computeScopeContentFingerprint } from "../scope-improver/scope-fingerprint.js";
 import { resolveScopeImprovementAuthority } from "../scope-improver/scope-improvement-authority.js";
@@ -84,6 +85,7 @@ export function inspectScopeSemanticBoundary(args: {
     };
   }
   if (!state.consumedFingerprint) {
+    if (!state.pendingFingerprint) return prepareInitialScopeImprovement(args);
     if (state.pendingFingerprint && state.pendingDelivery === "deferred") {
       return scopePendingDelivery({
         state,

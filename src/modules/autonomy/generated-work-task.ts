@@ -101,7 +101,7 @@ export function dropGeneratedWorkTask(
 
 const RETIREMENT_RECORD = /^<!-- generated-work retirement: [a-f0-9]{64} -->\s*$/gm;
 
-export function hasGeneratedWorkRetirement(existing: GeneratedWorkTaskRecord): boolean {
+export function hasGeneratedWorkRetirement(existing: { task: Pick<RepoTaskFullRecord, "state" | "body"> }): boolean {
   return (existing.task.state === "done" || existing.task.state === "dropped") &&
     existing.task.body.match(RETIREMENT_RECORD) !== null;
 }

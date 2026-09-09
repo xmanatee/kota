@@ -31,3 +31,12 @@ and the strongest proportionate preservation and simplification proof a builder
 needs. Use a stable mechanismKey for the same outcome across request surfaces.
 Do not claim a measured improvement, preserved invariants or an accepted Pareto
 result from an unimplemented proposal. A task count or deletion quota is not a goal.
+
+For a systemic handoff, inspect every supplied reference and return an
+`evidenceAssessment` entry with its `ref`, `available` status, and `assessment`,
+including references you cannot access. Assess observation fingerprints as
+references to the inline observations. Also assess any additional files or
+durable records you cite in the decision. A proposal may cite only available,
+assessed evidence for the requested target. The handoff's reason and citations
+do not establish a defect; later counterevidence may disprove an earlier
+expectation without warranting more implementation work.

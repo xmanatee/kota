@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import {
   decodeProgressReviewConsumptionState,
   PROGRESS_REVIEW_STATE_KEY,
@@ -12,6 +13,7 @@ import {
   PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT,
   PROGRESS_REVIEW_PUBLICATION_RESOURCE,
   type ProgressReviewPublicationRequest,
+  progressReviewHandoffPayload,
   publishProgressReview,
 } from "#modules/autonomy/workflows/progress-reviewer/semantic-publication.js";
 
@@ -56,6 +58,9 @@ const workflow: WorkflowDefinitionInput = {
             snapshot.revision,
             result.nextState,
           );
+        }
+        for (const handoff of result.handoffs) {
+          ctx.emit(improvementHandoffRequested.name, progressReviewHandoffPayload(handoff), { delivery: "on-run-success", stepId: `publish-progress-review:${handoff.topicKey}` });
         }
         return { disposition: result.disposition };
       },

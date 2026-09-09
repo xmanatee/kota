@@ -7,6 +7,7 @@ import type {
   WorkflowRunTrigger,
 } from "#core/workflow/trigger-types.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { SystemicWindow } from "../systemic-evidence.js";
 import type {
   ProgressReviewApprovalEvidence,
   ProgressReviewDeadLetterEvidence,
@@ -16,6 +17,7 @@ import type {
 } from "./types.js";
 
 export type ProgressReviewRequestPayload = {
+  evidenceWindow?: SystemicWindow;
   scopeId?: string;
   reason?: string;
   requestedBy?: string;

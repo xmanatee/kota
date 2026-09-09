@@ -38,6 +38,42 @@ describe("progress-reviewer canonical state evidence", () => {
     }
   });
 
+  it("keeps the pinned outcome comparison in default input when raw semantic references overflow", () => {
+    const workspaceRoot = makeProgressReviewScopeRoot("progress-compact-comparison");
+    scopeRoots.push(workspaceRoot);
+    const baseline = {
+      id: "before", workflow: "builder", status: "failed", delivery: null,
+      startedAt: "2026-05-01T00:00:00.000Z", completedAt: "2026-05-01T01:00:00.000Z",
+      errors: ["critic-rejection"], observationOnly: false,
+    };
+    const evidence = collectProgressReviewEvidence({
+      workspaceRoot, scopeRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota"),
+      trigger: { event: progressReviewRequested.name, schemaRef: null, payload: {} }, now: NOW,
+      semanticInput: {
+        automatic: true, shouldReview: true, inputRevision: 1, deliveryAttempt: 0,
+        boundary: "evidence-window", reason: "Delivery recovered after an intervention",
+        evidenceRefs: Array.from({ length: 12 }, (_, i) => `.kota/runs/run-${i}/metadata.json`),
+        evidenceWindow: {
+          fromHead: "a".repeat(40), toHead: "b".repeat(40),
+          startedAt: baseline.startedAt, endedAt: NOW.toISOString(),
+          baseline: [baseline], current: [{ ...baseline, id: "after", status: "success", errors: [], delivery: "delivered" }],
+          excluded: ["one unavailable run"],
+        },
+      },
+    });
+    const compact = compactProgressReviewEvidenceForAgent(evidence);
+    const comparison = compact.evidence.find((entry) => entry.id === "state:systemic-window");
+    expect(comparison).toEqual(evidence.evidence.find((entry) => entry.id === "state:systemic-window"));
+    expect(comparison?.summary).toContain("Historical baseline: builder/failed/delivery=unavailable/errors=critic-rejection: 1");
+    expect(comparison?.summary).toContain("New or revised outcomes: builder/success/delivery=delivered/errors=none: 1");
+    expect(comparison?.summary).toContain("one unavailable run");
+    expect(comparison?.summary).toContain(baseline.startedAt);
+    expect(comparison?.path).toBe("progress-review-evidence.json");
+    expect(compact.evidence.length).toBeLessThan(evidence.evidence.length);
+    expect(compact.semanticInput.evidenceWindow).toBeUndefined();
+    expect(compact.excluded.some((entry) => entry.includes("omitted"))).toBe(true);
+  });
+
   it("keeps the complete open queue while the compact agent packet points to canonical refs", () => {
     const workspaceRoot = makeProgressReviewScopeRoot("progress-canonical-queue");
     scopeRoots.push(workspaceRoot);

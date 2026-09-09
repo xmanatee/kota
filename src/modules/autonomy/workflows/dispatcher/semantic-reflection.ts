@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { isTerminalOwnerDecisionStatus, type OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import {
@@ -5,16 +6,14 @@ import {
   getRepoWorktreeStatus,
 } from "#core/util/repo-worktree.js";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
+import { hasGeneratedWorkRetirement } from "#modules/autonomy/generated-work-task.js";
 import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
-import {
-  listFullRepoTasks,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import type { ProgressReviewRequest } from "../progress-reviewer/events.js";
 import { progressReviewDispatchKey } from "../progress-reviewer/semantic-input.js";
+import { changedSystemicRuns, collectSystemicRuns, type SystemicRun, type SystemicWindow, systemicRunSchema } from "../progress-reviewer/systemic-evidence.js";
 import {
   changedTaskPaths,
-  isStrategicCompletion,
   taskTransitions,
 } from "./semantic-task-transitions.js";
 
@@ -24,14 +23,21 @@ export { inspectScopeSemanticBoundary } from "./semantic-scope-reflection.js";
 export const PROGRESS_BOUNDARY_STATE_KEY =
   "dispatcher/progress-semantic-boundary";
 
-export type ProgressBoundaryState = {
-  schemaVersion: 1;
-  scopeId: string;
-  lastObservedHead: string;
-  ownerDecisionWatermark: string | null;
-  parked: boolean;
-  inputRevision: number;
-};
+const snapshotSchema = z.object({
+  head: z.string(),
+  ownerDecisionWatermark: z.string().nullable(),
+  runs: z.array(systemicRunSchema),
+  outcomeCohort: z.array(systemicRunSchema),
+  observedAt: z.iso.datetime(),
+}).strict();
+const boundaryStateSchema = z.object({
+  schemaVersion: z.literal(2),
+  scopeId: z.string(),
+  inputRevision: z.number().int().nonnegative(),
+  baseline: snapshotSchema,
+  pending: snapshotSchema.nullable(),
+}).strict();
+export type ProgressBoundaryState = z.infer<typeof boundaryStateSchema>;
 
 export type ProgressBoundaryInspection = {
   shouldEmit: boolean;
@@ -57,140 +63,134 @@ function latestOwnerDecisionWatermark(records: readonly OwnerDecisionRecord[]): 
     .at(-1) ?? null;
 }
 
+function outcomeProfile(run: SystemicRun): string {
+  return JSON.stringify([run.workflow, run.status, run.delivery, run.errors]);
+}
+
+/** Compare like workflows with their last consumed outcome cohort.
+ * Historical failures must not make every later healthy batch look like recovery.
+ */
+function outcomeYieldChanged(baseline: readonly SystemicRun[], current: readonly SystemicRun[]): boolean {
+  for (const workflow of new Set(current.map((run) => run.workflow))) {
+    const after = current.filter((run) => run.workflow === workflow);
+    const before = baseline.filter((run) => !run.observationOnly && run.workflow === workflow);
+    if (after.length < 2 || before.length < 2) continue;
+    const profiles = new Set([...before, ...after].map(outcomeProfile));
+    for (const profile of profiles) {
+      const beforeCount = before.filter((run) => outcomeProfile(run) === profile).length;
+      const afterCount = after.filter((run) => outcomeProfile(run) === profile).length;
+      if (beforeCount * after.length !== afterCount * before.length) return true;
+    }
+  }
+  return false;
+}
+
 export async function inspectProgressSemanticBoundary(args: {
   workspaceRoot: string;
   scopeRoot: string;
   stateDir: string;
-  progressBoundaryState: ProgressBoundaryState | null;
+  progressBoundaryState: unknown;
+  consumedRevision: number;
   runCommand: WorkflowCommandRunner;
 }): Promise<ProgressBoundaryInspection> {
+  const quiet = (reason: string, nextState: ProgressBoundaryState | null = null): ProgressBoundaryInspection =>
+    ({ shouldEmit: false, reason, payload: null, nextState });
   const worktree = getRepoWorktreeStatus(args.scopeRoot);
   if (!worktree.available || worktree.dirty) {
-    return {
-      shouldEmit: false,
-      reason: "semantic progress input is parked until the canonical worktree is clean",
-      payload: null,
-      nextState: null,
-    };
+    return quiet("systemic evidence is parked until the canonical worktree is clean");
   }
   const scopeId = deriveDirectoryScopeId(args.scopeRoot);
   const head = getRepoHeadSha(args.workspaceRoot);
-  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput(args));
-  const parked = queue.ownershipAvailable && queue.activeCount > 0 && !queue.hasDispatchableWork &&
-    queue.runningCount === 0 && queue.queuedCount === 0;
+  if (!head) return quiet("systemic evidence requires a canonical Git head");
+  const now = new Date().toISOString();
+  const collected = collectSystemicRuns(args.scopeRoot, args.stateDir);
   const ownerDecisions = observeOwnerDecisions(args.stateDir, scopeId);
-  const ownerWatermark = latestOwnerDecisionWatermark(ownerDecisions);
-  const stored = args.progressBoundaryState;
-  const previous = stored?.scopeId === scopeId ? stored : null;
-  if (!previous || !head) {
-    const nextState: ProgressBoundaryState = {
-      schemaVersion: 1,
-      scopeId,
-      lastObservedHead: head,
-      ownerDecisionWatermark: ownerWatermark,
-      parked,
-      inputRevision: previous?.inputRevision ?? 0,
-    };
-    return {
-      shouldEmit: false,
-      reason: "initialized semantic progress watermark",
-      payload: null,
-      nextState,
-    };
-  }
-
-  const changedPaths = await changedTaskPaths(
-    args.runCommand,
-    args.workspaceRoot,
-    previous.lastObservedHead,
+  const current = {
     head,
-  );
-  if (changedPaths === null) {
-    const nextState: ProgressBoundaryState = {
-      ...previous,
-      lastObservedHead: head,
-      ownerDecisionWatermark: ownerWatermark,
-      parked,
-    };
-    return {
-      shouldEmit: false,
-      reason: "reset semantic progress watermark after an unavailable Git range",
-      payload: null,
-      nextState,
-    };
-  }
-
-  const transitions = taskTransitions(changedPaths).filter(
-    (transition) => transition.fromState !== transition.toState,
-  );
-  const taskById = new Map(
-    listFullRepoTasks(args.workspaceRoot).map((task) => [task.id, task]),
-  );
-  const dispositions = transitions.filter(
-    (transition) =>
-      transition.toState === "blocked" || transition.toState === "dropped",
-  );
-  const strategic = transitions.filter((transition) =>
-    isStrategicCompletion({
-      ...transition,
-      task: taskById.get(transition.id),
-    })
-  );
-  const newlyResolvedDecisions = ownerDecisions
-    .flatMap((record) => {
-      const key = resolvedDecisionKey(record);
-      if (!key || (previous.ownerDecisionWatermark && key <= previous.ownerDecisionWatermark)) {
-        return [];
-      }
-      return [{ key, ref: `.kota/owner-decisions/${record.id}.json` }];
-    })
-    .sort((a, b) => a.key.localeCompare(b.key));
-
-  const boundary = dispositions.length > 0
-    ? "task-disposition" as const
-    : strategic.length > 0
-      ? "strategic-completion" as const
-      : !previous.parked && parked
-        ? "parked-queue" as const
-        : newlyResolvedDecisions.length > 0
-          ? "owner-decision-resolution" as const
-          : null;
-  const nextRevision = boundary ? previous.inputRevision + 1 : previous.inputRevision;
-  const nextState: ProgressBoundaryState = {
-    ...previous,
-    lastObservedHead: head,
-    ownerDecisionWatermark: ownerWatermark,
-    parked,
-    inputRevision: nextRevision,
+    ownerDecisionWatermark: latestOwnerDecisionWatermark(ownerDecisions),
+    runs: collected.runs,
+    observedAt: now,
   };
-  if (!boundary) {
-    return {
-      shouldEmit: false,
-      reason: "no accepted semantic progress boundary",
-      payload: null,
-      nextState,
+  // The old row observed commits without retaining rejected evidence. Preserve
+  // its revision authority, then establish an honest baseline for the new window.
+  const legacy = z.object({ schemaVersion: z.literal(1), scopeId: z.string(),
+    lastObservedHead: z.string(), ownerDecisionWatermark: z.string().nullable(),
+    parked: z.boolean(), inputRevision: z.number().int().nonnegative() }).strict();
+  let previous: ProgressBoundaryState;
+  if (args.progressBoundaryState === null || args.progressBoundaryState === undefined || legacy.safeParse(args.progressBoundaryState).success) {
+    const old = args.progressBoundaryState == null ? null : legacy.parse(args.progressBoundaryState);
+    if (old && old.scopeId !== scopeId) throw new Error("progress evidence belongs to another scope");
+    previous = {
+      schemaVersion: 2, scopeId, inputRevision: old?.inputRevision ?? 0,
+      baseline: { ...current, head: old?.lastObservedHead || head,
+        ownerDecisionWatermark: old?.ownerDecisionWatermark ?? current.ownerDecisionWatermark,
+        runs: [], outcomeCohort: [], observedAt: collected.runs[0]?.startedAt ?? now },
+      pending: null,
     };
+  } else {
+    previous = boundaryStateSchema.parse(args.progressBoundaryState);
+    if (previous.scopeId !== scopeId) throw new Error("progress evidence belongs to another scope");
   }
-
-  const transitionRefs = transitions.flatMap((transition) => transition.refs);
-  const evidenceRefs = [
-    ...new Set([
-      ...transitionRefs,
-      ...newlyResolvedDecisions.map((decision) => decision.ref),
-    ]),
-  ].sort((a, b) => a.localeCompare(b));
+  if (previous.pending) {
+    if (args.consumedRevision < previous.inputRevision) {
+      return quiet("systemic evidence window is reserved; newer evidence remains pending until publication", previous);
+    }
+    previous = { ...previous, baseline: previous.pending, pending: null };
+  }
+  const changes = await changedTaskPaths(args.runCommand, args.workspaceRoot, previous.baseline.head, head);
+  if (changes === null) return quiet("systemic evidence Git range is unavailable; retained baseline was not consumed", previous);
+  const transitions = taskTransitions(changes).filter((entry) => entry.fromState !== entry.toState);
+  const decisions = ownerDecisions.flatMap((record) => {
+    const key = resolvedDecisionKey(record);
+    return key && (!previous.baseline.ownerDecisionWatermark || key > previous.baseline.ownerDecisionWatermark)
+      ? [`.kota/owner-decisions/${record.id}.json`] : [];
+  });
+  const changedRuns = changedSystemicRuns(previous.baseline.runs, current.runs);
+  const drivers = changedRuns.filter((run) => !run.observationOnly);
+  const deliveries = transitions.filter((entry) => entry.toState === "done");
+  // A generated proposal retirement is the review's own publication effect,
+  // retained as context but never a new external disposition signal.
+  const dispositions = transitions.filter((entry) =>
+    (entry.toState === "blocked" || entry.toState === "dropped") &&
+    !(entry.currentTask && hasGeneratedWorkRetirement({ task: entry.currentTask })));
+  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput(args));
+  if (!queue.ownershipAvailable) return quiet("systemic evidence retained: queue ownership is unavailable", previous);
+  if (queue.inboxCount > 0 || queue.availableCount + queue.runningCount + queue.queuedCount >= queue.capacity) {
+    return quiet("systemic evidence coalesced while useful builder work has priority", previous);
+  }
+  // These are opportunities to compare independent outcomes, not architectural
+  // conclusions or a build-count schedule. Source growth alone never admits AI.
+  const baselineProfiles = new Set(previous.baseline.runs.filter((run) => !run.observationOnly).map(outcomeProfile));
+  const changedOutcome = drivers.some((run) => !baselineProfiles.has(outcomeProfile(run)));
+  const repeatedFailure = drivers.filter((run) => run.status !== "success" || run.errors.length > 0).length > 1;
+  const crossRun = drivers.length > 1 && (changedOutcome || repeatedFailure || outcomeYieldChanged(previous.baseline.outcomeCohort, drivers));
+  const deliveryBoundary = !queue.hasDispatchableWork && queue.runningCount === 0 && queue.queuedCount === 0 && deliveries.length > 1;
+  const boundary = decisions.length > 0 ? "owner-decision-resolution" as const
+    : dispositions.length > 0 ? "task-disposition" as const
+    : crossRun || deliveryBoundary ? "evidence-window" as const : null;
+  if (!boundary) return quiet("evidence-insufficient: retain the window until comparative outcomes or owner feedback change", previous);
+  const inputRevision = previous.inputRevision + 1;
+  const evidenceRefs = [...new Set([...transitions.flatMap((entry) => entry.refs), ...decisions,
+    ...changedRuns.map((run) => `.kota/runs/${run.id}/metadata.json`)])].sort();
+  const evidenceWindow: SystemicWindow = {
+    fromHead: previous.baseline.head, toHead: head,
+    startedAt: previous.baseline.observedAt, endedAt: now,
+    baseline: previous.baseline.runs, current: changedRuns, excluded: collected.excluded,
+  };
   return {
     shouldEmit: true,
-    reason: `${boundary} at semantic input revision ${nextRevision}`,
-    nextState,
+    reason: `${boundary}: coalesced outcomes are ready for agent assessment; sufficiency is decision-dependent`,
+    nextState: { ...previous, inputRevision, pending: { ...current,
+      outcomeCohort: [
+        ...previous.baseline.outcomeCohort.filter((run) => !drivers.some((driver) => driver.workflow === run.workflow)),
+        ...drivers,
+      ],
+    } },
     payload: {
-      automatic: true,
-      boundary,
-      inputRevision: nextRevision,
-      deliveryAttempt: 0,
-      idempotencyKey: progressReviewDispatchKey(scopeId, nextRevision, 0),
-      evidenceRefs,
-      reason: `${boundary} after canonical task/owner state changed`,
+      automatic: true, boundary, inputRevision, deliveryAttempt: 0,
+      idempotencyKey: progressReviewDispatchKey(scopeId, inputRevision, 0),
+      evidenceRefs, evidenceWindow,
+      reason: "Compare retained outcomes, challenge hypotheses, and follow integrated interventions",
       requestedBy: "dispatcher",
     },
   };

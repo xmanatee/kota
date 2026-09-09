@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { improvementHandoffSchema } from "#modules/autonomy/improvement-handoff.js";
 import type { ProgressReviewAgentOutput } from "./types.js";
 
 const reviewClaimSchema = z.object({
@@ -37,6 +38,7 @@ const reviewResolutionSchema = z.object({
 }).strict();
 
 const progressReviewAgentOutputSchema = z.object({
+  handoffs: z.array(improvementHandoffSchema).optional(),
   verdict: z.enum([
     "on-track",
     "needs-steering",

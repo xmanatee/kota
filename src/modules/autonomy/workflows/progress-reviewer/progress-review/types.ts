@@ -14,6 +14,7 @@ import type {
   RepoTaskPriority,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { SystemicWindow } from "../systemic-evidence.js";
 
 export type ProgressReviewTriggerKind =
   | "manual"
@@ -183,6 +184,7 @@ export type ProgressReviewScopeEvidence = {
 export type ProgressReviewEvidencePacket = {
   generatedAt: string;
   semanticInput: {
+    evidenceWindow?: SystemicWindow;
     automatic: boolean;
     boundary: string;
     inputRevision: number | null;

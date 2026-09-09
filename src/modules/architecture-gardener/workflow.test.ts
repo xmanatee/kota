@@ -2,11 +2,19 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import * as workflowCommands from "#core/workflow/workflow-command.js";
 import { AUTONOMY_ISSUE_PROJECTION_STATE_KEY, applyAutonomyIssueObservations, buildAutonomyIssueObservation, emptyAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
-import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
+import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
+import { PROGRESS_REVIEW_ARTIFACT } from "#modules/autonomy/workflows/progress-reviewer/progress-review.js";
+import { decodeProgressReviewConsumptionState, emptyProgressReviewConsumptionState } from "#modules/autonomy/workflows/progress-reviewer/semantic-input-state.js";
+import { publishProgressReview } from "#modules/autonomy/workflows/progress-reviewer/semantic-publication.js";
+import { listFullRepoTasks, moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 import { architectureReviewRequested } from "./events.js";
 import { GARDENER_STATE_KEY } from "./gardener-state.js";
 import type { ArchitectureGardenerRunState, ArchitectureObservation } from "./types.js";
@@ -26,6 +34,12 @@ describe("Architecture Gardener Workflow", () => {
   let testWorkspace: string;
 
   beforeEach(() => {
+    vi.spyOn(workflowCommands, "createWorkflowCommandRunner").mockImplementation((options) => async (input) => {
+      expect([input.command, ...(input.args ?? [])]).toEqual(["pnpm", "validate-tasks"]);
+      const cwd = input.cwd ?? options.cwd;
+      assertTaskQueueValid(cwd);
+      return successfulWorkflowCommandRun({ ...input, cwd });
+    });
     testWorkspace = mkdtempSync(join(tmpdir(), "kota-gardener-wf-test-"));
     mkdirSync(join(testWorkspace, "src", "core"), { recursive: true });
     mkdirSync(join(testWorkspace, "src", "modules", "foo"), { recursive: true });
@@ -65,7 +79,160 @@ describe("Architecture Gardener Workflow", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     rmSync(testWorkspace, { recursive: true, force: true });
+  });
+
+  it.each(["unavailable", "omitted", "duplicate", "unknown", "unsupported-proposal"])(
+    "handles %s handoff evidence without manufacturing work", async (kind) => {
+      const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "handoff-state"));
+      const ref = ".kota/runs/missing/metadata.json";
+      const assessment = { ref, available: false, assessment: "The source run is unavailable." };
+      const run = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+        workspaceRoot: testWorkspace, ports: { state },
+        trigger: { event: improvementHandoffRequested.name, payload: {
+          scopeId: state.scopeId, owner: "architecture-gardener", targetScope: "module:foo",
+          topicKey: "improvement:unsupported-deletion", reason: "Investigate possible duplicate ownership",
+          evidenceRefs: [ref], evidenceFingerprint: "a".repeat(64), requestedBy: "progress-reviewer", idempotencyKey: kind,
+        } },
+        stepOutputs: { investigate: {
+          action: kind === "unsupported-proposal" ? "propose" : "no-action",
+          rationale: "No available evidence supports a structural change.",
+          evidenceRefs: [ref], existingTaskId: null,
+          proposal: kind === "unsupported-proposal" ? {
+            mechanismKey: "foo-owner", title: "Consolidate foo ownership", problem: "Claimed duplicate ownership",
+            expectedOutcome: "One owner", consumers: ["foo"], alternatives: ["Leave ownership unchanged"],
+            migrationAndRetirement: "Retire the duplicate", preservationEvidenceNeeded: "Check public behavior",
+            simplificationEvidenceNeeded: "Inspect the remaining owner", abstraction: null,
+          } : null,
+          evidenceAssessment: kind === "omitted" ? [] : kind === "duplicate" ? [assessment, assessment] : kind === "unknown" ? [{ ...assessment, ref: "invented" }] : [assessment],
+        } },
+      }).run();
+      expect(listFullRepoTasks(testWorkspace)).toEqual([]);
+      if (kind === "unavailable") {
+        expect(run.status, run.error).toBe("success");
+        const artifact = JSON.parse(readFileSync(join(run.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
+        expect(artifact.decision.evidenceAssessment).toEqual([assessment]);
+        expect(state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY).value?.dispositions["src/modules/foo"]?.disposition).toBe("no-action");
+      } else {
+        expect(run.status).toBe("failed");
+        expect(state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY).value).toBeNull();
+      }
+    },
+  );
+
+  it("preserves a scoped handoff topic and investigates delivered counterevidence without an AST delta", async () => {
+    const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "topic-state"));
+    const ref = "src/modules/foo/index.ts";
+    const topicKey = "improvement:foo-owner";
+    // An unrelated observation must not consume the handoff's topic or cohort.
+    mkdirSync(join(testWorkspace, "src/modules/foobar"));
+    writeFileSync(join(testWorkspace, "src/modules/foobar/index.ts"), 'import "#modules/foo/index.js"; export default { dependencies: [] };');
+    runGit(testWorkspace, ["add", "src/modules/foobar"]);
+    runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "--no-gpg-sign", "-qm", "unrelated observation"]);
+    const payload = {
+      scopeId: state.scopeId, owner: "architecture-gardener", targetScope: "module:foo", topicKey,
+      reason: "Inspect foo's registration ownership", evidenceRefs: [ref],
+      evidenceFingerprint: "b".repeat(64), requestedBy: "progress-reviewer", idempotencyKey: "first",
+    };
+    const decision = {
+      action: "propose", rationale: "Inspection of foo identifies an obsolete registration path.",
+      evidenceRefs: [ref], existingTaskId: null,
+      proposal: {
+        mechanismKey: "foo-owner", title: "Retire foo's obsolete registration", problem: "Foo retains an obsolete registration path.",
+        expectedOutcome: "One registration owner for foo", consumers: ["src/modules/foo/index.ts"],
+        alternatives: ["Keep the current registration if consumer inspection contradicts the finding."],
+        migrationAndRetirement: "Migrate foo callers and remove the obsolete path.",
+        preservationEvidenceNeeded: "Check foo's public registration behavior.",
+        simplificationEvidenceNeeded: "Inspect the migrated callers and retired path.", abstraction: null,
+      },
+      evidenceAssessment: [{ ref, available: true, assessment: "Inspected foo's current registration and callers." }],
+    };
+    const first = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, ports: { state },
+      trigger: { event: improvementHandoffRequested.name, payload }, stepOutputs: { investigate: decision },
+    }).run();
+    expect(first.status, first.error).toBe("success");
+    const task = findGeneratedWorkTask(testWorkspace, topicKey)?.task;
+    expect(task?.body).toContain("unverified expectation");
+    expect(task?.body).not.toContain("foobar");
+    expect(listFullRepoTasks(testWorkspace)).toHaveLength(1);
+    const artifact = JSON.parse(readFileSync(join(first.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
+    expect(artifact.observations).toEqual([]);
+    const persisted = state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY).value;
+    expect(Object.keys(persisted?.reviewedCohorts ?? {})).toEqual(["src/modules/foo"]);
+    const routine = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, ports: { state },
+      trigger: { event: architectureReviewRequested.name, payload: { targetScope: "module:foo" } },
+    }).run();
+    expect(routine.status, routine.error).toBe("success");
+    expect(routine.steps.investigate?.status).toBe("skipped");
+
+    // Publication retains counterevidence while the accepted intervention is active.
+    const sourceRunId = "cycle-counterevidence";
+    const sourceRunDir = join(testWorkspace, ".kota", "runs", sourceRunId);
+    mkdirSync(sourceRunDir, { recursive: true });
+    writeFileSync(join(sourceRunDir, PROGRESS_REVIEW_ARTIFACT), JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      evidence: {
+        semanticInput: { automatic: true, inputRevision: 1 },
+        evidence: [{ id: "state:feedback", kind: "state", summary: "The delivery failure persisted after breaking the cycle." }],
+      },
+      review: {
+        verdict: "needs-steering", summary: "Reassess the cycle's causal role",
+        findings: { localScope: { claims: [], followUpTasks: [] }, crossScope: { claims: [], followUpTasks: [] } },
+        ownerQuestions: [], handoffs: [{
+          owner: "architecture-gardener", targetScope: "module:foo", topicKey,
+          reason: "Later outcomes contradict the original delivery hypothesis", evidenceIds: ["state:feedback"],
+        }],
+      },
+    }));
+    const pending = publishProgressReview({
+      scopeRoot: testWorkspace, sourceRunId, currentState: emptyProgressReviewConsumptionState(testWorkspace),
+    });
+    expect(pending.handoffs).toEqual([]);
+    expect(pending.nextState.proposalObservations[0]?.pendingHandoff).toBeDefined();
+    moveTaskById(testWorkspace, task!.id, "done");
+    runGit(testWorkspace, ["add", "data/tasks"]);
+    runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test",
+      "commit", "--quiet", "--no-gpg-sign", "-m", "complete intervention"]);
+    const delivered = publishProgressReview({
+      scopeRoot: testWorkspace, sourceRunId,
+      currentState: decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(pending.nextState)), testWorkspace),
+    });
+    expect(delivered.handoffs).toHaveLength(1);
+    const handoff = delivered.handoffs[0]!;
+
+    const followUpDecision = {
+      action: "no-action", rationale: "The intervention did not resolve delivery friction; no further structural action is supported.",
+      evidenceRefs: handoff.evidenceRefs, existingTaskId: null, proposal: null,
+      evidenceAssessment: handoff.evidenceRefs.map((ref) => ({ ref, available: true, assessment: "Later outcomes contradict the original causal claim." })),
+    };
+    // Consume terminal task evidence first so it cannot itself explain handoff admission.
+    const settled = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, ports: { state },
+      trigger: { event: architectureReviewRequested.name, payload: { targetScope: "module:foo" } },
+      stepOutputs: { investigate: {
+        action: "no-action", rationale: "The linked task is complete; preserve its evidence for later comparison.",
+        evidenceRefs: [ref], existingTaskId: null, proposal: null,
+      } },
+    }).run();
+    expect(settled.status, settled.error).toBe("success");
+    const followUp = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
+      trigger: { event: improvementHandoffRequested.name, payload: {
+        ...payload, ...handoff, idempotencyKey: "later",
+      } }, stepOutputs: { investigate: followUpDecision },
+    }).run();
+    expect(followUp.status, followUp.error).toBe("success");
+    const followUpArtifact = JSON.parse(readFileSync(join(followUp.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
+    expect(followUpArtifact.decision).toEqual(followUpDecision);
+    expect(findGeneratedWorkTask(testWorkspace, topicKey)?.task.state).toBe("done");
+    expect(listFullRepoTasks(testWorkspace)).toHaveLength(1);
+    expect(publishProgressReview({
+      scopeRoot: testWorkspace, sourceRunId,
+      currentState: decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(delivered.nextState)), testWorkspace),
+    }).handoffs).toEqual([]);
   });
 
   it("investigates an empty request as no action and suppresses the same cohort after restart", async () => {

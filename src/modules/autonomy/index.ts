@@ -18,6 +18,7 @@ import {
 import { autonomyIssueProjectionMaterializationRequested } from "./autonomy-issue-projection-publication.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { autonomyHealthSignal } from "./health-signal.js";
+import { improvementHandoffRequested } from "./improvement-handoff.js";
 import { buildReportCommand } from "./report/report-cli.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
@@ -117,6 +118,7 @@ const autonomyModule: KotaModule = {
   ],
   events: [
     securityFindingPublicationRequested,
+    improvementHandoffRequested,
     progressReviewRequested,
     automaticProgressReviewRequested,
     scopeImprovementRequested,

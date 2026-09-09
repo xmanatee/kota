@@ -7,7 +7,7 @@ import {
   PROGRESS_REVIEW_MAX_GIT_STATUS_LINES,
 } from "./constants.js";
 import {
-  readWindowMs,
+  progressEvidenceWindow,
   requestPayload,
   selectEvidenceTarget,
   sourceEvidenceId,
@@ -111,6 +111,7 @@ async function collectGitEvidenceForSource(
   source: ProgressReviewDirectorySource,
   windowStartMs: number,
   runCommand: WorkflowCommandRunner,
+  pinnedHead?: string,
 ): Promise<{ evidence: ProgressReviewGitEvidence[]; excluded: string[] }> {
   const excluded: string[] = [];
   const status = await tryGitLines(runCommand, source.workspaceRoot, ["status", "--short"]);
@@ -131,6 +132,7 @@ async function collectGitEvidenceForSource(
     `--since=${new Date(windowStartMs).toISOString()}`,
     `--max-count=${PROGRESS_REVIEW_MAX_GIT_COMMITS}`,
     "--format=%H%x00%ct%x00%s",
+    ...(pinnedHead ? [pinnedHead] : []),
   ]);
   if (!commits) {
     excluded.push(`${source.displayName} git: recent commits unavailable`);
@@ -195,11 +197,12 @@ export async function collectProgressReviewGitEvidence(args: {
     args.trigger,
     args.stateDir,
   );
-  const windowStartMs = args.now.getTime() - readWindowMs(requestPayload(args.trigger));
+  const payload = requestPayload(args.trigger);
+  const windowStartMs = Date.parse(progressEvidenceWindow(payload, args.now).startedAt);
   const entries = await Promise.all(
     target.sources.map(async (source) => [
       source.scopeId,
-      await collectGitEvidenceForSource(source, windowStartMs, args.runCommand),
+      await collectGitEvidenceForSource(source, windowStartMs, args.runCommand, payload.evidenceWindow?.toHead),
     ] as const),
   );
   return Object.fromEntries(entries);

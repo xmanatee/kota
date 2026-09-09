@@ -174,6 +174,9 @@ function normalizeProgressReviewEvidenceIds(args: {
     : undefined;
   return {
     ...args.review,
+    ...(args.review.handoffs ? { handoffs: args.review.handoffs.map((handoff) => ({
+      ...handoff, evidenceIds: normalizeEvidenceIds({ ...args, knownIds, fullKnownIds, field: `handoff ${handoff.topicKey}`, evidenceIds: handoff.evidenceIds }),
+    })) } : {}),
     findings: {
       crossScope: normalizeFindingGroupEvidenceIds({
         evidence: args.evidence,
@@ -222,6 +225,12 @@ export function validateProgressReviewEvidenceIds(args: {
   review: ProgressReviewAgentOutput;
 }): void {
   const knownIds = evidenceIdsForPacket(args.evidence);
+  const proposedTopics = new Set([...args.review.findings.localScope.followUpTasks, ...args.review.findings.crossScope.followUpTasks, ...args.review.ownerQuestions, ...(args.review.resolutions ?? [])].map((item) => item.topicKey));
+  for (const handoff of args.review.handoffs ?? []) {
+    if (proposedTopics.has(handoff.topicKey)) throw new Error(`handoff ${handoff.topicKey} also has another proposed action`);
+    proposedTopics.add(handoff.topicKey);
+    assertKnownEvidenceIds({ knownIds, field: `handoff ${handoff.topicKey}`, evidenceIds: handoff.evidenceIds });
+  }
   for (const { label, group } of progressReviewFindingGroupEntries(args.review)) {
     for (const claim of group.claims) {
       assertKnownEvidenceIds({

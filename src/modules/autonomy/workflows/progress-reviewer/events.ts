@@ -1,10 +1,13 @@
 import { defineScopedModuleEvent } from "#core/events/scope.js";
+import type { SystemicWindow } from "./systemic-evidence.js";
 
 export type ProgressReviewRequest = {
+  evidenceWindow?: SystemicWindow;
   automatic?: boolean;
   boundary?:
     | "parked-queue"
     | "strategic-completion"
+    | "evidence-window"
     | "task-disposition"
     | "owner-decision-resolution";
   inputRevision?: number;
@@ -20,6 +23,7 @@ export const progressReviewRequested =
   defineScopedModuleEvent<ProgressReviewRequest>(
     "autonomy.progress-review.requested",
     [
+      "evidenceWindow",
       "automatic",
       "boundary",
       "inputRevision",
@@ -34,12 +38,14 @@ export const progressReviewRequested =
       payloadSchema: {
         type: "object",
         properties: {
+          evidenceWindow: { type: "object", properties: {}, additionalProperties: true, required: false },
           automatic: { type: "boolean", required: false },
           boundary: {
             type: "string",
             enum: [
               "parked-queue",
               "strategic-completion",
+              "evidence-window",
               "task-disposition",
               "owner-decision-resolution",
             ],
@@ -67,6 +73,7 @@ export const automaticProgressReviewRequested =
   defineScopedModuleEvent<ProgressReviewRequest>(
     "autonomy.progress-review.automatic-requested",
     [
+      "evidenceWindow",
       "automatic",
       "boundary",
       "inputRevision",
@@ -80,12 +87,14 @@ export const automaticProgressReviewRequested =
       payloadSchema: {
         type: "object",
         properties: {
+          evidenceWindow: { type: "object", properties: {}, additionalProperties: true, required: false },
           automatic: { type: "boolean" },
           boundary: {
             type: "string",
             enum: [
               "parked-queue",
               "strategic-completion",
+              "evidence-window",
               "task-disposition",
               "owner-decision-resolution",
             ],

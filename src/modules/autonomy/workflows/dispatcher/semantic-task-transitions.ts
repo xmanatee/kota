@@ -1,7 +1,6 @@
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import type {
-  listFullRepoTasks,
   RepoTaskPriority,
   RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -17,6 +16,7 @@ export type SemanticTaskTransition = {
   fromState: RepoTaskState | null;
   toState: RepoTaskState | null;
   previousTask?: TaskRevisionSnapshot;
+  currentTask?: TaskRevisionSnapshot;
   refs: string[];
 };
 
@@ -141,6 +141,7 @@ export function taskTransitions(
       fromState: RepoTaskState | null;
       toState: RepoTaskState | null;
       previousTask?: TaskRevisionSnapshot;
+      currentTask?: TaskRevisionSnapshot;
       refs: Set<string>;
     }
   >();
@@ -161,6 +162,7 @@ export function taskTransitions(
       }
       if (change.newPath === path) {
         current.toState = change.newTask?.state ?? taskState(path);
+        if (change.newTask) current.currentTask = change.newTask;
       }
       byId.set(id, current);
     }
@@ -170,24 +172,7 @@ export function taskTransitions(
     fromState: transition.fromState,
     toState: transition.toState,
     ...(transition.previousTask ? { previousTask: transition.previousTask } : {}),
+    ...(transition.currentTask ? { currentTask: transition.currentTask } : {}),
     refs: [...transition.refs].sort((a, b) => a.localeCompare(b)),
   }));
-}
-
-export function isStrategicCompletion(args: {
-  toState: RepoTaskState | null;
-  fromState: RepoTaskState | null;
-  task: ReturnType<typeof listFullRepoTasks>[number] | undefined;
-  previousTask?: TaskRevisionSnapshot;
-}): boolean {
-  if (args.toState !== "done" || args.fromState === "done") {
-    return false;
-  }
-  const priority = args.task?.priority ?? args.previousTask?.priority;
-  const body = args.task?.body ?? args.previousTask?.body;
-  return (
-    (priority === "p0" || priority === "p1") &&
-      typeof body === "string" &&
-      /^## (?:Initiative|Milestone)$/m.test(body)
-  );
 }

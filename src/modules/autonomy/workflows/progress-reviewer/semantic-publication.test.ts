@@ -311,3 +311,155 @@ it.each([false, true])("consumes an out-of-order explicit request without losing
   publishProgressReview({ scopeRoot, sourceRunId: "older-request", currentState: result.nextState });
   expect(queue.list()).toEqual(settled);
 });
+
+it.each([false, true])("deduplicates handoff evidence despite paraphrased reasons across restored state (automatic: %s)", (automatic) => {
+  const scopeRoot = mkdtempSync(join(tmpdir(), "kota-progress-handoff-"));
+  roots.push(scopeRoot);
+  const handoff = { owner: "scope-improver" as const, topicKey: "improvement:guidance", targetScope: "AGENTS.md", reason: "Repeated corrections contradict scope guidance", evidenceIds: ["state:feedback", "run:repair"] };
+  let revision = 0;
+  const write = (id: string, evidenceIds = handoff.evidenceIds, summary = "Two contradictory operator corrections", reason = handoff.reason) => {
+    revision += 1;
+    const runDir = join(scopeRoot, ".kota", "runs", id);
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, PROGRESS_REVIEW_ARTIFACT), JSON.stringify({
+      generatedAt: "2026-09-09T12:00:00.000Z",
+      evidence: { semanticInput: { automatic, inputRevision: automatic ? revision : null }, evidence: [
+        { id: "state:feedback", kind: "state", summary, path: "AGENTS.md" },
+        { id: "run:repair", kind: "run", summary: "Guidance repair failed", path: "repair/summary.json" },
+      ] },
+      review: { verdict: "needs-steering", summary: reason, findings: { localScope: { claims: [], followUpTasks: [] }, crossScope: { claims: [], followUpTasks: [] } }, ownerQuestions: [], handoffs: [{ ...handoff, evidenceIds, reason }] },
+    }));
+  };
+  write("handoff-first");
+  const first = publishProgressReview({ scopeRoot, sourceRunId: "handoff-first", currentState: emptyProgressReviewConsumptionState(scopeRoot) });
+  expect(first.handoffs).toMatchObject([{ ...handoff, evidenceRefs: expect.arrayContaining(["AGENTS.md"]) }]);
+  let state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(first.nextState)), scopeRoot);
+  expect(publishProgressReview({ scopeRoot, sourceRunId: "handoff-first", currentState: state }).handoffs).toEqual([]);
+  for (const [index, evidenceIds] of [handoff.evidenceIds, [...handoff.evidenceIds].reverse(), [...handoff.evidenceIds, "state:feedback"]].entries()) {
+    const sourceRunId = `handoff-again-${index}`;
+    write(sourceRunId, evidenceIds);
+    const result = publishProgressReview({ scopeRoot, sourceRunId, currentState: state });
+    expect(result.handoffs).toEqual([]);
+    state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(result.nextState)), scopeRoot);
+  }
+  write("handoff-paraphrased", handoff.evidenceIds, undefined, "Scope guidance conflicts with repeated operator feedback");
+  const paraphrased = publishProgressReview({ scopeRoot, sourceRunId: "handoff-paraphrased", currentState: state });
+  expect(paraphrased.handoffs).toEqual([]);
+  state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(paraphrased.nextState)), scopeRoot);
+  write("handoff-changed", handoff.evidenceIds, "Another correction contradicts the revised guidance");
+  const changed = publishProgressReview({ scopeRoot, sourceRunId: "handoff-changed", currentState: state });
+  expect(changed.handoffs).toMatchObject([handoff]);
+  state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(changed.nextState)), scopeRoot);
+  write("handoff-changed-again", [...handoff.evidenceIds].reverse(), "Another correction contradicts the revised guidance");
+  expect(publishProgressReview({ scopeRoot, sourceRunId: "handoff-changed-again", currentState: state }).handoffs).toEqual([]);
+});
+
+it.each(["open", "blocked"].flatMap((taskState) =>
+  [false, true].map((automatic) => ({ taskState, automatic })),
+))("retains counterevidence while a task is $taskState and delivers after restoration (automatic: $automatic)", ({ taskState, automatic }) => {
+  const scopeRoot = mkdtempSync(join(tmpdir(), "kota-progress-pending-handoff-"));
+  roots.push(scopeRoot);
+  const handoff = {
+    owner: "scope-improver" as const, topicKey: "improvement:guidance", targetScope: "AGENTS.md",
+    reason: "Repeated corrections contradict guidance", evidenceIds: ["state:feedback"],
+  };
+  let revision = 0;
+  const write = (id: string, summary: string) => {
+    revision += 1;
+    const review = writeReview(scopeRoot, id, automatic ? revision : null, {
+      ownerQuestions: [], handoffs: [handoff],
+    });
+    writeFileSync(join(scopeRoot, ".kota", "runs", id, PROGRESS_REVIEW_ARTIFACT), JSON.stringify({
+      generatedAt: "2026-09-07T12:00:00.000Z", review,
+      evidence: {
+        semanticInput: { automatic, inputRevision: automatic ? revision : null },
+        evidence: [{ id: "state:feedback", kind: "state", summary, path: "feedback.md" }],
+      },
+    }));
+    return review;
+  };
+  write("initial-handoff", "Two operator corrections");
+  const initial = publishProgressReview({ scopeRoot, sourceRunId: "initial-handoff", currentState: emptyProgressReviewConsumptionState(scopeRoot) });
+  expect(initial.handoffs).toHaveLength(1);
+  const originalFingerprint = initial.handoffs[0]!.evidenceFingerprint;
+  const review = write("counterevidence", "A further correction disproves the intervention");
+  stageGeneratedWorkProposal({ workspaceRoot: scopeRoot, proposal: progressReviewTaskProposal({
+    runId: "initial-handoff", review, task: {
+      topicKey: handoff.topicKey, title: "Correct guidance", priority: "p1",
+      problem: "Operator corrections contradict guidance", howWeWillKnow: "Guidance reflects the agreed behavior",
+      evidenceIds: handoff.evidenceIds,
+    },
+  }) });
+  const taskId = listFullRepoTasks(scopeRoot)[0]!.id;
+  if (taskState === "blocked") moveTaskById(scopeRoot, taskId, "blocked");
+  const ownedTask = listFullRepoTasks(scopeRoot);
+  const pending = publishProgressReview({ scopeRoot, sourceRunId: "counterevidence", currentState: initial.nextState });
+  expect(pending.handoffs).toEqual([]);
+  expect(pending.nextState.proposalObservations).toMatchObject([{
+    handoffFingerprint: originalFingerprint,
+    pendingHandoff: { ...handoff, evidenceRefs: expect.arrayContaining([
+      join(scopeRoot, ".kota", "runs", "counterevidence", PROGRESS_REVIEW_ARTIFACT),
+    ]) },
+  }]);
+  let state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(pending.nextState)), scopeRoot);
+  for (const [sourceRunId, summary] of [
+    ["repeat-original", "Two operator corrections"],
+    ["repeat-pending", "A further correction disproves the intervention"],
+  ]) {
+    write(sourceRunId!, summary!);
+    const repeated = publishProgressReview({ scopeRoot, sourceRunId: sourceRunId!, currentState: state });
+    expect(repeated.handoffs).toEqual([]);
+    expect(repeated.nextState.proposalObservations).toEqual(pending.nextState.proposalObservations);
+    state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(repeated.nextState)), scopeRoot);
+  }
+  const updatedReview = writeReview(scopeRoot, "updated-intervention", automatic ? ++revision : null, {
+    ownerQuestions: [],
+    findings: {
+      crossScope: { claims: [], followUpTasks: [] },
+      localScope: { claims: [], followUpTasks: [{
+        topicKey: handoff.topicKey, title: "Correct guidance", priority: "p1",
+        problem: "The intervention must address the additional operator correction",
+        howWeWillKnow: "Guidance reflects the agreed behavior and the additional correction",
+        evidenceIds: handoff.evidenceIds,
+      }] },
+    },
+  });
+  stageGeneratedWorkProposal({ workspaceRoot: scopeRoot, proposal: progressReviewTaskProposal({
+    runId: "updated-intervention", review: updatedReview,
+    task: updatedReview.findings.localScope.followUpTasks[0]!,
+  }) });
+  if (taskState === "blocked") moveTaskById(scopeRoot, taskId, "blocked");
+  const updatedTask = listFullRepoTasks(scopeRoot);
+  expect(updatedTask).not.toEqual(ownedTask);
+  expect(updatedTask.map(({ id, state }) => ({ id, state }))).toEqual([{ id: taskId, state: taskState }]);
+  const updated = publishProgressReview({ scopeRoot, sourceRunId: "updated-intervention", currentState: state });
+  expect(updated.handoffs).toEqual([]);
+  state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(updated.nextState)), scopeRoot);
+  expect(state.proposalObservations).toEqual(pending.nextState.proposalObservations);
+  // A later review need not rediscover or cite the pending evidence.
+  writeReview(scopeRoot, "unrelated-review", automatic ? ++revision : null);
+  const unrelated = publishProgressReview({ scopeRoot, sourceRunId: "unrelated-review", currentState: state });
+  expect(unrelated.handoffs).toEqual([]);
+  state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(unrelated.nextState)), scopeRoot);
+  expect(listFullRepoTasks(scopeRoot)).toEqual(updatedTask);
+  expect(publishProgressReview({ scopeRoot, sourceRunId: "counterevidence", currentState: state }).handoffs).toEqual([]);
+  if (taskState === "blocked") moveTaskById(scopeRoot, taskId, "open");
+  moveTaskById(scopeRoot, taskId, "done");
+  const snapshot = JSON.stringify(state);
+  // Even replay of the first publication can reconcile the now-deliverable evidence.
+  const delivered = publishProgressReview({ scopeRoot, sourceRunId: "initial-handoff", currentState: state });
+  expect(JSON.stringify(state)).toBe(snapshot);
+  expect(delivered.handoffs).toEqual([pending.nextState.proposalObservations[0]!.pendingHandoff]);
+  expect(delivered.handoffs[0]!.evidenceFingerprint).not.toBe(originalFingerprint);
+  const receipt = delivered.nextState.proposalObservations.find((entry) => entry.proposalKey === handoff.topicKey)!;
+  expect(receipt.pendingHandoff).toBeUndefined();
+  expect(receipt.handoffFingerprint).toBe(delivered.handoffs[0]!.evidenceFingerprint);
+  state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(delivered.nextState)), scopeRoot);
+  write("counterevidence-repeated", "A further correction disproves the intervention");
+  for (const sourceRunId of ["initial-handoff", "counterevidence", "counterevidence-repeated"]) {
+    const replay = publishProgressReview({ scopeRoot, sourceRunId, currentState: state });
+    expect(replay.handoffs).toEqual([]);
+    state = decodeProgressReviewConsumptionState(JSON.parse(JSON.stringify(replay.nextState)), scopeRoot);
+  }
+  expect(listFullRepoTasks(scopeRoot).map(({ id, state }) => ({ id, state }))).toEqual([{ id: taskId, state: "done" }]);
+});

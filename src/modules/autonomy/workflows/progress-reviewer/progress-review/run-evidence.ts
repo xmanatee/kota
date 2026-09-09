@@ -19,6 +19,7 @@ import { isSafeRunIdBasename } from "./run-id.js";
 import {
   batchPayload,
   eventScopeId,
+  requestPayload,
   sourceEvidenceId,
   sourceSummary,
 } from "./trigger-target.js";
@@ -190,10 +191,12 @@ export function listRecentRunsForSources(
     };
   });
   const storedRuns = sourceRuns.flatMap((collection) => collection.stored);
+  const pinned = requestPayload(trigger).evidenceWindow;
+  const pinnedIds = pinned ? new Set([...pinned.baseline, ...pinned.current].map((run) => run.id)) : null;
   const recentRuns = sourceRuns
     .flatMap((collection) => [
-      ...collection.stored.filter((run) => run.startedMs >= windowStartMs),
-      ...collection.pending,
+      ...collection.stored.filter((run) => pinnedIds ? pinnedIds.has(run.runId) : run.startedMs >= windowStartMs),
+      ...(pinnedIds ? [] : collection.pending),
       ...collection.pruned,
     ])
     .sort(
@@ -204,6 +207,12 @@ export function listRecentRunsForSources(
     ...listBatchReferencedRunEvidence(trigger, sources, storedRuns, excluded),
     ...recentRuns,
   ]);
+  if (pinnedIds) {
+    for (const id of pinnedIds) {
+      if (!runs.some((run) => run.runId === id)) excluded.push(`pinned run ${id}: raw evidence is unavailable; retained outcome is in the systemic window`);
+    }
+    return runs.filter((run) => pinnedIds.has(run.runId));
+  }
   if (runs.length > PROGRESS_REVIEW_MAX_RUNS) {
     excluded.push(`workflow runs: truncated after ${PROGRESS_REVIEW_MAX_RUNS} most recent runs`);
   }

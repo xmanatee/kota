@@ -13,6 +13,7 @@ import {
   automaticProgressReviewRequested,
   progressReviewRequested,
 } from "../events.js";
+import { systemicWindowSchema } from "../systemic-evidence.js";
 import { PROGRESS_REVIEW_DEFAULT_WINDOW_MS } from "./constants.js";
 import type {
   ProgressReviewDirectorySource,
@@ -33,6 +34,16 @@ export function readWindowMs(payload: ProgressReviewRequestPayload): number {
     throw new Error("progress-review windowMs must be a positive number when provided");
   }
   return Math.floor(payload.windowMs);
+}
+
+export function progressEvidenceWindow(payload: ProgressReviewRequestPayload, now: Date) {
+  if (!payload.evidenceWindow) {
+    const maxAgeMs = readWindowMs(payload);
+    return { startedAt: new Date(now.getTime() - maxAgeMs).toISOString(), endedAt: now.toISOString(), maxAgeMs };
+  }
+  const pinned = systemicWindowSchema.parse(payload.evidenceWindow);
+  const oldest = [...pinned.baseline, ...pinned.current].reduce((time, run) => Math.min(time, Date.parse(run.startedAt)), Date.parse(pinned.startedAt));
+  return { startedAt: new Date(oldest).toISOString(), endedAt: pinned.endedAt, maxAgeMs: Date.parse(pinned.endedAt) - oldest };
 }
 
 export function requestPayload(trigger: WorkflowRunTrigger): ProgressReviewRequestPayload {

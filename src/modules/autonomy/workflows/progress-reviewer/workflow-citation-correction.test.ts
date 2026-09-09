@@ -2,15 +2,24 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
+import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { resetModuleEventRegistry } from "#core/events/module-event.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { DEFAULT_AGENT_STEP_RETRY } from "#core/workflow/steps/step-executor-retry.js";
+import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
-import { progressReviewRequested } from "./events.js";
+import { inspectProgressSemanticBoundary } from "../dispatcher/semantic-reflection.js";
+import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
+import { automaticProgressReviewRequested, progressReviewRequested } from "./events.js";
 import type { ProgressReviewActionResult } from "./progress-review.js";
+import { admitProgressReviewTrigger, PROGRESS_REVIEW_STATE_KEY, type ProgressReviewConsumptionState } from "./semantic-input.js";
+import { emptyProgressReviewConsumptionState } from "./semantic-input-state.js";
+import progressReviewerWorkflow from "./workflow.js";
 import {
   commitProgressReviewFixture,
   compileProgressReviewerWorkflow,
@@ -142,10 +151,9 @@ describe("progress-reviewer citation correction", () => {
     expect(actions.ownerQuestionIds).toEqual([]);
   });
 
-  it("fails closed with a retained diagnostic after repeated unknown evidence IDs", async () => {
+  it("durably consumes exhausted automatic citations and admits later owner feedback after restart", async () => {
     const workspaceRoot = makeScopeRoot("progress-reviewer-citation-exhausted");
-    registerProgressReviewHarness(async () => {
-      const output = reviewOutput({
+    const output = reviewOutput({
         verdict: "needs-steering",
         summary: "Malformed citations must not reach action writers.",
         localScope: { followUpTasks: [{
@@ -163,17 +171,48 @@ describe("progress-reviewer citation correction", () => {
           evidenceIds: [...OBSERVED_UNKNOWN_EVIDENCE_IDS],
         }],
       });
-      return {
-        text: `Review complete.\n\`\`\`json\n${JSON.stringify(output)}\n\`\`\``,
-        streamedText: "",
-        turns: 1,
-        usage: UNKNOWN_AGENT_USAGE,
-        isError: false,
-      };
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const stateDir = join(workspaceRoot, ".kota");
+    const database = new RunStateDatabase(stateDir);
+    database.registerScope({ id: scopeId, rootPath: workspaceRoot, createdAt: NOW.toISOString() });
+    database.close();
+    const state = createTestTransactionalRunState(join(stateDir, "review-state"), scopeId);
+    const inspect = (boundary: unknown, consumedRevision: number) => inspectProgressSemanticBoundary({
+      workspaceRoot, scopeRoot: workspaceRoot, stateDir,
+      progressBoundaryState: boundary, consumedRevision, runCommand: runGitEvidenceCommand,
     });
+    const baseline = await inspect(null, 0);
+    writeProgressReviewTask(workspaceRoot, "blocked", "task-citation-source");
+    commitProgressReviewFixture(workspaceRoot, "task needs external input", "2026-06-04T11:40:00.000Z");
+    const reserved = await inspect(baseline.nextState, 0);
+    expect(reserved.shouldEmit, reserved.reason).toBe(true);
+    const trigger = { event: automaticProgressReviewRequested.name, schemaRef: null,
+      payload: { scopeId, ...reserved.payload } };
+    const definition = { ...progressReviewerWorkflow, steps: progressReviewerWorkflow.steps.map((step) =>
+      step.type === "agent" ? { ...step, retry: { maxAttempts: 2, initialDelayMs: 1, backoffFactor: 1 } } : step) };
     const runId = "runtime-citation-exhausted";
-
-    const result = await executeCitationReview(workspaceRoot, runId);
+    const run = await new WorkflowScenarioDriver(definition, {
+      workspaceRoot, runId, trigger,
+      ports: { state, runAgent: async () => output, runCommand: runGitEvidenceCommand },
+    }).run();
+    expect(run.status, run.error).toBe("success");
+    const result = { metadata: new WorkflowRunStore(workspaceRoot).getRun(runId)! };
+    const consumed = state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value!;
+    expect(consumed).toEqual({ ...emptyProgressReviewConsumptionState(workspaceRoot), lastConsumedRevision: 1, consumedAt: NOW.toISOString() });
+    expect(run.emitted).toEqual([]);
+    const restartedBoundary = JSON.parse(JSON.stringify(reserved.nextState));
+    expect(await inspect(restartedBoundary, consumed.lastConsumedRevision)).toMatchObject({ shouldEmit: false, nextState: { pending: null } });
+    expect(admitProgressReviewTrigger({ scopeRoot: workspaceRoot, scopeId, stateDir, workflowName: "progress-reviewer", state, trigger })).toMatchObject({ admitted: false });
+    const decisions = new OwnerDecisionStore(join(stateDir, "owner-decisions"), scopeId);
+    const decision = decisions.create({
+      request: { kind: "single-choice", prompt: "How should later evidence be assessed?", options: [{ id: "proceed", label: "Assess later evidence" }] },
+      requester: { kind: "workflow", workflowName: "builder", runId: "later-owner-feedback", stepId: "ask", taskId: null },
+      evidence: [],
+    });
+    decisions.answer(decision.id, { kind: "single-choice", optionId: "proceed" }, "operator");
+    const later = await inspect(restartedBoundary, consumed.lastConsumedRevision);
+    expect(later).toMatchObject({ shouldEmit: true, payload: { boundary: "owner-decision-resolution", inputRevision: 2 } });
+    expect((await inspect(JSON.parse(JSON.stringify(later.nextState)), consumed.lastConsumedRevision)).shouldEmit).toBe(false);
 
     expect(result.metadata.status).toBe("completed-with-warnings");
     expect(result.metadata.steps.find((step) => step.id === "review-evidence"))

@@ -60,6 +60,16 @@ export const progressReviewOutputSchema = {
   required: ["verdict", "summary", "findings", "ownerQuestions"],
   additionalProperties: false,
   properties: {
+    handoffs: { type: "array", items: {
+      type: "object", additionalProperties: false,
+      required: ["owner", "topicKey", "targetScope", "reason", "evidenceIds"],
+      properties: {
+        owner: { type: "string", enum: ["scope-improver", "architecture-gardener"] },
+        topicKey: { type: "string", pattern: "^improvement:[a-z0-9][a-z0-9:_-]*$" },
+        targetScope: { type: "string" }, reason: { type: "string" },
+        evidenceIds: { type: "array", items: { type: "string" } },
+      },
+    } },
     verdict: {
       type: "string",
       enum: [

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { ImprovementHandoffObservation } from "#modules/autonomy/improvement-handoff.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const SCOPE_IMPROVEMENT_ARTIFACT = "scope-improvement.json";
@@ -35,7 +36,7 @@ export type ScopeImprovementState = {
   pendingBoundary: "initial-onboarding" | "content-policy-changed" | null;
   pendingDelivery: "queued" | "deferred" | null;
   pendingDeliveryAttempt: number;
-  recentSignatures: { signature: string; action: string; lastSeenAt: string }[];
+  recentSignatures: { signature: string; action: string; lastSeenAt: string; handoffFingerprint?: string }[];
 };
 
 export type ScopeInstruction = {
@@ -51,6 +52,7 @@ export type ScopeImprovementEvidence = {
 };
 
 export type ScopeImprovementInputs = {
+  handoff?: ImprovementHandoffObservation;
   generatedAt: string;
   triggerKind: ScopeImprovementTriggerKind;
   triggerEvent: string;

@@ -3,6 +3,7 @@ import {
   typedCodeStep,
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import {
   collectInputs,
@@ -154,9 +155,9 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
   repository: "none",
   description:
     "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
-  tags: ["scope-improvement"],
+  tags: ["systemic-observer", "scope-improvement"],
   triggerAdmission: admitScopeImprovementTrigger,
-  triggers: scopeImproverTriggers,
+  triggers: [...scopeImproverTriggers, { event: improvementHandoffRequested.name, filter: { owner: "scope-improver" }, queueMode: "all" }],
   steps: [
     inspectWorktree,
     collectInputs,

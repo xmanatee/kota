@@ -143,6 +143,7 @@ const writeDispositionArtifact = typedCodeStep<{ written: true }>({
 
 const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
+  tags: ["systemic-observer"],
   repository: "write",
   integration: {
     validationCommand: ["pnpm", "validate-tasks"],

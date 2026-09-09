@@ -7,6 +7,7 @@ import {
   canPublishGeneratedWorkOwnerEffects,
   finalizeGeneratedWorkOwnerEffects,
   type GeneratedWorkProposal,
+  normalizeGeneratedWorkProposalKey,
   stageGeneratedWorkProposal,
 } from "#modules/autonomy/generated-work-proposal.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
@@ -21,6 +22,7 @@ import {
 } from "./scope-improvement-types.js";
 
 export function scopeImprovementProposalKey(signature: string): string {
+  if (signature.startsWith("improvement:")) return normalizeGeneratedWorkProposalKey(signature);
   const digest = createHash("sha256").update(signature.trim()).digest("hex").slice(0, 20);
   return `scope-improver:${digest}`;
 }

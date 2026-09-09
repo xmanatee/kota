@@ -1,7 +1,7 @@
 # Scope Improver Workflow
 
 Owns scope-local improvement discovery from explicit requests, initial
-onboarding, and material durable guidance or policy changes.
+onboarding, cited systemic handoffs, and material durable guidance or policy changes.
 
 - Read scoped guidance and the machine-owned resolved policy snapshot. Do not
   infer typed domains from directory names or use schedules, failures, or build
@@ -41,6 +41,10 @@ onboarding, and material durable guidance or policy changes.
   and semantic consumption disposition. The staged
   `scope-improvement-publication` `repository: none` follow-up updates the
   domain watermark and owner-question queue after integration.
+- A systemic handoff keeps its shared topic signature and goes through the
+  same posture-aware proposal lifecycle as local guidance candidates. Record the
+  handed-off evidence fingerprint with its topic disposition: unchanged evidence
+  stays consumed across restart, while new evidence can revise the same proposal.
 - Recommendations translate into shared generated-work proposals for repository
   staging and owner-effect publication. The shared lifecycle owns task/question
   disposition; this workflow owns posture authorization and action projection.

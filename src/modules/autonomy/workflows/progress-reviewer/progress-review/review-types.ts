@@ -1,3 +1,4 @@
+import type { ImprovementHandoff } from "#modules/autonomy/improvement-handoff.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type {
   ProgressReviewAgentEvidencePacket,
@@ -40,6 +41,7 @@ export type ProgressReviewResolutionOutput = {
 };
 
 export type ProgressReviewAgentOutput = {
+  handoffs?: ImprovementHandoff[];
   verdict: "on-track" | "needs-steering" | "blocked" | "insufficient-evidence";
   summary: string;
   findings: {

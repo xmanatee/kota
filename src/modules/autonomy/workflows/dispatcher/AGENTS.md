@@ -13,13 +13,23 @@ observations use the scoped core repository, never a second JSON reader.
 Keep routing decisions semantic: emit events that describe repo conditions, not
 which workflow should run next. The event catalog lives in code.
 
-Progress reflection observes committed task transitions and resolved owner
-decisions. It emits one revisioned request only for an accepted strategic
-boundary. Automatic revisions use a latest-only event distinct from lossless
-explicit requests, and the progress-reviewer runtime state watermark rejects
-consumed revisions. Ordinary source/build commits stay quiet. Scope reflection
+Progress reflection retains a coalesced window of committed task transitions,
+agent outcomes and owner decisions until the review revision is consumed.
+Useful builder work has priority. Comparative outcomes or owner feedback can
+admit agent assessment; ordinary source growth alone stays pending. One pending
+revision owns the decision until publication or durable output rejection,
+including across restart.
+Idle reconciliation also releases accepted handoff evidence once its intervention
+is terminal, independently of agent-review admission. It shares the publication
+resource and stages evidence receipts with delivery through runtime state.
+Generated proposal retirements remain context, not fresh disposition signals.
+Compare outcome yield against the last consumed cohort for the same workflow;
+recovery can admit review in spare capacity even when success is already known,
+while continued healthy outcomes do not repeatedly reuse historical failures.
+Automatic and explicit requests remain separate. Scope reflection
 compares durable guidance with the authoritative resolved scope-policy
-snapshot, never raw scope config. A queued onboarding run re-reads current
+snapshot, never raw scope config. The onboarding reservation owner reconciles eligible pre-existing scopes.
+A queued onboarding run re-reads current
 inputs instead of adding a replacement; deferred pending input resumes only
 after cleanup, and later changes emit through their own latest-only event.
 Repository-free observe scopes retain this reflection even when Git inspection

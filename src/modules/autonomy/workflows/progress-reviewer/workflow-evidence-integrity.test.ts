@@ -153,12 +153,13 @@ describe("progress-reviewer evidence integrity", () => {
   });
 
   it("completes review with an explicit exclusion for malformed historical run metadata", async () => {
-    // Local DLQ failure: a successful agent step omitted required usage data.
+    // Current records must reject missing usage; historical records normalize it.
     const malformedRunId = "control-monitor-coverage-gap-sample";
     const malformedDir = join(workspaceRoot, ".kota", "runs", malformedRunId);
     mkdirSync(malformedDir, { recursive: true });
     const metadataPath = join(malformedDir, "metadata.json");
     const metadata = {
+      metadataVersion: 1,
       id: malformedRunId,
       workflow: "builder",
       definitionPath: "src/modules/autonomy/workflows/builder/workflow.ts",

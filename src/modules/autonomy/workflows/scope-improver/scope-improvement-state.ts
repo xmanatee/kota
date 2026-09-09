@@ -155,7 +155,8 @@ export function decodeScopeImprovementState(
       !entry ||
       typeof entry.signature !== "string" ||
       typeof entry.action !== "string" ||
-      typeof entry.lastSeenAt !== "string"
+      typeof entry.lastSeenAt !== "string" ||
+      (entry.handoffFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(entry.handoffFingerprint))
     ) {
       throw new Error("scope improvement state has an invalid signature entry");
     }
@@ -163,6 +164,7 @@ export function decodeScopeImprovementState(
       signature: entry.signature,
       action: entry.action,
       lastSeenAt: entry.lastSeenAt,
+      ...(entry.handoffFingerprint !== undefined ? { handoffFingerprint: entry.handoffFingerprint } : {}),
     };
   });
   return {
@@ -280,6 +282,8 @@ export function completeScopeImprovementInput(input: {
       signature: action.signature,
       action: action.kind,
       lastSeenAt: now,
+      ...(inputs.handoff?.topicKey === action.signature
+        ? { handoffFingerprint: inputs.handoff.evidenceFingerprint } : {}),
     }));
   const recentSignatures = [
     ...recorded,

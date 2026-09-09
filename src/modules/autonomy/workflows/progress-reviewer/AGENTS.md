@@ -1,12 +1,29 @@
 # Progress Reviewer Workflow
 
-This workflow owns bounded evidence review for scoped activity.
+This workflow owns cross-run systemic operational and product learning.
 
 - Collect structured evidence first, then let the reviewer assess it.
-- Automatic reviews run only for a parked queue after a task transition,
-  strategic completion, blocked/dropped task, or owner-decision resolution.
-  Explicit requests remain available. Schedules, completion counts, and build
-  commits are not progress signals.
+- Automatic reviews consume a pinned, coalesced evidence window when builder
+  demand leaves capacity. Compare delivery, repair and review outcomes; source
+  growth and elapsed time alone do not justify work. The agent decides evidence
+  sufficiency for the proposed decision and can choose no action.
+- Retain baseline/current outcome summaries with scoped raw references. Follow
+  generated interventions through canonical task state, integrated changes and
+  later outcomes that may disprove the original hypothesis. The default compact
+  packet prioritizes the pinned comparison summary over individual raw references.
+- Publish cited architecture/guidance handoffs through the existing semantic
+  publication transaction, preserving the shared improvement topic key. The
+  receiving owner applies its own evidence and authority rules. Handoff evidence
+  identity excludes admission revisions and citation order; scoped file content
+  is pinned at collection. Carry that identity to the receiver independently of
+  the shared topic and run-artifact provenance. While the topic's task is open
+  or blocked, retain the handoff and its references as pending across task
+  updates and unrelated reviews. A newer resolution or owner-question
+  disposition cancels the topic's pending handoff; publication reconciles
+  remaining handoffs against task completion before consuming them. Dispatcher
+  invokes the same reconciliation on idle, so release does not require a new
+  review. Both owners share publication serialization and stage receipts with
+  delivery in the runtime transaction.
 - Consume each automatic semantic input revision once. Automatic requests use
   their own latest-only event slot, while the explicit request event is
   lossless, so owner/system requests cannot replace or be replaced by a
@@ -32,7 +49,9 @@ This workflow owns bounded evidence review for scoped activity.
   while allowing out-of-order explicit requests about unrelated topics.
 - Validate citations against the collected evidence inside the agent contract.
   Exhausted output correction retains a typed rejection and finishes with
-  warnings, without actions or semantic publication. Runtime and evidence
+  warnings, without actions or proposal publication. It consumes the rejected
+  automatic revision through runtime compare-and-set so changed evidence can
+  open a later window without replaying exhausted correction. Runtime and evidence
   integrity failures remain terminal.
 - Reconcile generated tasks and owner questions through the shared proposal
   lifecycle when canonical state disproves their premise.

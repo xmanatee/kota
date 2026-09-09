@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -9,10 +10,15 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
+import { resolveGeneratedWork } from "../progress-reviewer/progress-review/action-writers.js";
+import { completeProgressReviewSemanticInput } from "../progress-reviewer/semantic-input.js";
+import { emptyProgressReviewConsumptionState } from "../progress-reviewer/semantic-input-state.js";
 import {
   inspectProgressSemanticBoundary,
   type ProgressBoundaryState,
@@ -125,16 +131,30 @@ function commit(workspaceRoot: string, message: string): void {
   ]);
 }
 
-async function inspect(workspaceRoot: string, scopeRoot = workspaceRoot) {
+async function inspect(workspaceRoot: string, scopeRoot = workspaceRoot, consumedRevision = 0) {
   const result = await inspectProgressSemanticBoundary({
     workspaceRoot,
     scopeRoot,
     stateDir: join(scopeRoot, ".kota"),
     progressBoundaryState: boundaryStates.get(workspaceRoot) ?? null,
+    consumedRevision,
     runCommand: runGitEvidenceCommand,
   });
   if (result.nextState !== null) boundaryStates.set(workspaceRoot, result.nextState);
   return result;
+}
+
+function recordOutcome(root: string, id: string, status: "success" | "failed", observer = false): void {
+  const startedAt = "2026-09-01T10:00:00.000Z";
+  const completedAt = "2026-09-01T10:01:00.000Z";
+  write(root, `.kota/runs/${id}/metadata.json`, JSON.stringify({
+    metadataVersion: 1, id, workflow: observer ? "progress-reviewer" : "builder", definitionPath: "workflow.ts",
+    trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
+    startedAt, completedAt, status, runDir: join(root, ".kota", "runs", id),
+    tags: observer ? ["systemic-observer"] : [],
+    steps: [{ id: "build", type: "agent", status, startedAt, completedAt, durationMs: 60_000,
+      ...(status === "failed" ? { errorKind: "output-validation" } : {}), usage: UNKNOWN_AGENT_USAGE }],
+  }));
 }
 
 describe("semantic progress reflection", () => {
@@ -169,7 +189,7 @@ describe("semantic progress reflection", () => {
     });
   });
 
-  it("emits one parked-queue review and ignores five later build commits", async () => {
+  it("retains a single delivery and source growth without launching per-build reviews", async () => {
     const workspaceRoot = track("parked-build-restraint");
     writeTask(workspaceRoot, "open", "task-delivery");
     writeTask(workspaceRoot, "blocked", "task-strategic-anchor");
@@ -179,17 +199,16 @@ describe("semantic progress reflection", () => {
     moveTask(workspaceRoot, "task-delivery", "open", "done");
     commit(workspaceRoot, "complete delivery task");
     const parked = await inspect(workspaceRoot);
-    expect(parked).toMatchObject({
-      shouldEmit: true,
-      payload: { boundary: "parked-queue", inputRevision: 1 },
-    });
+    expect(parked).toMatchObject({ shouldEmit: false, reason: expect.stringContaining("evidence-insufficient") });
+    const baseline = parked.nextState!.baseline.head;
 
     for (let index = 1; index <= 5; index += 1) {
       write(workspaceRoot, `src/build-${index}.ts`, `export const build${index} = ${index};\n`);
       commit(workspaceRoot, `successful build ${index}`);
       expect(await inspect(workspaceRoot)).toMatchObject({
         shouldEmit: false,
-        reason: "no accepted semantic progress boundary",
+        reason: expect.stringContaining("evidence-insufficient"),
+        nextState: { baseline: { head: baseline } },
       });
     }
   });
@@ -241,7 +260,7 @@ describe("semantic progress reflection", () => {
     expect((await inspect(workspaceRoot)).shouldEmit).toBe(false);
   });
 
-  it("emits a strategic-completion boundary for a completed P1 initiative", async () => {
+  it("does not use task labels or priority as evidence sufficiency", async () => {
     const workspaceRoot = track("strategic-completion");
     writeTask(workspaceRoot, "open", "task-milestone", {
       priority: "p1",
@@ -256,8 +275,108 @@ describe("semantic progress reflection", () => {
     });
     commit(workspaceRoot, "complete strategic milestone");
     expect(await inspect(workspaceRoot)).toMatchObject({
-      shouldEmit: true,
-      payload: { boundary: "strategic-completion", inputRevision: 1 },
+      shouldEmit: false,
+      reason: expect.stringContaining("evidence-insufficient"),
     });
   });
+  it("coalesces independent deliveries while builders have work and consumes a pinned decision only after publication", async () => {
+    const root = track("coalesced-delivery");
+    writeTask(root, "open", "task-one");
+    writeTask(root, "open", "task-two");
+    for (const id of ["task-three", "task-four", "task-five", "task-six"]) writeTask(root, "open", id);
+    commit(root, "seed independent work");
+    const baseline = (await inspect(root)).nextState!.baseline.head;
+    moveTask(root, "task-one", "open", "done");
+    commit(root, "deliver first outcome");
+    expect(await inspect(root)).toMatchObject({ shouldEmit: false, reason: expect.stringContaining("builder work has priority"), nextState: { baseline: { head: baseline } } });
+    moveTask(root, "task-two", "open", "done");
+    commit(root, "deliver second outcome");
+    expect((await inspect(root)).shouldEmit).toBe(false);
+    for (const id of ["task-three", "task-four", "task-five", "task-six"]) moveTask(root, id, "open", "done");
+    commit(root, "finish independent batch");
+    const admitted = await inspect(root);
+    expect(admitted).toMatchObject({ shouldEmit: true, payload: { boundary: "evidence-window", inputRevision: 1, evidenceWindow: { fromHead: baseline } } });
+    // Persisted state, not an in-memory event count, owns reservation.
+    const saved = join(root, ".kota", "boundary-restart.json");
+    writeFileSync(saved, JSON.stringify(admitted.nextState));
+    boundaryStates.set(root, JSON.parse(readFileSync(saved, "utf8")));
+    expect(await inspect(root)).toMatchObject({ shouldEmit: false, reason: expect.stringContaining("reserved") });
+    const consumed = completeProgressReviewSemanticInput({ current: emptyProgressReviewConsumptionState(root), input: { automatic: true, inputRevision: 1 }, consumedAt: new Date().toISOString() });
+    expect(await inspect(root, root, consumed.lastConsumedRevision)).toMatchObject({ shouldEmit: false, nextState: { pending: null } });
+    expect((await inspect(root, root, consumed.lastConsumedRevision)).shouldEmit).toBe(false);
+  });
+
+  it("compares repeated failures without commits and keeps review churn from driving another decision", async () => {
+    const root = track("failure-cohort");
+    write(root, "README.md", "# Scope\n");
+    writeTask(root, "open", "task-independent");
+    commit(root, "seed scope");
+    await inspect(root);
+    recordOutcome(root, "failure-one", "failed");
+    expect((await inspect(root)).shouldEmit).toBe(false);
+    recordOutcome(root, "failure-two", "failed");
+    expect(await inspect(root)).toMatchObject({ shouldEmit: true, payload: { evidenceWindow: { current: expect.arrayContaining([expect.objectContaining({ id: "failure-one" }), expect.objectContaining({ id: "failure-two" })]) } } });
+    await inspect(root, root, 1);
+    recordOutcome(root, "review-of-review", "failed", true);
+    expect((await inspect(root, root, 1)).shouldEmit).toBe(false);
+  });
+
+  it("retains a review's integrated retirement without admitting a review of that review", async () => {
+    const root = track("retirement");
+    writeTask(root, "open", "task-independent");
+    const proposalKey = "improvement:disproved-proposal";
+    const staged = stageGeneratedWorkProposal({ workspaceRoot: root, proposal: {
+      kind: "task", proposalKey, title: "Investigate delivery failures", priority: "p2",
+      body: "## Problem\n\nDelivery failures may share a cause.\n",
+      provenance: { source: "progress-reviewer", runId: "original-review", evidenceRefs: ["run:failure"] },
+    } });
+    commit(root, "integrate proposed investigation");
+    recordOutcome(root, "failure-one", "failed");
+    recordOutcome(root, "failure-two", "failed");
+    expect((await inspect(root)).shouldEmit).toBe(true);
+    await inspect(root, root, 1);
+
+    resolveGeneratedWork({ workspaceRoot: root, resolution: {
+      topicKey: proposalKey, reason: "Independent evidence disproved the common cause", evidenceIds: ["run:counterevidence"],
+    } });
+    commit(root, "integrate reviewer retirement");
+    recordOutcome(root, "review-resolution", "success", true);
+    const quiet = await inspect(root, root, 1);
+    expect(quiet).toMatchObject({ shouldEmit: false, reason: expect.stringContaining("evidence-insufficient") });
+    boundaryStates.set(root, JSON.parse(JSON.stringify(quiet.nextState)));
+    expect((await inspect(root, root, 1)).shouldEmit).toBe(false);
+
+    moveTask(root, "task-independent", "open", "blocked");
+    commit(root, "independent task needs owner input");
+    expect(await inspect(root, root, 1)).toMatchObject({ shouldEmit: true, payload: {
+      boundary: "task-disposition", inputRevision: 2,
+      evidenceRefs: expect.arrayContaining([`data/tasks/archive/${staged.taskId}.md`, "data/tasks/task-independent.md"]),
+    } });
+  });
+
+  it("admits changed recovery yield in spare capacity once, then keeps steady healthy outcomes quiet", async () => {
+    const root = track("recovery-yield");
+    writeTask(root, "open", "task-independent");
+    commit(root, "seed independent work");
+    recordOutcome(root, "baseline-failure", "failed");
+    recordOutcome(root, "baseline-success", "success");
+    expect((await inspect(root)).shouldEmit).toBe(true);
+    await inspect(root, root, 1);
+    recordOutcome(root, "recovered-one", "success");
+    expect((await inspect(root, root, 1)).shouldEmit).toBe(false);
+    recordOutcome(root, "recovered-two", "success");
+    const recovery = await inspect(root, root, 1);
+    expect(recovery).toMatchObject({ shouldEmit: true, payload: {
+      boundary: "evidence-window", inputRevision: 2,
+      evidenceWindow: { current: [expect.objectContaining({ status: "success" }), expect.objectContaining({ status: "success" })] },
+    } });
+    boundaryStates.set(root, JSON.parse(JSON.stringify(recovery.nextState)));
+    expect((await inspect(root, root, 1)).shouldEmit).toBe(false);
+    await inspect(root, root, 2);
+    for (let index = 0; index < 6; index++) {
+      recordOutcome(root, `healthy-${index}`, "success");
+      expect((await inspect(root, root, 2)).shouldEmit).toBe(false);
+    }
+  });
+
 });

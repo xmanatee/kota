@@ -22,13 +22,13 @@ function normalizeFrontMatterScalar(field: string, value: string): string {
   return normalizeGeneratedTaskScalar("progress-review follow-up task", field, value);
 }
 
-function progressReviewProposalKey(topicKey: string): string {
+export function progressReviewProposalKey(topicKey: string): string {
   const normalized = normalizeGeneratedTaskScalar(
     "progress-review generated work",
     "topic key",
     topicKey,
   ).toLowerCase().replace(/[^a-z0-9:._/-]+/g, "-");
-  return `progress-reviewer:${normalized}`;
+  return normalized.startsWith("improvement:") ? normalized : `progress-reviewer:${normalized}`;
 }
 
 function normalizeFollowUpTask(

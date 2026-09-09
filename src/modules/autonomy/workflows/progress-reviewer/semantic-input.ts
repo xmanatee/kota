@@ -15,6 +15,7 @@ import {
   type ProgressReviewConsumptionState,
   progressReviewDispatchKey,
 } from "./semantic-input-state.js";
+import { type SystemicWindow, systemicWindowSchema } from "./systemic-evidence.js";
 
 export type { ProgressReviewConsumptionState } from "./semantic-input-state.js";
 export {
@@ -24,6 +25,7 @@ export {
 } from "./semantic-input-state.js";
 
 export type ProgressReviewSemanticInput = {
+  evidenceWindow?: SystemicWindow;
   automatic: boolean;
   shouldReview: boolean;
   boundary: Exclude<ProgressReviewRequest["boundary"], undefined> | "explicit-request";
@@ -66,6 +68,7 @@ export function inspectProgressReviewSemanticInput(args: {
     args.scopeRoot,
   );
   return {
+    ...(payload.evidenceWindow ? { evidenceWindow: systemicWindowSchema.parse(payload.evidenceWindow) } : {}),
     automatic: true,
     shouldReview: revision > state.lastConsumedRevision,
     boundary: payload.boundary,
@@ -98,6 +101,9 @@ export function admitProgressReviewTrigger(
       admitted: false,
       reason: "automatic progress input is missing its semantic revision",
     };
+  }
+  if (payload.boundary === "evidence-window" && !systemicWindowSchema.safeParse(payload.evidenceWindow).success) {
+    return { admitted: false, reason: "systemic review requires its pinned evidence window" };
   }
   const state = decodeProgressReviewConsumptionState(
     input.state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY).value,
@@ -180,7 +186,11 @@ export function planProgressReviewPublication(args: {
         : [...consumed.consumedExplicitRunIds, args.sourceRunId],
       proposalObservations: [
         ...consumed.proposalObservations.filter((entry) => !freshProposalKeys.has(entry.proposalKey)),
-        ...[...freshProposalKeys].map((proposalKey) => ({ proposalKey, generatedAt: args.generatedAt })),
+        ...[...freshProposalKeys].map((proposalKey) => ({
+          ...consumed.proposalObservations.find((entry) => entry.proposalKey === proposalKey),
+          proposalKey,
+          generatedAt: args.generatedAt,
+        })),
       ],
     },
   };

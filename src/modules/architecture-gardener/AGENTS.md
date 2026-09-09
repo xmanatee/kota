@@ -35,3 +35,11 @@ implementation to builders through the existing publication transaction.
   different directory or manufacture success when the daemon is unavailable.
 - `improver` retains ownership of autonomy failures. Gardener may correlate their
   durable evidence with architectural observations without taking over issues.
+
+- Cited systemic handoffs are explicit scoped requests. Preserve their shared
+  topic key when staging a proposal. Publication owns unchanged-handoff
+  suppression and deferral while its task is active, so delivered counterevidence
+  must reach investigation even if the structural cohort is unchanged.
+  Assess every handoff reference, recording unavailable evidence explicitly;
+  unsupported requests finish with no action. Only available, assessed evidence
+  may support a proposal. Consume observations only within the requested target.

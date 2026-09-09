@@ -7,6 +7,7 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { WorkflowRunTrigger } from "#core/workflow/trigger-types.js";
+import { improvementHandoffObservationSchema, improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { ScopeImprovementRequest } from "./events.js";
 import {
@@ -159,7 +160,13 @@ export function collectScopeImprovementInputs(args: {
         `maxActionsPerRun=${config.maxActionsPerRun}`,
     },
   ];
+  const handoff = args.trigger.event === improvementHandoffRequested.name ? improvementHandoffObservationSchema.parse({
+    owner: args.trigger.payload.owner, topicKey: args.trigger.payload.topicKey, targetScope: args.trigger.payload.targetScope,
+    reason: args.trigger.payload.reason, evidenceIds: evidence.filter((item) => item.kind === "file").map((item) => item.id),
+    evidenceFingerprint: args.trigger.payload.evidenceFingerprint,
+  }) : undefined;
   return {
+    ...(handoff ? { handoff } : {}),
     generatedAt: args.now.toISOString(),
     triggerKind: triggerKind(args.trigger),
     triggerEvent: args.trigger.event,
@@ -221,6 +228,19 @@ export function discoverScopeImprovementCandidates(
   inputs: ScopeImprovementInputs,
 ): ScopeImprovementCandidate[] {
   if (!inputs.config.enabled || inputs.alreadyConsumed) return [];
+  if (inputs.handoff) {
+    const handoff = inputs.handoff;
+    return [{
+      id: handoff.topicKey, signature: handoff.topicKey,
+      title: `Review scope guidance: ${handoff.topicKey}`, summary: handoff.reason,
+      evidenceIds: handoff.evidenceIds, preferredAction: "create-task",
+      task: { problem: handoff.reason,
+        desiredOutcome: `Assess the cited systemic finding in ${handoff.targetScope} and correct scoped guidance only where the evidence supports it.`,
+        constraints: ["Preserve the shared topic identity and existing implementation owner.", "Do not widen machine-owned policy or invent scope requirements."],
+        howWeWillKnow: ["Compare the cited outcome with current guidance and identify evidence that supports or rejects the hypothesis.", "Any retained guidance change is consistent with current authority and its later outcome can be checked."],
+      },
+    }];
+  }
   const candidates: ScopeImprovementCandidate[] = [];
   const skippedCandidates: ScopeImprovementCandidate[] = [];
   const hasInstructions = inputs.instructions.length > 0;

@@ -1,8 +1,12 @@
+import { createHash } from "node:crypto";
+import { readFileSync, realpathSync, statSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
 import type { AutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import type { ProgressReviewSemanticInput } from "../semantic-input.js";
+import { summarizeSystemicRuns } from "../systemic-evidence.js";
 import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
 import type {
   ProgressReviewDirectorySource,
@@ -34,6 +38,28 @@ function ownerDecisionCounts(stateDir: string, scopeId: string): string {
     .join(" ") || "none";
 }
 
+function semanticEvidenceSummary(source: ProgressReviewDirectorySource, path: string): string {
+  const summary = `Semantic evidence cites ${path}`;
+  try {
+    const root = realpathSync(source.scopeRoot);
+    const file = realpathSync(resolve(root, path));
+    const scopedPath = relative(root, file);
+    if (isAbsolute(scopedPath) || scopedPath === ".." || scopedPath.startsWith("../")) {
+      return `${summary}; outside source scope`;
+    }
+    if (!statSync(file).isFile()) return `${summary}; non-file reference`;
+    // Snapshot content at collection, so publication neither rereads mutable
+    // evidence nor mistakes a revision change for a changed observation.
+    return `${summary}; sha256=${createHash("sha256").update(readFileSync(file)).digest("hex")}`;
+  } catch (error) {
+    if (error instanceof Error && "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR" || error.code === "EACCES" || error.code === "EPERM")) {
+      return `${summary}; content unavailable (${error.code})`;
+    }
+    throw error;
+  }
+}
+
 export function listCanonicalProgressState(args: {
   source: ProgressReviewDirectorySource;
   semanticInput: ProgressReviewSemanticInput;
@@ -53,7 +79,15 @@ export function listCanonicalProgressState(args: {
     (run) => run.state === "needs_attention",
   );
   const sandboxRuns = operational.runs.filter((run) => run.sandbox !== null);
+  const window = args.semanticInput.evidenceWindow;
   return [
+    ...(window ? [stateRef({
+      source: args.source, id: "systemic-window", path: "progress-review-evidence.json",
+      summary: `Pinned comparison ${window.startedAt}..${window.endedAt}, Git ${window.fromHead}..${window.toHead}. ` +
+        `Historical baseline: ${summarizeSystemicRuns(window.baseline)}. New or revised outcomes: ${summarizeSystemicRuns(window.current)}. ` +
+        "Repeated run ids are outcome revisions, not independent samples. " +
+        `Excluded: ${window.excluded.join("; ") || "none"}. Delivery unavailable is not integration success.`,
+    })] : []),
     stateRef({
       source: args.source,
       id: "queue",
@@ -90,14 +124,13 @@ export function listCanonicalProgressState(args: {
       path: ".kota/owner-decisions/",
       summary: `Owner decisions ${ownerDecisionCounts(args.source.stateDir, args.source.scopeId)}`,
     }),
-    ...args.semanticInput.evidenceRefs.map((path, index) =>
+    ...[...new Set(args.semanticInput.evidenceRefs)].sort().map((path) =>
       stateRef({
         source: args.source,
-        id: `semantic-input:${index}`,
+        id: `semantic-input:${path}`,
         path,
-        summary:
-          `Semantic boundary ${args.semanticInput.boundary} revision ` +
-          `${args.semanticInput.inputRevision ?? "explicit"} cites ${path}`,
+        // Admission revisions belong to the packet, not the cited observation.
+        summary: semanticEvidenceSummary(args.source, path),
       })
     ),
   ];

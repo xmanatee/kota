@@ -61,7 +61,9 @@ function hasSeenSignature(
   inputs: ScopeImprovementInputs,
   signature: string,
 ): boolean {
-  return inputs.state.recentSignatures.some((entry) => entry.signature === signature);
+  return inputs.state.recentSignatures.some((entry) => entry.signature === signature &&
+    (inputs.handoff?.topicKey !== signature ||
+      entry.handoffFingerprint === inputs.handoff.evidenceFingerprint));
 }
 
 function ownerQuestion(

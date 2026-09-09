@@ -10,7 +10,15 @@ import {
   WorkflowScenarioDriver,
   type WorkflowScenarioOptions,
 } from "#core/workflow/testing/testing-api.js";
+import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
+import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
+import { listFullRepoTasks, moveTaskById } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
+import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
+import { progressReviewTaskProposal } from "../progress-reviewer/progress-review/action-writers.js";
+import type { ProgressReviewAgentOutput } from "../progress-reviewer/progress-review.js";
+import { decodeProgressReviewConsumptionState, emptyProgressReviewConsumptionState, PROGRESS_REVIEW_STATE_KEY } from "../progress-reviewer/semantic-input-state.js";
+import { publishProgressReview } from "../progress-reviewer/semantic-publication.js";
 import {
   computeResourceFingerprint,
   renderRetryMarker,
@@ -187,6 +195,74 @@ describe("dispatcher workflow", () => {
     } finally {
       rmSync(directoryRoot, { recursive: true, force: true });
     }
+  });
+
+  it.each([
+    { owner: "scope-improver" as const, taskState: "open" as const },
+    { owner: "architecture-gardener" as const, taskState: "blocked" as const },
+  ])("delivers deferred $owner evidence on idle after a $taskState intervention completes without another review", async ({ owner, taskState }) => {
+    const handoff = {
+      owner, topicKey: "improvement:guidance", targetScope: "AGENTS.md",
+      reason: "Counterevidence challenges the intervention", evidenceIds: ["state:feedback"],
+    };
+    const review: ProgressReviewAgentOutput = {
+      verdict: "needs-steering", summary: handoff.reason,
+      findings: { localScope: { claims: [], followUpTasks: [] }, crossScope: { claims: [], followUpTasks: [] } },
+      ownerQuestions: [], handoffs: [handoff],
+    };
+    stageGeneratedWorkProposal({ workspaceRoot, proposal: progressReviewTaskProposal({
+      runId: "original-decision", review, task: {
+        topicKey: handoff.topicKey, title: "Correct guidance", priority: "p1",
+        problem: "Repeated operator corrections", howWeWillKnow: "Guidance matches intended behavior",
+        evidenceIds: handoff.evidenceIds,
+      },
+    }) });
+    const taskId = listFullRepoTasks(workspaceRoot)[0]!.id;
+    if (taskState === "blocked") moveTaskById(workspaceRoot, taskId, "blocked");
+    const runDir = join(workspaceRoot, ".kota", "runs", "counterevidence");
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, "progress-review.json"), JSON.stringify({
+      generatedAt: "2026-09-07T12:00:00.000Z", review,
+      evidence: {
+        semanticInput: { automatic: true, inputRevision: 1 },
+        evidence: [{ id: "state:feedback", kind: "state", summary: handoff.reason, path: "feedback.md" }],
+      },
+    }));
+    const pending = publishProgressReview({
+      scopeRoot: workspaceRoot, sourceRunId: "counterevidence",
+      currentState: emptyProgressReviewConsumptionState(workspaceRoot),
+    });
+    expect(pending.handoffs).toEqual([]);
+    const accepted = pending.nextState.proposalObservations[0]!.pendingHandoff!;
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, 0, pending.nextState);
+    const idle = () => runDispatcherScenario({
+      trigger: { event: "runtime.idle", schemaRef: null, payload: {} }, ports: { state },
+    });
+    const before = await idle();
+    expect(before.status, before.error).toBe("success");
+    expect(before.emitted.some((entry) => entry.event === improvementHandoffRequested.name)).toBe(false);
+    expect(listFullRepoTasks(workspaceRoot)[0]!.state).toBe(taskState);
+    if (taskState === "blocked") moveTaskById(workspaceRoot, taskId, "open");
+    moveTaskById(workspaceRoot, taskId, "done");
+    // Each scenario reopens the persisted database; no new review publication
+    // or agent evidence is supplied after the task completes.
+    const completed = await idle();
+    expect(completed.status, completed.error).toBe("success");
+    expect(completed.emitted.filter((entry) => entry.event === improvementHandoffRequested.name)).toMatchObject([{
+      payload: { owner, topicKey: handoff.topicKey, evidenceRefs: accepted.evidenceRefs,
+        evidenceFingerprint: accepted.evidenceFingerprint,
+        idempotencyKey: `improvement-handoff:${accepted.evidenceFingerprint}` },
+    }]);
+    expect(completed.emitted.some((entry) => entry.event === automaticProgressReviewRequested.name)).toBe(false);
+    const receipt = decodeProgressReviewConsumptionState(state.read(PROGRESS_REVIEW_STATE_KEY).value, workspaceRoot);
+    expect(receipt.lastConsumedRevision).toBe(1);
+    expect(receipt.proposalObservations[0]!.pendingHandoff).toBeUndefined();
+    expect(receipt.proposalObservations[0]!.handoffFingerprint).toBe(accepted.evidenceFingerprint);
+    const repeated = await idle();
+    expect(repeated.status, repeated.error).toBe("success");
+    expect(repeated.emitted.some((entry) => entry.event === improvementHandoffRequested.name)).toBe(false);
+    expect(listFullRepoTasks(workspaceRoot).map(({ id, state }) => ({ id, state }))).toEqual([{ id: taskId, state: "done" }]);
   });
 
   it("emits one targeted autonomy.queue.available event per open task", async () => {

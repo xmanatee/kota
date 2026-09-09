@@ -43,7 +43,7 @@ describe("scope-improver semantic boundaries", () => {
     return workspaceRoot;
   }
 
-  it("registers only explicit semantic requests", () => {
+  it("registers semantic requests and owner-specific systemic handoffs", () => {
     const registered = validateWorkflowDefinitions([
       registerWorkflowDefinition(
         "src/modules/autonomy/workflows/scope-improver/workflow.ts",
@@ -62,6 +62,7 @@ describe("scope-improver semantic boundaries", () => {
         queueMode: "latest",
         cooldownMs: 0,
       }),
+      expect.objectContaining({ event: "autonomy.improvement.handoff-requested", filter: { owner: "scope-improver" }, queueMode: "all" }),
     ]);
     expect(registered.triggers.some((trigger) => trigger.schedule || trigger.batch))
       .toBe(false);

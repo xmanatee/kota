@@ -1,10 +1,11 @@
-import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
+import { normalizeGeneratedWorkProposalKey, stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import type { GardenerDecision } from "./decision.js";
 
 export function stageGardenerTask(args: {
+  topicKey?: string;
   workspaceRoot: string;
   runId: string;
   decision: GardenerDecision;
@@ -18,7 +19,9 @@ export function stageGardenerTask(args: {
   }
   const proposal = decision.proposal;
   if (!proposal) return { taskId: null, proposalKey: null, touchedTaskQueue: false };
-  const proposalKey = `architecture-gardener:${proposal.mechanismKey}`;
+  const proposalKey = args.topicKey
+    ? normalizeGeneratedWorkProposalKey(args.topicKey)
+    : `architecture-gardener:${proposal.mechanismKey}`;
   const existing = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
   if (existing) {
     // Existing builders (including retained writers) keep their task contracts.

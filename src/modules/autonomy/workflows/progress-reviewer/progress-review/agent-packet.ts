@@ -154,6 +154,10 @@ function agentArtifactEvidencePriority(evidence: ProgressReviewEvidenceRef): num
 }
 
 function agentEvidencePriority(evidence: ProgressReviewEvidenceRef): number {
+  // The comparison is the default assessment input, even when raw semantic
+  // references fill the state bucket. Keep its scoped citation and summary.
+  if (evidence.kind === "state" &&
+    (evidence.id === "state:systemic-window" || evidence.id.endsWith(":state:systemic-window"))) return -1;
   if (evidence.kind === "git" && evidence.id.includes(":file:")) return 1;
   if (evidence.kind === "artifact") return agentArtifactEvidencePriority(evidence);
   return 0;
@@ -228,8 +232,13 @@ export function compactProgressReviewEvidenceForAgent(
   return {
     generatedAt: packet.generatedAt,
     semanticInput: {
-      ...packet.semanticInput,
-      evidenceRefs: [...packet.semanticInput.evidenceRefs],
+      automatic: packet.semanticInput.automatic,
+      boundary: packet.semanticInput.boundary,
+      inputRevision: packet.semanticInput.inputRevision,
+      reason: packet.semanticInput.reason,
+      evidenceRefs: packet.semanticInput.evidenceWindow
+        ? [PROGRESS_REVIEW_EVIDENCE_ARTIFACT]
+        : [...packet.semanticInput.evidenceRefs],
     },
     triggerKind: packet.triggerKind,
     triggerEvent: packet.triggerEvent,

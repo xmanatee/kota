@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { inspectScopeSemanticBoundary } from "../dispatcher/semantic-scope-reflection.js";
 import onboardingWorkflow from "../scope-improvement-onboarding/workflow.js";
 import {
   decodeScopeImprovementState,
@@ -78,4 +79,16 @@ describe("scope improvement onboarding workflow", () => {
       pendingDeliveryAttempt: 0,
     });
   });
+  it("reconciles an eligible existing scope through the onboarding owner without a lifecycle event", () => {
+    const workspaceRoot = makeScopeFixture("existing-initialization");
+    scopeRoots.push(workspaceRoot);
+    const scopeId = deriveDirectoryScopeId(workspaceRoot);
+    const state = decodeScopeImprovementState(null, scopeId);
+    const args = { workspaceRoot, scopeRoot: workspaceRoot, scopeId, stateDir: join(workspaceRoot, ".kota"), scopePolicySnapshot: scopePolicySnapshotForTest(workspaceRoot), state };
+    const first = inspectScopeSemanticBoundary(args);
+    expect(first).toMatchObject({ shouldEmit: true, payload: { boundary: "initial-onboarding", requestedBy: "scope-improvement-onboarding" } });
+    const restored = JSON.parse(JSON.stringify(first.nextState));
+    expect(inspectScopeSemanticBoundary({ ...args, state: restored }).shouldEmit).toBe(false);
+  });
+
 });

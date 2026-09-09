@@ -38,8 +38,8 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
   repository: "write",
   integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
-    "Review revisioned strategic boundaries against canonical scope state and reconcile normal steering work.",
-  tags: ["progress-reviewer"],
+    "Review coalesced cross-run outcomes and follow systemic interventions through integration and later evidence.",
+  tags: ["systemic-observer", "progress-reviewer"],
   // Capable-tier presets may resolve to a native CLI harness. The reviewer is
   // bounded by its projected AgentDef writeScope plus the post-step mutation
   // check.

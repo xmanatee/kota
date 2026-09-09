@@ -11,6 +11,7 @@ import { listArtifactEvidence } from "./artifact-evidence.js";
 import { listCanonicalProgressState } from "./canonical-state-evidence.js";
 import { listBatchEvents } from "./event-evidence.js";
 import type { ProgressReviewGitEvidenceByScope } from "./git-evidence.js";
+import { listInterventionEvidence } from "./intervention-evidence.js";
 import {
   listDeadLetterCounts,
   listScopedApprovalEvidence,
@@ -26,7 +27,7 @@ import {
   batchSummary,
   classifyProgressReviewTrigger,
   directoryScopeForSource,
-  readWindowMs,
+  progressEvidenceWindow,
   requestPayload,
   selectEvidenceTarget,
 } from "./trigger-target.js";
@@ -93,11 +94,11 @@ function collectProgressReviewEvidenceForSource(args: {
   const approvals = listScopedApprovalEvidence([args.source], args.windowStartMs, excluded);
   const deadLetterCounts = listDeadLetterCounts([args.source]);
   const deadLetters = listScopedDeadLetterEvidence([args.source], excluded);
-  const canonicalState = listCanonicalProgressState({
+  const canonicalState = [...listCanonicalProgressState({
     source: args.source,
     semanticInput: args.semanticInput,
     autonomyIssueProjection: args.autonomyIssueProjection,
-  });
+  }), ...listInterventionEvidence(args.source, scopedRuns, excluded)];
   const allTasks = [
     ...tasks,
     ...listDeadLetterReferencedTasks(args.source, deadLetters, tasks, excluded),
@@ -161,10 +162,9 @@ export function collectProgressReviewEvidence(args: {
   };
   const autonomyIssueProjection =
     args.autonomyIssueProjection ?? emptyAutonomyIssueProjection();
-  const windowMs = readWindowMs(payload);
-  const endedAt = args.now.toISOString();
-  const startedAtMs = args.now.getTime() - windowMs;
-  const startedAt = new Date(startedAtMs).toISOString();
+  const window = progressEvidenceWindow(payload, args.now);
+  const endedAt = window.endedAt;
+  const startedAtMs = Date.parse(window.startedAt);
   const stateDir = args.stateDir;
   const target = selectEvidenceTarget(
     args.workspaceRoot,
@@ -172,11 +172,6 @@ export function collectProgressReviewEvidence(args: {
     args.trigger,
     stateDir,
   );
-  const window = {
-    startedAt,
-    endedAt,
-    maxAgeMs: windowMs,
-  };
   const scopes = target.sources.map((source) =>
     collectProgressReviewEvidenceForSource({
       source,
@@ -225,6 +220,7 @@ export function collectProgressReviewEvidence(args: {
   return {
     generatedAt: endedAt,
     semanticInput: {
+      ...(semanticInput.evidenceWindow ? { evidenceWindow: semanticInput.evidenceWindow } : {}),
       automatic: semanticInput.automatic,
       boundary: semanticInput.boundary,
       inputRevision: semanticInput.inputRevision,

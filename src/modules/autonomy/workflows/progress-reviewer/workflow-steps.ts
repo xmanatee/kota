@@ -36,14 +36,17 @@ import {
   writeProgressReviewArtifact,
 } from "./progress-review.js";
 import {
+  completeProgressReviewSemanticInput,
+  decodeProgressReviewConsumptionState,
   inspectProgressReviewSemanticInput,
+  PROGRESS_REVIEW_STATE_KEY,
   type ProgressReviewSemanticInput,
 } from "./semantic-input.js";
 
 export const REVIEW_AGENT_TIMEOUT_MS = 30 * 60 * 1000;
 export const agent: AgentDef = {
   name: "progress-reviewer",
-  role: "Assess a semantic strategic boundary against canonical scoped state and return structured steering recommendations.",
+  role: "Assess cross-run operational and product outcomes, challenge systemic hypotheses, and follow integrated interventions.",
   promptPath: "src/modules/autonomy/workflows/progress-reviewer/prompt.md",
   ...AUTONOMY_AGENT_DEFAULTS,
   writeScope: "deny-all",
@@ -161,6 +164,19 @@ export const recordReviewRejection = typedCodeStep<ProgressReviewRejection>({
     // A damaged runtime packet is an integrity failure, not a rejected review.
     readProgressReviewEvidencePacket(ctx);
     prepareReviewInput.outputRequired(ctx);
+    // Rejection consumes only this pinned input, never its proposed actions.
+    // Stage the watermark with the run outcome so dispatcher can compare later
+    // evidence after restart without replaying this exhausted correction.
+    const snapshot = ctx.state.read(PROGRESS_REVIEW_STATE_KEY);
+    const current = decodeProgressReviewConsumptionState(snapshot.value, ctx.scopeRoot);
+    const next = completeProgressReviewSemanticInput({
+      current,
+      input: inspectSemanticInput.outputRequired(ctx),
+      consumedAt: new Date().toISOString(),
+    });
+    if (next !== current) {
+      ctx.state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, snapshot.revision, next);
+    }
     return {
       kind: "output-validation-exhausted",
       reason: review.error,

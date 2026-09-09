@@ -1,5 +1,12 @@
+import { z } from "zod";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { improvementHandoffObservationSchema } from "#modules/autonomy/improvement-handoff.js";
 import type { ProgressReviewRequest } from "./events.js";
+
+const pendingHandoffSchema = improvementHandoffObservationSchema.extend({
+  evidenceRefs: z.array(z.string().min(1)).min(1),
+});
+export type PendingProgressReviewHandoff = z.infer<typeof pendingHandoffSchema>;
 
 export const PROGRESS_REVIEW_STATE_KEY =
   "autonomy/progress-review/semantic-input";
@@ -15,7 +22,12 @@ export type ProgressReviewConsumptionState = {
   lastConsumedRevision: number;
   consumedAt: string | null;
   consumedExplicitRunIds: string[];
-  proposalObservations: Array<{ proposalKey: string; generatedAt: string }>;
+  proposalObservations: Array<{
+    proposalKey: string;
+    generatedAt: string;
+    handoffFingerprint?: string;
+    pendingHandoff?: PendingProgressReviewHandoff;
+  }>;
 };
 
 export function progressReviewDispatchKey(
@@ -66,7 +78,11 @@ export function decodeProgressReviewConsumptionState(
     !Array.isArray(proposalObservations) ||
     proposalObservations.some((entry) => !entry ||
       typeof entry.proposalKey !== "string" || entry.proposalKey.length === 0 ||
-      typeof entry.generatedAt !== "string" || !Number.isFinite(Date.parse(entry.generatedAt)))
+      typeof entry.generatedAt !== "string" || !Number.isFinite(Date.parse(entry.generatedAt)) ||
+      (entry.handoffFingerprint !== undefined && !/^[a-f0-9]{64}$/.test(entry.handoffFingerprint)) ||
+      (entry.pendingHandoff !== undefined &&
+        (!pendingHandoffSchema.safeParse(entry.pendingHandoff).success ||
+          entry.pendingHandoff.topicKey !== entry.proposalKey)))
   ) {
     throw new Error("progress review semantic state is invalid");
   }
@@ -76,7 +92,7 @@ export function decodeProgressReviewConsumptionState(
 export function isProgressBoundary(
   value: string | undefined,
 ): value is ProgressReviewBoundary {
-  return value === "parked-queue" ||
+  return value === "evidence-window" || value === "parked-queue" ||
     value === "strategic-completion" ||
     value === "task-disposition" ||
     value === "owner-decision-resolution";
