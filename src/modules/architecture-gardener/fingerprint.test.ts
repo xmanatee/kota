@@ -3,10 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   combineFingerprints,
   computeFingerprint,
-  isMaterialDelta,
   stableJsonStringify,
 } from "./fingerprint.js";
-import type { ArchitectureSignal } from "./types.js";
 
 describe("Architecture Gardener Fingerprint & Delta Checks", () => {
   it("stableJsonStringify produces identical strings regardless of key order", () => {
@@ -22,34 +20,4 @@ describe("Architecture Gardener Fingerprint & Delta Checks", () => {
     expect(combineFingerprints(fps1)).toBe(combineFingerprints(fps2));
   });
 
-  it("isMaterialDelta identifies new signals not in stored fingerprints", () => {
-    const knownFp = "known-fp-1";
-    const newFp = "new-fp-2";
-    const stored = { [knownFp]: { firstSeenAt: "now", lastSeenAt: "now", targetScope: "mod", observationKind: "forbidden-core-to-module-dependency" as const } };
-    const unchangedSignals: ArchitectureSignal[] = [
-      {
-        id: "s1",
-        kind: "structural-violation",
-        category: "dependency-boundary",
-        targetScope: "mod",
-        summary: "s1",
-        fingerprint: knownFp,
-        evidence: {},
-      },
-    ];
-    const changedSignals: ArchitectureSignal[] = [
-      ...unchangedSignals,
-      {
-        id: "s2",
-        kind: "structural-violation",
-        category: "dependency-boundary",
-        targetScope: "mod",
-        summary: "s2",
-        fingerprint: newFp,
-        evidence: {},
-      },
-    ];
-    expect(isMaterialDelta(unchangedSignals, stored)).toBe(false);
-    expect(isMaterialDelta(changedSignals, stored)).toBe(true);
-  });
 });

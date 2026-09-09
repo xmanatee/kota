@@ -11,6 +11,7 @@ import {
   detectUndeclaredCrossModuleImports,
   extractAstImports,
 } from "./ast-provider.js";
+import { observationsForTarget } from "./observations.js";
 
 describe("AST Architecture Provider", () => {
   let testDir: string;
@@ -178,6 +179,20 @@ describe("AST Architecture Provider", () => {
   });
 
   describe("collectAstArchitectureObservations", () => {
+    it("includes every owning module of cycles and duplicate contributions in scoped evidence", () => {
+      for (const [name, dependency] of [["alpha", "beta"], ["beta", "alpha"], ["unrelated", ""]]) {
+        const directory = join(testDir, "src/modules", name!);
+        mkdirSync(directory, { recursive: true });
+        writeFileSync(join(directory, "index.ts"), `export default { dependencies: [${JSON.stringify(dependency)}], events: [${dependency ? "sharedEvent" : ""}] };`);
+      }
+      const observations = collectAstArchitectureObservations(testDir);
+      for (const target of ["src/modules/alpha", "module:beta", "src/modules/beta/index.ts"]) {
+        expect(observationsForTarget(observations, target).map((observation) => observation.kind).sort())
+          .toEqual(["duplicate-canonical-ownership", "module-dependency-cycle"]);
+      }
+      expect(observationsForTarget(observations, "src/modules/unrelated")).toEqual([]);
+    });
+
     it("collects typed observations with stable fingerprints", () => {
       const modDir = join(testDir, "src", "modules", "test-mod");
       mkdirSync(modDir, { recursive: true });

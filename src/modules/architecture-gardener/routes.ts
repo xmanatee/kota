@@ -1,66 +1,49 @@
 import { join } from "node:path";
-import type {
-  ControlRouteRegistration,
-  ModuleContext,
-} from "#core/modules/module-types.js";
+import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
+import { createDirectoryScopeSelector } from "#core/daemon/scope-selection.js";
+import type { ControlRouteRegistration, ModuleContext } from "#core/modules/module-types.js";
+import { readSelectedScopeSelectorIdQueryOrErrorResponse } from "#core/server/scope-selector-request.js";
 import { jsonResponse, readBody } from "#core/server/session-pool.js";
+import { RUN_STATE_READER_PROVIDER_TYPE } from "#core/workflow/run-state-reader-provider.js";
+import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
 import { collectAstArchitectureObservations } from "./ast-provider.js";
+import { architectureReviewRequested } from "./events.js";
+import { reviewRequestSchema } from "./request.js";
 import { buildArchitectureGardenerStatus } from "./status.js";
-import { ARCHITECTURE_REVIEW_REQUESTED_EVENT } from "./workflow.js";
 
-export function buildGardenerControlRoutes(
-  ctx: ModuleContext,
-): ControlRouteRegistration[] {
-  return [
-    {
-      method: "GET",
-      path: "/api/architecture/status",
-      capabilityScope: "read",
-      handler: async (_req, res) => {
-        const repoRoot = ctx.cwd;
-        const stateDir = join(ctx.cwd, ".kota");
-        const observations = collectAstArchitectureObservations(repoRoot);
-        const status = buildArchitectureGardenerStatus({
-          repoRoot,
-          stateDir,
-          currentObservations: observations,
-        });
-        jsonResponse(res, 200, status);
-      },
+export function buildGardenerControlRoutes(ctx: Pick<ModuleContext, "cwd" | "getProvider" | "events">): ControlRouteRegistration[] {
+  const selectScope = createDirectoryScopeSelector({ defaultScopeRoot: ctx.cwd,
+    getDaemonScopeProvider: () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE) });
+  const readRoutes: ControlRouteRegistration[] = ["status", "observations"].map((view) => ({
+    method: "GET", path: `/api/architecture/${view}`, capabilityScope: "read",
+    handler: async (req, res) => {
+      const selected = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
+      if (selected === null) return;
+      const resolved = selectScope(selected);
+      if (!resolved.ok) { jsonResponse(res, 404, resolved.error); return; }
+      const repoRoot = resolved.scope.scopeRoot;
+      const observations = collectAstArchitectureObservations(repoRoot);
+      jsonResponse(res, 200, view === "observations" ? { observations } : buildArchitectureGardenerStatus({
+        repoRoot, stateDir: join(ctx.cwd, ".kota"), currentObservations: observations,
+        reader: ctx.getProvider(RUN_STATE_READER_PROVIDER_TYPE) ?? undefined,
+      }));
     },
-    {
-      method: "GET",
-      path: "/api/architecture/observations",
-      capabilityScope: "read",
-      handler: async (_req, res) => {
-        const repoRoot = ctx.cwd;
-        const observations = collectAstArchitectureObservations(repoRoot);
-        jsonResponse(res, 200, { observations });
-      },
+  }));
+  return [...readRoutes, {
+    method: "POST", path: "/api/architecture/review", capabilityScope: "control",
+    handler: async (req, res) => {
+      const selected = readSelectedScopeSelectorIdQueryOrErrorResponse(req, res);
+      if (selected === null) return;
+      const parsed = reviewRequestSchema.safeParse(await readBody(req));
+      if (!parsed.success) { jsonResponse(res, 400, { error: parsed.error.message }); return; }
+      const resolved = selectScope(selected);
+      if (!resolved.ok) { jsonResponse(res, 404, resolved.error); return; }
+      if (!ctx.getProvider(WORKFLOW_DISPATCHER_PROVIDER_TYPE)) {
+        jsonResponse(res, 503, { ok: false, reason: "daemon_required" });
+        return;
+      }
+      ctx.events.emit(architectureReviewRequested, { ...parsed.data, scopeId: resolved.scope.scopeId });
+      jsonResponse(res, 202, { ok: true, scopeId: resolved.scope.scopeId, targetScope: parsed.data.targetScope, message: "Architecture investigation requested." });
     },
-    {
-      method: "POST",
-      path: "/api/architecture/review",
-      capabilityScope: "control",
-      handler: async (req, res) => {
-        const body = (await readBody(req)) as { targetScope?: string; reason?: string };
-        const targetScope = body?.targetScope ?? "repo";
-        const reason = body?.reason ?? "Operator requested review";
-
-        // Emit typed review requested event to trigger workflow
-        ctx.events.emitExternal(ARCHITECTURE_REVIEW_REQUESTED_EVENT, {
-          targetScope,
-          reason,
-          requestedAt: new Date().toISOString(),
-        });
-
-        jsonResponse(res, 202, {
-          ok: true,
-          message: `Architecture review requested for "${targetScope}".`,
-          targetScope,
-          reason,
-        });
-      },
-    },
-  ];
+  }];
 }

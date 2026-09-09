@@ -1,41 +1,37 @@
 # Architecture Gardener
 
-Owns KOTA's continuous architectural simplification, architectural fitness
-functions, AST-backed dependency and ownership observations, and generated
-simplification work.
+Owns evidence-led investigation of shared mechanisms and architectural delivery
+friction. Static observations guide a read-only agent; generated tasks route
+implementation to builders through the existing publication transaction.
 
-- Collect typed, deterministic architecture observations backed by TypeScript
-  AST analysis rather than regular-expression source scans.
-- Initial AST observations cover:
-  - forbidden core-to-module dependencies
-  - undeclared runtime cross-module imports
-  - module dependency cycles
-  - duplicate canonical ownership (tools, workflows, routes, commands, events)
-- Suppress unchanged evidence through stable SHA-256 fingerprints,
-  material-delta checks, and cooldowns.
-- Admit semantic review only for an explicit owner request or convergent,
-  materially changed signals (>= 2 independent eligible signals). A single
-  file-size, churn, clone, or advisory metric must never create work by itself.
-- Express each admitted opportunity as a falsifiable `SimplificationHypothesis`
-  with a concrete behavior-preservation claim and a named structural
-  improvement dimension.
-- Apply Standards' engineering rules to admitted opportunities. Clone and
-  unused-code diagnostics are advisory: inspect callers and dynamic registration,
-  generated entrypoints, and externally consumed exports before judging removal.
-- Pareto comparator enforces:
-  - improvement on the named structural dimension
-  - preservation of declared behavior
-  - zero regression on protected architectural invariants
-  - retirement or bounding of the old path without permanent dual ownership
-- Route implementation tasks through the shared `stageGeneratedWorkProposal`
-  transaction. Create at most one normal implementation task per run.
-- Permit automatic codemods only for narrow, idempotent TypeScript AST
-  transformations whose pattern has already succeeded repeatedly under normal
-  review and verification.
-- Store durable observation state as a revisioned run-state projection in
-  `RunStateDatabase`; retain detailed evidence in run artifacts. Do not create
-  parallel JSON authority.
-- Expose operator-readable status explaining evidence, disposition, and
-  suppression through CLI, control routes, and UI contribution surfaces.
-- Preserve `improver` as the owner of autonomy failures; architecture
-  gardener is a distinct domain.
+- Keep AST dependency, ownership and cycle observations factual. Clone sites and
+  apparent unused symbols require caller and dynamic-entrypoint investigation;
+  diagnostic counts never create tasks, impose quotas or veto a change.
+- Automatic observations run after builder delivery and durable issue changes.
+  Admit the agent only for changed structural plus delivery-friction evidence,
+  an explicit scoped request, or a linked implementation's terminal evidence.
+  Unchanged cohorts suppress review across request surfaces and restart. Shared
+  runtime resources and transactional state own serialization and publication.
+  Scoped cohorts resolve module names and repository paths against all affected
+  source locations or owners, including every participant in shared observations.
+- Investigate common behavior in maintained consumers before extracting a
+  platform mechanism. Keep domain differences at a stable variation point and
+  prefer an existing canonical owner over a speculative universal SDK.
+- Decisions distinguish observed facts, proposed changes and unverified
+  expectations. No numeric preference score or inferred preservation verdict
+  establishes an improvement. Permit justified no action and false positives.
+- Apply Standards to preservation evidence at authoritative consumer boundaries.
+  Retain distinct public-behavior and security checks while retiring proofs made
+  redundant by the replacement.
+- Reuse active task ownership, including blocked and retained builders. Never
+  mutate an existing task to recycle a suggestion. Follow linked completed tasks
+  through migrated callers, retired paths, proportionate proof and the actual
+  simpler result; tasks and run artifacts remain the evidence record.
+- The investigator inherits the active preset and has deny-all repository write
+  scope. Only deterministic task materialization writes in the runtime sandbox.
+  No second planner/critic pass is added to ordinary builder runs.
+- CLI/API requests use normal daemon workflow dispatch with canonical scope
+  identity. Read surfaces select the requested scope; never silently read a
+  different directory or manufacture success when the daemon is unavailable.
+- `improver` retains ownership of autonomy failures. Gardener may correlate their
+  durable evidence with architectural observations without taking over issues.

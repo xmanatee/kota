@@ -1,104 +1,50 @@
-import {
-  type StagedGeneratedWorkProposalResult,
-  stageGeneratedWorkProposal,
-} from "#modules/autonomy/generated-work-proposal.js";
-import type { GeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal-types.js";
+import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
+import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
-import type { ParetoEvaluation, SimplificationHypothesis } from "./types.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import type { GardenerDecision } from "./decision.js";
 
-/** Slugify target scope for stable proposal keys. */
-export function slugifyScope(scope: string): string {
-  return scope
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
-
-/** Render a standardized task markdown body for an accepted SimplificationHypothesis. */
-export function renderGardenerTaskBody(args: {
-  hypothesis: SimplificationHypothesis;
-  pareto: ParetoEvaluation;
-}): string {
-  const { hypothesis } = args;
-  const dim = hypothesis.structuralImprovement.dimension;
-
-  const candidateActionList = hypothesis.candidateActions
-    .map(
-      (action) =>
-        `- **${action.type}** on \`${action.target}\`${
-          action.details ? `: ${action.details}` : ""
-        }`,
-    )
-    .join("\n");
-
-  const problem = `${hypothesis.problem}\n\nEvidence fingerprints: ${hypothesis.evidenceFingerprints.join(", ")}`;
-
-  const desiredOutcome = [
-    `Implement the "${dim}" architectural improvement for \`${hypothesis.targetScope}\`: ${hypothesis.structuralImprovement.description}.`,
-    "",
-    "Planned candidate actions:",
-    candidateActionList || "- Implement targeted structural simplification.",
-    "",
-    `**Behavior Preservation Claim:** ${hypothesis.behaviorPreservationClaim}`,
-    "",
-    "Ensure the retired or obsolete path is completely removed or bounded without leaving permanent dual ownership.",
-  ].join("\n");
-
-  const constraints = [
-    "- Preserve existing public interfaces and behaviors unless explicitly part of the simplification.",
-    "- Do not add compatibility shims, aliases, or dual implementations.",
-    "- Select proportionate proof under Standards; retain distinct public-behavior and security checks while retiring redundant proofs.",
-  ].join("\n");
-
-  const howWeWillKnow = [
-    `- The named structural improvement for \`${hypothesis.targetScope}\` is verifiable in code and AST inspection.`,
-    "- Architectural fitness functions report zero forbidden dependencies, zero undeclared imports, zero module cycles, and zero duplicate canonical ownership.",
-    "- Selected validation distinguishes regressions in the affected consumers and substantiates the behavior-preservation claim.",
-  ].join("\n");
-
-  return renderRepoTaskIntent({
-    problem,
-    desiredOutcome,
-    constraints,
-    howWeWillKnow,
-  });
-}
-
-/**
- * Stage an implementation task for an accepted hypothesis through the shared generated-work transaction.
- * Creates at most one task per hypothesis/run.
- */
 export function stageGardenerTask(args: {
   workspaceRoot: string;
   runId: string;
-  hypothesis: SimplificationHypothesis;
-  pareto: ParetoEvaluation;
-}): StagedGeneratedWorkProposalResult {
-  const scopeSlug = slugifyScope(args.hypothesis.targetScope);
-  const dim = args.hypothesis.structuralImprovement.dimension;
-  const proposalKey = `architecture-gardener:${scopeSlug}:${dim}`;
-
-  const title = `Simplify architecture: ${args.hypothesis.structuralImprovement.description}`;
-  const body = renderGardenerTaskBody({
-    hypothesis: args.hypothesis,
-    pareto: args.pareto,
+  decision: GardenerDecision;
+}): { taskId: string | null; proposalKey: string | null; touchedTaskQueue: boolean } {
+  const { decision } = args;
+  if (decision.action === "covered") {
+    if (!listFullRepoTasks(args.workspaceRoot).some((t) => t.id === decision.existingTaskId)) {
+      throw new Error(`Gardener cited a missing task: ${decision.existingTaskId}`);
+    }
+    return { taskId: decision.existingTaskId, proposalKey: null, touchedTaskQueue: false };
+  }
+  const proposal = decision.proposal;
+  if (!proposal) return { taskId: null, proposalKey: null, touchedTaskQueue: false };
+  const proposalKey = `architecture-gardener:${proposal.mechanismKey}`;
+  const existing = findGeneratedWorkTask(args.workspaceRoot, proposalKey);
+  if (existing) {
+    // Existing builders (including retained writers) keep their task contracts.
+    // Completed work is inspected by the investigator, never blindly reopened.
+    return { taskId: existing.task.id, proposalKey, touchedTaskQueue: false };
+  }
+  const body = renderRepoTaskIntent({
+    problem: `${proposal.problem}\n\nInvestigation: ${decision.rationale}\n\nEvidence:\n${decision.evidenceRefs.map((ref) => `- ${ref}`).join("\n")}`,
+    desiredOutcome: [
+      `${proposal.expectedOutcome}\n\nThis is an unverified expectation, not a measured improvement.`,
+      `Maintained consumers:\n${proposal.consumers.map((c) => `- ${c}`).join("\n")}`,
+      `Alternatives considered:\n${proposal.alternatives.map((a) => `- ${a}`).join("\n")}`,
+      `Migration and retirement: ${proposal.migrationAndRetirement}`,
+      ...(proposal.abstraction ? [
+        `Common behavior: ${proposal.abstraction.commonBehavior}\nStable variation point: ${proposal.abstraction.variationPoint}\nCanonical owner: ${proposal.abstraction.canonicalOwner}`,
+      ] : []),
+    ].join("\n\n"),
+    constraints: "Preserve domain-specific behavior. Migrate real callers and retire replaced paths; avoid permanent dual ownership. Select proportionate proof under Standards at authoritative consumer boundaries; retain distinct public-behavior and security checks while retiring redundant proofs. File size, clone count and LOC are diagnostic, not acceptance gates.",
+    howWeWillKnow: `${proposal.preservationEvidenceNeeded}\n\n${proposal.simplificationEvidenceNeeded}\n\nRecord actual migrated callers, retired paths and the simpler result in this task's completion evidence. The gardener follows this task; expected benefits alone do not establish success.`,
   });
-
-  const proposal: GeneratedWorkProposal = {
-    kind: "task",
-    proposalKey,
-    title,
-    priority: "p1",
-    body,
-    provenance: {
-      source: "architecture-gardener",
-      runId: args.runId,
-      evidenceRefs: [...args.hypothesis.evidenceFingerprints],
-    },
-  };
-
-  return stageGeneratedWorkProposal({
+  const staged = stageGeneratedWorkProposal({
     workspaceRoot: args.workspaceRoot,
-    proposal,
+    proposal: {
+      kind: "task", proposalKey, title: proposal.title, priority: "p1", body,
+      provenance: { source: "architecture-gardener", runId: args.runId, evidenceRefs: decision.evidenceRefs },
+    },
   });
+  return { taskId: staged.taskId, proposalKey, touchedTaskQueue: staged.touchedTaskQueue };
 }

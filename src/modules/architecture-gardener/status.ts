@@ -1,7 +1,7 @@
+import type { RunStateReader } from "#core/workflow/run-state-reader-provider.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { readStoredGardenerState } from "./gardener-state.js";
 import type {
-  AdmissionEvaluation,
   ArchitectureGardenerRunState,
   ArchitectureGardenerStatus,
   ArchitectureObservation,
@@ -14,11 +14,11 @@ import type {
 export function buildArchitectureGardenerStatus(args: {
   repoRoot: string;
   stateDir: string;
+  reader?: RunStateReader;
   currentObservations?: readonly ArchitectureObservation[];
-  recentEvaluations?: readonly AdmissionEvaluation[];
   state?: ArchitectureGardenerRunState;
 }): ArchitectureGardenerStatus {
-  const state = args.state ?? readStoredGardenerState(args.repoRoot, args.stateDir);
+  const state = args.state ?? readStoredGardenerState(args.repoRoot, args.stateDir, args.reader);
   const observations = args.currentObservations ?? [];
 
   const observationsByKind: Record<string, number> = {};
@@ -26,81 +26,25 @@ export function buildArchitectureGardenerStatus(args: {
     observationsByKind[obs.kind] = (observationsByKind[obs.kind] ?? 0) + 1;
   }
 
-  const candidates: CandidateStatusItem[] = [];
-
-  // If recent evaluations provided, use them; otherwise use stored dispositions
-  if (args.recentEvaluations && args.recentEvaluations.length > 0) {
-    for (const ev of args.recentEvaluations) {
-      candidates.push({
-        targetScope: ev.targetScope,
-        signals: ev.signals.map((s) => ({ kind: s.kind, summary: s.summary })),
-        disposition: ev.disposition,
-        reason: ev.reason,
-      });
-    }
-  } else {
-    for (const [scope, rec] of Object.entries(state.dispositions)) {
-      candidates.push({
-        targetScope: scope,
-        signals: [],
-        disposition: rec.disposition,
-        reason: rec.reason,
-        activeTaskId: rec.taskId,
-      });
-    }
-  }
-
-  let acceptedCount = 0;
-  let rejectedCount = 0;
-  let deferredCount = 0;
-  let cooledDownCount = 0;
-  let suppressedCount = 0;
-  let deduplicatedCount = 0;
-
-  for (const c of candidates) {
-    switch (c.disposition) {
-      case "accepted":
-        acceptedCount += 1;
-        break;
-      case "rejected":
-        rejectedCount += 1;
-        break;
-      case "deferred":
-        deferredCount += 1;
-        break;
-      case "cooled_down":
-        cooledDownCount += 1;
-        break;
-      case "suppressed":
-        suppressedCount += 1;
-        break;
-      case "deduplicated":
-        deduplicatedCount += 1;
-        break;
-    }
-  }
-
-  // Find active gardener tasks in repository
   const repoTasks = listFullRepoTasks(args.repoRoot, ["open", "blocked"]);
-  const activeTasks = repoTasks
-    .filter((t) => t.id.startsWith("task-generated-") || t.body.includes("architecture-gardener"))
-    .map((t) => ({
-      taskId: t.id,
-      title: t.title,
-      targetScope: t.body.match(/`([^`]+)`/)?.[1] ?? "repo",
-    }));
+  const candidates: CandidateStatusItem[] = Object.values(state.dispositions).map((record) => ({
+    targetScope: record.targetScope,
+    signals: observations.filter((o) => record.targetScope === "repo" || o.targetScope === record.targetScope)
+      .map((o) => ({ kind: o.kind, summary: o.summary })),
+    disposition: record.disposition,
+    reason: record.reason,
+    ...(record.taskId && repoTasks.some((task) => task.id === record.taskId) ? { activeTaskId: record.taskId } : {}),
+  }));
+  const activeTasks = repoTasks.filter((task) => state.linkedTaskIds.includes(task.id)).map((task) => ({
+    taskId: task.id, title: task.title,
+    targetScope: candidates.find((candidate) => candidate.activeTaskId === task.id)?.targetScope ?? "repo",
+  }));
 
   return {
     summary: {
       totalObservations: observations.length,
       observationsByKind,
       totalCandidatesEvaluated: candidates.length,
-      acceptedCount,
-      rejectedCount,
-      deferredCount,
-      cooledDownCount,
-      suppressedCount,
-      deduplicatedCount,
     },
     candidates,
     activeTasks,
@@ -123,7 +67,7 @@ export function formatGardenerStatusTerminal(
   }
   lines.push("");
   lines.push(
-    `Candidates Evaluated: ${status.summary.totalCandidatesEvaluated} (${status.summary.acceptedCount} accepted, ${status.summary.suppressedCount} suppressed, ${status.summary.cooledDownCount} cooled down, ${status.summary.deduplicatedCount} deduplicated, ${status.summary.rejectedCount} rejected)`,
+    `Investigated targets: ${status.summary.totalCandidatesEvaluated}. Proposals are unverified expectations.`,
   );
   lines.push("");
 

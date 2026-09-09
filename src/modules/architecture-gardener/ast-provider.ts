@@ -49,7 +49,7 @@ export function collectTypeScriptFiles(
         continue;
       }
       results.push(...collectTypeScriptFiles(join(dir, entry.name), options));
-    } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
+    } else if (entry.isFile() && entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
       const isTest =
         entry.name.endsWith(".test.ts") || entry.name.endsWith(".integration.ts");
       if (!isTest || options.includeTests) {
@@ -485,6 +485,7 @@ export function collectAstArchitectureObservations(
     });
     observations.push({
       id: `obs-forbidden-dep-${fingerprint.slice(0, 8)}`,
+      affectedPaths: [dep.sourceFile],
       kind: "forbidden-core-to-module-dependency",
       category: "dependency-boundary",
       targetScope: dep.sourceFile,
@@ -512,6 +513,7 @@ export function collectAstArchitectureObservations(
     });
     observations.push({
       id: `obs-undeclared-${fingerprint.slice(0, 8)}`,
+      affectedPaths: [imp.sourceFile],
       kind: "undeclared-runtime-cross-module-import",
       category: "dependency-boundary",
       targetScope: `module:${imp.sourceModule}`,
@@ -534,6 +536,7 @@ export function collectAstArchitectureObservations(
     });
     observations.push({
       id: `obs-cycle-${fingerprint.slice(0, 8)}`,
+      affectedPaths: [...new Set(cycle.cycle)].map((name) => `src/modules/${name}`),
       kind: "module-dependency-cycle",
       category: "dependency-boundary",
       targetScope: `module:${cycle.cycle[0]}`,
@@ -562,6 +565,7 @@ export function collectAstArchitectureObservations(
     });
     observations.push({
       id: `obs-duplicate-${fingerprint.slice(0, 8)}`,
+      affectedPaths: dup.contributingModules.map((name) => `src/modules/${name}`),
       kind: "duplicate-canonical-ownership",
       category: "canonical-ownership",
       targetScope: `module:${dup.contributingModules[0]}`,

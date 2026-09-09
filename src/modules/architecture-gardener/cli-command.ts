@@ -3,10 +3,10 @@ import { Command } from "commander";
 import type { ModuleContext } from "#core/modules/module-types.js";
 import { writeJson, writeStdoutLine } from "#modules/rendering/transport.js";
 import { collectAstArchitectureObservations } from "./ast-provider.js";
+import { requestArchitectureReview } from "./request.js";
 import { buildArchitectureGardenerStatus, formatGardenerStatusTerminal } from "./status.js";
-import { ARCHITECTURE_REVIEW_REQUESTED_EVENT } from "./workflow.js";
 
-export function buildArchitectureGardenerCommand(ctx: ModuleContext): Command {
+export function buildArchitectureGardenerCommand(ctx: Pick<ModuleContext, "cwd" | "client">): Command {
   const cmd = new Command("architecture")
     .alias("gardener")
     .description("Continuous architectural simplification, fitness functions, and generated work");
@@ -55,29 +55,20 @@ export function buildArchitectureGardenerCommand(ctx: ModuleContext): Command {
   cmd
     .command("review [target]")
     .description("Request an architectural simplification review for a target scope")
+    .option("--scope <scopeId>", "Directory scope to investigate")
     .option("-r, --reason <reason>", "Reason for requesting architectural review")
     .option("--json", "Output machine-readable JSON format")
-    .action(async (target: string | undefined, opts: { reason?: string; json?: boolean }) => {
+    .action(async (target: string | undefined, opts: { reason?: string; json?: boolean; scope?: string }) => {
       const targetScope = target ?? "repo";
       const reason = opts.reason ?? "Manual operator request";
 
-      ctx.events.emitExternal(ARCHITECTURE_REVIEW_REQUESTED_EVENT, {
-        targetScope,
-        reason,
-        requestedAt: new Date().toISOString(),
-      });
-
-      const response = {
-        ok: true,
-        message: `Architectural simplification review requested for "${targetScope}".`,
-        targetScope,
-        reason,
-      };
+      const response = await requestArchitectureReview(ctx, { targetScope, reason }, opts.scope);
+      if (!response.ok) throw new Error(`Architecture review was not admitted: ${response.reason}`);
 
       if (opts.json) {
         writeJson(response, { pretty: true });
       } else {
-        writeStdoutLine(response.message);
+        writeStdoutLine(`Architecture investigation queued${response.runId ? `: ${response.runId}` : ""}.`);
       }
     });
 

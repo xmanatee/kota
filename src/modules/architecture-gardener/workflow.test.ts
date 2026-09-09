@@ -1,15 +1,17 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
+import { AUTONOMY_ISSUE_PROJECTION_STATE_KEY, applyAutonomyIssueObservations, buildAutonomyIssueObservation, emptyAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { architectureReviewRequested } from "./events.js";
 import { GARDENER_STATE_KEY } from "./gardener-state.js";
-import type { ArchitectureGardenerRunState } from "./types.js";
+import type { ArchitectureGardenerRunState, ArchitectureObservation } from "./types.js";
 import architectureGardenerWorkflow, {
   ARCHITECTURE_GARDENER_RUN_ARTIFACT,
-  ARCHITECTURE_REVIEW_REQUESTED_EVENT,
 } from "./workflow.js";
 
 function runGit(cwd: string, args: string[]) {
@@ -66,68 +68,98 @@ describe("Architecture Gardener Workflow", () => {
     rmSync(testWorkspace, { recursive: true, force: true });
   });
 
-  it("executes workflow on explicit request and stages an implementation task", async () => {
-    const transactionalState = createTestTransactionalRunState(join(testWorkspace, ".kota", "test-state"));
-    const trigger = {
-      event: ARCHITECTURE_REVIEW_REQUESTED_EVENT,
-      schemaRef: null,
-      payload: {
-        targetScope: "src/modules/foo",
-        reason: "Simplify foo module architecture",
-      },
-    };
-
-    const run = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
-      workspaceRoot: testWorkspace,
-      trigger,
-      ports: { state: transactionalState },
+  it("investigates an empty request as no action and suppresses the same cohort after restart", async () => {
+    const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "test-state"));
+    const trigger = { event: architectureReviewRequested.name, payload: { scopeId: state.scopeId, targetScope: "repo", reason: "Review architecture" } };
+    const first = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger, ports: { state },
+      stepOutputs: { investigate: { action: "no-action", rationale: "Only one maintained implementation and no delivery evidence.", evidenceRefs: ["src/modules/foo/index.ts"], existingTaskId: null, proposal: null } },
     }).run();
-
-    expect(run.status, run.error).toBe("success");
-    const artifactPath = join(run.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT);
-    expect(existsSync(artifactPath)).toBe(true);
-
-    const artifact = JSON.parse(readFileSync(artifactPath, "utf-8"));
-    expect(artifact.evaluations.length).toBeGreaterThan(0);
-    expect(artifact.staged).toBeDefined();
-    expect(artifact.staged.staged).toBe(true);
-
-    // Commit message written
-    expect(existsSync(join(run.runDirPath, "commit-message.txt"))).toBe(true);
-
-    // State updated
-    const snapshot = transactionalState.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY);
-    expect(snapshot.value).toBeDefined();
-    expect(snapshot.value?.dispositions["src/modules/foo"]?.disposition).toBe("accepted");
+    expect(first.status, first.error).toBe("success");
+    expect(listFullRepoTasks(testWorkspace)).toHaveLength(0);
+    const artifact = JSON.parse(readFileSync(join(first.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
+    expect(artifact.observations).toEqual([]);
+    expect(artifact.decision.action).toBe("no-action");
+    expect(state.read<ArchitectureGardenerRunState>(GARDENER_STATE_KEY).value?.dispositions.repo?.disposition).toBe("no-action");
+    const restarted = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger, ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
+    }).run();
+    expect(restarted.status, restarted.error).toBe("success");
+    expect(restarted.steps.investigate?.status).toBe("skipped");
   });
 
-  it("suppresses unchanged evidence on subsequent runs", async () => {
-    const transactionalState = createTestTransactionalRunState(join(testWorkspace, ".kota", "test-state"));
-    const trigger = {
-      event: ARCHITECTURE_REVIEW_REQUESTED_EVENT,
-      schemaRef: null,
-      payload: {},
-    };
-
-    // First run
-    const run1 = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
-      workspaceRoot: testWorkspace,
-      trigger,
-      ports: { state: transactionalState },
+  it("investigates a changed structural/friction cohort once through the durable issue projection", async () => {
+    writeFileSync(join(testWorkspace, "src/core/bad.ts"), 'import "#modules/foo/index.js";');
+    runGit(testWorkspace, ["add", "src/core/bad.ts"]);
+    runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "-qm", "structural evidence"]);
+    const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "issue-state"));
+    const observation = buildAutonomyIssueObservation({
+      kind: "present", rootCauseKey: "workflow:builder:module-load", observedAt: "2026-09-09T10:00:00Z",
+      source: { kind: "workflow", id: "builder", workflow: "builder" }, severity: "error", actionability: "local-code",
+      labels: ["workflow-failure"], summaries: ["Delivery failed while loading foo"], evidenceRefs: [{ kind: "run", ref: ".kota/runs/failed-build" }],
+      observationCount: 1, signalIds: ["module-load-failure"],
+    });
+    const projection = applyAutonomyIssueObservations({ current: emptyAutonomyIssueProjection(), observations: [observation] }).projection;
+    state.compareAndSet(AUTONOMY_ISSUE_PROJECTION_STATE_KEY, 0, projection);
+    const trigger = { event: "workflow.completed", payload: { workflow: "builder", scopeId: state.scopeId } };
+    const first = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+      workspaceRoot: testWorkspace, trigger, ports: { state },
+      stepOutputs: { investigate: { action: "no-action", rationale: "The loader failure and the import need separate owner investigation; no shared mechanism established.", evidenceRefs: ["src/core/bad.ts", ".kota/runs/failed-build"], existingTaskId: null, proposal: null } },
     }).run();
-    expect(run1.status).toBe("success");
-
-    // Second run with unchanged observations -> no new tasks staged
-    const run2 = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
-      workspaceRoot: testWorkspace,
-      trigger,
-      ports: { state: transactionalState },
-    }).run();
-    expect(run2.status).toBe("success");
-
-    const artifact2 = JSON.parse(
-      readFileSync(join(run2.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf-8"),
-    );
-    expect(artifact2.staged).toBeNull();
+    expect(first.status, first.error).toBe("success");
+    const evidence = JSON.parse(readFileSync(join(first.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
+    expect(evidence.observations.some((o: { kind: string }) => o.kind === "delivery-friction")).toBe(true);
+    const repeated = await new WorkflowScenarioDriver(architectureGardenerWorkflow, { workspaceRoot: testWorkspace, trigger, ports: { state } }).run();
+    expect(repeated.status, repeated.error).toBe("success");
+    expect(repeated.steps.investigate?.status).toBe("skipped");
   });
+
+  it.each(["src/modules/foo", "module:foo", "src/modules/foo/index.ts"])(
+    "readmits %s for changed imports and clone sites, but suppresses unrelated or repeated evidence",
+    async (targetScope) => {
+      const state = createTestTransactionalRunState(join(testWorkspace, ".kota", "target-state"));
+      const review = async (target = targetScope) => {
+        const result = await new WorkflowScenarioDriver(architectureGardenerWorkflow, {
+          workspaceRoot: testWorkspace,
+          trigger: { event: architectureReviewRequested.name, payload: { scopeId: state.scopeId, targetScope: target } },
+          ports: { state: { stateDir: state.stateDir, scopeId: state.scopeId } },
+          stepOutputs: { investigate: { action: "no-action", rationale: "These observations still need caller evidence before consolidation.",
+            evidenceRefs: ["src/modules/foo/index.ts"], existingTaskId: null, proposal: null } },
+        }).run();
+        expect(result.status, result.error).toBe("success");
+        const artifact: { observations: ArchitectureObservation[] } = JSON.parse(
+          readFileSync(join(result.runDirPath, ARCHITECTURE_GARDENER_RUN_ARTIFACT), "utf8"));
+        return { investigated: result.steps.investigate?.status === "success", observations: artifact.observations };
+      };
+      const changeSource = (path: string, source: string) => {
+        writeFileSync(join(testWorkspace, path), source);
+        runGit(testWorkspace, ["add", path]);
+        runGit(testWorkspace, ["-c", "user.email=test@example.com", "-c", "user.name=Test", "commit", "--no-gpg-sign", "-qm", "change evidence"]);
+      };
+
+      expect((await review()).investigated).toBe(true);
+      // A sibling with the same prefix must not change this target's cohort.
+      mkdirSync(join(testWorkspace, "src/modules/foo-other"));
+      changeSource("src/modules/foo-other/index.ts", 'import "#modules/foo/index.js"; export default { dependencies: [] };');
+      expect(await review()).toEqual({ investigated: false, observations: [] });
+
+      const source = 'import "#modules/foo-other/index.js"; export default { dependencies: [] };';
+      changeSource("src/modules/foo/index.ts", source);
+      const changedImport = await review();
+      expect(changedImport.investigated).toBe(true);
+      expect(changedImport.observations.map((observation) => observation.kind)).toEqual(["undeclared-runtime-cross-module-import"]);
+      expect((await review(targetScope === "module:foo" ? "./src/modules/foo/" : targetScope)).investigated).toBe(false);
+
+      const clone = 'export function compute(value: number) { const next = value + 1; const doubled = next * 2; return doubled; }';
+      changeSource("src/core/clone.ts", clone);
+      changeSource("src/modules/foo/index.ts", `${source}\n${clone}`);
+      const changedClone = await review();
+      expect(changedClone.investigated).toBe(true);
+      expect(changedClone.observations.find((observation) => observation.kind === "duplicated-implementation-chunk")?.evidence.sites)
+        .toEqual(expect.arrayContaining([expect.objectContaining({ file: "src/modules/foo/index.ts" }), expect.objectContaining({ file: "src/core/clone.ts" })]));
+      expect((await review()).investigated).toBe(false);
+      expect(listFullRepoTasks(testWorkspace)).toEqual([]);
+    },
+  );
+
 });

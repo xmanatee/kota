@@ -1,149 +1,45 @@
 import { describe, expect, it } from "vitest";
 import { evaluateAdmission } from "./admission.js";
-import type { ArchitectureSignal } from "./types.js";
+import type { ArchitectureObservation } from "./types.js";
 
-function makeSignal(overrides: Partial<ArchitectureSignal> = {}): ArchitectureSignal {
-  return {
-    id: `sig-${Math.random().toString(36).slice(2)}`,
-    kind: "structural-violation",
-    category: "dependency-boundary",
-    targetScope: "module:foo",
-    summary: "Structural boundary violation",
-    fingerprint: `fp-${Math.random().toString(36).slice(2)}`,
-    evidence: {},
-    ...overrides,
-  };
-}
+const structural: ArchitectureObservation = {
+  id: "boundary", kind: "undeclared-runtime-cross-module-import", category: "dependency-boundary",
+  targetScope: "module:billing", summary: "Billing imports the receipt module without declaring it.",
+  affectedPaths: ["src/modules/billing/index.ts"],
+  fingerprint: "boundary-v1", evidence: { sourceFile: "billing/index.ts" }, timestamp: "2026-09-09T12:00:00Z",
+};
+const friction: ArchitectureObservation = {
+  ...structural, id: "delivery", kind: "delivery-friction", category: "delivery", fingerprint: "delivery-v1",
+  summary: "Billing delivery failed while loading the receipt module.",
+};
+const evaluate = (observations: ArchitectureObservation[], previousCohort?: string) => evaluateAdmission({
+  targetScope: "repo", observations, previousCohort, explicitRequest: false, followUpFingerprints: [], reviewedTaskEvidence: [],
+});
 
-describe("Architecture Gardener Admission Gate", () => {
-  it("rejects when only a single advisory metric is present", () => {
-    const advisorySignal = makeSignal({
-      kind: "advisory-metric",
-      category: "complexity",
-      summary: "File complexity exceeds threshold",
-      fingerprint: "fp-adv-1",
-    });
-
-    const result = evaluateAdmission({
-      targetScope: "module:foo",
-      signals: [advisorySignal],
-    });
-
-    expect(result.admitted).toBe(false);
-    expect(result.disposition).toBe("rejected");
-    expect(result.reason).toContain("Single advisory metric is insufficient");
+describe("gardener evidence admission", () => {
+  it("requires changed structural and delivery evidence instead of metric counts", () => {
+    expect(evaluate([structural]).admitted).toBe(false);
+    expect(evaluate([friction]).admitted).toBe(false);
+    const metric = { ...structural, kind: "complexity-concentration" as const, category: "complexity" as const };
+    expect(evaluate([metric, { ...metric, fingerprint: "another-count" }]).admitted).toBe(false);
+    const first = evaluate([structural, friction]);
+    expect(first.admitted).toBe(true);
+    expect(evaluate([friction, structural], first.cohort).admitted).toBe(false);
+    expect(evaluate([structural, { ...friction, fingerprint: "delivery-v2" }], first.cohort).admitted).toBe(true);
   });
 
-  it("admits when two independent eligible signals are present", () => {
-    const sig1 = makeSignal({
-      kind: "advisory-metric",
-      summary: "Metric 1",
-      fingerprint: "fp-1",
-    });
-    const sig2 = makeSignal({
-      kind: "advisory-metric",
-      summary: "Metric 2",
-      fingerprint: "fp-2",
-    });
-
-    const result = evaluateAdmission({
-      targetScope: "module:foo",
-      signals: [sig1, sig2],
-    });
-
-    expect(result.admitted).toBe(true);
-    expect(result.disposition).toBe("accepted");
-    expect(result.eligibleSignalCount).toBe(2);
+  it("admits an empty explicit investigation once without certifying an improvement", () => {
+    const input = { targetScope: "repo", observations: [], explicitRequest: true, previousCohort: undefined, followUpFingerprints: [], reviewedTaskEvidence: [] };
+    const first = evaluateAdmission(input);
+    expect(first.admitted).toBe(true);
+    expect(evaluateAdmission({ ...input, previousCohort: first.cohort }).admitted).toBe(false);
+    expect(evaluate([]).admitted).toBe(false);
+  });
+  it("does not let an already reviewed terminal task admit unrelated metrics", () => {
+    const input = { targetScope: "repo", observations: [], explicitRequest: false, previousCohort: undefined,
+      followUpFingerprints: ["completed-task-proof"], reviewedTaskEvidence: [] as string[] };
+    expect(evaluateAdmission(input).admitted).toBe(true);
+    expect(evaluateAdmission({ ...input, observations: [friction], reviewedTaskEvidence: input.followUpFingerprints }).admitted).toBe(false);
   });
 
-  it("admits on structural violations", () => {
-    const violation = makeSignal({
-      kind: "structural-violation",
-      summary: "Forbidden core-to-module dependency",
-      fingerprint: "fp-viol-1",
-    });
-
-    const result = evaluateAdmission({
-      targetScope: "src/core/router.ts",
-      signals: [violation],
-    });
-
-    expect(result.admitted).toBe(true);
-    expect(result.disposition).toBe("accepted");
-  });
-
-  it("admits explicit owner requests directly", () => {
-    const result = evaluateAdmission({
-      targetScope: "module:bar",
-      signals: [],
-      explicitRequest: {
-        targetScope: "module:bar",
-        reason: "Owner requested refactor",
-      },
-    });
-
-    expect(result.admitted).toBe(true);
-    expect(result.disposition).toBe("accepted");
-    expect(result.reason).toContain("Explicit owner request");
-  });
-
-  it("suppresses unchanged evidence via stable fingerprints", () => {
-    const sig = makeSignal({
-      kind: "structural-violation",
-      fingerprint: "known-fingerprint-abc",
-    });
-
-    const result = evaluateAdmission({
-      targetScope: "module:foo",
-      signals: [sig],
-      storedFingerprints: {
-        "known-fingerprint-abc": {
-          firstSeenAt: "2026-08-20T00:00:00Z",
-          lastSeenAt: "2026-08-27T00:00:00Z",
-          targetScope: "module:foo",
-          observationKind: "undeclared-runtime-cross-module-import",
-        },
-      },
-    });
-
-    expect(result.admitted).toBe(false);
-    expect(result.disposition).toBe("suppressed");
-    expect(result.reason).toContain("Unchanged evidence suppressed");
-  });
-
-  it("suppresses targets on active cooldown", () => {
-    const sig = makeSignal({
-      kind: "structural-violation",
-      fingerprint: "fp-new",
-    });
-
-    const future = new Date(Date.now() + 3600000).toISOString();
-    const result = evaluateAdmission({
-      targetScope: "module:foo",
-      signals: [sig],
-      cooldownExpiry: future,
-    });
-
-    expect(result.admitted).toBe(false);
-    expect(result.disposition).toBe("cooled_down");
-    expect(result.reason).toContain("cooldown");
-  });
-
-  it("deduplicates targets with active implementation tasks", () => {
-    const sig = makeSignal({
-      kind: "structural-violation",
-      fingerprint: "fp-new",
-    });
-
-    const result = evaluateAdmission({
-      targetScope: "module:foo",
-      signals: [sig],
-      hasActiveTask: true,
-      activeTaskId: "task-existing-123",
-    });
-
-    expect(result.admitted).toBe(false);
-    expect(result.disposition).toBe("deduplicated");
-    expect(result.reason).toContain("already has an active implementation task");
-  });
 });
