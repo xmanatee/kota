@@ -23,3 +23,10 @@ Web-access runners select the shared outbound HTTP transport's
 pins DNS again at connection time. Configured search providers select their
 configured-provider origin explicitly. Keep response rendering and save-path
 behavior here; transport policy belongs in `src/core/outbound-http/`.
+
+Page reads use the public transport's default byte budget independently of the
+extracted output limit. Extract from the complete bounded response before
+truncating readable output; a raw HTML prefix can contain only layout markup.
+Metadata, empty bodies, and binary download notices do not establish readable
+source content. Return tool errors for unavailable extraction so consumers retain
+failure evidence instead of treating it as an upstream content change.

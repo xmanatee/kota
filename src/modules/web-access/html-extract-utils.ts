@@ -34,14 +34,12 @@ export function stripTags(html: string): string {
 }
 
 export function removeBlocks(html: string, tags: string[]): string {
-  let result = html;
-  for (const tag of tags) {
-    result = result.replace(
-      new RegExp(`<${tag}[\\s>][\\s\\S]*?<\\/${tag}>`, "gi"),
-      "",
-    );
-  }
-  return result;
+  // Consume comments and blocks in document order: tags inside comments and
+  // comment openers inside script/style text must not change later boundaries.
+  return html.replace(
+    new RegExp(`<!--[\\s\\S]*?(?:-->|$)|<(${tags.join("|")})[\\s>][\\s\\S]*?(?:<\\/\\1\\s*>|$)`, "gi"),
+    "",
+  );
 }
 
 export function convertCodeBlocks(

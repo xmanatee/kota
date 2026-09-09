@@ -37,7 +37,7 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   const scopeId = deriveDirectoryScopeId(root);
   mkdirSync(join(root, "data/tasks"), { recursive: true });
   writeFileSync(join(root, ".gitignore"), ".kota/\n");
-  const sourceUrls = ["oversized", "inaccessible", "research"].map((path) => `https://example.com/${path}`);
+  const sourceUrls = ["oversized", "inaccessible", "research", "unusable", "streaming-oversized"].map((path) => `https://example.com/${path}`);
   writeFileSync(join(root, "data/watchlist.yaml"), `resources:\n${sourceUrls.map((url) => `  - url: ${url}\n    added: 2026-09-01\n`).join("")}`);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
   git("init", "--quiet");
@@ -122,15 +122,31 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   const fetchTool = webAccess.tools.find((tool) => tool.tool.name === "web_fetch")!;
   registerTool(fetchTool.tool, fetchTool.runner, "work-supply-test", { effect: fetchTool.effect });
   let sourceReads = 0;
+  let article = "Durable task ownership survives restart.";
+  let researchUnavailable = false;
+  const head = `<head><title>Runtime research</title><script>const layout = '<article>${"preload ".repeat(30)}</article>';</script>${'<link rel="preload" href="/layout.css">'.repeat(2600)}</head>`;
+  const unusable = '<html><head><title>Runtime research</title><script>unfinished layout';
   const transport = new OutboundHttpTransport({
     resolveAddresses: async () => [{ address: "93.184.216.34", family: 4 }],
     dispatcher: async (url) => {
       sourceReads++;
       if (url.pathname === "/oversized") {
-        return new Response("x".repeat(92_841), { headers: { "content-type": "text/plain", "content-length": "92841" } });
+        return new Response("", { headers: { "content-type": "text/html", "content-length": "1048577" } });
       }
       if (url.pathname === "/inaccessible") return new Response("Unavailable", { status: 503, statusText: "Service Unavailable" });
-      return new Response("Durable task ownership survives restart.", { headers: { "content-type": "text/plain" } });
+      if (url.pathname === "/streaming-oversized") {
+        return new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(head));
+            controller.enqueue(new Uint8Array(1_048_576));
+            controller.close();
+          },
+        }), { headers: { "content-type": "text/html" } });
+      }
+      const html = url.pathname === "/unusable" || researchUnavailable
+        ? unusable
+        : `<html>${head}<body><article><h1>Recovery research</h1><p>${article}</p></article></body></html>`;
+      return new Response(html, { headers: { "content-type": "text/html", "content-length": String(Buffer.byteLength(html)) } });
     },
   });
   vi.spyOn(outboundHttp, "request").mockImplementation((request) => transport.request(request));
@@ -148,10 +164,14 @@ it("dispatches only independent unclaimed work while preserving retained owners 
         runAgent: () => {
           const metadata = readWorkflowRunMetadataFile(join(root, ".kota/runs", runId, "metadata.json"));
           const inspection = metadata?.steps.find((step) => step.id === "inspect-watchlist")?.output as Awaited<ReturnType<typeof refreshExplorerSources>>;
-          expect(inspection.observations).toHaveLength(3);
+          expect(inspection.observations).toHaveLength(sourceUrls.length);
           for (const source of inspection.observations) {
             expect(readFileSync(source.contentPath, "utf8")).toBe(readFileSync(source.evidencePath, "utf8"));
           }
+          const research = inspection.observations.find((source) => source.url === sourceUrls[2])!;
+          expect(research.accessible).toBe(true);
+          expect(readFileSync(research.contentPath, "utf8")).toContain(article);
+          expect(readFileSync(research.contentPath, "utf8")).not.toContain("preload");
           sourceReviews++;
           return "No action: the observed capability is already represented by current tasks. Revisit when the source reports new recovery evidence.";
         },
@@ -167,46 +187,84 @@ it("dispatches only independent unclaimed work while preserving retained owners 
     expect.objectContaining({ url: sourceUrls[1], accessible: false, changed: false }),
     expect.objectContaining({ url: sourceUrls[0], accessible: false, changed: false }),
     expect.objectContaining({ url: sourceUrls[2], accessible: true, changed: true }),
+    expect.objectContaining({ url: sourceUrls[4], accessible: false, changed: false }),
+    expect.objectContaining({ url: sourceUrls[3], accessible: false, changed: false }),
   ]);
   expect(readFileSync(sourceEvidence.observations[0].evidencePath, "utf8")).toBe("HTTP 503 Service Unavailable");
-  expect(readFileSync(sourceEvidence.observations[1].evidencePath, "utf8")).toContain("response body exceeded max_length (20000 bytes); Content-Length was 92841 bytes");
-  expect(readFileSync(sourceEvidence.observations[2].evidencePath, "utf8")).toBe("Durable task ownership survives restart.");
-  const publication = firstReview.emitted.find((event) => event.event === "autonomy.explorer.publication.requested")!;
-  const published = await new WorkflowScenarioDriver(explorerPublication, {
-    workspaceRoot: root, trigger: { event: publication.event, payload: publication.payload },
-    ports: { state: { stateDir, scopeId } },
-  }).run();
-  expect(published.status, published.error).toBe("success");
+  expect(readFileSync(sourceEvidence.observations[1].evidencePath, "utf8")).toContain("response-too-large");
+  expect(readFileSync(sourceEvidence.observations[3].evidencePath, "utf8")).toContain("response-too-large");
+  expect(readFileSync(sourceEvidence.observations[4].evidencePath, "utf8")).toContain("no readable source content");
+  expect(readFileSync(sourceEvidence.observations[4].evidencePath, "utf8")).toContain("Runtime research");
+  expect(readFileSync(sourceEvidence.observations[2].evidencePath, "utf8")).toContain(article);
+  const publishAndMakeRecheckDue = async (review: typeof firstReview) => {
+    const publication = review.emitted.find((event) => event.event === "autonomy.explorer.publication.requested")!;
+    const published = await new WorkflowScenarioDriver(explorerPublication, {
+      workspaceRoot: root, trigger: { event: publication.event, payload: publication.payload },
+      ports: { state: { stateDir, scopeId } },
+    }).run();
+    expect(published.status, published.error).toBe("success");
+    const observationStore = RunStateDatabase.openExisting(stateDir);
+    try {
+      const stored = observationStore.readScopeStateValue<ExplorerState>(scopeId, EXPLORER_STATE_KEY);
+      const current = decodeExplorerState(stored.value);
+      expect(current.sources[sourceUrls[0]].fingerprint).toBeNull();
+      expect(current.sources[sourceUrls[1]].fingerprint).toBeNull();
+      expect(current.sources[sourceUrls[2]].fingerprint).not.toBeNull();
+      expect(current.sources[sourceUrls[3]].fingerprint).toBeNull();
+      expect(current.sources[sourceUrls[4]].fingerprint).toBeNull();
+      expect(current.lastReviewedFingerprint).not.toBeNull();
+      observationStore.compareAndSetScopeStateValue({ scopeId, key: EXPLORER_STATE_KEY,
+        expectedRevision: stored.revision, updatedAt: new Date().toISOString(), value: {
+          ...current, observedAt: elapsed, lastExplorationAt: elapsed,
+          sources: Object.fromEntries(Object.entries(current.sources).map(([url, source]) => [url, { ...source, checkedAt: elapsed }])),
+        } });
+      return current;
+    } finally { observationStore.close(); }
+  };
   const elapsed = "2026-09-01T00:00:00.000Z";
-  const observationStore = RunStateDatabase.openExisting(stateDir);
-  try {
-    const stored = observationStore.readScopeStateValue<ExplorerState>(scopeId, EXPLORER_STATE_KEY);
-    const current = decodeExplorerState(stored.value);
-    expect(current.sources[sourceUrls[0]].fingerprint).toBeNull();
-    expect(current.sources[sourceUrls[1]].fingerprint).toBeNull();
-    expect(current.sources[sourceUrls[2]].fingerprint).not.toBeNull();
-    expect(current.lastReviewedFingerprint).not.toBeNull();
-    observationStore.compareAndSetScopeStateValue({ scopeId, key: EXPLORER_STATE_KEY,
-      expectedRevision: stored.revision, updatedAt: new Date().toISOString(), value: {
-        ...current, observedAt: elapsed, lastExplorationAt: elapsed,
-        sources: Object.fromEntries(Object.entries(current.sources).map(([url, source]) => [url, { ...source, checkedAt: elapsed }])),
-      } });
-  } finally { observationStore.close(); }
+  await publishAndMakeRecheckDue(firstReview);
   const unchangedReview = await explore();
   expect(unchangedReview.status, unchangedReview.error).toBe("success");
-  expect(sourceReads).toBe(6);
+  expect(sourceReads).toBe(2 * sourceUrls.length);
   expect(sourceReviews).toBe(1);
   expect(unchangedReview.steps.explore.status).toBe("skipped");
   expect(unchangedReview.steps["record-exploration-publication"].output).toMatchObject({
     reviewed: false, lastExplorationAt: elapsed,
   });
 
+  await publishAndMakeRecheckDue(unchangedReview);
+  article += " New recovery evidence shows cancelled writers retain their resources until settlement.";
+  const changedReview = await explore();
+  expect(changedReview.status, changedReview.error).toBe("success");
+  expect(changedReview.steps.explore.status).toBe("success");
+  expect(sourceReviews).toBe(2);
+  const changedState = await publishAndMakeRecheckDue(changedReview);
+  expect(changedState.sources[sourceUrls[2]].fingerprint).not.toBe(sourceEvidence.sources[sourceUrls[2]].fingerprint);
+
+  researchUnavailable = true;
+  const unusableReview = await explore();
+  expect(unusableReview.status, unusableReview.error).toBe("success");
+  expect(unusableReview.steps.explore.status).toBe("skipped");
+  const unusableEvidence = unusableReview.steps["inspect-watchlist"].output as typeof sourceEvidence;
+  expect(unusableEvidence.sources[sourceUrls[2]].fingerprint).toBe(changedState.sources[sourceUrls[2]].fingerprint);
+  expect(unusableEvidence.observations.find((source) => source.url === sourceUrls[2])).toMatchObject({ accessible: false, changed: false });
+  const unavailableState = await publishAndMakeRecheckDue(unusableReview);
+  expect(unavailableState.lastReviewedFingerprint).toBe(changedState.lastReviewedFingerprint);
+
+  researchUnavailable = false;
+  const restoredReview = await explore();
+  expect(restoredReview.status, restoredReview.error).toBe("success");
+  expect(restoredReview.steps.explore.status).toBe("skipped");
+  expect(sourceReviews).toBe(2);
+  expect(sourceReads).toBe(5 * sourceUrls.length);
+  await publishAndMakeRecheckDue(restoredReview);
+
   deregisterTool("web_fetch");
   const unavailableRunner = await explore();
   expect(unavailableRunner.status).toBe("failed");
   expect(unavailableRunner.steps["inspect-watchlist"].error).toContain("has no registered effect");
   expect(unavailableRunner.emitted).toEqual([]);
-  expect(sourceReads).toBe(6);
+  expect(sourceReads).toBe(5 * sourceUrls.length);
 
   const resumed = RunStateDatabase.openExisting(stateDir);
   try {

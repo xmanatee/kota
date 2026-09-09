@@ -27,8 +27,9 @@ This directory contains the explorer workflow definition and prompt.
 Source rechecks are deterministic reads through the normal web tool boundary.
 A time-due recheck does not itself authorize another AI review: the last actual
 review consumes a fingerprint of observed source content and task intent.
-Failed fetches preserve the last observed content identity and never supply
-fabricated source evidence. Observations and reviewed fingerprints publish
+Failed fetches, including unavailable readable content, preserve the last useful
+content identity. Page metadata and layout markup are access evidence, not
+upstream product changes. Observations and reviewed fingerprints publish
 through the existing post-integration state follow-up, including no-action.
 Source content and failures stay in retained run evidence after sandbox cleanup;
 the agent receives working copies inside its authorized run directory.

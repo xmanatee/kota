@@ -20,20 +20,18 @@ import {
  * Extract readable content from HTML.
  *
  * Pipeline:
- * 1. Remove boilerplate blocks (script, style, nav, header, footer, aside, etc.)
- * 2. Remove HTML comments
- * 3. Convert code blocks → Markdown fenced blocks (protected by placeholders)
- * 4. Convert headings → Markdown # syntax
- * 5. Convert inline elements (lists, links, bold, italic, blockquotes)
- * 6. Strip remaining tags, decode entities, restore placeholders, normalize
+ * 1. Remove HTML comments and boilerplate blocks in document order
+ *    (script, style, nav, header, footer, aside, etc.)
+ * 2. Convert code blocks → Markdown fenced blocks (protected by placeholders)
+ * 3. Convert headings → Markdown # syntax
+ * 4. Convert inline elements (lists, links, bold, italic, blockquotes)
+ * 5. Strip remaining tags, decode entities, restore placeholders, normalize
  */
 export function extractContent(html: string): string {
   let text = removeBlocks(html, [
     "script", "style", "noscript", "nav", "header", "footer",
     "aside", "menu", "svg", "iframe",
   ]);
-
-  text = text.replace(/<!--[\s\S]*?-->/g, "");
 
   const placeholders: string[] = [];
   text = convertCodeBlocks(text, placeholders);

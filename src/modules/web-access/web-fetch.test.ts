@@ -312,7 +312,7 @@ describe("runWebFetch", () => {
       max_length: 1000,
     });
     expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("response exceeded 1000 bytes");
+    expect(result.content).toContain("25000 chars total, showing first 1000");
   });
 
   it("rejects oversized text by Content-Length before reading the body", async () => {
@@ -324,7 +324,7 @@ describe("runWebFetch", () => {
       statusText: "OK",
       headers: new Headers({
         "content-type": "text/plain",
-        "content-length": "20",
+        "content-length": "1048577",
       }),
       text,
       arrayBuffer,
@@ -337,13 +337,13 @@ describe("runWebFetch", () => {
     });
 
     expect(result.is_error).toBe(true);
-    expect(result.content).toContain("max_length");
-    expect(result.content).toContain("Content-Length");
+    expect(result.content).toContain("response_bytes");
+    expect(result.content).toContain("response-too-large");
     expect(text).not.toHaveBeenCalled();
-    expect(arrayBuffer).toHaveBeenCalledOnce();
+    expect(arrayBuffer).not.toHaveBeenCalled();
   });
 
-  it("aborts oversized chunked JSON responses while streaming", async () => {
+  it("formats complete JSON before applying the output budget", async () => {
     vi.mocked(global.fetch).mockResolvedValue(
       mockStreamResponse(['{"data":"', 'xxxxxxxx"}'], {
         headers: { "content-type": "application/json" },
@@ -356,7 +356,7 @@ describe("runWebFetch", () => {
     });
 
     expect(result.is_error).toBeUndefined();
-    expect(result.content).toContain("response exceeded 8 bytes");
+    expect(result.content.startsWith("[JSON ob")).toBe(true);
     expect(result.content).toContain("[Truncated");
   });
 
@@ -443,7 +443,7 @@ describe("runWebFetch", () => {
 
       const result = await runWebFetch({ url: "https://example.com/doc.pdf" });
 
-      expect(result.is_error).toBeUndefined();
+      expect(result.is_error).toBe(true);
       expect(result.content).toContain("Binary content: application/pdf");
       expect(cancelFn).not.toHaveBeenCalled();
       expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
@@ -461,10 +461,11 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("Connection aborted by remote host");
   });
 
-  it("returns (empty response) for empty body", async () => {
+  it("rejects empty source content", async () => {
     vi.mocked(global.fetch).mockResolvedValue(mockResponse("", { headers: { "content-type": "text/plain" } }) as never);
     const result = await runWebFetch({ url: "https://example.com/empty" });
-    expect(result.content).toBe("(empty response)");
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("no readable source content");
   });
 
   it("saves text content to file with save_to", async () => {
@@ -747,7 +748,67 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     expect(result.content).not.toContain("About");
   });
 
-  it("returns (empty response) when HTML is all boilerplate", async () => {
+  it.each([
+    '<body><article><p>Article evidence survives optional head closure.</p></article></body>',
+    '<article><p>Article evidence survives optional head closure.</p></article>',
+    'Article evidence survives optional head closure.',
+  ])("retains content when the head end tag is omitted: %s", async (body) => {
+    const html = `<html><head><title>Research title</title><style>.layout{}</style>${body}</html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/research" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Article evidence survives optional head closure.");
+    expect(result.content).toContain("Research title");
+    expect(result.content).not.toContain(".layout");
+  });
+
+  it.each(["script", "style", "head", "title", "template", "nav"])(
+    "ignores a commented %s opening tag before the article",
+    async (tag) => {
+      const html = `<html><head><title>Research title</title></head><body><!-- example: <${tag}> -->
+        <article><p>Readable article evidence.</p></article></body></html>`;
+      vi.mocked(global.fetch).mockResolvedValue(
+        mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+      );
+      const result = await runWebFetch({ url: "https://example.com/research" });
+      expect(result.is_error).toBeUndefined();
+      expect(result.content).toContain("Readable article evidence.");
+      expect(result.content).not.toContain("example:");
+    },
+  );
+
+  it.each([
+    '<html><head><title>Metadata only</title>',
+    '<html><head><title>Metadata only</title><script>unfinished layout',
+    '<html><head><title>Metadata only</title></head><!-- example: <script> -->',
+    '<html><head><title>Metadata only</title></head><!-- unfinished comment',
+  ])("rejects metadata and unfinished non-content markup: %s", async (html) => {
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/research" });
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("no readable source content");
+  });
+
+  it("ignores commented metadata and content regions while preserving script boundaries", async () => {
+    const html = `<html><!-- <title>False title</title><article>${"False evidence. ".repeat(20)}</article> -->
+      <head><title>Research title</title><script>const marker = '<!--';</script></head>
+      <body><article><p>Readable article evidence.</p></article></body></html>`;
+    vi.mocked(global.fetch).mockResolvedValue(
+      mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
+    );
+    const result = await runWebFetch({ url: "https://example.com/research" });
+    expect(result.is_error).toBeUndefined();
+    expect(result.content).toContain("Readable article evidence.");
+    expect(result.content).toContain("Research title");
+    expect(result.content).not.toContain("False");
+    expect(result.content).not.toContain("const marker");
+  });
+
+  it("rejects HTML with only boilerplate", async () => {
     const html = `<html><head><script>analytics()</script><style>.x{}</style></head><body>
       <nav><a href="/">Home</a></nav>
       <footer><p>Footer text</p></footer>
@@ -756,7 +817,8 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
       mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
     );
     const result = await runWebFetch({ url: "https://example.com/empty" });
-    expect(result.content).toBe("(empty response)");
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("no readable source content");
   });
 
   it("preserves code blocks as markdown fenced blocks", async () => {
@@ -776,12 +838,12 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
     expect(result.content).toContain("string argument");
   });
 
-  it("truncates large HTML extraction output at max_length", async () => {
+  it("spends the bounded HTML output on article content before metadata", async () => {
     const paragraphs = Array.from(
       { length: 100 },
       (_, i) => `<p>Paragraph ${i}: some content to fill space in this document.</p>`,
     ).join("\n");
-    const html = `<html><body><article>${paragraphs}</article></body></html>`;
+    const html = `<html><head><meta name="description" content="${"Page metadata. ".repeat(100)}"></head><body><article>${paragraphs}</article></body></html>`;
     vi.mocked(global.fetch).mockResolvedValue(
       mockResponse(html, { headers: { "content-type": "text/html" } }) as never,
     );
@@ -790,7 +852,10 @@ describe("runWebFetch — HTML extraction (cross-module: web-fetch → html-extr
       max_length: 500,
     });
     expect(result.content).toContain("[Truncated");
-    expect(result.content).toContain("response exceeded 500 bytes");
+    expect(result.content).toContain("chars total, showing first 500");
+    expect(result.content.split("\n\n[Truncated")[0]).toHaveLength(500);
+    expect(result.content).toContain("Paragraph 0:");
+    expect(result.content).not.toContain("Page metadata.");
   });
 
   it("converts links and formatting to markdown", async () => {

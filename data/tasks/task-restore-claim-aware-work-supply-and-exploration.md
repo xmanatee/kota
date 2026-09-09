@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p0
 ---
 # Restore claim-aware work supply and exploration
@@ -197,3 +197,62 @@ live slot refill. Preserve retained owners, pauses, and backoff. Capture trigger
 provenance, available/running/queued/retained counts, an explorer's justified
 opportunity or specific no-action revisit condition, the subsequent unchanged
 input decision, and slot refill after completion in the named operator artifact.
+
+## Collection quality repair (2026-09-10)
+
+The web-access owner now reads complete pages within the existing public transport
+budget (1 MiB by default), then applies the separate extracted-output budget.
+Article content receives output space before metadata. Head markup, scripts and
+unfinished non-content blocks cannot masquerade as a source body. Empty,
+metadata-only and binary responses return explicit tool errors. Explorer's
+existing error handling retains the last useful fingerprint and stores the failed
+observation without admitting an AI review. No second fetch path, transport-limit
+increase, authority bypass or cancellation change was introduced.
+
+The extended work-supply production-host scenario passes with a readable article
+after more than 90 KB of identical head markup, a changed article, unchanged due
+rechecks, temporary unusable markup, recovery to the unchanged article, HTTP 503,
+and both declared-length and streamed responses above 1 MiB. Five collection
+rounds produce exactly two controlled agent reviews; failed and unusable sources
+retain evidence and cannot replace the prior substantive fingerprint. The same
+scenario retains the four-owner, mixed independent/dependency-wait, atomic claim,
+and availability-after-release proofs. These are isolated fixture observations,
+not an observation of the launching daemon or a live model's research judgment.
+
+Production and test typechecks, scoped Biome, task validation and generated client
+binding freshness pass. The web-access/explorer owner run passed 332 of 341 tests;
+the other nine reached their behavior assertions and then failed at sandbox-denied
+rmdir cleanup under .kota/test-tmp. The article-before-metadata output-budget check
+also passes. Run-local verification details are under builder
+2026-09-09T23-09-42-330Z-builder-l13ntt.
+
+Critic repair preserves readable content when HTML omits the optional head end
+tag and consumes comments before interpreting embedded tags. Commented metadata
+and article examples cannot become source evidence; unfinished comments and
+script bodies still return unavailable content when no readable body remains.
+The web-fetch regression cases reproduced both defects before the repair. All
+19 HTML-fetch checks now pass, as do the production-host work-supply scenario,
+production/test typechecks and scoped lint. The broader four-file extraction
+owner run passed 193 checks with one sandbox-denied save-path cleanup failure.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/operator-captures/claim-aware-work-supply-live.md
+description: After runtime publication, capture live useful source review, unchanged-input suppression and slot refill; equivalent attributable runtime evidence is accepted.
+
+Runtime publication of this repaired revision and an operator-resumed live
+observation satisfying Outstanding live acceptance above. Retain attributable
+trigger provenance, task/claim counts, useful source review with a justified
+opportunity or specific no-action revisit condition, the unchanged-input decision,
+and slot refill after completion. An equivalent runtime artifact is sufficient;
+the named capture directory is not mandatory.
+
+This run attempted to read the named operator capture (absent) and the cited
+2026-09-09T22-54-43-618Z-explorer-wj7210 inspect-watchlist artifact (EPERM).
+The launching-daemon control prohibition prevents deploying or resuming this
+candidate from inside its builder. Canonical SQLite remains policy-denied.
+These restrictions do not establish absent host capability or credentials.
+Retained owners, worktrees, pauses and backoff remain runtime-owned and unchanged.
+The implementation repair is retained and independently verified; task completion
+still requires the live outcome evidence after integration.

@@ -5,6 +5,7 @@
  */
 
 import { decodeEntities, extractContent } from "./html-extract.js";
+import { removeBlocks } from "./html-extract-utils.js";
 
 /** Metadata extracted from HTML <head>. */
 export type PageMetadata = {
@@ -134,10 +135,14 @@ export function formatMetadataHeader(meta: PageMetadata): string {
  * class/id, then delegates to extractContent() for Markdown conversion.
  */
 export function extractPage(html: string): PageExtraction {
-  const metadata = extractMetadata(html);
+  const page = removeBlocks(html, ["script", "style", "noscript", "template"]);
+  const metadata = extractMetadata(page);
 
-  // Narrow to main content region if possible
-  let body = findContentRegion(html) ?? html;
+  // The head end tag is optional: remove its non-content children individually
+  // so an implicit body (including plain text) survives. Remaining metadata
+  // elements are void tags and disappear during the final tag cleanup.
+  const pageBody = removeBlocks(page, ["title"]);
+  let body = findContentRegion(pageBody) ?? pageBody;
 
   // Remove boilerplate elements by class/id before conversion
   body = removeBoilerplateByAttr(body);

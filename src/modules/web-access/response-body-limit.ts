@@ -7,6 +7,7 @@ export class WebAccessResponseBodyLimitError extends Error {
 
 export type ResponseBodyLimitName =
   | "max_length"
+  | "response_bytes"
   | "max_response_length"
   | "search_response_limit";
 

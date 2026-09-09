@@ -14,7 +14,6 @@ import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
 import { safePositiveInt } from "./http-request-utils.js";
 import {
   readResponseBytesWithLimit,
-  readResponseTextPrefixWithLimit,
   readResponseTextWithLimit,
   WebAccessResponseBodyLimitError,
 } from "./response-body-limit.js";
@@ -34,7 +33,8 @@ export const webFetchTool: KotaTool = {
       },
       max_length: {
         type: "number",
-        description: "Maximum response length in characters (default: 20000)",
+        description: "Maximum extracted output length in characters (default: 20000). " +
+          "Page reads use the bounded public-web transport budget independently. With save_to, this is the download byte limit.",
       },
       save_to: {
         type: "string",
@@ -94,6 +94,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
   const saveTo = typeof input.save_to === "string" && input.save_to.length > 0 ? input.save_to : undefined;
   const allowedRoot = context?.cwd ?? process.cwd();
   const savePath = saveTo ? resolveContainedPath(saveTo, allowedRoot, allowedRoot) : undefined;
+  const responseBytes = savePath?.ok ? maxLength : outboundHttpPolicy("public-untrusted").responseBytes.default;
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };
@@ -118,9 +119,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
       },
       limits: {
         timeoutMs: 30_000,
-        responseBytes: savePath?.ok
-          ? maxLength
-          : Math.max(maxLength, outboundHttpPolicy("public-untrusted").responseBytes.default),
+        responseBytes,
       },
     });
 
@@ -166,42 +165,42 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
       await response.body?.cancel();
       return {
         content: `Binary content: ${mime}${sizeInfo}. Use web_fetch with save_to to download binary files.`,
+        is_error: true,
       };
     }
 
-    const rawRead = await readResponseTextPrefixWithLimit(response, maxLength, "max_length");
-    const raw = rawRead.text;
+    // Extract only from a complete response within the transport budget. A raw
+    // prefix can end inside the head and misrepresent boilerplate as page content.
+    const raw = await readResponseTextWithLimit(response, responseBytes, "response_bytes");
+    if (!raw.trim()) return { content: "Error: no readable source content (empty response)", is_error: true };
 
     // JSON: pretty-print with structure hints
     if (contentType.includes("json")) {
-      let text = formatJsonResponse(raw, maxLength);
-      if (rawRead.truncated && !text.includes("[Truncated")) {
-        text += `\n\n[Truncated — response exceeded ${maxLength} bytes, showing first ${raw.length} chars]`;
-      }
-      return { content: text || "(empty response)" };
+      return { content: formatJsonResponse(raw, maxLength) };
     }
 
     let text: string;
     if (contentType.includes("html")) {
       const page = extractPage(raw);
       const header = formatMetadataHeader(page.metadata);
-      text = header + page.content;
+      if (!page.content.trim()) {
+        return { content: `Error: no readable source content after HTML extraction\n\n${header.slice(0, maxLength)}`, is_error: true };
+      }
+      // Spend the output budget on the source body before metadata.
+      text = page.content + (header ? `\n\n${header}` : "");
     } else {
       text = raw;
     }
 
     // Truncate to save tokens
-    if (text.length > maxLength || rawRead.truncated) {
+    if (text.length > maxLength) {
       const visible = text.slice(0, maxLength);
-      const truncation = rawRead.truncated
-        ? `response exceeded ${maxLength} bytes, showing first ${visible.length} chars`
-        : `${text.length} chars total, showing first ${maxLength}`;
       return {
-        content: `${visible}\n\n[Truncated — ${truncation}]`,
+        content: `${visible}\n\n[Truncated — ${text.length} chars total, showing first ${maxLength}]`,
       };
     }
 
-    return { content: text || "(empty response)" };
+    return { content: text };
   } catch (err) {
     if (err instanceof OutboundHttpError && err.failure.code === "timeout") {
       return { content: "Error: request timed out (30s)", is_error: true };
@@ -210,7 +209,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
       return { content: err.message, is_error: true };
     }
     if (err instanceof OutboundHttpError && err.failure.code === "response-too-large") {
-      return { content: `Error: max_length ${err.message}`, is_error: true };
+      return { content: `Error: ${savePath?.ok ? "max_length" : "response_bytes"} ${err.message}`, is_error: true };
     }
     if (err instanceof WebAccessResponseBodyLimitError) {
       return { content: err.message, is_error: true };
