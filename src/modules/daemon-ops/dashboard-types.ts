@@ -4,20 +4,12 @@ import type {
 	WorkflowRunStatus,
 } from "#core/workflow/run-types.js";
 import type { WorkflowAgentBackoffState, WorkflowAgentOperatingState } from "#core/workflow/trigger-types.js";
+import type { RepoWorkSupply } from "#modules/repo-tasks/work-supply.js";
 
-export type DashboardTaskQueue = {
-	counts: {
-		open: number;
-		blocked: number;
-		done: number;
-		dropped: number;
-	};
-	inboxCount: number;
-	activeCount: number;
-	actionableCount: number;
-	dispatchableCount: number;
-	hasDispatchableWork: boolean;
-};
+export type DashboardTaskQueue = Pick<RepoWorkSupply,
+	"counts" | "inboxCount" | "activeCount" | "dispatchableCount" | "hasDispatchableWork" |
+	"ownershipAvailable" | "availableCount" | "runningCount" | "queuedCount" | "retainedCount"
+>;
 
 export type DashboardSnapshot = {
 	pid: number;

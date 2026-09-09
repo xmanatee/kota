@@ -15,8 +15,9 @@ Keep tasks concise: capture the problem, desired outcome, meaningful
 constraints, and how an implementer will know the outcome exists.
 
 `data/watchlist.yaml` contains known external sources. The `inspect-watchlist`
-step reports whether each source is unseen, previously seen, or inaccessible.
-Fetch only sources that may add current value. When you fetch one, write
+step contains paths to fresh source observations, inaccessible results, and the reason
+this evidence needs review. Use those observations and fetch additional sources
+only when they may add current value. For sources you use, write
 `<run-directory>/watchlist-updates.json`:
 
 ```json
@@ -40,4 +41,6 @@ Use `canonicalUrl` only for a durable redirect. An update URL must already be
 in the watchlist; add an unrelated source to `data/watchlist.yaml` directly.
 
 If nothing is worth changing, leave the repository untouched and finish with a
-concise explanation. A no-op is a successful exploration result.
+concise explanation of the evidence considered and the specific source or
+product change that would warrant revisiting. Elapsed time alone is not that
+change. A no-op is a successful exploration result.

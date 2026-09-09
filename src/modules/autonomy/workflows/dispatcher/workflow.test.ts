@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
   WorkflowScenarioDriver,
@@ -69,6 +70,9 @@ describe("dispatcher workflow", () => {
     mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
     mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
     execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
+    const authority = new RunStateDatabase(join(workspaceRoot, ".kota"));
+    authority.registerScope({ id: deriveDirectoryScopeId(workspaceRoot), rootPath: workspaceRoot, createdAt: new Date().toISOString() });
+    authority.close();
     writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
     commitAll("scenario baseline");
   });
@@ -387,7 +391,7 @@ describe("dispatcher workflow", () => {
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
   });
 
-  it("keeps dependency-blocked work out of builder and explorer routes", async () => {
+  it("keeps dependency waits out of builder while allowing independent exploration", async () => {
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-dependent-a.md"),
       taskFixture("task-dependent-a", "open", { dependsOn: ["task-enabler"] }),
@@ -423,7 +427,7 @@ describe("dispatcher workflow", () => {
     expect(output.dependencyBlockedTasks).toEqual(expect.arrayContaining(dependencyBlockedTasks));
     expect(output.dependencyBlockedTasks).toHaveLength(2);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
-    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
+    expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(false);
   });
 
@@ -632,7 +636,9 @@ describe("dispatcher workflow", () => {
     expect(output.emitted).toContain("autonomy.queue.thin");
   });
 
-  it("does not emit autonomy.queue.thin when three or more tasks remain", async () => {
+  it("does not emit autonomy.queue.thin above the capacity reserve", async () => {
+    writeProjectFile("data/tasks/task-d.md", taskFixture("task-d", "open"));
+    writeProjectFile("data/tasks/task-e.md", taskFixture("task-e", "open"));
     writeFileSync(
       join(workspaceRoot, "data", "tasks", "task-a.md"),
       taskFixture("task-a", "open"),

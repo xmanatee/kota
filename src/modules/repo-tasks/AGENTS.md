@@ -7,6 +7,10 @@ projections.
 - The domain is the source of truth for state names and for the difference
   between active, actionable, and dispatchable work. Consumers use its typed
   snapshot fields rather than recomputing actionability from raw counts.
+  File actionability expresses intent only. Work supply joins that intent with
+  canonical runtime resource reservations and distinguishes available, running,
+  queued, and retained work. Missing runtime evidence means availability is
+  unknown. The final claim remains an atomic runtime operation.
 - Active task files live directly under `data/tasks/`; terminal files live in
   `data/tasks/archive/`. In-progress state is a transient projection of active
   builder workflow runs and is never persisted in task frontmatter or paths.

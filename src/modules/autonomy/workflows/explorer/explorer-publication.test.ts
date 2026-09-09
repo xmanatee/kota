@@ -3,6 +3,8 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
@@ -28,6 +30,9 @@ describe("explorer post-integration publication", () => {
   it("does not advance the canonical cooldown from the writer run", async () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), "explorer-publication-"));
     scopeRoots.push(workspaceRoot);
+    const authority = new RunStateDatabase(join(workspaceRoot, ".kota"));
+    authority.registerScope({ id: deriveDirectoryScopeId(workspaceRoot), rootPath: workspaceRoot, createdAt: new Date().toISOString() });
+    authority.close();
     writeFileSync(join(workspaceRoot, ".gitignore"), ".kota/\n");
     execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
     execFileSync("git", ["config", "user.email", "test@example.com"], {
@@ -60,7 +65,7 @@ describe("explorer post-integration publication", () => {
     });
     expect(existsSync(join(runDirPath, EXPLORER_PUBLICATION_ARTIFACT))).toBe(true);
     expect(publishExplorerCompletion({ sourceRunId, scopeRoot: workspaceRoot }))
-      .toEqual({ lastExplorationAt: expect.any(String) });
+      .toEqual({ observedAt: expect.any(String), lastExplorationAt: expect.any(String), lastReviewedFingerprint: expect.any(String), sources: {} });
 
     const publicationKey = explorerPublicationKey(sourceRunId);
     const publication = await new WorkflowScenarioDriver(
@@ -78,7 +83,7 @@ describe("explorer post-integration publication", () => {
     expect(publication.status).toBe("success");
     expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toMatchObject({
       revision: 1,
-      value: { lastExplorationAt: expect.any(String) },
+      value: { observedAt: expect.any(String), lastExplorationAt: expect.any(String), lastReviewedFingerprint: expect.any(String), sources: {} },
     });
     expect(existsSync(join(stateDir, "explorer-state.json"))).toBe(false);
   });

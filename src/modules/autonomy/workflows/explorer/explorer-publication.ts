@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
-import { type ExplorerState, explorerStateAfterCompletion } from "./explorer-state.js";
+import { decodeExplorerState, type ExplorerState } from "./explorer-state.js";
 
 export const EXPLORER_PUBLICATION_ARTIFACT = "explorer-publication.json";
 export const EXPLORER_PUBLICATION_REQUESTED_EVENT =
@@ -37,7 +37,7 @@ export function publishExplorerCompletion(args: {
   sourceRunId: string;
   scopeRoot: string;
 }): ExplorerState | null {
-  const artifact = readOptionalJsonFile<{ exploredAt?: unknown }>(
+  const artifact = readOptionalJsonFile<ExplorerState>(
     join(
       args.scopeRoot,
       ".kota",
@@ -47,8 +47,5 @@ export function publishExplorerCompletion(args: {
     ),
   );
   if (artifact === null) return null;
-  if (typeof artifact.exploredAt !== "string") {
-    throw new Error("explorer publication artifact is invalid");
-  }
-  return explorerStateAfterCompletion(artifact.exploredAt);
+  return decodeExplorerState(artifact);
 }

@@ -23,7 +23,7 @@ import { CONTINUITY_COMPOSED_STORES, type ContinuityEntry, type ContinuityProjec
 
 export type ContinuityProjectionInput = {
   scopeId: string;
-  tasks: SurfaceRead<RepoTaskListResult>;
+  tasks: SurfaceRead<Pick<RepoTaskListResult, "tasks">>;
   workflowStatus: SurfaceRead<WorkflowStatusSnapshot>;
   runs: SurfaceRead<WorkflowRunsListResult>;
   definitions: SurfaceRead<WorkflowDefinitionsResult>;

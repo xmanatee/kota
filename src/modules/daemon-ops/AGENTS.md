@@ -102,7 +102,9 @@ Do not reinvent selection per command.
   width instead of clipping to a fixed column count.
 - On a TTY the dashboard refreshes the alternate-screen buffer; non-TTY keeps
   normal output. Task counts use a non-overlapping cached worker projection,
-  and stderr bursts schedule at most one pending frame.
+  joining repository intent with canonical runtime ownership through repo-tasks
+  work supply. Missing ownership evidence displays unknown availability.
+  Stderr bursts schedule at most one pending frame.
 - The `Work` section only renders when the task queue carries actionable
   signal. Zero-valued states (`Doing 0`, `Backlog 0`, etc.) are filtered out
   of the counts row and a fully-zero queue suppresses the section entirely,

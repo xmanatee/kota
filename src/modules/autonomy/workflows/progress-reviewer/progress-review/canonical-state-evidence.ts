@@ -1,7 +1,7 @@
 import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
 import type { AutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
-import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import type { ProgressReviewSemanticInput } from "../semantic-input.js";
 import { sourceEvidenceId, sourceSummary } from "./trigger-target.js";
 import type {
@@ -39,7 +39,7 @@ export function listCanonicalProgressState(args: {
   semanticInput: ProgressReviewSemanticInput;
   autonomyIssueProjection: AutonomyIssueProjection;
 }): ProgressReviewEvidenceRef[] {
-  const queue = getRepoTaskQueueSnapshot(args.source.scopeRoot);
+  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ ...args.source, workspaceRoot: args.source.scopeRoot }));
   const issues = args.autonomyIssueProjection.issues;
   const issueCounts = new Map<string, number>();
   for (const issue of issues) {
@@ -60,6 +60,8 @@ export function listCanonicalProgressState(args: {
       path: "data/tasks/",
       summary:
         `Canonical queue active=${queue.activeCount} actionable=${queue.actionableCount} ` +
+        `available=${queue.availableCount} running=${queue.runningCount} queued=${queue.queuedCount} ` +
+        `retained=${queue.retainedCount} ownershipAvailable=${queue.ownershipAvailable} ` +
         `dependencyBlocked=${queue.dependencyBlockedTasks.length}`,
     }),
     stateRef({

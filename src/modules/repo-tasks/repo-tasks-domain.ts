@@ -16,6 +16,7 @@ import {
   readTaskDependencyIds,
 } from "./task-dependencies.js";
 import { isRepoTaskId } from "./task-id.js";
+import type { RepoWorkSupply } from "./work-supply.js";
 
 export const REPO_DATA_DIR = "data";
 export const REPO_TASKS_DIR = join(REPO_DATA_DIR, "tasks");
@@ -318,7 +319,7 @@ export function getUnfinishedTaskDependencies(
   return findUnfinishedTaskDependencies(dependencies, stateByTaskId);
 }
 
-/** Dependency-clear open tasks are the canonical actionable set for every consumer. */
+/** File/dependency intent only; work-supply projects availability with runtime ownership. */
 export function selectActionableRepoTasks(
   tasks: readonly RepoTaskFullRecord[],
 ): RepoTaskFullRecord[] {
@@ -348,10 +349,6 @@ export function getRepoTaskQueueSnapshot(repoRoot: string): RepoTaskQueueSnapsho
     dependencyBlockedTasks,
     headSha: getRepoHeadSha(repoRoot),
   };
-}
-
-export function isThinDispatchableQueue(snapshot: RepoTaskQueueSnapshot): boolean {
-  return snapshot.inboxCount === 0 && snapshot.actionableCount > 0 && snapshot.actionableCount <= 2;
 }
 
 export type RepoTaskRecord = {
@@ -468,6 +465,7 @@ export type DaemonTaskDetail = {
 };
 
 export type DaemonTaskStatusResponse = {
+  workSupply: RepoWorkSupply;
   counts: { inbox: number; open: number; blocked: number };
   tasks: {
     open: DaemonTaskDetail[];

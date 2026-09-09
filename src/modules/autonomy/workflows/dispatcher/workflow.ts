@@ -2,6 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { assessAutonomyQueue } from "#modules/autonomy/queue-policy.js";
+import { resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { automaticProgressReviewRequested } from "../progress-reviewer/events.js";
 import {
   scopeImprovementChanged,
@@ -74,8 +75,9 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           runBlocking(dispatcherInspectionOperation, {
             workspaceRoot: scopeRoot,
             scopeRoot,
-            scopeId,
             stateDir,
+            scopeId,
+            workSupplyInput: resolveRepoWorkSupplyInput({ workspaceRoot: scopeRoot, scopeRoot, stateDir }),
             nowIso: new Date().toISOString(),
             scopePolicySnapshot: scopePolicySnapshot ?? null,
             scopeImprovementState,
@@ -185,7 +187,7 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
           publish(
             "autonomy.queue.thin",
             {
-              actionableCount: queue.actionableCount,
+              actionableCount: queue.availableCount,
               dispatchableCount: queue.dispatchableCount,
               dependencyBlockedTasks: queue.dependencyBlockedTasks,
               counts: queue.counts,
@@ -196,6 +198,8 @@ const dispatcherWorkflow: WorkflowDefinitionInput = {
         const quiescent = emitted.length === 0;
 
         return {
+          ...queue,
+          queueDecision,
           inboxCount: queue.inboxCount,
           actionableCount: queue.actionableCount,
           dispatchableCount: queue.dispatchableCount,

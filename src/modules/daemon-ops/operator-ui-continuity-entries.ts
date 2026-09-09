@@ -24,7 +24,7 @@ function unavailable(label: string, message: string): ContinuityEntry {
   };
 }
 
-export function taskEntries(tasks: SurfaceRead<RepoTaskListResult>): {
+export function taskEntries(tasks: SurfaceRead<Pick<RepoTaskListResult, "tasks">>): {
   work: ContinuityEntry[];
   blocked: ContinuityEntry[];
 } {

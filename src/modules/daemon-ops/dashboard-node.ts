@@ -18,7 +18,6 @@ import {
 	renderActiveRuns,
 	renderControlHelp,
 	renderStatRows,
-	taskQueueHasDispatchableWork,
 	taskQueueHasSignal,
 } from "./dashboard-render-support.js";
 import type { DashboardSnapshot } from "./dashboard-types.js";
@@ -110,8 +109,14 @@ function describeOperationalState(snapshot: DashboardSnapshot): TextSpan[] {
 		];
 	}
 	if (snapshot.taskQueue) {
-		if (taskQueueHasDispatchableWork(snapshot.taskQueue)) {
+		if (!snapshot.taskQueue.ownershipAvailable) {
+			return [plain("task availability unknown; runtime ownership unavailable - inspect `kota workflow status`")];
+		}
+		if (snapshot.taskQueue.hasDispatchableWork) {
 			return [plain("dispatchable work available; waiting for idle dispatch - inspect `kota workflow status`")];
+		}
+		if (snapshot.taskQueue.retainedCount > 0) {
+			return [plain("retained task ownership; no dispatchable tasks - inspect `kota workflow status`")];
 		}
 		if (snapshot.taskQueue.activeCount > 0) {
 			return [plain("open work parked; no dispatchable tasks - inspect `kota status` or open `kota navigate` > Work")];
@@ -145,8 +150,10 @@ function renderWorkSection(snapshot: DashboardSnapshot): RenderNode[] {
 		line(plain(`  ${formatQueueCountsRow(task)}`)),
 		line(
 			plain(
-				`  Active ${task.activeCount}  Dispatchable ${task.dispatchableCount}` +
-					`  Actionable ${task.actionableCount}`,
+				task.ownershipAvailable
+					? `  Active ${task.activeCount}  Dispatchable ${task.dispatchableCount}  Available ${task.availableCount}` +
+						`  Running ${task.runningCount}  Queued ${task.queuedCount}  Retained ${task.retainedCount}`
+					: `  Active ${task.activeCount}  Availability unknown (runtime ownership unavailable)`,
 			),
 		),
 		blank(),

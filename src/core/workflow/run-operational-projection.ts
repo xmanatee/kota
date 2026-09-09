@@ -225,7 +225,7 @@ export function readRunOperationalProjection(input: {
       .prepare("SELECT id FROM scopes WHERE root_path = ?")
       .get(canonicalPath(input.scopeRoot)) as { id: string } | undefined;
     if (scope === undefined) {
-      return { available: true, databasePath, runs: [] };
+      return { available: false, databasePath, runs: [] };
     }
     const states = input.states ?? [
       "queued",

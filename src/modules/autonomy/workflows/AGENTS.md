@@ -36,10 +36,10 @@ Dispatcher emits queue-shape events rather than a fixed workflow graph:
 
 - `autonomy.queue.available` identifies one dependency-clear `open` task. Its
   immutable digest and `taskId` bind builder to `task:<taskId>`.
-- `autonomy.queue.empty` means no dispatchable task or known dependency blocker
-  exists; explorer may look for new work.
-- `autonomy.queue.thin` reports a small dispatchable tail without treating
-  anchors or dependency-waiting tasks as available work.
+- `autonomy.queue.empty` means no unclaimed runnable task or inbox work exists;
+  explorer may look for independent work even while dependencies wait.
+- `autonomy.queue.thin` reports available independent supply at or below the runtime
+  capacity reserve, excluding queued, running, retained, and dependency-waiting tasks.
 - `autonomy.blocked-research.attemptable` identifies blocked research that the
   current runtime can retry.
 

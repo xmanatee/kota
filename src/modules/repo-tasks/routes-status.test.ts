@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { activeBuilderTaskIds, handleTaskStatus } from "./routes-state-handlers.js";
+import { handleTaskStatus } from "./routes-state-handlers.js";
 import { makeScopeRoot, mockResponse, writeTaskFile } from "./routes-test-helpers.js";
 
 describe("task status route", () => {
@@ -79,23 +79,5 @@ describe("task status route", () => {
     await handleTaskStatus(res, repoRoot);
     const body = result.body as { counts: Record<string, number> };
     expect(body.counts.open).toBe(1);
-  });
-});
-
-describe("activeBuilderTaskIds", () => {
-  it("derives transient in-progress state only from active builder triggers", () => {
-    const ids = activeBuilderTaskIds({
-      activeRuns: [
-        {
-          workflow: "builder",
-          trigger: { event: "autonomy.queue.available", payload: { taskId: "task-active" } },
-        },
-        {
-          workflow: "explorer",
-          trigger: { event: "schedule", payload: { taskId: "task-not-building" } },
-        },
-      ],
-    } as never);
-    expect([...ids]).toEqual(["task-active"]);
   });
 });

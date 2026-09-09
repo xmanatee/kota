@@ -11,6 +11,7 @@ import {
   AUTONOMY_AGENT_TIER,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import {
   EXPLORATION_REFRESH_MS,
   type ExplorerAssessment,
@@ -26,7 +27,7 @@ import {
   EXPLORER_STATE_KEY,
   type ExplorerState,
 } from "./explorer-state.js";
-import { readWatchlist, type WatchlistEntry } from "./watchlist.js";
+import { explorationFingerprint, refreshExplorerSources } from "./source-evidence.js";
 import {
   applyWatchlistUpdates,
   checkWatchlistUpdatesCommitMessage,
@@ -59,84 +60,38 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "needsAttention",
       "explorationRefreshDue",
     ]),
-  run: ({ workspaceRoot, state, runBlocking }) => {
+  run: ({ workspaceRoot, scopeRoot, stateDir, state, runBlocking }) => {
     const current = decodeExplorerState(
       state.read<ExplorerState>(EXPLORER_STATE_KEY).value,
     );
     return runBlocking(explorerAssessmentOperation, {
-      workspaceRoot,
+      ...resolveRepoWorkSupplyInput({ workspaceRoot, scopeRoot, stateDir }),
       lastExplorationAt: current.lastExplorationAt,
     });
   },
 });
 
-type WatchlistEntrySummary = {
-  url: string;
-  added: string;
-  canonicalizedFrom?: string[];
-  status: "inaccessible" | "never-seen" | "seen";
-  last_seen_at?: string;
-  fingerprint?: string;
-  summary?: string;
-};
-
-type WatchlistInspection = {
-  entries: WatchlistEntrySummary[];
-  updateReportPath: string;
-};
-
-function summarizeWatchlistEntry(entry: WatchlistEntry): WatchlistEntrySummary {
-  if (entry.status === "inaccessible") {
-    return {
-      url: entry.url,
-      added: entry.added,
-      ...(entry.canonicalizedFrom !== undefined
-        ? { canonicalizedFrom: entry.canonicalizedFrom }
-        : {}),
-      status: "inaccessible",
-    };
-  }
-  if (!entry.snapshot) {
-    return {
-      url: entry.url,
-      added: entry.added,
-      ...(entry.canonicalizedFrom !== undefined
-        ? { canonicalizedFrom: entry.canonicalizedFrom }
-        : {}),
-      status: "never-seen",
-    };
-  }
-  return {
-    url: entry.url,
-    added: entry.added,
-    ...(entry.canonicalizedFrom !== undefined
-      ? { canonicalizedFrom: entry.canonicalizedFrom }
-      : {}),
-    status: "seen",
-    last_seen_at: entry.snapshot.last_seen_at,
-    fingerprint: entry.snapshot.fingerprint,
-    summary: entry.snapshot.summary,
-  };
-}
-
-const inspectWatchlist = typedCodeStep<WatchlistInspection>({
+const inspectWatchlist = typedCodeStep<Awaited<ReturnType<typeof refreshExplorerSources>>>({
   id: "inspect-watchlist",
   type: "code",
+  timeoutMs: 15 * 60 * 1000,
   exposeOutputToAgent: true,
-  validate: (raw) =>
-    expectStructuredOutput<WatchlistInspection>(raw, ["entries", "updateReportPath"]),
-  run: ({ workspaceRoot }) => {
-    const file = readWatchlist(workspaceRoot);
-    return {
-      entries: file.entries.map(summarizeWatchlistEntry),
-      updateReportPath: "watchlist-updates.json",
-    };
-  },
+  when: (ctx) => inspectQueue.outputRequired(ctx).needsAttention,
+  validate: (raw) => expectStructuredOutput<Awaited<ReturnType<typeof refreshExplorerSources>>>(raw,
+    ["sources", "observations", "fingerprint", "shouldReview", "reason", "revisit"]),
+  run: (ctx) => refreshExplorerSources({
+    workspaceRoot: ctx.workspaceRoot,
+    current: decodeExplorerState(ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY).value),
+    runTool: ctx.runTool,
+    capacity: inspectQueue.outputRequired(ctx).capacity,
+    artifactDir: resolveAgentRunDirFromContext(ctx),
+  }),
 });
 
 const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   repository: "write",
+  resources: () => ["autonomy:exploration"],
   integration: { validationCommand: ["pnpm", "validate-tasks"] },
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
@@ -163,7 +118,7 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       tier: AUTONOMY_AGENT_TIER,
       effort: AUTONOMY_AGENT_DEFAULTS.effort,
       timeoutMs: AUTONOMY_AGENT_HANG_TIMEOUT_MS,
-      when: (ctx) => inspectQueue.outputRequired(ctx).needsAttention,
+      when: (ctx) => inspectWatchlist.output(ctx)?.shouldReview === true,
       repairLoop: {
         checks: [
           {
@@ -190,16 +145,39 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       },
     },
     {
-      id: "record-exploration-publication",
+      id: "apply-watchlist-updates",
       type: "code",
       when: stepSucceeded("explore"),
-      run: ({ workflow }) => {
-        const exploredAt = new Date().toISOString();
-        writeJsonFileAtomic(
-          join(workflow.runDirPath, EXPLORER_PUBLICATION_ARTIFACT),
-          { exploredAt },
+      run: (ctx) => {
+        const payload = readWatchlistUpdatesFromRun(
+          resolveAgentRunDirFromContext(ctx),
         );
-        return { exploredAt };
+        if (!payload) return { applied: [] };
+        const applied = applyWatchlistUpdates(ctx.workspaceRoot, payload);
+        return { applied };
+      },
+    },
+    {
+      id: "record-exploration-publication",
+      type: "code",
+      when: stepSucceeded("inspect-watchlist"),
+      run: (ctx) => {
+        const evidence = inspectWatchlist.outputRequired(ctx);
+        const previous = decodeExplorerState(ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY).value);
+        const reviewed = ctx.stepResults.explore?.status === "success";
+        const next: ExplorerState = {
+          observedAt: new Date().toISOString(),
+          lastExplorationAt: reviewed ? new Date().toISOString() : previous.lastExplorationAt,
+          lastReviewedFingerprint: reviewed
+            ? explorationFingerprint(ctx.workspaceRoot, evidence.sources)
+            : previous.lastReviewedFingerprint,
+          sources: evidence.sources,
+        };
+        writeJsonFileAtomic(
+          join(ctx.workflow.runDirPath, EXPLORER_PUBLICATION_ARTIFACT),
+          next,
+        );
+        return { reviewed, ...next, revisit: evidence.revisit };
       },
     },
     {
@@ -214,19 +192,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           publicationKey,
           sourceRunId: ctx.workflow.runId,
         };
-      },
-    },
-    {
-      id: "apply-watchlist-updates",
-      type: "code",
-      when: stepSucceeded("explore"),
-      run: (ctx) => {
-        const payload = readWatchlistUpdatesFromRun(
-          resolveAgentRunDirFromContext(ctx),
-        );
-        if (!payload) return { applied: [] };
-        const applied = applyWatchlistUpdates(ctx.workspaceRoot, payload);
-        return { applied };
       },
     },
   ],

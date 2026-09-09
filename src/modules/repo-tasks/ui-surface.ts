@@ -137,7 +137,7 @@ function taskRows(
       { columnId: "name", value: task.title },
       {
         columnId: "state",
-        value: titleCase(task.state),
+        value: tasks.value.workSupply.owners.find((owner) => owner.taskId === task.id)?.state.replaceAll("_", " ") ?? titleCase(task.state),
         role: task.state === "blocked" ? "warn" : "info",
       },
       {
@@ -218,7 +218,7 @@ function buildTasksUiSurface(
     scopeId,
     attachmentPoint: { kind: "intent", intent: "Work" },
     order: 35,
-    refreshEvents: ["task.created", "task.changed", "task.moved", "queue.changed"],
+    refreshEvents: ["task.created", "task.changed", "task.moved", "queue.changed", "workflow.started", "workflow.completed"],
     permissions: [
       { kind: "capability-scope", scope: "control" },
       { kind: "effect", effect: "write" },
@@ -227,6 +227,11 @@ function buildTasksUiSurface(
       {
         kind: "status-summary",
         entries: [
+          ...([ ["Available", "availableCount"], ["Running", "runningCount"], ["Queued", "queuedCount"], ["Retained recovery", "retainedCount"] ] as const).map(([label, field]) => ({
+            label,
+            value: readValue(tasks, (value) => value.workSupply.ownershipAvailable ? `${value.workSupply[field]}` : "Unknown"),
+            role: readRole(tasks),
+          })),
           {
             label: "Open",
             value: readValue(tasks, (value) => `${value.tasks.filter((task) => task.state === "open").length}`),

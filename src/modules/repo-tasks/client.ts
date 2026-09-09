@@ -1,3 +1,4 @@
+import type { RepoWorkSupply } from "./work-supply.js";
 /**
  * Repo-tasks namespace client contract.
  *
@@ -30,6 +31,7 @@ export type RepoTaskListEntry = {
 };
 
 export type RepoTaskListResult = {
+  workSupply: RepoWorkSupply;
   tasks: RepoTaskListEntry[];
 };
 

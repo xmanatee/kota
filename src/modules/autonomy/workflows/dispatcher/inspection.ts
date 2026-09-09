@@ -1,9 +1,10 @@
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import {
-  getRepoTaskQueueSnapshot,
-  type RepoTaskQueueSnapshot,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+  inspectRepoWorkSupply,
+  type RepoWorkSupply,
+  type RepoWorkSupplyInput,
+} from "#modules/repo-tasks/work-supply.js";
 import {
   type BuilderTaskDispatchPayload,
   listBuilderTaskDispatches,
@@ -25,7 +26,7 @@ import {
 } from "./semantic-reflection.js";
 
 export type DispatcherInspection = {
-  queue: RepoTaskQueueSnapshot;
+  queue: RepoWorkSupply;
   builderTasks: BuilderTaskDispatchPayload[];
   researchRetryAvailability: ResearchRetryAvailability;
   securityReviewDue: SecurityReviewDueDecision;
@@ -37,6 +38,7 @@ export type DispatcherInspectionInput = {
   scopeRoot: string;
   scopeId: string;
   stateDir: string;
+  workSupplyInput: RepoWorkSupplyInput;
   nowIso: string;
   scopePolicySnapshot: ScopePolicySnapshot | null;
   scopeImprovementState: ScopeImprovementState;
@@ -60,9 +62,12 @@ export function inspectDispatcherStateInWorker(
       // must fail closed for builder admission without stopping other routing.
     }
   }
+  const queue = inspectRepoWorkSupply(input.workSupplyInput);
+  const available = new Set(queue.availableTaskIds);
   return {
-    queue: getRepoTaskQueueSnapshot(input.workspaceRoot),
-    builderTasks: builderEnabled ? listBuilderTaskDispatches(input.workspaceRoot) : [],
+    queue,
+    builderTasks: builderEnabled ? listBuilderTaskDispatches(input.workspaceRoot)
+      .filter((task) => available.has(task.taskId)) : [],
     researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot),
     securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,

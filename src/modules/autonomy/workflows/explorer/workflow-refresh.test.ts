@@ -3,6 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import {
   WorkflowScenarioDriver,
@@ -26,6 +28,9 @@ describe("explorer workflow refresh", () => {
   beforeEach(() => {
     tempDir = mkdtempSync(join(tmpdir(), "explorer-test-"));
     mkdirSync(join(tempDir, "data/tasks/archive"), { recursive: true });
+    const authority = new RunStateDatabase(join(tempDir, ".kota"));
+    authority.registerScope({ id: deriveDirectoryScopeId(tempDir), rootPath: tempDir, createdAt: new Date().toISOString() });
+    authority.close();
     writeFileSync(join(tempDir, ".gitignore"), ".kota/\n");
     execFileSync("git", ["init", "--quiet"], { cwd: tempDir });
     execFileSync("git", ["config", "user.email", "test@example.com"], { cwd: tempDir });

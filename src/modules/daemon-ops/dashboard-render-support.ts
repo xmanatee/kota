@@ -146,20 +146,11 @@ export function renderControlHelp(): RenderNode[] {
 
 export function taskQueueHasSignal(task: DashboardTaskQueue): boolean {
 	if (task.inboxCount > 0) return true;
-	if (taskQueueHasDispatchableWork(task)) return true;
-	if (task.actionableCount > 0) return true;
+	if (task.hasDispatchableWork) return true;
+	if (!task.ownershipAvailable || task.runningCount + task.queuedCount + task.retainedCount > 0) return true;
 	if (task.activeCount > 0) return true;
 	const { counts } = task;
 	return counts.open > 0 || counts.blocked > 0;
-}
-
-export function taskQueueHasDispatchableWork(task: DashboardTaskQueue): boolean {
-	return (
-		task.hasDispatchableWork ||
-		task.dispatchableCount > 0 ||
-		task.inboxCount > 0 ||
-		task.actionableCount > 0
-	);
 }
 
 export function formatQueueCountsRow(task: DashboardTaskQueue): string {

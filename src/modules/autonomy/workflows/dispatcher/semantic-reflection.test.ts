@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OwnerDecisionStore } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import {
   inspectProgressSemanticBoundary,
@@ -99,6 +100,9 @@ function moveTask(
 
 function makeProject(label: string): string {
   const workspaceRoot = mkdtempSync(join(tmpdir(), `kota-semantic-reflection-${label}-`));
+  const authority = new RunStateDatabase(join(workspaceRoot, ".kota"));
+  authority.registerScope({ id: deriveDirectoryScopeId(workspaceRoot), rootPath: workspaceRoot, createdAt: new Date().toISOString() });
+  authority.close();
   mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
   mkdirSync(join(workspaceRoot, "data", "inbox"), { recursive: true });
   write(workspaceRoot, ".gitignore", ".kota/\n");

@@ -7,6 +7,7 @@ import {
   publishExplorerCompletion,
 } from "#modules/autonomy/workflows/explorer/explorer-publication.js";
 import {
+  decodeExplorerState,
   EXPLORER_STATE_KEY,
   type ExplorerState,
 } from "#modules/autonomy/workflows/explorer/explorer-state.js";
@@ -36,6 +37,9 @@ const workflow: WorkflowDefinitionInput = {
           scopeRoot: ctx.scopeRoot,
         });
         if (nextState === null) return { published: false };
+        const current = decodeExplorerState(snapshot.value);
+        if (current.observedAt && (!nextState.observedAt ||
+          current.observedAt >= nextState.observedAt)) return { published: false };
         ctx.state.compareAndSet(
           EXPLORER_STATE_KEY,
           snapshot.revision,

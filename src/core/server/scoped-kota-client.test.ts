@@ -41,9 +41,9 @@ describe("createScopedKotaClient", () => {
         },
       },
       tasks: {
-        list: async (states: unknown, selector: unknown) => {
-          calls.push(["tasks.list", states, selector]);
-          return { tasks: [] };
+        show: async (id: string, selector: unknown) => {
+          calls.push(["tasks.show", id, selector]);
+          return { found: false };
         },
       },
     });
@@ -54,7 +54,7 @@ describe("createScopedKotaClient", () => {
     await scoped.workflow.pauseAgentForQuality("scope-local correction");
     await scoped.workflow.resume({ retryAgent: true });
     await scoped.approvals.list({ status: "all" });
-    await scoped.tasks.list(["open"]);
+    await scoped.tasks.show("task-a");
 
     expect(calls).toEqual([
       ["workflow.listRuns", { workflow: "builder", scopeId: "scope-b" }],
@@ -66,7 +66,7 @@ describe("createScopedKotaClient", () => {
       ],
       ["workflow.resume", { retryAgent: true }, { scopeId: "scope-b" }],
       ["approvals.list", { status: "all", scopeId: "scope-b" }],
-      ["tasks.list", ["open"], { scopeId: "scope-b" }],
+      ["tasks.show", "task-a", { scopeId: "scope-b" }],
     ]);
   });
 

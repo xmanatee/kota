@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p0
 ---
 # Restore claim-aware work supply and exploration
@@ -56,3 +56,47 @@ consumes fresh source evidence, creates a justified opportunity or records an
 honest no-action, and does not repeat that decision on unchanged inputs.
 Record trigger provenance, task/claim counts and slot refill after completion;
 passing a pure queue helper alone is not end-to-end delivery evidence.
+
+## Implementation and verification
+
+The isolated change set joins task intent with the existing runtime resource
+projection for dispatcher, explorer, parked-progress detection, task list/status,
+and the shared Tasks UI. Hosted scopes resolve the canonical daemon database and
+live capacity. Retained owners are preserved, missing ownership evidence stays
+unknown, and unrelated dependency waits do not veto independent exploration.
+The reserve target is one capacity-sized batch of unclaimed runnable tasks.
+
+Explorer rechecks watchlist sources through the registered read tool, saves the
+observed content in run artifacts, and admits AI review only for changed source
+or task evidence. Its existing post-integration publication records observations,
+the last actual exploration, and the reviewed fingerprint, including no-action.
+A stale publication cannot overwrite a newer observation.
+
+The combined work-supply integration scenario passes through the production
+workflow host: four retained owners, mixed independent work and dependency wait,
+fresh source consumption, no-action publication, unchanged-input AI suppression,
+and duplicate-claim rejection. The rendered Tasks probe shows available=0,
+running=0, queued=0, retained=4 for an isolated four-owner fixture. These are
+fixture observations, not live observations of the owner's retained runs.
+Typechecks, scoped Biome checks, and generated binding freshness pass. The selected
+owner run passed 139 of 140 tests; the failure pins schema version 5 while the
+unchanged schema owner declares version 6. Broader checks also encountered
+runtime dispatch failures, a missing run-metadata failure in the existing task
+mutation host scenario, and an unrelated continuity-render expectation. One idle
+dispatch failure was reproduced with the original runtime projection restored.
+Run-local evidence and the detailed validation summary are retained under builder
+run 2026-09-09T16-49-08-994Z-builder-q22o30.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/operator-captures/claim-aware-work-supply-live.md
+description: Integrate the changes, then capture an operator-resumed live dispatcher and explorer with current retained ownership, source evidence, unchanged-input suppression, and slot refill after completion.
+
+The builder instructions explicitly prohibit controlling the launching daemon,
+and this native permission profile denies its canonical SQLite files. Therefore
+this run cannot supply the required live resumed-dispatcher observation or prove
+live slot refill. Preserve retained owners, pauses, and backoff. Capture trigger
+provenance, available/running/queued/retained counts, an explorer's justified
+opportunity or specific no-action revisit condition, the subsequent unchanged
+input decision, and slot refill after completion in the named operator artifact.

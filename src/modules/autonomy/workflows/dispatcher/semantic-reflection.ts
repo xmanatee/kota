@@ -7,9 +7,9 @@ import {
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
 import {
-  getRepoTaskQueueSnapshot,
   listFullRepoTasks,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import type { ProgressReviewRequest } from "../progress-reviewer/events.js";
 import { progressReviewDispatchKey } from "../progress-reviewer/semantic-input.js";
 import {
@@ -75,8 +75,9 @@ export async function inspectProgressSemanticBoundary(args: {
   }
   const scopeId = deriveDirectoryScopeId(args.scopeRoot);
   const head = getRepoHeadSha(args.workspaceRoot);
-  const queue = getRepoTaskQueueSnapshot(args.workspaceRoot);
-  const parked = queue.activeCount > 0 && !queue.hasDispatchableWork;
+  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput(args));
+  const parked = queue.ownershipAvailable && queue.activeCount > 0 && !queue.hasDispatchableWork &&
+    queue.runningCount === 0 && queue.queuedCount === 0;
   const ownerDecisions = observeOwnerDecisions(args.stateDir, scopeId);
   const ownerWatermark = latestOwnerDecisionWatermark(ownerDecisions);
   const stored = args.progressBoundaryState;
@@ -149,7 +150,7 @@ export async function inspectProgressSemanticBoundary(args: {
     ? "task-disposition" as const
     : strategic.length > 0
       ? "strategic-completion" as const
-      : !previous.parked && parked && transitions.length > 0
+      : !previous.parked && parked
         ? "parked-queue" as const
         : newlyResolvedDecisions.length > 0
           ? "owner-decision-resolution" as const

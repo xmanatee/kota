@@ -126,8 +126,12 @@ describe("renderDashboard status", () => {
           taskQueue: {
             inboxCount: 3,
             activeCount: 11,
-            actionableCount: 2,
-            dispatchableCount: 6,
+            ownershipAvailable: true,
+            availableCount: 2,
+            runningCount: 1,
+            queuedCount: 1,
+            retainedCount: 4,
+            dispatchableCount: 5,
             hasDispatchableWork: true,
             counts: {
               open: 8,
@@ -143,8 +147,8 @@ describe("renderDashboard status", () => {
     expect(output).toContain("Work");
     expect(output).toContain("Inbox 3");
     expect(output).toContain("Open 8");
-    expect(output).toContain("Dispatchable 6");
-    expect(output).toContain("Actionable 2");
+    expect(output).toContain("Dispatchable 5");
+    expect(output).toContain("Available 2");
     expect(output).not.toMatch(/Done\s+100/);
   });
 });

@@ -64,7 +64,11 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 				return;
 			}
 
-			print(buildTaskListNode(result.tasks));
+			const supply = result.workSupply;
+            print(line(plain(supply.ownershipAvailable
+              ? `Available ${supply.availableCount} · running ${supply.runningCount} · queued ${supply.queuedCount} · retained ${supply.retainedCount} · capacity ${supply.capacity}`
+              : "Work availability unknown: runtime ownership unavailable")));
+            print(buildTaskListNode(result.tasks));
 		});
 
 	taskCmd

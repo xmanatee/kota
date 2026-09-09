@@ -23,3 +23,10 @@ This directory contains the explorer workflow definition and prompt.
   pattern verdicts live in the typed
   `src/modules/autonomy/external-pattern-decisions.ts` catalog, which remains
   outside explorer's write scope and is curated separately.
+
+Source rechecks are deterministic reads through the normal web tool boundary.
+A time-due recheck does not itself authorize another AI review: the last actual
+review consumes a fingerprint of observed source content and task intent.
+Failed fetches preserve the last observed content identity and never supply
+fabricated source evidence. Observations and reviewed fingerprints publish
+through the existing post-integration state follow-up, including no-action.

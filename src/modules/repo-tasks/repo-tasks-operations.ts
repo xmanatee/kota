@@ -33,6 +33,7 @@ import {
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
 import { isRepoTaskId } from "./task-id.js";
+import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "./work-supply.js";
 
 const DEFAULT_SEARCH_LIMIT = 20;
 const DEFAULT_LIST_STATES: RepoTaskState[] = ["open", "blocked"];
@@ -46,6 +47,7 @@ export function listRepoTasks(
     listRepoTaskDependencyWaits(repoRoot).map((wait) => [wait.id, wait.waitingOn]),
   );
   return {
+    workSupply: inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ workspaceRoot: repoRoot, scopeRoot: repoRoot, stateDir: join(repoRoot, ".kota") })),
     tasks: listFullRepoTasks(repoRoot, selectedStates).map((task) => ({
       id: task.id,
       priority: task.priority,

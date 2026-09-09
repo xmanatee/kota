@@ -10,7 +10,11 @@ describe("renderDashboard activity", () => {
     const emptyQueue: DashboardTaskQueue = {
       inboxCount: 0,
       activeCount: 0,
-      actionableCount: 0,
+      ownershipAvailable: true,
+      availableCount: 0,
+      runningCount: 0,
+      queuedCount: 0,
+      retainedCount: 0,
       dispatchableCount: 0,
       hasDispatchableWork: false,
       counts: {
@@ -33,7 +37,11 @@ describe("renderDashboard activity", () => {
           taskQueue: {
             inboxCount: 0,
             activeCount: 15,
-            actionableCount: 0,
+            ownershipAvailable: true,
+            availableCount: 0,
+            runningCount: 0,
+            queuedCount: 0,
+            retainedCount: 0,
             dispatchableCount: 0,
             hasDispatchableWork: false,
             counts: {

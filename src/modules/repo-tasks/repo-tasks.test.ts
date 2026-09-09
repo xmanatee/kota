@@ -7,7 +7,6 @@ import {
   countRepoInboxEntries,
   countRepoTaskState,
   getRepoTaskQueueSnapshot,
-  isThinDispatchableQueue,
   REPO_INBOX_DIR,
   REPO_TASKS_DIR,
 } from "./repo-tasks-domain.js";
@@ -118,23 +117,4 @@ describe("repo task helpers", () => {
     expect(snapshot.dispatchableCount).toBe(1);
   });
 
-  it("treats one or two dependency-clear open tasks as a thin queue", () => {
-    writeTask("task-a", "open");
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(true);
-    writeTask("task-b", "open");
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(true);
-  });
-
-  it("does not treat dependency-blocked or three-task queues as thin", () => {
-    writeTask("task-dependent", "open", ["task-enabler"]);
-    writeTask("task-enabler", "blocked");
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(false);
-
-    rmSync(join(repoRoot, REPO_TASKS_DIR, "task-dependent.md"));
-    rmSync(join(repoRoot, REPO_TASKS_DIR, "task-enabler.md"));
-    writeTask("task-a", "open");
-    writeTask("task-b", "open");
-    writeTask("task-c", "open");
-    expect(isThinDispatchableQueue(getRepoTaskQueueSnapshot(repoRoot))).toBe(false);
-  });
 });

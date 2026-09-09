@@ -4,7 +4,9 @@ Runs on `runtime.idle`, assesses repo state, and emits condition-based events.
 This is the only autonomy workflow that listens to `runtime.idle`.
 
 Queue shape comes from the shared autonomy queue policy; task eligibility
-comes from repo-tasks. The emitted-event summary records actual publication
+comes from the repo-tasks work-supply projection, including runtime ownership.
+Independent exploration uses a capacity-sized reserve of available tasks;
+retained runs and unrelated dependency waits never count as spare supply. The emitted-event summary records actual publication
 intents rather than independently recomputing routing conditions. Owner-decision
 observations use the scoped core repository, never a second JSON reader.
 

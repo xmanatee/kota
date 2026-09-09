@@ -1,6 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
-import { getDaemonTransport } from "#core/server/daemon-transport.js";
+import { join } from "node:path";
 import { jsonResponse } from "#core/server/session-pool.js";
 import { parseFlatFrontMatter } from "#core/util/frontmatter.js";
 import {
@@ -22,6 +21,7 @@ import {
   DETAIL_STATES,
   readStateTasks,
 } from "./route-task-files.js";
+import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "./work-supply.js";
 
 const ALLOWED_TARGET_STATES: readonly RepoTaskState[] = ["open", "blocked", "done", "dropped"];
 
@@ -121,28 +121,14 @@ export async function handleTaskStatus(
       state === "inbox" ? countMarkdownFiles(inboxDir) : listFullRepoTasks(repoRoot, [state]).length,
     ]),
   ) as DaemonTaskStatusResponse["counts"];
-  const transport = getDaemonTransport();
-  const workflowStatus = transport
-    ? await transport.request<WorkflowLiveStatus>("GET", "/workflow/status")
-    : null;
-  const inProgressTaskIds = activeBuilderTaskIds(workflowStatus);
+  const workSupply = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ workspaceRoot: repoRoot, scopeRoot: repoRoot, stateDir: join(repoRoot, ".kota") }));
+  const inProgressTaskIds = new Set(workSupply.owners.filter((owner) =>
+    owner.state === "running" || owner.state === "integrating").map((owner) => owner.taskId));
   const tasks = Object.fromEntries(
     DETAIL_STATES.map((state) => [
       state,
       readStateTasks(repoRoot, tasksDir, state, inProgressTaskIds),
     ]),
   ) as DaemonTaskStatusResponse["tasks"];
-  jsonResponse(res, 200, { counts, tasks } satisfies DaemonTaskStatusResponse);
-}
-
-export function activeBuilderTaskIds(
-  workflowStatus: Pick<WorkflowLiveStatus, "activeRuns"> | null,
-): Set<string> {
-  return new Set(
-    (workflowStatus?.activeRuns ?? []).flatMap((run) => {
-      if (run.workflow !== "builder") return [];
-      const taskId = run.trigger?.payload.taskId;
-      return typeof taskId === "string" ? [taskId] : [];
-    }),
-  );
+  jsonResponse(res, 200, { counts, tasks, workSupply } satisfies DaemonTaskStatusResponse);
 }

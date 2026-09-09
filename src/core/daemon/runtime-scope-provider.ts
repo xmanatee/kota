@@ -14,7 +14,7 @@ export type DaemonRuntimeScope = Pick<
   | "runState"
   | "ownerQuestionQueue"
 > & {
-  workflowRuntime: Pick<WorkflowRuntime, "enqueuePendingRun">;
+  workflowRuntime: Pick<WorkflowRuntime, "enqueuePendingRun" | "getState">;
 };
 
 export type DaemonRuntimeScopeResolution =

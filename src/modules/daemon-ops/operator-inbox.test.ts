@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type {
   ApprovalClientProjection,
@@ -5,6 +8,7 @@ import type {
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
+import { inspectRepoWorkSupply } from "#modules/repo-tasks/work-supply.js";
 import type { ModuleSetupRequirementStatus } from "#modules/setup/client.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
@@ -118,6 +122,9 @@ function client(args: {
   runs?: WorkflowRunSummary[];
 } = {}): KotaClient {
   const blockedContent = args.blockedContent ?? {};
+  const root = mkdtempSync(join(tmpdir(), "operator-inbox-supply-"));
+  const workSupply = inspectRepoWorkSupply({ workspaceRoot: root, scopeRoot: root, stateDir: join(root, ".kota"), capacity: 4 });
+  rmSync(root, { recursive: true, force: true });
   return createKotaClientTestDouble({
     approvals: {
       async list() {
@@ -131,8 +138,9 @@ function client(args: {
     },
     tasks: {
       async list(states?: string[]) {
-        if (!states?.includes("blocked")) return { tasks: [] };
+        if (!states?.includes("blocked")) return { tasks: [], workSupply };
         return {
+          workSupply,
           tasks: Object.keys(blockedContent).map((id) => ({
             id,
             title: `Blocked ${id}`,
