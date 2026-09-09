@@ -130,7 +130,8 @@ export type WorkflowScenarioOptions = {
       cwd: string;
     }) => WorkflowScenarioOutput | Promise<WorkflowScenarioOutput>;
     runCommand?: WorkflowCommandRunner;
-    runTool?: (name: string, input: Record<string, unknown>) => Promise<ToolResult>;
+    /** Use the registered production tools or supply controlled tool outcomes. */
+    runTool?: "registered" | ((name: string, input: Record<string, unknown>) => Promise<ToolResult>);
   };
 };
 
@@ -426,8 +427,8 @@ export class WorkflowScenarioDriver {
             approvalQueue,
             log: () => undefined,
             runCommand: this.options.ports?.runCommand ?? unexpectedWorkflowCommandRun,
-            runTool: async (name, input, context) => {
-              if (this.options.ports?.runTool) {
+            runTool: this.options.ports?.runTool === "registered" ? undefined : async (name, input, context) => {
+              if (typeof this.options.ports?.runTool === "function") {
                 return this.options.ports.runTool(name, input);
               }
               const output = nextOutput(context?.stepId ?? name);

@@ -139,6 +139,9 @@ export async function executeWorkflowStep(
       ...toolContext,
       stepId: toolContext?.stepId ?? step.id,
       sessionId: toolSession.sessionId,
+      signal: toolContext?.signal === undefined
+        ? stepAbortController.signal
+        : AbortSignal.any([stepAbortController.signal, toolContext.signal]),
     });
   const capturedAgentMessages: KotaAgentMessage[] = [];
   const usageAccumulator = step.type === "agent" ? new AgentUsageAccumulator() : undefined;

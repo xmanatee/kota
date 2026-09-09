@@ -95,6 +95,34 @@ describe("workflow direct-tool session isolation", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
+  it("propagates a step deadline to a code step's tool and rejects its cancelled result", async () => {
+    let toolCancelled = false;
+    let observedResult = false;
+    const { promise } = executeWorkflowRun(makeDefinition({ steps: [{
+      id: "collect", type: "code", timeoutMs: 50,
+      run: async (context) => {
+        await context.runTool("capture", {});
+        observedResult = true;
+      },
+    }] }), TRIGGER, {
+      readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      runContext: makeRunContext(workspaceRoot, TRIGGER), bus, store, log,
+      runTool: async (_name, _input, context) => {
+        if (!context?.signal) throw new Error("Missing tool cancellation signal");
+        await new Promise<void>((resolve) => context.signal!.addEventListener("abort", () => {
+          toolCancelled = true;
+          resolve();
+        }, { once: true }));
+        return { content: "Cancelled request", is_error: true };
+      },
+    });
+    const result = await promise;
+    expect(result.metadata.status).toBe("failed");
+    expect(result.metadata.steps[0]?.errorKind).toBe("step-timeout");
+    expect(toolCancelled).toBe(true);
+    expect(observedResult).toBe(false);
+  });
+
   it("isolates and tears down sessions for parallel children", async () => {
     await expectConcurrentSessionCleanup({
       definition: makeDefinition({

@@ -22,6 +22,7 @@ it("reconsiders changed task dependencies and priority, but ignores dependency o
     `---\nstatus: open\npriority: ${priority}\ndepends_on: [${dependencies.join(", ")}]\n---\n# Independent work\n`);
   const inspect = (current: ExplorerState) => refreshExplorerSources({
     workspaceRoot, current, capacity: 2, artifactDir: join(workspaceRoot, ".kota/run"),
+    evidenceDir: join(workspaceRoot, ".kota/evidence"),
     runTool: async () => { throw new Error("No watchlist sources"); },
   });
   writeTask([]);
@@ -52,7 +53,7 @@ it("rechecks due sources without repeating an AI decision on unchanged or inacce
   let inaccessible = false;
   let fetches = 0;
   const runTool = async () => { fetches++; return { content, is_error: inaccessible }; };
-  const inspect = (current: ExplorerState) => refreshExplorerSources({ workspaceRoot, current, runTool, capacity: 2, artifactDir: join(workspaceRoot, ".kota", "run") });
+  const inspect = (current: ExplorerState) => refreshExplorerSources({ workspaceRoot, current, runTool, capacity: 2, artifactDir: join(workspaceRoot, ".kota", "run"), evidenceDir: join(workspaceRoot, ".kota/evidence") });
   const initial = await inspect(decodeExplorerState(null));
   expect(initial.shouldReview).toBe(true);
   expect(initial.observations[0]).toMatchObject({ accessible: true, changed: true });

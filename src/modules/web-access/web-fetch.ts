@@ -111,6 +111,7 @@ export async function runWebFetch(input: Record<string, unknown>, context?: Tool
       profile: OUTBOUND_HTTP_PROFILES.publicUntrusted,
       operation: "web-access.web-fetch",
       url,
+      signal: context?.signal,
       headers: {
         "User-Agent": "KOTA/0.1 (agent automation runtime)",
         Accept: "text/html, text/plain, application/json, */*",

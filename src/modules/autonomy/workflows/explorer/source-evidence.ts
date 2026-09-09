@@ -26,31 +26,39 @@ export async function refreshExplorerSources(input: {
   current: ExplorerState;
   runTool: WorkflowRunToolRunner;
   capacity: number;
+  /** Agent-readable working copy, removed with the run sandbox. */
   artifactDir: string;
+  /** Retained run evidence, outside the temporary sandbox. */
+  evidenceDir: string;
 }) {
   const entries = readWatchlist(input.workspaceRoot).entries;
   const sources = { ...input.current.sources };
-  const observations: { url: string; accessible: boolean; changed: boolean; contentPath: string }[] = [];
+  const observations: { url: string; accessible: boolean; changed: boolean; contentPath: string; evidencePath: string }[] = [];
   const sourceDir = join(input.artifactDir, "source-evidence");
+  const evidenceDir = join(input.evidenceDir, "source-evidence");
   mkdirSync(sourceDir, { recursive: true });
+  mkdirSync(evidenceDir, { recursive: true });
   const pending = entries.values();
   const refresh = async () => {
-  for (const entry of pending) {
-    const previous = sources[entry.url];
-    if (previous && Date.now() - Date.parse(previous.checkedAt) < EXPLORATION_REFRESH_MS) continue;
-    const result = await input.runTool("web_fetch", { url: entry.url });
-    const accessible = !result.is_error && result.content.trim().length > 0;
-    sources[entry.url] = {
-      checkedAt: new Date().toISOString(),
-      fingerprint: accessible
-        ? computeWatchlistFingerprint(normalizeWatchlistContent(result.content))
-        : previous?.fingerprint ?? null,
-    };
-    const contentPath = join(sourceDir, `${createHash("sha256").update(entry.url).digest("hex")}.txt`);
-    writeFileSync(contentPath, result.content, "utf8");
-    observations.push({ url: entry.url, accessible, contentPath,
-      changed: accessible && previous?.fingerprint !== sources[entry.url].fingerprint });
-  }
+    for (const entry of pending) {
+      const previous = sources[entry.url];
+      if (previous && Date.now() - Date.parse(previous.checkedAt) < EXPLORATION_REFRESH_MS) continue;
+      const result = await input.runTool("web_fetch", { url: entry.url });
+      const accessible = !result.is_error && result.content.trim().length > 0;
+      sources[entry.url] = {
+        checkedAt: new Date().toISOString(),
+        fingerprint: accessible
+          ? computeWatchlistFingerprint(normalizeWatchlistContent(result.content))
+          : previous?.fingerprint ?? null,
+      };
+      const filename = `${createHash("sha256").update(entry.url).digest("hex")}.txt`;
+      const contentPath = join(sourceDir, filename);
+      const evidencePath = join(evidenceDir, filename);
+      writeFileSync(evidencePath, result.content, "utf8");
+      writeFileSync(contentPath, result.content, "utf8");
+      observations.push({ url: entry.url, accessible, contentPath, evidencePath,
+        changed: accessible && previous?.fingerprint !== sources[entry.url].fingerprint });
+    }
   };
   await Promise.all(Array.from({ length: Math.min(input.capacity, entries.length) }, refresh));
   observations.sort((a, b) => a.url.localeCompare(b.url));

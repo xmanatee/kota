@@ -367,6 +367,22 @@ describe("runWebFetch", () => {
     expect(result.content).toContain("ECONNREFUSED");
   });
 
+  it("cancels an in-flight request when the calling workflow aborts", async () => {
+    const controller = new AbortController();
+    let requestSignal: AbortSignal | null | undefined;
+    vi.mocked(global.fetch).mockImplementation(async (_url, init) => {
+      requestSignal = init?.signal;
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal?.addEventListener("abort", () => reject(requestSignal?.reason), { once: true });
+        controller.abort(new Error("Workflow cancelled"));
+      });
+    });
+    const result = await runWebFetch({ url: "https://example.com" }, { signal: controller.signal });
+    expect(requestSignal?.aborted).toBe(true);
+    expect(result.is_error).toBe(true);
+    expect(result.content).toContain("aborted");
+  });
+
   it("reports an immediate adapter AbortError as a network failure", async () => {
     vi.mocked(global.fetch).mockRejectedValue(new DOMException("The operation was aborted", "AbortError"));
     const result = await runWebFetch({ url: "https://example.com" });

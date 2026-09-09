@@ -93,7 +93,7 @@ describe("executeToolStep retry", () => {
     const context = {
       runTool: vi.fn().mockImplementation(async () => {
         calls++;
-        if (calls === 1) throw new Error("transient");
+        if (calls === 1) return { content: "transient", is_error: true };
         return { content: "ok" };
       }),
     } as unknown as Parameters<typeof executeToolStep>[1];
@@ -113,7 +113,7 @@ describe("executeToolStep retry", () => {
 
   it("does not retry when retry config is absent", async () => {
     const context = {
-      runTool: vi.fn().mockRejectedValue(new Error("fail")),
+      runTool: vi.fn().mockResolvedValue({ content: "fail", is_error: true }),
     } as unknown as Parameters<typeof executeToolStep>[1];
 
     const step: WorkflowToolStep = {

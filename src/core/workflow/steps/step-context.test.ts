@@ -11,10 +11,11 @@ import {
   resetModuleEventRegistry,
 } from "#core/events/module-event.js";
 import { ScopedEventBus } from "#core/events/scope.js";
+import { deregisterTool, registerTool } from "#core/tools/index.js";
 import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import { EMITTED_EVENTS_LOG_FILENAME } from "../run-event-evidence.js";
 import { WorkflowRunStore } from "../run-store.js";
-import type { WorkflowRunMetadata } from "../run-types.js";
+import type { WorkflowRunMetadata, WorkflowRunToolRunner } from "../run-types.js";
 import { unexpectedWorkflowAgentHarnessRun } from "../testing/agent-harness-runner.js";
 import { createTestTransactionalRunState } from "../testing/run-context-fixture.js";
 import type { WorkflowRunTrigger } from "../trigger-types.js";
@@ -53,6 +54,48 @@ afterEach(() => {
 });
 
 describe("createStepContext", () => {
+  it.each(["registered", "injected"])("returns tool failures while preserving fatal errors and cancellation with the %s runner", async (runnerKind) => {
+    const workspaceRoot = tempScope();
+    const toolName = "step_context_failure_fixture";
+    const failure = { content: "Source unavailable", is_error: true };
+    const cancelled = new AbortController();
+    const runTool = vi.fn<WorkflowRunToolRunner>(async (_name, _input, context) => {
+      if (context?.signal?.aborted) throw context.signal.reason;
+      return failure;
+    });
+    registerTool({ name: toolName, description: "Failure fixture", input_schema: { type: "object", properties: {} } },
+      (input, context) => runTool(toolName, input, context ? { ...context, stepId: "inspect" } : undefined));
+    try {
+      const bus = new EventBus();
+      const context = createStepContext(makeMetadata(), trigger, undefined, {}, {}, [], {
+        readRuntimeState: readEmptyTestWorkflowRuntimeState,
+        workspaceRoot, scopeRoot: workspaceRoot, bus, pbus: new ScopedEventBus(bus, "scope-a"),
+        store: new WorkflowRunStore(workspaceRoot),
+        runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+        ...(runnerKind === "injected" ? { runTool } : {}),
+      });
+      await expect(context.runTool(toolName, {})).resolves.toEqual(failure);
+      if (runnerKind === "injected") {
+        const fatal = new Error("Runtime effect store unavailable");
+        runTool.mockRejectedValueOnce(fatal);
+        await expect(context.runTool(toolName, {})).rejects.toBe(fatal);
+      }
+      const reason = new Error("Workflow cancelled");
+      runTool.mockImplementationOnce(async (_name, _input, callContext) => {
+        cancelled.abort(reason);
+        expect(callContext?.signal?.aborted).toBe(true);
+        return failure;
+      });
+      await expect(context.runTool(toolName, {}, { stepId: "inspect", signal: cancelled.signal })).rejects.toBe(reason);
+      runTool.mockClear();
+      await expect(context.runTool(toolName, {}, { stepId: "inspect", signal: cancelled.signal })).rejects.toBe(reason);
+      expect(runTool).not.toHaveBeenCalled();
+    } finally {
+      deregisterTool(toolName);
+      rmSync(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it.skipIf(process.platform === "win32")(
     "registers command processes with the run-owned registry",
     async () => {
@@ -216,6 +259,7 @@ describe("createStepContext", () => {
           authorityConfigPath,
           scopeRoot: workspaceRoot,
           cwd: workspaceDir,
+          signal: expect.any(AbortSignal),
           sessionId: "workflow-session",
           stepId: "build",
           scopeId: "scope-a",

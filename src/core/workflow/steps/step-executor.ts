@@ -95,11 +95,14 @@ export async function executeToolStep(
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     throw new Error(`Tool step "${step.id}" resolved to a non-object input`);
   }
-  const run = () =>
-    context.runTool(step.tool, input, {
+  const run = async () => {
+    const result = await context.runTool(step.tool, input, {
       stepId: step.id,
       effectId: step.id,
     });
+    if (result.is_error) throw new Error(result.content);
+    return result;
+  };
   return step.retry ? withRetry(run, step.retry) : run();
 }
 

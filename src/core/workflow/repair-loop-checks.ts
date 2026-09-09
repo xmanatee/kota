@@ -45,6 +45,7 @@ async function runRepairCheck(
     const result = await context.runTool(check.tool, input, {
       stepId: `${parentStep.id}:repair-check:${check.id}`,
     });
+    if (result.is_error) throw new Error(result.content);
     const output = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
     return { id: check.id, passed: true, output, severity };
   } catch (error) {

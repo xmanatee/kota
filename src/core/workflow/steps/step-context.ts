@@ -302,24 +302,32 @@ export function createStepContext(
     runCommand,
     state: deps.runContext?.state ?? unsupportedTransactionalState,
     runTool: async (name, input, toolContext) => {
+      const signals = [deps.runContext?.signal, toolContext?.signal]
+        .filter((signal): signal is AbortSignal => signal !== undefined);
+      const signal = AbortSignal.any(signals);
+      signal.throwIfAborted();
       const stepId = toolContext?.stepId ?? deps.currentStepId ?? "unknown";
-      const context = buildWorkflowToolContext(
-        metadata,
-        deps.pbus,
-        stepId,
-        deps.scopeRoot,
-        deps.workspaceRoot,
-        toolContext?.sessionId,
-        deps.runtimeResources,
-        deps.approvalQueue,
-        deps.authorityConfigPath ?? getGlobalConfigPath(),
-      );
+      const context = {
+        ...buildWorkflowToolContext(
+          metadata,
+          deps.pbus,
+          stepId,
+          deps.scopeRoot,
+          deps.workspaceRoot,
+          toolContext?.sessionId,
+          deps.runtimeResources,
+          deps.approvalQueue,
+          deps.authorityConfigPath ?? getGlobalConfigPath(),
+        ),
+        signal,
+      };
       const authority = deps.scopePolicyAuthority;
       const getScopePolicySnapshot = authority === undefined
         ? undefined
         : () => authority.getSnapshot(context.scopeId);
       const scopePolicy = getScopePolicySnapshot?.().policy;
       const executionOptions: ToolCallExecutionOptions = {
+        signal,
         resultLimit: Number.MAX_SAFE_INTEGER,
         verbose: false,
         autonomyMode: "autonomous",
@@ -387,7 +395,7 @@ export function createStepContext(
       } else {
         result = await executeResolvedTool();
       }
-      if (!runTool && result.is_error) throw new Error(result.content);
+      signal.throwIfAborted();
       return result;
     },
     runAgentHarness,

@@ -85,6 +85,7 @@ const inspectWatchlist = typedCodeStep<Awaited<ReturnType<typeof refreshExplorer
     runTool: ctx.runTool,
     capacity: inspectQueue.outputRequired(ctx).capacity,
     artifactDir: resolveAgentRunDirFromContext(ctx),
+    evidenceDir: ctx.workflow.runDirPath,
   }),
 });
 

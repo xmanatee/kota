@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p0
 ---
 # Restore claim-aware work supply and exploration
@@ -112,6 +112,38 @@ Use the existing scenarios to prove the real runner contract with mixed healthy,
 oversized and inaccessible sources; preserve genuinely fatal runtime failures.
 Then complete the original live acceptance. The capture below remains an
 acceptance obligation, not a reason to defer this already reproduced repair.
+
+## Source collection repair (2026-09-09)
+
+The workflow tool runner now returns tool error results consistently for registered
+and injected runners. Declarative tool steps and repair checks explicitly reject
+those results; explorer records source-level failures and continues the bounded
+batch. Runtime policy failures and cancellation still reject execution. Run and
+step cancellation reaches the web transport, and cancelled results cannot become
+source observations. Fetch limits and public-network policy are unchanged.
+Source content and failure text are retained with the workflow run, with working
+copies in the authorized agent directory so cleanup does not erase the evidence.
+
+The combined production-host scenario now uses the registered web tool and real
+HTTP transport policy with controlled DNS/network responses: a healthy source,
+the reproduced 92,841-byte Content-Length failure, and HTTP 503. Its controlled
+agent reads the observed files once, publishes a specific no-action revisit
+condition, and is skipped after unchanged due rechecks. Evidence survives sandbox
+cleanup. Missing tool registration rejects the run without publication. The same
+scenario verifies retained-only and mixed work supply, unrelated dependency waits,
+retained admission rejection, atomic contention for available work, and availability
+after resource release. These remain fixture observations, not live acceptance.
+Owner checks cover tool-step retry/failure, repair rejection, runtime authority,
+step cancellation and web request cancellation. Two existing checks could not
+complete in this sandbox: process registration requires denied /bin/ps, and the
+web save-path symlink check encounters EPERM during cleanup. Run-specific evidence
+and validation details are under builder 2026-09-09T20-06-43-616Z-builder-r6s0z1.
+
+The reproduced implementation repair is complete. Live source review, unchanged-input
+suppression, and slot refill remain unverified until runtime integration and an
+operator-resumed run of this revision. A read of the cited live explorer step
+artifact was denied; no live data or launching-daemon controls were changed.
+The operator capture below remains the concrete prerequisite for completion.
 
 ## Blocked on
 

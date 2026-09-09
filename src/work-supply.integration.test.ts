@@ -1,16 +1,19 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { clearCustomTools, registerTool } from "#core/tools/index.js";
+import { OutboundHttpTransport, outboundHttp } from "#core/outbound-http/index.js";
+import { clearCustomTools, deregisterTool, registerTool } from "#core/tools/index.js";
+import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { WorkflowRunStore } from "#core/workflow/run-store.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
 import dispatcher from "#modules/autonomy/workflows/dispatcher/workflow.js";
 import { decodeExplorerState, EXPLORER_STATE_KEY, type ExplorerState } from "#modules/autonomy/workflows/explorer/explorer-state.js";
+import type { refreshExplorerSources } from "#modules/autonomy/workflows/explorer/source-evidence.js";
 import explorer from "#modules/autonomy/workflows/explorer/workflow.js";
 import explorerPublication from "#modules/autonomy/workflows/explorer-publication/workflow.js";
 import { runGitEvidenceCommand } from "#modules/autonomy/workflows/git-evidence-test-support.js";
@@ -22,7 +25,7 @@ import { listRepoTasks } from "#modules/repo-tasks/repo-tasks-operations.js";
 import webAccess from "#modules/web-access/index.js";
 
 const roots: string[] = [];
-afterEach(() => { clearCustomTools(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { vi.restoreAllMocks(); clearCustomTools(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 // Consumer: builder/explorer and operators. Owners: repo-tasks + runtime + dispatcher.
 // Stimulus: idle dispatch and task list. Oracle: emitted contracts, supply, atomic claim.
@@ -34,7 +37,8 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   const scopeId = deriveDirectoryScopeId(root);
   mkdirSync(join(root, "data/tasks"), { recursive: true });
   writeFileSync(join(root, ".gitignore"), ".kota/\n");
-  writeFileSync(join(root, "data/watchlist.yaml"), "resources:\n  - url: https://example.com/research\n    added: 2026-09-01\n");
+  const sourceUrls = ["oversized", "inaccessible", "research"].map((path) => `https://example.com/${path}`);
+  writeFileSync(join(root, "data/watchlist.yaml"), `resources:\n${sourceUrls.map((url) => `  - url: ${url}\n    added: 2026-09-01\n`).join("")}`);
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
   git("init", "--quiet");
   const writeTask = (id: string, state = "open", dependsOn: string[] = []) => {
@@ -118,18 +122,55 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   const fetchTool = webAccess.tools.find((tool) => tool.tool.name === "web_fetch")!;
   registerTool(fetchTool.tool, fetchTool.runner, "work-supply-test", { effect: fetchTool.effect });
   let sourceReads = 0;
-  const explore = () => new WorkflowScenarioDriver(explorer, {
-    workspaceRoot: root,
-    trigger: { event: thin.event, payload: thin.payload },
-    stepOutputs: { explore: "No action: the observed capability is already represented by current tasks. Revisit when the source reports new recovery evidence." },
-    ports: {
-      state: { stateDir, scopeId }, runCommand: successfulWorkflowCommandRun,
-      runTool: async () => { sourceReads++; return { content: "Durable task ownership survives restart." }; },
+  const transport = new OutboundHttpTransport({
+    resolveAddresses: async () => [{ address: "93.184.216.34", family: 4 }],
+    dispatcher: async (url) => {
+      sourceReads++;
+      if (url.pathname === "/oversized") {
+        return new Response("x".repeat(92_841), { headers: { "content-type": "text/plain", "content-length": "92841" } });
+      }
+      if (url.pathname === "/inaccessible") return new Response("Unavailable", { status: 503, statusText: "Service Unavailable" });
+      return new Response("Durable task ownership survives restart.", { headers: { "content-type": "text/plain" } });
     },
-  }).run();
+  });
+  vi.spyOn(outboundHttp, "request").mockImplementation((request) => transport.request(request));
+  let explorationRuns = 0;
+  let sourceReviews = 0;
+  const explore = () => {
+    const runId = `source-review-${++explorationRuns}`;
+    return new WorkflowScenarioDriver(explorer, {
+      runId,
+      workspaceRoot: root,
+      trigger: { event: thin.event, payload: thin.payload },
+      ports: {
+        state: { stateDir, scopeId }, runCommand: successfulWorkflowCommandRun,
+        runTool: "registered",
+        runAgent: () => {
+          const metadata = readWorkflowRunMetadataFile(join(root, ".kota/runs", runId, "metadata.json"));
+          const inspection = metadata?.steps.find((step) => step.id === "inspect-watchlist")?.output as Awaited<ReturnType<typeof refreshExplorerSources>>;
+          expect(inspection.observations).toHaveLength(3);
+          for (const source of inspection.observations) {
+            expect(readFileSync(source.contentPath, "utf8")).toBe(readFileSync(source.evidencePath, "utf8"));
+          }
+          sourceReviews++;
+          return "No action: the observed capability is already represented by current tasks. Revisit when the source reports new recovery evidence.";
+        },
+      },
+    }).run();
+  };
   const firstReview = await explore();
   expect(firstReview.status, firstReview.error).toBe("success");
   expect(firstReview.steps.explore.status).toBe("success");
+  const sourceEvidence = firstReview.steps["inspect-watchlist"].output as Awaited<ReturnType<typeof refreshExplorerSources>>;
+  expect(sourceEvidence.shouldReview).toBe(true);
+  expect(sourceEvidence.observations).toEqual([
+    expect.objectContaining({ url: sourceUrls[1], accessible: false, changed: false }),
+    expect.objectContaining({ url: sourceUrls[0], accessible: false, changed: false }),
+    expect.objectContaining({ url: sourceUrls[2], accessible: true, changed: true }),
+  ]);
+  expect(readFileSync(sourceEvidence.observations[0].evidencePath, "utf8")).toBe("HTTP 503 Service Unavailable");
+  expect(readFileSync(sourceEvidence.observations[1].evidencePath, "utf8")).toContain("response body exceeded max_length (20000 bytes); Content-Length was 92841 bytes");
+  expect(readFileSync(sourceEvidence.observations[2].evidencePath, "utf8")).toBe("Durable task ownership survives restart.");
   const publication = firstReview.emitted.find((event) => event.event === "autonomy.explorer.publication.requested")!;
   const published = await new WorkflowScenarioDriver(explorerPublication, {
     workspaceRoot: root, trigger: { event: publication.event, payload: publication.payload },
@@ -141,6 +182,10 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   try {
     const stored = observationStore.readScopeStateValue<ExplorerState>(scopeId, EXPLORER_STATE_KEY);
     const current = decodeExplorerState(stored.value);
+    expect(current.sources[sourceUrls[0]].fingerprint).toBeNull();
+    expect(current.sources[sourceUrls[1]].fingerprint).toBeNull();
+    expect(current.sources[sourceUrls[2]].fingerprint).not.toBeNull();
+    expect(current.lastReviewedFingerprint).not.toBeNull();
     observationStore.compareAndSetScopeStateValue({ scopeId, key: EXPLORER_STATE_KEY,
       expectedRevision: stored.revision, updatedAt: new Date().toISOString(), value: {
         ...current, observedAt: elapsed, lastExplorationAt: elapsed,
@@ -149,11 +194,19 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   } finally { observationStore.close(); }
   const unchangedReview = await explore();
   expect(unchangedReview.status, unchangedReview.error).toBe("success");
-  expect(sourceReads).toBe(2);
+  expect(sourceReads).toBe(6);
+  expect(sourceReviews).toBe(1);
   expect(unchangedReview.steps.explore.status).toBe("skipped");
   expect(unchangedReview.steps["record-exploration-publication"].output).toMatchObject({
     reviewed: false, lastExplorationAt: elapsed,
   });
+
+  deregisterTool("web_fetch");
+  const unavailableRunner = await explore();
+  expect(unavailableRunner.status).toBe("failed");
+  expect(unavailableRunner.steps["inspect-watchlist"].error).toContain("has no registered effect");
+  expect(unavailableRunner.emitted).toEqual([]);
+  expect(sourceReads).toBe(6);
 
   const resumed = RunStateDatabase.openExisting(stateDir);
   try {
@@ -163,11 +216,14 @@ it("dispatches only independent unclaimed work while preserving retained owners 
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload: { taskId } },
       resources: [`task:${taskId}`], admittedAt: new Date().toISOString(),
     });
-    admit("duplicate", "task-a");
-    expect(resumed.startRun("duplicate", nextEpoch, new Date().toISOString())).toBeNull();
+    expect(() => admit("duplicate", "task-a")).toThrow('Resources are held by retained run "run-task-a"');
+    expect(resumed.getRun("duplicate")).toBeNull();
     expect(resumed.getRun("run-task-a")?.state).toBe("needs_attention");
     admit("independent", "task-independent");
+    admit("competing", "task-independent");
     expect(resumed.startRun("independent", nextEpoch, new Date().toISOString())).toBe(1);
+    expect(resumed.startRun("competing", nextEpoch, new Date().toISOString())).toBeNull();
+    expect(resumed.cancelQueuedRun("competing", new Date().toISOString())).toBe(true);
     expect(listRepoTasks(root).workSupply.availableCount).toBe(0);
     resumed.finishRun("independent", nextEpoch, "succeeded", new Date().toISOString());
     // The unmodified open intent becomes available again only after runtime release.

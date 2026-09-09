@@ -365,5 +365,12 @@ describe("declarative workflow tool effects", () => {
       }),
     ]);
     expect(runTool).toHaveBeenCalledOnce();
+    runTool.mockResolvedValueOnce({ content: "Verification failed", is_error: true });
+    await expect(runChecksPhased(
+      [{ id: "read-check", type: "tool", tool: readTool }], value.context, parentStep,
+    )).resolves.toEqual({
+      failures: [{ id: "read-check", passed: false, output: "Verification failed", severity: "error" }],
+      warnings: [],
+    });
   });
 });

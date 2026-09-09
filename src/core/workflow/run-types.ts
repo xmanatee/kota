@@ -208,6 +208,12 @@ export type WorkflowRunToolCallContext = ToolRunnerContext & {
   effectId?: string;
 };
 
+/**
+ * Returns tool outcomes, including is_error results, without promoting them to
+ * runtime exceptions. Consumers decide whether a tool failure rejects their
+ * step or is recoverable evidence. Runtime admission and execution failures
+ * still reject the promise.
+ */
 export type WorkflowRunToolRunner = (
   name: string,
   input: Record<string, unknown>,
