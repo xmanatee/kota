@@ -7,9 +7,9 @@ resources:
   - url: https://github.com/openclaw/openclaw
     added: "2026-04-14"
     snapshot:
-      fingerprint: sha256:9fbe725ae31d8182140a9742ddb5fbca
-      summary: "OpenClaw still maps cleanly to KOTA's daemon/session/channel/tool/skill model; its skills-registry signal is now covered by completed skill-pack import and runtime-resolution work, so no new primitive is open from this snapshot."
-      last_seen_at: "2026-05-18T04:16:37.406Z"
+      fingerprint: sha256:b7ce4ab91bec4f62f5d0095c43cd0ada
+      summary: "Returned only a truncated GitHub modulepreload fragment; no repository content was available in this observation."
+      last_seen_at: "2026-09-09T23:09:29.859Z"
   - url: https://github.com/openclaw/clawbench
     added: "2026-05-28"
     notes: "ClawBench is OpenClaw's trace/reliability-focused benchmark. Monitor as an eval-methodology signal for KOTA's eval-harness reliability diagnostics, low-signal fixture detection, and trace-based scoring; do not import it as a benchmark runner."
@@ -88,12 +88,13 @@ resources:
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
     snapshot:
-      fingerprint: sha256:08934e91f237a7ecf41b9b2ac133b81a
-      summary: "ACP still reinforces KOTA's module-owned adapter model; after session list/resume landed, the remaining nonduplicative gap is accepting ACP client-supplied MCP server configs through the existing session/harness MCP path, which opened task-connect-acp-client-supplied-mcp-servers-to-daemon-."
-      last_seen_at: "2026-05-27T09:25:42.289Z"
+      fingerprint: sha256:10145009587797bc540015ef59a93023
+      summary: "Returned the architecture title and an incomplete layout script; the retained body does not expose the architecture documentation."
+      last_seen_at: "2026-09-09T23:09:29.859Z"
   - url: https://a2a-protocol.org/latest/
     added: "2026-05-27"
     notes: "Official Agent2Agent Protocol docs. Monitor v1.0 Agent Card discovery, JSON-RPC/HTTP and SSE bindings, task lifecycle methods, security schemes, Agent Card signatures, MCP complementarity, SDK support, and registry/discovery direction for KOTA's module-owned A2A channel work."
+    status: inaccessible
     snapshot:
       fingerprint: sha256:0f015107cf5d895c2a0449cb69ab33c2
       summary: "A2A v1.0 still maps cleanly to KOTA's module-owned channel model, but the remaining nonduplicative gap is push notification configuration for long-running daemon-backed tasks; this run opened task-add-a2a-push-notification-configuration-support."
@@ -303,9 +304,9 @@ resources:
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:9b73b2cfbab6f512adb1660ebdd752aa
-      summary: "Anthropic engineering now foregrounds containment across agent products; the nonduplicative KOTA signal is default injection-defense screening for dynamically named external MCP tool results, which opened task-screen-remote-mcp-tool-results-through-injection-d."
-      last_seen_at: "2026-06-21T04:44:16.578Z"
+      fingerprint: sha256:eb3147770537f1bc79e02e3438c0ed49
+      summary: "The visible engineering landing-page excerpt features How we contain Claude across products; the article body was not included in this truncated observation."
+      last_seen_at: "2026-09-09T23:09:29.859Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     snapshot:
@@ -408,9 +409,9 @@ resources:
     added: "2026-05-21"
     notes: "Official MCP transport draft - monitor stdio, Streamable HTTP, origin validation, request metadata headers, header/body validation, SSE response streams, cancellation, and HTTP+SSE compatibility for KOTA's first-party MCP server."
     snapshot:
-      fingerprint: sha256:ac2df6fdedbfceab375e69ecbb2e5a92
-      summary: "MCP draft Transports still matches the stored Streamable HTTP/SSE signal; existing KOTA MCP transport tasks cover the nonduplicative gap."
-      last_seen_at: "2026-05-25T04:12:28.483Z"
+      fingerprint: sha256:246f8eeac8cb29ecc6adad4e958bab3c
+      summary: "Returned an overview title and truncated layout script; the retained body does not expose the transport specification."
+      last_seen_at: "2026-09-09T23:09:29.859Z"
   - url: https://modelcontextprotocol.io/specification
     added: "2026-05-26"
     notes: "Official latest MCP specification entry point. Monitor the current stable protocol revision and changelog so KOTA does not confuse active draft support with latest released MCP interoperability."

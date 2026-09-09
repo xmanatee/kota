@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p0
 ---
 # Restore claim-aware work supply and exploration
@@ -145,11 +145,50 @@ operator-resumed run of this revision. A read of the cited live explorer step
 artifact was denied; no live data or launching-daemon controls were changed.
 The operator capture below remains the concrete prerequisite for completion.
 
-## Blocked on
+## Live exploration finding (2026-09-09)
 
-kind: operator-capture
-path: .kota/operator-captures/claim-aware-work-supply-live.md
-description: Integrate the changes, then capture an operator-resumed live dispatcher and explorer with current retained ownership, source evidence, unchanged-input suppression, and slot refill after completion.
+Explorer run `2026-09-09T22-54-43-618Z-explorer-wj7210`, at head
+`e16275b484ea81cf015dc5192d5e0ab4e384eef2`, reached agent review with
+ownershipAvailable=true, available=0, retained=4, running=0, queued=0 and
+capacity=2. Its collection retained 116 source observations instead of aborting
+on an individual fetch failure. This proves live collection and review admission,
+but not useful source extraction, unchanged-input suppression or slot refill.
+
+The retained `source-evidence/` files show 45 identical 186-character GitHub
+preload fragments and 74 truncation notices overall. OpenClaw's
+`0b5c4741d1c147be5fddf0c75c5c0f478ced75a3c3b71cf8751002122b8f3831.txt`
+contains no repository content; ACP's
+`ba1e486a66fea4a7674c1a99a3c6608b1356c003ae0a968d4a300937eacf219c.txt`
+contains a title and incomplete layout script. These are source-access evidence,
+not evidence of upstream product changes.
+
+`web-access/web-fetch.ts` passes the default 20,000-character output budget to
+`readResponseTextPrefixWithLimit` as raw response bytes before HTML extraction.
+`explorer/source-evidence.ts` then accepts any nonempty successful result and
+fingerprints it as source content. A page whose article follows a large head can
+therefore publish boilerplate as reviewed evidence and hide later article changes.
+
+Reopened this same task for the actionable collection-quality repair. Obtain
+useful page content within explicit bounded transport and output budgets, and
+distinguish unavailable source content from a successful substantive observation.
+Preserve the last substantive content identity when only unusable markup is
+available. Keep public-network, cancellation, byte-limit and injection boundaries;
+do not solve this with unlimited reads, silent source substitutions, or a second
+fetch pipeline. No upstream feature or benchmark task is justified by these bodies.
+
+Prove the real web-tool/explorer boundary with representative HTML whose article
+follows more than 20 KB of head markup: retain article evidence, observe a changed
+article under unchanged head markup, and suppress repeat review of unchanged
+content. Include unusable and oversized responses without losing failure evidence
+or weakening bounds. Then finish the existing live acceptance below. The remaining
+live observation obligation does not prevent this implementation repair.
+
+## Outstanding live acceptance
+
+After integration, retain attributable dispatcher/explorer evidence at
+`.kota/operator-captures/claim-aware-work-supply-live.md` or an equivalent runtime
+artifact, including useful source review, unchanged-input suppression, and slot
+refill after completion.
 
 The builder instructions explicitly prohibit controlling the launching daemon,
 and this native permission profile denies its canonical SQLite files. Therefore
