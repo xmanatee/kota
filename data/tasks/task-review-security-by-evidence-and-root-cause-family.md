@@ -158,6 +158,29 @@ single `/bin/ps` publication failure; worker integration and `pnpm check:fast` p
 Details are in `agent/security-review-evidence/repair-5-summary.md` and its logs.
 The existing external prerequisites remain unchanged.
 
+## Live verification (2026-09-09 20:03 UTC)
+
+The current daemon is loaded at 20:00:26.433Z on 1461431af. Public dispatch
+started 2026-09-09T20-03-14-924Z-security-review-cumrjg. retain-review-input
+returned a 472090-byte structured value. The runtime replaced it with its
+262144-byte truncation marker while marking the step successful. The next step,
+refresh-review-input, rejected that marker: missing required field evidenceRequest
+(persisted output validation). The saved retain-review-input.json and metadata
+prove the boundary failure; this was not a provider failure or absent evidence.
+Another automatic attempt was admitted at 20:06:09 without a corrective change.
+
+Reopen this existing task for a reproducible implementation defect, not a new
+security finding. Keep replayable security identity and coverage in the existing
+durable artifact/state owner and carry a bounded typed reference or summary across
+steps; inspect the shared output/persistence contract before choosing the fix.
+Do not increase caps, bypass validation, truncate unchecked security coverage,
+or add a second state store. Use the actual runtime persistence boundary with
+representative repository-sized evidence, not only an injected small fixture.
+Prove initial review, retry and current-head refresh preserve all required
+coverage, then complete the original publication and after-cohort acceptance.
+The observations below remain acceptance work; they do not prevent repairing
+this already evidenced failure now.
+
 ## Blocked on
 
 kind: operator-capture
