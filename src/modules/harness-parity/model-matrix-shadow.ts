@@ -100,7 +100,7 @@ function compareShadowRows(
     },
     compatible,
     compatibilityReason: compatible
-      ? "all shadow comparison compatibility checks passed"
+      ? `all shadow comparison compatibility checks passed; harnesses: ${baselineFirst.harnessName} → ${candidateFirst.harnessName}`
       : `failed compatibility checks: ${failedChecks.join(", ")}`,
     compatibilityChecks: checks,
     workspaceIsolation: "cloned-scenario-working-tree",
@@ -158,23 +158,23 @@ export function buildShadowComparisons(
   const comparisons: HarnessParityMatrixShadowComparison[] = [];
   for (const candidate of candidates) {
     const candidateFirst = candidate.rows[0]!;
-    const baseline = baselines.find((group) => {
+    const matchingBaselines = baselines.filter((group) => {
       const baselineFirst = group.rows[0]!;
       return (
         baselineFirst.targetKind === candidateFirst.targetKind &&
-        baselineFirst.harnessName === candidateFirst.harnessName &&
         baselineFirst.scenarioId === candidateFirst.scenarioId
       );
     });
-    if (!baseline) continue;
-    comparisons.push(
-      compareShadowRows(
-        baseline,
-        candidate,
-        aggregateByKey.get(baseline.key)!,
-        aggregateByKey.get(candidate.key)!,
-      ),
-    );
+    for (const baseline of matchingBaselines) {
+      comparisons.push(
+        compareShadowRows(
+          baseline,
+          candidate,
+          aggregateByKey.get(baseline.key)!,
+          aggregateByKey.get(candidate.key)!,
+        ),
+      );
+    }
   }
   return comparisons;
 }

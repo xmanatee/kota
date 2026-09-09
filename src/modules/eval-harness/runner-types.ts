@@ -1,5 +1,5 @@
 
-import type { AgentEffort } from "#core/agent-harness/index.js";
+import type { AgentEffort, AgentHarnessRunOptions } from "#core/agent-harness/index.js";
 import type {
   FixtureJsonObject,
   FixtureRoundSpec,
@@ -32,6 +32,9 @@ export type WorkflowAgentExecutionOverride = {
   model: string;
   /** Optional KOTA effort forced onto every agent step in the workflow. */
   effort?: AgentEffort;
+  maxTurns?: number;
+  harnessOptions?: AgentHarnessRunOptions["harnessOverrides"];
+  modelOutputTokenLimits?: AgentHarnessRunOptions["modelOutputTokenLimits"];
 };
 
 /** Input passed to a WorkflowExecutor for a single fixture run attempt. */

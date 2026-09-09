@@ -5,6 +5,9 @@ their CLI, HTTP, and cadence surfaces.
 
 ## Measurement Contract
 
+- Retain workflow metadata and agent streams, measured usage and activity,
+  predicate results, and workspace diffs before clone cleanup. Missing runtime
+  evidence remains explicit; projections never manufacture cost or trace facts.
 - Record host class, CPU allocation and kill threshold, memory, execution
   backend, requested/observed/enforced profile, timing, and repeat index.
 - Host subprocess runs are non-gating without verified CPU and memory facts.

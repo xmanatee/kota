@@ -144,7 +144,7 @@ export function buildHarnessArtifact(args: {
     scenarioId: args.scenario.spec.id,
     harnessName: args.harness.name,
     model: args.callOptions.model,
-    effort: args.effort,
+    effort: args.callOptions.effort === null ? null : args.effort,
     startedAt: args.startedAt.toISOString(),
     durationMs: args.durationMs,
     turns: stages.reduce((sum, stage) => sum + stage.turns, 0),

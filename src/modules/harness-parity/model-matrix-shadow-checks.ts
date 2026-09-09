@@ -19,10 +19,7 @@ type CompatibilityCheckArgs = {
 };
 
 function hasModelCapabilityEvidence(row: HarnessParityMatrixRow): boolean {
-  return (
-    row.provider === "active-preset" ||
-    row.capabilityMetadata.status === "available"
-  );
+  return row.capabilityMetadata.status === "available";
 }
 
 function primaryBaselineEvidence(row: HarnessParityMatrixRow): boolean {
@@ -35,7 +32,7 @@ function evalHarnessModelEvidenceMatches(
   if (row.targetKind !== "eval-harness-fixture") return true;
   const pairs =
     row.evalHarness?.resolvedHarnessModelEvidence.distinctHarnessModels ?? [];
-  return pairs.some(
+  return row.evalHarness?.resolvedHarnessModelEvidence.status === "complete" && pairs.length > 0 && pairs.every(
     (pair) =>
       pair.harness === row.harnessName &&
       (pair.model === row.model || pair.model === row.requestedModel),
@@ -62,17 +59,30 @@ export function compatibilityChecks(
     candidateVerification !== null &&
     baselineVerification.command === candidateVerification.command;
 
+  const allRows = [...args.baselineGroup.rows, ...args.candidateGroup.rows];
+  const evalSummary = baselineFirst.evalHarness?.runConfigurationSummary;
+  const evalComparable = allRows.every((row) => {
+    if (row.targetKind !== "eval-harness-fixture") return true;
+    const evidence = row.evalHarness;
+    if (!evidence || !evalSummary) return false;
+    return evidence.executionMode === "live" && evidence.executionProfile.gateEligible &&
+      (["activePreset", "fixtureManifest", "sourceIdentity", "resourceProfile", "executionProfile"] as const)
+        .every((field) => evidence.runConfigurationSummary[field] === evalSummary[field]);
+  });
+
   return [
+    check("eval-configuration-resources", evalComparable,
+      "eval comparisons require matching fixture, source, configuration and verified execution/resource profiles"),
+    check("complete-repeats", allRows.every((row) => row.status !== "skipped") &&
+      [args.baselineGroup, args.candidateGroup].every((group) =>
+        group.rows.length === group.rows[0]!.repeatCount &&
+        new Set(group.rows.map((row) => row.repeatIndex)).size === group.rows.length),
+      "every declared repeat must have distinct execution evidence"),
     check(
       "same-target",
       baselineFirst.targetKind === candidateFirst.targetKind &&
         baselineFirst.scenarioId === candidateFirst.scenarioId,
       "baseline and candidate must point at the same scenario or eval fixture",
-    ),
-    check(
-      "same-harness",
-      baselineFirst.harnessName === candidateFirst.harnessName,
-      "baseline and candidate must use the same harness surface",
     ),
     check(
       "same-repeat-count",
@@ -96,8 +106,7 @@ export function compatibilityChecks(
     ),
     check(
       "capability-metadata",
-      hasModelCapabilityEvidence(baselineFirst) &&
-        hasModelCapabilityEvidence(candidateFirst),
+      allRows.every(hasModelCapabilityEvidence),
       "baseline and candidate must have explicit model capability evidence",
     ),
     check(
@@ -108,9 +117,7 @@ export function compatibilityChecks(
     ),
     check(
       "test-evidence",
-      testCommandComparable &&
-        baselineVerification?.passed !== undefined &&
-        candidateVerification?.passed !== undefined,
+      testCommandComparable && allRows.every((row) => row.verification !== null && row.verification.command === baselineVerification?.command),
       "both rows must run the same verification command with explicit pass/fail results",
     ),
     check(
@@ -120,13 +127,12 @@ export function compatibilityChecks(
     ),
     check(
       "cost-evidence",
-      args.baselineCost !== null && args.candidateCost !== null,
+      args.baselineCost !== null && args.candidateCost !== null && allRows.every((row) => row.estimatedCostUsd !== null),
       "both rows must report estimated cost evidence",
     ),
     check(
       "eval-harness-model-evidence",
-      evalHarnessModelEvidenceMatches(baselineFirst) &&
-        evalHarnessModelEvidenceMatches(candidateFirst),
+      allRows.every(evalHarnessModelEvidenceMatches),
       "eval fixture rows must prove their resolved harness/model matched the declared matrix row",
     ),
   ];

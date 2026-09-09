@@ -15,6 +15,7 @@ import {
   FailureTracker,
   ToolPermissionInterruptedError,
 } from "#core/tools/tool-runner.js";
+import { validateToolCallingModelId } from "#modules/model-clients/harness-model-resolution.js";
 import {
   attachAgentMessageStreamEvents,
   checkAborted,
@@ -40,6 +41,7 @@ import {
   OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   openaiToolsReadiness,
   rejectUnsupportedOptions,
+  resolveOpenaiToolsOptions,
 } from "./options.js";
 import { createOpenaiToolsSessionRuntime } from "./session-runtime.js";
 import {
@@ -66,6 +68,9 @@ export const openaiToolsAgentHarness: AgentHarness = {
   askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: true,
   toolControl: "kota",
+  modelRouting: { kind: "model-client" },
+  validateModelId: validateToolCallingModelId,
+  validateStepOptions: resolveOpenaiToolsOptions,
   readiness: openaiToolsReadiness,
   unsupportedRunOptions: OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   async run(
@@ -107,7 +112,7 @@ export async function runOpenaiToolsLoop(
       scopeRoot: scopeRoot,
     });
     const outputTokenLimit = resolveModelOutputTokenLimit(
-      resolved.model,
+      options.model,
       options.modelOutputTokenLimits,
     );
     const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
@@ -189,7 +194,8 @@ export async function runOpenaiToolsLoop(
         ...(system !== undefined ? { system } : {}),
         messages,
         ...(tools.length > 0 ? { tools } : {}),
-        effort: options.effort,
+        ...(resolveOpenaiToolsOptions(options.harnessOverrides).reasoning === "provider-default"
+          ? {} : { effort: options.effort }),
         ...(abortSignal ? { signal: abortSignal } : {}),
       });
       attachAgentMessageStreamEvents(stream, writer, streamedChunks, agentMessages);

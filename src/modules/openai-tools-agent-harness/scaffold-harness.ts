@@ -5,6 +5,7 @@ import type {
   AgentHarnessWriter,
 } from "#core/agent-harness/index.js";
 import { runWithAskOwnerSource } from "#core/tools/ask-owner.js";
+import { validateToolCallingModelId } from "#modules/model-clients/harness-model-resolution.js";
 import { runOpenaiToolsLoop } from "./adapter.js";
 import {
   DEFAULT_SCAFFOLD_MAX_TURNS,
@@ -15,6 +16,7 @@ import type { OpenaiToolsLoopMode } from "./loop-mode.js";
 import {
   OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   openaiToolsReadiness,
+  resolveOpenaiToolsOptions,
 } from "./options.js";
 import {
   buildScaffoldSystemPrompt,
@@ -76,6 +78,9 @@ export const openaiToolsScaffoldAgentHarness: AgentHarness = {
   askOwnerToolName: OPENAI_TOOLS_ASK_OWNER_TOOL_NAME,
   emitsAgentMessageStream: true,
   toolControl: "kota",
+  modelRouting: { kind: "model-client" },
+  validateModelId: validateToolCallingModelId,
+  validateStepOptions: resolveOpenaiToolsOptions,
   readiness: openaiToolsReadiness,
   unsupportedRunOptions: OPENAI_TOOLS_UNSUPPORTED_OPTIONS,
   async run(

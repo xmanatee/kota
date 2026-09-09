@@ -29,6 +29,27 @@ judged against real runs rather than aspiration.
   same shared helpers, so daemon-up and daemon-down callers see the same
   scenario list and run summary.
 
+## Model Matrices
+
+Matrix defaults resolve each model through the shipped preset and provider
+owners. An explicit harness list is a pool: only compatible declared routes
+execute, and a model with no compatible route rejects the matrix before any
+agent launches. Scenario and eval targets share admission; provider-qualified
+ids stay on ModelClient routes and native adapters receive native ids.
+Provider defaults apply unless an effort is requested; unsupported local effort
+rejects before launch. Scenario and eval execution carry configured output-token
+limits, and eval subprocesses resolve candidate auth in the original scope.
+Cost prefers complete runtime usage; otherwise complete tokens with shipped flat
+rates yield an uncached-token estimate. Unknown pricing and tiered aggregate
+usage remain unavailable rather than becoming zero-cost evidence.
+
+Shadow evidence pairs each baseline with each candidate for the same target,
+including different harnesses, and names both harnesses in the report. Shared
+scenario snapshots and run options are fixed within an invocation. Missing
+capability, repeat, verification, cost, or eval configuration/resource evidence
+keeps a comparison incompatible. These artifacts never authorize promotion;
+eval-harness owns regression and consistency gates.
+
 ## Artifact Shape
 
 Per harness run the module writes:

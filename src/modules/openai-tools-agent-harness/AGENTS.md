@@ -48,7 +48,11 @@ Writes atomically replace the session file.
 ## Reasoning Effort
 
 `AgentHarnessRunOptions.effort` is forwarded to `ModelClient.messages.stream`.
-Provider-specific translation lives in `model-clients/reasoning.ts`.
+Provider-specific translation lives in `model-clients/reasoning.ts`. The validated
+adapter option `reasoning: "provider-default"` explicitly omits portable effort
+from requests, allowing providers without an effort translator to run. Other
+adapter options reject. Matrix artifacts report this posture without claiming
+a portable effort level.
 
 ## Protocol Errors
 

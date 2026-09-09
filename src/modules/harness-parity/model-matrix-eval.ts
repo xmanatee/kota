@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
@@ -22,6 +22,7 @@ import type {
   HarnessParityMatrixRow,
 } from "./client.js";
 import type { HarnessParityDeps } from "./harness-parity-operations.js";
+import { matrixEstimatedCost, matrixExecutorAuthEnv, matrixHarnessOverrides } from "./model-matrix-execution.js";
 import type {
   MatrixModelSpec,
   MatrixOpenRouterPreflight,
@@ -133,25 +134,6 @@ function evalEvidence(
   };
 }
 
-function expectedHarnessNameForSpec(
-  deps: HarnessParityDeps,
-  spec: MatrixModelSpec,
-): string {
-  if (spec.provider === "active-preset") {
-    return resolveActivePresetFromConfig(deps.config).harness;
-  }
-  if (
-    spec.provider === "openrouter" ||
-    spec.provider === "openai" ||
-    spec.provider === "local" ||
-    spec.provider === "unknown"
-  ) {
-    return "openai-tools";
-  }
-  if (spec.provider === "anthropic") return "claude-agent-sdk";
-  return "unknown";
-}
-
 function statusFromEvalOutcome(
   outcome: FixtureRun["outcome"],
 ): HarnessParityMatrixRow["status"] {
@@ -161,13 +143,15 @@ function statusFromEvalOutcome(
 }
 
 function rowFromEvalRun(args: {
-  deps: HarnessParityDeps;
+  harnessName: string;
   spec: MatrixModelSpec;
   report: EvalSetReport;
   run: FixtureRun;
   rowId: string;
 }): HarnessParityMatrixRow {
-  const harnessName = expectedHarnessNameForSpec(args.deps, args.spec);
+  const harnessName = args.harnessName;
+  const evidence = args.run.executionEvidence;
+  const usage = evidence?.usage;
   return {
     rowId: args.rowId,
     targetKind: "eval-harness-fixture",
@@ -183,31 +167,33 @@ function rowFromEvalRun(args: {
     status: statusFromEvalOutcome(args.run.outcome),
     capabilityMetadata: args.spec.capabilityMetadata,
     durationMs: args.run.timing.durationMs,
-    turns: 0,
+    turns: evidence?.turns ?? 0,
     tokenUsage: {
-      inputTokens: null,
-      outputTokens: null,
+      inputTokens: usage?.tokens.state === "complete" ? usage.tokens.inputTokens : null,
+      outputTokens: usage?.tokens.state === "complete" ? usage.tokens.outputTokens : null,
     },
-    estimatedCostUsd: null,
-    toolCounts: {
-      toolCalls: 0,
-      toolResults: 0,
+    estimatedCostUsd: matrixEstimatedCost(args.spec.model, usage),
+    toolCounts: { toolCalls: evidence?.toolCalls ?? 0, toolResults: evidence?.toolResults ?? 0 },
+    approvalCounts: { approvalRequests: evidence?.approvalRequests ?? 0 },
+    verification: {
+      command: `eval-harness predicates: ${args.run.fixtureId}`,
+      passed: args.run.outcome === "pass",
+      exitStatus: null,
+      timedOut: args.run.outcome === "timeout",
     },
-    approvalCounts: {
-      approvalRequests: 0,
-    },
-    verification: null,
-    trajectoryDiagnostics: null,
-    changedFiles: [],
+    trajectoryDiagnostics: evidence?.trajectoryDiagnostics ?? null,
+    changedFiles: evidence?.changedFiles ?? [],
+    ...(evidence?.traceAvailable ? { artifactDir: evidence.artifactDir } : {}),
     evalHarness: evalEvidence(args.report, args.run),
   };
 }
 
-function rowIdForEvalRun(spec: MatrixModelSpec, run: FixtureRun): string {
+function rowIdForEvalRun(spec: MatrixModelSpec, harnessName: string, run: FixtureRun): string {
   return [
     "eval",
     spec.role,
     spec.label,
+    harnessName,
     run.fixtureId,
     `r${run.runIndex + 1}`,
   ]
@@ -220,10 +206,11 @@ function rowIdForEvalRun(spec: MatrixModelSpec, run: FixtureRun): string {
     .join("-");
 }
 
-function defaultEvalExecutor(deps: HarnessParityDeps): WorkflowExecutor {
+function defaultEvalExecutor(deps: HarnessParityDeps, spec: MatrixModelSpec, harnessName: string): WorkflowExecutor {
   return createSubprocessExecutor({
     kotaBinaryPath: deps.kotaBinaryPath,
     isolationBackend: { kind: "host-subprocess" },
+    extraEnv: matrixExecutorAuthEnv(resolveAgentHarness(harnessName), spec, deps.scopeRoot),
   });
 }
 
@@ -231,6 +218,7 @@ export async function runEvalFixturesForSpec(args: {
   deps: HarnessParityDeps;
   options: HarnessParityMatrixOptions;
   spec: MatrixModelSpec;
+  harnessName: string;
   openRouterPreflight: MatrixOpenRouterPreflight;
   fixtures: readonly LoadedFixture[];
   outBaseDir: string;
@@ -244,7 +232,7 @@ export async function runEvalFixturesForSpec(args: {
         skippedRow({
           spec: args.spec,
           targetKind: "eval-harness-fixture",
-          harnessName: expectedHarnessNameForSpec(args.deps, args.spec),
+          harnessName: args.harnessName,
           scenarioId: fixture.spec.id,
           repeatIndex,
           repeatCount: args.repeats,
@@ -252,6 +240,7 @@ export async function runEvalFixturesForSpec(args: {
             "eval",
             args.spec.role,
             args.spec.label,
+            args.harnessName,
             fixture.spec.id,
             `r${repeatIndex + 1}`,
           ].join("-"),
@@ -265,18 +254,23 @@ export async function runEvalFixturesForSpec(args: {
     args.outBaseDir,
     "eval-fixtures",
     args.spec.role,
+    args.harnessName,
     args.spec.label.replace(/[^A-Za-z0-9._-]+/g, "-"),
   );
-  const harnessName = expectedHarnessNameForSpec(args.deps, args.spec);
+  const harnessName = args.harnessName;
   mkdirSync(runArtifactBaseDir, { recursive: true });
   const report = await runEvalSet({
     workspaceRoot: args.deps.scopeRoot,
     fixtures: args.fixtures,
-    executor: args.deps.evalExecutor ?? defaultEvalExecutor(args.deps),
+    executor: args.deps.evalExecutor ?? defaultEvalExecutor(args.deps, args.spec, harnessName),
     requestedProfile: args.requestedProfile,
     agentExecutionOverride: {
       harness: harnessName,
       model: args.spec.model,
+      maxTurns: args.options.maxTurns,
+      modelOutputTokenLimits: args.deps.config.modelOutputTokenLimits,
+      harnessOptions: matrixHarnessOverrides(resolveAgentHarness(harnessName), args.spec, args.options.effort),
+      ...(args.options.effort !== undefined ? { effort: args.options.effort } : {}),
     },
     runArtifactBaseDir: resolve(runArtifactBaseDir),
     repeatCount: args.repeats,
@@ -285,11 +279,11 @@ export async function runEvalFixturesForSpec(args: {
 
   return report.runs.map((run) =>
     rowFromEvalRun({
-      deps: args.deps,
+      harnessName: args.harnessName,
       spec: args.spec,
       report,
       run,
-      rowId: rowIdForEvalRun(args.spec, run),
+      rowId: rowIdForEvalRun(args.spec, args.harnessName, run),
     }),
   );
 }

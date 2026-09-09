@@ -7,11 +7,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   clearAgentHarnessRegistryForTest,
   registerAgentHarness,
 } from "#core/agent-harness/index.js";
+import { getPreset } from "#core/model/preset.js";
+import { codexAgentHarness } from "#modules/codex-agent-harness/adapter.js";
 import type {
   HarnessParityMatrixRow,
   HarnessParityMatrixScaffoldEvidence,
@@ -34,6 +36,7 @@ describe("harness-parity model matrix", () => {
     delete process.env.OPENROUTER_API_KEY;
     clearAgentHarnessRegistryForTest();
     registerAgentHarness(createFixingHarness("matrix-harness"));
+    registerAgentHarness(createFixingHarness("openai-tools"));
     scenariosRoot = mkdtempSync(join(tmpdir(), "kota-matrix-scenarios-"));
     evalFixturesRoot = mkdtempSync(join(tmpdir(), "kota-matrix-eval-"));
     outRoot = mkdtempSync(join(tmpdir(), "kota-matrix-out-"));
@@ -70,7 +73,7 @@ describe("harness-parity model matrix", () => {
         scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["matrix-harness"],
         baselines: [
-          { label: "local-baseline", model: "test-model", provider: "local" },
+          { label: "local-baseline", model: "ollama/test-model", provider: "local" },
         ],
         candidates: [
           {
@@ -80,7 +83,7 @@ describe("harness-parity model matrix", () => {
           },
         ],
         repeats: 2,
-        effort: "high",
+
       },
     );
 
@@ -114,7 +117,7 @@ describe("harness-parity model matrix", () => {
     expect(candidateRows[0]?.skipReason).toBe("missing OPENROUTER_API_KEY");
     expect(candidateRows[0]?.capabilityMetadata).toMatchObject({
       status: "available",
-      observedAt: "2026-06-26T06:45:00.000Z",
+      observedAt: expect.any(String),
     });
 
     expect(result.aggregate).toMatchObject({
@@ -172,7 +175,7 @@ describe("harness-parity model matrix", () => {
         scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["matrix-harness"],
         baselines: [
-          { label: "local-baseline", model: "test-model", provider: "local" },
+          { label: "local-baseline", model: "ollama/test-model", provider: "local" },
         ],
         candidates: [
           {
@@ -208,6 +211,50 @@ describe("harness-parity model matrix", () => {
     ).toMatchObject({ status: "passed" });
   });
 
+  it.each([undefined, ["codex", "openai-tools"]])("compares a Codex baseline with a provider-backed candidate on isolated snapshots (harnesses: %j)", async (harnesses) => {
+    process.env.OPENROUTER_API_KEY = "synthetic-test-key";
+    const codex = createFixingHarness("codex");
+    const primaryRun = vi.fn(codex.run);
+    registerAgentHarness({ ...codex, modelRouting: codexAgentHarness.modelRouting, run: primaryRun });
+    const candidate = createFixingHarness("openai-tools");
+    const candidateRun = vi.fn(candidate.run);
+    registerAgentHarness({ ...candidate, run: candidateRun });
+    const result = await runHarnessParityMatrix(matrixDeps(), {
+      baselines: [{ model: getPreset("codex").defaultModel }],
+      candidates: [{ model: "openrouter/z-ai/glm-5.2" }],
+      scenarios: [FIX_ADD_SCENARIO_ID], repeats: 2, maxTurns: 4, effort: "high", harnesses,
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(primaryRun).toHaveBeenCalledTimes(2);
+    expect(candidateRun).toHaveBeenCalledTimes(2);
+    expect(primaryRun.mock.calls[0]?.[0]).toMatchObject({ model: getPreset("codex").defaultModel, maxTurns: 4, effort: "high" });
+    expect(candidateRun.mock.calls[0]?.[0]).toMatchObject({ model: "openrouter/z-ai/glm-5.2", scopeRoot: evalFixturesRoot, maxTurns: 4, effort: "high" });
+    const workingDirs = [...primaryRun.mock.calls, ...candidateRun.mock.calls].map(([options]) => options.cwd);
+    expect(new Set(workingDirs).size).toBe(4);
+    expect(readFileSync(join(scenariosRoot, FIX_ADD_SCENARIO_ID, "initial", "add.js"), "utf8")).toContain("a - b");
+    expect(result.shadowComparisons).toHaveLength(1);
+    expect(result.shadowComparisons[0]).toMatchObject({
+      compatible: true,
+      baseline: { harnessName: "codex" }, candidate: { harnessName: "openai-tools" },
+      passAtKDelta: 0, passHatKDelta: 0,
+    });
+    expect(result.shadowComparisons[0]?.compatibilityReason).toContain("codex → openai-tools");
+  });
+
+  it("rejects a Codex-only OpenRouter matrix before launching even its baseline", async () => {
+    const codex = createFixingHarness("codex");
+    const run = vi.fn(codex.run);
+    registerAgentHarness({ ...codex, modelRouting: codexAgentHarness.modelRouting, run });
+    const result = await runHarnessParityMatrix(matrixDeps(), {
+      baselines: [{ model: getPreset("codex").defaultModel }],
+      candidates: [{ model: "openrouter/z-ai/glm-5.2" }],
+      scenarios: [FIX_ADD_SCENARIO_ID], harnesses: ["codex"],
+    });
+    expect(result).toMatchObject({ ok: false, reason: "invalid_harness_pair", message: expect.stringContaining('not "openrouter"') });
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("records scaffold support evidence for scaffold harness rows", async () => {
     registerAgentHarness(createFixingHarness("openai-tools-scaffold"));
 
@@ -217,7 +264,7 @@ describe("harness-parity model matrix", () => {
         scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["openai-tools-scaffold"],
         baselines: [
-          { label: "local-baseline", model: "test-model", provider: "local" },
+          { label: "local-baseline", model: "ollama/test-model", provider: "local" },
         ],
         candidates: [
           {
@@ -283,7 +330,7 @@ describe("harness-parity model matrix", () => {
         scenarios: [FIX_ADD_SCENARIO_ID],
         harnesses: ["matrix-harness"],
         baselines: [
-          { label: "local-baseline", model: "test-model", provider: "local" },
+          { label: "local-baseline", model: "ollama/test-model", provider: "local" },
         ],
         candidateSets: ["openrouter-lab"],
       },

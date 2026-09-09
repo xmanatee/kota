@@ -5,6 +5,7 @@ import type {
   AgentHarnessRunOptions,
 } from "#core/agent-harness/index.js";
 import { pricedAgentUsage } from "#core/agent-harness/index.js";
+import { validateToolCallingModelId } from "#modules/model-clients/harness-model-resolution.js";
 
 export const FIX_ADD_SCENARIO_ID = "fix-add";
 
@@ -39,6 +40,8 @@ export function createFixingHarness(name: string): AgentHarness {
     askOwnerToolName: null,
     emitsAgentMessageStream: true,
     toolControl: "kota",
+    modelRouting: { kind: "model-client" },
+    validateModelId: validateToolCallingModelId,
     async run(options: AgentHarnessRunOptions) {
       writeFileSync(
         join(options.cwd ?? process.cwd(), "add.js"),

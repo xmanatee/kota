@@ -160,6 +160,9 @@ function makeAgentHarness(overrides: Record<string, unknown> = {}) {
 }
 
 const malformedHarnessCases: [string, Record<string, unknown>, RegExp][] = [
+  ["unknown model routing", { modelRouting: { kind: "guess" } }, /modelRouting has unsupported kind/],
+  ["native routing without a provider", { modelRouting: { kind: "native" } }, /modelRouting.provider/],
+  ["model-client routing with ignored provider", { modelRouting: { kind: "model-client", provider: "ignored" } }, /modelRouting has unknown fields/],
   ["an unknown field", { login: () => undefined }, /unknown field "login"/],
   [
     "a malformed native abort quarantine",

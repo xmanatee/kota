@@ -14,6 +14,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaModelResponse } from "#core/agent-harness/message-protocol.js";
 import { registerModelClientFactory } from "#core/model/model-client.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
@@ -26,6 +27,7 @@ import {
   type CriticReviewInspectionInput,
   inspectCriticReviewInWorker,
 } from "#modules/autonomy/review-input-operations.js";
+import { openaiToolsAgentHarness } from "./adapter.js";
 import "../claude-agent-harness/index.js";
 import "./index.js";
 import { executeAgentStep } from "#core/workflow/steps/step-executor-agent.js";
@@ -66,7 +68,7 @@ function makeAgentStep(moduleRoot: string): WorkflowAgentStep {
     type: "agent",
     promptPath: "prompt.md",
     moduleRoot,
-    model: "openai/gpt-5.6-luna",
+    model: "openrouter/z-ai/glm-5.2",
     effort: "xhigh",
     autonomyMode: "autonomous",
     harness: OPENAI_TOOLS_AGENT_HARNESS_NAME,
@@ -77,7 +79,7 @@ function stubTextResponse(text: string): KotaModelResponse {
   return {
     id: "msg-ok",
     role: "assistant",
-    model: "openai/gpt-5.6-luna",
+    model: "openrouter/z-ai/glm-5.2",
     content: [{ type: "text", text }],
     stop_reason: "end_turn",
     stop_sequence: null,
@@ -94,7 +96,9 @@ describe("autonomy agent steps and judges on openai-tools", () => {
   const streamMock = vi.fn();
   const createMock = vi.fn();
 
+  let disposeHarness: () => void;
   beforeEach(() => {
+    disposeHarness = registerAgentHarness(openaiToolsAgentHarness);
     streamMock.mockReset();
     createMock.mockReset();
     registerModelClientFactory(({ model }) => ({
@@ -105,6 +109,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
   });
 
   afterEach(() => {
+    disposeHarness();
     vi.clearAllMocks();
   });
 
@@ -150,7 +155,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     // The openai-tools adapter would throw loudly if any unsupported
     // option leaked through; reaching this assertion means the boundary
     // stayed neutral.
-    expect(streamArgs.model).toBe("openai/gpt-5.6-luna");
+    expect(streamArgs.model).toBe("openrouter/z-ai/glm-5.2");
     // System prompt must reach the adapter as a plain string carrying the
     // portable instruction and autonomous-agent-instructions sections — not a
     // claude-SDK preset envelope.
@@ -209,7 +214,7 @@ describe("autonomy agent steps and judges on openai-tools", () => {
     // step runs on.
     const check = createCriticCheck({
       runDirPath: runDir,
-      model: "openai/gpt-5.6-luna",
+      model: "openrouter/z-ai/glm-5.2",
     });
 
     const parentStep = makeAgentStep(scopeRoot);

@@ -45,7 +45,9 @@ export function buildOpenAIRequestBody(
 ): OpenAIRequestBody {
 	validateOutputTokenLimit(params.model, params.max_tokens, options);
 	validateMultimodalInput(params.model, params.messages, options);
-	validateOpenAIGpt56ChatCompletionsTools(params, options);
+	if ("tools" in params && params.tools !== undefined && params.tools.length > 0) {
+    validateOpenAIChatCompletionsToolModel(options.presetName, params.model);
+  }
 	const body: OpenAIRequestBody = {
 		model: params.model,
 		messages: toOpenAIMessages(params.system, params.messages),
@@ -65,14 +67,9 @@ export function buildOpenAIRequestBody(
 	return body;
 }
 
-function validateOpenAIGpt56ChatCompletionsTools(
-	params: MessageStreamParams | MessageCreateParams,
-	options: OpenAIRequestBodyOptions,
-): void {
-	if (options.presetName !== "openai") return;
-	if (!/^gpt-5\.6(?:-(?:sol|terra|luna))?$/.test(params.model)) return;
-	const tools = "tools" in params ? params.tools : undefined;
-	if (tools === undefined || tools.length === 0) return;
+export function validateOpenAIChatCompletionsToolModel(provider: string, model: string): void {
+  if (provider !== "openai") return;
+  if (!/^gpt-5\.6(?:-(?:sol|terra|luna))?$/.test(model)) return;
 	throw new Error(
 		`GPT-5.6 function tools are incompatible with OpenAI Chat Completions at its default reasoning effort and KOTA's supported effort levels. ` +
 			"Use a Responses API-capable harness or the Codex harness.",

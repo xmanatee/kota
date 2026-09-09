@@ -1,6 +1,7 @@
 import type {
   AgentEffort,
   AgentHarness,
+  AgentHarnessRunOptions,
   AgentHarnessWriter,
   AgentUsage,
   HarnessCapabilitySnapshot,
@@ -13,8 +14,12 @@ import type { HarnessParityTrajectoryDiagnosticsMetadata } from "./trajectory-di
 export type HarnessParityCallOptions = {
   /** Model identifier the harness should use (resolved from the active preset by the caller). */
   model: string;
-  /** Neutral reasoning posture the harness should use. Defaults to xhigh. */
-  effort?: AgentEffort;
+  /** Canonical scope for provider secret resolution; execution stays in the clone. */
+  scopeRoot?: string;
+  modelOutputTokenLimits?: AgentHarnessRunOptions["modelOutputTokenLimits"];
+  harnessOverrides?: AgentHarnessRunOptions["harnessOverrides"];
+  /** Neutral posture, or null when explicit adapter options select provider defaults. Defaults to xhigh. */
+  effort?: AgentEffort | null;
   /** Optional system prompt to forward to the adapter. */
   systemPrompt?: string;
   /**
@@ -65,7 +70,7 @@ export type HarnessParityArtifact = {
    * show this alongside `harness` and `model` so an operator comparing
    * adapters can see which reasoning surface (if any) was engaged.
    */
-  effort: AgentEffort;
+  effort: AgentEffort | null;
   startedAt: string;
   durationMs: number;
   turns: number;
@@ -101,7 +106,7 @@ export type HarnessParityStageArtifact = {
   scenarioId: string;
   harnessName: string;
   model: string;
-  effort: AgentEffort;
+  effort: AgentEffort | null;
   startedAt: string;
   durationMs: number;
   turns: number;

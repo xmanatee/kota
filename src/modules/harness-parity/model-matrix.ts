@@ -1,10 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentHarness } from "#core/agent-harness/index.js";
-import {
-  listAgentHarnessNames,
-  resolveAgentHarness,
-} from "#core/agent-harness/index.js";
+import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import { resolveHarnessModel } from "#modules/model-clients/harness-model-resolution.js";
 import type {
   HarnessParityMatrixOptions,
   HarnessParityMatrixResult,
@@ -21,6 +19,7 @@ import {
   resolveEvalResourceProfile,
   runEvalFixturesForSpec,
 } from "./model-matrix-eval.js";
+import { matrixHarnessOverrides } from "./model-matrix-execution.js";
 import {
   buildModelSpecs,
   resolveOpenRouterPreflight,
@@ -111,24 +110,6 @@ function resolveRepeats(
   return repeats;
 }
 
-function resolveHarnesses(
-  options: HarnessParityMatrixOptions,
-): HarnessParityMatrixResult | AgentHarness[] {
-  const harnessNames =
-    options.harnesses && options.harnesses.length > 0
-      ? options.harnesses
-      : listAgentHarnessNames();
-  if (harnessNames.length === 0) {
-    return {
-      ok: false,
-      reason: "no_harnesses",
-      message:
-        "No agent harnesses are registered; load a harness module before running a model matrix.",
-    };
-  }
-  return harnessNames.map((name) => resolveAgentHarness(name));
-}
-
 export async function runHarnessParityModelMatrix(
   deps: HarnessParityDeps,
   options: HarnessParityMatrixOptions = {},
@@ -152,11 +133,35 @@ export async function runHarnessParityModelMatrix(
     };
   }
 
-  const harnesses =
-    loaded.scenarios.length > 0 ? resolveHarnesses(options) : [];
-  if (!Array.isArray(harnesses)) return harnesses;
-  const specs = buildModelSpecs(deps.config, options);
+  let specs: ReturnType<typeof buildModelSpecs>;
+  try {
+    specs = buildModelSpecs(deps.config, options);
+  } catch (error) {
+    return { ok: false, reason: "invalid_harness_pair", message: (error as Error).message };
+  }
   if (!Array.isArray(specs)) return specs;
+  const executions: Array<{ spec: (typeof specs)[number]; harness: AgentHarness }> = [];
+  try {
+    for (const spec of specs) {
+      const names = options.harnesses?.length ? options.harnesses : [spec.defaultHarness];
+      const failures: string[] = [];
+      const pairs: typeof executions = [];
+      for (const name of new Set(names)) {
+        const harness = resolveAgentHarness(name);
+        try {
+          const model = resolveHarnessModel(harness, spec.model, spec.executionProvider);
+          matrixHarnessOverrides(harness, spec, options.effort);
+          pairs.push({ spec: { ...spec, model }, harness });
+        } catch (error) {
+          failures.push((error as Error).message);
+        }
+      }
+      if (pairs.length === 0) throw new Error(failures.join(" "));
+      executions.push(...pairs);
+    }
+  } catch (error) {
+    return { ok: false, reason: "invalid_harness_pair", message: (error as Error).message };
+  }
   const openRouterPreflight = resolveOpenRouterPreflight(deps.scopeRoot);
   const evalResourceProfile =
     evalFixtures.fixtures.length > 0
@@ -170,7 +175,8 @@ export async function runHarnessParityModelMatrix(
   mkdirSync(outBaseDir, { recursive: true });
   const rows: HarnessParityMatrixRow[] = [];
 
-  for (const spec of specs) {
+  for (const { spec, harness } of executions) {
+    const harnessOverrides = matrixHarnessOverrides(harness, spec, options.effort);
     const skipReason = skipReasonFor(spec, openRouterPreflight);
     if (evalFixtures.fixtures.length > 0 && evalResourceProfile !== null) {
       rows.push(
@@ -178,6 +184,7 @@ export async function runHarnessParityModelMatrix(
           deps,
           options,
           spec,
+          harnessName: harness.name,
           openRouterPreflight,
           fixtures: evalFixtures.fixtures,
           outBaseDir,
@@ -187,56 +194,57 @@ export async function runHarnessParityModelMatrix(
       );
     }
     for (const scenario of loaded.scenarios) {
-      for (const harness of harnesses) {
-        for (let repeatIndex = 0; repeatIndex < repeats; repeatIndex += 1) {
-          const rowId = [
-            safePathSegment(spec.role),
-            safePathSegment(spec.label),
-            safePathSegment(harness.name),
-            safePathSegment(scenario.spec.id),
-            `r${repeatIndex + 1}`,
-          ].join("-");
-          if (skipReason !== null) {
-            rows.push(
-              skippedRow({
-                spec,
-                harnessName: harness.name,
-                scenarioId: scenario.spec.id,
-                repeatIndex,
-                repeatCount: repeats,
-                rowId,
-                skipReason,
-              }),
-            );
-            continue;
-          }
-          const artifacts = await runScenarioAcrossHarnesses({
-            scenario,
-            harnesses: [harness],
-            callOptions: {
-              model: spec.model,
-              ...(options.maxTurns !== undefined
-                ? { maxTurns: options.maxTurns }
-                : {}),
-              ...(options.effort !== undefined ? { effort: options.effort } : {}),
-            },
-            outBaseDir: join(outBaseDir, "rows", rowId),
-            ...(options.keepWorkingDir !== undefined
-              ? { keepWorkingDir: options.keepWorkingDir }
-              : {}),
-          });
+      for (let repeatIndex = 0; repeatIndex < repeats; repeatIndex += 1) {
+        const rowId = [
+          safePathSegment(spec.role),
+          safePathSegment(spec.label),
+          safePathSegment(harness.name),
+          safePathSegment(scenario.spec.id),
+          `r${repeatIndex + 1}`,
+        ].join("-");
+        if (skipReason !== null) {
           rows.push(
-            rowFromArtifact({
+            skippedRow({
               spec,
               harnessName: harness.name,
               scenarioId: scenario.spec.id,
               repeatIndex,
               repeatCount: repeats,
               rowId,
-              artifact: artifacts[0]!,
+              skipReason,
             }),
           );
+          continue;
         }
+        const artifacts = await runScenarioAcrossHarnesses({
+          scenario,
+          harnesses: [harness],
+          callOptions: {
+            model: spec.model,
+            scopeRoot: deps.scopeRoot,
+            modelOutputTokenLimits: deps.config.modelOutputTokenLimits,
+            harnessOverrides,
+            ...(options.maxTurns !== undefined
+              ? { maxTurns: options.maxTurns }
+              : {}),
+            effort: harnessOverrides === undefined ? options.effort : null,
+          },
+          outBaseDir: join(outBaseDir, "rows", rowId),
+          ...(options.keepWorkingDir !== undefined
+            ? { keepWorkingDir: options.keepWorkingDir }
+            : {}),
+        });
+        rows.push(
+          rowFromArtifact({
+            spec,
+            harnessName: harness.name,
+            scenarioId: scenario.spec.id,
+            repeatIndex,
+            repeatCount: repeats,
+            rowId,
+            artifact: artifacts[0]!,
+          }),
+        );
       }
     }
   }
@@ -254,7 +262,7 @@ export async function runHarnessParityModelMatrix(
         generatedAt: new Date().toISOString(),
         scenarios: loaded.scenarios.map((scenario) => scenario.spec.id),
         evalFixtures: evalFixtures.fixtures.map((fixture) => fixture.spec.id),
-        harnesses: harnesses.map((harness) => harness.name),
+        harnesses: [...new Set(executions.map(({ harness }) => harness.name))],
         repeats,
         ...(evalResourceProfile !== null
           ? { evalResourceProfile }

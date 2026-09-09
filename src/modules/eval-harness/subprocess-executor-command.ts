@@ -38,6 +38,10 @@ export function workflowExecArgs(
       "--agent-model",
       request.agentExecutionOverride.model,
     );
+    const { maxTurns, harnessOptions, modelOutputTokenLimits } = request.agentExecutionOverride;
+    if (maxTurns !== undefined || harnessOptions !== undefined || modelOutputTokenLimits !== undefined) {
+      args.push("--agent-options", JSON.stringify({ maxTurns, harnessOptions, modelOutputTokenLimits }));
+    }
     if (request.agentExecutionOverride.effort !== undefined) {
       args.push("--agent-effort", request.agentExecutionOverride.effort);
     }

@@ -59,7 +59,10 @@ export async function runScenarioStageOnHarness(args: {
     const runOptions: AgentHarnessRunOptions = {
       prompt: stage.prompt,
       model: callOptions.model,
+      modelOutputTokenLimits: callOptions.modelOutputTokenLimits,
+      harnessOverrides: callOptions.harnessOverrides,
       cwd: args.workingDir,
+      ...(callOptions.scopeRoot !== undefined ? { scopeRoot: callOptions.scopeRoot } : {}),
       effort: args.effort,
       ...(callOptions.systemPrompt !== undefined
         ? { systemPrompt: callOptions.systemPrompt }
@@ -125,7 +128,7 @@ export async function runScenarioStageOnHarness(args: {
     scenarioId: scenario.spec.id,
     harnessName: harness.name,
     model: callOptions.model,
-    effort: args.effort,
+    effort: callOptions.effort === null ? null : args.effort,
     startedAt: startedAt.toISOString(),
     durationMs,
     turns: runResult?.turns ?? 0,

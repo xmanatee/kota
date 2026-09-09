@@ -224,6 +224,7 @@ export const claudeAgentHarness: AgentHarness = {
   askOwnerToolName: KOTA_OWNER_QUESTIONS_MCP_TOOL,
   emitsAgentMessageStream: true,
   toolControl: "kota",
+  modelRouting: { kind: "native", provider: "anthropic" },
   unsupportedRunOptions: CLAUDE_UNSUPPORTED_OPTIONS,
   readiness: claudeReadiness,
   validateStepOptions: validateClaudeSdkStepOptions,

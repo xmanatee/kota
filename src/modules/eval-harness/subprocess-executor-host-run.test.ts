@@ -109,6 +109,8 @@ describe("createSubprocessExecutor host execution", () => {
         harness: "openai-tools",
         model: "openrouter/z-ai/glm-5.2",
         effort: "max",
+        maxTurns: 7,
+        modelOutputTokenLimits: { "openrouter/custom": 2048 },
       },
     });
 
@@ -126,6 +128,8 @@ describe("createSubprocessExecutor host execution", () => {
       "openai-tools",
       "--agent-model",
       "openrouter/z-ai/glm-5.2",
+      "--agent-options",
+      JSON.stringify({ maxTurns: 7, modelOutputTokenLimits: { "openrouter/custom": 2048 } }),
       "--agent-effort",
       "max",
     ]);

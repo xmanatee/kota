@@ -1,5 +1,5 @@
-
 import { isMultiRoundFixtureSpec } from "./fixture.js";
+import { collectFixtureExecutionEvidence } from "./runner-evidence.js";
 import { cleanupFixtureWorkingDir } from "./runner-materialize.js";
 import { runMultiRoundFixture } from "./runner-multi-fixture.js";
 import { runSingleWorkflowFixture } from "./runner-single-fixture.js";
@@ -23,8 +23,9 @@ export { cleanupFixtureWorkingDir };
 export async function runFixture(
   params: RunFixtureParams,
 ): Promise<FixtureRunReport> {
-  if (isMultiRoundFixtureSpec(params.fixture.spec)) {
-    return runMultiRoundFixture(params);
-  }
-  return runSingleWorkflowFixture(params);
+  const report = isMultiRoundFixtureSpec(params.fixture.spec)
+    ? await runMultiRoundFixture(params)
+    : await runSingleWorkflowFixture(params);
+  report.run.executionEvidence = collectFixtureExecutionEvidence(report);
+  return report;
 }

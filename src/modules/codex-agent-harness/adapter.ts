@@ -232,6 +232,7 @@ export const codexAgentHarness: AgentHarness = {
   askOwnerToolName: null,
   emitsAgentMessageStream: true,
   toolControl: "native",
+  modelRouting: { kind: "native", provider: "openai" },
   nativeAbortQuarantine: "confirmed-stop",
   unsupportedRunOptions: CODEX_UNSUPPORTED_OPTIONS,
   readiness: codexReadiness,

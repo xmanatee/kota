@@ -1,7 +1,5 @@
 ---
-status: open
-priority: p1
-depends_on: [task-preserve-rich-tool-results-reasoning-and-agent-mes, task-add-kota-owned-session-resume-for-model-client-har]
+status: done
 ---
 # Extend harness parity and eval harness with model-matrix evidence
 
@@ -140,3 +138,73 @@ standard scope secret resolver returned no OpenRouter key on September 9.
 That blocks downstream live rollout evidence, not this implementation repair.
 Preserve the earlier artifacts as history and supersede the stale claim that
 only operator capture remained. Do not change the production Codex preset.
+
+
+## Implementation repair (2026-09-09)
+
+Supersedes the earlier claim that only operator capture remained. Scenario and
+eval rows now share provider/model/harness admission before any agent launches.
+The existing preset store supplies defaults; registered adapter routing
+capabilities and the model-clients resolver normalize native versus
+provider-qualified model ids. Explicit harness lists select compatible pairs;
+a model without a supported pair rejects the matrix. OpenRouter ids cannot
+reach Codex, and the existing direct-OpenAI GPT-5.6 tool restriction is reused.
+Scenario runs carry the canonical scope for credential resolution while edits
+remain in cloned scenario workspaces. Eval overrides retain the resolved
+harness/model and requested effort.
+
+Shadow reports compare each baseline with candidates on the same target across
+harnesses and identify both harnesses. Missing repeats, model capability,
+verification or cost evidence remains incompatible; eval comparisons also
+require compatible configuration, source, manifest, resolved model evidence,
+and verified resources. The production Codex preset is unchanged.
+
+Validation in builder run `2026-09-09T14-26-59-585Z-builder-awffsb`:
+
+- The affected harness-parity and eval-harness suites plus provider routing,
+  request encoding, module admission and dependency checks passed: 84 files,
+  525 tests. Controlled adapter ports demonstrate default and explicit-pool
+  Codex/OpenRouter routing, mixed-harness comparison, rejected incompatible
+  pairs before launch, scoped credential admission, and cloned snapshots.
+- Production and test TypeScript checks passed. Scoped Biome checks and Git
+  whitespace inspection passed. The eval host-auth tests now explicitly
+  register their adapter instead of depending on retired import side effects.
+- `agent/no-key-matrix-transcript.txt` and
+  `agent/no-key-model-matrix/model-matrix-report.json` under this run's runtime
+  directory record two successful deterministic local baseline repeats and
+  four skipped OpenRouter repeats (GLM and Kimi), with missing-key preflight.
+  This probe uses a controlled adapter port and contacted no provider.
+
+No live coding-task or model-promotion evidence is claimed. Configured-key and
+local-model rollout evaluation remains owned by
+`task-run-live-openrouter-and-local-model-rollout-evalua`.
+
+
+## Post-check repair (2026-09-09)
+
+Corrected the five production-path gaps identified by critic review. Scenario
+runs forward configured output-token limits using provider-qualified model ids.
+Matrix ModelClient runs use explicit provider-default reasoning unless effort is
+requested; unsupported local effort rejects before launch. Eval subprocesses
+receive credentials resolved in the original scope, configured token limits,
+adapter reasoning options, and the requested max-turn limit. Workflow exec
+validates and applies these controls before isolated execution.
+
+Eval-harness retains runtime metadata, agent event streams, measured usage and
+activity, trajectory diagnostics, predicate results, and workspace diffs before
+clone cleanup. Matrix rows project this evidence. Complete runtime costs take
+precedence; complete tokens with shipped flat pricing can supply an uncached
+estimate. Missing pricing or incomplete usage stays unavailable. Adapter errors
+now remain errors even when an independent scenario verifier passes.
+
+Validation: the affected parity, eval, OpenAI-tools, workflow-exec, and module
+dependency suites passed (95 files, 416 tests); production and test typechecks
+passed. Focused tests exercise the real local/Kimi request encoder through a
+controlled HTTP port, the default eval subprocess with candidate credentials
+and execution limits, and evidence surviving clone removal. Scoped lint,
+whitespace inspection, and task validation passed. Detailed validation output
+is retained under this run's agent artifacts.
+
+These are deterministic implementation proofs. No live provider run or model
+promotion is claimed. Host-subprocess resource evidence remains non-gating;
+configured-key/local rollout and unavailable pricing remain explicit limitations.

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type {
   AgentHarnessReadiness,
   AgentHarnessRunOptions,
@@ -6,11 +7,6 @@ import type {
 import { probeCurrentNodeRuntime } from "#core/agent-harness/index.js";
 
 export const OPENAI_TOOLS_UNSUPPORTED_OPTIONS = [
-  {
-    runOption: "harnessOverrides",
-    option: "harnessOverrides",
-    reason: "The openai-tools harness does not accept per-step harnessOptions.",
-  },
   {
     runOption: "enableFileCheckpointing",
     option: "enableFileCheckpointing",
@@ -33,12 +29,7 @@ export function openaiToolsReadiness(): AgentHarnessReadiness {
 }
 
 export function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void {
-  if (options.harnessOverrides !== undefined) {
-    throw new Error(
-      'The "openai-tools" agent harness does not accept per-step harnessOptions. ' +
-        'Drop harnessOptions["openai-tools"] or run an adapter that validates them.',
-    );
-  }
+  resolveOpenaiToolsOptions(options.harnessOverrides);
   if (options.enableFileCheckpointing === true) {
     throw new Error(
       'The "openai-tools" agent harness does not support file checkpointing. ' +
@@ -51,4 +42,10 @@ export function rejectUnsupportedOptions(options: AgentHarnessRunOptions): void 
         "Drop thinkingEnabled/thinkingBudget or run claude-agent-sdk.",
     );
   }
+}
+
+export function resolveOpenaiToolsOptions(raw: unknown): { reasoning?: "provider-default" } {
+  const parsed = z.object({ reasoning: z.literal("provider-default").optional() }).strict().safeParse(raw === undefined ? {} : raw);
+  if (!parsed.success) throw new Error(`Invalid openai-tools harnessOptions: ${parsed.error.message}`);
+  return parsed.data;
 }

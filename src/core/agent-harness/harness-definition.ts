@@ -69,6 +69,10 @@ export type AgentHarness = {
    * process owns the tool loop and rejects KOTA-only controls.
    */
   readonly toolControl: "kota" | "native";
+  /** Model routing supported by this adapter. Omission cannot admit matrix pairs. */
+  readonly modelRouting?:
+    | { readonly kind: "model-client" }
+    | { readonly kind: "native"; readonly provider: string };
   /**
    * Declares that a native tool-loop adapter can stop its run and confirm
    * termination after cancellation. Native runs with an AbortController are
@@ -155,6 +159,7 @@ const AGENT_HARNESS_DEFINITION_FIELDS = {
   askOwnerToolName: true,
   emitsAgentMessageStream: true,
   toolControl: true,
+  modelRouting: true,
   nativeAbortQuarantine: true,
   readiness: true,
   resolveIsolatedHostAuthEnv: true,
@@ -275,6 +280,22 @@ export function assertAgentHarnessDefinitions(
       record.nativeAbortQuarantine !== "confirmed-stop"
     ) {
       throw new Error(`${label}.nativeAbortQuarantine must be "confirmed-stop" when declared`);
+    }
+    if (record.modelRouting !== undefined) {
+      const routing = record.modelRouting;
+      if (typeof routing !== "object" || routing === null || Array.isArray(routing)) {
+        throw new Error(`${label}.modelRouting must declare a routing kind`);
+      }
+      const route = routing as Record<string, unknown>;
+      if (route.kind !== "model-client" && route.kind !== "native") {
+        throw new Error(`${label}.modelRouting has unsupported kind`);
+      }
+      if (route.kind === "native") {
+        assertNonEmptyTrimmedString(route.provider, `${label}.modelRouting.provider`);
+      }
+      if (Object.keys(route).some((key) => key !== "kind" && !(route.kind === "native" && key === "provider"))) {
+        throw new Error(`${label}.modelRouting has unknown fields`);
+      }
     }
     assertOptionalFunction(record.readWeeklyQuota, `${label}.readWeeklyQuota`);
     assertOptionalFunction(record.readiness, `${label}.readiness`);

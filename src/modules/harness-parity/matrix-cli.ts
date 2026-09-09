@@ -48,7 +48,7 @@ export function registerHarnessParityMatrixCommand(
     )
     .option(
       "--harness <name>",
-      "Only run against the named harness (repeatable; defaults to every registered harness)",
+      "Select compatible harnesses (repeatable; defaults to each model’s preset/provider route)",
       appendStringOption,
       [] as string[],
     )

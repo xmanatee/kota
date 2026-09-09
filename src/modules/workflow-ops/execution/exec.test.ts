@@ -84,6 +84,8 @@ describe("workflow exec agent execution override", () => {
       harness: "antigravity-cli",
       model: "gemini-3.6-flash",
       effort: "max",
+      maxTurns: 7,
+      harnessOptions: { reasoning: "provider-default" },
     });
 
     expect(overridden.steps[0]).toMatchObject({
@@ -94,6 +96,7 @@ describe("workflow exec agent execution override", () => {
       effort: "max",
     });
     expect(overridden.steps[0]).not.toHaveProperty("tier");
+    expect(overridden.steps[0]).toMatchObject({ maxTurns: 7, harnessOptions: { "antigravity-cli": { reasoning: "provider-default" } } });
   });
 });
 

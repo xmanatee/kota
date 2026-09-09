@@ -1,3 +1,4 @@
+import type { FixtureExecutionEvidence } from "./runner-evidence.js";
 /**
  * Fixture-run contract for the autonomy eval harness.
  *
@@ -132,6 +133,7 @@ export type FixtureRoundRun = {
 };
 
 export type FixtureRun = {
+  executionEvidence?: FixtureExecutionEvidence;
   fixtureId: string;
   /** 0-based index of this run within a repeat set for the same fixture. */
   runIndex: number;

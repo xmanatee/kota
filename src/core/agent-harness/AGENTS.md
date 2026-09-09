@@ -97,6 +97,11 @@ Owner questions are a protocol capability, not a provider field.
 - `capability-snapshot.ts` derives capability/readiness artifacts from
   declarations, never harness-name catalogs.
 
+`modelRouting` opts an adapter into provider/model matrix admission. Native
+adapters declare their provider; ModelClient adapters retain provider-qualified
+model ids. The provider owner resolves these declarations and calls the
+adapter's model validator before launch; absence cannot establish compatibility.
+
 ## Registry and selection
 
 - `registerAgentHarness(harness)` registers an adapter under its declared

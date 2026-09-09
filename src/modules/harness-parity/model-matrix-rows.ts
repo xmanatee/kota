@@ -3,6 +3,7 @@ import type {
   HarnessParityMatrixRow,
   HarnessParityMatrixVerificationSummary,
 } from "./client.js";
+import { matrixEstimatedCost } from "./model-matrix-execution.js";
 import type { MatrixModelSpec } from "./model-matrix-models.js";
 import type { HarnessParityArtifact } from "./runner.js";
 import { scaffoldEvidenceForRow } from "./scaffold-evidence.js";
@@ -77,11 +78,7 @@ export function rowFromArtifact(args: {
   artifact: HarnessParityArtifact;
 }): HarnessParityMatrixRow {
   const { artifact } = args;
-  const status = artifact.verification.passed
-    ? "passed"
-    : artifact.isError
-      ? "error"
-      : "failed";
+  const status = artifact.isError ? "error" : artifact.verification.passed ? "passed" : "failed";
   const scaffoldEvidence = scaffoldEvidenceForRow({
     harnessName: args.harnessName,
     scenarioId: args.scenarioId,
@@ -111,9 +108,7 @@ export function rowFromArtifact(args: {
         ? null
         : artifact.usage.tokens.outputTokens,
     },
-    estimatedCostUsd: artifact.usage.cost.state === "complete"
-      ? artifact.usage.cost.usd
-      : null,
+    estimatedCostUsd: matrixEstimatedCost(args.spec.model, artifact.usage),
     toolCounts: {
       toolCalls: sumStageToolCount(artifact, "toolCallCount"),
       toolResults: sumStageToolCount(artifact, "toolResultCount"),

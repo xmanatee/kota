@@ -1,6 +1,7 @@
+import { hasAgentHarness, resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { KotaConfig } from "#core/config/config.js";
-import { resolveActivePresetFromConfig } from "#core/model/preset.js";
-import { resolveApiKey } from "#modules/model-clients/factory.js";
+import { getPreset, listShippedPresets, resolveActivePresetFromConfig } from "#core/model/preset.js";
+import { parseModelString, resolveApiKey } from "#modules/model-clients/factory.js";
 import {
   getOpenRouterModelCapabilities,
   resolveFreshOpenRouterCandidateSet,
@@ -20,6 +21,8 @@ export type MatrixModelSpec = {
   provider: HarnessParityMatrixProvider;
   model: string;
   requestedModel: string;
+  executionProvider: string;
+  defaultHarness: string;
   capabilityMetadata: HarnessParityMatrixCapabilityMetadata;
 };
 
@@ -90,11 +93,30 @@ function unavailableCapabilityMetadata(
 function buildModelSpec(
   role: HarnessParityMatrixModelRole,
   input: HarnessParityMatrixModelInput,
+  config: KotaConfig,
 ): MatrixModelSpec | HarnessParityMatrixResult {
   const requestedModel = input.model;
-  const provider = input.provider ?? inferProvider(requestedModel);
+  const preset = input.provider === "active-preset"
+    ? resolveActivePresetFromConfig(config)
+    : listShippedPresets().find((entry) =>
+        [entry.defaultModel, ...Object.values(entry.tiers)].includes(requestedModel));
+  const presetRouting = preset !== undefined && hasAgentHarness(preset.harness)
+    ? resolveAgentHarness(preset.harness).modelRouting
+    : undefined;
+  const inferred = inferProvider(requestedModel);
+  const provider = input.provider ?? (inferred === "unknown" && presetRouting?.kind === "native"
+    ? inferProvider(`${presetRouting.provider}/model`) : inferred);
+  const parsedProvider = parseModelString(requestedModel).provider;
+  const executionProvider = provider === "active-preset"
+    ? (presetRouting?.kind === "native" ? presetRouting.provider : parsedProvider)
+    : provider === "local" ? parsedProvider ?? config.modelProvider?.type
+    : provider === "unknown" ? parsedProvider ?? config.modelProvider?.type : provider;
+  if (!executionProvider || (provider === "local" && executionProvider !== "ollama" && executionProvider !== "lmstudio")) {
+    return { ok: false, reason: "invalid_model", message: `Model "${requestedModel}" needs an explicit provider/model route.` };
+  }
+  const defaultHarness = preset?.harness ?? getPreset("openrouter").harness;
   const label = input.label ?? `${role}-${requestedModel}`;
-  if (provider === "openrouter") {
+  if (executionProvider === "openrouter") {
     const capability = openRouterCapabilityMetadata(requestedModel);
     if (!capability.ok) {
       return {
@@ -109,6 +131,8 @@ function buildModelSpec(
       provider,
       model: capability.model,
       requestedModel,
+      executionProvider,
+      defaultHarness,
       capabilityMetadata: capability.metadata,
     };
   }
@@ -118,7 +142,12 @@ function buildModelSpec(
     provider,
     model: requestedModel,
     requestedModel,
-    capabilityMetadata: unavailableCapabilityMetadata(provider),
+    executionProvider,
+    defaultHarness,
+    capabilityMetadata: preset !== undefined &&
+      [preset.defaultModel, ...Object.values(preset.tiers)].includes(requestedModel)
+      ? { status: "available", source: "preset", presetId: preset.id }
+      : unavailableCapabilityMetadata(provider),
   };
 }
 
@@ -168,12 +197,12 @@ export function buildModelSpecs(
 
   const specs: MatrixModelSpec[] = [];
   for (const baseline of baselines) {
-    const spec = buildModelSpec("baseline", baseline);
+    const spec = buildModelSpec("baseline", baseline, config);
     if ("ok" in spec) return spec;
     specs.push(spec);
   }
   for (const candidate of candidates) {
-    const spec = buildModelSpec("candidate", candidate);
+    const spec = buildModelSpec("candidate", candidate, config);
     if ("ok" in spec) return spec;
     specs.push(spec);
   }

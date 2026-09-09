@@ -3,7 +3,8 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import type { Command } from "commander";
-import type { AgentEffort } from "#core/agent-harness/index.js";
+import { z } from "zod";
+import type { AgentEffort, AgentHarnessRunOptions } from "#core/agent-harness/index.js";
 import { loadConfig } from "#core/config/config.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -25,6 +26,9 @@ export type AgentExecutionOverride = {
   harness: string;
   model: string;
   effort?: AgentEffort;
+  maxTurns?: number;
+  harnessOptions?: AgentHarnessRunOptions["harnessOverrides"];
+  modelOutputTokenLimits?: AgentHarnessRunOptions["modelOutputTokenLimits"];
 };
 
 const AGENT_EFFORTS = [
@@ -44,7 +48,13 @@ function resolveAgentExecutionOverride(opts: {
   agentHarness?: string;
   agentModel?: string;
   agentEffort?: string;
+  agentOptions?: string;
 }): AgentExecutionOverride | undefined {
+  const executionOptions = opts.agentOptions === undefined ? undefined : z.object({
+    maxTurns: z.number().int().positive().optional(),
+    harnessOptions: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
+    modelOutputTokenLimits: z.record(z.string(), z.number().int().positive()).optional(),
+  }).strict().parse(JSON.parse(opts.agentOptions));
   const harness = trimOption(opts.agentHarness);
   const model = trimOption(opts.agentModel);
   const effort = trimOption(opts.agentEffort);
@@ -54,9 +64,9 @@ function resolveAgentExecutionOverride(opts: {
     );
     process.exit(1);
   }
-  if (effort !== undefined && (harness === undefined || model === undefined)) {
+  if ((effort !== undefined || executionOptions !== undefined) && (harness === undefined || model === undefined)) {
     printWorkflowError(
-      "--agent-effort requires --agent-harness and --agent-model.",
+      "--agent-effort and --agent-options require --agent-harness and --agent-model.",
     );
     process.exit(1);
   }
@@ -73,6 +83,7 @@ function resolveAgentExecutionOverride(opts: {
     ? {
         harness,
         model,
+        ...executionOptions,
         ...(effort !== undefined && { effort: effort as AgentEffort }),
       }
     : undefined;
@@ -87,6 +98,8 @@ function overrideAgentStep(
     ...withoutTier,
     harness: override.harness,
     model: override.model,
+    ...(override.maxTurns !== undefined && { maxTurns: override.maxTurns }),
+    ...(override.harnessOptions !== undefined && { harnessOptions: { [override.harness]: override.harnessOptions } }),
     ...(override.effort !== undefined && { effort: override.effort }),
   };
 }
@@ -288,6 +301,7 @@ export function registerExecCommand(
     .option("--payload <json>", "JSON object merged into the trigger payload")
     .option("--agent-harness <name>", "Override every agent step harness")
     .option("--agent-model <model>", "Override every agent step model")
+    .option("--agent-options <json>", "Isolated eval execution controls: maxTurns, harnessOptions, modelOutputTokenLimits")
     .option("--agent-effort <effort>", "Override every agent step effort")
     .action(async (
       name: string,
@@ -297,6 +311,7 @@ export function registerExecCommand(
         agentHarness?: string;
         agentModel?: string;
         agentEffort?: string;
+        agentOptions?: string;
       },
     ) => {
       const agentExecutionOverride = resolveAgentExecutionOverride(opts);
@@ -317,7 +332,7 @@ export function registerExecCommand(
 		if (!isPositivelyIdentifiedIsolatedEvalRoot(ctx.cwd)) {
 			if (agentExecutionOverride !== undefined) {
 				printWorkflowError(
-					"Canonical workflow execution does not support per-run agent overrides through the daemon client API; --agent-harness, --agent-model, and --agent-effort are restricted to isolated eval roots.",
+					"Canonical workflow execution does not support per-run agent overrides through the daemon client API; --agent-harness, --agent-model, --agent-effort, and --agent-options are restricted to isolated eval roots.",
 				);
 				process.exitCode = 1;
 				return;
@@ -339,6 +354,9 @@ export function registerExecCommand(
 		}
 
       const runtimeConfig = loadConfig(ctx.cwd);
+      if (agentExecutionOverride?.modelOutputTokenLimits !== undefined) {
+        runtimeConfig.modelOutputTokenLimits = { ...runtimeConfig.modelOutputTokenLimits, ...agentExecutionOverride.modelOutputTokenLimits };
+      }
       const bus = new EventBus();
       const runtimeLoader = await loadRuntimeModules({
         config: runtimeConfig,

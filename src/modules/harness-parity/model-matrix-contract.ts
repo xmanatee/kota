@@ -50,6 +50,7 @@ export type HarnessParityMatrixCapabilityMetadata =
       supportsReasoning: boolean;
       mandatoryReasoning: boolean;
     }
+  | { status: "available"; source: "preset"; presetId: string }
   | {
       status: "unavailable";
       reason: string;
@@ -249,6 +250,7 @@ export type HarnessParityMatrixResult =
         | "scenarios_load_error"
         | "no_scenarios"
         | "no_harnesses"
+        | "invalid_harness_pair"
         | "invalid_repeats"
         | "invalid_max_turns"
         | "invalid_resource_profile"
