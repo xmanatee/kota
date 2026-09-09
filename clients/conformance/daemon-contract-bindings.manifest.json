@@ -9,7 +9,7 @@
     },
     {
       "path": "scripts/daemon-contract-graph.mjs",
-      "sha256": "21880e66bb63354793703885877fd96fd8bf6c54f7c8ca5b1d6dcdd08c8048fe"
+      "sha256": "7029493a394ba2d2657a15f84d28939acd00e6236959c6884fe6cf3f1047cb01"
     },
     {
       "path": "scripts/kota-client-typescript.mjs",

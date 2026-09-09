@@ -70,14 +70,15 @@ describe("daemon SSE transport", () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  it("releases external abort listeners after a completed request", async () => {
+  it("accepts a long-running operator request and releases its abort listener on completion", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
     const transport = daemonTransportFromAddress(ADDRESS);
     const controller = new AbortController();
     const added = vi.spyOn(controller.signal, "addEventListener");
     const removed = vi.spyOn(controller.signal, "removeEventListener");
 
-    await transport.requestStrict("GET", "/health", undefined, {
+    await transport.requestStrict("POST", "/api/eval/run", {}, {
+      timeoutMs: 24 * 60 * 60 * 1000,
       signal: controller.signal,
     });
 

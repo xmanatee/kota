@@ -72,7 +72,8 @@ export const OUTBOUND_HTTP_POLICY_MATRIX = {
       maximum: 0,
       crossOrigin: "strip-to-safe-headers-and-reject-body-replay",
     },
-    timeoutMs: { default: 5_000, maximum: 30_000 },
+    // Explicit operator requests can wait for bounded eval/benchmark execution.
+    timeoutMs: { default: 5_000, maximum: 24 * 60 * 60 * 1000 },
     responseBytes: { default: 10_000_000, maximum: 50_000_000 },
     retry: "idempotent-method-or-idempotency-key-on-transient-failure",
   },

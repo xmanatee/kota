@@ -180,7 +180,7 @@ describe("outbound HTTP profiles", () => {
         profile: OUTBOUND_HTTP_PROFILES.daemonLoopback,
         operation: "limit-fixture",
         url: "http://127.0.0.1:43100/health",
-        limits: { timeoutMs: 30_001 },
+        limits: { timeoutMs: OUTBOUND_HTTP_POLICY_MATRIX["daemon-loopback"].timeoutMs.maximum + 1 },
       }),
     ).rejects.toMatchObject({ failure: { code: "invalid-request" } });
   });

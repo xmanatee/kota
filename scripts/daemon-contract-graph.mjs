@@ -314,8 +314,8 @@ export const DAEMON_OPERATION_DESCRIPTORS = [
 
   // evalHarness (eval-harness) - Classified Exceptions
   { id: "evalHarness.list", namespace: "evalHarness", clientMethod: "list", method: "GET", path: "/eval/list", classification: "routine", responseType: "EvalListResult" },
-  { id: "evalHarness.run", namespace: "evalHarness", clientMethod: "run", method: "POST", path: "/api/eval/run", classification: "exception", exceptionReason: "protocol-limit: long execution timeout (EVAL_RUN_DAEMON_TIMEOUT_MS = 600_000)" },
-  { id: "evalHarness.runAgyModels", namespace: "evalHarness", clientMethod: "runAgyModels", method: "POST", path: "/api/eval/agy-models", classification: "exception", exceptionReason: "protocol-limit: long execution timeout (EVAL_RUN_DAEMON_TIMEOUT_MS = 600_000)" },
+  { id: "evalHarness.run", namespace: "evalHarness", clientMethod: "run", method: "POST", path: "/api/eval/run", classification: "exception", exceptionReason: "protocol-limit: bounded long-running evaluation request" },
+  { id: "evalHarness.runAgyModels", namespace: "evalHarness", clientMethod: "runAgyModels", method: "POST", path: "/api/eval/agy-models", classification: "exception", exceptionReason: "protocol-limit: bounded long-running evaluation request" },
   { id: "evalHarness.calibration", namespace: "evalHarness", clientMethod: "calibration", method: "GET", path: "/eval/calibration", classification: "routine", responseType: "EvalCalibrationResult" },
 
   // setup (setup) - Classified Exceptions
