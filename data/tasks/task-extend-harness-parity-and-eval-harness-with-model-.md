@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 depends_on: [task-preserve-rich-tool-results-reasoning-and-agent-mes, task-add-kota-owned-session-resume-for-model-client-har]
 ---
