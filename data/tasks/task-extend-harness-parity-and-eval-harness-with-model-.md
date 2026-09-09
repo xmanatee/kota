@@ -68,15 +68,13 @@ OpenRouter/local model parity for KOTA autonomy.
   the affected matrix and reporting code.
 - A no-key matrix preflight run records skipped OpenRouter candidates without
   failing unrelated local baseline rows.
-- With a configured key, `.kota/runs/<run-id>/` contains a matrix report
-  comparing Codex baseline rows against at least GLM-5.2 and Kimi K2.7 Code.
-
-## Blocked on
-```
-kind: operator-capture
-path: .kota/runs/2026-06-27T00-33-10-684Z-builder-wtiy1i/configured-key-model-matrix/model-matrix-report.json
-description: configured-key GLM/Kimi matrix evidence — operator configures an OpenRouter key, runs `pnpm kota harness-parity matrix --scenario fix-arithmetic-bug --harness codex --candidate openrouter/z-ai/glm-5.2 --candidate openrouter/moonshotai/kimi-k2.7-code --repeats 1 --out .kota/runs/2026-06-27T00-33-10-684Z-builder-wtiy1i/configured-key-model-matrix`, and captures the transcript plus model-matrix-report.json showing Codex baseline comparison against both OpenRouter candidates under the same run directory.
-```
+- Demonstrate provider/harness pairing, mixed-provider baseline/candidate comparison,
+  and missing-credential admission through the shared matrix entry point. Tests must
+  observe routing and rejected incompatible pairs, not freeze model catalogs.
+- Live configured-key GLM/Kimi and local-model rollout evidence is owned by
+  `task-run-live-openrouter-and-local-model-rollout-evalua`, which depends on this
+  implementation task. No live run is claimed here; that downstream requirement
+  remains mandatory before any model promotion.
 
 ## Result
 
@@ -124,3 +122,21 @@ matrix run under this task's run directory once an OpenRouter key is configured.
 An existing project OpenRouter credential passed the provider authentication endpoint (HTTP 200), with a $5 limit and $5 remaining. The live model catalog includes both z-ai/glm-5.2 and moonshotai/kimi-k2.7-code. No secret value is included here, and no production provider was changed. The operator can supply the existing credential to a scoped live validation. Missing credential ownership is therefore not the remaining problem.
 
 The recorded validation command needs correction before spending retries: it applies --harness codex to OpenRouter candidates. The current matrix applies every model to every selected harness. The Codex adapter passes the model directly to Codex CLI under its Codex-only provider/auth/egress contract, whereas the shipped OpenRouter preset uses openai-tools. Validate real provider/harness pairing through the existing model resolution and harness owners; do not label a Codex-provider request as an OpenRouter benchmark. Preserve an actual Codex baseline comparison and provider-auth failures honestly. This preflight is not configured-key coding-task evidence or task completion.
+
+## Remaining implementation (2026-09-09)
+
+The scenario path in `model-matrix.ts` loops every spec over every selected
+harness, while the eval path resolves a harness separately. Resolve compatible
+provider/model/harness execution through the existing shared resolution owners;
+do not submit OpenRouter model IDs to the Codex CLI or build another registry.
+Ensure the shadow comparison can compare a genuine Codex baseline with a
+provider-backed candidate without requiring identical harness names; retain
+scenario/config/resource/verification compatibility and report the harness
+difference explicitly. Reject unsupported pairs before launching agents.
+
+The old operator-capture command applied `--harness codex` to OpenRouter
+candidates and is withdrawn. The September 8 key preflight is historical; the
+standard scope secret resolver returned no OpenRouter key on September 9.
+That blocks downstream live rollout evidence, not this implementation repair.
+Preserve the earlier artifacts as history and supersede the stale claim that
+only operator capture remained. Do not change the production Codex preset.
