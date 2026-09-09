@@ -104,13 +104,15 @@ function safeExecutableDirectory(path: string, cwd: string): boolean {
   return normalized === join(homedir(), "Library", "pnpm");
 }
 
-function nearestDependencyRoot(cwd: string): string | undefined {
+function dependencyReadRoots(cwd: string): string[] {
+  const roots: string[] = [];
   let directory = resolve(cwd);
   while (true) {
     const dependencyRoot = join(directory, "node_modules");
-    if (existsSync(dependencyRoot)) return realpathSync.native(dependencyRoot);
+    // Node continues through ancestors when a local dependency directory lacks a package.
+    if (existsSync(dependencyRoot)) roots.push(realpathSync.native(dependencyRoot));
     const parent = dirname(directory);
-    if (parent === directory) return undefined;
+    if (parent === directory) return roots;
     directory = parent;
   }
 }
@@ -149,7 +151,6 @@ export function nativeCliReadableRoots(
     .split(delimiter)
     .filter(Boolean)
     .filter((path) => safeExecutableDirectory(path, cwd));
-  const dependencyRoot = nearestDependencyRoot(cwd);
   const executablePackageRoot = nodePackageRoot(executablePath);
   const executableInstallationRoot = trustedPathInstallationRoot(executablePath);
   return [...new Set([
@@ -157,7 +158,7 @@ export function nativeCliReadableRoots(
     cwd,
     invocationRoot,
     ...nativeCliGitMetadataRoots(cwd),
-    ...(dependencyRoot === undefined ? [] : [dependencyRoot]),
+    ...dependencyReadRoots(cwd),
     ...pathDirectories.filter(existsSync),
     ...pathDirectories.flatMap((path) => {
       const root = trustedPathInstallationRoot(path);

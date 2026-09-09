@@ -7,6 +7,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -26,6 +27,21 @@ afterEach(() => {
 });
 
 describe("native CLI sandbox roots", () => {
+  it("keeps inherited dependencies readable when a workspace has a local dependency directory", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-native-dependencies-"));
+    roots.push(root);
+    const workspace = join(root, "workspace");
+    const dependency = join(root, "node_modules", "inherited-package");
+    mkdirSync(join(workspace, "node_modules"), { recursive: true });
+    mkdirSync(dependency, { recursive: true });
+    writeFileSync(join(dependency, "index.js"), "module.exports = 42;");
+    const resolved = createRequire(join(workspace, "entry.js")).resolve("inherited-package");
+    const readable = nativeCliReadableRoots(process.execPath, workspace, workspace, {});
+
+    expect(readable.some((path) => resolved.startsWith(`${path}/`))).toBe(true);
+    expect(readable).not.toContain(realpathSync.native(root));
+  });
+
   it("resolves a PATH executable through its real identity", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-executable-root-"));
     roots.push(root);
