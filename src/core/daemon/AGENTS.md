@@ -120,6 +120,15 @@ provider. Invalid selectors fail without cwd/default fallback. The daemon owns
 one runtime module loader; sessions borrow it without replacing its provider or
 event authority.
 
+## Decision Record Persistence
+
+Approval and owner-decision repositories share anchored record I/O. That boundary
+owns private directory and single-link record identity, canonical ancestor
+containment, isolated helper invocation, and file/directory durability. Repository
+owners retain their own paths, schemas, signatures, and lifecycle authority.
+Filesystem fault and substitution proof belongs to the shared storage owner;
+domain tests cover authenticated transitions, replay, and recovery.
+
 ## Recoverability
 
 The daemon is authoritative for live state. New state must either reconstruct

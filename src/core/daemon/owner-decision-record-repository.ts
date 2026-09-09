@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import type {
-  OwnerDecisionFileIdentity,
-  OwnerDecisionRecordSnapshot,
-  OwnerDecisionRecordStorage,
-} from "./owner-decision-record-storage.js";
+  AnchoredRecordIdentity,
+  AnchoredRecordSnapshot,
+  AnchoredRecordStorage,
+} from "./anchored-record-storage.js";
 import {
   isOwnerDecisionResolutionIntegrity,
   isTerminalOwnerDecisionStatus,
@@ -27,7 +27,7 @@ export function ownerDecisionFilePath(dir: string, id: string): string | null {
 
 export type StoredOwnerDecision = {
   item: OwnerDecisionRecord;
-  identity: OwnerDecisionFileIdentity;
+  identity: AnchoredRecordIdentity;
   resolutionIntegrity?: OwnerDecisionResolutionIntegrity;
 };
 
@@ -37,7 +37,7 @@ type PersistedOwnerDecisionRecord = OwnerDecisionRecord & {
 
 export class OwnerDecisionRecordRepository {
   constructor(
-    readonly storage: OwnerDecisionRecordStorage,
+    readonly storage: AnchoredRecordStorage,
     private readonly scopeId: string,
   ) {}
 
@@ -70,7 +70,7 @@ export class OwnerDecisionRecordRepository {
 
   write(
     item: OwnerDecisionRecord,
-    expectedIdentity: OwnerDecisionFileIdentity | null,
+    expectedIdentity: AnchoredRecordIdentity | null,
     resolutionIntegrity?: OwnerDecisionResolutionIntegrity,
   ): OwnerDecisionRecord {
     const projected = sanitizeOwnerDecisionRecordForStorage(item);
@@ -95,7 +95,7 @@ export class OwnerDecisionRecordRepository {
   }
 
   private parse(
-    snapshot: OwnerDecisionRecordSnapshot,
+    snapshot: AnchoredRecordSnapshot,
   ): { item: OwnerDecisionRecord; resolutionIntegrity?: OwnerDecisionResolutionIntegrity } {
     let parsed: unknown;
     try {

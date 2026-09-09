@@ -3,9 +3,9 @@ import {
 	randomBytes,
 	timingSafeEqual,
 } from "node:crypto";
+import type { AnchoredRecordIdentity } from "./anchored-record-storage.js";
 import { projectApprovalForStorage } from "./approval-queue-projection.js";
 import type { ApprovalPersistencePort, PendingApproval } from "./approval-queue-types.js";
-import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 
 const KEY_ID_PATTERN = /^[0-9a-f]{32}$/;
 const DIGEST_PATTERN = /^[0-9a-f]{64}$/;
@@ -127,7 +127,7 @@ export class ApprovalResolutionAuthenticator {
 	write(
 		records: ApprovalPersistencePort,
 		item: PendingApproval,
-		expectedIdentity: ApprovalFileIdentity,
+		expectedIdentity: AnchoredRecordIdentity,
 	): PendingApproval {
 		const stored = records.write(item, expectedIdentity, this.create(item));
 		this.pendingSnapshots.delete(item.id);

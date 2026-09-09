@@ -4,6 +4,7 @@ import { cloneEvidenceJsonObject } from "#core/evidence/policy.js";
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
 import { captureLocalToolApprovalDeclaration } from "#core/tools/local-tool-approval-binding.js";
+import { type AnchoredRecordIdentity, AnchoredRecordStorage } from "./anchored-record-storage.js";
 import {
 	type ApprovalExecutionDescriptor,
 	pendingApprovalMatchesExecutionDescriptor,
@@ -40,7 +41,6 @@ import {
 } from "./approval-queue-types.js";
 import type { StoredApproval } from "./approval-record-repository.js";
 import { ApprovalRecordRepository } from "./approval-record-repository.js";
-import { type ApprovalFileIdentity, ApprovalRecordStorage } from "./approval-record-storage.js";
 import {
 	ApprovalResolutionAuthenticator,
 	ApprovalResolutionIntegrityError,
@@ -89,7 +89,7 @@ export type ApprovalQueueOptions = {
 	defaultTtlMs?: number;
 	clock?: ApprovalClockPort;
 	records?: ApprovalPersistencePort;
-	storage?: ApprovalRecordStorage;
+	storage?: AnchoredRecordStorage;
 };
 
 export class ApprovalQueue {
@@ -113,7 +113,7 @@ export class ApprovalQueue {
 			this.records = options.records;
 			this.scopeId = options.scopeId ?? pbus?.getScopeId() ?? "default";
 		} else {
-			const storage = options.storage ?? new ApprovalRecordStorage(dir);
+			const storage = options.storage ?? new AnchoredRecordStorage(dir);
 			this.scopeId = options.scopeId
 				?? pbus?.getScopeId()
 				?? deriveDirectoryScopeId(resolve(storage.directoryPath, "..", ".."));
@@ -268,7 +268,7 @@ export class ApprovalQueue {
 
 	private approveSelected(
 		item: PendingApproval,
-		recordIdentity: ApprovalFileIdentity,
+		recordIdentity: AnchoredRecordIdentity,
 		note?: string,
 		resolutionSource?: string,
 		executionInput?: PendingApproval["input"],

@@ -1,11 +1,11 @@
-import { APPROVAL_RECORD_STORAGE_ANCHOR_HELPER_SOURCE } from "./approval-record-storage-anchor-helper-source.js";
+import { ANCHORED_RECORD_STORAGE_ANCHOR_HELPER_SOURCE } from "./anchored-record-storage-anchor-helper-source.js";
 
 /**
  * Node does not expose openat(2). The isolated helper anchors its working
- * directory to the verified approval-directory inode and uses relative,
+ * directory to the verified record-directory inode and uses relative,
  * no-follow operations for every record access.
  */
-export const APPROVAL_RECORD_STORAGE_HELPER_SOURCE = `
+export const ANCHORED_RECORD_STORAGE_HELPER_SOURCE = `
 import {
   closeSync,
   constants,
@@ -28,26 +28,26 @@ const FILE_MODE = 0o600;
 const RECORD_PATTERN = /^[0-9a-f]{8}\\.json$/;
 const WRITE_CHUNK_BYTES = 64 * 1024;
 
-${APPROVAL_RECORD_STORAGE_ANCHOR_HELPER_SOURCE}
+${ANCHORED_RECORD_STORAGE_ANCHOR_HELPER_SOURCE}
 
 function inspectRecord(filename, expectedIdentity, writable = false) {
   inspectDirectory(request);
   const pathStats = lstatOptional(filename);
   if (pathStats === undefined) {
     if (expectedIdentity !== undefined && expectedIdentity !== null) {
-      refuse("approval record changed during the transition");
+      refuse("record changed during the transition");
     }
     return undefined;
   }
   if (pathStats.isSymbolicLink()) {
-    refuse("approval record must not be a symbolic link");
+    refuse("record must not be a symbolic link");
   }
   if (!pathStats.isFile() || pathStats.nlink !== 1) {
-    refuse("approval record must be a regular file with one link");
+    refuse("record must be a regular file with one link");
   }
-  requireDaemonOwner(pathStats, "approval record");
+  requireDaemonOwner(pathStats, "record");
   if (expectedIdentity === null) {
-    refuse("approval record changed during the transition");
+    refuse("record changed during the transition");
   }
 
   const fd = openSync(
@@ -60,7 +60,7 @@ function inspectRecord(filename, expectedIdentity, writable = false) {
     const openedStats = fstatSync(fd);
     const openedIdentity = identity(openedStats);
     const currentStats = lstatSync(filename);
-    requireDaemonOwner(openedStats, "approval record");
+    requireDaemonOwner(openedStats, "record");
     if (
       !openedStats.isFile() ||
       openedStats.nlink !== 1 ||
@@ -69,7 +69,7 @@ function inspectRecord(filename, expectedIdentity, writable = false) {
       (expectedIdentity !== undefined &&
         !sameFile(expectedIdentity, openedIdentity))
     ) {
-      refuse("approval record changed during the transition");
+      refuse("record changed during the transition");
     }
     inspectDirectory(request);
     fchmodSync(fd, FILE_MODE);
@@ -87,7 +87,7 @@ function readRecord(filename) {
     const contents = readFileSync(opened.fd, "utf8");
     const currentStats = lstatSync(filename);
     if (!sameFile(identity(currentStats), opened.identity)) {
-      refuse("approval record changed during the transition");
+      refuse("record changed during the transition");
     }
     inspectDirectory(request);
     return { exists: true, contents, identity: opened.identity };
@@ -99,9 +99,9 @@ function readRecord(filename) {
 function recordNames() {
   const names = readdirSync(".").filter((name) => name.endsWith(".json"));
   if (names.some((name) => !RECORD_PATTERN.test(name))) {
-    refuse("approval record filename is invalid");
+    refuse("record filename is invalid");
   }
-  return names;
+  return names.sort();
 }
 
 function listRecords() {
@@ -110,28 +110,24 @@ function listRecords() {
 
 function cleanupCreatedRecord(name, expectedIdentity) {
   if (expectedIdentity === undefined) return;
-  try {
-    const stats = lstatOptional(name);
-    if (stats !== undefined && sameFile(identity(stats), expectedIdentity)) {
-      unlinkSync(name);
-    }
-  } catch {
-    // Preserve the original failure without removing an unverified entry.
+  const stats = lstatOptional(name);
+  if (stats !== undefined && sameFile(identity(stats), expectedIdentity)) {
+    unlinkSync(name);
   }
 }
 
 function assertRecordIdentity(filename, expectedIdentity) {
   const currentStats = lstatOptional(filename);
   if (currentStats === undefined || currentStats.isSymbolicLink()) {
-    refuse("approval record changed during the transition");
+    refuse("record changed during the transition");
   }
-  requireDaemonOwner(currentStats, "approval record");
+  requireDaemonOwner(currentStats, "record");
   if (
     !currentStats.isFile() ||
     currentStats.nlink !== 1 ||
     !sameFile(identity(currentStats), expectedIdentity)
   ) {
-    refuse("approval record changed during the transition");
+    refuse("record changed during the transition");
   }
 }
 
@@ -142,7 +138,7 @@ function writeContents(fd, contents) {
   while (offset < bytes.length) {
     const length = Math.min(WRITE_CHUNK_BYTES, bytes.length - offset);
     const written = writeSync(fd, bytes, offset, length, offset);
-    if (written <= 0) refuse("approval record write made no progress");
+    if (written <= 0) refuse("record write made no progress");
     offset += written;
   }
 }
@@ -163,9 +159,9 @@ function createRecord(filename, contents, directoryFd) {
       FILE_MODE,
     );
     const createdStats = fstatSync(fd);
-    requireDaemonOwner(createdStats, "approval record");
+    requireDaemonOwner(createdStats, "record");
     if (!createdStats.isFile() || createdStats.nlink !== 1) {
-      refuse("approval record must be a private regular file");
+      refuse("record must be a private regular file");
     }
     createdIdentity = identity(createdStats);
     fchmodSync(fd, FILE_MODE);
@@ -173,7 +169,7 @@ function createRecord(filename, contents, directoryFd) {
     fsyncSync(fd);
     const writtenStats = fstatSync(fd);
     if (writtenStats.nlink !== 1 || !sameFile(identity(writtenStats), createdIdentity)) {
-      refuse("approval record changed during the transition");
+      refuse("record changed during the transition");
     }
     assertRecordIdentity(filename, createdIdentity);
     inspectDirectory(request);
@@ -182,13 +178,16 @@ function createRecord(filename, contents, directoryFd) {
     return createdIdentity;
   } finally {
     if (fd !== undefined) closeSync(fd);
-    if (!completed) cleanupCreatedRecord(filename, createdIdentity);
+    if (!completed) {
+      cleanupCreatedRecord(filename, createdIdentity);
+      fsyncSync(directoryFd);
+    }
   }
 }
 
 function updateRecord(filename, contents, expectedIdentity, directoryFd) {
   const opened = inspectRecord(filename, expectedIdentity, true);
-  if (opened === undefined) refuse("approval record changed during the transition");
+  if (opened === undefined) refuse("record changed during the transition");
   try {
     inspectDirectory(request);
     writeContents(opened.fd, contents);
@@ -198,7 +197,7 @@ function updateRecord(filename, contents, expectedIdentity, directoryFd) {
       writtenStats.nlink !== 1 ||
       !sameFile(identity(writtenStats), opened.identity)
     ) {
-      refuse("approval record changed during the transition");
+      refuse("record changed during the transition");
     }
     assertRecordIdentity(filename, opened.identity);
     inspectDirectory(request);
@@ -222,10 +221,11 @@ function clearRecords(directoryFd) {
     closeSync(opened.fd);
     const currentStats = lstatSync(filename);
     if (!sameFile(identity(currentStats), opened.identity)) {
-      refuse("approval record changed during the transition");
+      refuse("record changed during the transition");
     }
     unlinkSync(filename);
   }
+  inspectDirectory(request);
   fsyncSync(directoryFd);
 }
 
@@ -242,20 +242,29 @@ try {
     !["read", "list", "write", "clear"].includes(request.operation) ||
     typeof request.directoryPath !== "string"
   ) {
-    refuse("approval filesystem request is invalid");
+    refuse("record filesystem request is invalid");
   }
-  validateIdentity(request.directoryIdentity, "approval directory identity");
+  validateIdentity(request.directoryIdentity, "record directory identity");
+  if (!Array.isArray(request.directoryAnchors) || request.directoryAnchors.length === 0) {
+    refuse("record directory anchors are invalid");
+  }
+  for (const anchor of request.directoryAnchors) {
+    if (anchor === null || typeof anchor !== "object" || typeof anchor.path !== "string") {
+      refuse("record directory anchor is invalid");
+    }
+    validateIdentity(anchor.identity, "record directory ancestor identity");
+  }
   if (request.operation === "read" || request.operation === "write") {
     if (typeof request.filename !== "string" || !RECORD_PATTERN.test(request.filename)) {
-      refuse("approval record filename is invalid");
+      refuse("record filename is invalid");
     }
   }
   if (request.operation === "write") {
     if (request.expectedIdentity !== null) {
-      validateIdentity(request.expectedIdentity, "expected approval record identity");
+      validateIdentity(request.expectedIdentity, "expected record identity");
     }
     if (typeof request.contents !== "string") {
-      refuse("approval record contents are invalid");
+      refuse("record contents are invalid");
     }
   }
 
@@ -286,7 +295,7 @@ try {
   const reason =
     error && typeof error.safeReason === "string"
       ? error.safeReason
-      : "approval filesystem operation failed (" +
+      : "record filesystem operation failed (" +
         (error && typeof error.code === "string" ? error.code : "unknown") +
         ")";
   respond({ ok: false, reason });

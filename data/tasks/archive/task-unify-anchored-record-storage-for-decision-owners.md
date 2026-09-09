@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Unify anchored record storage for decision owners
 

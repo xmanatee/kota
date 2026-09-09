@@ -1,3 +1,4 @@
+import type { AnchoredRecordIdentity } from "./anchored-record-storage.js";
 import {
 	type ApprovalExecutionDescriptor,
 	createApprovalExecutionDescriptor,
@@ -9,7 +10,6 @@ import {
 	type PendingApproval,
 } from "./approval-queue-types.js";
 import type { StoredApproval } from "./approval-record-repository.js";
-import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 import {
 	type ApprovalResolutionAuthenticator,
 	ApprovalResolutionIntegrityError,
@@ -17,12 +17,12 @@ import {
 
 export type AuthenticatedApprovalExecutionTarget = {
 	approval: PendingApproval;
-	recordIdentity: ApprovalFileIdentity;
+	recordIdentity: AnchoredRecordIdentity;
 };
 
 export type SelectedApprovalExecution = ApprovalExecutionSnapshot & {
 	reviewContext?: string;
-	recordIdentity: ApprovalFileIdentity;
+	recordIdentity: AnchoredRecordIdentity;
 };
 
 type ApprovalExecutionSelectionFailure = {

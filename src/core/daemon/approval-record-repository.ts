@@ -1,4 +1,9 @@
 import { join } from "node:path";
+import type {
+	AnchoredRecordIdentity,
+	AnchoredRecordSnapshot,
+	AnchoredRecordStorage,
+} from "./anchored-record-storage.js";
 import { approvalFilePath, projectApprovalForStorage } from "./approval-queue-projection.js";
 import {
 	type ApprovalLocalToolDeclaration,
@@ -6,11 +11,6 @@ import {
 	type PendingApproval,
 	usesWorkflowGateIdentity,
 } from "./approval-queue-types.js";
-import type {
-	ApprovalFileIdentity,
-	ApprovalRecordSnapshot,
-	ApprovalRecordStorage,
-} from "./approval-record-storage.js";
 import {
 	type ApprovalResolutionIntegrity,
 	isApprovalResolutionIntegrity,
@@ -19,7 +19,7 @@ import {
 
 export type StoredApproval = {
 	item: PendingApproval;
-	identity: ApprovalFileIdentity;
+	identity: AnchoredRecordIdentity;
 	resolutionIntegrity?: ApprovalResolutionIntegrity;
 };
 
@@ -41,7 +41,7 @@ function isLocalToolDeclaration(
 
 export class ApprovalRecordRepository {
 	constructor(
-		private readonly storage: ApprovalRecordStorage,
+		private readonly storage: AnchoredRecordStorage,
 		private readonly scopeId: string,
 	) {}
 
@@ -72,7 +72,7 @@ export class ApprovalRecordRepository {
 
 	write(
 		item: PendingApproval,
-		expectedIdentity: ApprovalFileIdentity | null,
+		expectedIdentity: AnchoredRecordIdentity | null,
 		resolutionIntegrity?: ApprovalResolutionIntegrity,
 	): PendingApproval {
 		const projected = projectApprovalForStorage(item);
@@ -97,7 +97,7 @@ export class ApprovalRecordRepository {
 	}
 
 	private parse(
-		snapshot: ApprovalRecordSnapshot,
+		snapshot: AnchoredRecordSnapshot,
 	): Omit<StoredApproval, "identity"> {
 		const path = join(this.storage.directoryPath, snapshot.filename);
 		const record = JSON.parse(snapshot.contents) as ApprovalRecord;

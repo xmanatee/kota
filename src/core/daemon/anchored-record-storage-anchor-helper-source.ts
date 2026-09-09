@@ -1,4 +1,4 @@
-export const APPROVAL_RECORD_STORAGE_ANCHOR_HELPER_SOURCE = `
+export const ANCHORED_RECORD_STORAGE_ANCHOR_HELPER_SOURCE = `
 function identity(stats) {
   return { dev: stats.dev, ino: stats.ino };
 }
@@ -40,19 +40,25 @@ function requireDaemonOwner(stats, label) {
 }
 
 function inspectDirectory(request) {
+  for (const anchor of request.directoryAnchors) {
+    const stats = lstatSync(anchor.path);
+    if (!stats.isDirectory() || !sameFile(identity(stats), anchor.identity)) {
+      refuse("record directory ancestor changed during access");
+    }
+  }
   const pathStats = lstatSync(request.directoryPath);
   if (pathStats.isSymbolicLink()) {
-    refuse("approval directory must not be a symbolic link");
+    refuse("record directory must not be a symbolic link");
   }
   if (!pathStats.isDirectory()) {
-    refuse("approval directory must be a directory");
+    refuse("record directory must be a directory");
   }
-  requireDaemonOwner(pathStats, "approval directory");
+  requireDaemonOwner(pathStats, "record directory");
   if (
     !sameFile(identity(pathStats), request.directoryIdentity) ||
     realpathSync.native(request.directoryPath) !== request.directoryPath
   ) {
-    refuse("approval directory changed during access");
+    refuse("record directory changed during access");
   }
 }
 
@@ -64,16 +70,16 @@ function anchorDirectory(request) {
   );
   try {
     const openedStats = fstatSync(fd);
-    requireDaemonOwner(openedStats, "approval directory");
+    requireDaemonOwner(openedStats, "record directory");
     if (
       !openedStats.isDirectory() ||
       !sameFile(identity(openedStats), request.directoryIdentity)
     ) {
-      refuse("approval directory changed while it was opened");
+      refuse("record directory changed while it was opened");
     }
     process.chdir(request.directoryPath);
     if (!sameFile(identity(statSync(".")), request.directoryIdentity)) {
-      refuse("approval directory changed while it was anchored");
+      refuse("record directory changed while it was anchored");
     }
     inspectDirectory(request);
     fchmodSync(fd, DIRECTORY_MODE);

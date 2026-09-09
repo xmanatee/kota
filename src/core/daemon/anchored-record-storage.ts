@@ -11,55 +11,60 @@ import {
 	type Stats,
 } from "node:fs";
 import { basename, dirname, join, parse, resolve, sep } from "node:path";
-import { APPROVAL_RECORD_STORAGE_HELPER_SOURCE } from "./approval-record-storage-helper-source.js";
+import { z } from "zod";
+import { ANCHORED_RECORD_STORAGE_HELPER_SOURCE } from "./anchored-record-storage-helper-source.js";
 
 const DIRECTORY_MODE = 0o700;
 const HELPER_MAX_BUFFER = 16 * 1024 * 1024;
 const RECORD_PATTERN = /^[0-9a-f]{8}\.json$/;
 
-export type ApprovalFileIdentity = {
+export type AnchoredRecordIdentity = {
 	dev: number;
 	ino: number;
 };
 
-export type ApprovalRecordSnapshot = {
+export type AnchoredRecordSnapshot = {
 	filename: string;
 	contents: string;
-	identity: ApprovalFileIdentity;
+	identity: AnchoredRecordIdentity;
 };
 
-type HelperRequest = {
-	operation: "read" | "list" | "write" | "clear";
-	directoryPath: string;
-	directoryIdentity: ApprovalFileIdentity;
-	filename?: string;
-	contents?: string;
-	expectedIdentity?: ApprovalFileIdentity | null;
-};
+type HelperRequest =
+  | { operation: "read"; filename: string }
+  | { operation: "list" | "clear" }
+  | { operation: "write"; filename: string; contents: string; expectedIdentity: AnchoredRecordIdentity | null };
 
-type HelperSnapshot =
-	| { exists: false }
-	| { exists: true; contents: string; identity: ApprovalFileIdentity };
+const identitySchema = z.object({ dev: z.number().int().safe(), ino: z.number().int().safe() });
+const snapshotSchema = z.discriminatedUnion("exists", [
+  z.object({ exists: z.literal(false) }),
+  z.object({ exists: z.literal(true), contents: z.string(), identity: identitySchema }),
+]);
+const responseSchema = z.discriminatedUnion("ok", [
+  z.object({
+    ok: z.literal(true),
+    snapshot: snapshotSchema.optional(),
+    snapshots: z.array(z.object({
+      filename: z.string().regex(RECORD_PATTERN),
+      exists: z.literal(true),
+      contents: z.string(),
+      identity: identitySchema,
+    })).optional(),
+    identity: identitySchema.optional(),
+  }),
+  z.object({ ok: z.literal(false), reason: z.string() }),
+]);
+type HelperResponse = z.infer<typeof responseSchema>;
 
-type HelperResponse =
-	| {
-			ok: true;
-			snapshot?: HelperSnapshot;
-			snapshots?: Array<HelperSnapshot & { filename: string }>;
-			identity?: ApprovalFileIdentity;
-	  }
-	| { ok: false; reason: string };
-
-function identity(stats: Stats): ApprovalFileIdentity {
+function identity(stats: Stats): AnchoredRecordIdentity {
 	return { dev: stats.dev, ino: stats.ino };
 }
 
-function sameFile(left: ApprovalFileIdentity, right: ApprovalFileIdentity): boolean {
+function sameFile(left: AnchoredRecordIdentity, right: AnchoredRecordIdentity): boolean {
 	return left.dev === right.dev && left.ino === right.ino;
 }
 
 function storageError(path: string, reason: string): Error {
-	return new Error(`Refusing to access approval storage at ${path}: ${reason}`);
+	return new Error(`Refusing to access anchored record storage at ${path}: ${reason}`);
 }
 
 function lstatOptional(path: string): Stats | undefined {
@@ -82,11 +87,11 @@ function directoryComponents(path: string): string[] {
 	return paths;
 }
 
-function canonicalizeApprovalDirectoryPath(path: string): string {
+function canonicalizeRecordDirectoryPath(path: string): string {
 	const requestedPath = resolve(path);
 	const root = parse(requestedPath).root;
 	if (requestedPath === root) {
-		throw storageError(requestedPath, "approval directory cannot be the filesystem root");
+		throw storageError(requestedPath, "record directory cannot be the filesystem root");
 	}
 
 	const missingParents: string[] = [];
@@ -105,13 +110,14 @@ function canonicalizeApprovalDirectoryPath(path: string): string {
 
 function requireDaemonOwner(stats: Stats, path: string): void {
 	if (typeof process.getuid === "function" && stats.uid !== process.getuid()) {
-		throw storageError(path, "approval directory must be owned by the daemon user");
+		throw storageError(path, "record directory must be owned by the daemon user");
 	}
 }
 
-function prepareApprovalDirectory(path: string): ApprovalFileIdentity {
+function prepareRecordDirectory(path: string): Array<{ path: string; identity: AnchoredRecordIdentity }> {
+  const anchors: Array<{ path: string; identity: AnchoredRecordIdentity }> = [];
 	if (!Number.isInteger(constants.O_NOFOLLOW) || constants.O_NOFOLLOW === 0) {
-		throw storageError(path, "this platform cannot enforce no-follow approval storage");
+		throw storageError(path, "this platform cannot enforce no-follow anchored record storage");
 	}
 	for (const componentPath of directoryComponents(path)) {
 		let stats = lstatOptional(componentPath);
@@ -120,14 +126,15 @@ function prepareApprovalDirectory(path: string): ApprovalFileIdentity {
 			stats = lstatSync(componentPath);
 		}
 		if (stats.isSymbolicLink()) {
-			throw storageError(path, `approval directory must not contain symbolic links (${componentPath})`);
+			throw storageError(path, `record directory must not contain symbolic links (${componentPath})`);
 		}
 		if (!stats.isDirectory()) {
-			throw storageError(path, `approval directory path component is not a directory (${componentPath})`);
+			throw storageError(path, `record directory path component is not a directory (${componentPath})`);
 		}
+    anchors.push({ path: componentPath, identity: identity(stats) });
 	}
 	if (realpathSync.native(path) !== path) {
-		throw storageError(path, "approval directory must resolve to its intended path");
+		throw storageError(path, "record directory must resolve to its intended path");
 	}
 
 	const pathStats = lstatSync(path);
@@ -137,43 +144,40 @@ function prepareApprovalDirectory(path: string): ApprovalFileIdentity {
 		const openedStats = fstatSync(fd);
 		requireDaemonOwner(openedStats, path);
 		if (!openedStats.isDirectory() || !sameFile(identity(pathStats), identity(openedStats))) {
-			throw storageError(path, "approval directory changed while it was opened");
+			throw storageError(path, "record directory changed while it was opened");
 		}
 		fchmodSync(fd, DIRECTORY_MODE);
-		return identity(openedStats);
+		return anchors;
 	} finally {
 		closeSync(fd);
 	}
 }
 
-export class ApprovalRecordStorage {
+export class AnchoredRecordStorage {
 	readonly directoryPath: string;
-	private readonly directoryIdentity: ApprovalFileIdentity;
+	private readonly directoryAnchors: Array<{ path: string; identity: AnchoredRecordIdentity }>;
 
 	constructor(path: string) {
-		this.directoryPath = canonicalizeApprovalDirectoryPath(path);
-		this.directoryIdentity = prepareApprovalDirectory(this.directoryPath);
+		this.directoryPath = canonicalizeRecordDirectoryPath(path);
+		this.directoryAnchors = prepareRecordDirectory(this.directoryPath);
 	}
 
-	read(filename: string): ApprovalRecordSnapshot | null {
+	read(filename: string): AnchoredRecordSnapshot | null {
 		this.assertFilename(filename);
 		const response = this.run({ operation: "read", filename });
 		if (response.snapshot === undefined) {
-			throw storageError(this.directoryPath, "filesystem helper omitted the approval snapshot");
+			throw storageError(this.directoryPath, "filesystem helper omitted the record snapshot");
 		}
 		if (!response.snapshot.exists) return null;
-		return { filename, ...response.snapshot };
+		return { filename, contents: response.snapshot.contents, identity: response.snapshot.identity };
 	}
 
-	list(): ApprovalRecordSnapshot[] {
+	list(): AnchoredRecordSnapshot[] {
 		const response = this.run({ operation: "list" });
 		if (response.snapshots === undefined) {
-			throw storageError(this.directoryPath, "filesystem helper omitted the approval snapshots");
+			throw storageError(this.directoryPath, "filesystem helper omitted the record snapshots");
 		}
 		return response.snapshots.map((snapshot) => {
-			if (!snapshot.exists) {
-				throw storageError(this.directoryPath, "filesystem helper listed a missing approval record");
-			}
 			return { filename: snapshot.filename, contents: snapshot.contents, identity: snapshot.identity };
 		});
 	}
@@ -181,12 +185,12 @@ export class ApprovalRecordStorage {
 	write(
 		filename: string,
 		contents: string,
-		expectedIdentity: ApprovalFileIdentity | null,
-	): ApprovalFileIdentity {
+		expectedIdentity: AnchoredRecordIdentity | null,
+	): AnchoredRecordIdentity {
 		this.assertFilename(filename);
 		const response = this.run({ operation: "write", filename, contents, expectedIdentity });
 		if (response.identity === undefined) {
-			throw storageError(this.directoryPath, "filesystem helper omitted the approval identity");
+			throw storageError(this.directoryPath, "filesystem helper omitted the record identity");
 		}
 		return response.identity;
 	}
@@ -197,34 +201,35 @@ export class ApprovalRecordStorage {
 
 	private assertFilename(filename: string): void {
 		if (!RECORD_PATTERN.test(filename)) {
-			throw storageError(this.directoryPath, `invalid approval record filename ${filename}`);
+			throw storageError(this.directoryPath, `invalid record filename ${filename}`);
 		}
 	}
 
-	private run(request: Omit<HelperRequest, "directoryPath" | "directoryIdentity">): Extract<HelperResponse, { ok: true }> {
+	private run(request: HelperRequest): Extract<HelperResponse, { ok: true }> {
 		const result = spawnSync(
 			process.execPath,
-			["--input-type=module", "--eval", APPROVAL_RECORD_STORAGE_HELPER_SOURCE],
+			["--input-type=module", "--eval", ANCHORED_RECORD_STORAGE_HELPER_SOURCE],
 			{
 				encoding: "utf8",
 				env: {},
 				input: JSON.stringify({
 					...request,
 					directoryPath: this.directoryPath,
-					directoryIdentity: this.directoryIdentity,
+					directoryIdentity: this.directoryAnchors[this.directoryAnchors.length - 1]!.identity,
+          directoryAnchors: this.directoryAnchors,
 				}),
 				maxBuffer: HELPER_MAX_BUFFER,
 				windowsHide: true,
 			},
 		);
 		if (result.error !== undefined || result.status !== 0) {
-			throw storageError(this.directoryPath, "isolated approval filesystem helper failed");
+			throw storageError(this.directoryPath, "isolated record filesystem helper failed");
 		}
 		let response: HelperResponse;
 		try {
-			response = JSON.parse(result.stdout) as HelperResponse;
+			response = responseSchema.parse(JSON.parse(result.stdout));
 		} catch {
-			throw storageError(this.directoryPath, "isolated approval filesystem helper returned invalid data");
+			throw storageError(this.directoryPath, "isolated record filesystem helper returned invalid data");
 		}
 		if (!response.ok) throw storageError(this.directoryPath, response.reason);
 		return response;

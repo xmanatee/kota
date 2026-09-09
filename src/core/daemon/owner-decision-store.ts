@@ -3,11 +3,11 @@ import { join } from "node:path";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import {
+  AnchoredRecordStorage,
+} from "./anchored-record-storage.js";
+import {
   OwnerDecisionRecordRepository,
 } from "./owner-decision-record-repository.js";
-import {
-  OwnerDecisionRecordStorage,
-} from "./owner-decision-record-storage.js";
 import {
   OwnerDecisionResolutionAuthenticator,
 } from "./owner-decision-resolution-integrity.js";
@@ -36,11 +36,6 @@ export {
   OwnerDecisionRecordRepository,
   ownerDecisionFilePath,
 } from "./owner-decision-record-repository.js";
-export {
-  type OwnerDecisionFileIdentity,
-  type OwnerDecisionRecordSnapshot,
-  OwnerDecisionRecordStorage,
-} from "./owner-decision-record-storage.js";
 export {
   isOwnerDecisionResolutionIntegrity,
   isTerminalOwnerDecisionStatus,
@@ -87,7 +82,7 @@ export type OwnerDecisionStoreOptions = {
 };
 
 export class OwnerDecisionStore {
-  readonly storage: OwnerDecisionRecordStorage;
+  readonly storage: AnchoredRecordStorage;
   readonly repository: OwnerDecisionRecordRepository;
   readonly authenticator: OwnerDecisionResolutionAuthenticator;
   private readonly clock: () => Date;
@@ -95,7 +90,7 @@ export class OwnerDecisionStore {
   readonly scopeId: string;
 
   constructor(
-    dirOrStorage: string | OwnerDecisionRecordStorage,
+    dirOrStorage: string | AnchoredRecordStorage,
     scopeId: string,
     pbus?: ScopedEventBus | null,
     options?: OwnerDecisionStoreOptions,
@@ -103,7 +98,7 @@ export class OwnerDecisionStore {
     this.scopeId = scopeId;
     this.storage =
       typeof dirOrStorage === "string"
-        ? new OwnerDecisionRecordStorage(dirOrStorage)
+        ? new AnchoredRecordStorage(dirOrStorage)
         : dirOrStorage;
     this.repository = new OwnerDecisionRecordRepository(this.storage, scopeId);
     this.authenticator = options?.authenticator ?? new OwnerDecisionResolutionAuthenticator();

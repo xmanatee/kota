@@ -3,8 +3,8 @@ import {
   randomBytes,
   timingSafeEqual,
 } from "node:crypto";
+import type { AnchoredRecordIdentity } from "./anchored-record-storage.js";
 import type { OwnerDecisionRecordRepository } from "./owner-decision-record-repository.js";
-import type { OwnerDecisionFileIdentity } from "./owner-decision-record-storage.js";
 import type { OwnerDecisionRecord } from "./owner-decision-types.js";
 import { sanitizeOwnerDecisionRecordForStorage } from "./owner-decision-validation.js";
 
@@ -131,7 +131,7 @@ export class OwnerDecisionResolutionAuthenticator {
   write(
     records: OwnerDecisionRecordRepository,
     item: OwnerDecisionRecord,
-    expectedIdentity: OwnerDecisionFileIdentity | null,
+    expectedIdentity: AnchoredRecordIdentity | null,
   ): OwnerDecisionRecord {
     const integrity = isTerminalOwnerDecisionStatus(item.status)
       ? this.create(item)

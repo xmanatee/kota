@@ -1,8 +1,8 @@
 import type { RiskLevel } from "#core/tools/guardrails.js";
 import type { ToolCallInput } from "#core/tools/guardrails-classify.js";
+import type { AnchoredRecordIdentity } from "./anchored-record-storage.js";
 import type { ApprovalExecutionDescriptor } from "./approval-execution-descriptor.js";
 import type { StoredApproval } from "./approval-record-repository.js";
-import type { ApprovalFileIdentity } from "./approval-record-storage.js";
 import type { ApprovalResolutionIntegrity } from "./approval-resolution-integrity.js";
 import type {
 	ApprovalReviewDescriptor,
@@ -20,7 +20,7 @@ export type ApprovalPersistencePort = {
 	list(status?: ApprovalStatus): StoredApproval[];
 	write(
 		item: PendingApproval,
-		expectedIdentity: ApprovalFileIdentity | null,
+		expectedIdentity: AnchoredRecordIdentity | null,
 		resolutionIntegrity?: ApprovalResolutionIntegrity,
 	): PendingApproval;
 	clear(): void;
