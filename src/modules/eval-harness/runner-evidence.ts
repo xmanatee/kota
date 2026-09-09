@@ -1,10 +1,10 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 import { z } from "zod";
 import { type AgentUsage, AgentUsageAccumulator, UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
-import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
+import type { ExecutableVerifier } from "./executable-verifier-types.js";
+import { collectWorkspaceDiff } from "./runner-evidence-git.js";
 import type { FixtureRunReport } from "./runner-types.js";
 
 export type FixtureExecutionEvidence = {
@@ -30,10 +30,6 @@ const eventProjection = z.object({
   numTurns: z.number().int().nonnegative().optional(),
 });
 
-function git(workingDir: string, args: string[]): string {
-  return execFileSync("git", args, { cwd: workingDir, encoding: "utf8", env: withProtectedGitBareRepositoryEnv(), maxBuffer: 16 * 1024 * 1024 });
-}
-
 function retainWorkflowEvidence(source: string, target: string, workingDir: string): void {
   const inside = relative(realpathSync(workingDir), realpathSync(source));
   if (!inside || inside.startsWith(`..${sep}`) || inside === "..") throw new Error("Workflow evidence escaped fixture workspace");
@@ -49,7 +45,10 @@ function retainWorkflowEvidence(source: string, target: string, workingDir: stri
 }
 
 /** Collect before the fixture clone is removed; scoring remains predicate-owned. */
-export function collectFixtureExecutionEvidence(report: FixtureRunReport): FixtureExecutionEvidence {
+export async function collectFixtureExecutionEvidence(
+  report: FixtureRunReport,
+  verifier: ExecutableVerifier | undefined,
+): Promise<FixtureExecutionEvidence> {
   const artifactDir = join(report.run.runArtifactPath, "execution-evidence");
   mkdirSync(artifactDir, { recursive: true });
   const evidence: FixtureExecutionEvidence = {
@@ -107,20 +106,9 @@ export function collectFixtureExecutionEvidence(report: FixtureRunReport): Fixtu
   }
   evidence.usage = usage.snapshot();
   try {
-    const initial = git(report.workingDir, ["rev-list", "--max-parents=0", "HEAD"]).trim();
-    const paths = [".", ":!.kota", ":!node_modules"];
-    const tracked = git(report.workingDir, ["diff", "--name-only", "-z", initial, "--", ...paths]).split("\0").filter(Boolean);
-    const untracked = git(report.workingDir, ["ls-files", "--others", "--exclude-standard", "-z", "--", ...paths]).split("\0").filter(Boolean);
-    evidence.changedFiles = [...new Set([...tracked, ...untracked])].sort();
-    let diff = git(report.workingDir, ["diff", initial, "--", ...paths]);
-    for (const path of untracked) {
-      try { diff += git(report.workingDir, ["diff", "--no-index", "--", "/dev/null", path]); }
-      catch (error) {
-        if (typeof error === "object" && error !== null && "stdout" in error && typeof error.stdout === "string") diff += error.stdout;
-        else throw error;
-      }
-    }
+    const { changedFiles, diff } = await collectWorkspaceDiff(report.workingDir, verifier);
     writeFileSync(join(artifactDir, "diff.patch"), diff);
+    evidence.changedFiles = changedFiles;
   } catch (error) {
     evidence.issues.push(`Diff unavailable: ${error instanceof Error ? error.message : String(error)}`);
   }

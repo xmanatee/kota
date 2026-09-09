@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: Post-run evidence collection executes Git against the candidate workspace directly on the evaluator host. Candidate code executed during containerized verification can modify the writable repository configuration. The collector subsequently honors executable Git configuration, including external diff, textconv, and filesystem-monitor helpers, outside the container and with the host environment. This permits candidate-controlled execution across the evaluator isolation boundary.
 
@@ -122,3 +121,12 @@ excerpt:
 >   baseEnv: NodeJS.ProcessEnv = process.env,
 > ): NodeJS.ProcessEnv {
 >   const env: NodeJS.ProcessEnv = { ...baseEnv };
+
+
+## Resolution and verification
+
+Post-run evidence Git now runs exclusively through the existing offline executable-verifier sandbox with the actual candidate tree. A typed workspace view keeps trusted scorer overlays exclusive to scoring, so candidate edits and deletions under scripts remain visible in retained evidence. The runner awaits collection before returning for both single and multi-round fixtures. Collection strips the Git process environment, disables external diff, textconv, filesystem monitoring, hooks, remote transport, submodule recursion, and configured content filters (including included configuration), and bounds aggregate duration and output. Unavailable isolation, process failures, signals, or output-limit errors retain an explicit evidence issue without a host fallback or partial patch.
+
+The eval-harness module owns this fix and its scoped instructions now cover the post-run boundary. Regression checks exercise runFixture with real Git behind the controlled OCI subprocess port, malicious candidate configuration, modified and deleted scorer files, tracked and untracked files, shell-sensitive filenames, and unavailable isolation. Collector checks cover failures while appending an untracked patch. Because the controlled backend does not implement mounts, the regression also checks that production evidence requests mount only the candidate workspace; scoring sandbox checks retain the immutable scorer mount requirement. Raw content is retained and the candidate helper marker is absent. Existing sandbox checks verify offline resource and credential propagation and forced cleanup; existing single and multi-round runner checks verify the asynchronous handoff.
+
+Validation passed: 25 distinct owner tests across runner-evidence, executable-verifier-sandbox, runner-execution-outcomes, runner, and runner-multi-round; production and test TypeScript checks; scoped Biome checks. Static inspection confirms no host Git execution remains in the post-run collector. A live OCI probe could not run because Docker socket access is denied in this builder environment; the tests use the established simulated container backend, not a claim of live container enforcement.

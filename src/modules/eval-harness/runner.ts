@@ -1,3 +1,5 @@
+import { executeIsolatedVerifier } from "./executable-verifier-sandbox.js";
+import type { ExecutableVerifier } from "./executable-verifier-types.js";
 import { isMultiRoundFixtureSpec } from "./fixture.js";
 import { collectFixtureExecutionEvidence } from "./runner-evidence.js";
 import { cleanupFixtureWorkingDir } from "./runner-materialize.js";
@@ -26,6 +28,19 @@ export async function runFixture(
   const report = isMultiRoundFixtureSpec(params.fixture.spec)
     ? await runMultiRoundFixture(params)
     : await runSingleWorkflowFixture(params);
-  report.run.executionEvidence = collectFixtureExecutionEvidence(report);
+  const sandbox = params.executor.predicateContext?.executableVerifierSandbox;
+  // Scoring capabilities may overlay trusted files; evidence must see the
+  // complete candidate tree, including edits to those same scorer paths.
+  const executableVerifier: ExecutableVerifier | undefined = sandbox === undefined
+    ? undefined
+    : (request) => executeIsolatedVerifier({
+        ...request,
+        context: {
+          sandbox,
+          executionProfile: params.executionProfile,
+          workspace: { kind: "candidate" },
+        },
+      });
+  report.run.executionEvidence = await collectFixtureExecutionEvidence(report, executableVerifier);
   return report;
 }

@@ -98,7 +98,7 @@ describe("executable verifier sandbox", () => {
         },
       ),
       executionProfile: EXECUTION_PROFILE,
-      trustedVerifierRoot: trustedRoot,
+      workspace: { kind: "scoring", trustedVerifierRoot: trustedRoot },
     };
   });
 

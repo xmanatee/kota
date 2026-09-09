@@ -28,7 +28,7 @@ export function fixtureScoringContext(params: {
         context: {
           sandbox,
           executionProfile: params.executionProfile,
-          trustedVerifierRoot: params.fixture.initialStateDir,
+          workspace: { kind: "scoring", trustedVerifierRoot: params.fixture.initialStateDir },
         },
       }),
   };

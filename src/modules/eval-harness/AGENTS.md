@@ -32,6 +32,10 @@ their CLI, HTTP, and cadence surfaces.
 - Git, shell, agent-verifier, and objective-metric execution uses fail-closed
   offline containers with bounded resources and stripped credentials. Only the
   candidate tree is writable; scorer overlays remain immutable.
+- Post-run Git evidence uses that same isolation boundary with the actual
+  candidate tree, without scorer overlays, and disables Git's executable helpers.
+  Unavailable isolation or failed collection records missing evidence; it never
+  falls back to host Git or accepts a partial patch.
 - Builder fixtures name `builderTaskId`; the runner resolves its immutable
   dispatch through the production builder task owner after materialization and
   after each round input. Do not copy task digests into fixture data.

@@ -203,10 +203,12 @@ export async function executeIsolatedVerifier(params: {
   let trustedMounts: { source: string; target: string }[];
   try {
     workingDir = realpathSync(params.workingDir);
-    trustedMounts = prepareTrustedScorerMounts({
-      trustedVerifierRoot: params.context.trustedVerifierRoot,
-      workingDir,
-    });
+    trustedMounts = params.context.workspace.kind === "scoring"
+      ? prepareTrustedScorerMounts({
+          trustedVerifierRoot: params.context.workspace.trustedVerifierRoot,
+          workingDir,
+        })
+      : [];
   } catch (error) {
     return {
       started: false,
