@@ -1,140 +1,61 @@
-import type { DaemonScopeProvider } from "#core/daemon/scope-provider.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
-import {
-	buildDirectoryScope,
-	type DirectoryScope,
-	directoryScopesFromProjection,
-	type ScopeId,
-} from "#core/daemon/scope-registry.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import { type DirectoryScope, deriveDirectoryScopeId, type ScopeId } from "#core/daemon/scope-registry.js";
+import { createDirectoryScopeSelector, type DirectoryScopeSelectionOptions } from "#core/daemon/scope-selection.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import { MEMORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { MemoryProvider } from "#core/modules/provider-types.js";
 import { getScopeMemoryStore } from "./store.js";
 
-export type UnknownMemoryScopeError = {
-	error: "Unknown scope";
-	reason: "unknown_scope";
-	scopeId: string;
-};
-
-type ScopeSnapshot = {
-	defaultScopeId: ScopeId;
-	activeScopeId: ScopeId | null;
-	scopes: readonly DirectoryScope[];
-};
-
-export type MemoryScopeStoresOptions = {
-	defaultScopeRoot: string;
-	scopes?: readonly DirectoryScope[];
-	defaultScopeId?: ScopeId;
-	getActiveScopeId?: () => ScopeId | null;
-	getDefaultProvider?: () => MemoryProvider | null;
-	getDaemonScopeProvider?: () => DaemonScopeProvider | null;
+export type MemoryScopeStoresOptions = DirectoryScopeSelectionOptions & {
+  getDefaultProvider?: () => MemoryProvider | null;
 };
 
 export class MemoryScopeStores {
-	private readonly fallbackScope: DirectoryScope;
-	private readonly fallbackScopes: readonly DirectoryScope[];
-	private readonly fallbackDefaultScopeId: ScopeId;
-	private readonly getFallbackActiveScopeId: () => ScopeId | null;
-	private readonly getDefaultProvider: (() => MemoryProvider | null) | undefined;
-	private readonly getDaemonScopeProvider: () => DaemonScopeProvider | null;
-	private readonly stores = new Map<ScopeId, MemoryProvider>();
+  private readonly providerScopeId: ScopeId;
+  private readonly selectScope: ReturnType<typeof createDirectoryScopeSelector>;
+  private readonly getDefaultProvider: (() => MemoryProvider | null) | undefined;
+  private readonly stores = new Map<ScopeId, MemoryProvider>();
 
-	constructor(options: MemoryScopeStoresOptions) {
-		this.fallbackScope = buildDirectoryScope({
-			scopeRoot: options.defaultScopeRoot,
-		});
-		this.fallbackScopes = options.scopes ?? [this.fallbackScope];
-		const firstScope = this.fallbackScopes[0];
-		if (!firstScope) {
-			throw new Error("MemoryScopeStores requires at least one scope");
-		}
-		this.fallbackDefaultScopeId =
-			options.defaultScopeId ?? firstScope.scopeId;
-		if (
-			!this.fallbackScopes.some(
-				(scope) => scope.scopeId === this.fallbackDefaultScopeId,
-			)
-		) {
-			throw new Error(
-				`MemoryScopeStores default scope ${this.fallbackDefaultScopeId} is not registered`,
-			);
-		}
-		this.getFallbackActiveScopeId = options.getActiveScopeId ?? (() => null);
-		this.getDefaultProvider = options.getDefaultProvider;
-		this.getDaemonScopeProvider = options.getDaemonScopeProvider
-			?? (() => getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null);
-	}
+  constructor(options: MemoryScopeStoresOptions) {
+    this.providerScopeId = deriveDirectoryScopeId(options.defaultScopeRoot);
+    this.selectScope = createDirectoryScopeSelector(options);
+    this.getDefaultProvider = options.getDefaultProvider;
+  }
 
-	resolve(
-		scopeId: string | null | undefined,
-	):
-		| { ok: true; scopeId: ScopeId; scopeRoot: string; store: MemoryProvider }
-		| { ok: false; error: UnknownMemoryScopeError } {
-		const snapshot = this.snapshot();
-		const requested = scopeId?.trim();
-		const resolvedScopeId =
-			requested && requested.length > 0
-				? requested
-				: snapshot.activeScopeId ?? snapshot.defaultScopeId;
-		const scope = snapshot.scopes.find(
-			(entry) => entry.scopeId === resolvedScopeId,
-		);
-		if (!scope) {
-			return {
-				ok: false,
-				error: {
-					error: "Unknown scope",
-					reason: "unknown_scope",
-					scopeId: resolvedScopeId,
-				},
-			};
-		}
-		return {
-			ok: true,
-			scopeId: scope.scopeId,
-			scopeRoot: scope.scopeRoot,
-			store: this.storeFor(scope, snapshot.defaultScopeId),
-		};
-	}
+  resolve(scopeId: string | null | undefined) {
+    const selected = this.selectScope(scopeId);
+    if (!selected.ok) return selected;
+    return {
+      ok: true as const,
+      scopeId: selected.scope.scopeId,
+      scopeRoot: selected.scope.scopeRoot,
+      store: this.storeFor(selected.scope),
+    };
+  }
 
-	private snapshot(): ScopeSnapshot {
-		const daemonScope = this.getDaemonScopeProvider();
-		if (daemonScope) {
-			const projection = daemonScope.getScopeRegistryProjection();
-			return {
-				defaultScopeId: projection.defaultScopeId,
-				activeScopeId: daemonScope.getActiveScopeId(),
-				scopes: directoryScopesFromProjection(projection),
-			};
-		}
-		return {
-			defaultScopeId: this.fallbackDefaultScopeId,
-			activeScopeId: this.getFallbackActiveScopeId(),
-			scopes: this.fallbackScopes,
-		};
-	}
-
-	private storeFor(
-		scope: DirectoryScope,
-		defaultScopeId: ScopeId,
-	): MemoryProvider {
-		if (scope.scopeId === defaultScopeId) {
-			const provider = this.getDefaultProvider?.();
-			if (provider) return provider;
-		}
-		const existing = this.stores.get(scope.scopeId);
-		if (existing) return existing;
-		const store = getScopeMemoryStore(scope.scopeRoot);
-		this.stores.set(scope.scopeId, store);
-		return store;
-	}
+  private storeFor(scope: DirectoryScope): MemoryProvider {
+    if (scope.scopeId === this.providerScopeId) {
+      const provider = this.getDefaultProvider?.();
+      if (provider) return provider;
+    }
+    const existing = this.stores.get(scope.scopeId);
+    if (existing) return existing;
+    const store = getScopeMemoryStore(scope.scopeRoot);
+    this.stores.set(scope.scopeId, store);
+    return store;
+  }
 }
 
 export function createMemoryScopeStores(
-	defaultScopeRoot: string,
-	getDefaultProvider?: () => MemoryProvider | null,
-	getDaemonScopeProvider?: () => DaemonScopeProvider | null,
+  ctx: Pick<ModuleContext, "cwd" | "getProvider">,
 ): MemoryScopeStores {
-	return new MemoryScopeStores({ defaultScopeRoot, getDefaultProvider, getDaemonScopeProvider });
+  return new MemoryScopeStores({
+    defaultScopeRoot: ctx.cwd,
+    getDefaultProvider: () => {
+      const provider = ctx.getProvider(MEMORY_PROVIDER_TOKEN);
+      if (!provider) throw new Error("memory provider is not registered");
+      return provider;
+    },
+    getDaemonScopeProvider: () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+  });
 }

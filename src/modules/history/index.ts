@@ -8,7 +8,6 @@
 
 
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import {
 	HISTORY_PROVIDER_TOKEN,
@@ -80,30 +79,15 @@ const historyModule: KotaModule = {
 		);
 	},
 
-	routes: (ctx) =>
-		historyRoutes(
-			createHistoryScopeStores(ctx.cwd, () => {
-				const provider = ctx.getProvider(HISTORY_PROVIDER_TOKEN);
-				if (!provider) throw new Error("history provider is not registered");
-				return provider;
-			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
-		),
+	routes: (ctx) => historyRoutes(createHistoryScopeStores(ctx)),
 	controlRoutes: (ctx) =>
 		historyControlRoutes(
-			createHistoryScopeStores(ctx.cwd, () => {
-				const provider = ctx.getProvider(HISTORY_PROVIDER_TOKEN);
-				if (!provider) throw new Error("history provider is not registered");
-				return provider;
-			}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+			createHistoryScopeStores(ctx),
 			ctx.cwd,
 		),
 
 	localClient: (ctx) => {
-		const scopeStores = createHistoryScopeStores(
-			ctx.cwd,
-			() => ctx.getProvider(HISTORY_PROVIDER_TOKEN),
-			() => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
-		);
+		const scopeStores = createHistoryScopeStores(ctx);
 		const handler: HistoryClient = {
 			async list(filter) {
 				const provider = resolveHistoryProvider(scopeStores, filter?.scopeId);

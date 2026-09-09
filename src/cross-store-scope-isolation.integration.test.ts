@@ -28,10 +28,10 @@ import { CaptureProviderImpl } from "#modules/capture/capture-provider.js";
 import { createCaptureRouteHandler } from "#modules/capture/routes.js";
 import { createCaptureScopeContextResolver } from "#modules/capture/scope-context.js";
 import { getScopeHistoryStore } from "#modules/history/history.js";
-import { createHistoryScopeStores } from "#modules/history/scope.js";
-import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
+import { HistoryScopeStores } from "#modules/history/scope.js";
+import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
 import { KnowledgeStore } from "#modules/knowledge/store.js";
-import { createMemoryScopeStores } from "#modules/memory/scope.js";
+import { MemoryScopeStores } from "#modules/memory/scope.js";
 import { MemoryStore } from "#modules/memory/store.js";
 import {
   createScopeHistoryContributor,
@@ -153,16 +153,16 @@ describe("scope-scoped cross-store daemon routes", () => {
     });
     recallProvider.register(
       createScopeKnowledgeContributor(
-        createKnowledgeScopeStores(scopeA.scopeRoot, () => knowledgeA),
+        new KnowledgeScopeStores({ defaultScopeRoot: scopeA.scopeRoot, getDefaultProvider: () => knowledgeA }),
       ),
     );
     recallProvider.register(
       createScopeMemoryContributor(
-        createMemoryScopeStores(scopeA.scopeRoot, () => memoryA),
+        new MemoryScopeStores({ defaultScopeRoot: scopeA.scopeRoot, getDefaultProvider: () => memoryA }),
       ),
     );
     recallProvider.register(createScopeHistoryContributor(
-      createHistoryScopeStores(scopeA.scopeRoot, () => historyProviderA),
+      new HistoryScopeStores({ defaultScopeRoot: scopeA.scopeRoot, getDefaultProvider: () => historyProviderA }),
     ));
     recallProvider.register(createScopeTasksContributor(
       createRepoTasksScopeStores(scopeA.scopeRoot, () => tasksA),
@@ -219,7 +219,7 @@ describe("scope-scoped cross-store daemon routes", () => {
       query: "alphaonly",
       filter: { scopeId: scopeA.scopeId },
     });
-    expect(recallA.status).toBe(200);
+    expect(recallA.status, JSON.stringify(recallA.body)).toBe(200);
     expect((recallA.body as { ok: true; hits: Array<{ id: string }> }).hits)
       .toEqual(expect.arrayContaining([expect.objectContaining({ id: memoryAId })]));
 

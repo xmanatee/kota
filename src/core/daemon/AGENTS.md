@@ -107,6 +107,14 @@ Observe onboarding does not require a Git repository because its improvement
 review is repository-free. Task-proposal postures retain the Git-backed writer
 requirement and report that capability blocker explicitly.
 
+Directory-backed store selection belongs to the daemon scope owner. Modules
+use its live selector for explicit, active, and default resolution and typed
+unknown-scope rejection; store construction and cache lifetimes stay module-owned.
+Registered store providers remain bound to their original directory scope;
+changing the registry default changes selection, not provider ownership.
+Host-bound selectors retain their provider lookup rather than consulting another
+host's registry when a provider is absent.
+
 Scope-owned handlers resolve the live runtime through the runtime-scope
 provider. Invalid selectors fail without cwd/default fallback. The daemon owns
 one runtime module loader; sessions borrow it without replacing its provider or

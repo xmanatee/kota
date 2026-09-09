@@ -1,6 +1,5 @@
 import { Command } from "commander";
 import { CAPABILITY_READINESS_PROVIDER_TYPE } from "#core/daemon/capability-readiness.js";
-import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import type { KotaModule, ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { KNOWLEDGE_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { DaemonTransport } from "#core/server/daemon-transport.js";
@@ -55,11 +54,7 @@ const knowledgeModule: KotaModule = {
 	},
 
 	localClient: (ctx) => {
-		const scopeStores = createKnowledgeScopeStores(ctx.cwd, () => {
-			const provider = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
-			if (!provider) throw new Error("knowledge provider is not registered");
-			return provider;
-		}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE));
+		const scopeStores = createKnowledgeScopeStores(ctx);
 		const handler: KnowledgeClient = {
 			async list(filter) {
 				const provider = resolveKnowledgeProvider(scopeStores, filter?.scopeId);
@@ -113,11 +108,7 @@ const knowledgeModule: KotaModule = {
 	},
 
 	routes: (ctx) =>
-		knowledgeRoutes(createKnowledgeScopeStores(ctx.cwd, () => {
-			const provider = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
-			if (!provider) throw new Error("knowledge provider is not registered");
-			return provider;
-		}, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE))),
+		knowledgeRoutes(createKnowledgeScopeStores(ctx)),
 };
 
 function buildKnowledgeDaemonHandler(link: DaemonTransport): KnowledgeClient {

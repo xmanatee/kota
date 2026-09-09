@@ -20,9 +20,6 @@ import type {
   ModuleRuntimeContext,
 } from "#core/modules/module-types.js";
 import {
-  HISTORY_PROVIDER_TOKEN,
-  KNOWLEDGE_PROVIDER_TOKEN,
-  MEMORY_PROVIDER_TOKEN,
   REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import { createHistoryScopeStores } from "#modules/history/scope.js";
@@ -77,25 +74,13 @@ const recallModule: KotaModule = {
       },
     });
     provider.register(createScopeKnowledgeContributor(
-      createKnowledgeScopeStores(ctx.cwd, () => {
-        const value = ctx.getProvider(KNOWLEDGE_PROVIDER_TOKEN);
-        if (!value) throw new Error("knowledge provider is not registered");
-        return value;
-      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+      createKnowledgeScopeStores(ctx),
     ));
     provider.register(createScopeMemoryContributor(
-      createMemoryScopeStores(ctx.cwd, () => {
-        const value = ctx.getProvider(MEMORY_PROVIDER_TOKEN);
-        if (!value) throw new Error("memory provider is not registered");
-        return value;
-      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+      createMemoryScopeStores(ctx),
     ));
     provider.register(createScopeHistoryContributor(
-      createHistoryScopeStores(ctx.cwd, () => {
-        const value = ctx.getProvider(HISTORY_PROVIDER_TOKEN);
-        if (!value) throw new Error("history provider is not registered");
-        return value;
-      }, () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)),
+      createHistoryScopeStores(ctx),
     ));
     provider.register(createScopeTasksContributor(
       createRepoTasksScopeStores(ctx.cwd, () => {

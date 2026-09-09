@@ -204,7 +204,7 @@ describe("knowledge-routes", () => {
   });
 
   describe("scope-scoped routing", () => {
-    it("isolates scope entries and rejects unknown scope ids", async () => {
+    it("isolates scope entries", async () => {
       const root = mkdtempSync(join(tmpdir(), "kota-knowledge-scopes-"));
       try {
         mkdirSync(join(root, "a"));
@@ -251,15 +251,6 @@ describe("knowledge-routes", () => {
         expect(
           (searchB.result.body as { ok: true; entries: KnowledgeEntry[] }).entries,
         ).toEqual([]);
-
-        const unknown = mockResponse();
-        handleListKnowledge(listRequest("?scopeId=missing-scope"), unknown.res, stores);
-        expect(unknown.result.status).toBe(404);
-        expect(unknown.result.body).toEqual({
-          error: "Unknown scope",
-          reason: "unknown_scope",
-          scopeId: "missing-scope",
-        });
       } finally {
         rmSync(root, { recursive: true, force: true });
       }

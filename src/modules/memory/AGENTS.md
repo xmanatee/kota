@@ -5,12 +5,10 @@ This directory owns persistent, searchable agent notes that survive across sessi
 - Owns the file-based `MemoryStore` implementation (`store.ts`) and registers
   it as the `default` memory provider at module load through the provider
   registry.
-- Storage is scope-scoped under `.kota/memory.json`. Daemon/API access
-  resolves a concrete scope id before using the store. Omitted scope ids
-  resolve to the daemon's active/default scope at the route or client
-  boundary; explicit unknown ids return the typed `unknown_scope` route
-  error. All in-process resolvers use one canonical `MemoryStore` per scope
-  root so capture, retract, recall, routes, and clients cannot retain
+- Storage is scope-scoped under `.kota/memory.json`. Daemon/API and local-client
+  access use the daemon scope owner's live directory selector. All in-process
+  resolvers use one canonical `MemoryStore` per scope root so capture, retract,
+  recall, routes, and clients cannot retain
   conflicting snapshots of the same file.
 - `persistence.ts` owns the versioned file contract and legacy migration.
   Reads decode every record before it reaches `MemoryStore`; malformed or

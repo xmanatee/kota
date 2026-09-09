@@ -16,10 +16,9 @@ This directory owns the `knowledge` management tool — a structured, file-based
   an interrupted temporary file is not a `.md` record and is ignored on restart.
   Deletes use the filesystem's atomic unlink, so readers observe the record or
   its absence rather than partial contents.
-- Daemon/API access resolves a concrete scope id before using the scope
-  store. Omitted scope ids resolve to the daemon's active/default scope at
-  the route or client boundary; explicit unknown ids return the typed
-  `unknown_scope` route error.
+- Daemon/API and local-client access use the daemon scope owner's live
+  directory selector. This module owns store construction and resolver-local
+  caching, including the configured global data directory.
 - `operations.ts` owns list/show/delete/search/reindex orchestration and the
   not-found and semantic-unavailable result arms. Local clients and routes
   consume it directly. Routine daemon list/add/search/reindex transport is

@@ -24,10 +24,7 @@ import {
   searchHistory,
   showHistory,
 } from "./operations.js";
-import {
-  createHistoryScopeStores,
-  type HistoryScopeStores,
-} from "./scope.js";
+import { HistoryScopeStores } from "./scope.js";
 
 function resolveScopedProvider(
   res: ServerResponse,
@@ -162,9 +159,10 @@ export function handleDeleteHistory(
 
 
 export function historyRoutes(
-  scopeStores = createHistoryScopeStores(process.cwd(), () =>
-    getHistoryProvider(),
-  ),
+  scopeStores = new HistoryScopeStores({
+    defaultScopeRoot: process.cwd(),
+    getDefaultProvider: () => getHistoryProvider(),
+  }),
 ): RouteRegistration[] {
   return [
     {
@@ -311,9 +309,10 @@ function parseHistoryDetailRequestOrRespond(
 }
 
 export function historyControlRoutes(
-  scopeStores = createHistoryScopeStores(process.cwd(), () =>
-    getHistoryProvider(),
-  ),
+  scopeStores = new HistoryScopeStores({
+    defaultScopeRoot: process.cwd(),
+    getDefaultProvider: () => getHistoryProvider(),
+  }),
   discoveryCwd = process.cwd(),
 ): ControlRouteRegistration[] {
   return [

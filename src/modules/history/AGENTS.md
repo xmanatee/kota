@@ -4,10 +4,8 @@ This directory owns conversation history — the persistent record of past sessi
 
 - Owns the file-based `ConversationHistory` store (`history.ts`, `history-utils.ts`) and the scope-scoped store resolver.
 - Registers itself as the history provider during `onLoad` via the typed `HISTORY_PROVIDER_TOKEN` (re-exported from `#core/modules/provider-registry.js`) and exposes scope-scoped lookup through `HISTORY_SCOPE_PROVIDER_TOKEN`. Core resolves stores through provider seams; there is no ambient global-history singleton or production reset hook.
-- Storage is scope-scoped under `.kota/history`. Daemon/API access resolves
-  a concrete scope id before using the store. Omitted scope ids resolve to
-  the daemon's active/default scope at the route or client boundary; explicit
-  unknown ids return the typed `unknown_scope` route error.
+- Storage is scope-scoped under `.kota/history`. Daemon/API and local-client
+  access use the daemon scope owner's live directory selector.
 - Protocol payload types (`ConversationData`, `ConversationRecord`, `ConversationMessage`) live in `#core/modules/provider-types.js`. This module re-exports them from `history-utils.ts` for module-internal convenience only.
 - Registers `conversation_recall` in the `management` tool group and contributes the `history` skill (prompt guidance for when and how to use recall).
 - Owns the `history` CLI commands (`kota history …`) in `cli-commands.ts` and CLI helpers (interactive REPL, pipe mode, option parsing) in `cli.ts`.

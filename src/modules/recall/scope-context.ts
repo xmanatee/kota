@@ -10,9 +10,9 @@ import {
   MEMORY_PROVIDER_TOKEN,
   REPO_TASKS_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
-import { createHistoryScopeStores } from "#modules/history/scope.js";
-import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
-import { createMemoryScopeStores } from "#modules/memory/scope.js";
+import { HistoryScopeStores } from "#modules/history/scope.js";
+import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
+import { MemoryScopeStores } from "#modules/memory/scope.js";
 import { createRepoTasksScopeStores } from "#modules/repo-tasks/scope.js";
 import type { RecallScopeContext } from "./recall-types.js";
 
@@ -27,21 +27,21 @@ export function createRecallScopeContextResolver(
   const daemonScope = providers
     ? () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)
     : undefined;
-  const memoryStores = createMemoryScopeStores(
+  const memoryStores = new MemoryScopeStores({
     defaultScopeRoot,
-    () => providers?.getProvider(MEMORY_PROVIDER_TOKEN) ?? getMemoryProvider(),
-    daemonScope,
-  );
-  const knowledgeStores = createKnowledgeScopeStores(
+    getDefaultProvider: () => providers?.getProvider(MEMORY_PROVIDER_TOKEN) ?? getMemoryProvider(),
+    getDaemonScopeProvider: daemonScope,
+  });
+  const knowledgeStores = new KnowledgeScopeStores({
     defaultScopeRoot,
-    () => providers?.getProvider(KNOWLEDGE_PROVIDER_TOKEN) ?? getKnowledgeProvider(),
-    daemonScope,
-  );
-  const historyStores = createHistoryScopeStores(
+    getDefaultProvider: () => providers?.getProvider(KNOWLEDGE_PROVIDER_TOKEN) ?? getKnowledgeProvider(),
+    getDaemonScopeProvider: daemonScope,
+  });
+  const historyStores = new HistoryScopeStores({
     defaultScopeRoot,
-    () => providers?.getProvider(HISTORY_PROVIDER_TOKEN) ?? getHistoryProvider(),
-    daemonScope,
-  );
+    getDefaultProvider: () => providers?.getProvider(HISTORY_PROVIDER_TOKEN) ?? getHistoryProvider(),
+    getDaemonScopeProvider: daemonScope,
+  });
   const taskStores = createRepoTasksScopeStores(
     defaultScopeRoot,
     () => providers?.getProvider(REPO_TASKS_PROVIDER_TOKEN) ?? getRepoTasksProvider(),

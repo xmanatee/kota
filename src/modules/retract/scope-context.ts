@@ -7,8 +7,8 @@ import {
   MEMORY_PROVIDER_TOKEN,
 } from "#core/modules/provider-registry.js";
 import { WORKFLOW_DISPATCHER_PROVIDER_TYPE } from "#core/workflow/workflow-dispatcher-provider.js";
-import { createKnowledgeScopeStores } from "#modules/knowledge/scope.js";
-import { createMemoryScopeStores } from "#modules/memory/scope.js";
+import { KnowledgeScopeStores } from "#modules/knowledge/scope.js";
+import { MemoryScopeStores } from "#modules/memory/scope.js";
 import type { RetractScopeContext } from "./retract-types.js";
 
 export type ResolveRetractScopeContext = (
@@ -19,16 +19,16 @@ export function createRetractScopeContextResolver(
   defaultScopeRoot: string,
   providers?: ProviderLookupContext,
 ): ResolveRetractScopeContext {
-  const memoryStores = createMemoryScopeStores(
+  const memoryStores = new MemoryScopeStores({
     defaultScopeRoot,
-    () => providers?.getProvider(MEMORY_PROVIDER_TOKEN) ?? getMemoryProvider(),
-    providers ? () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE) : undefined,
-  );
-  const knowledgeStores = createKnowledgeScopeStores(
+    getDefaultProvider: () => providers?.getProvider(MEMORY_PROVIDER_TOKEN) ?? getMemoryProvider(),
+    getDaemonScopeProvider: providers ? () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE) : undefined,
+  });
+  const knowledgeStores = new KnowledgeScopeStores({
     defaultScopeRoot,
-    () => providers?.getProvider(KNOWLEDGE_PROVIDER_TOKEN) ?? getKnowledgeProvider(),
-    providers ? () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE) : undefined,
-  );
+    getDefaultProvider: () => providers?.getProvider(KNOWLEDGE_PROVIDER_TOKEN) ?? getKnowledgeProvider(),
+    getDaemonScopeProvider: providers ? () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE) : undefined,
+  });
 
   return (scopeId) => {
     const memory = memoryStores.resolve(scopeId);

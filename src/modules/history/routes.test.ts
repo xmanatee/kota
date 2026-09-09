@@ -332,7 +332,7 @@ describe("history-routes", () => {
       });
     });
 
-    it("isolates project history entries and rejects unknown scope ids", async () => {
+    it("isolates project history entries", async () => {
       const root = mkdtempSync(join(tmpdir(), "kota-history-scopes-"));
       try {
         mkdirSync(join(root, "a"));
@@ -378,19 +378,6 @@ describe("history-routes", () => {
           (searchB.result.body as { ok: true; conversations: ConversationRecord[] })
             .conversations,
         ).toEqual([]);
-
-        const unknown = mockResponse();
-        await handleSearchHistory(
-          searchRequest("?q=alpha&scopeId=missing-scope"),
-          unknown.res,
-          stores,
-        );
-        expect(unknown.result.status).toBe(404);
-        expect(unknown.result.body).toEqual({
-          error: "Unknown scope",
-          reason: "unknown_scope",
-          scopeId: "missing-scope",
-        });
       } finally {
         rmSync(root, { recursive: true, force: true });
       }

@@ -1,125 +1,40 @@
-import type { DaemonScopeProvider } from "#core/daemon/scope-provider.js";
 import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
-import {
-  buildDirectoryScope,
-  type DirectoryScope,
-  directoryScopesFromProjection,
-  type ScopeId,
-} from "#core/daemon/scope-registry.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
+import { type DirectoryScope, deriveDirectoryScopeId, type ScopeId } from "#core/daemon/scope-registry.js";
+import { createDirectoryScopeSelector, type DirectoryScopeSelectionOptions } from "#core/daemon/scope-selection.js";
+import type { ModuleContext } from "#core/modules/module-types.js";
+import { HISTORY_PROVIDER_TOKEN } from "#core/modules/provider-registry.js";
 import type { HistoryProvider } from "#core/modules/provider-types.js";
 import { getScopeHistoryStore } from "./history.js";
 
-export type UnknownHistoryScopeError = {
-  error: "Unknown scope";
-  reason: "unknown_scope";
-  scopeId: string;
-};
-
-type ScopeSnapshot = {
-  defaultScopeId: ScopeId;
-  activeScopeId: ScopeId | null;
-  scopes: readonly DirectoryScope[];
-};
-
-export type HistoryScopeStoresOptions = {
-  defaultScopeRoot: string;
-  scopes?: readonly DirectoryScope[];
-  defaultScopeId?: ScopeId;
-  getActiveScopeId?: () => ScopeId | null;
+export type HistoryScopeStoresOptions = DirectoryScopeSelectionOptions & {
   getDefaultProvider?: () => HistoryProvider | null;
-  getDaemonScopeProvider?: () => DaemonScopeProvider | null;
 };
 
 export class HistoryScopeStores {
-  private readonly fallbackScope: DirectoryScope;
-  private readonly fallbackScopes: readonly DirectoryScope[];
-  private readonly fallbackDefaultScopeId: ScopeId;
-  private readonly getFallbackActiveScopeId: () => ScopeId | null;
+  private readonly providerScopeId: ScopeId;
+  private readonly selectScope: ReturnType<typeof createDirectoryScopeSelector>;
   private readonly getDefaultProvider: (() => HistoryProvider | null) | undefined;
   private readonly stores = new Map<ScopeId, HistoryProvider>();
-  private readonly getDaemonScopeProvider: () => DaemonScopeProvider | null;
 
   constructor(options: HistoryScopeStoresOptions) {
-    this.fallbackScope = buildDirectoryScope({
-      scopeRoot: options.defaultScopeRoot,
-    });
-    this.fallbackScopes = options.scopes ?? [this.fallbackScope];
-    const firstScope = this.fallbackScopes[0];
-    if (!firstScope) {
-      throw new Error("HistoryScopeStores requires at least one scope");
-    }
-    this.fallbackDefaultScopeId =
-      options.defaultScopeId ?? firstScope.scopeId;
-    if (
-      !this.fallbackScopes.some(
-        (scope) => scope.scopeId === this.fallbackDefaultScopeId,
-      )
-    ) {
-      throw new Error(
-        `HistoryScopeStores default scope ${this.fallbackDefaultScopeId} is not registered`,
-      );
-    }
-    this.getFallbackActiveScopeId = options.getActiveScopeId ?? (() => null);
+    this.providerScopeId = deriveDirectoryScopeId(options.defaultScopeRoot);
+    this.selectScope = createDirectoryScopeSelector(options);
     this.getDefaultProvider = options.getDefaultProvider;
-    this.getDaemonScopeProvider = options.getDaemonScopeProvider
-      ?? (() => getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE) ?? null);
   }
 
-  resolve(
-    scopeId: string | null | undefined,
-  ):
-    | { ok: true; scopeId: ScopeId; scopeRoot: string; store: HistoryProvider }
-    | { ok: false; error: UnknownHistoryScopeError } {
-    const snapshot = this.snapshot();
-    const requested = scopeId?.trim();
-    const resolvedScopeId =
-      requested && requested.length > 0
-        ? requested
-        : snapshot.activeScopeId ?? snapshot.defaultScopeId;
-    const scope = snapshot.scopes.find(
-      (entry) => entry.scopeId === resolvedScopeId,
-    );
-    if (!scope) {
-      return {
-        ok: false,
-        error: {
-          error: "Unknown scope",
-          reason: "unknown_scope",
-          scopeId: resolvedScopeId,
-        },
-      };
-    }
+  resolve(scopeId: string | null | undefined) {
+    const selected = this.selectScope(scopeId);
+    if (!selected.ok) return selected;
     return {
-      ok: true,
-      scopeId: scope.scopeId,
-      scopeRoot: scope.scopeRoot,
-      store: this.storeFor(scope, snapshot.defaultScopeId),
+      ok: true as const,
+      scopeId: selected.scope.scopeId,
+      scopeRoot: selected.scope.scopeRoot,
+      store: this.storeFor(selected.scope),
     };
   }
 
-  private snapshot(): ScopeSnapshot {
-    const daemonScope = this.getDaemonScopeProvider();
-    if (daemonScope) {
-      const projection = daemonScope.getScopeRegistryProjection();
-      return {
-        defaultScopeId: projection.defaultScopeId,
-        activeScopeId: daemonScope.getActiveScopeId(),
-        scopes: directoryScopesFromProjection(projection),
-      };
-    }
-    return {
-      defaultScopeId: this.fallbackDefaultScopeId,
-      activeScopeId: this.getFallbackActiveScopeId(),
-      scopes: this.fallbackScopes,
-    };
-  }
-
-  private storeFor(
-    scope: DirectoryScope,
-    defaultScopeId: ScopeId,
-  ): HistoryProvider {
-    if (scope.scopeId === defaultScopeId) {
+  private storeFor(scope: DirectoryScope): HistoryProvider {
+    if (scope.scopeId === this.providerScopeId) {
       const provider = this.getDefaultProvider?.();
       if (provider) return provider;
     }
@@ -132,9 +47,11 @@ export class HistoryScopeStores {
 }
 
 export function createHistoryScopeStores(
-  defaultScopeRoot: string,
-  getDefaultProvider?: () => HistoryProvider | null,
-  getDaemonScopeProvider?: () => DaemonScopeProvider | null,
+  ctx: Pick<ModuleContext, "cwd" | "getProvider">,
 ): HistoryScopeStores {
-  return new HistoryScopeStores({ defaultScopeRoot, getDefaultProvider, getDaemonScopeProvider });
+  return new HistoryScopeStores({
+    defaultScopeRoot: ctx.cwd,
+    getDefaultProvider: () => ctx.getProvider(HISTORY_PROVIDER_TOKEN),
+    getDaemonScopeProvider: () => ctx.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+  });
 }
