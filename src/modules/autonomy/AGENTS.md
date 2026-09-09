@@ -49,10 +49,8 @@ Owns KOTA's autonomous workflows and their shared policy.
   Critic rejects outcomes that are incorrect, unsafe, incomplete, unsupported,
   or obscured by placeholders and compatibility layers. It requests the
   strongest proportionate proof; a fixture is useful only when it represents
-  the real boundary being judged. Valid proof may be a type, schema, generated
-  contract, production run, durable record, direct inspection, or behavior test;
-  review guidance explicitly permits omitting new tests when an architectural
-  mechanism already proves the behavior.
+  the real boundary being judged. Standards owns proof selection; the critic
+  independently assesses its sufficiency for the task and changed behavior.
 - **Incomplete dispositions.** Critic distinguishes full completion from safe
   blocked or retired work, then independently reviews every retained change.
   External unavailability never excuses unsafe partial code. Suspended writers

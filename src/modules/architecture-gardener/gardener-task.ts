@@ -47,13 +47,13 @@ export function renderGardenerTaskBody(args: {
   const constraints = [
     "- Preserve existing public interfaces and behaviors unless explicitly part of the simplification.",
     "- Do not add compatibility shims, aliases, or dual implementations.",
-    "- All existing tests must pass or be simplified without reducing coverage of public behavior.",
+    "- Select proportionate proof under Standards; retain distinct public-behavior and security checks while retiring redundant proofs.",
   ].join("\n");
 
   const howWeWillKnow = [
     `- The named structural improvement for \`${hypothesis.targetScope}\` is verifiable in code and AST inspection.`,
     "- Architectural fitness functions report zero forbidden dependencies, zero undeclared imports, zero module cycles, and zero duplicate canonical ownership.",
-    "- All relevant unit and integration test suites pass cleanly.",
+    "- Selected validation distinguishes regressions in the affected consumers and substantiates the behavior-preservation claim.",
   ].join("\n");
 
   return renderRepoTaskIntent({

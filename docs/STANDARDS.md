@@ -70,9 +70,15 @@
   compatibility.
 - Repo-level dependency install safeguards live in `pnpm-workspace.yaml`; keep
   package-manager policy exceptions narrow, named, and justified there.
-- Optimize for the simplest, clearest, most maintainable final system, not for
-  patch size. A larger cohesive change is better than a narrow edit that
-  leaves confusing seams, duplicate concepts, or future cleanup.
+- Trace consumers and ownership first, then choose the simplest cohesive final
+  system. Share actual common behavior, preserve necessary variation, migrate
+  callers, and delete the replaced path and redundant proofs in the same change.
+  Patch size is secondary to clarity and maintainability. Keep single-use logic
+  local unless a real boundary benefits from extraction; intentional no-change
+  is valid when the existing design already serves the outcome.
+- Use strict types and standard tools for stable invariants, and agent judgment
+  for design choices. Classes, schemas, and protocols are means, not an OOP or
+  SOLID checklist. A new design does not require an extra planning agent.
 - Prefer strict typed protocols. Do not add nullable fields, optional fields,
   defaults, fallbacks, compatibility shims, or dual paths unless absence is a
   real domain state and the behavior is explicit at the boundary.
@@ -171,7 +177,9 @@ Tests are not the sole proof mechanism. Treat the following architectural mechan
 
 Review guidance explicitly permits **omitting new tests when an architectural mechanism already proves the behavior**. Remove mechanical demands for coverage percentages, test counts, artifact presence, or source scans.
 
-The repository baseline and exhaustive disposition manifest for all 115 test families and large files are cataloged in [`docs/VERIFICATION_BASELINE.md`](file:///Users/xmanatee/Desktop/mono/apps/kota/.kota/runtime/worktrees/2026-08-27t05-01-18-980z-builder-b39a4dd099ca9593a779273d5c0fd5c2a7d3b7a3e56dfdcddf9471cb05d88ce0/docs/VERIFICATION_BASELINE.md).
+The verification reduction baseline and disposition record remain in
+[VERIFICATION_BASELINE.md](VERIFICATION_BASELINE.md); bounded cleanups do not
+reset that baseline.
 
 ## Validation Cadence
 

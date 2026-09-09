@@ -8,7 +8,7 @@ function makeHypothesis(overrides: Partial<SimplificationHypothesis> = {}): Simp
     id: "hyp-del-123456",
     targetScope: "module:old-module",
     problem: "Redundant duplicated logic across modules",
-    behaviorPreservationClaim: "Preserves all public interfaces and behavior. Existing tests pass unchanged.",
+    behaviorPreservationClaim: "Preserves public module registration and dependency resolution behavior.",
     structuralImprovement: {
       dimension: "deletion",
       description: "Delete retired adapter implementation",

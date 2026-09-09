@@ -94,7 +94,7 @@ export function formulateHypothesisFromAdmission(args: {
 
   const behaviorPreservationClaim =
     args.behaviorPreservationClaim ??
-    `Preserves all declared public interfaces and runtime behavior for ${evaluation.targetScope}. All existing unit and contract tests continue to pass without modification.`;
+    `Preserves all declared public interfaces and runtime behavior for ${evaluation.targetScope}. Verify the affected consumers at their authoritative boundaries; retire proofs made redundant by the replacement.`;
 
   const id = generateHypothesisId(evaluation.targetScope, dimension);
 

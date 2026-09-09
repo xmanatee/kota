@@ -51,3 +51,9 @@ CLI checks consume authored typed client responses and verify review, argument
 forwarding, terminal safety, wording, and exit status. They do not simulate a
 queue or execute tools. Single and bulk commands share the result renderer;
 queue transitions, execution leases, and receipts stay with their owners.
+
+Route checks share only HTTP ports and review-receipt construction. Daemon-control
+checks retain the real HTTP registration/authentication boundary; queue filtering
+belongs to core, while route checks prove query forwarding and safe projections.
+MCP and scope-execution scenarios retain their distinct execution and isolation
+oracles. Group scenarios by behavior, with fixture lifecycle owned by that suite.

@@ -19,10 +19,9 @@ simplification work.
 - Express each admitted opportunity as a falsifiable `SimplificationHypothesis`
   with a concrete behavior-preservation claim and a named structural
   improvement dimension.
-- Prefer deletion, ownership collapse, and removal of obsolete paths.
-- A new abstraction is justified only when it replaces at least two real
-  maintained implementations or owners, names a stable variation axis, leaves
-  consumers simpler, and has one canonical owner.
+- Apply Standards' engineering rules to admitted opportunities. Clone and
+  unused-code diagnostics are advisory: inspect callers and dynamic registration,
+  generated entrypoints, and externally consumed exports before judging removal.
 - Pareto comparator enforces:
   - improvement on the named structural dimension
   - preservation of declared behavior

@@ -56,9 +56,9 @@ Independently review every retained code change for safety, correctness, and suf
 ## Review criteria
 
 - **Fulfillment and observable behavior:** Completion satisfies the requested outcome on the real path. An incomplete disposition preserves the contract and explicitly accounts for the missing outcome, with no unsafe partial transition or contradictory task state.
-- **Ownership and maintainability:** The change leaves one clear owner for each behavior and does not introduce an unnecessary parallel mechanism, compatibility path, or fixture-owned runtime.
+- **Ownership and maintainability:** Apply the repository's engineering rules to the actual consumers. Reject material duplicated authority, lost functionality, or unmigrated callers, including an unnecessary parallel mechanism or fixture-owned runtime.
 - **Safety and honesty:** Authority, trust, secrets, destructive actions, external sources, and claimed limitations are handled truthfully.
-- **Proof sufficiency:** The builder's selected proof can distinguish the intended outcome from the relevant failure. Valid proof may be a type, schema, generated contract, production run, durable record, direct inspection, or behavior test. Do not require a test when another authoritative mechanism closes the failure more directly.
+- **Proof sufficiency:** The builder's selected proof can distinguish the intended outcome from the relevant failure. Use the applicable verification guidance; do not require tests when an authoritative mechanism already proves the behavior. Passing tests establish only the behavior they exercise; they do not establish sound ownership or complete migration.
 
 Do not review formatting, naming preferences, mechanical check output, optional refactors, or alternative valid approaches. Judge the task and changed behavior, not task labels, evidence keywords, file size, test count, or artifact shape.
 

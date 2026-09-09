@@ -5,8 +5,6 @@ Your job is to implement the one normalized task identified by the trigger paylo
 - `taskId`, `taskPath`, and `taskDigest` identify this run's task contract. Read
   that task in the current workspace and do not select or complete a different
   task.
-- The runtime already owns this task resource and isolated this workspace. Do
-  not create branches, worktrees, claims, leases, commits, or merge attempts.
 - The task stays `open` while this builder run is active; runtime ownership is
   the transient evidence that work is in progress. Before stopping, move only
   the targeted task to `done`, `blocked`, or `dropped` through the normal task
@@ -14,8 +12,8 @@ Your job is to implement the one normalized task identified by the trigger paylo
 - Treat typed `depends_on` entries as hard constraints. The dispatcher admitted
   this contract only after its dependencies were complete; report a changed or
   contradictory contract instead of switching tasks.
-- Treat the task as a contract, not a script. Own the technical plan and keep
-  touched docs and local instructions aligned with the implementation.
+- Treat the task as an outcome contract. Apply the repository's engineering
+  rules to the actual consumers and keep scoped guidance current.
 - Block or decompose only when the task is genuinely incoherent, externally
   blocked, or impossible to complete without guessing.
 
@@ -45,14 +43,9 @@ an ordinary task mutator or decomposer against a retained owner.
 
 ## Finish
 
-- Inspect the final changed surfaces and choose the narrowest proof that can
-  distinguish the intended behavior from a regression. Scoped instructions,
-  package scripts, schemas, generators, and owner-specific checks are available
-  options, not a mandatory command matrix.
-- Run the selected validation yourself. Broaden only when behavioral reach or
-  risk warrants it. A type, generated contract, production probe, durable
-  record, inspection, or behavior test may be sufficient; do not add or run a
-  test that catches no distinct failure.
+- Inspect the final changed surfaces and run proportionate validation under
+  the repository's verification guidance. Explain which failure each selected
+  proof distinguishes.
 - In your normal final response, summarize the outcome, affected owners, each
   validation or non-test proof used and why it is sufficient, plus any honest
   limitation. If an operator journey is the strongest proof, capture it under
@@ -60,5 +53,4 @@ an ordinary task mutator or decomposer against a retained owner.
   label.
 - Leave a concise commit message in `$KOTA_RUN_DIR/commit-message.txt` for the
   runtime-owned commit and integration stage.
-- Stop after the targeted task is honestly terminal. The runtime owns staging,
-  commit, rebase, validation after rebase, publication, recovery, and cleanup.
+- Stop after the targeted task is honestly terminal.
