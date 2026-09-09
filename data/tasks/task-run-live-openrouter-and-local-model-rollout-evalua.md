@@ -1,9 +1,8 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
 ---
-
 # Run live OpenRouter and local model rollout evaluation
 
 ## Problem
@@ -69,3 +68,55 @@ OpenRouter/local model parity for KOTA autonomy.
   follow-up blockers into the queue.
 - If supported presets are changed, `pnpm run test:preset-parity` passes or
   records valid auth/runtime skips for every affected preset.
+
+## Result — 2026-09-09 preflight skip
+
+Outcome: preflight skip; rollout decision deferred. No live inference, scenario,
+fixture, or verifier ran. No candidate is promoted or rejected on this evidence.
+KOTA's ability to replace Codex/Claude for any task class remains unestablished
+by this run.
+
+The process has no OPENROUTER_API_KEY. The active filesystem policy denies
+scope secret files, so the scope resolver was not invoked. This does not
+contradict the historical September 8 authentication success or establish that
+the host lacks a key. Both default local model-list endpoints (Ollama on 11434
+and LM Studio on 1234) returned fetch failure with EPERM. This establishes an
+execution-context restriction, not an absent server or an incapable model.
+
+rollout-preflight.json records the timestamped observations and the shipped
+candidate set, including every required OpenRouter candidate. The canonical
+catalog freshness validator accepted the June 26 metadata; current provider
+availability was not checked. No local model was discovered or guessed.
+All performance metrics and support tiers are unavailable, rather than zero
+or fabricated classifications.
+
+The task remains unfinished in the active queue, marked blocked under the
+builder's required lifecycle rule. This records the concrete external
+precondition while preserving the task's intent that a skip cannot count as
+completion. Production presets and operator recommendations are unchanged.
+
+Resume in a runtime-authorized evaluation context with access to the existing
+OpenRouter credential, native Codex baseline execution, and an identified local
+model endpoint. Use the shared matrix path with compatible provider/harness
+routing, paired scenarios and eval fixtures, sequential repeats, and comparable
+resource/configuration evidence. Record all requested metrics and verifier
+artifacts before assigning supported, experimental, scaffold-only, or rejected
+tiers. A capable replacement still requires at least 90% of baseline pass^k and
+no P0 feature-parity failures; narrower support requires measured task-class
+consistency, cost, latency, and feature limits.
+
+Evidence: builder run 2026-09-09T15-01-01-382Z-builder-4endrv,
+runtime agent artifacts rollout-preflight.mjs, rollout-preflight.json, and
+rollout-decision.md. Task integrity validation is retained in validate-tasks.txt.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/2026-09-09T15-01-01-382Z-builder-4endrv/live-model-rollout-readiness/transcript.txt
+description: Capture redacted successful readiness evidence from the intended evaluation context showing scoped OpenRouter authentication, native Codex/GPT-5.5 execution, and a reachable identified local model endpoint. Do not include credentials. This unblocks execution of the live matrix; readiness alone is not rollout evidence.
+A runtime-authorized execution context that can resolve the existing
+OpenRouter credential, execute the Codex/GPT-5.5 baseline, and reach an
+identified local model endpoint. This sandbox has no environment key, denies
+scope credential files, and denies both local endpoint probes with EPERM.
+Once access is available, reopen this same task and execute the live matrix;
+the preflight skip does not satisfy any rollout acceptance threshold.
