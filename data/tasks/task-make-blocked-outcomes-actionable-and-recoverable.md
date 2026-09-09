@@ -111,3 +111,5 @@ blocked-outcomes-summary.md and blocked-discovery.json.
 kind: operator-capture
 path: .kota/runs
 description: Runtime-owned scoped inspection/export and same-run recovery access for qj0mm4, hjhox7, 720nnv and un8vlq, plus execution capability for the required subprocess/Linux/live evidence. Permission is already granted; use authorized collection and equivalent attributable evidence wherever available. Review the evidence and remaining implementation before reopening; no named file or directory alone satisfies this precondition.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-09T20:06:51.149Z -->
