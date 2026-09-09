@@ -29,7 +29,8 @@ remaining blockers for models that are close but not ready.
 - Secondary candidates can be marked supported for narrower tiers only when
   the report names the task class, pass^k, cost, latency, and feature limits.
 - If `OPENROUTER_API_KEY` or local runtime prerequisites are absent, record a
-  preflight skip and keep the task open; a skip is not rollout evidence.
+  preflight skip and keep the task unfinished. Use blocked for an unavailable
+  external prerequisite; a skip is not rollout evidence.
 - Keep the final decision in the task result and run artifact. Do not create a
   parallel benchmark catalog or external leaderboard doc.
 

@@ -2,7 +2,6 @@
 status: blocked
 priority: p2
 ---
-
 # Add a scientific-claim reproduction fixture to the eval harness
 
 ## Problem
@@ -42,7 +41,7 @@ The fixture should make the scientific-reproduction failure mode observable:
   analysis script plus local fixture data.
 - The claim is small and deterministic, with at least one tempting shortcut or
   wrong preprocessing choice that would produce the wrong verdict.
-- Final predicates verify the task moved to `done/`, the analysis command
+- Final predicates verify the task reached archived `status: done`, the analysis command
   passes, the evidence artifact has the correct verdict and metric, and the
   implementation is not a prose-only or hardcoded answer.
 - Any objective metric, such as reproduced effect size or error delta, is
@@ -65,8 +64,8 @@ The fixture should make the scientific-reproduction failure mode observable:
   without executing the analysis.
 - Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
   belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
-- Do not mark the task done from fixture-load evidence alone. The trusted host
-  Runtime Probe below must complete the live nested-agent pass.
+- Do not mark the task done from fixture-load evidence alone. The authorized isolated
+  execution described below must complete the live nested-agent pass.
 
 ## Done When
 
@@ -78,7 +77,7 @@ The fixture should make the scientific-reproduction failure mode observable:
   acceptance evidence.
 - The initial project fails the final predicates before the builder runs, and
   `preRunExpectations` include the expected failures.
-- Final predicates require the task to move to `done/`, the reconstruction
+- Final predicates require the task to reach archived `status: done`, the reconstruction
   command to pass, `claim-result.json` to contain the correct verdict and
   deterministic metric, and the candidate to avoid hardcoded/prose-only
   shortcuts.
@@ -89,17 +88,27 @@ The fixture should make the scientific-reproduction failure mode observable:
   the claim-evidence predicates passing and any objective metric visible in the
   run artifact and aggregate output.
 
-## Runtime Probe
+## Execution Readiness
 
-command: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep
-timeoutMs: 14400000
+The historical bare eval command below is not the current execution recipe.
+Use the existing eval runner for builder-scientific-claim-reproduction with its required container isolation,
+an explicitly identified image and image-local KOTA executable, provider-egress
+policy, and runtime-authorized authentication. The CLI owns these options; do
+not paste invented image names or relax executable-verifier isolation to use the
+host default. The fixture's local/deterministic requirement applies to its data
+and analysis, not to removal of the runner's security boundary.
+
+The owner has authorized Docker-based validation. Use that authority only through
+an available permitted execution path; a tool-policy denial remains a real
+capability blocker. KOTA should collect results automatically when authorized,
+without requiring a person to type the command. Keep credentials private and
+verify live outcome and provenance, not just readiness or a nonempty transcript.
 
 ## Blocked on
-```
+
 kind: operator-capture
 path: .kota/runs/scientific-claim-reproduction-live-pass/
-description: authenticated trusted-host live eval evidence — operator ensures the Codex login is visible to the constrained Runtime Probe, runs `pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 --keep`, and captures the passing transcript, eval-set-report.json, predicate details, claim-result.json, claim-holdout-result.json, and objective metric under .kota/runs/scientific-claim-reproduction-live-pass/
-```
+description: Attributable passing live builder-scientific-claim-reproduction evidence from the current eval runner in its required isolated and authenticated context. Retain transcript, eval-set-report.json, predicate details, isolation/resource evidence and claim-result.json, claim-holdout-result.json and objective metric. An authorized runtime may collect and retain this capture; manual owner execution is not a requirement. Existing equivalent evidence may be reused only after verifying the same fixture, candidate and execution provenance.
 
 ## Status (2026-05-27 builder)
 

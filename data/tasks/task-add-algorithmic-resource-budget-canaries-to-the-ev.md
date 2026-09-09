@@ -2,7 +2,6 @@
 status: blocked
 priority: p2
 ---
-
 # Add algorithmic resource-budget canaries to the eval harness
 
 ## Problem
@@ -47,7 +46,7 @@ The fixture should make scalable-design failure observable:
   structured artifact such as `resource-budget-result.json` containing input
   sizes, observed pass/fail per canary, the verification command, and a
   deterministic operation-count or memory-growth proxy.
-- Final predicates require the task to move to `done/`, the verifier to pass,
+- Final predicates require the task to reach archived `status: done`, the verifier to pass,
   the evidence artifact to contain the expected canary results, and the
   implementation to avoid sample-only or hardcoded shortcuts.
 - Any numeric value, such as operation count, max generated input size, or
@@ -71,8 +70,8 @@ The fixture should make scalable-design failure observable:
   or special-cases visible examples should fail.
 - Keep this out of `pnpm test` unless replay-backed. A live-builder fixture
   belongs in `pnpm kota eval run` and cadence, not the standard unit test path.
-- Do not mark the task done from fixture-load evidence alone. The trusted host
-  Runtime Probe below must complete the live nested-agent pass.
+- Do not mark the task done from fixture-load evidence alone. The authorized isolated
+  execution described below must complete the live nested-agent pass.
 
 ## Done When
 
@@ -85,7 +84,7 @@ The fixture should make scalable-design failure observable:
 - The initial project passes visible examples but fails the final predicates
   before the builder runs; `preRunExpectations` include expected failures for
   the large canaries or budget artifact.
-- Final predicates require the task to move to `done/`, the verifier command
+- Final predicates require the task to reach archived `status: done`, the verifier command
   to pass, `resource-budget-result.json` to contain the required canary
   fields, and the deterministic budget proxy to stay under the configured
   threshold.
@@ -100,17 +99,27 @@ The fixture should make scalable-design failure observable:
   threshold-relaxing shortcut fails, then the shortcut is reverted before
   staging.
 
-## Runtime Probe
+## Execution Readiness
 
-command: pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep
-timeoutMs: 14400000
+The historical bare eval command below is not the current execution recipe.
+Use the existing eval runner for builder-algorithmic-resource-budget-canary with its required container isolation,
+an explicitly identified image and image-local KOTA executable, provider-egress
+policy, and runtime-authorized authentication. The CLI owns these options; do
+not paste invented image names or relax executable-verifier isolation to use the
+host default. The fixture's local/deterministic requirement applies to its data
+and analysis, not to removal of the runner's security boundary.
+
+The owner has authorized Docker-based validation. Use that authority only through
+an available permitted execution path; a tool-policy denial remains a real
+capability blocker. KOTA should collect results automatically when authorized,
+without requiring a person to type the command. Keep credentials private and
+verify live outcome and provenance, not just readiness or a nonempty transcript.
 
 ## Blocked on
-```
+
 kind: operator-capture
 path: .kota/runs/algorithmic-resource-budget-live-pass/
-description: Linux trusted-host Runtime Probe evidence — operator runs pnpm kota eval run --fixture builder-algorithmic-resource-budget-canary --repeats 1 --keep on a Linux host where Bubblewrap and prlimit are installed, /proc/sys/kernel/core_pattern is readable and non-piped, and the Codex login is active; capture a passing transcript, eval-set-report.json, predicate details, resource-budget-result.json, generated input sizes, comparison-budget values, and max_comparison_budget_ratio under .kota/runs/algorithmic-resource-budget-live-pass/
-```
+description: Attributable passing live builder-algorithmic-resource-budget-canary evidence from the current eval runner in its required isolated and authenticated context. Retain transcript, eval-set-report.json, predicate details, isolation/resource evidence and resource-budget-result.json, generated input sizes and budget comparison metrics. An authorized runtime may collect and retain this capture; manual owner execution is not a requirement. Existing equivalent evidence may be reused only after verifying the same fixture, candidate and execution provenance.
 
 ## Status (2026-07-28 builder)
 

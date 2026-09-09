@@ -2,7 +2,6 @@
 status: blocked
 priority: p2
 ---
-
 # Capture an end-to-end coding-task parity artifact under .kota/runs/ for each registered agent harness
 
 ## Problem
@@ -105,18 +104,20 @@ Phase 1 — scenarios pack and operator-runnable CLI (this run):
   shape, capability-gap handling, and the explicit non-goals (no
   scoring, no regression gating — eval-harness concerns).
 
-Phase 2 — operator-facilitated live capture (blocks the task):
+Phase 2 — authorized live capture (still incomplete):
 
-- Run `kota harness-parity run` against every registered harness on an
-  operator workstation with credentials authorized for live API calls.
-  Commit the resulting artifact tree under `.kota/runs/<run-id>/harness-parity/`
-  so Done-When bullet 2 can be honestly verified.
-- The autonomous builder ships the infrastructure but does not itself
-  capture paired artifacts: each live run consumes real API budget and a
-  nested claude-agent-sdk invocation from inside another claude-agent-sdk
-  session is operationally unsafe. Unblock by either committing live
-  evidence or by narrowing Done-When to drop the paired-artifact
-  requirement.
+- Use the shipped harness-parity runner from an execution context authorized for
+  the current registered harness capabilities. Retain paired artifacts under
+  .kota/runs/ with run identity, selected harness/model, prompt, diff and verifier
+  outcome. Runtime evidence stays out of source control; retain references in the
+  task rather than committing ignored artifact trees.
+- The owner has requested live validation. A human need not type each command;
+  use existing runtime-authorized execution and credential resolution. Do not
+  launch uncontrolled nested agents, expose credentials or bypass isolation.
+- A missing authorized capability is a concrete block, not proof the harness is
+  incapable. Record a capability gap separately from a provider failure. Never
+  unblock by dropping the paired-artifact requirement or fabricating live results.
+
 - Anticipated capability gap (record inline if still true at capture
   time): the `thin` harness is single-turn and text-only, so it cannot
   apply file edits. The scenario predicate will fail against its
