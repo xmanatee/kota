@@ -4,7 +4,7 @@ import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
 import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 import { startNativeRunAuthorization } from "#core/workflow/native-run-authorization.js";
-import { buildMachineAuthoritySandboxLaunch } from "./machine-authority-sandbox.js";
+import { buildMachineAuthoritySandboxLaunch, resolveMachineAuthorityPaths } from "./machine-authority-sandbox.js";
 import {
   NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
   type NativeCliEgressProxy,
@@ -234,7 +234,9 @@ export async function withNativeCliSandbox<T>(
       ...packageManager.readOnlyHostRoots,
       ...explicitRuntimeWritableRoots,
     ];
+    const { configDirectories, tokenPaths } = resolveMachineAuthorityPaths(options.authorityConfigPath);
     const readProtectedPaths = [...new Set([
+      ...tokenPaths,
       ...existingProtectedScopePaths(options.cwd),
       ...(runAuthorization?.readProtectedPaths ?? []),
       ...(resolve(options.cwd) === resolve(process.cwd())
@@ -243,6 +245,7 @@ export async function withNativeCliSandbox<T>(
     ])];
     const readProtectedRoots = [...new Set(options.readProtectedRoots ?? [])];
     const writeProtectedPaths = [...new Set([
+      ...configDirectories,
       join(options.cwd, ".git"),
       ...(runAuthorization?.writeProtectedRoots ?? []),
       ...nativeCliGitMetadataRoots(options.cwd),

@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Security review: The Codex launch path accepts authorityConfigPath but omits its protections from the generated tool permission profile. Selecting native-cli ownership skips the shared sandbox that protects the authority directory and operator-token paths. When those paths fall within an otherwise readable workspace or explicit host grant, native tools can read the operator credential; when the authority directory falls within a writable workspace, they can also modify machine authority configuration. This crosses the operator-to-agent authority boundary.
 
@@ -162,3 +161,16 @@ excerpt:
 >   for (const path of [...context.readProtectedPaths, runtimeHome]) {
 >     access.set(path, "deny");
 >   }
+
+
+## Resolution
+
+Machine-authority path resolution is shared by both sandbox owners. The native launch context now includes operator-token read denials and authority-directory write protection before selecting the owner. Directory and configuration-file aliases preserve both lexical and resolved directory protections. Codex profile generation narrows nested write grants so they cannot reopen protected directories, and token denials override overlapping grants. Write protection only narrows existing grants: external authority directories receive no new read access, while independently granted child files remain readable.
+
+Verification:
+
+- Five new adapter-generated profile cases failed before the fix and pass afterward. Synthetic default/custom authority paths cover workspace and explicit host grants, directory/file aliases, existing and missing token targets, environment-selected token aliases, and nested writable output roots. The real adapter, shared launcher, and profile generator run with only provider/network launch ports controlled (and a synthetic default config locator).
+- Critic repair: two additional adapter-profile cases reproduced unauthorized directory read grants before the repair and passed afterward. Both default and custom external authority locations are checked with no grant and with an independent configuration-file grant; neither exposes the directory, secrets.json, or .env. Operator-token denials remain present. All paths are synthetic.
+- Focused owner checks: configuration authority, runtime home, adapter launch, machine-authority sandbox, dependency authority, and runtime write boundaries passed (36 tests); one platform-specific case was skipped. These cover the changed propagation/precedence boundary and adjacent shared sandbox behavior.
+- Production and test TypeScript checks passed; scoped Biome and diff-whitespace checks passed.
+- Limitation: the existing live sandbox suite had five passing cases and one failure because this execution sandbox forbids binding a loopback listener (listen EPERM on 127.0.0.1). No live Codex tool execution or real credential access was attempted; the task's requested proof is the generated adapter profile.

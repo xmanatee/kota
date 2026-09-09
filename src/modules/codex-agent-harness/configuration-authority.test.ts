@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as egress from "#core/agent-harness/native-cli-egress-proxy.js";
+import type { AgentHarnessRunOptions } from "#core/agent-harness/types.js";
+import * as config from "#core/config/config.js";
 import { codexAgentHarness } from "./adapter.js";
 
 const roots: string[] = [];
@@ -15,6 +17,7 @@ vi.mock("node:child_process", async (importOriginal) => ({
 afterEach(() => {
   spawn.mockReset();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
@@ -45,6 +48,7 @@ async function launchProfile(
   workspace: string,
   sourceHome: string,
   readOnlyHostRoots?: readonly string[],
+  options: Pick<AgentHarnessRunOptions, "authorityConfigPath" | "agentWriteScope" | "agentOutputDir"> = {},
 ): Promise<string> {
   vi.spyOn(egress, "startNativeCliEgressProxy").mockResolvedValue({
     address: { kind: "tcp", host: "127.0.0.1", port: 43217 },
@@ -59,6 +63,7 @@ async function launchProfile(
   await expect(codexAgentHarness.run({
     prompt: "Inspect configuration", cwd: workspace, model: "test", effort: "low",
     agentWriteScope: "deny-all",
+    ...options,
     ...(readOnlyHostRoots === undefined ? {} : { readOnlyHostRoots }),
     env: { CODEX_HOME: sourceHome, PATH: "/usr/bin:/bin" },
   })).rejects.toBe(stop);
@@ -89,5 +94,95 @@ describe("Codex configuration read authority", () => {
     const profile = await launchProfile(workspace, sourceHome, [authorizedRoot]);
     expect(profile).toContain(`${JSON.stringify(authorizedRoot)} = "read"`);
     expect(grantedPaths(profile)).toContain(workspace);
+  });
+});
+
+describe("Codex machine authority protection", () => {
+  it.each(["default", "custom"] as const)(
+    "does not grant reads to an external %s authority directory or ungranted child files",
+    async (location) => {
+      const { workspace, sourceHome } = fixture(false);
+      const authorityDirectory = join(dirname(workspace), "authority");
+      mkdirSync(authorityDirectory);
+      const configPath = join(authorityDirectory, "config.json");
+      writeFileSync(configPath, "{}");
+      vi.stubEnv("KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH", "");
+      if (location === "default") {
+        vi.spyOn(config, "getGlobalConfigPath").mockReturnValue(configPath);
+      }
+      const options = location === "custom" ? { authorityConfigPath: configPath } : {};
+      for (const grants of [[], [configPath]]) {
+        const profile = await launchProfile(workspace, sourceHome, grants, options);
+        const absoluteGrants = grantedPaths(profile).filter((path) => path.startsWith("/"));
+        for (const target of [authorityDirectory, join(authorityDirectory, "secrets.json"), join(authorityDirectory, ".env")]) {
+          expect(absoluteGrants).not.toSatisfy((paths: string[]) => paths.some((path) => {
+            const child = relative(path, target);
+            return child === "" || (child !== ".." && !child.startsWith(`..${sep}`));
+          }));
+        }
+        expect(profile).not.toContain(`${JSON.stringify(authorityDirectory)} = "deny"`);
+        if (grants.length > 0) expect(profile).toContain(`${JSON.stringify(configPath)} = "read"`);
+        expect(profile).toContain(`${JSON.stringify(join(authorityDirectory, "scope-authority-token.json"))} = "deny"`);
+      }
+    },
+  );
+
+  it.each(["workspace", "host", "directory-alias", "file-alias"] as const)(
+    "protects custom authority and token paths against overlapping grants (%s)",
+    async (location) => {
+      const { workspace, sourceHome } = fixture(false);
+      const host = dirname(workspace);
+      const authorityDirectory = join(location === "workspace" ? workspace : host, "authority");
+      mkdirSync(authorityDirectory);
+      const configPath = join(authorityDirectory, "config.json");
+      writeFileSync(configPath, "{}");
+      const tokenPath = join(authorityDirectory, "scope-authority-token.json");
+      // Synthetic paths only: even a missing token must receive a denial.
+      const externalToken = join(host, "operator-token.json");
+      const tokenAlias = join(workspace, "token-alias.json");
+      symlinkSync(externalToken, tokenAlias);
+      if (location === "workspace") {
+        writeFileSync(externalToken, "synthetic operator credential");
+        symlinkSync(externalToken, tokenPath);
+      }
+      vi.stubEnv("KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH", tokenAlias);
+      let authorityConfigPath = configPath;
+      if (location === "directory-alias") {
+        const alias = join(workspace, "authority-alias");
+        symlinkSync(authorityDirectory, alias);
+        authorityConfigPath = join(alias, "config.json");
+      } else if (location === "file-alias") {
+        const alias = join(workspace, "authority-alias");
+        mkdirSync(alias);
+        authorityConfigPath = join(alias, "config.json");
+        symlinkSync(configPath, authorityConfigPath);
+      }
+      const output = join(authorityDirectory, "output");
+      const profile = await launchProfile(workspace, sourceHome, [host, tokenAlias, tokenPath], {
+        authorityConfigPath,
+        agentWriteScope: undefined,
+        agentOutputDir: output,
+      });
+      expect(profile).toContain(`${JSON.stringify(workspace)} = "write"`);
+      for (const path of [authorityDirectory, dirname(authorityConfigPath), output]) {
+        expect(profile).toContain(`${JSON.stringify(path)} = "read"`);
+        expect(profile).not.toContain(`${JSON.stringify(path)} = "write"`);
+      }
+      const configuredToken = join(dirname(authorityConfigPath), "scope-authority-token.json");
+      for (const path of [configuredToken, tokenAlias, externalToken]) {
+        expect(profile).toContain(`${JSON.stringify(path)} = "deny"`);
+        expect(grantedPaths(profile)).not.toContain(path);
+      }
+    },
+  );
+
+  it("protects the default authority directory and operator token", async () => {
+    const { workspace, sourceHome } = fixture(false);
+    const authorityDirectory = join(workspace, "machine");
+    vi.spyOn(config, "getGlobalConfigPath").mockReturnValue(join(authorityDirectory, "config.json"));
+    vi.stubEnv("KOTA_SCOPE_AUTHORITY_OPERATOR_TOKEN_PATH", "");
+    const profile = await launchProfile(workspace, sourceHome, [], { agentWriteScope: undefined });
+    expect(profile).toContain(`${JSON.stringify(authorityDirectory)} = "read"`);
+    expect(profile).toContain(`${JSON.stringify(join(authorityDirectory, "scope-authority-token.json"))} = "deny"`);
   });
 });

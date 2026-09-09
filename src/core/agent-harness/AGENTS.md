@@ -75,6 +75,10 @@ Owner questions are a protocol capability, not a provider field.
   lists and callbacks. The shared runtime requires each adapter to name one
   machine-authority owner and projects scope into that boundary. Provider
   egress belongs to the trusted CLI process; stricter live revisions abort it.
+  Machine-authority directory and operator-token protections enter the shared
+  runtime context before sandbox-owner selection, including resolved path
+  aliases. Native permission profiles must preserve them over overlapping grants
+  without granting reads to otherwise unauthorized paths.
 - `supportsMultiTurn` — single-shot runners set `false`, so the REPL rejects
   them instead of silently downgrading.
 - `readiness` — adapter-owned local runtime/auth, optional peer, unsupported-

@@ -36,13 +36,16 @@ export type MachineAuthoritySandboxOptions = {
 const LINUX_BUBBLEWRAP_PATHS = ["/usr/bin/bwrap", "/bin/bwrap"] as const;
 const MACOS_SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
 
-function authorityPaths(authorityConfigPath?: string): {
+export function resolveMachineAuthorityPaths(authorityConfigPath?: string): {
   configDirectories: string[];
   tokenPaths: string[];
 } {
   const configPath = resolve(authorityConfigPath ?? getGlobalConfigPath());
   return {
-    configDirectories: resolvePathIdentities(dirname(configPath), process.cwd()),
+    configDirectories: resolveUniquePathIdentities(
+      resolvePathIdentities(configPath, process.cwd()).map(dirname),
+      process.cwd(),
+    ),
     tokenPaths: scopeAuthorityOperatorTokenPaths(configPath),
   };
 }
@@ -54,7 +57,7 @@ export function buildMachineAuthoritySandboxLaunch(
 ): MachineAuthoritySandboxLaunch {
   const platform = options.platform ?? process.platform;
   const pathExists = options.pathExists ?? existsSync;
-  const { configDirectories, tokenPaths } = authorityPaths(options.authorityConfigPath);
+  const { configDirectories, tokenPaths } = resolveMachineAuthorityPaths(options.authorityConfigPath);
   const readableRoots = options.readableRoots === undefined
     ? undefined
     : resolveUniquePathIdentities(options.readableRoots, options.cwd);

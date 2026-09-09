@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { pathIsWithinRoots } from "#core/agent-harness/machine-authority-sandbox-paths.js";
 import type { NativeCliRuntimeContext } from "#core/agent-harness/native-cli-sandbox.js";
 import {
   PROTECTED_SCOPE_ENV_GLOBS,
@@ -49,9 +50,21 @@ function codexPermissionProfile(
   const access = new Map<string, "deny" | "read" | "write">();
   for (const path of context.readableRoots) access.set(path, "read");
   for (const path of context.writableRoots) access.set(path, "write");
-  for (const path of context.writeProtectedPaths) access.set(path, "read");
+  // Write protection narrows existing authority; it cannot authorize new reads.
+  const grantedRoots = [...access.keys()];
+  for (const path of context.writeProtectedPaths) {
+    if (pathIsWithinRoots(path, grantedRoots)) access.set(path, "read");
+  }
   for (const path of [...context.readProtectedPaths, runtimeHome]) {
     access.set(path, "deny");
+  }
+  // A more-specific grant must not reopen a protected directory or token.
+  for (const [path, permission] of access) {
+    if (pathIsWithinRoots(path, [...context.readProtectedPaths, runtimeHome])) {
+      access.set(path, "deny");
+    } else if (permission === "write" && pathIsWithinRoots(path, context.writeProtectedPaths)) {
+      access.set(path, "read");
+    }
   }
   const pathRules = [...access]
     .sort(([left], [right]) => left.localeCompare(right))
