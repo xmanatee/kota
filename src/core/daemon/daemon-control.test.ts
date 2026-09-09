@@ -14,6 +14,7 @@ import type {
   ModuleSetupStartResult,
   ModuleSetupStatusResponse,
 } from "#core/modules/setup-requirements.js";
+import { routeInvocationContract } from "#core/server/route-invocation-test-support.js";
 import {
   type DaemonControlHandle,
   DaemonControlServer,
@@ -342,6 +343,12 @@ describe("DaemonControlServer", () => {
       expect(res.status).toBe(401);
     });
 
+    it("rejects GET query tokens on daemon routes", async () => {
+      const response = await fetchNoToken(port, `/status?token=${TEST_TOKEN}`);
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: "Unauthorized" });
+    });
+
     it("accepts correct token", async () => {
       const res = await fetchWithToken(port, "/status");
       expect(res.status).toBe(200);
@@ -568,36 +575,6 @@ describe("DaemonControlServer", () => {
         expect(handler).not.toHaveBeenCalled();
       } finally {
         await dashboardServer.stop();
-      }
-    });
-
-    it("lets matched module routes shape auth failures", async () => {
-      const handler = vi.fn();
-      const shapedServer = new DaemonControlServer(makeHandle(), TEST_TOKEN, {
-        routes: [
-          {
-            method: "POST",
-            path: "/api/custom",
-            authFailureHandler: (_req, res) => {
-              res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ error: { data: [{ reason: "CUSTOM_AUTH" }] } }));
-            },
-            handler,
-          },
-        ],
-      });
-      const shapedPort = await shapedServer.start();
-      try {
-        const res = await fetchNoToken(shapedPort, "/api/custom", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
-        expect(res.status).toBe(200);
-        expect(await res.json()).toEqual({ error: { data: [{ reason: "CUSTOM_AUTH" }] } });
-        expect(handler).not.toHaveBeenCalled();
-      } finally {
-        await shapedServer.stop();
       }
     });
 
@@ -2279,6 +2256,13 @@ describe("DaemonControlServer", () => {
     });
   });
 
+  it("contains failures from built-in daemon handlers", async () => {
+    vi.mocked(handle.getDaemonLiveState).mockImplementation(() => { throw new Error("status unavailable"); });
+    const response = await fetchWithToken(port, "/status");
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: "status unavailable" });
+  });
+
   describe("unknown routes", () => {
     it("returns 404 for an unrecognized path", async () => {
       const res = await fetchWithToken(port, "/does-not-exist");
@@ -2293,27 +2277,15 @@ describe("DaemonControlServer", () => {
     });
   });
 
-  describe("route handler errors", () => {
-    it("converts synchronous route handler throws into 500 responses", async () => {
+  describe.each(["control", "module"] as const)("%s route invocation", (surface) => {
+    routeInvocationContract(async (routes) => {
       await server.stop();
-      server = new DaemonControlServer(handle, TEST_TOKEN, {
-        controlRoutes: [
-          {
-            method: "GET",
-            path: "/throws-sync",
-            capabilityScope: "read",
-            handler: () => {
-              throw new Error("sync route failure");
-            },
-          },
-        ],
-      });
+      server = new DaemonControlServer(handle, TEST_TOKEN, surface === "control"
+        ? { controlRoutes: routes.map((route) => ({ ...route, capabilityScope: "read" })) }
+        : { routes });
       port = await server.start();
-
-      const res = await fetchWithToken(port, "/throws-sync");
-      expect(res.status).toBe(500);
-      await expect(res.json()).resolves.toEqual({ error: "sync route failure" });
-    });
+      return `http://127.0.0.1:${port}`;
+    }, TEST_TOKEN);
   });
 
   describe("GET /api/events", () => {

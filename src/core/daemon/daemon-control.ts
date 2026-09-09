@@ -4,6 +4,7 @@ import type {
   RouteRegistration,
 } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
+import { withRouteErrorBoundary } from "#core/server/route-invocation.js";
 import { normalizeScopeSelectorQueryUrl } from "#core/server/scope-selector.js";
 import type { GuardrailsConfig } from "#core/tools/guardrails.js";
 import type { DaemonChatBindingStore } from "./daemon-chat-bindings.js";
@@ -14,7 +15,6 @@ import {
 } from "./daemon-chat-pool.js";
 import { DaemonControlRequestAuthorizer } from "./daemon-control-auth.js";
 import type { DaemonControlServerOptions } from "./daemon-control-options.js";
-import { DaemonControlRouteInvoker } from "./daemon-control-route-invoker.js";
 import { buildBuiltinControlRoutes } from "./daemon-control-routes.js";
 import type { DaemonControlHandle } from "./daemon-control-types.js";
 import { jsonResponse } from "./daemon-control-utils.js";
@@ -46,7 +46,6 @@ export class DaemonControlServer {
   private readonly controlRoutes: readonly ControlRouteRegistration[];
   private readonly moduleRoutes: readonly RouteRegistration[];
   private readonly requestAuth: DaemonControlRequestAuthorizer;
-  private readonly routeInvoker = new DaemonControlRouteInvoker();
   private quarantineReason: string | null = null;
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -125,9 +124,7 @@ export class DaemonControlServer {
 
   start(): Promise<number> {
     return new Promise((resolve, reject) => {
-      const srv = createServer((req, res) => {
-        this.handleRequest(req, res);
-      });
+      const srv = createServer(withRouteErrorBoundary((req, res) => this.handleRequest(req, res)));
       srv.listen(0, "127.0.0.1", () => {
         const addr = srv.address() as { port: number };
         this.server = srv;
@@ -214,7 +211,7 @@ export class DaemonControlServer {
     return true;
   }
 
-  private handleRequest(req: IncomingMessage, res: ServerResponse): void {
+  private async handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
     if (this.quarantineReason !== null) {
       jsonResponse(res, 503, {
         error: "Daemon authority is reloading",
@@ -232,12 +229,8 @@ export class DaemonControlServer {
       if (!controlMatch.route.bypassAuth) {
         const auth = this.requestAuth.authorizeRoute(req, method, controlMatch.route);
         if (auth.kind === "unauthorized") {
-          if (this.routeInvoker.invokeAuthFailureHandler(
-            controlMatch.route,
-            req,
-            res,
-            controlMatch.params,
-          )) {
+          if (controlMatch.route.authFailureHandler) {
+            await controlMatch.route.authFailureHandler(req, res, controlMatch.params);
             return;
           }
           jsonResponse(res, 401, { error: "Unauthorized" });
@@ -249,7 +242,7 @@ export class DaemonControlServer {
         }
       }
       if (!this.normalizeScopeSelectorQuery(req, res)) return;
-      this.routeInvoker.invokeRouteHandler(controlMatch.route, req, res, controlMatch.params);
+      await controlMatch.route.handler(req, res, controlMatch.params);
       return;
     }
 
@@ -259,12 +252,8 @@ export class DaemonControlServer {
       const auth = this.requestAuth.authorizeRoute(req, method, moduleMatch.route);
       if (!moduleMatch.route.bypassAuth) {
         if (auth.kind === "unauthorized") {
-          if (this.routeInvoker.invokeAuthFailureHandler(
-            moduleMatch.route,
-            req,
-            res,
-            moduleMatch.params,
-          )) {
+          if (moduleMatch.route.authFailureHandler) {
+            await moduleMatch.route.authFailureHandler(req, res, moduleMatch.params);
             return;
           }
           jsonResponse(res, 401, { error: "Unauthorized" });
@@ -277,7 +266,7 @@ export class DaemonControlServer {
       }
       if (dashboardEntry && auth.kind !== "unauthorized") this.requestAuth.setDashboardAuthCookie(res);
       if (!this.normalizeScopeSelectorQuery(req, res)) return;
-      this.routeInvoker.invokeRouteHandler(moduleMatch.route, req, res, moduleMatch.params);
+      await moduleMatch.route.handler(req, res, moduleMatch.params);
       return;
     }
 

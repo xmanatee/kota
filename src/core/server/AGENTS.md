@@ -6,6 +6,14 @@ contract every CLI subcommand uses for daemon-or-local access.
 ## HTTP server scope
 
 - Transport, session, and event-stream infrastructure live here.
+- Both HTTP hosts wrap their production dispatcher in the shared route error
+  boundary. Direct routes, contributions, and auth-failure handlers return or
+  await request work so synchronous throws and rejections reach that boundary.
+  Domain error envelopes and stream lifecycle remain with their handlers.
+- Serve owns CORS/preflight and token checks on `/api/`: bearer headers and
+  GET query tokens are accepted, while signed routes can bypass host auth.
+  Daemon bearer/dashboard policy belongs to the daemon authorizer; shared
+  invocation does not make these authority policies interchangeable.
 - Capability-specific routes belong in the owning module and are
   contributed through `KotaModule.routes`.
 - Do not read `.kota/` files to infer live daemon state when the daemon

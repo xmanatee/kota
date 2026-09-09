@@ -1,7 +1,11 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Scheduler } from "#core/daemon/scheduler.js";
+import { EventBus } from "#core/events/event-bus.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
-import { buildRequestHandler } from "./server-routes.js";
+import { routeInvocationContract } from "./route-invocation-test-support.js";
+import { buildRequestHandler, type ServerContext } from "./server-routes.js";
+import { SessionPool } from "./session-pool.js";
 
 describe("buildRequestHandler route auth", () => {
   const servers: Server[] = [];
@@ -12,36 +16,43 @@ describe("buildRequestHandler route auth", () => {
     servers.length = 0;
   });
 
-  it("lets matched module routes shape auth failures on the serve surface", async () => {
-    const handler = vi.fn();
-    const server = createServer(
-      makeRequestHandler(
-        [
-          {
-            method: "POST",
-            path: "/api/custom",
-            authFailureHandler: (_req, res) => {
-              res.writeHead(200, { "Content-Type": "application/json" });
-              res.end(JSON.stringify({ error: { data: [{ reason: "CUSTOM_AUTH" }] } }));
-            },
-            handler,
-          },
-        ],
-        authToken,
-      ),
-    );
+  routeInvocationContract(async (routes) => {
+    const server = createServer(makeRequestHandler(routes, authToken));
+    servers.push(server);
+    return listen(server);
+  }, authToken);
+
+  it.each(["sync", "async"] as const)("contains %s failures in direct host routes", async (failure) => {
+    const scheduler = new Scheduler(undefined, null);
+    const pool = new SessionPool();
+    const fail = () => { throw new Error("host route failed"); };
+    vi.spyOn(scheduler, "count").mockImplementation(fail);
+    vi.spyOn(pool, "get").mockImplementation(fail);
+    const server = createServer(makeRequestHandler([], authToken, { scheduler, pool }));
     servers.push(server);
     const baseUrl = await listen(server);
-
-    const res = await fetch(`${baseUrl}/api/custom`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
+    const response = await fetch(`${baseUrl}${failure === "sync" ? "/api/health" : "/api/sessions/example"}`, {
+      method: failure === "sync" ? "GET" : "PATCH",
+      headers: { Authorization: `Bearer ${authToken}` },
+      ...(failure === "async" ? { body: JSON.stringify({ autonomy_mode: "supervised" }) } : {}),
     });
+    expect(response.status).toBe(500);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(await response.json()).toEqual({ error: "host route failed" });
+  });
 
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ error: { data: [{ reason: "CUSTOM_AUTH" }] } });
-    expect(handler).not.toHaveBeenCalled();
+  it("serves non-API routes and preflight without API token authentication", async () => {
+    const server = createServer(makeRequestHandler([{
+      method: "GET", path: "/", handler: (_req, res) => { res.end("dashboard"); },
+    }], authToken));
+    servers.push(server);
+    const baseUrl = await listen(server);
+    const entry = await fetch(baseUrl);
+    expect(entry.status).toBe(200);
+    expect(await entry.text()).toBe("dashboard");
+    expect(entry.headers.get("set-cookie")).toBeNull();
+    const preflight = await fetch(`${baseUrl}/api/sessions`, { method: "OPTIONS" });
+    expect(preflight.status).toBe(204);
   });
 
   it("rejects approval mutations authenticated only by query token", async () => {
@@ -140,18 +151,20 @@ describe("buildRequestHandler route auth", () => {
 function makeRequestHandler(
   moduleRoutes: RouteRegistration[],
   authToken: string,
+  overrides: Partial<ServerContext> = {},
 ): ReturnType<typeof buildRequestHandler> {
   return buildRequestHandler({
     port: 0,
-    pool: { size: 0, get: vi.fn(), list: vi.fn() } as never,
-    scheduler: { count: () => 0 } as never,
-    bus: { listenerCount: () => 0 } as never,
+    pool: new SessionPool(),
+    scheduler: new Scheduler(undefined, null),
+    bus: new EventBus(),
     moduleRoutes,
-    makeAgent: (() => {
+    makeAgent: () => {
       throw new Error("unused");
-    }) as never,
+    },
     resolveDefaultAutonomyMode: () => "autonomous",
     authToken,
+    ...overrides,
   });
 }
 

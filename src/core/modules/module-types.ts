@@ -204,8 +204,8 @@ export type ModuleRouteHandler = (
 /**
  * Shared shape for module-contributed HTTP routes. Both the public
  * `RouteRegistration` surface and the daemon-control `ControlRouteRegistration`
- * surface share this descriptor so path matching, param extraction, and auth
- * posture follow one rule. Surface-specific fields (e.g. capability scope on
+ * surface share this descriptor for path matching, param extraction, and auth
+ * declarations. Hosts own authorization policy. Surface-specific fields (e.g. capability scope on
  * the daemon-control surface) extend this base.
  *
  * Path grammar:

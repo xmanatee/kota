@@ -3,11 +3,12 @@ import type { Scheduler } from "#core/daemon/scheduler.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { AgentSession } from "#core/loop/loop.js";
 import type { Transport } from "#core/loop/transport.js";
-import type { ModuleRouteHandler, RouteRegistration } from "#core/modules/module-types.js";
+import type { RouteRegistration } from "#core/modules/module-types.js";
 import { findRouteMatch } from "#core/modules/route-matcher.js";
 import { normalizeScopeSelectorQueryUrl } from "#core/server/scope-selector.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonControlClient } from "./daemon-client.js";
+import { withRouteErrorBoundary } from "./route-invocation.js";
 import { jsonResponse, type SessionPool, setCors } from "./session-pool.js";
 import {
   handleChat,
@@ -40,17 +41,6 @@ export type ServerContext = {
   authToken?: string;
 };
 
-function invokeRouteHandler(
-  handler: ModuleRouteHandler,
-  req: IncomingMessage,
-  res: ServerResponse,
-  params: Record<string, string>,
-): void {
-  Promise.resolve(handler(req, res, params)).catch((err) => {
-    if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-  });
-}
-
 function normalizeMatchedRouteScopeSelectorQuery(
   req: IncomingMessage,
   res: ServerResponse,
@@ -77,7 +67,7 @@ function isAuthorizedApiRequest(
 }
 
 export function buildRequestHandler(ctx: ServerContext) {
-  return function handleRequest(req: IncomingMessage, res: ServerResponse): void {
+  return withRouteErrorBoundary(async (req, res) => {
     setCors(res);
     const url = new URL(req.url ?? "/", `http://localhost:${ctx.port}`);
     const path = url.pathname;
@@ -94,7 +84,7 @@ export function buildRequestHandler(ctx: ServerContext) {
       if (!isBypass) {
         if (!isAuthorizedApiRequest(req, url, ctx.authToken)) {
           if (moduleMatch?.route.authFailureHandler) {
-            invokeRouteHandler(moduleMatch.route.authFailureHandler, req, res, moduleMatch.params);
+            await moduleMatch.route.authFailureHandler(req, res, moduleMatch.params);
             return;
           }
           jsonResponse(res, 401, { error: "Unauthorized" });
@@ -126,16 +116,12 @@ export function buildRequestHandler(ctx: ServerContext) {
     };
 
     if (req.method === "POST" && path === "/api/sessions") {
-      handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.resolveDefaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
+      await handleCreateSession(req, res, ctx.pool, ctx.makeAgent, ctx.resolveDefaultAutonomyMode, registerSessionWithDaemon);
       return;
     }
 
     if (req.method === "POST" && path === "/api/chat") {
-      handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.resolveDefaultAutonomyMode, registerSessionWithDaemon).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
+      await handleChat(req, res, ctx.pool, ctx.makeAgent, ctx.resolveDefaultAutonomyMode, registerSessionWithDaemon);
       return;
     }
 
@@ -152,9 +138,7 @@ export function buildRequestHandler(ctx: ServerContext) {
 
     const patchSessionMatch = path.match(/^\/api\/sessions\/([^/]+)$/);
     if (req.method === "PATCH" && patchSessionMatch) {
-      handlePatchSession(req, res, ctx.pool, patchSessionMatch[1]).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
-      });
+      await handlePatchSession(req, res, ctx.pool, patchSessionMatch[1]);
       return;
     }
 
@@ -173,29 +157,23 @@ export function buildRequestHandler(ctx: ServerContext) {
       res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
       const gen = client.events();
       req.on("close", () => { void gen.return(undefined); });
-      void (async () => {
-        for await (const event of gen) {
-          if (res.destroyed) break;
-          res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
-        }
-      })();
+      for await (const event of gen) {
+        if (res.destroyed) break;
+        res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.payload)}\n\n`);
+      }
       return;
     }
 
     if (req.method === "GET" && path === "/api/daemon/status") {
       const client = ctx.getDaemonClient?.() ?? null;
-      const daemonPromise = client ? client.getDaemonStatus() : Promise.resolve(null);
-      daemonPromise.then((daemon) => {
-        jsonResponse(res, 200, {
-          daemon: daemon ?? null,
-          server: {
-            sessions: ctx.pool.size,
-            pendingSchedules: ctx.scheduler.count(),
-            eventBusListeners: ctx.bus.listenerCount(),
-          },
-        });
-      }).catch((err) => {
-        if (!res.headersSent) jsonResponse(res, 500, { error: (err as Error).message });
+      const daemon = client ? await client.getDaemonStatus() : null;
+      jsonResponse(res, 200, {
+        daemon,
+        server: {
+          sessions: ctx.pool.size,
+          pendingSchedules: ctx.scheduler.count(),
+          eventBusListeners: ctx.bus.listenerCount(),
+        },
       });
       return;
     }
@@ -204,11 +182,11 @@ export function buildRequestHandler(ctx: ServerContext) {
       const match = findRouteMatch(ctx.moduleRoutes, req.method, path);
       if (match) {
         if (!normalizeMatchedRouteScopeSelectorQuery(req, res)) return;
-        invokeRouteHandler(match.route.handler, req, res, match.params);
+        await match.route.handler(req, res, match.params);
         return;
       }
     }
 
     jsonResponse(res, 404, { error: "Not found" });
-  };
+  });
 }

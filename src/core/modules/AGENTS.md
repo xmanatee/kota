@@ -103,8 +103,9 @@ process singletons or let nested hosts clean up CLI state.
   Capability reads belong in the projector, never in the contribution factory or `onLoad`.
 - Public and daemon-control routes share `ModuleRouteBase` and
   `route-matcher.ts`; control routes add `capabilityScope: "read" | "control"`.
-  Keep path grammar, params, auth failure, collision, and capability behavior
-  in those shared owners.
+  Keep path grammar and params in the matcher and registration validation in
+  the loader/host. Hosts own authorization; the server-layer invocation boundary
+  contains failures from normal handlers and protocol-shaped auth denials.
 
 ## Lifecycle Modes
 

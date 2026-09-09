@@ -12,8 +12,13 @@ sessions and channels, scheduling, scope hosting, and live state.
   and loud collision detection.
 - Module routes obtain workflow dispatch, metrics, and definitions through the
   registered provider seams rather than a `DaemonControlHandle`.
-- Per-request signed routes may declare `bypassAuth`; all others use daemon
-  bearer authentication.
+- Per-request signed routes may declare `bypassAuth`; other routes use the
+  daemon request authorizer's bearer or dashboard-session authentication.
+  Dashboard cookies require a request guard for mutations and control-capability
+  reads; query tokens do not authenticate daemon requests.
+- The shared server-layer route error boundary wraps the entire dispatcher,
+  including built-in and contributed routes and protocol-shaped auth denials.
+  Authorization and scope selection stay with this host.
 - The unauthenticated health route exposes stable component state and timing
   only. Free-form agent and module diagnostics stay on authenticated operator
   or retained runtime-evidence surfaces.
