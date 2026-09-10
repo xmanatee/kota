@@ -216,6 +216,27 @@ cleanup or the four external owner outcomes; their outstanding acceptance and
 retained ownership remain as recorded above. Commands and results are retained
 in this run's ordinary summary and repair-4 logs.
 
+## Latest live owner outcomes
+
+September 10 monitoring verified original run `720nnv` integrated `1743ee4d3`
+at 18:20:12Z, published its completion, released every resource and removed its
+worktree. Its task remains blocked for the real Linux confinement proof; this
+is a successful safe incomplete disposition, not security acceptance.
+
+Original run `qj0mm4` returned to `needs_attention` at 18:12:33Z. Its recovery
+assessment started before coordinator task commit `76bf6d037` and retained the
+old `af342f0f...` digest; canonical now has `41b708fd...`. Preflight skipped the
+agent, and the post-reconciliation invariant prevented publishing retained work
+against stale intent. The worktree and single task claim remain preserved.
+The expensive asynchronous assessment/source-drift correction belongs to
+`task-bound-recovery-evidence-collection-to-relevant-work`; do not duplicate it
+or retry the unchanged stale admission. Confirm recovery against current intent
+through the existing owner once the assessment is coherent.
+
+`un8vlq` is active in its original worktree, and `hjhox7` is queued with its
+original retained work. Neither has a new accepted outcome yet. Preserve the
+browser persistence obligation and original 70% verification-reduction target.
+
 ## Blocked on
 
 kind: operator-capture
