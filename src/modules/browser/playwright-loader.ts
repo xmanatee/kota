@@ -14,7 +14,7 @@ export type PlaywrightBrowser = {
 
 export type PlaywrightContext = {
   newPage(): Promise<PlaywrightPage>;
-  storageState(options?: { path?: string }): Promise<unknown>;
+  storageState(): Promise<unknown>;
   close(): Promise<void>;
 };
 

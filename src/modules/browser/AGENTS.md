@@ -34,13 +34,14 @@ Operators configure a persistent login session via `modules.browser`
   if it does not, the module falls back to an ephemeral context.
 - Scope-escaping profile paths belong only to their configuring scope; other
   scopes stay ephemeral. Prefer scope-local paths.
-- `persistProfile: true` writes the current context's state back to the same
-  path on awaited session close. Agent-owned sessions may persist only inside
-  their declared write roots, and the runtime rechecks the canonical target
-  immediately before writing so a symlink swap cannot redirect it. Operators
-  use this to capture a fresh login (run once
-  with `persistProfile: true`, log in interactively, then pin the file in
-  their secrets surface with `persistProfile: false`).
+- Profile persistence currently fails closed on every host. `persistProfile: true`
+  with an owned target causes explicit save and awaited close to reject before
+  collecting credentials; close still releases browser resources. Keep it `false`
+  to load an existing profile without saving changes. Playwright's context port
+  accepts no output path. Restoring persistence requires a runtime primitive
+  proven to preserve declared pathname authority through staging and publication,
+  including relocation of the authorized root. A directory descriptor and
+  beneath-root rename alone do not establish that guarantee.
 - Never check storage-state files into source; keep them in the secrets surface.
 - The scope-resolved profile source is shared by its tools; live cookies,
   localStorage, and page state remain isolated per scope and session.

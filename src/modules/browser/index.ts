@@ -124,7 +124,7 @@ const browserSetupRequirements: ModuleSetupRequirement[] = [
         },
         {
           id: "persist-profile",
-          label: "Persist profile",
+          label: "Persist profile (unavailable; keep disabled)",
           type: "boolean",
           configPath: "modules.browser.persistProfile",
           required: false,

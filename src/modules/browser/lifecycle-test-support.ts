@@ -1,5 +1,5 @@
 import "./network-test-support.js";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
 import { vi } from "vitest";
 import type { ToolRunnerContext } from "#core/tools/index.js";
 import type { BrowserProfileOptions } from "./browser-profile.js";
@@ -15,6 +15,7 @@ export type LifecycleTestState = {
   capturedContextOptions: Array<{ storageState?: string }>;
   capturedLaunchOptions: LaunchOptions[];
   lastContextStorageWrite: string | null;
+  storageStateCalls: number;
   closedContexts: number;
   closedPages: number;
 };
@@ -25,6 +26,7 @@ const { lifecycleTestState, scopeConfigs } = vi.hoisted(() => ({
     capturedContextOptions: [] as Array<{ storageState?: string }>,
     capturedLaunchOptions: [] as LaunchOptions[],
     lastContextStorageWrite: null as string | null,
+    storageStateCalls: 0,
     closedContexts: 0,
     closedPages: 0,
   } as LifecycleTestState,
@@ -80,15 +82,9 @@ function makeContext(loadedCookie: string | null) {
   return {
     newPage: async () => makePage(loadedCookie),
     storageState: async (options?: { path?: string }) => {
-      if (options?.path) {
-        lifecycleTestState.lastContextStorageWrite = options.path;
-        writeFileSync(
-          options.path,
-          JSON.stringify({ authCookie: loadedCookie }),
-          "utf8",
-        );
-      }
-      return {};
+      lifecycleTestState.storageStateCalls++;
+      lifecycleTestState.lastContextStorageWrite = options?.path ?? null;
+      return { authCookie: loadedCookie };
     },
     close: async () => {
       lifecycleTestState.closedContexts++;
@@ -128,6 +124,7 @@ export function resetLifecycleTestState(): void {
   lifecycleTestState.capturedContextOptions = [];
   lifecycleTestState.capturedLaunchOptions = [];
   lifecycleTestState.lastContextStorageWrite = null;
+  lifecycleTestState.storageStateCalls = 0;
   lifecycleTestState.closedContexts = 0;
   lifecycleTestState.closedPages = 0;
 }

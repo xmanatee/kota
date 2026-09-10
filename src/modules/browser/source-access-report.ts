@@ -147,7 +147,7 @@ export async function runSourceAccessReport(
     persistProfile: {
       enabled: profile.persist,
       message: profile.persist
-        ? "persistProfile is enabled; this run may update the configured storage-state file when browser state closes."
+        ? "persistProfile is enabled, but persistence is unavailable; closing an owned profile will report an error without writing state."
         : "persistProfile is disabled; this run will not write browser profile state back to disk.",
     },
   };
@@ -345,7 +345,7 @@ function buildNextSteps(
     steps.push("Create or restore the configured storage-state file before relying on authenticated browser reads.");
   }
   if (checks.persistProfile.enabled) {
-    steps.push("After capturing a login profile, set modules.browser.persistProfile to false for repeatable read-only reports.");
+    steps.push("Set modules.browser.persistProfile to false; profile persistence is unavailable. Existing profiles can still be loaded.");
   }
   for (const read of [renderedArticle, xPost]) {
     if (read.status === "failure") {

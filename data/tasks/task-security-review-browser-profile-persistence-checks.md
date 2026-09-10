@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Security review: Browser profile persistence checks filesystem authority separately from the write. When persistProfile is enabled, a concurrent writer able to replace the profile file or an ancestor directory can redirect the path after validation but before Playwright writes it. This can write authenticated browser state outside the agent's declared write roots with the host process's permissions. The canonical-path recheck does not make the subsequent pathname-based write atomic.
@@ -111,3 +111,100 @@ excerpt:
 
 
 > await resource.context.storageState({ path: resolved });
+
+## Repair findings and mitigation
+
+The first implementation was rejected by the critic. A controlled injection in
+the actual Ruby helper moved the authorized root immediately before staging;
+the helper returned success and persisted synthetic state outside the declared
+root. Its directory descriptor and cwd followed the relocated root. Earlier
+leaf and nested-directory swap tests did not prove this boundary.
+
+The unsafe helper and its claimed authorized-write API have been removed.
+Browser explicit save and close now fail closed before collecting or writing
+credentials. Close still releases pages, context, process, and session resources.
+The Playwright context port accepts no output path. Existing profiles still load
+with persistProfile disabled; scope ownership and write-policy checks remain.
+Configuration guidance, setup text, and source-access reports describe the
+unavailable persistence capability.
+
+This is a containment mitigation, not completion of the requested persistence
+backend. The original finding and evidence above remain applicable to any
+attempt to restore pathname-based writes without an enforced boundary.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/browser-profile-persistence-authority/proof.md
+description: Host-level proof of a credential writer preserving declared pathname authority across root and staging relocation, with successful private publication and retained outside sentinels
+
+An authorized, contained execution surface for implementing and validating a
+runtime credential writer under root/staging relocation. The writer itself is
+still unimplemented; obtaining evidence alone does not complete this task.
+Prior nested macOS sandbox activation was denied in this writer, which does not
+establish host capability absence. The supplied runtime's contained-workspace
+resolver also rejects Darwin because its required process-lifetime boundary
+uses Linux PID namespaces. Candidate code must retain runtime containment.
+
+The path above is a suggested evidence locator, not an exclusive required
+capture. Equivalent task-linked scoped execution or capability exports are
+acceptable when they identify the actual runtime, candidate source, enforced
+isolation, successful private publication, race rejection, and unchanged outside
+sentinels. Manual host execution and renewed permission are not prerequisites
+when an already authorized contained surface is available. A directory handle,
+repeated pathname checks, or sandbox availability alone do not prove the
+credential-write guarantee.
+
+## Repair verification
+
+Browser owner tests: 13 suites, 89 tests passed, including explicit-save and
+close rejection before storage-state collection, unchanged profile contents,
+cleanup, existing-profile loading, scope isolation, and policy rejection.
+Production and test TypeScript checks and scoped Biome checks passed. Tests ran on an identical source copy
+under the run directory with dependencies installed from the offline cache,
+because this repair workspace's node_modules is empty and read-only.
+
+The decisive security proof is removal of the credential write path; no claimed
+successful persistence or race-safe writer remains. The task is blocked rather
+than done because the requested usable persistence primitive remains unavailable.
+
+## Second repair review
+
+The second critic correctly rejected containment as completion: authorized
+profiles still cannot be saved. No safe persistence backend was established
+in this attempt, and no successful-persistence claim is made.
+
+A fresh minimal macOS confinement probe exited 71 with
+`sandbox-exec: sandbox_apply: Operation not permitted`. The existing runtime
+sandbox launcher supplies process confinement, not a separately proven atomic
+credential-write primitive. Reintroducing the previously defeated directory
+handle writer would violate the task's security constraints. The external
+precondition above remains unsatisfied, so this task remains blocked.
+
+The focused browser profile lifecycle suite passed all 11 tests against a
+source-identical validation copy (every workspace src file was compared).
+These tests establish containment, existing-profile reads, scope rejection,
+and close cleanup; they do not establish successful secure persistence.
+
+## Recovery assessment (2026-09-10)
+
+The admitted source still requires successful secure persistence. Retained
+containment is not completion. The refreshed issue-evidence export contains the
+original security review and an unrelated historical-runtime capture; neither
+supplies a task-attributable credential writer or relocation execution. No
+scoped execution/export tool is exposed in this invocation.
+
+The production contained-workspace resolver returned unavailable for Darwin
+without running candidate code. Its exact result and observation provenance are
+in the run artifact persistence-capability-assessment.json. This is a limitation
+of the supplied runtime boundary, not a claim that the host lacks all relevant
+capabilities. No unsandboxed candidate launcher was introduced.
+
+Every workspace source file matches the existing validation copy. Inspection
+confirms no browser storageState invocation remains, and the context port does
+not accept an output path. Prior browser owner tests and TypeScript validation
+remain applicable to these unchanged retained sources; they were not repeated.
+The task validator was run after this task-body correction. Browser lifecycle,
+configuration/setup, and reporting changes remain safe containment only.
+Restoring functional persistence still requires implementation and positive and
+adversarial boundary proof on an authorized contained execution surface.
