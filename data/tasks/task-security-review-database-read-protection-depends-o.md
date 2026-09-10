@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p2
 ---
 # Security review: Database read protection depends on writer authorization. A native CLI invocation without writer identity, running from the daemon's canonical repository, receives repository-wide read access without denials for kota.sqlite or its journals. On a multi-scope daemon, this exposes other scopes' persisted workflow data. The writer fix therefore leaves a non-writer cross-scope confidentiality gap.
@@ -151,3 +151,72 @@ excerpt:
 >   runState.registerScope({
 >     id: scope.scopeId,
 >     rootPath: scope.scopeRoot,
+
+
+
+## Repair and final verification
+
+The retained proposed fix derives database and SQLite sidecar denials from
+host-owned open database locators independently of writer authorization,
+including canonical, custom, and symlink state locations. Linux projects
+database directories into private namespace mounts, masks denied entries, and
+restores permitted existing entries and narrower write grants. Absent state
+directories beneath read-only binds receive an existing-ancestor projection.
+
+Reassessment on 2026-09-10 used the retained patch without changing production
+code or tests. Repository dependencies are now available. Production and test
+TypeScript checks both passed, as did Biome on all six changed TypeScript files.
+The focused machine-authority and native CLI suites reported 11 passed,
+2 skipped, and 1 failed. Passing cases establish non-writer locator propagation
+for canonical and custom-linked storage, connection lifetime handling, and
+Linux policy construction. Both new child confinement cases skipped because
+the enclosing sandbox denied nested OS sandbox launch. The existing mediated
+network case failed at listener setup with EPERM on 127.0.0.1.
+
+The database owner suite reported 34 passed and 1 failed. The failure is an
+unchanged migration assertion expecting schema version 5 while the unchanged
+schema migrates to version 6; inspection of HEAD confirms the stale assertion.
+This check does not establish OS confinement. Production task validation passed
+with zero errors and warnings, and scoped diff whitespace validation passed.
+
+Docker API access at /var/run/docker.sock is denied from this invocation;
+that does not establish whether a host engine exists. The collected issue
+evidence contains the original security review and historical runtime evidence,
+without a successful confinement execution for this patch. No raw host database
+was read, and no sandbox or authorization boundary was bypassed.
+
+The original security finding remains unclosed. Static checks and compiler
+tests support the retained implementation, but they cannot establish that the
+Linux mount sequence launches successfully and preserves intended access.
+Required remaining proof is successful execution of the existing non-writer
+database/late-journal and absent-state boundary regressions, including repository
+reads and persisted artifact writes, on a permitted Linux bubblewrap runtime.
+
+Post-check repair on 2026-09-10 corrected the critic's retained mount-policy
+defect: Linux projections now discard earlier bindings hidden by later binds
+at the same target or an ancestor before restoring descendant mounts. This
+preserves effective authority and write restrictions instead of reopening an
+overridden writable child. Three public sandbox-builder regressions reproduced
+the defect before the fix and passed afterward, covering authority directories,
+protected paths, and write boundaries while retaining permitted artifact mounts.
+The focused machine-authority, native CLI, and sandbox-root suites reported
+18 passed, 2 skipped for unavailable nested sandbox execution, and the existing
+listener-setup failure with EPERM on 127.0.0.1. Production and test typechecks,
+Biome for both repaired TypeScript files, task validation, and scoped diff
+whitespace validation passed. This compiler-boundary proof resolves the reported replay
+defect; the executed Linux confinement requirement below remains outstanding.
+
+## Blocked on
+
+```text
+kind: operator-capture
+path: .kota/runs/native-database-read-protection/linux-validation.txt
+description: Attributable execution of this patch's non-writer database/late-journal and absent-state regressions on a permitted Linux bubblewrap runtime, including retained repository and artifact access.
+```
+
+A scoped validation runtime permitted to execute Linux bubblewrap, or equivalent
+attributable execution evidence for this retained patch, is still required.
+The path above is the existing automated discovery location, not a requirement
+to use one filename or perform manual execution; equivalent runtime exports
+may satisfy review. Strict type verification is now complete. The task remains
+blocked on executed confinement evidence, not dependency installation.

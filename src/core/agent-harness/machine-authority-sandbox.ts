@@ -1,5 +1,5 @@
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readdirSync, readlinkSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath } from "#core/config/config.js";
 import { scopeAuthorityOperatorTokenPaths } from "#core/daemon/scope-authority-operator-token.js";
 import { resolvePathIdentities } from "#core/util/real-path.js";
@@ -24,6 +24,8 @@ export type MachineAuthoritySandboxOptions = {
   readableRoots?: readonly string[];
   writableRoots?: readonly string[];
   readProtectedPaths?: readonly string[];
+  /** Linux directory projections keep host entries created after launch invisible. */
+  readSnapshotRoots?: readonly string[];
   readProtectedRoots?: readonly string[];
   readProtectedRootMask?: string;
   writeProtectedPaths?: readonly string[];
@@ -35,6 +37,76 @@ export type MachineAuthoritySandboxOptions = {
 
 const LINUX_BUBBLEWRAP_PATHS = ["/usr/bin/bwrap", "/bin/bwrap"] as const;
 const MACOS_SANDBOX_EXEC_PATH = "/usr/bin/sandbox-exec";
+
+function linuxReadProtectionMounts(
+  paths: readonly string[],
+  snapshotRoots: readonly string[],
+  visibleRoots: readonly string[],
+  mounts: readonly string[],
+  pathExists: (path: string) => boolean,
+): string[] {
+  const protectedPaths = paths.filter((path) => pathIsWithinRoots(path, visibleRoots));
+  const requestedParents = [...new Set([
+    ...snapshotRoots.filter((path) => pathIsWithinRoots(path, visibleRoots)),
+    ...protectedPaths.filter((path) => !pathExists(path)).map(dirname),
+  ])];
+  const requestedBindings = mounts.flatMap((arg, index) =>
+    arg === "--bind" || arg === "--ro-bind"
+      ? [{ kind: arg, source: mounts[index + 1]!, target: mounts[index + 2]! }]
+      : []
+  );
+  // A later bind hides earlier mounts at or beneath its target. Only replay
+  // surviving mounts: resurrecting a child grant can undo an ancestor denial.
+  const bindings = requestedBindings.filter((mount, index) =>
+    !requestedBindings.slice(index + 1).some((later) =>
+      pathIsWithinRoots(mount.target, [later.target])
+    )
+  );
+  const mountpointParents = requestedParents.flatMap((parent) => {
+    if (pathExists(parent)) return [];
+    let ancestor = dirname(parent);
+    while (!pathExists(ancestor) && dirname(ancestor) !== ancestor) ancestor = dirname(ancestor);
+    const covering = bindings.filter((mount) => pathIsWithinRoots(parent, [mount.target])).at(-1);
+    // Bubblewrap cannot create an absent mountpoint inside a read-only bind.
+    // Project its existing ancestor first, so mountpoint creation stays private
+    // while existing repository entries and narrower write grants remain bound.
+    return covering?.kind === "--ro-bind" ? [ancestor] : [];
+  });
+  const parents = [...new Set([...requestedParents, ...mountpointParents])].sort(
+    (left, right) => left.length - right.length,
+  );
+  const projections = parents.flatMap((parent) => {
+    // File bind masks cannot safely cover absent journals: creating the target
+    // in a host bind would modify SQLite's state. A private directory projection
+    // keeps future host entries invisible and never creates host journal files.
+    const entries = pathExists(parent) ? readdirSync(parent, { withFileTypes: true }) : [];
+    const projectedEntries = entries.flatMap((entry) => {
+      const path = join(parent, entry.name);
+      if (protectedPaths.includes(path) || !pathIsWithinRoots(path, visibleRoots)) return [];
+      if (entry.isSymbolicLink()) return ["--symlink", readlinkSync(path), path];
+      const covering = bindings.filter((mount) => pathIsWithinRoots(path, [mount.target])).at(-1);
+      return [covering?.kind ?? "--ro-bind", path, path];
+    });
+    // Reapply effective narrower mounts hidden by the projection.
+    const descendants = bindings.filter((mount) =>
+      mount.target !== parent && pathIsWithinRoots(mount.target, [parent]) &&
+      !pathIsWithinRoots(mount.target, protectedPaths)
+    ).flatMap((mount) => [mount.kind, mount.source, mount.target]);
+    return [
+      "--tmpfs", parent,
+      ...projectedEntries,
+      ...descendants,
+      ...protectedPaths.filter((path) => dirname(path) === parent)
+        .flatMap((path) => ["--ro-bind", "/dev/null", path]),
+    ];
+  });
+  return [
+    ...projections,
+    ...protectedPaths.filter((path) => !parents.includes(dirname(path)))
+      .flatMap((path) => ["--ro-bind", "/dev/null", path]),
+    ...[...parents].reverse().flatMap((parent) => ["--remount-ro", parent]),
+  ];
+}
 
 export function resolveMachineAuthorityPaths(authorityConfigPath?: string): {
   configDirectories: string[];
@@ -178,10 +250,15 @@ export function buildMachineAuthoritySandboxLaunch(
       boundary.root,
       ...boundary.writableDescendants.flatMap((path) => ["--bind", path, path]),
     ]);
-    const hiddenReadMounts = [...readProtectedPaths, ...tokenPaths].flatMap((path) =>
-      pathExists(path) && pathIsWithinRoots(path, visibleRoots)
-        ? ["--ro-bind", "/dev/null", path]
-        : []
+    const initialMounts = readableRoots === undefined
+      ? [writableRoots === undefined ? "--bind" : "--ro-bind", "/", "/"]
+      : readableMounts;
+    const hiddenReadMounts = linuxReadProtectionMounts(
+      [...readProtectedPaths, ...tokenPaths],
+      resolveUniquePathIdentities(options.readSnapshotRoots ?? [], options.cwd),
+      visibleRoots,
+      [...initialMounts, ...writableMounts, ...protectedMounts, ...boundaryMounts],
+      pathExists,
     );
     const existingProtectedRoots = readProtectedRoots.filter(
       (path) => pathExists(path) && pathIsWithinRoots(path, visibleRoots),

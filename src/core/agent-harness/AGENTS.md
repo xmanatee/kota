@@ -46,8 +46,16 @@ the protocol and registry.
   authorization crosses a per-invocation, runtime-owned request/reply boundary:
   only its request directory is additionally writable; responses are read-only.
   Raw daemon databases and SQLite journals never cross the agent read boundary.
+  Every native invocation derives those denials from host-owned open database
+  locators, including custom state roots, independently of writer authorization.
+  Conventional invocation/host state roots remain protected without an open store.
   Linux read denials cover every mounted surface, including writable roots and
   runtime write boundaries that have no explicit read grant.
+  File-denied directories use private, read-only Linux namespace projections:
+  existing permitted entries retain their effective mounts, while future host
+  entries stay invisible. Journal masking never creates host SQLite files.
+  Absent mask mountpoints beneath read-only binds require a private projection
+  of their existing ancestor before the mask is installed.
 - Dependency discovery grants only physical `node_modules` locations along the
   canonical workspace ancestry. Scope-controlled links cannot authorize their
   targets; external package stores require explicit runtime read grants.

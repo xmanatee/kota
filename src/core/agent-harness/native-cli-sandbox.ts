@@ -1,9 +1,10 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { existingProtectedScopePaths } from "#core/tools/protected-scope-paths.js";
 import { resolvePathThroughExistingAncestor } from "#core/util/real-path.js";
 import { startNativeRunAuthorization } from "#core/workflow/native-run-authorization.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { buildMachineAuthoritySandboxLaunch, resolveMachineAuthorityPaths } from "./machine-authority-sandbox.js";
 import {
   NATIVE_CLI_EGRESS_UPSTREAM_PROXY_ENV,
@@ -235,10 +236,15 @@ export async function withNativeCliSandbox<T>(
       ...explicitRuntimeWritableRoots,
     ];
     const { configDirectories, tokenPaths } = resolveMachineAuthorityPaths(options.authorityConfigPath);
+    const databaseReadProtectedPaths = RunStateDatabase.readProtectedPaths([
+      resolve(options.cwd, options.runtimeStateRoot ?? ".kota"),
+      join(options.cwd, ".kota"),
+      join(process.cwd(), ".kota"),
+    ]);
     const readProtectedPaths = [...new Set([
       ...tokenPaths,
       ...existingProtectedScopePaths(options.cwd),
-      ...(runAuthorization?.readProtectedPaths ?? []),
+      ...databaseReadProtectedPaths,
       ...(resolve(options.cwd) === resolve(process.cwd())
         ? []
         : existingProtectedScopePaths(process.cwd())),
@@ -287,6 +293,7 @@ export async function withNativeCliSandbox<T>(
             temporaryDirectory,
           ],
           readProtectedPaths,
+          readSnapshotRoots: databaseReadProtectedPaths.map(dirname),
           readProtectedRoots,
           readProtectedRootMask,
           writeProtectedPaths,

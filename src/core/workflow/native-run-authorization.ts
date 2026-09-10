@@ -63,7 +63,6 @@ export function startNativeRunAuthorization(
   readableRoots: string[];
   writableRoots: string[];
   writeProtectedRoots: string[];
-  readProtectedPaths: string[];
   close(): void;
 } | undefined {
   const identity = runIdentity(workspace, env);
@@ -129,14 +128,11 @@ export function startNativeRunAuthorization(
       } catch { /* Missing or tampered requests fail closed at the caller's deadline. */ }
     }, 20);
     timer.unref();
-    const database = join(stateDir, "kota.sqlite");
     return {
       env: { KOTA_RUN_AUTHORIZATION: invocation },
       readableRoots: [responses, requests],
       writableRoots: [requests],
       writeProtectedRoots: [responses],
-      readProtectedPaths: [database, `${database}-wal`, `${database}-shm`, `${database}-journal`]
-        .flatMap((path) => existsSync(path) ? [path, realpathSync(path)] : [path]),
       close() {
         clearInterval(timer);
         store.close();

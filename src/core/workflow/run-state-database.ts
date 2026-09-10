@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import Database from "better-sqlite3";
+import { resolvePathIdentities } from "#core/util/real-path.js";
 import type { RunSandbox } from "./run-sandbox.js";
 import {
   initializeRunStateSchema,
@@ -78,7 +79,9 @@ function terminalResultStatus(state: TerminalRunState): WorkflowRunStatus {
 }
 
 export class RunStateDatabase {
+  private static readonly activeDatabases = new Set<RunStateDatabase>();
   readonly path: string;
+  private readonly pathIdentities: readonly string[];
   private readonly database: Database.Database;
 
   constructor(
@@ -86,7 +89,7 @@ export class RunStateDatabase {
     mode: "create-or-migrate" | "existing" | "read-only" = "create-or-migrate",
   ) {
     if (mode === "create-or-migrate") mkdirSync(stateDir, { recursive: true });
-    this.path = join(stateDir, "kota.sqlite");
+    this.path = resolve(stateDir, "kota.sqlite");
     this.database = new Database(this.path, {
       fileMustExist: mode !== "create-or-migrate",
       readonly: mode === "read-only",
@@ -107,6 +110,20 @@ export class RunStateDatabase {
         );
       }
     }
+    this.pathIdentities = resolvePathIdentities(this.path, process.cwd());
+    RunStateDatabase.activeDatabases.add(this);
+  }
+
+  /** Host-owned locators plus conventional state roots, never agent environment. */
+  static readProtectedPaths(stateRoots: readonly string[] = []): string[] {
+    const databases = [
+      ...[...RunStateDatabase.activeDatabases].flatMap((store) => store.pathIdentities),
+      ...stateRoots.flatMap((root) => resolvePathIdentities(resolve(root, "kota.sqlite"), process.cwd())),
+    ];
+    return [...new Set(databases.flatMap((database) =>
+      [database, `${database}-wal`, `${database}-shm`, `${database}-journal`]
+        .flatMap((path) => resolvePathIdentities(path, process.cwd()))
+    ))];
   }
 
   static openExisting(stateDir: string): RunStateDatabase {
@@ -119,6 +136,7 @@ export class RunStateDatabase {
 
   close(): void {
     this.database.close();
+    RunStateDatabase.activeDatabases.delete(this);
   }
 
   registerScope(input: {
