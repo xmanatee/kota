@@ -1,4 +1,5 @@
 import type { AgentEffort, AgentHarness, AgentHarnessRunOptions, AgentUsage } from "#core/agent-harness/index.js";
+import type { EvalRunIsolationBackend } from "#modules/eval-harness/public-surface.js";
 import { apiKeyNameForProvider, PROVIDER_PRESETS, resolveApiKey } from "#modules/model-clients/factory.js";
 import { getShippedModelPricingStatus } from "#modules/model-clients/pricing.js";
 import type { MatrixModelSpec } from "./model-matrix-models.js";
@@ -23,8 +24,16 @@ export function matrixExecutorAuthEnv(
   harness: AgentHarness,
   spec: MatrixModelSpec,
   scopeRoot: string,
+  isolationBackend: EvalRunIsolationBackend,
 ): Record<string, string> {
-  const adapterEnv = harness.resolveIsolatedHostAuthEnv?.(process.env) ?? {};
+  // Native adapters own login authentication; an API key is not a replacement
+  // for the host locator. Container routes are rejected by matrix preflight.
+  if (harness.modelRouting?.kind === "native") {
+    return isolationBackend.kind === "host-subprocess"
+      ? { ...harness.resolveIsolatedHostAuthEnv?.(process.env) } : {};
+  }
+  const adapterEnv = isolationBackend.kind === "host-subprocess"
+    ? harness.resolveIsolatedHostAuthEnv?.(process.env) ?? {} : {};
   const key = apiKeyNameForProvider(spec.executionProvider);
   if (!key) return { ...adapterEnv };
   const value = resolveApiKey(spec.executionProvider, undefined, { scopeRoot });

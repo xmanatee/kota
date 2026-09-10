@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { AgentHarness } from "#core/agent-harness/index.js";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
+import type { WorkflowExecutor } from "#modules/eval-harness/public-surface.js";
 import { resolveHarnessModel } from "#modules/model-clients/harness-model-resolution.js";
 import type {
   HarnessParityMatrixOptions,
@@ -20,6 +21,7 @@ import {
   runEvalFixturesForSpec,
 } from "./model-matrix-eval.js";
 import { matrixHarnessOverrides } from "./model-matrix-execution.js";
+import { matrixEvalExecutor, preflightMatrixEval, validateMatrixIsolationBackends } from "./model-matrix-isolation.js";
 import {
   buildModelSpecs,
   resolveOpenRouterPreflight,
@@ -140,7 +142,7 @@ export async function runHarnessParityModelMatrix(
     return { ok: false, reason: "invalid_harness_pair", message: (error as Error).message };
   }
   if (!Array.isArray(specs)) return specs;
-  const executions: Array<{ spec: (typeof specs)[number]; harness: AgentHarness }> = [];
+  const executions: Array<{ spec: (typeof specs)[number]; harness: AgentHarness; evalExecutor?: WorkflowExecutor }> = [];
   try {
     for (const spec of specs) {
       const names = options.harnesses?.length ? options.harnesses : [spec.defaultHarness];
@@ -173,9 +175,33 @@ export async function runHarnessParityModelMatrix(
 
   const outBaseDir = buildOutBaseDir(deps.defaultOutBaseDir, options.outDir);
   mkdirSync(outBaseDir, { recursive: true });
+  if (evalResourceProfile !== null) {
+    try {
+      const backends = options.evalIsolationBackends === undefined
+        ? undefined : validateMatrixIsolationBackends(options.evalIsolationBackends);
+      // Resolve the whole matrix before any row can consume inference.
+      for (const execution of executions) {
+        if (skipReasonFor(execution.spec, openRouterPreflight) !== null) continue;
+        execution.evalExecutor = matrixEvalExecutor({ deps, ...execution, backends });
+      }
+    } catch (error) {
+      return { ok: false, reason: "invalid_eval_isolation", message: (error as Error).message };
+    }
+    const failures: string[] = [];
+    for (const [index, execution] of executions.entries()) {
+      if (skipReasonFor(execution.spec, openRouterPreflight) !== null) continue;
+      const failure = preflightMatrixEval({
+        ...execution, executor: execution.evalExecutor!, profile: evalResourceProfile, outBaseDir, index,
+      });
+      if (failure !== null) failures.push(failure);
+    }
+    if (failures.length > 0) {
+      return { ok: false, reason: "eval_preflight_failed", message: failures.join("\n") };
+    }
+  }
   const rows: HarnessParityMatrixRow[] = [];
 
-  for (const { spec, harness } of executions) {
+  for (const { spec, harness, evalExecutor } of executions) {
     const harnessOverrides = matrixHarnessOverrides(harness, spec, options.effort);
     const skipReason = skipReasonFor(spec, openRouterPreflight);
     if (evalFixtures.fixtures.length > 0 && evalResourceProfile !== null) {
@@ -190,6 +216,7 @@ export async function runHarnessParityModelMatrix(
           outBaseDir,
           repeats,
           requestedProfile: evalResourceProfile,
+          executor: evalExecutor!,
         })),
       );
     }

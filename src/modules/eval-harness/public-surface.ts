@@ -21,6 +21,7 @@ export type {
 } from "./baseline-assessment.js";
 export { assessAgainstBaseline } from "./baseline-assessment.js";
 export type { PersistedBaseline } from "./baseline-state.js";
+export type { EvalRunIsolationBackend } from "./client.js";
 export type {
   CodeHealthAggregate,
   CodeHealthDiagnostics,
@@ -71,6 +72,7 @@ export {
   toEvalComponentAttributionAssessmentSummary,
   toEvalComponentAttributionOperatorSummary,
 } from "./eval-attribution.js";
+export { validateIsolationBackend } from "./eval-request-validation.js";
 export type { EvalSetParams, EvalSetReport } from "./eval-set.js";
 export { runEvalSet } from "./eval-set.js";
 export type {
@@ -250,3 +252,4 @@ export {
   createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
 } from "./subprocess-executor.js";
+export { containerExecutionProfileCanRun } from "./subprocess-executor-preflight.js";

@@ -1,4 +1,5 @@
 import type { AgentEffort } from "#core/agent-harness/index.js";
+import type { EvalRunIsolationBackend } from "#modules/eval-harness/public-surface.js";
 
 export type HarnessParityMatrixProvider =
   | "active-preset"
@@ -25,6 +26,8 @@ export type HarnessParityMatrixOptions = {
   candidateSets?: string[];
   scenarios?: string[];
   evalFixtures?: string[];
+  /** Eval execution settings keyed by resolved provider (e.g. openai, openrouter, ollama). */
+  evalIsolationBackends?: Record<string, EvalRunIsolationBackend>;
   harnesses?: string[];
   repeats?: number;
   maxTurns?: number;
@@ -254,6 +257,8 @@ export type HarnessParityMatrixResult =
         | "invalid_repeats"
         | "invalid_max_turns"
         | "invalid_resource_profile"
+        | "invalid_eval_isolation"
+        | "eval_preflight_failed"
         | "invalid_candidate_set"
         | "invalid_model"
         | "fixtures_load_error"

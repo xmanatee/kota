@@ -2,7 +2,6 @@ import { mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import {
-  createSubprocessExecutor,
   detectHostSubprocessResourceProfile,
   type EvalSetReport,
   type ExecutionProfilePreflightResult,
@@ -22,7 +21,7 @@ import type {
   HarnessParityMatrixRow,
 } from "./client.js";
 import type { HarnessParityDeps } from "./harness-parity-operations.js";
-import { matrixEstimatedCost, matrixExecutorAuthEnv, matrixHarnessOverrides } from "./model-matrix-execution.js";
+import { matrixEstimatedCost, matrixHarnessOverrides } from "./model-matrix-execution.js";
 import type {
   MatrixModelSpec,
   MatrixOpenRouterPreflight,
@@ -206,14 +205,6 @@ function rowIdForEvalRun(spec: MatrixModelSpec, harnessName: string, run: Fixtur
     .join("-");
 }
 
-function defaultEvalExecutor(deps: HarnessParityDeps, spec: MatrixModelSpec, harnessName: string): WorkflowExecutor {
-  return createSubprocessExecutor({
-    kotaBinaryPath: deps.kotaBinaryPath,
-    isolationBackend: { kind: "host-subprocess" },
-    extraEnv: matrixExecutorAuthEnv(resolveAgentHarness(harnessName), spec, deps.scopeRoot),
-  });
-}
-
 export async function runEvalFixturesForSpec(args: {
   deps: HarnessParityDeps;
   options: HarnessParityMatrixOptions;
@@ -224,6 +215,7 @@ export async function runEvalFixturesForSpec(args: {
   outBaseDir: string;
   repeats: number;
   requestedProfile: ResourceProfile;
+  executor: WorkflowExecutor;
 }): Promise<HarnessParityMatrixRow[]> {
   const skipReason = skipReasonFor(args.spec, args.openRouterPreflight);
   if (skipReason !== null) {
@@ -262,7 +254,7 @@ export async function runEvalFixturesForSpec(args: {
   const report = await runEvalSet({
     workspaceRoot: args.deps.scopeRoot,
     fixtures: args.fixtures,
-    executor: args.deps.evalExecutor ?? defaultEvalExecutor(args.deps, args.spec, harnessName),
+    executor: args.executor,
     requestedProfile: args.requestedProfile,
     agentExecutionOverride: {
       harness: harnessName,

@@ -11,6 +11,7 @@ import type {
   HarnessParityMatrixOptions,
   HarnessParityMatrixRow,
 } from "./client.js";
+import { validateMatrixIsolationBackends } from "./model-matrix-isolation.js";
 
 type MatrixCommandOptions = {
   scenario: string[];
@@ -19,6 +20,7 @@ type MatrixCommandOptions = {
   candidate: string[];
   candidateSet: string[];
   evalFixture: string[];
+  evalIsolationBackends?: string;
   repeats: string;
   maxTurns?: string;
   effort?: string;
@@ -77,6 +79,7 @@ export function registerHarnessParityMatrixCommand(
       [] as string[],
     )
     .option("--repeats <n>", "Sequential repeats per row", "1")
+    .option("--eval-isolation-backends <json>", "Eval isolation settings by resolved provider; same backend schema as eval run")
     .option(
       "--max-turns <n>",
       "Upper turn bound for iterating harnesses (ignored by thin)",
@@ -147,6 +150,9 @@ async function runMatrixCommand(
       candidateSets: opts.candidateSet,
     }),
     ...(opts.evalFixture.length > 0 && { evalFixtures: opts.evalFixture }),
+    ...(opts.evalIsolationBackends !== undefined && {
+      evalIsolationBackends: validateMatrixIsolationBackends(JSON.parse(opts.evalIsolationBackends)),
+    }),
     repeats,
     ...(maxTurns !== undefined && { maxTurns }),
     ...(effort !== undefined && { effort }),

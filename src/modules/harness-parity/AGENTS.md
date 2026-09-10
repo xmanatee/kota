@@ -39,6 +39,19 @@ ids stay on ModelClient routes and native adapters receive native ids.
 Provider defaults apply unless an effort is requested; unsupported local effort
 rejects before launch. Scenario and eval execution carry configured output-token
 limits, and eval subprocesses resolve candidate auth in the original scope.
+Eval isolation settings use the eval-harness backend schema, keyed by resolved
+provider in `evalIsolationBackends` (CLI: `--eval-isolation-backends <json>`).
+Every runnable eval route preflights before matrix inference; missing backend,
+image, verifier isolation, or enforced egress stops execution with attributable
+preflight evidence. Provider policies must match their row's resolved provider.
+OpenRouter container candidates require provider egress; omitted or offline
+network policies reject before inference.
+Candidates use the shared subprocess executor and scoring stays offline. Native
+auth locators remain host-only. Native container login and local-provider
+container endpoint routing are unsupported and reject before any matrix inference,
+even when Docker is ready. Resuming these routes requires implementation through
+the adapter credential, eval isolation, and model-client owners; host login or a
+host model installation alone is insufficient. Runnable non-gating egress remains non-gating.
 Cost prefers complete runtime usage; otherwise complete tokens with shipped flat
 rates yield an uncached-token estimate. Unknown pricing and tiered aggregate
 usage remain unavailable rather than becoming zero-cost evidence.

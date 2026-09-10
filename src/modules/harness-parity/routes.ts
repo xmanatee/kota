@@ -20,6 +20,7 @@ import {
   runHarnessParity,
   runHarnessParityMatrix,
 } from "./harness-parity-operations.js";
+import { validateMatrixIsolationBackends } from "./model-matrix-isolation.js";
 
 function asStringArray(value: unknown): string[] | undefined {
   if (value === undefined) return undefined;
@@ -138,6 +139,14 @@ async function handleMatrix(
     return;
   }
   const options: HarnessParityMatrixOptions = {};
+  if (body.evalIsolationBackends !== undefined) {
+    try {
+      options.evalIsolationBackends = validateMatrixIsolationBackends(body.evalIsolationBackends);
+    } catch (error) {
+      jsonResponse(res, 400, { error: (error as Error).message });
+      return;
+    }
+  }
   const scenarios = asStringArray(body.scenarios);
   if (scenarios !== undefined) options.scenarios = scenarios;
   const harnesses = asStringArray(body.harnesses);

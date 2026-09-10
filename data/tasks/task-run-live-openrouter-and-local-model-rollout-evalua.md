@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
 ---
@@ -137,3 +137,121 @@ host capacity through its normal local runtime; do not fabricate local parity or
 substitute a cloud row. Preserve real missing credentials/model availability and
 unrun evidence as explicit remaining acceptance, not as grounds to defer code
 that can be corrected now. Keep Codex production defaults unchanged.
+
+## Result — 2026-09-10 isolation repair and blocked live evaluation
+
+Repaired isolation configuration propagation; native authentication and local
+endpoint routing remain unimplemented (see remaining implementation below).
+Matrix CLI/HTTP requests now carry
+provider-specific eval-harness isolation settings into the existing subprocess
+executor. Source-scope provider credentials and selected harness boundary facts
+reach candidate launches; host login locators stay out of containers. Every
+runnable eval route preflights before scenario inference. Missing image,
+backend, or verifier isolation stops the matrix with persisted evidence;
+provider mismatches reject before launch. Scoring remains offline and existing
+non-gating egress remains non-gating. No production preset changed.
+
+No live inference ran. `rollout-preflight.json` records the exact Codex/GPT-5.5
+baseline, all seven required OpenRouter models (including both DeepSeek variants),
+and a provisional Ollama Qwen2.5-Coder 3B install target. It pins a scenario/fixture
+cohort and three planned sequential repeats; all performance measurements and
+support tiers remain unavailable. The local model was not discovered/installed
+and its capacity/suitability is unmeasured. The normal Ollama pull command failed
+at the denied connection. Raw/scaffold evaluation remains outstanding.
+
+Docker info/image inspection and Ollama/LM Studio endpoint access were denied in
+this execution context. This does not contradict today's recorded host readiness
+or existing-key authentication success. No scope/deployment secret was read by
+the readiness probe; the process has no OpenRouter key. No absent host credential,
+absent Docker service, or incapable candidate is inferred from these denials.
+A compatible image, provider egress/auth, and native baseline execution remain
+unverified. The current metadata resolver also leaves exact GPT-5.5/local
+capability evidence unavailable; that evidence must be collected before gating.
+
+No candidate is promoted or rejected. Whether KOTA can run without Codex/Claude
+for the selected task classes remains unestablished. The original 90% of Codex
+pass^k/no-P0 criterion and narrower-tier measurement requirements are preserved.
+
+Validation: `pnpm check:fast` passed, including production/test typechecks, lint,
+task validation, and generated bindings. Six matrix owner tests passed through
+HTTP routing, the shared subprocess launcher with a controlled Docker port,
+calibrated offline scoring, sequential repeats, credential isolation, and
+pre-inference rejection. A final focused test also verifies that host login
+locators never enter candidate containers. The broader owner selection passed
+81 other files; its unrelated dependency-scan failure remains the existing
+autonomy security-review test-support import of codex-agent-harness. These are
+implementation proofs, not live rollout evidence. CLI help and malformed-isolation
+rejection are retained as rendered operator transcripts.
+
+Evidence: builder run `2026-09-10T02-03-15-941Z-builder-2zxsrj`, runtime `agent/`
+artifacts `rollout-preflight.json`, `readiness/eval-preflight/`,
+`rollout-decision.md`, `local-model-install.txt`, `matrix-eval-tests.txt`,
+`matrix-auth-isolation-test.txt`, `owner-tests.txt`, `check-fast.txt`,
+`matrix-cli-help.txt`, and `matrix-cli-invalid-isolation.txt`.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs/*
+description: Attributable readiness evidence from a runtime-authorized contained evaluation context able to use Docker, discover/install a local model, and use existing provider credentials through their owners. Native/local routing also requires the implementation below.
+
+The path is a discovery hint; equivalent scoped probes or exports are valid.
+Existing run directories and historical host checks do not establish readiness
+in the evaluation context. Review execution provenance and successful isolation,
+egress/auth, baseline, and local-runtime readiness before reopening through the
+normal task operation. Collection is already authorized; no renewed permission
+or manual operator capture is required when scoped collection is available.
+
+A runtime-authorized contained evaluation context with access to Docker, local
+model discovery/install, and owner-mediated use of the existing provider and
+native baseline credentials. This agent's current filesystem/network policy
+prevents those scoped operations, despite the task's existing authorization.
+External readiness alone cannot resume the full matrix. Complete the native/local
+routing implementation below, then establish a compatible isolated image and working egress/auth,
+installing an appropriate local model within measured capacity, and running the
+preserved cohort with comparable evidence. Do not expose deployment secrets or
+grant candidate code host authority. The shared whole-container provider-egress
+policy is still non-gating and must satisfy the required evidence/boundary
+conditions before model promotion. A preflight skip does not complete this task.
+
+## Repair review — unsupported routes contained
+
+The earlier result overstated execution readiness. Docker readiness and existing
+host credentials do not make the native baseline executable: the eval container
+has a fresh HOME, host login locators are intentionally excluded, and Codex strips
+OPENAI_API_KEY. The matrix now rejects native container login before any candidate
+or scenario inference, records the routing issue separately from resource/verifier
+readiness, and does not resolve an unrelated provider key for a native adapter.
+
+Ollama and LM Studio container rows now likewise reject before inference. Their
+model-client defaults address container localhost; offline containers cannot reach
+the host server, and the shared egress schema has no local-provider policy.
+Installing a model on the host does not repair this implementation gap. The
+rejection retains isolation and does not substitute host execution or a cloud row.
+
+### Remaining implementation and acceptance
+
+- Implement owner-mediated contained native login through the native adapter and
+  eval isolation owners, preserving the exact Codex/GPT-5.5 baseline. Prove actual
+  authentication and credential containment; an OpenAI API key is not that proof.
+- Implement contained local endpoint routing through eval isolation and the
+  model-client owners, including endpoint propagation, supported network policy,
+  and positive inference plus denied unintended access. Then discover/install a
+  suitable local model within measured host capacity and run raw/scaffold rows.
+- Independently resolve the external execution-context access described in
+  Blocked on. Access to Docker, host auth, or a populated Ollama server alone is
+  insufficient. The task stays blocked for that external precondition and remains
+  unfinished for the two internal routing requirements; containment is not their
+  implementation and does not complete the rollout task.
+
+All original candidate, metric, equal-repeat, 90% baseline pass^k/no-P0, and tier
+requirements remain unchanged. No live inference ran, no support decision is
+claimed, and Codex production defaults remain unchanged.
+
+Repair verification: nine focused matrix owner tests passed, including ready
+container cases for native login, Ollama, and LM Studio that reject with no
+candidate/scenario launches or host-login resolution. The controlled OpenRouter
+launch, sequential repeats, offline scorer, missing-isolation, and schema rejection
+cases still pass. These establish containment and retained behavior, not live
+routing or model quality. Repair-specific static checks and operator preflight
+results are recorded in the run summary and repair2 artifacts.

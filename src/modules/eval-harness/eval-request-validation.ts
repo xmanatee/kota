@@ -7,7 +7,6 @@ import type {
   EvalRunOptions,
 } from "./client.js";
 import {
-  type EvalJsonObject,
   type EvalJsonValue,
   isEvalJsonObject,
 } from "./eval-route-http.js";
@@ -111,9 +110,13 @@ export function validateAgyModelEvaluationRequest(
   };
 }
 
-function validateIsolationBackend(
-  request: EvalJsonObject,
+export function validateIsolationBackend(
+  raw: unknown,
 ): EvalRunIsolationBackend {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error("isolationBackend must be an object.");
+  }
+  const request = raw as Record<string, EvalJsonValue>;
   if (request.kind === "host-subprocess") {
     return { kind: "host-subprocess" };
   }
