@@ -95,3 +95,21 @@ protecting valuable in-progress implementation from forced termination.
   yielded/resumed runs, task outcomes, and duplicate work before and after.
 - Focused lifecycle artifacts for normal completion, converging continuation,
   preserve-yield-resume, decomposition, and checkpoint failure.
+
+## Live Coverage Gap, September 10
+
+Integration repair must participate in the same evidence contract. Restored runs
+`2026-09-10T02-03-15-088Z-builder-2e94l1` and
+`2026-09-10T02-03-15-660Z-builder-59xofb` spawned Codex integration agents and
+published successfully, but `continueRunIntegration` in
+`core/workflow/run-integration-policy.ts` supplied no event/progress persistence,
+set `persistSession: false`, and discarded the successful response and usage.
+Process identity and eventual validation survived; an ordinary agent trajectory
+was not recorded. Successful publication is not proof of complete observability.
+
+Reuse the existing agent event/artifact mechanism for every integration conflict
+and validation continuation, including errors and cancellation. Correlate it to
+the original run and repair attempt; retain a concise result, verification and
+usage without exposing private reasoning or credentials. Prove that monitoring
+can distinguish active repair, serialized publication waiting and a genuine stall
+without a separate logger, watchdog, agent protocol or workflow-specific state.

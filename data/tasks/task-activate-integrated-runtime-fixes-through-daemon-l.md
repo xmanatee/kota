@@ -95,6 +95,23 @@ substitute for the complete live acceptance below.
 
 ## Blocked on
 
+Live monitoring on September 10 observed a successful first activation:
+integration `5f3b76bd5` requested restart at 15:50:29Z; PID 47676 drained after
+the next integration, exited at 15:52:09Z, and launchd-owned replacement PID 56008
+loaded `a1e554510`. It restored 29 queued identities and admitted builder
+`2026-09-10T02-03-16-222Z-builder-91e2py`. The three recovered writers subsequently
+showed durable successful publications, zero resource leases and removed
+worktrees. `/health` remained healthy. These are live partial acceptance facts,
+not a substitute for the complete scenario below.
+
+The third publication `9364f31be` then requested another drain. `/status` exposed
+activation `draining`, while `/workflow/status` described a generic runtime pause.
+Do not mistake this for an owner pause or override the drain. Finish checking
+coalescing and refill after the active run terminates. Its expensive evidence
+preflight is owned by `task-bound-recovery-evidence-collection-to-relevant-work`.
+Keep restart disposition intelligible through the existing status contract,
+without adding another pause owner or activation mechanism.
+
 kind: operator-capture
 path: .kota/runs
 description: Runtime-owned isolated live activation evidence with fresh process/API identity, preserved queued ownership, and capacity refill; equivalent attributable exports are accepted.
