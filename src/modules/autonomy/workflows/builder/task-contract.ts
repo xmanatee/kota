@@ -12,6 +12,7 @@ import { type PublishedRepoTaskQueue, readPublishedRepoTaskQueue } from "#module
 import {
   listFullRepoTasks,
   type RepoTaskFullRecord,
+  type RepoTaskPriority,
   selectActionableRepoTasks,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { requireResolvedTargetTask } from "./task-state-repair-checks.js";
@@ -34,8 +35,8 @@ export type BuilderTaskReviewContract = TaskReviewContract;
 
 export type BuilderTaskDispatchPayload = Omit<
   AutonomyQueueAvailableEvent,
-  "scopeId"
->;
+  "scopeId" | "priority"
+> & Readonly<{ priority: RepoTaskPriority }>;
 
 export type BuilderTaskTarget = Readonly<{
   actionable: boolean;
