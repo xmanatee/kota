@@ -29,11 +29,10 @@ resources:
   - url: https://github.com/sourcegraph/CodeScaleBench
     added: "2026-05-29"
     notes: "CodeScaleBench evaluates coding agents' use of external context-retrieval tools on large and multi-repo developer tasks. Monitor as a harness-parity/eval signal for retrieval-target diagnostics, baseline-vs-MCP trace comparison, and task-relevant context coverage; do not import the benchmark runner."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:80f054daf64f6d50b2660e00564a4bb3
-      summary: "CodeScaleBench is accessible; its retrieval diagnostics are already covered by completed harness-parity work, and this run opened task-add-eval-harness-verifier-calibration-probes for the remaining verifier-integrity QA signal."
-      last_seen_at: "2026-05-29T09:16:50.140Z"
+      fingerprint: sha256:2babe02bcb1baf05237d75d05df04715
+      summary: "The README describes paired local-versus-remote retrieval evaluations, versioned benchmark suites, inspectable result snapshots, and null/golden/adversarial verifier calibration."
+      last_seen_at: "2026-09-10T00:19:21.078Z"
   - url: https://github.com/zsworld6/projdevbench
     added: "2026-06-22"
     notes: "ProjDevBench evaluates coding agents on end-to-end project development with OJ-style execution feedback and resource-limit diagnostics. Monitor as an eval-harness signal for scalable-design, time/memory-budget, and project-construction canaries; do not import the benchmark, online judge, or LLM review rubric."
@@ -338,7 +337,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:1092aa0ccf94a6707d197816c20d32c6
-      summary: "Returned a partial research index describing its teams and linking \\\"Scenarios for our Economic Future\\\"; the retained content does not contain the linked research."
+      summary: "Returned a partial research index describing its teams and linking \\\\\\\"Scenarios for our Economic Future\\\\\\\"; the retained content does not contain the linked research."
       last_seen_at: "2026-09-09T23:42:21.298Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
@@ -788,11 +787,10 @@ resources:
   - url: https://github.com/rowboatlabs/rowboat
     added: "2026-06-19"
     notes: "Rowboat is a local-first AI coworker that turns email, meetings, and notes into an inspectable Markdown knowledge graph with background agents. Monitor as a knowledge/memory/client signal for editable operator-owned context and recurring brief generation; map to KOTA stores, clients, workflows, and channels rather than adding a parallel memory product."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:2cac877f780e94a500c2d0fd4e0c7439
-      summary: "Rowboat is accessible; its editable Markdown knowledge-graph pattern reinforces KOTA's existing knowledge/memory/client direction without opening a duplicate memory-subsystem task."
-      last_seen_at: "2026-06-19T13:36:13.092Z"
+      fingerprint: sha256:8d3e7385e3f30c91c9ca1a7d799ffbba
+      summary: "The README describes a local desktop coworker with editable Markdown knowledge, email and meeting context, event- and schedule-triggered agents, an isolated browser, project workspaces, and MCP integrations."
+      last_seen_at: "2026-09-10T00:19:21.078Z"
   - url: https://github.com/lfnovo/open-notebook
     added: "2026-06-19"
     notes: "Open Notebook is a self-hosted, multi-model NotebookLM-style research surface with source ingestion, vector/full-text search, citations, content transformations, API access, and podcast generation. Monitor as a read-document/knowledge/rendering signal for source-backed research artifacts; do not import a notebook subsystem."
