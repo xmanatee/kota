@@ -130,6 +130,7 @@ describe("targeted builder contract", () => {
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
+      runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload },
       state: { read: <T,>(key: string) => store.readScopeStateValue<T>("scope", key) },
     };
@@ -158,6 +159,7 @@ describe("targeted builder contract", () => {
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
+      runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload },
       state: { read: <T,>(key: string) => store.readScopeStateValue<T>("scope", key) },
     };
@@ -233,6 +235,7 @@ describe("targeted builder contract", () => {
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
+      runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload: listBuilderTaskDispatches(root)[0]! },
       state: { read: <T,>(key: string) => store.readScopeStateValue<T>("scope", key) },
     };
@@ -307,6 +310,7 @@ describe("targeted builder contract", () => {
     }
     const input = {
       scopeRoot: root, stateDir: join(root, ".kota"), scopeId: "scope", workflowName: "builder", runId: "retained",
+      runtimeStateDir: join(root, ".kota"),
       trigger: { event: "autonomy.queue.available", schemaRef: null, payload: listBuilderTaskDispatches(root)[0]! },
       state: { read: () => ({ revision: 0, value: null }) },
     };
