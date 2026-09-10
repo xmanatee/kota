@@ -85,7 +85,7 @@ describe("parseWatchlist / serializeWatchlist", () => {
       "",
     ].join("\n");
 
-    expect(() => parseWatchlist(raw)).toThrow(/incomplete snapshot/);
+    expect(() => parseWatchlist(raw)).toThrow(/resources\.0\.snapshot\.summary/);
   });
 
   it("rejects unknown top-level fields", () => {
@@ -97,7 +97,33 @@ describe("parseWatchlist / serializeWatchlist", () => {
       "",
     ].join("\n");
 
-    expect(() => parseWatchlist(raw)).toThrow(/unknown watchlist field/);
+    expect(() => parseWatchlist(raw)).toThrow(/Unrecognized key.*mystery/);
+  });
+
+  it.each([
+    ["# no resources", /expected object/],
+    ["resources: []\nother: true", /Unrecognized key.*other/],
+    ["resources: null", /resources/],
+    ["resources: [", /YAML/],
+    ["resources: []\nresources: []", /unique/],
+    ["resources: []\n---\nresources: []", /multiple documents/],
+    ["resources: !unknown []", /Unresolved tag/],
+    ["resources: [{url: true, added: 2026-04-14}]", /resources\.0\.url/],
+    ["resources: [{url: https://example.com, added: 123}]", /resources\.0\.added/],
+    ["resources: [{url: https://example.com, added: 2026-04-14, status: active}]", /resources\.0\.status/],
+    ["resources: [&source {url: https://example.com, added: 2026-04-14}, *source]", /alias/],
+  ])("diagnoses malformed input without dropping it: %s", (raw, diagnostic) => {
+    expect(() => parseWatchlist(raw)).toThrow(diagnostic);
+  });
+
+  it("round-trips empty lists and ambiguous string scalars", () => {
+    const empty = { header: "# Nothing monitored", entries: [] };
+    expect(parseWatchlist(serializeWatchlist(empty))).toEqual(empty);
+    const file = { header: "", entries: [{
+      url: "https://example.com", added: "2026-04-14", canonicalizedFrom: [],
+      notes: "true", snapshot: { fingerprint: "123", summary: "", last_seen_at: "2026-04-14T12:00:00Z" },
+    }] };
+    expect(parseWatchlist(serializeWatchlist(file))).toEqual(file);
   });
 
   it("rejects canonicalized aliases that remain listed as refresh resources", () => {
@@ -230,6 +256,67 @@ describe("applyWatchlistUpdates", () => {
     mkdirSync(join(tempDir, "data"), { recursive: true });
     writeFileSync(path, raw, "utf-8");
   }
+
+  it("preserves YAML values and comments through repeated saves and a single-source update", () => {
+    seed(String.raw`# Operator header
+
+resources:
+  # Quoted source evidence
+  - url: https://example.com/quoted # source identity
+    added: 2026-04-14
+    canonicalized_from: ['https://old.example.com/quoted']
+    notes: 'Owner''s C:\work\n is literal' # operator note
+    status: inaccessible
+    snapshot:
+      fingerprint: sha256:quoted
+      summary: "Links \"Scenarios\" and C:\\work; line\nnext\tcolumn" # evidence note
+      last_seen_at: 2026-04-17T10:00:00.000Z
+  - url: https://example.com/multiline
+    added: '2026-04-15'
+    notes: >-
+      Folded owner text
+      with a second line.
+    snapshot:
+      fingerprint: sha256:multiline
+      summary: |
+        A multiline observation:
+          "quoted" with literal \n and C:\work
+        Final line.
+      last_seen_at: "2026-04-17T10:00:00.000Z"
+  - url: https://example.com/update
+    added: 2026-04-16
+# Footer
+`);
+    const before = readWatchlist(tempDir);
+    expect(before.entries[0].notes).toBe(String.raw`Owner's C:\work\n is literal`);
+    expect(before.entries[0].snapshot?.summary).toBe('Links "Scenarios" and C:\\work; line\nnext\tcolumn');
+    expect(before.entries[1].snapshot?.summary).toBe('A multiline observation:\n  "quoted" with literal \\n and C:\\work\nFinal line.\n');
+    for (let cycle = 0; cycle < 5; cycle++) {
+      writeWatchlist(tempDir, readWatchlist(tempDir));
+      expect(readWatchlist(tempDir)).toEqual(before);
+    }
+    const content = "Current source content.";
+    const payload = { updates: [{ url: "https://example.com/update", accessible: true as const, content, summary: 'New "quoted" summary.\nNext line.' }] };
+    const first = applyWatchlistUpdates(tempDir, payload);
+    expect(first[0].classification).toBe("new");
+    const second = applyWatchlistUpdates(tempDir, payload);
+    expect(second[0].classification).toBe("unchanged");
+    const after = readWatchlist(tempDir);
+    expect(after.entries.slice(0, 2)).toEqual(before.entries.slice(0, 2));
+    expect(after.header).toBe(before.header);
+    const saved = readFileSync(join(tempDir, "data/watchlist.yaml"), "utf8");
+    for (const comment of ["# Operator header", "# Quoted source evidence", "# source identity", "# operator note", "# evidence note", "# Footer"]) {
+      expect(saved).toContain(comment);
+    }
+    expect(parseWatchlist(serializeWatchlist(after))).toEqual(after);
+  });
+
+  it("leaves invalid input intact when an update cannot be decoded", () => {
+    const raw = "resources: [{url: https://example.com, added: 123}]\n";
+    seed(raw);
+    expect(() => applyWatchlistUpdates(tempDir, { updates: [] })).toThrow(/resources\.0\.added/);
+    expect(readFileSync(join(tempDir, "data/watchlist.yaml"), "utf8")).toBe(raw);
+  });
 
   it("writes a snapshot for a newly-seen entry", () => {
     seed(

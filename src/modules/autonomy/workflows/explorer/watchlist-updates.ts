@@ -270,10 +270,8 @@ export function applyWatchlistUpdates(
     results.push({ url: update.url, classification: classification.kind });
   }
 
-  writeWatchlist(workspaceRoot, {
-    header: file.header,
-    entries,
-  });
+  file.entries = entries;
+  writeWatchlist(workspaceRoot, file);
 
   return results;
 }

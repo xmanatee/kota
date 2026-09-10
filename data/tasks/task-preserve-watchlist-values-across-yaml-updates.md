@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Preserve watchlist values across YAML updates
@@ -32,3 +32,43 @@ quotes, literal backslashes, multiline text, dates and malformed input at the
 serialization owner. Use proportionate existing tests and one real-file check,
 not field-by-field configuration assertions. Observe a live explorer update
 without unrelated escaping churn; unchanged evidence must not trigger review.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Runtime-owned candidate explorer execution with live source observations, unchanged unrelated YAML values, and repeat-review suppression; equivalent attributable exports are accepted.
+
+Runtime-owned live explorer evidence for the candidate YAML implementation. The
+required live update and subsequent unchanged-evidence review skip have not been
+observed. Resume when an authorized isolated execution or attributable export
+provides the candidate code/run identity, live source observations, before/after
+watchlist values showing no unrelated escaping churn, and the later review
+decision on unchanged evidence. No new owner permission or prescribed capture
+directory is required; equivalent accessible evidence is sufficient.
+
+## Retained implementation and evidence
+
+The structured YAML boundary, document-preserving update consumer, focused
+regressions, and evidence-backed Anthropic snapshot repair are retained. These
+changes address serialization safely; they do not establish live acceptance.
+The prior done disposition was premature.
+
+The existing real-file probe preserves all 116 entries through five round trips
+and the other 115 entries through a single-source update. It uses a freshly
+fetched GitHub README replayed through a controlled web tool port. Its initial
+review admission and repeated review suppression are production-owner checks,
+not a live explorer workflow observation.
+
+During repair, the accessible workspace run archive contained no explorer runs.
+The public workflow trial path was inspected but not executed: its source-tree
+copy includes explicitly denied environment files. No scoped KOTA execution or
+export connector is available in this repair session. This limitation concerns
+this sandbox only and makes no claim about host credentials or capabilities.
+
+The existing probe, before/after files, source capture, historical reproduction,
+and snapshot attribution are copied to
+`.kota/runs/watchlist-yaml-repair-evidence/` for workspace-local review; originals
+remain in the builder run evidence. `live-acceptance-status.json` records the
+collection assessment. The original acceptance criteria above remain unmet only
+for the live explorer observation.

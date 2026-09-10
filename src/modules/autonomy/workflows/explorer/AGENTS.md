@@ -33,3 +33,7 @@ upstream product changes. Observations and reviewed fingerprints publish
 through the existing post-integration state follow-up, including no-action.
 Source content and failures stay in retained run evidence after sandbox cleanup;
 the agent receives working copies inside its authorized run directory.
+
+Watchlist updates preserve operator values, comments, and untouched snapshots
+through the structured YAML document. Unsupported YAML and invalid domain values
+fail before writing; source entries cannot share mutable values through aliases.

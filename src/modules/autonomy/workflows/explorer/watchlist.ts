@@ -1,237 +1,61 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { type Document, isMap, isSeq, parseDocument, type YAMLMap } from "yaml";
+import { z } from "zod";
 
 export const WATCHLIST_FILE = "data/watchlist.yaml";
 
-export type WatchlistSnapshot = {
-  fingerprint: string;
-  summary: string;
-  last_seen_at: string;
-};
+const snapshotSchema = z.strictObject({
+  fingerprint: z.string(),
+  summary: z.string(),
+  last_seen_at: z.string().min(1),
+});
+const entrySchema = z.strictObject({
+  url: z.string().min(1),
+  added: z.string().min(1),
+  canonicalized_from: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+  status: z.literal("inaccessible").optional(),
+  snapshot: snapshotSchema.optional(),
+});
+const fileSchema = z.strictObject({ resources: z.array(entrySchema) });
 
-export type WatchlistStatus = "inaccessible";
-
-export type WatchlistEntry = {
-  url: string;
-  added: string;
+export type WatchlistSnapshot = z.infer<typeof snapshotSchema>;
+export type WatchlistStatus = NonNullable<z.infer<typeof entrySchema>["status"]>;
+export type WatchlistEntry = Omit<z.infer<typeof entrySchema>, "canonicalized_from"> & {
   canonicalizedFrom?: string[];
-  notes?: string;
-  status?: WatchlistStatus;
-  snapshot?: WatchlistSnapshot;
 };
-
 export type WatchlistFile = {
-  header: string;
+  readonly header: string;
   entries: WatchlistEntry[];
 };
 
-const OPERATOR_FIELDS = new Set([
-  "url",
-  "added",
-  "canonicalized_from",
-  "notes",
-  "status",
-]);
-const SNAPSHOT_FIELDS = new Set(["fingerprint", "summary", "last_seen_at"]);
+// Formatting belongs to the parsed file, outside its semantic values. Keep that
+// file through read/modify/write so YAML comments and scalar styles survive.
+const documents = new WeakMap<WatchlistFile, Document.Parsed>();
 
-function stripQuotes(raw: string): string {
-  const v = raw.trim();
-  if (
-    (v.startsWith('"') && v.endsWith('"') && v.length >= 2) ||
-    (v.startsWith("'") && v.endsWith("'") && v.length >= 2)
-  ) {
-    return v.slice(1, -1);
+function parseDocumentChecked(raw: string): Document.Parsed {
+  const document = parseDocument(raw);
+  const diagnostics = [...document.errors, ...document.warnings];
+  if (diagnostics.length > 0) {
+    throw new Error(`Invalid watchlist YAML: ${diagnostics.map((error) => error.message).join("; ")}`);
   }
-  return v;
+  return document;
 }
 
-function quoteIfNeeded(value: string): string {
-  if (value === "") return '""';
-  if (/^[A-Za-z0-9._:/\-+@]+$/.test(value) && !/^\d{4}-\d{2}-\d{2}/.test(value)) {
-    return value;
+function decodeEntries(document: Document): WatchlistEntry[] {
+  // Aliases cannot be edited independently without changing another source.
+  const value: unknown = document.toJS({ maxAliasCount: 0 });
+  const result = fileSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error(`Invalid watchlist: ${result.error.issues.map((issue) =>
+      `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
   }
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
-
-function parseLine(line: string): { key: string; value: string } | null {
-  const colon = line.indexOf(":");
-  if (colon < 0) return null;
-  const key = line.slice(0, colon).trim();
-  const value = stripQuotes(line.slice(colon + 1));
-  return { key, value };
-}
-
-export function parseWatchlist(raw: string): WatchlistFile {
-  const lines = raw.split(/\r?\n/);
-  let i = 0;
-  const headerLines: string[] = [];
-  while (i < lines.length && lines[i].trim() !== "resources:") {
-    headerLines.push(lines[i]);
-    i += 1;
-  }
-  if (i >= lines.length) {
-    return { header: headerLines.join("\n"), entries: [] };
-  }
-  const header = headerLines.join("\n");
-  i += 1;
-
-  type WorkingEntry = {
-    url: string;
-    added: string;
-    canonicalizedFrom?: string[];
-    notes?: string;
-    status?: WatchlistStatus;
-    snapshot?: Partial<WatchlistSnapshot>;
-  };
-
-  const entries: WatchlistEntry[] = [];
-  let current: WorkingEntry | null = null;
-  let inSnapshotBlock = false;
-  let inCanonicalizedFromBlock = false;
-
-  const commit = () => {
-    if (!current) return;
-    let snapshot: WatchlistSnapshot | undefined;
-    if (current.snapshot) {
-      const snap = current.snapshot;
-      if (
-        typeof snap.fingerprint === "string" &&
-        typeof snap.summary === "string" &&
-        typeof snap.last_seen_at === "string"
-      ) {
-        snapshot = {
-          fingerprint: snap.fingerprint,
-          summary: snap.summary,
-          last_seen_at: snap.last_seen_at,
-        };
-      } else {
-        throw new Error(
-          `watchlist entry ${current.url || "<unknown>"} has an incomplete snapshot block`,
-        );
-      }
-    }
-    entries.push({
-      url: current.url,
-      added: current.added,
-      ...(current.canonicalizedFrom !== undefined &&
-      current.canonicalizedFrom.length > 0
-        ? { canonicalizedFrom: current.canonicalizedFrom }
-        : {}),
-      ...(current.notes !== undefined ? { notes: current.notes } : {}),
-      ...(current.status !== undefined ? { status: current.status } : {}),
-      ...(snapshot !== undefined ? { snapshot } : {}),
-    });
-    current = null;
-    inSnapshotBlock = false;
-    inCanonicalizedFromBlock = false;
-  };
-
-  for (; i < lines.length; i += 1) {
-    const rawLine = lines[i];
-    if (rawLine.trim() === "") continue;
-    if (rawLine.trim().startsWith("#")) continue;
-
-    const listMatch = rawLine.match(/^ {2}-\s+(.*)$/);
-    if (listMatch) {
-      commit();
-      const inner = listMatch[1];
-      const parsed = parseLine(inner);
-      if (!parsed || parsed.key !== "url") {
-        throw new Error(`watchlist list item must start with url: got ${rawLine}`);
-      }
-      current = { url: parsed.value, added: "" };
-      inSnapshotBlock = false;
-      inCanonicalizedFromBlock = false;
-      continue;
-    }
-
-    if (!current) {
-      throw new Error(`watchlist field outside of entry: ${rawLine}`);
-    }
-
-    const canonicalizedFromMatch = rawLine.match(/^\s{6}-\s+(.+)$/);
-    if (canonicalizedFromMatch) {
-      if (!inCanonicalizedFromBlock) {
-        throw new Error(
-          `watchlist nested list item outside canonicalized_from: ${rawLine}`,
-        );
-      }
-      current.canonicalizedFrom = current.canonicalizedFrom ?? [];
-      current.canonicalizedFrom.push(stripQuotes(canonicalizedFromMatch[1]));
-      continue;
-    }
-
-    const parsed = parseLine(rawLine);
-    if (!parsed) continue;
-
-    if (parsed.key === "snapshot" && parsed.value === "") {
-      inSnapshotBlock = true;
-      inCanonicalizedFromBlock = false;
-      current.snapshot = current.snapshot ?? {};
-      continue;
-    }
-
-    if (parsed.key === "canonicalized_from" && parsed.value === "") {
-      inCanonicalizedFromBlock = true;
-      inSnapshotBlock = false;
-      current.canonicalizedFrom = current.canonicalizedFrom ?? [];
-      continue;
-    }
-
-    const indent = rawLine.length - rawLine.trimStart().length;
-    if (inSnapshotBlock && indent >= 6) {
-      if (!SNAPSHOT_FIELDS.has(parsed.key)) {
-        throw new Error(`unknown snapshot field: ${parsed.key}`);
-      }
-      const snap = current.snapshot ?? {};
-      switch (parsed.key) {
-        case "fingerprint":
-          snap.fingerprint = parsed.value;
-          break;
-        case "summary":
-          snap.summary = parsed.value;
-          break;
-        case "last_seen_at":
-          snap.last_seen_at = parsed.value;
-          break;
-      }
-      current.snapshot = snap;
-      continue;
-    }
-
-    inSnapshotBlock = false;
-    inCanonicalizedFromBlock = false;
-    if (!OPERATOR_FIELDS.has(parsed.key)) {
-      throw new Error(`unknown watchlist field: ${parsed.key}`);
-    }
-    switch (parsed.key) {
-      case "url":
-        current.url = parsed.value;
-        break;
-      case "added":
-        current.added = parsed.value;
-        break;
-      case "canonicalized_from":
-        throw new Error("watchlist canonicalized_from must be a list block");
-      case "notes":
-        current.notes = parsed.value;
-        break;
-      case "status":
-        if (parsed.value !== "inaccessible") {
-          throw new Error(`unknown watchlist status: ${parsed.value}`);
-        }
-        current.status = parsed.value;
-        break;
-    }
-  }
-  commit();
-
-  for (const entry of entries) {
-    if (!entry.added) {
-      throw new Error(`watchlist entry ${entry.url} missing required field: added`);
-    }
-  }
-
+  const entries = result.data.resources.map(({ canonicalized_from, ...entry }) => ({
+    ...entry,
+    ...(canonicalized_from !== undefined ? { canonicalizedFrom: canonicalized_from } : {}),
+  }));
   const entryUrls = new Set<string>();
   for (const entry of entries) {
     if (entryUrls.has(entry.url)) {
@@ -265,52 +89,78 @@ export function parseWatchlist(raw: string): WatchlistFile {
     }
   }
 
-  return { header, entries };
+  return entries;
+}
+
+export function parseWatchlist(raw: string): WatchlistFile {
+  const document = parseDocumentChecked(raw);
+  const entries = decodeEntries(document);
+  const header = raw.slice(0, document.contents?.range?.[0] ?? 0).trimEnd();
+  const file = { header, entries };
+  documents.set(file, document);
+  return file;
+}
+
+function wireEntry({ canonicalizedFrom, ...entry }: WatchlistEntry): z.infer<typeof entrySchema> {
+  return {
+    ...entry,
+    ...(canonicalizedFrom !== undefined ? { canonicalized_from: canonicalizedFrom } : {}),
+  };
+}
+
+function updateEntry(node: YAMLMap, entry: z.infer<typeof entrySchema>): void {
+  for (const key of Object.keys(entrySchema.shape)) {
+    const value = entry[key as keyof typeof entry];
+    if (value === undefined) {
+      node.delete(key);
+    } else if (key === "snapshot" && isMap(node.get(key, true)) && entry.snapshot) {
+      for (const [field, text] of Object.entries(entry.snapshot)) {
+        node.setIn([key, field], text);
+      }
+    } else if (!isDeepStrictEqual(node.get(key, true)?.toJSON(), value)) {
+      node.set(key, value);
+    }
+  }
 }
 
 export function serializeWatchlist(file: WatchlistFile): string {
-  const lines: string[] = [];
-  if (file.header.length > 0) {
-    lines.push(file.header.replace(/\n+$/, ""));
-    lines.push("");
+  const original = documents.get(file);
+  const document = original?.clone() ?? parseDocumentChecked(`${file.header}\nresources: []\n`);
+  const resources = document.get("resources", true);
+  if (!isSeq(resources)) throw new Error("Invalid watchlist: resources must be a sequence");
+  const originalEntries = new Map<string, YAMLMap>();
+  for (const node of resources.items) {
+    if (!isMap(node) || typeof node.get("url") !== "string") {
+      throw new Error("Invalid watchlist resource mapping");
+    }
+    originalEntries.set(node.get("url") as string, node);
   }
-  lines.push("resources:");
-  for (const entry of file.entries) {
-    lines.push(`  - url: ${quoteIfNeeded(entry.url)}`);
-    lines.push(`    added: ${quoteIfNeeded(entry.added)}`);
-    if (entry.canonicalizedFrom !== undefined) {
-      lines.push("    canonicalized_from:");
-      for (const oldUrl of entry.canonicalizedFrom) {
-        lines.push(`      - ${quoteIfNeeded(oldUrl)}`);
-      }
-    }
-    if (entry.notes !== undefined) {
-      lines.push(`    notes: ${quoteIfNeeded(entry.notes)}`);
-    }
-    if (entry.status !== undefined) {
-      lines.push(`    status: ${entry.status}`);
-    }
-    if (entry.snapshot !== undefined) {
-      lines.push("    snapshot:");
-      lines.push(`      fingerprint: ${quoteIfNeeded(entry.snapshot.fingerprint)}`);
-      lines.push(`      summary: ${quoteIfNeeded(entry.snapshot.summary)}`);
-      lines.push(`      last_seen_at: ${quoteIfNeeded(entry.snapshot.last_seen_at)}`);
-    }
-  }
-  lines.push("");
-  return lines.join("\n");
+  resources.items = file.entries.map((entry) => {
+    // A redirect retains the source's comments; merging into an existing target
+    // retains that target's document node.
+    const previous = originalEntries.get(entry.url) ?? entry.canonicalizedFrom
+      ?.map((url) => originalEntries.get(url)).find((node) => node !== undefined);
+    const wire = wireEntry(entry);
+    if (!previous) return document.createNode(wire);
+    const node = previous.clone();
+    if (!isMap(node)) throw new Error("Invalid watchlist resource mapping");
+    updateEntry(node, wire);
+    return node;
+  });
+  resources.flow = false;
+  decodeEntries(document);
+  return document.toString({ lineWidth: 0 });
 }
 
 export function readWatchlist(workspaceRoot: string): WatchlistFile {
   const path = join(workspaceRoot, WATCHLIST_FILE);
-  if (!existsSync(path)) {
-    return { header: "", entries: [] };
-  }
+  if (!existsSync(path)) return { header: "", entries: [] };
   return parseWatchlist(readFileSync(path, "utf-8"));
 }
 
 export function writeWatchlist(workspaceRoot: string, file: WatchlistFile): void {
   const path = join(workspaceRoot, WATCHLIST_FILE);
+  const serialized = serializeWatchlist(file);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, serializeWatchlist(file), "utf-8");
+  writeFileSync(path, serialized, "utf-8");
 }

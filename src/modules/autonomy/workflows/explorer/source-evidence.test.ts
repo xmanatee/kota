@@ -5,6 +5,7 @@ import { afterEach, expect, it } from "vitest";
 import { getRepoTaskQueueSnapshot } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { decodeExplorerState, type ExplorerState } from "./explorer-state.js";
 import { refreshExplorerSources } from "./source-evidence.js";
+import { applyWatchlistUpdates } from "./watchlist-updates.js";
 
 const roots: string[] = [];
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
@@ -63,6 +64,9 @@ it("rechecks due sources without repeating an AI decision on unchanged or inacce
     observedAt: elapsed, lastExplorationAt: elapsed, lastReviewedFingerprint: initial.fingerprint,
     sources: Object.fromEntries(Object.entries(initial.sources).map(([url, entry]) => [url, { ...entry, checkedAt: elapsed }])),
   };
+  const update = { updates: [{ url: "https://example.com/research", accessible: true as const, content, summary: 'A "quoted" source observation.\nSecond line.' }] };
+  expect(applyWatchlistUpdates(workspaceRoot, update)[0].classification).toBe("new");
+  expect(applyWatchlistUpdates(workspaceRoot, update)[0].classification).toBe("unchanged");
   const unchanged = await inspect(reviewed);
   expect(fetches).toBe(2);
   expect(unchanged.shouldReview).toBe(false);

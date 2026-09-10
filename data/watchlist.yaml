@@ -335,7 +335,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:1092aa0ccf94a6707d197816c20d32c6
-      summary: "Returned a partial research index describing its teams and linking \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Scenarios for our Economic Future\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"; the retained content does not contain the linked research."
+      summary: "Returned a partial research index describing its teams and linking \"Scenarios for our Economic Future\"; the retained content does not contain the linked research."
       last_seen_at: "2026-09-09T23:42:21.298Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
