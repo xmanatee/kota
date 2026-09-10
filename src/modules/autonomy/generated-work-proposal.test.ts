@@ -31,6 +31,7 @@ describe("generated-work proposal materializer", () => {
       const revised = materializeGeneratedWorkProposal({
         workspaceRoot,
         proposal: taskProposal({
+          priority: "p2",
           provenance: {
             source: "improver",
             runId: "review-run-2",
@@ -45,9 +46,15 @@ describe("generated-work proposal materializer", () => {
       const tasks = listFullRepoTasks(workspaceRoot);
       expect(tasks).toHaveLength(1);
       expect(tasks[0]?.state).toBe("open");
-      expect(tasks[0]?.priority).toBe("p1");
+      expect(tasks[0]?.priority).toBe("p2");
       expect(tasks[0]?.body).toContain("A durable autonomy issue needs implementation work.");
       expect(tasks[0]?.body).not.toContain("review-run-");
+      if (state === "done" || state === "dropped") {
+        expect(revised.actions).toContainEqual(expect.objectContaining({ kind: "reopened-task", taskId, fromState: state }));
+      }
+      const repeated = materializeGeneratedWorkProposal({ workspaceRoot, proposal: taskProposal({ priority: "p2" }) });
+      expect(repeated.touchedTaskQueue).toBe(false);
+      expect(repeated.actions).toContainEqual({ kind: "noop", reason: "task is current" });
     });
   }
 

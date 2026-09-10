@@ -4,6 +4,7 @@ const text = z.string().trim().min(1);
 const proposalSchema = z.object({
   mechanismKey: text.regex(/^[a-z0-9][a-z0-9-]*$/),
   title: text,
+  priority: z.enum(["p0", "p1", "p2", "p3"]),
   problem: text,
   expectedOutcome: text,
   consumers: z.array(text).min(1),
@@ -22,6 +23,10 @@ const decisionSchema = z.object({
   action: z.enum(["propose", "no-action", "covered"]),
   rationale: text,
   evidenceRefs: z.array(text).min(1),
+  revisit: z.object({
+    reason: text,
+    deliveryIssueKeys: z.array(text),
+  }).strict(),
   existingTaskId: text.nullable(),
   proposal: proposalSchema.nullable(),
 }).strict();

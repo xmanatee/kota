@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evaluateAdmission } from "./admission.js";
-import type { ArchitectureObservation } from "./types.js";
+import { evaluateAdmission, relevantDeliveryCohort } from "./admission.js";
+import type { ArchitectureObservation, SettledGardenerReview } from "./types.js";
 
 const structural: ArchitectureObservation = {
   id: "boundary", kind: "undeclared-runtime-cross-module-import", category: "dependency-boundary",
@@ -12,34 +12,45 @@ const friction: ArchitectureObservation = {
   ...structural, id: "delivery", kind: "delivery-friction", category: "delivery", fingerprint: "delivery-v1",
   summary: "Billing delivery failed while loading the receipt module.",
 };
-const evaluate = (observations: ArchitectureObservation[], previousCohort?: string) => evaluateAdmission({
-  targetScope: "repo", observations, previousCohort, explicitRequest: false, followUpFingerprints: [], reviewedTaskEvidence: [],
+const evaluate = (observations: ArchitectureObservation[], previousReview?: SettledGardenerReview) => evaluateAdmission({
+  targetScope: "repo", observations, previousReview, explicitRequest: false, requestFingerprint: null,
+  followUpFingerprints: [], reviewedTaskEvidence: [],
+});
+const settle = (observations: ArchitectureObservation[], deliveryIssueKeys: string[]): SettledGardenerReview => ({
+  decision: { action: "no-action", rationale: "No shared cause demonstrated yet.", evidenceRefs: ["billing/index.ts"],
+    existingTaskId: null, proposal: null, revisit: { deliveryIssueKeys, reason: "Changed ownership or receipt loading outcomes." } },
+  structuralCohort: evaluate(observations).structuralCohort,
+  deliveryCohort: relevantDeliveryCohort(observations, deliveryIssueKeys), requestFingerprint: null,
 });
 
 describe("gardener evidence admission", () => {
-  it("requires changed structural and delivery evidence instead of metric counts", () => {
+  it("settles the causal judgment while ignoring unrelated delivery churn", () => {
     expect(evaluate([structural]).admitted).toBe(false);
     expect(evaluate([friction]).admitted).toBe(false);
     const metric = { ...structural, kind: "complexity-concentration" as const, category: "complexity" as const };
-    expect(evaluate([metric, { ...metric, fingerprint: "another-count" }]).admitted).toBe(false);
-    const first = evaluate([structural, friction]);
-    expect(first.admitted).toBe(true);
-    expect(evaluate([friction, structural], first.cohort).admitted).toBe(false);
-    expect(evaluate([structural, { ...friction, fingerprint: "delivery-v2" }], first.cohort).admitted).toBe(true);
+    expect(evaluate([metric, friction]).admitted).toBe(false);
+    const first = [structural, friction];
+    expect(evaluate(first).admitted).toBe(true);
+    const rejectedCorrelation = settle(first, []);
+    expect(evaluate([structural, { ...friction, fingerprint: "delivery-v2" }], rejectedCorrelation).admitted).toBe(false);
+    const related = settle(first, [friction.id]);
+    expect(evaluate([...first, { ...friction, id: "unrelated", fingerprint: "churn" }], related).admitted).toBe(false);
+    const changed = [structural, { ...friction, fingerprint: "new-failure-kind" }];
+    expect(evaluate(changed, related).admitted).toBe(true);
+    expect(evaluate(changed, settle(changed, [friction.id])).admitted).toBe(false);
+    expect(evaluate([{ ...structural, fingerprint: "new-boundary" }, friction], rejectedCorrelation).admitted).toBe(true);
+    expect(evaluate([friction], rejectedCorrelation).admitted).toBe(true); // Removal also warrants checking the outcome.
   });
 
-  it("admits an empty explicit investigation once without certifying an improvement", () => {
-    const input = { targetScope: "repo", observations: [], explicitRequest: true, previousCohort: undefined, followUpFingerprints: [], reviewedTaskEvidence: [] };
-    const first = evaluateAdmission(input);
-    expect(first.admitted).toBe(true);
-    expect(evaluateAdmission({ ...input, previousCohort: first.cohort }).admitted).toBe(false);
-    expect(evaluate([]).admitted).toBe(false);
-  });
-  it("does not let an already reviewed terminal task admit unrelated metrics", () => {
-    const input = { targetScope: "repo", observations: [], explicitRequest: false, previousCohort: undefined,
-      followUpFingerprints: ["completed-task-proof"], reviewedTaskEvidence: [] as string[] };
+  it("permits justified requests and terminal outcome evidence once across restart", () => {
+    const input = { targetScope: "repo", observations: [], explicitRequest: true, requestFingerprint: "new-causal-evidence",
+      previousReview: undefined, followUpFingerprints: [], reviewedTaskEvidence: [] };
     expect(evaluateAdmission(input).admitted).toBe(true);
-    expect(evaluateAdmission({ ...input, observations: [friction], reviewedTaskEvidence: input.followUpFingerprints }).admitted).toBe(false);
+    const previousReview = JSON.parse(JSON.stringify({ ...settle([], []), requestFingerprint: input.requestFingerprint })) as SettledGardenerReview;
+    expect(evaluateAdmission({ ...input, previousReview }).admitted).toBe(false);
+    expect(evaluateAdmission({ ...input, previousReview, requestFingerprint: "counterevidence" }).admitted).toBe(true);
+    const followUp = { ...input, previousReview, explicitRequest: false, followUpFingerprints: ["completed-task-proof"] };
+    expect(evaluateAdmission(followUp).admitted).toBe(true);
+    expect(evaluateAdmission({ ...followUp, observations: [friction], reviewedTaskEvidence: followUp.followUpFingerprints }).admitted).toBe(false);
   });
-
 });

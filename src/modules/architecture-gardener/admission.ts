@@ -1,43 +1,58 @@
 import { combineFingerprints } from "./fingerprint.js";
-import type { ArchitectureObservation } from "./types.js";
+import type { ArchitectureObservation, SettledGardenerReview } from "./types.js";
 
 export type AdmissionEvaluation = {
   targetScope: string;
   admitted: boolean;
   reason: string;
   cohort: string;
+  structuralCohort: string;
 };
+
+export function relevantDeliveryCohort(
+  observations: readonly ArchitectureObservation[],
+  issueKeys: readonly string[],
+): string {
+  return combineFingerprints(observations.filter((o) =>
+    o.category === "delivery" && issueKeys.includes(o.id)).map((o) => o.fingerprint));
+}
 
 export function evaluateAdmission(input: {
   targetScope: string;
   observations: readonly ArchitectureObservation[];
   explicitRequest: boolean;
-  previousCohort: string | undefined;
+  requestFingerprint: string | null;
+  previousReview: SettledGardenerReview | undefined;
   followUpFingerprints: readonly string[];
   reviewedTaskEvidence: readonly string[];
 }): AdmissionEvaluation {
-  const cohort = combineFingerprints([
-    ...input.observations.map((observation) => observation.fingerprint),
-    ...input.followUpFingerprints,
-  ]);
-  const structural = input.observations.some((o) =>
+  const structuralObservations = input.observations.filter((o) =>
     o.category === "dependency-boundary" || o.category === "canonical-ownership" || o.kind === "duplicated-implementation-chunk");
-  const friction = input.observations.some((o) => o.category === "delivery");
+  const structuralCohort = combineFingerprints(structuralObservations.map((o) => o.fingerprint));
+  const previous = input.previousReview;
+  const deliveryCohort = relevantDeliveryCohort(input.observations, previous?.decision.revisit.deliveryIssueKeys ?? []);
+  const changedStructure = previous?.structuralCohort !== structuralCohort;
+  const changedRelevantDelivery = previous !== undefined && previous.deliveryCohort !== deliveryCohort;
   const newTaskEvidence = input.followUpFingerprints.some((fingerprint) => !input.reviewedTaskEvidence.includes(fingerprint));
-  const reason = cohort === input.previousCohort
-    ? "This evidence cohort has already been investigated."
-    : input.explicitRequest
-      ? "Explicit request for investigation; no improvement is verified."
-      : newTaskEvidence
-        ? "Linked implementation has settled; inspect its actual outcome."
-        : structural && friction
-          ? "Changed structural and delivery-friction evidence warrants investigation of possible shared causes."
-          : "Automatic investigation needs structural evidence and delivery friction; metrics alone are diagnostic.";
+  const newRequest = input.explicitRequest && (!previous ||
+    (input.requestFingerprint !== null && input.requestFingerprint !== previous.requestFingerprint));
+  const automatic = previous
+    ? changedStructure || changedRelevantDelivery
+    : structuralObservations.length > 0 && input.observations.some((o) => o.category === "delivery");
+  const admitted = newRequest || newTaskEvidence || automatic;
   return {
     targetScope: input.targetScope,
-    cohort,
-    admitted: cohort !== input.previousCohort &&
-      (input.explicitRequest || (structural && friction) || newTaskEvidence),
-    reason,
+    structuralCohort,
+    cohort: combineFingerprints([structuralCohort, deliveryCohort, ...input.followUpFingerprints]),
+    admitted,
+    reason: newRequest
+      ? "Explicit justified request for investigation; no improvement is verified."
+      : newTaskEvidence
+        ? "Linked implementation has settled; inspect its actual outcome and any deferred proposal."
+        : admitted
+          ? "Structural evidence or the settled judgment's relevant delivery evidence changed."
+          : previous
+            ? `Settled judgment remains current. Revisit: ${previous.decision.revisit.reason}`
+            : "Automatic investigation needs structural evidence and delivery friction; metrics alone are diagnostic.",
   };
 }
