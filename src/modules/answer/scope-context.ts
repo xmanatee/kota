@@ -3,23 +3,16 @@ import { DAEMON_SCOPE_PROVIDER_TYPE } from "#core/daemon/scope-provider.js";
 import {
   buildDirectoryScope,
   type DirectoryScope,
-  directoryScopesFromProjection,
   type ScopeId,
 } from "#core/daemon/scope-registry.js";
+import { createDirectoryScopeSelector } from "#core/daemon/scope-selection.js";
 import type { ProviderLookupContext } from "#core/modules/module-context-types.js";
-import { getProviderRegistry } from "#core/modules/provider-registry.js";
 import {
   type AnswerHistoryStore,
   answerHistoryRootForScope,
   DiskAnswerHistoryStore,
 } from "./answer-history-store.js";
 import type { ResolveAnswerScopeContext } from "./answer-types.js";
-
-type ScopeSnapshot = {
-  defaultScopeId: ScopeId;
-  activeScopeId: ScopeId | null;
-  scopes: readonly DirectoryScope[];
-};
 
 export function createAnswerScopeContextResolver(
   defaultScopeRoot: string,
@@ -29,29 +22,15 @@ export function createAnswerScopeContextResolver(
   const fallbackScope = buildDirectoryScope({ scopeRoot: defaultScopeRoot });
   const stores = new Map<ScopeId, AnswerHistoryStore>();
 
-  function snapshot(): ScopeSnapshot {
-    const daemonScope = providers?.getProvider(DAEMON_SCOPE_PROVIDER_TYPE)
-      ?? getProviderRegistry()?.get(DAEMON_SCOPE_PROVIDER_TYPE);
-    if (daemonScope) {
-      const projection = daemonScope.getScopeRegistryProjection();
-      return {
-        defaultScopeId: projection.defaultScopeId,
-        activeScopeId: daemonScope.getActiveScopeId(),
-        scopes: directoryScopesFromProjection(projection),
-      };
-    }
-    return {
-      defaultScopeId: fallbackScope.scopeId,
-      activeScopeId: null,
-      scopes: [fallbackScope],
-    };
-  }
+  const selectScope = createDirectoryScopeSelector({
+    defaultScopeRoot,
+    ...(providers === undefined ? {} : {
+      getDaemonScopeProvider: () => providers.getProvider(DAEMON_SCOPE_PROVIDER_TYPE),
+    }),
+  });
 
-  function storeFor(
-    scope: DirectoryScope,
-    defaultScopeId: ScopeId,
-  ): AnswerHistoryStore {
-    if (scope.scopeId === defaultScopeId) {
+  function storeFor(scope: DirectoryScope): AnswerHistoryStore {
+    if (scope.scopeId === fallbackScope.scopeId) {
       const defaultHistory = getDefaultHistory?.();
       if (defaultHistory) return defaultHistory;
     }
@@ -65,22 +44,15 @@ export function createAnswerScopeContextResolver(
   }
 
   return (scopeId) => {
-    const current = snapshot();
-    const requested = scopeId?.trim();
-    const resolvedScopeId =
-      requested && requested.length > 0
-        ? requested
-        : current.activeScopeId ?? current.defaultScopeId;
-    const scope = current.scopes.find(
-      (entry) => entry.scopeId === resolvedScopeId,
-    );
-    if (!scope) {
-      return { error: "unknown_scope", scopeId: resolvedScopeId };
+    const selected = selectScope(scopeId);
+    if (!selected.ok) {
+      return { error: "unknown_scope", scopeId: selected.error.scopeId };
     }
+    const scope = selected.scope;
     return {
       scopeId: scope.scopeId,
       scopeRoot: scope.scopeRoot,
-      history: storeFor(scope, current.defaultScopeId),
+      history: storeFor(scope),
     };
   };
 }

@@ -6,8 +6,8 @@ returns a short composed answer plus typed citations resolving to the exact
 
 ## Ownership
 
-- `AnswerProviderImpl` implements the public `AnswerClient`. It owns scope
-  resolution, recall-to-answer classification, citation validation, answer
+- `AnswerProviderImpl` implements the public `AnswerClient`. It delegates scope
+  selection to the shared daemon selector and owns recall-to-answer classification, citation validation, answer
   assembly, persistence, history listing, and history not-found results.
 - Routes decode requests, delegate, and map the typed unknown-scope error to
   HTTP. Generated routine bindings own daemon transport; the local client
@@ -39,7 +39,8 @@ listing, lookup, and keyword search for the recall contributor.
 `AnswerFailure` is the single failure union used by live results and persisted
 history. Recall projections summarize prior records and never copy that result
 matrix. Scope-scoped reads and writes use `AnswerScopeContext`; there is no
-parallel persistence or retrieval path.
+parallel persistence or retrieval path. The initial history store stays bound to
+its construction workspace; supplied host lookups never use an ambient host.
 
 ## Boundaries
 

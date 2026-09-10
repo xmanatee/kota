@@ -54,3 +54,7 @@ projections.
 - The default search provider ranks verified task content. `tasks-semantic`
   overrides ranking and declares `semanticSearchCapability` when an embedding
   provider is configured; the base provider has no placeholder reindex method.
+
+Directory selection delegates to the shared daemon scope selector. Registered
+search providers stay bound to their construction workspace as the live default
+changes; store caching and native-writer authority remain task-owned.

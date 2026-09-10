@@ -1,6 +1,5 @@
 ---
-status: open
-priority: p1
+status: done
 ---
 # Finish shared scope selection in task and answer clients
 
