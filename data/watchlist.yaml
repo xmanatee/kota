@@ -6,11 +6,10 @@
 resources:
   - url: https://github.com/openclaw/openclaw
     added: "2026-04-14"
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:b7ce4ab91bec4f62f5d0095c43cd0ada
-      summary: "Returned only a truncated GitHub modulepreload fragment; no repository content was available in this observation."
-      last_seen_at: "2026-09-09T23:09:29.859Z"
+      fingerprint: sha256:ba1d859ed2095027dc8ee31704d64b06
+      summary: "The repository README describes a local Gateway for sessions, tools, events and channels, swappable provider and harness plugins, companion apps, sender pairing, and configurable sandboxing."
+      last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://github.com/openclaw/clawbench
     added: "2026-05-28"
     notes: "ClawBench is OpenClaw's trace/reliability-focused benchmark. Monitor as an eval-methodology signal for KOTA's eval-harness reliability diagnostics, low-signal fixture detection, and trace-based scoring; do not import it as a benchmark runner."
@@ -132,11 +131,10 @@ resources:
     canonicalized_from:
       - https://github.com/block/goose
     notes: "Canonicalized from https://github.com/block/goose after the old goose watchlist URL redirected here and the README named the AAIF move."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:bfac01b2d0d1fdf6e1f0584b3064a8da
-      summary: "The old goose watchlist URL redirects to aaif-goose/goose and the README names the AAIF move; the current run opened a canonicalization task for moved watchlist repositories."
-      last_seen_at: "2026-05-27T11:36:10.460Z"
+      fingerprint: sha256:cce977cc7720cb10f81d95fbca0857ad
+      summary: "The repository README describes a local Rust agent with desktop, CLI and API interfaces, multiple providers, ACP provider connections, and MCP extensions."
+      last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://github.com/All-Hands-AI/OpenHands
     added: "2026-04-19"
     status: inaccessible
@@ -281,9 +279,9 @@ resources:
     added: "2026-06-16"
     notes: "Execution-memory product: records run outcomes, tool calls, verifiers, and traces, then feeds lessons plus prompt/tool updates into later runs. Monitor as a vendor signal for run-artifact learning and verifier-gated self-improvement; do not import managed memory or automatic prompt mutation without evaluator evidence."
     snapshot:
-      fingerprint: sha256:015e8c245be22a6227d6510c197520f1
-      summary: "The partial landing page describes capturing run context as reusable decision traces; implementation and evaluation details were not present."
-      last_seen_at: "2026-09-09T23:42:21.298Z"
+      fingerprint: sha256:4ea657e2543a44bbe9575bb879f63cc9
+      summary: "The captured landing-page text describes execution memory that turns run context into reusable decision traces surfaced in later runs."
+      last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://github.com/microsoft/autogen
     added: "2026-04-19"
     status: inaccessible
@@ -340,14 +338,14 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:1092aa0ccf94a6707d197816c20d32c6
-      summary: "Returned a partial research index describing its teams and linking \"Scenarios for our Economic Future\"; the retained content does not contain the linked research."
+      summary: "Returned a partial research index describing its teams and linking \\\"Scenarios for our Economic Future\\\"; the retained content does not contain the linked research."
       last_seen_at: "2026-09-09T23:42:21.298Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
     snapshot:
-      fingerprint: sha256:44cdb54d308440354e4b0a0f3e9567de
-      summary: "Returned a partial engineering index featuring \"How we contain Claude across products\"; the article body was not included."
-      last_seen_at: "2026-09-09T23:42:21.298Z"
+      fingerprint: sha256:eb3147770537f1bc79e02e3438c0ed49
+      summary: "The engineering index features a teaser titled How we contain Claude across products, describing containment across claude.ai, Claude Code and Cowork."
+      last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://openai.com/research
     added: "2026-04-19"
     status: inaccessible
@@ -759,11 +757,10 @@ resources:
   - url: https://www.endorlabs.com/research/ai-code-security-benchmark
     added: "2026-05-29"
     notes: "Agent Security League tracks coding-agent functional correctness separately from security correctness. Monitor as an eval-harness signal for secure-code canaries, benchmark anti-cheating controls, and functional-pass/security-fail divergence; do not import the leaderboard as a scoring system."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:415babe04269439a287165fbab17ae20
-      summary: "Agent Security League is accessible; its functional-vs-secure scoring signal is already covered by KOTA's completed functional-security divergence fixture, and its git-history anti-cheating concern is structurally avoided by normal eval fixture materialization, so no duplicate task was opened."
-      last_seen_at: "2026-05-29T02:12:29.416Z"
+      fingerprint: sha256:df6bbf30812690f1f084cae27aa3eafa
+      summary: "The page description presents Agent Security League as a functional-correctness and security benchmark across 200 tasks and 77 CWE classes; the captured body is truncated in page styling."
+      last_seen_at: "2026-09-10T00:15:48.407Z"
   - url: https://ibm.github.io/CLEAR/
     added: "2026-05-29"
     notes: "Agentic CLEAR evaluates agent traces at system, node, and trace levels and clusters recurring failure patterns. Monitor as an autonomy-evaluation signal for aggregating KOTA's existing typed trajectory diagnostics into repairable process-quality patterns; do not import CLEAR or add an LLM trace judge by default."
