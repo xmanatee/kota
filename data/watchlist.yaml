@@ -22,11 +22,10 @@ resources:
   - url: https://github.com/InternLM/WildClawBench
     added: "2026-05-29"
     notes: "WildClawBench evaluates native-runtime CLI agents across long-horizon, multimodal, coding, and safety tasks with real tools. Monitor as an eval-harness signal for local environment-state side-effect auditing, multi-harness comparability, and artifact-grade grading; do not import the benchmark runner or add an LLM judge by default."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:b9ecffe266d4d76263e9785391bdf8a4
-      summary: "WildClawBench reinforces KOTA's completed environment-state audit predicate, run-configuration fingerprint, fixture diagnostics, and harness-parity evidence work; no duplicate task is needed from this snapshot."
-      last_seen_at: "2026-05-29T08:06:16.541Z"
+      fingerprint: sha256:129a10436a41c4549be02eb067341354
+      summary: "The README describes 60 end-to-end tasks across four harnesses, isolated containers with grading materials injected after execution, separate model and harness comparisons, and published Harbor-format tasks and agent trajectories."
+      last_seen_at: "2026-09-10T02:06:55.007Z"
   - url: https://github.com/sourcegraph/CodeScaleBench
     added: "2026-05-29"
     notes: "CodeScaleBench evaluates coding agents' use of external context-retrieval tools on large and multi-repo developer tasks. Monitor as a harness-parity/eval signal for retrieval-target diagnostics, baseline-vs-MCP trace comparison, and task-relevant context coverage; do not import the benchmark runner."
@@ -98,19 +97,17 @@ resources:
   - url: https://agentclientprotocol.com/get-started/architecture
     added: "2026-05-27"
     notes: "Official Agent Client Protocol docs. Monitor architecture, schema, transport, registry, stdio/Streamable HTTP, MCP handoff, permission, and session-lifecycle changes as an interoperability signal for KOTA's module-owned ACP adapter task."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:10145009587797bc540015ef59a93023
-      summary: "Returned the architecture title and an incomplete layout script; the retained body does not expose the architecture documentation."
-      last_seen_at: "2026-09-09T23:09:29.859Z"
+      fingerprint: sha256:d8162430b44217c459ca8cb4e2ca6a48
+      summary: "The architecture page describes JSON-RPC over subprocess stdin/stdout, concurrent sessions, streamed notifications, bidirectional permission requests, and editor-provided MCP server configuration."
+      last_seen_at: "2026-09-10T02:06:55.006Z"
   - url: https://a2a-protocol.org/latest/
     added: "2026-05-27"
     notes: "Official Agent2Agent Protocol docs. Monitor v1.0 Agent Card discovery, JSON-RPC/HTTP and SSE bindings, task lifecycle methods, security schemes, Agent Card signatures, MCP complementarity, SDK support, and registry/discovery direction for KOTA's module-owned A2A channel work."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:0f015107cf5d895c2a0449cb69ab33c2
-      summary: "A2A v1.0 still maps cleanly to KOTA's module-owned channel model, but the remaining nonduplicative gap is push notification configuration for long-running daemon-backed tasks; this run opened task-add-a2a-push-notification-configuration-support."
-      last_seen_at: "2026-06-22T02:48:08.277Z"
+      fingerprint: sha256:94f60bf8b6299f8d841709f5adeffa17
+      summary: "The overview describes interoperability between opaque agent applications, delegation and result exchange, formal extensions and bindings, and complementary agent-to-tool communication through MCP."
+      last_seen_at: "2026-09-10T02:06:55.006Z"
   - url: https://antigravity.google/docs/cli-overview
     added: "2026-05-26"
     notes: "Antigravity CLI is Google's successor terminal surface for Gemini CLI consumer users and shares the Antigravity agent harness with Antigravity 2.0. Monitor as a peer native-CLI harness signal for KOTA's Google preset migration, auth-readiness behavior, plugin/skills layout, and native subagent boundaries."
@@ -338,7 +335,7 @@ resources:
     added: "2026-04-19"
     snapshot:
       fingerprint: sha256:1092aa0ccf94a6707d197816c20d32c6
-      summary: "Returned a partial research index describing its teams and linking \\\\\\\\\\\\\\\"Scenarios for our Economic Future\\\\\\\\\\\\\\\"; the retained content does not contain the linked research."
+      summary: "Returned a partial research index describing its teams and linking \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"Scenarios for our Economic Future\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"; the retained content does not contain the linked research."
       last_seen_at: "2026-09-09T23:42:21.298Z"
   - url: https://www.anthropic.com/engineering
     added: "2026-04-19"
@@ -445,11 +442,10 @@ resources:
   - url: https://github.com/vercel-labs/deepsec
     added: "2026-05-21"
     notes: "Vercel Labs deepsec is an agent-powered vulnerability scanner with deterministic candidate scans, agent investigation, revalidation, enrichment, export, resumable local runs, and optional sandbox fan-out. Monitor as a peer signal for KOTA security-review workflow design, run-artifact shape, false-positive reduction, and bounded high-cost security automation."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:a7e5c1899496337ef905558c2011bcea
-      summary: "DeepSec is now accessible and reinforces KOTA's already-completed agentic security-review workflow: deterministic candidate scanning, bounded agent investigation, revalidation, run artifacts, and normal follow-up tasks cover the nonduplicative signal."
-      last_seen_at: "2026-05-21T20:02:27.803Z"
+      fingerprint: sha256:fa7336f4f0cfd36668c1a31654e02ed8
+      summary: "The README describes resumable candidate scanning, agent investigation, optional revalidation, report export, quota-interruption recovery, and sandbox workers with model credentials held outside the sandbox."
+      last_seen_at: "2026-09-10T02:06:55.006Z"
   - url: https://vercel.com/docs/workflow
     added: "2026-05-07"
     notes: "Vercel Workflow SDK docs — durable, resumable orchestration with checkpointing. Peer to KOTA's workflow runtime; useful comparison for workflow durability and resume semantics. Snapshot and distill on the next explorer cycle."
@@ -789,17 +785,16 @@ resources:
     added: "2026-06-19"
     notes: "Rowboat is a local-first AI coworker that turns email, meetings, and notes into an inspectable Markdown knowledge graph with background agents. Monitor as a knowledge/memory/client signal for editable operator-owned context and recurring brief generation; map to KOTA stores, clients, workflows, and channels rather than adding a parallel memory product."
     snapshot:
-      fingerprint: sha256:8d3e7385e3f30c91c9ca1a7d799ffbba
-      summary: "The README describes a local desktop coworker with editable Markdown knowledge, email and meeting context, event- and schedule-triggered agents, an isolated browser, project workspaces, and MCP integrations."
-      last_seen_at: "2026-09-10T00:19:21.078Z"
+      fingerprint: sha256:b65bfe5e73365055d5c57f3390068158
+      summary: "The README describes editable local Markdown knowledge, email and meeting context, event- and schedule-triggered background agents, an isolated browser, custom apps, and MCP integrations."
+      last_seen_at: "2026-09-10T02:06:55.005Z"
   - url: https://github.com/lfnovo/open-notebook
     added: "2026-06-19"
     notes: "Open Notebook is a self-hosted, multi-model NotebookLM-style research surface with source ingestion, vector/full-text search, citations, content transformations, API access, and podcast generation. Monitor as a read-document/knowledge/rendering signal for source-backed research artifacts; do not import a notebook subsystem."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:1844045ff72f61e56bd863d38309da7f
-      summary: "Open Notebook is accessible; it remains a source-backed research-artifact signal for existing read-document, knowledge, rendering, citation, and MCP modules, with no notebook-subsystem task opened."
-      last_seen_at: "2026-06-19T13:36:13.092Z"
+      fingerprint: sha256:c6298b4060da55c7d0e5c5df97f4b2a4
+      summary: "The README describes self-hosted research notebooks with multimodal source ingestion, full-text and vector search, context selection, citations, content transformations, multiple model providers, and a REST API."
+      last_seen_at: "2026-09-10T02:06:55.006Z"
   - url: https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
     added: "2026-06-19"
     notes: "OpenAI Secure MCP Tunnel exposes private MCP servers to supported OpenAI products through an outbound tunnel-client while keeping the server inside the customer's network. Monitor as a private MCP connectivity signal for KOTA's mcp-server, mcp-registry, setup, and secret surfaces; this review opened task-add-private-mcp-tunnel-connector-support for the nonduplicative local gap."
@@ -875,11 +870,10 @@ resources:
   - url: https://arxiv.org/abs/2606.26959
     added: "2026-07-07"
     notes: "The Shift to Agentic AI studies Codex usage growth, concurrent agent management, skills adoption, and rising long-task complexity. Monitor as an operator-product signal for KOTA supervision-load reporting and workload visibility; do not import the usage pipeline, store external user telemetry, or feed operator-load signals into autonomy prompts."
-    status: inaccessible
     snapshot:
-      fingerprint: sha256:be032a26dd03e5c67053e97b70921dbb
-      summary: "The Shift to Agentic AI is accessible; its concurrent-agent and long-task supervision-load signal is already covered by completed task-report-concurrent-agent-workstream-load-in-operato, so no duplicate task is needed."
-      last_seen_at: "2026-07-07T19:31:55.163Z"
+      fingerprint: sha256:15f99b5c52bd68e33d2dc3dbe86ba47e
+      summary: "The abstract reports observational growth in agentic-tool adoption, concurrent-agent use, shared skills, request complexity, and output across personal, organizational, and internal employee populations."
+      last_seen_at: "2026-09-10T02:06:55.007Z"
   - url: https://arxiv.org/abs/2602.10975
     added: "2026-07-07"
     notes: "FeatureBench evaluates end-to-end feature-oriented coding tasks with execution-based verification and test/dependency-graph-derived slices spanning multiple commits and PRs. Monitor as an eval-harness signal for compact feature-slice fixtures with adjacent regression proof; do not import the benchmark, external environments, or automated repository-mining pipeline."
