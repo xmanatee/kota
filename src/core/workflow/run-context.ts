@@ -185,6 +185,7 @@ export type RunContext = Readonly<{
     id: string;
     attempt: number;
     daemonEpoch: number;
+    resumeWait?: Readonly<Record<string, unknown>>;
   }>;
   scope: Readonly<{
     id: string;
@@ -216,6 +217,7 @@ type CreateRunContextInput = {
   signal: AbortSignal;
   store: RunStateDatabase;
   now: () => string;
+  resumeWait?: Readonly<Record<string, unknown>>;
 };
 
 function assertEffectIdentity(key: string, requestFingerprint: string): void {
@@ -333,6 +335,9 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
       id: input.runId,
       attempt: input.attempt,
       daemonEpoch: input.daemonEpoch,
+      ...(input.resumeWait === undefined
+        ? {}
+        : { resumeWait: deepFreeze(structuredClone(input.resumeWait)) }),
     }),
     scope: Object.freeze({ id: input.scopeId, root: input.scopeRoot }),
     workflow: input.workflow,

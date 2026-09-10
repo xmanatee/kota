@@ -1,4 +1,5 @@
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
+import type { WorkflowContinuationRecord } from "./continuation.js";
 import type { RepairCheckResult } from "./repair-loop-checks.js";
 import type {
   WorkflowRepairErrorKind,
@@ -29,6 +30,7 @@ export type RepairLoopFailureOutput = {
   sessionId?: string;
   repairIterations: RepairIteration[];
   repairWarnings: RepairCheckResult[];
+  continuationDecisions?: WorkflowContinuationRecord[];
 };
 
 export type ScopedRepairAgent = {
@@ -89,5 +91,39 @@ export class RepairAgentRuntimeError extends RepairLoopError {
     super(undefined, stepId, failureIds, output, error.message, error);
     this.name = AgentStepRuntimeError.name;
     this.asAgentStepRuntimeError();
+  }
+}
+
+/** A judged continuation transition retained as ordinary repair evidence. */
+export class WorkflowContinuationSuspension extends RepairLoopError {
+  private readonly checkpointFailures: string[] = [];
+
+  constructor(
+    readonly continuation: WorkflowContinuationRecord,
+    stepId: string,
+    failureIds: string[],
+    output: RepairLoopFailureOutput,
+  ) {
+    super(
+      continuation.decision.decision === "decompose"
+        ? "continuation-decompose"
+        : undefined,
+      stepId,
+      failureIds,
+      output,
+      `Workflow continuation decision: ${continuation.decision.decision} — ${continuation.decision.rationale}`,
+    );
+    this.name = "WorkflowContinuationSuspension";
+  }
+
+  recordCheckpointFailure(phase: string, error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    this.checkpointFailures.push(`${phase}: ${detail}`);
+  }
+
+  get checkpointFailure(): string | undefined {
+    return this.checkpointFailures.length === 0
+      ? undefined
+      : this.checkpointFailures.join("; ");
   }
 }

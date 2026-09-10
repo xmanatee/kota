@@ -5,6 +5,16 @@ import {
   resolveAgentRunDir,
 } from "./agent-run-dir.js";
 import {
+  assertContinuationDecision,
+  continuationPacketNeedsJudgment,
+  createContinuationPacket,
+  type WorkflowContinuationContext,
+  type WorkflowContinuationDecision,
+  type WorkflowContinuationPacket,
+  type WorkflowContinuationRecord,
+  type WorkflowContinuationRepairEvidence,
+} from "./continuation.js";
+import {
   executeRepairAgentIteration,
   RepairAgentIterationError,
   type RepairAgentIterationResult,
@@ -24,6 +34,7 @@ import {
   type RepairIteration,
   RepairLoopError,
   type RepairLoopFailureOutput,
+  WorkflowContinuationSuspension,
 } from "./repair-loop-types.js";
 import { enforceRepairAgentWriteScope } from "./repair-loop-write-scope.js";
 import type {
@@ -47,9 +58,93 @@ export {
   type RepairIteration,
   RepairLoopError,
   type RepairLoopFailureOutput,
+  WorkflowContinuationSuspension,
 } from "./repair-loop-types.js";
 
 const REPAIR_NO_PROGRESS_LIMIT = 3;
+
+export type AgentContinuationPolicy = Readonly<{
+  collectContext: (
+    context: WorkflowStepContext,
+    parentStep: WorkflowAgentStep,
+  ) => Promise<WorkflowContinuationContext> | WorkflowContinuationContext;
+  decide: (
+    context: WorkflowStepContext,
+    parentStep: WorkflowAgentStep,
+    packet: WorkflowContinuationPacket,
+  ) => Promise<WorkflowContinuationDecision> | WorkflowContinuationDecision;
+}>;
+
+export async function evaluateAgentContinuation(input: {
+  policy: AgentContinuationPolicy;
+  step: WorkflowAgentStep;
+  context: WorkflowStepContext;
+  metadata: WorkflowRunMetadata;
+  initialWorkspace: WorkflowContinuationRepairEvidence;
+  trajectory: readonly WorkflowContinuationRepairEvidence[];
+  currentWorkspace: {
+    fingerprint: string;
+    changedPaths: readonly string[];
+    diffStat: string;
+    diff: string;
+  };
+  remainingFailures: readonly Readonly<{ id: string; output: string }>[];
+}): Promise<WorkflowContinuationRecord | null> {
+  const packet = await prepareAgentContinuationPacket(input);
+  if (packet === null) return null;
+  const existing = input.metadata.continuations ?? [];
+  if (!continuationPacketNeedsJudgment(existing, input.step.id, packet)) {
+    return null;
+  }
+  let decision: WorkflowContinuationDecision;
+  try {
+    decision = assertContinuationDecision(
+      await input.policy.decide(input.context, input.step, packet),
+    );
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    decision = Object.freeze({
+      decision: "needs-owner",
+      rationale: `Continuation judgment failed at a quiescent checkpoint: ${detail}`,
+      nextAction:
+        "Inspect the preserved continuation packet and retry or direct the same run lineage.",
+    });
+  }
+  const record: WorkflowContinuationRecord = Object.freeze({
+    stepId: input.step.id,
+    decidedAt: new Date().toISOString(),
+    packet,
+    decision,
+  });
+  return record;
+}
+
+export async function prepareAgentContinuationPacket(input: {
+  policy: AgentContinuationPolicy;
+  step: WorkflowAgentStep;
+  context: WorkflowStepContext;
+  continuationContext?: WorkflowContinuationContext;
+  initialWorkspace: WorkflowContinuationRepairEvidence;
+  trajectory: readonly WorkflowContinuationRepairEvidence[];
+  currentWorkspace: {
+    fingerprint: string;
+    changedPaths: readonly string[];
+    diffStat: string;
+    diff: string;
+  };
+  remainingFailures: readonly Readonly<{ id: string; output: string }>[];
+}): Promise<WorkflowContinuationPacket | null> {
+  const continuationContext = input.continuationContext ??
+    await input.policy.collectContext(input.context, input.step);
+  const packet = createContinuationPacket({
+    context: continuationContext,
+    initialWorkspace: input.initialWorkspace,
+    trajectory: input.trajectory,
+    currentWorkspace: input.currentWorkspace,
+    remainingFailures: input.remainingFailures,
+  });
+  return packet;
+}
 
 export async function runAgentRepairLoop(
   step: WorkflowAgentStep,
@@ -59,6 +154,9 @@ export async function runAgentRepairLoop(
   abortController: AbortController,
   appendMessage: (message: KotaAgentMessage) => void,
   agentConfig: AgentStepConfig,
+  recordContinuation: (record: WorkflowContinuationRecord) => void = (record) => {
+    metadata.continuations = [...(metadata.continuations ?? []), record];
+  },
 ): Promise<AgentStepResult> {
   const { checks, maxRepairAttempts } = step.repairLoop!;
   const iterations: RepairIteration[] = [];
@@ -70,6 +168,9 @@ export async function runAgentRepairLoop(
   let lastContent = typeof base.content === "string" ? base.content : "";
   const initialSubtype = typeof base.subtype === "string" ? base.subtype : undefined;
   let warnings = [] as RepairCheckResult[];
+  const continuationDecisions: WorkflowContinuationRecord[] = [
+    ...(metadata.continuations ?? []),
+  ];
   const trajectoryMessages = [...initialResult.trajectoryMessages];
   const resolvedHarness = agentConfig.resolveAgentHarness?.(step.harness);
   if (resolvedHarness === undefined) {
@@ -94,6 +195,9 @@ export async function runAgentRepairLoop(
       : { sessionId: logicalAttemptSessionId }),
     repairIterations: iterations,
     repairWarnings: warnings,
+    ...(continuationDecisions.length === 0
+      ? {}
+      : { continuationDecisions }),
   });
   const recordRepairResult = (
     iteration: RepairIteration,
@@ -127,10 +231,16 @@ export async function runAgentRepairLoop(
       turns: totalTurns,
       repairIterations: iterations,
       repairWarnings: warnings,
+      ...(continuationDecisions.length === 0
+        ? {}
+        : { continuationDecisions }),
     });
   }
 
-  const { failures: initialFailures, warnings: initialWarnings } = await runChecksPhased(checks, context, step);
+  const {
+    failures: initialFailures,
+    warnings: initialWarnings,
+  } = await runChecksPhased(checks, context, step);
   let failures = initialFailures;
   warnings = initialWarnings;
   let previousProgress = await repairProgressSnapshot(
@@ -138,7 +248,71 @@ export async function runAgentRepairLoop(
     failures,
     context.runCommand,
   );
+  const initialWorkspace: WorkflowContinuationRepairEvidence =
+    initialResult.continuationInitialWorkspace ?? {
+      attempt: 0,
+      source: "active",
+      verificationResults: [],
+      workspaceFingerprint: previousProgress.key,
+      changedPaths: previousProgress.changedPaths,
+    };
+  const repairEvidence: WorkflowContinuationRepairEvidence[] = [
+    ...(initialResult.continuationTrajectory ?? []),
+  ];
+  const evaluateContinuation = async (
+    progress: Awaited<ReturnType<typeof repairProgressSnapshot>>,
+  ): Promise<void> => {
+    const policy = step.repairLoop?.continuation;
+    if (policy === undefined) return;
+    const record = await evaluateAgentContinuation({
+      policy,
+      step,
+      context,
+      metadata,
+      initialWorkspace,
+      trajectory: repairEvidence,
+      currentWorkspace: {
+        fingerprint: progress.key,
+        changedPaths: progress.changedPaths,
+        diffStat: progress.diffStat,
+        diff: progress.diff,
+      },
+      remainingFailures: failures.map((failure) => ({
+        id: failure.id,
+        output: failure.output,
+      })),
+    });
+    if (record === null) return;
+    try {
+      recordContinuation(record);
+    } catch (error) {
+      const suspension = new WorkflowContinuationSuspension(
+        record,
+        step.id,
+        progress.failureIds,
+        failureOutput(),
+      );
+      suspension.recordCheckpointFailure(
+        "continuation decision persistence failed",
+        error,
+      );
+      throw suspension;
+    }
+    continuationDecisions.push(record);
+    if (record.decision.decision !== "continue") {
+      throw new WorkflowContinuationSuspension(
+        record,
+        step.id,
+        progress.failureIds,
+        failureOutput(),
+      );
+    }
+  };
   let noProgressAttempts = 0;
+
+  if (failures.length > 0) {
+    await evaluateContinuation(previousProgress);
+  }
 
   for (let attempt = 1; failures.length > 0 && (maxRepairAttempts === undefined || attempt <= maxRepairAttempts); attempt++) {
     if (abortController.signal.aborted) break;
@@ -256,6 +430,19 @@ export async function runAgentRepairLoop(
         failures,
         context.runCommand,
       );
+      repairEvidence.push({
+        attempt,
+        source: "repair",
+        verificationResults: phased.results.map((result) => ({
+          id: result.id,
+          passed: result.passed,
+          output: result.output,
+        })),
+        workspaceFingerprint: progress.key,
+        changedPaths: progress.changedPaths,
+      });
+
+      await evaluateContinuation(progress);
       const madeNoProgress = progress.key === previousProgress.key;
       if (madeNoProgress) {
         noProgressAttempts += 1;
@@ -315,5 +502,8 @@ export async function runAgentRepairLoop(
       : { sessionId: logicalAttemptSessionId }),
     repairIterations: iterations,
     repairWarnings: warnings,
+    ...(continuationDecisions.length === 0
+      ? {}
+      : { continuationDecisions }),
   });
 }

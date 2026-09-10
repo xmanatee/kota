@@ -21,6 +21,9 @@ progress, and split or sharpen it only where real conceptual seams exist.
 
 - Make subtasks sequenceable and independently completable when possible.
 - Preserve the original urgency and owner intent in the resulting sequence.
+- Search active and terminal tasks for an existing outcome before proposing a
+  duplicate. Set `reuseTaskId` to that exact id when an existing task already
+  owns the subtask outcome; otherwise set it to `null`.
 - Do not split only to reduce diff size. Keep a cohesive change together when
   that produces a cleaner result.
 - Express dependencies as zero-based indexes into earlier entries in

@@ -19,10 +19,12 @@ import {
 
 export type OpenaiToolsSessionRuntime = {
   messages: KotaMessage[];
+  sessionId: string | undefined;
   validateTools(
     tools: readonly KotaTool[],
     mcpFingerprints: ReadonlyMap<string, string> | undefined,
   ): void;
+  checkpoint(lastProviderMessageId?: string): void;
   finalize(
     result: AgentHarnessResult,
     lastProviderMessageId: string | undefined,
@@ -52,9 +54,35 @@ export function createOpenaiToolsSessionRuntime(input: {
   let latestToolDeclarations: OpenaiToolsSessionToolDeclaration[] =
     persistedSession?.toolDeclarations ?? [];
   let resumeToolsValidated = persistedSession === undefined;
+  const persistenceRequested = input.options.persistSession === true ||
+    persistedSession !== undefined;
+
+  const persist = (lastProviderMessageId?: string): void => {
+    if (!persistenceRequested) return;
+    persistedSession = persistOpenaiToolsSession({
+      scopeRoot: input.scopeRoot,
+      existing: persistedSession,
+      context,
+      toolDeclarations: latestToolDeclarations,
+      messages,
+      ...(lastProviderMessageId !== undefined
+        ? { lastProviderMessageId }
+        : persistedSession?.lastProviderMessageId !== undefined
+        ? { lastProviderMessageId: persistedSession.lastProviderMessageId }
+        : {}),
+    });
+  };
+
+  // Establish the KOTA-owned identity before model dispatch. Active
+  // continuation can then quiesce a turn without mistaking a provider message
+  // id for a resumable local session.
+  persist();
 
   return {
     messages,
+    get sessionId() {
+      return persistedSession?.id;
+    },
     validateTools(tools, mcpFingerprints) {
       const toolDeclarations = snapshotOpenaiToolsSessionToolDeclarations(
         tools,
@@ -65,26 +93,22 @@ export function createOpenaiToolsSessionRuntime(input: {
         resumeToolsValidated = true;
       }
       latestToolDeclarations = toolDeclarations;
+      persist();
+    },
+    checkpoint(lastProviderMessageId) {
+      persist(lastProviderMessageId);
     },
     finalize(result, lastProviderMessageId) {
       if (
         result.isError ||
-        (input.options.persistSession !== true && persistedSession === undefined)
+        !persistenceRequested
       ) {
         return result;
       }
-      const nextSession = persistOpenaiToolsSession({
-        scopeRoot: input.scopeRoot,
-        existing: persistedSession,
-        context,
-        toolDeclarations: latestToolDeclarations,
-        messages,
-        ...(lastProviderMessageId !== undefined
-          ? { lastProviderMessageId }
-          : {}),
-      });
-      persistedSession = nextSession;
-      return { ...result, sessionId: nextSession.id };
+      persist(lastProviderMessageId);
+      return persistedSession === undefined
+        ? result
+        : { ...result, sessionId: persistedSession.id };
     },
   };
 }

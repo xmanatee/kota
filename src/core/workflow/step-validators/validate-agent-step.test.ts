@@ -137,6 +137,41 @@ describe("validateAgentStep registered agent resolution", () => {
     ).toThrow(/tokenBudget\.maxTotalTokens/);
   });
 
+  it("requires continuation authority for unbounded repair loops", () => {
+    expect(() =>
+      validateWorkflowDefinitions(
+        [
+          registerWorkflowDefinition(definitionPath, {
+            repository: "read",
+            name: "unbounded-review-workflow",
+            triggers: [{ event: "runtime.idle" }],
+            steps: [{
+              id: "review",
+              type: "agent",
+              agentName: "reviewer",
+              harness: "test-harness",
+              autonomyMode: "autonomous",
+              repairLoop: {
+                checks: [{
+                  id: "acceptance",
+                  type: "code",
+                  run: () => "ok",
+                }],
+              },
+            }],
+          }),
+        ],
+        workspaceRoot,
+        {
+          resolveAgentDef: (name) =>
+            name === reviewer.name ? reviewer : undefined,
+        },
+      )
+    ).toThrow(
+      /repairLoop\.continuation is required when maxRepairAttempts is omitted/,
+    );
+  });
+
   it("rejects an unknown registered agent name when an agent resolver is available", () => {
     expect(() =>
       validateWorkflowDefinitions(

@@ -1,5 +1,6 @@
 import {
   type AgentHarness,
+  type AgentHarnessResult,
   type AgentTokenBudgetLedger,
   createNativeAgentInvalidationLifecycle,
   type KotaAgentMessage,
@@ -7,6 +8,7 @@ import {
 import { withHandoffAgentRuntime } from "#core/tools/handoff-agent-runtime.js";
 import type { ToolTelemetry } from "#core/tools/tool-telemetry.js";
 import { AgentBackoffAdmissionError } from "../agent-backoff.js";
+import { WorkflowContinuationCheckpointRequest } from "../continuation.js";
 import type { WorkflowRunMetadata } from "../run-types.js";
 import { AgentStepIdleTimeoutError } from "../step-idle-timeout.js";
 import type { WorkflowAgentStepOutputValidationContext } from "../step-input-base.js";
@@ -36,6 +38,47 @@ import {
 } from "./step-executor-retry.js";
 import { createWorkflowAgentHarnessRunner } from "./workflow-agent-harness-runner.js";
 
+const CONTINUATION_EVIDENCE_POLL_INTERVAL_MS = 1_000;
+
+function startContinuationEvidenceMonitor(input: {
+  poll: (() => void | Promise<void>) | undefined;
+  abortController: AbortController;
+  log: ((message: string) => void) | undefined;
+}): () => void {
+  if (input.poll === undefined) return () => {};
+  let disposed = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = (): void => {
+    if (disposed || input.abortController.signal.aborted) return;
+    timer = setTimeout(() => {
+      void poll();
+    }, CONTINUATION_EVIDENCE_POLL_INTERVAL_MS);
+    timer.unref?.();
+  };
+  const poll = async (): Promise<void> => {
+    if (disposed || input.abortController.signal.aborted) return;
+    try {
+      await input.poll?.();
+    } catch (error) {
+      if (error instanceof WorkflowContinuationCheckpointRequest) {
+        input.abortController.abort(error);
+        return;
+      }
+      input.log?.(
+        `Continuation evidence observation failed without interrupting the active agent: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    schedule();
+  };
+  schedule();
+  return () => {
+    disposed = true;
+    if (timer !== undefined) clearTimeout(timer);
+  };
+}
+
 export async function runAgentAttempt(input: {
   step: WorkflowAgentStep;
   metadata: WorkflowRunMetadata;
@@ -54,6 +97,9 @@ export async function runAgentAttempt(input: {
   onJsonOutputFeedback: (feedback: string) => void;
   onSessionId: (sessionId: string) => void;
   outputValidationContext: WorkflowAgentStepOutputValidationContext;
+  onProgressMessage?: (message: KotaAgentMessage) => void | Promise<void>;
+  pollContinuationEvidence?: () => void | Promise<void>;
+  persistContinuationSession?: boolean;
 }): Promise<WorkflowStepOutput> {
   const {
     step,
@@ -88,6 +134,22 @@ export async function runAgentAttempt(input: {
       idleMonitor: () => idleMonitor,
       bufferAgentMessages,
       appendMessage,
+      onProgressMessage: input.onProgressMessage === undefined
+        ? undefined
+        : async (message) => {
+            try {
+              await input.onProgressMessage?.(message);
+            } catch (error) {
+              if (
+                error instanceof WorkflowContinuationCheckpointRequest &&
+                resolvedHarness.toolControl === "native"
+              ) {
+                attemptAbortController.abort(error);
+                return;
+              }
+              throw error;
+            }
+          },
     });
     const trackedMessage = resolvedHarness.emitsAgentMessageStream
       ? makeToolTelemetryTracker(stepTelemetry, captureMessage)
@@ -111,6 +173,9 @@ export async function runAgentAttempt(input: {
       abortController: attemptAbortController,
       ...(trackedMessage !== undefined ? { onMessage: trackedMessage } : {}),
       ...(tokenBudget !== undefined ? { tokenBudget } : {}),
+      ...(input.persistContinuationSession === true
+        ? { persistContinuationSession: true }
+        : {}),
     });
     const workflowHarnessRunner = createWorkflowAgentHarnessRunner(
       agentConfig.onProcessSpawn,
@@ -125,6 +190,11 @@ export async function runAgentAttempt(input: {
         writer: { write: () => true },
       },
     );
+    const stopContinuationEvidenceMonitor = startContinuationEvidenceMonitor({
+      poll: input.pollContinuationEvidence,
+      abortController: attemptAbortController,
+      log: agentConfig.log,
+    });
     const harnessRun = agentConfig.delegateBudget
       ? withHandoffAgentRuntime(
           {
@@ -197,7 +267,12 @@ export async function runAgentAttempt(input: {
         )
       : runHarness();
     idleMonitor = createAgentStepIdleMonitor(step, attemptAbortController);
-    const result = await waitForAgentHarnessWithIdleMonitor(harnessRun, idleMonitor);
+    let result: AgentHarnessResult;
+    try {
+      result = await waitForAgentHarnessWithIdleMonitor(harnessRun, idleMonitor);
+    } finally {
+      stopContinuationEvidenceMonitor();
+    }
     if (result.sessionId !== undefined) input.onSessionId(result.sessionId);
     const reason = result.subtype ?? "error";
     const detail = result.text.trim() ||
@@ -263,6 +338,12 @@ export async function runAgentAttempt(input: {
       throw abortController.signal.reason instanceof Error
         ? abortController.signal.reason
         : error;
+    }
+    if (
+      attemptAbortController.signal.reason instanceof
+        WorkflowContinuationCheckpointRequest
+    ) {
+      throw attemptAbortController.signal.reason;
     }
     if (
       error instanceof AgentStepRuntimeError ||

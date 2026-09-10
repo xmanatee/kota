@@ -1,8 +1,7 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
-
 # Make automation continuation evidence driven and priority aware
 
 ## Problem
@@ -113,3 +112,11 @@ the original run and repair attempt; retain a concise result, verification and
 usage without exposing private reasoning or credentials. Prove that monitoring
 can distinguish active repair, serialized publication waiting and a genuine stall
 without a separate logger, watchdog, agent protocol or workflow-specific state.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs/builder-continuation-calibration/
+description: trusted-host canonical-runtime export and replay — export the cited 2026-08-13 through 2026-08-15 builder repair snapshots plus a matching latest-200-run window with repair iterations, yielded/resumed transitions, task outcomes, and stable duplicate-work identities; replay the 9.0-, 9.6-, and 6.5-hour trajectories through the candidate continuation policy and capture the first typed decision for each plus before/after builder agent-hours and duplicate-work outcomes. The retained August 6 completion-only capture is not a substitute.
+```

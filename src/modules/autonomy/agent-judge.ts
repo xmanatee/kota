@@ -7,7 +7,9 @@ import type { WorkflowAgentHarnessRunner } from "#core/workflow/run-types.js";
 import type { WorkflowAgentRunContractSpec } from "#core/workflow/step-types.js";
 import { resolveWorkflowAgentRunContract } from "#core/workflow/steps/step-executor-agent-run-contract.js";
 import {
+  AgentStepRuntimeError,
   classifyAgentRuntimeFailure,
+  isEmptyAgentOutputSubtype,
 } from "#core/workflow/steps/step-executor-retry.js";
 import type { CriticVerdict } from "./critic-verdict.js";
 import { decideJudgeResponse } from "./judge-response.js";
@@ -54,6 +56,7 @@ export function resolveAgentJudgeRunContract(
     model: config.model,
     effort: config.effort,
     autonomyMode: "autonomous",
+    agentWriteScope: "deny-all",
     ownerQuestionAccess: "disabled",
     ...(config.agentWriteScope !== undefined ? { agentWriteScope: config.agentWriteScope } : {}),
     ...(harness?.toolControl === "kota"
@@ -62,13 +65,73 @@ export function resolveAgentJudgeRunContract(
   };
 }
 
-export async function invokeAgentJudge(
+type JudgeResponse = { text: string; isError: boolean; subtype?: string };
+type JudgeDecision<T> =
+  | { kind: "verdict"; verdict: T }
+  | { kind: "reject"; error: Error }
+  | { kind: "retry"; error: Error; formatReminder: boolean; emptyOutputFailures: number };
+type JudgeResponseInput = Parameters<typeof decideJudgeResponse>[0];
+
+export function invokeAgentJudge(
   userMessage: string,
   cwd: string,
   config: AgentJudgeConfig,
   runAgentHarness: WorkflowAgentHarnessRunner,
   signal?: AbortSignal,
 ): Promise<CriticVerdict> {
+  return invokeJudge(userMessage, cwd, config, runAgentHarness, decideJudgeResponse, signal);
+}
+
+export function invokeStructuredAgentJudge<T>(
+  userMessage: string,
+  cwd: string,
+  config: AgentJudgeConfig,
+  runAgentHarness: WorkflowAgentHarnessRunner,
+  parse: (text: string) => T,
+  signal?: AbortSignal,
+): Promise<JudgeResponse> {
+  return invokeJudge(userMessage, cwd, config, runAgentHarness, (input) => {
+    const { response, label, attempt, maxAttempts } = input;
+    let parseError: unknown;
+    try {
+      parse(response.text);
+      return { kind: "verdict", verdict: response };
+    } catch (error) {
+      parseError = error;
+    }
+    if (response.isError) {
+      const error = new Error(
+        `${label} failed (attempt ${attempt}/${maxAttempts}): ${response.text.trim() || response.subtype || "unknown error"}`,
+      );
+      const classification = classifyAgentRuntimeFailure({ message: response.text, subtype: response.subtype });
+      return classification?.retryable && attempt < maxAttempts
+        ? { kind: "retry", error, formatReminder: false, emptyOutputFailures: 0 }
+        : { kind: "reject", error };
+    }
+    const emptyOutputFailures = isEmptyAgentOutputSubtype(response.subtype)
+      ? input.emptyOutputFailures + 1 : 0;
+    const error = emptyOutputFailures >= maxAttempts
+      ? new AgentStepRuntimeError(
+          `${label} produced ${emptyOutputFailures} successful terminal results without usable structured output (${response.subtype})`,
+          "output_contract", false,
+        )
+      : new Error(
+          `${label} returned unparseable response (attempt ${attempt}/${maxAttempts}): ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+        );
+    return attempt < maxAttempts
+      ? { kind: "retry", error, formatReminder: true, emptyOutputFailures }
+      : { kind: "reject", error };
+  }, signal);
+}
+
+async function invokeJudge<T>(
+  userMessage: string,
+  cwd: string,
+  config: AgentJudgeConfig,
+  runAgentHarness: WorkflowAgentHarnessRunner,
+  decideResponse: (input: JudgeResponseInput) => JudgeDecision<T>,
+  signal?: AbortSignal,
+): Promise<T> {
   const maxRetries = config.maxRetries ?? DEFAULT_MAX_RETRIES;
   const retryBaseDelayMs = config.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS;
   const harness = resolveAgentHarness(config.harness);
@@ -126,7 +189,7 @@ export async function invokeAgentJudge(
       continue;
     }
 
-    const decision = decideJudgeResponse({
+    const decision = decideResponse({
       response, label: config.label, attempt: attempt + 1, maxAttempts: maxRetries,
       emptyOutputFailures,
     });

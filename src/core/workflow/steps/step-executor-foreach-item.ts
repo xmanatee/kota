@@ -18,7 +18,11 @@ export type ForeachExecutionDeps = {
   definition: WorkflowDefinition;
   run: Pick<
     ActiveWorkflowRunHandle,
-    "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs"
+    | "metadata"
+    | "recordContinuation"
+    | "recordStep"
+    | "appendAgentMessage"
+    | "writeAgentInputs"
   >;
   trigger: WorkflowRunTrigger;
   runAbortController: AbortController;

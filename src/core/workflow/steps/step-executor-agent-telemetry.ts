@@ -19,11 +19,11 @@ function getAgentToolResultContentKind(
 
 export function makeToolTelemetryTracker(
   telemetry: ToolTelemetry,
-  onMessage: (message: KotaAgentMessage) => void,
-): (message: KotaAgentMessage) => void {
+  onMessage: (message: KotaAgentMessage) => void | Promise<void>,
+): (message: KotaAgentMessage) => Promise<void> {
   const pending = new Map<string, { name: string; startMs: number }>();
-  return (message: KotaAgentMessage) => {
-    onMessage(message);
+  return async (message: KotaAgentMessage) => {
+    await onMessage(message);
     if (message.type === "tool_call") {
       pending.set(message.toolUseId, {
         name: message.toolName,

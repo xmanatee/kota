@@ -32,8 +32,9 @@ export function createAgentAttemptMessageCapture(input: {
   idleMonitor: () => AgentStepIdleMonitor | undefined;
   bufferAgentMessages: boolean;
   appendMessage: (message: KotaAgentMessage) => void;
-}): (message: KotaAgentMessage) => void {
-  return (message) => {
+  onProgressMessage?: (message: KotaAgentMessage) => void | Promise<void>;
+}): (message: KotaAgentMessage) => Promise<void> {
+  return async (message) => {
     input.messages.push(message);
     const monitor = input.idleMonitor();
     if (monitor !== undefined && isAgentProgressMessage(message)) {
@@ -44,6 +45,9 @@ export function createAgentAttemptMessageCapture(input: {
     }
     if (!input.bufferAgentMessages) {
       input.appendMessage(message);
+    }
+    if (isAgentProgressMessage(message)) {
+      await input.onProgressMessage?.(message);
     }
   };
 }

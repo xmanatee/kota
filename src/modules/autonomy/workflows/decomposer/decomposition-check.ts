@@ -34,20 +34,19 @@ export function checkDecompositionApplied(workspaceRoot: string, taskId: string)
     throw new Error(`## Decomposed for ${taskId} must name at least one subtask`);
   }
 
-  const openTaskIds = new Set(
-    tasks.filter((task) => task.state === "open").map((task) => task.id),
+  const retainedTaskIds = new Set(
+    tasks.filter((task) => task.state !== "dropped").map((task) => task.id),
   );
-  const missingOpenTasks = subtaskIds.filter((id) => !openTaskIds.has(id));
-  if (missingOpenTasks.length > 0) {
+  const missingTasks = subtaskIds.filter((id) => !retainedTaskIds.has(id));
+  if (missingTasks.length > 0) {
     throw new Error(
-      `Decomposed subtasks must be open: ${missingOpenTasks.join(", ")}`,
+      `Decomposed subtasks must remain active or completed: ${missingTasks.join(", ")}`,
     );
   }
 
   const mutatedPaths = new Set(listWorkflowMutatedPaths(workspaceRoot));
   const requiredPaths = [
     join(REPO_TASKS_DIR, "archive", `${taskId}.md`),
-    ...subtaskIds.map((id) => join(REPO_TASKS_DIR, `${id}.md`)),
   ];
   const unchangedPaths = requiredPaths.filter((path) => !mutatedPaths.has(path));
   if (unchangedPaths.length > 0) {
@@ -56,5 +55,5 @@ export function checkDecompositionApplied(workspaceRoot: string, taskId: string)
     );
   }
 
-  return `OK: archived ${taskId} as dropped and prepared ${subtaskIds.length} open subtask(s)`;
+  return `OK: archived ${taskId} as dropped and linked ${subtaskIds.length} retained subtask(s)`;
 }

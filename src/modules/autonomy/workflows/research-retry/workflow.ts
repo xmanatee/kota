@@ -3,6 +3,10 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
+  autonomyContinuationPolicy,
+  workflowRunContinuationSubject,
+} from "#modules/autonomy/continuation.js";
+import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_TIER,
@@ -115,6 +119,18 @@ const researchRetryWorkflow: WorkflowDefinitionInput = {
               ),
           },
         ],
+        continuation: autonomyContinuationPolicy({
+          decompositionSupported: false,
+          resolveSubject: (ctx) =>
+            workflowRunContinuationSubject(ctx, {
+              purpose:
+                "Retry the selected blocked research source and update its task state honestly.",
+              evidence: [{
+                label: "Research candidate inspection",
+                value: JSON.stringify(inspectCandidates.output(ctx) ?? null),
+              }],
+            }),
+        }),
       },
     },
     markAttempt,

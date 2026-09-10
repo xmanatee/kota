@@ -14,7 +14,14 @@ import { executeParallelStepGroup, type ParallelAgentDeps } from "./step-executo
 
 type BranchRunDeps = {
   definition: WorkflowDefinition;
-  run: Pick<ActiveWorkflowRunHandle, "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs">;
+  run: Pick<
+    ActiveWorkflowRunHandle,
+    | "metadata"
+    | "recordContinuation"
+    | "recordStep"
+    | "appendAgentMessage"
+    | "writeAgentInputs"
+  >;
   trigger: WorkflowRunTrigger;
   runAbortController: AbortController;
   agentConfig: AgentStepConfig;

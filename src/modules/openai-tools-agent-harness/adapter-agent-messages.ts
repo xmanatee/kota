@@ -65,11 +65,13 @@ export function attachAgentMessageStreamEvents(
 export function emitModelTurnStarted(
   agentMessages: AgentMessageEmitter,
   turn: number,
+  sessionId?: string,
 ): void {
   agentMessages.emit({
     type: "status",
     category: "model_turn",
     description: `openai-tools turn ${turn + 1} started`,
+    ...(sessionId !== undefined ? { sessionId } : {}),
   });
 }
 

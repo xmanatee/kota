@@ -20,6 +20,14 @@ function validateWriterStep(
         ownerQuestionAccess: "disabled",
       });
     }
+    const continuation = step.repairLoop?.continuation;
+    if (continuation !== undefined) {
+      const resolveAgentContract = continuation.resolveAgentContract;
+      continuation.resolveAgentContract = (parentStep) => ({
+        ...resolveAgentContract(parentStep),
+        ownerQuestionAccess: "disabled",
+      });
+    }
     return;
   }
   if (step.type === "code" && step.resolveAgentContract !== undefined) {

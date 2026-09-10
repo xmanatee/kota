@@ -17,7 +17,8 @@ export type WorkflowStepStatus = "success" | "failed" | "skipped";
 export type WorkflowStepTimeoutErrorKind = "idle-timeout" | "step-timeout";
 export type WorkflowRepairErrorKind =
   | "repair-no-progress"
-  | "repair-attempts-exhausted";
+  | "repair-attempts-exhausted"
+  | "continuation-decompose";
 export type WorkflowStepErrorKind =
   | "output-validation"
   | WorkflowStepTimeoutErrorKind
@@ -33,7 +34,9 @@ export function isWorkflowStepTimeoutErrorKind(
 export function isWorkflowRepairErrorKind(
   kind: WorkflowStepErrorKind | undefined,
 ): kind is WorkflowRepairErrorKind {
-  return kind === "repair-no-progress" || kind === "repair-attempts-exhausted";
+  return kind === "repair-no-progress" ||
+    kind === "repair-attempts-exhausted" ||
+    kind === "continuation-decompose";
 }
 
 export type WorkflowStepSkipReasonKind =

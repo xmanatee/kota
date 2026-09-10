@@ -201,6 +201,11 @@ export type AgentHarnessRunOptions = {
    */
   abortQuarantine?: AgentHarnessAbortQuarantine;
   enableFileCheckpointing?: boolean;
+  /**
+   * Trusted progress consumer. If it rejects, the harness run must not settle
+   * until its execution can no longer mutate the workspace or external state.
+   * Native workflow callers use abort quarantine for this stop barrier.
+   */
   onMessage?: (message: KotaAgentMessage) => void | Promise<void>;
   onUsage?: (usage: AgentUsage) => void;
   thinkingEnabled?: boolean;

@@ -726,6 +726,72 @@ export class RunStateDatabase {
     })();
   }
 
+  /**
+   * Resume evidence-preserved runs only after every higher-priority resource
+   * named by their continuation packet has completed a later admitted run.
+   */
+  resumeSatisfiedContinuationRuns(resumedAt: string): string[] {
+    const rows = this.database
+      .prepare(
+        `SELECT id, scope_id, wait_json FROM runs
+         WHERE state = 'waiting' AND wait_json IS NOT NULL
+         ORDER BY admitted_at, rowid`,
+      )
+      .all() as Array<{ id: string; scope_id: string; wait_json: string }>;
+    const completedBlocker = this.database.prepare(
+      `SELECT 1
+       FROM run_resource_requests AS request
+       JOIN runs AS blocker ON blocker.id = request.run_id
+       WHERE request.resource_key = ?
+         AND blocker.id != ?
+         AND blocker.finished_at >= ?
+         AND blocker.state IN ('succeeded', 'failed', 'cancelled')
+       LIMIT 1`,
+    );
+    const resumed: string[] = [];
+    this.database.transaction(() => {
+      for (const row of rows) {
+        let wait: unknown;
+        try {
+          wait = JSON.parse(row.wait_json) as unknown;
+        } catch {
+          continue;
+        }
+        if (wait === null || typeof wait !== "object" || Array.isArray(wait)) continue;
+        const record = wait as Record<string, unknown>;
+        if (
+          record.kind !== "continuation" ||
+          record.decision !== "preserve-yield" ||
+          typeof record.decidedAt !== "string" ||
+          !Array.isArray(record.blockerResources) ||
+          record.blockerResources.length === 0 ||
+          !record.blockerResources.every(
+            (resource): resource is string => typeof resource === "string" && resource.length > 0,
+          )
+        ) {
+          continue;
+        }
+        const satisfied = record.blockerResources.every(
+          (resource) =>
+            completedBlocker.get(
+              this.scopeResourceKey(row.scope_id, resource),
+              row.id,
+              record.decidedAt,
+            ) !== undefined,
+        );
+        if (!satisfied) continue;
+        const updated = this.database.prepare(
+          `UPDATE runs
+           SET state = 'queued', not_before_at = ?,
+               finished_at = NULL, last_error = NULL
+           WHERE id = ? AND state = 'waiting'`,
+        ).run(resumedAt, row.id);
+        if (updated.changes === 1) resumed.push(row.id);
+      }
+    })();
+    return resumed;
+  }
+
   requireRunAttention(runId: string, reason: string, evidence: readonly string[]): void {
     const updated = this.database
       .prepare(

@@ -6,6 +6,7 @@ const priorityValues = ["p0", "p1", "p2", "p3"] as const;
 const nonBlankString = z.string().trim().min(1);
 
 const decompositionSubtaskSchema = z.object({
+  reuseTaskId: z.string().regex(/^task-[a-z0-9][a-z0-9-]*$/).nullable(),
   title: nonBlankString,
   priority: z.enum(priorityValues),
   problem: nonBlankString,
@@ -72,6 +73,7 @@ const stringArraySchema = {
 const subtaskOutputSchema = {
   type: "object",
   required: [
+    "reuseTaskId",
     "title",
     "priority",
     "problem",
@@ -82,6 +84,10 @@ const subtaskOutputSchema = {
   ],
   additionalProperties: false,
   properties: {
+    reuseTaskId: {
+      type: ["string", "null"],
+      pattern: "^task-[a-z0-9][a-z0-9-]*$",
+    },
     title: { type: "string", minLength: 1 },
     priority: { type: "string", enum: [...priorityValues] },
     problem: { type: "string", minLength: 1 },

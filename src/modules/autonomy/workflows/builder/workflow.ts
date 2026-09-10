@@ -15,6 +15,7 @@ import {
   AUTONOMY_BUILDER_AGENT_IDLE_TIMEOUT_MS,
   stepSucceeded,
 } from "#modules/autonomy/shared.js";
+import { builderContinuationPolicy } from "./continuation.js";
 import {
   builderHarnessPreflightStep,
   inspectTargetTaskStep,
@@ -57,6 +58,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
       "taskPath",
       "taskState",
       "taskDigest",
+      "taskContract",
+      "title",
+      "priority",
+      "dependsOn",
       "idempotencyKey",
     ],
     properties: {
@@ -67,6 +72,16 @@ const builderWorkflow: WorkflowDefinitionInput = {
       taskPath: { type: "string", minLength: 1 },
       taskState: { enum: ["open"] },
       taskDigest: { type: "string", pattern: "^[a-f0-9]{64}$" },
+      taskContract: { type: "string", minLength: 1 },
+      title: { type: "string", minLength: 1 },
+      priority: { type: "string", enum: ["p0", "p1", "p2", "p3"] },
+      dependsOn: {
+        type: "array",
+        items: {
+          type: "string",
+          pattern: "^task-[a-z0-9][a-z0-9-]*$",
+        },
+      },
       idempotencyKey: { type: "string", minLength: 1 },
     },
   },
@@ -87,7 +102,10 @@ const builderWorkflow: WorkflowDefinitionInput = {
       when: (ctx) =>
         inspectTargetTaskStep.outputRequired(ctx).actionable &&
         stepSucceeded("preflight-builder-harness")(ctx),
-      repairLoop: { checks: builderRepairChecks() },
+      repairLoop: {
+        checks: builderRepairChecks(),
+        continuation: builderContinuationPolicy(),
+      },
     },
     typedCodeStep<EvaluatorCalibrationArtifact>({
       id: EVALUATOR_CALIBRATION_STEP_ID,

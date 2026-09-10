@@ -100,29 +100,38 @@ export async function runOpenaiToolsLoop(
     );
   }
 
+  const system = mode.systemPrompt(options.systemPrompt);
+  const scopeRoot = resolveScopeRoot(options);
+  const resolved = createModelClient({
+    model: options.model,
+    provider: options.modelProvider?.provider,
+    baseUrl: options.modelProvider?.baseUrl,
+    apiKey: options.modelProvider?.apiKey,
+    scopeRoot: scopeRoot,
+  });
+  const outputTokenLimit = resolveModelOutputTokenLimit(
+    resolved.model,
+    options.modelOutputTokenLimits,
+  );
+  const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
+  const sessionRuntime = createOpenaiToolsSessionRuntime({
+    options,
+    scopeRoot: scopeRoot,
+    resolved,
+    outputTokenLimit,
+  });
+  const messages = sessionRuntime.messages;
+  if (sessionRuntime.sessionId !== undefined) {
+    await options.onMessage?.({
+      type: "status",
+      category: "openai-tools.session.ready",
+      description: "OpenAI tools session is ready.",
+      sessionId: sessionRuntime.sessionId,
+    });
+  }
+
   const mcpManager = await initializeMcpManager(options);
   try {
-    const system = mode.systemPrompt(options.systemPrompt);
-    const scopeRoot = resolveScopeRoot(options);
-    const resolved = createModelClient({
-      model: options.model,
-      provider: options.modelProvider?.provider,
-      baseUrl: options.modelProvider?.baseUrl,
-      apiKey: options.modelProvider?.apiKey,
-      scopeRoot: scopeRoot,
-    });
-    const outputTokenLimit = resolveModelOutputTokenLimit(
-      options.model,
-      options.modelOutputTokenLimits,
-    );
-    const maxTurns = options.maxTurns ?? mode.defaultMaxTurns;
-    const sessionRuntime = createOpenaiToolsSessionRuntime({
-      options,
-      scopeRoot: scopeRoot,
-      resolved,
-      outputTokenLimit,
-    });
-    const messages = sessionRuntime.messages;
     const usage = new AgentUsageAccumulator();
     let lastSessionId: string | undefined;
     const streamedChunks: string[] = [];
@@ -148,14 +157,23 @@ export async function runOpenaiToolsLoop(
     async function finish(
       result: AgentHarnessResult,
     ): Promise<AgentHarnessResult> {
-      emitResultMessage(agentMessages, result, lastSessionId);
+      emitResultMessage(
+        agentMessages,
+        result,
+        sessionRuntime.sessionId ?? lastSessionId,
+      );
       await agentMessages.flush();
       return sessionRuntime.finalize(result, lastSessionId);
     }
 
     for (let turn = 0; turn < maxTurns; turn += 1) {
       checkAborted(options.abortController?.signal);
-      emitModelTurnStarted(agentMessages, turn);
+      emitModelTurnStarted(
+        agentMessages,
+        turn,
+        sessionRuntime.sessionId ?? lastSessionId,
+      );
+      await agentMessages.flush();
       const mcpTools = mcpManager?.getTools() ?? [];
       const mcpPromptToolDeclarationFingerprints =
         snapshotMcpToolDeclarationFingerprints(mcpManager, mcpTools);
@@ -230,7 +248,11 @@ export async function runOpenaiToolsLoop(
       let toolBlocks = finalMessage.content
         .filter(isToolUseBlock)
         .map((block) => validateToolUseBlock(block));
-      emitToolCallMessages(agentMessages, toolBlocks, finalMessage.id);
+      emitToolCallMessages(
+        agentMessages,
+        toolBlocks,
+        sessionRuntime.sessionId ?? finalMessage.id,
+      );
       const turnText = textBlocks.map((block) => block.text).join("");
       if (turnText.length > 0) finalText = turnText;
       let parsedJsonAction = false;
@@ -242,7 +264,11 @@ export async function runOpenaiToolsLoop(
         if (fallbackTool) {
           toolBlocks = [fallbackTool];
           parsedJsonAction = true;
-          emitToolCallMessages(agentMessages, toolBlocks, finalMessage.id);
+          emitToolCallMessages(
+            agentMessages,
+            toolBlocks,
+            sessionRuntime.sessionId ?? finalMessage.id,
+          );
         }
       }
       const assistantContent = parsedJsonAction
@@ -253,6 +279,7 @@ export async function runOpenaiToolsLoop(
         role: "assistant",
         content: assistantContent,
       });
+      await agentMessages.flush();
 
       const turnExhaustion = options.tokenBudget?.checkAfterDebit(tokenBudgetSource);
       if (turnExhaustion) {
@@ -295,8 +322,6 @@ export async function runOpenaiToolsLoop(
       }
 
       const resultBlocks = toolResults.map(toolResultEntryToBlock);
-      emitToolResultMessages(agentMessages, resultBlocks, lastSessionId);
-      await agentMessages.flush();
       messages.push({ role: "user", content: resultBlocks });
       const failureAction = failureTracker.record(toolResults);
       if (failureAction !== "continue") {
@@ -305,6 +330,16 @@ export async function runOpenaiToolsLoop(
           content: FailureTracker.getMessage(failureAction),
         });
       }
+      // A tool-result progress frame is a continuation checkpoint boundary.
+      // Make the completed call/result transcript durable before exposing that
+      // frame so a checkpoint raised by onMessage cannot replay the tool effect.
+      sessionRuntime.checkpoint(lastSessionId);
+      emitToolResultMessages(
+        agentMessages,
+        resultBlocks,
+        sessionRuntime.sessionId ?? lastSessionId,
+      );
+      await agentMessages.flush();
     }
 
     isError = true;

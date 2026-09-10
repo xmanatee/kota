@@ -4,6 +4,10 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
+  autonomyContinuationPolicy,
+  workflowRunContinuationSubject,
+} from "#modules/autonomy/continuation.js";
+import {
   createShadowSemanticReviewStep,
   type ExecutableShadowSemanticReviewerDeclaration,
   shadowSemanticReviewTargetOperation,
@@ -134,6 +138,18 @@ const inboxSorterWorkflow: WorkflowDefinitionInput = {
               ),
           },
         ],
+        continuation: autonomyContinuationPolicy({
+          decompositionSupported: false,
+          resolveSubject: (ctx) =>
+            workflowRunContinuationSubject(ctx, {
+              purpose:
+                "Normalize the current inbox captures without losing source intent or inventing roadmap work.",
+              evidence: [{
+                label: "Inbox inspection",
+                value: JSON.stringify(inspectInbox.output(ctx) ?? null),
+              }],
+            }),
+        }),
       },
     },
     inboxSorterShadowReview,

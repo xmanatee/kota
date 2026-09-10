@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
@@ -63,13 +64,23 @@ export function writeActionableTask(
 
 export function immutableTaskPayload(
   taskId: string,
-  digest = "a".repeat(64),
 ): BuilderTaskDispatchPayload {
+  const taskContract = [
+    "status: open",
+    "priority: p1",
+    "depends_on: none",
+    "",
+    "# Immutable task target",
+  ].join("\n");
+  const digest = createHash("sha256")
+    .update(JSON.stringify({ taskId, taskContract }))
+    .digest("hex");
   return {
     taskId,
     taskPath: `data/tasks/${taskId}.md`,
     taskState: "open",
     taskDigest: digest,
+    taskContract,
     title: "Immutable task target",
     priority: "p1",
     dependsOn: [],

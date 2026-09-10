@@ -7,6 +7,10 @@ import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { workflowCommandOutput } from "#core/workflow/workflow-command.js";
 import {
+  autonomyContinuationPolicy,
+  workflowRunContinuationSubject,
+} from "#modules/autonomy/continuation.js";
+import {
   AUTONOMY_AGENT_DEFAULTS,
   AUTONOMY_AGENT_HANG_TIMEOUT_MS,
   AUTONOMY_AGENT_TIER,
@@ -139,6 +143,24 @@ const explorerWorkflow: WorkflowDefinitionInput = {
               ),
           },
         ],
+        continuation: autonomyContinuationPolicy({
+          decompositionSupported: false,
+          resolveSubject: (ctx) =>
+            workflowRunContinuationSubject(ctx, {
+              purpose:
+                "Complete one external discovery pass and leave the task queue and watchlist valid.",
+              evidence: [
+                {
+                  label: "Queue inspection",
+                  value: JSON.stringify(inspectQueue.output(ctx) ?? null),
+                },
+                {
+                  label: "Watchlist inspection",
+                  value: JSON.stringify(inspectWatchlist.output(ctx) ?? null),
+                },
+              ],
+            }),
+        }),
       },
     },
     {

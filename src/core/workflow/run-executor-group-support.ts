@@ -18,7 +18,11 @@ export type GroupStep = WorkflowParallelGroup | WorkflowBranchStep | WorkflowFor
 
 type GroupRun = Pick<
   ActiveWorkflowRunHandle,
-  "metadata" | "recordStep" | "appendAgentMessage" | "writeAgentInputs"
+  | "metadata"
+  | "recordContinuation"
+  | "recordStep"
+  | "appendAgentMessage"
+  | "writeAgentInputs"
 >;
 
 export type GroupStepDeps = {

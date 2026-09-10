@@ -43,8 +43,10 @@ The adapter runs one non-interactive CLI process per KOTA harness call:
    tools stay offline, writes follow the projected scope, project and provider
    credentials are denied, and approvals fail closed. KOTA owns the isolated
    runtime, provider proxy, process lifecycle, and live-policy abort.
-3. Parse JSONL events from stdout. `item.completed` agent-message events are
-   streamed to the optional `AgentHarnessWriter` and collected as final text.
+3. Parse JSONL events from stdout. Completed command executions are projected
+   into neutral tool-call/result evidence, while `item.completed` agent-message
+   events are streamed to the optional `AgentHarnessWriter` and collected as
+   final text.
 4. Read the final `turn.completed` usage event for token counts and return the
    neutral `AgentHarnessResult`.
 

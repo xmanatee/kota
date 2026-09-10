@@ -4,6 +4,7 @@ import type { KotaAgentMessage } from "#core/agent-harness/types.js";
 import { AgentUsageAccumulator } from "#core/agent-harness/usage.js";
 import { redactSensitiveText } from "#core/evidence/policy.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
+import type { WorkflowContinuationRecord } from "./continuation.js";
 import {
   CONTROL_MONITOR_COVERAGE_ARTIFACT,
   type ControlMonitorCoverageArtifact,
@@ -49,6 +50,7 @@ export type ActiveWorkflowRunHandle = {
     systemPromptAppend: string | undefined,
     prompt: string,
   ): void;
+  recordContinuation(record: WorkflowContinuationRecord): void;
   recordStep(result: WorkflowStepResult): void;
   finish(update: FinishUpdate): WorkflowRunMetadata;
 };
@@ -201,6 +203,21 @@ export function createActiveRunHandle(opts: {
         parts.join("\n"),
         "utf-8",
       );
+    },
+    recordContinuation: (record) => {
+      const existing = metadata.continuations ?? [];
+      if (
+        existing.some(
+          (candidate) =>
+            candidate.stepId === record.stepId &&
+            candidate.packet.evidenceFingerprint ===
+              record.packet.evidenceFingerprint,
+        )
+      ) {
+        return;
+      }
+      metadata.continuations = [...existing, record];
+      persistMetadata();
     },
     recordStep: (result) => {
       recordStepInDefinitionOrder(result);

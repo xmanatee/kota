@@ -20,6 +20,53 @@ function createScopeRoot(prefix: string): string {
 }
 
 describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
+  it("establishes a resumable local session before a quiescent progress checkpoint", async () => {
+    const scopeRoot = createScopeRoot("openai-tools-checkpoint-resume-");
+    try {
+      let checkpointSessionId: string | undefined;
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "begin difficult work",
+          model: "openai/gpt-5.6-luna",
+          effort: "xhigh",
+          cwd: scopeRoot,
+          persistSession: true,
+          onMessage: (message) => {
+            checkpointSessionId = message.sessionId;
+            throw new Error("continuation checkpoint");
+          },
+        }),
+      ).rejects.toThrow("continuation checkpoint");
+
+      expect(messagesStreamMock).not.toHaveBeenCalled();
+      expect(checkpointSessionId).toMatch(/^ots_/);
+      expect(checkpointSessionId).not.toMatch(/^msg_/);
+      if (checkpointSessionId === undefined) {
+        throw new Error("missing KOTA-owned checkpoint session id");
+      }
+
+      queueEnd("resumed after checkpoint");
+      const resumed = await openaiToolsAgentHarness.run({
+        prompt: "continue from the durable checkpoint",
+        model: "openai/gpt-5.6-luna",
+        effort: "xhigh",
+        cwd: scopeRoot,
+        resumeSessionId: checkpointSessionId,
+      });
+
+      expect(resumed).toMatchObject({
+        sessionId: checkpointSessionId,
+        text: "resumed after checkpoint",
+      });
+      expect(streamCallSnapshots[0].messages).toEqual([
+        { role: "user", content: "begin difficult work" },
+        { role: "user", content: "continue from the durable checkpoint" },
+      ]);
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
+  });
+
   it("persists a neutral transcript and replays it before the resumed prompt", async () => {
     const scopeRoot = createScopeRoot("openai-tools-resume-");
     try {
@@ -84,6 +131,65 @@ describe("openaiToolsAgentHarness KOTA-owned session resume", () => {
         content: "continue",
       });
       expect(JSON.stringify(replayedMessages)).toContain("echo: hello");
+    } finally {
+      rmSync(scopeRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("checkpoints a completed tool result before exposing continuation progress", async () => {
+    const scopeRoot = createScopeRoot("openai-tools-tool-result-checkpoint-");
+    try {
+      getAllToolsMock.mockReturnValue([tool("echo_tool")]);
+      queueToolUse("call_checkpoint", "echo_tool", { text: "once" });
+      executeToolMock.mockResolvedValue({ content: "echo: once" });
+      let checkpointSessionId: string | undefined;
+
+      await expect(
+        openaiToolsAgentHarness.run({
+          prompt: "run the effect once",
+          model: "openai/gpt-5.6-luna",
+          effort: "xhigh",
+          cwd: scopeRoot,
+          persistSession: true,
+          onMessage: (message) => {
+            checkpointSessionId = message.sessionId ?? checkpointSessionId;
+            if (message.type === "tool_result") {
+              throw new Error("continuation checkpoint after tool result");
+            }
+          },
+        }),
+      ).rejects.toThrow("continuation checkpoint after tool result");
+
+      expect(executeToolMock).toHaveBeenCalledTimes(1);
+      if (checkpointSessionId === undefined) {
+        throw new Error("missing KOTA-owned checkpoint session id");
+      }
+
+      queueEnd("continued without replaying the effect");
+      const resumed = await openaiToolsAgentHarness.run({
+        prompt: "continue from the completed tool result",
+        model: "openai/gpt-5.6-luna",
+        effort: "xhigh",
+        cwd: scopeRoot,
+        resumeSessionId: checkpointSessionId,
+      });
+
+      expect(resumed.text).toBe("continued without replaying the effect");
+      expect(executeToolMock).toHaveBeenCalledTimes(1);
+      expect(streamCallSnapshots[1].messages).toEqual([
+        { role: "user", content: "run the effect once" },
+        expect.objectContaining({ role: "assistant" }),
+        {
+          role: "user",
+          content: [{
+            type: "tool_result",
+            tool_use_id: "call_checkpoint",
+            content: "echo: once",
+            is_error: false,
+          }],
+        },
+        { role: "user", content: "continue from the completed tool result" },
+      ]);
     } finally {
       rmSync(scopeRoot, { recursive: true, force: true });
     }

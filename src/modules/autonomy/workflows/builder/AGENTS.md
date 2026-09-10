@@ -12,6 +12,9 @@ Builder is a business workflow, not a private execution runtime.
   readiness and runs one build agent. Universal
   repair checks protect target-task authority and independent critic review;
   the agent selects behavior-specific proof.
+- A continuation `decompose` decision terminally classifies the builder so the
+  existing decomposer can review the immutable task contract, deduplicate child
+  identities, and apply task mutations through repo-task operations.
 - Its integration policy rechecks the admitted source task against the exact
   canonical snapshot used for the final rebase. Contract drift preserves the
   writer for attention instead of publishing stale work. Publication also
@@ -36,6 +39,12 @@ Builder is a business workflow, not a private execution runtime.
 - Tests cover targeted dispatch, resource binding, and build gating. Runtime
   isolation, integration, and recovery are tested by the shared runtime that
   owns those behaviors.
+- Builder contributes its immutable task contract, canonical queue revision,
+  and priority ordering to the universal continuation boundary. The runtime
+  owns decision deduplication and preserve-yield checkpoints; resumed builder
+  attempts reuse the same run, sandbox, task resource, evidence lineage, and
+  exact next action. Harnesses without managed session resume start a fresh
+  agent call against that preserved state.
 
 The agent writes its proposed commit message to
 `$KOTA_RUN_DIR/commit-message.txt`. Runtime owns durable run evidence and

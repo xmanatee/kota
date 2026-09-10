@@ -116,6 +116,9 @@ export function resolveWorkflowAgentRunContract(input: {
     outputSchema: step.outputSchema,
     persistSession: step.persistSession ?? false,
     enableFileCheckpointing: step.enableFileCheckpointing ?? false,
+    ...(step.agentWriteScope !== undefined
+      ? { agentWriteScope: step.agentWriteScope }
+      : {}),
     ...(onMessage !== undefined ? { onMessage } : {}),
   };
 

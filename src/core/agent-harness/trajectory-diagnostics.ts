@@ -47,6 +47,12 @@ export type TrajectoryDiagnosticsMetadata =
     artifactPath: string;
   };
 
+export type AgentVerificationTrajectoryEntry = Readonly<{
+  id: string;
+  passed: boolean;
+  output: string;
+}>;
+
 type TrajectoryToolCall = {
   index: number;
   message: Extract<KotaAgentMessage, { type: "tool_call" }>;
@@ -154,6 +160,42 @@ export function aggregateTrajectoryDiagnosticsMetadata(
       0,
     ),
   };
+}
+
+/**
+ * Project completed verification-like tool calls into compact, provider-neutral
+ * continuation evidence. The same command classifier owns both the advisory
+ * trajectory diagnostics and the runtime continuation packet.
+ */
+export function collectAgentVerificationTrajectory(
+  messages: readonly KotaAgentMessage[],
+): readonly AgentVerificationTrajectoryEntry[] {
+  const completed = collectCompletedToolCalls(
+    messages,
+    collectToolCalls(messages, [], undefined),
+  );
+  return completed
+    .filter((call) => call.isVerification && call.command !== null)
+    .map((call) => {
+      const result = messages[call.resultIndex];
+      return {
+        id: summarizeCommand(call.command ?? "verification"),
+        passed: !call.resultIsError,
+        output: compactVerificationOutput(
+          result?.type === "tool_result" ? result.content : "",
+        ),
+      };
+    });
+}
+
+function compactVerificationOutput(
+  content: Extract<KotaAgentMessage, { type: "tool_result" }>["content"] | "",
+): string {
+  const rendered = typeof content === "string" ? content : JSON.stringify(content);
+  const redacted = redactCommandSecrets(rendered);
+  const limit = 2_000;
+  if (redacted.length <= limit) return redacted;
+  return `${redacted.slice(0, limit)}...`;
 }
 
 function verificationCommandDetails(args: {

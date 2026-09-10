@@ -652,6 +652,41 @@ describe("RunLifecycle", () => {
     expect(value.store.getRun(value.run.id)?.sandbox?.workspaceDir).toBe(workspace);
   });
 
+  test(
+    "preserves a writer sandbox when continuation checkpoint persistence needs attention",
+    async () => {
+      const value = fixture("continuation-checkpoint", "write");
+      let workspace = "";
+
+      const outcome = await lifecycle(value, async (context) => {
+        workspace = context.sandbox.workspaceDir;
+        write(workspace, "unpublished.txt", "preserve me\n");
+        return {
+          kind: "suspended",
+          state: "needs_attention",
+          wait: {
+            kind: "continuation",
+            decision: "decompose",
+            checkpointFailure: "workflow artifact persistence failed",
+          },
+          error: "workflow artifact persistence failed",
+        };
+      }).execute(value.run, new AbortController().signal);
+
+      expect(outcome).toMatchObject({
+        kind: "suspended",
+        state: "needs_attention",
+        wait: { checkpointFailure: "workflow artifact persistence failed" },
+      });
+      expect(readFileSync(join(workspace, "unpublished.txt"), "utf8")).toBe(
+        "preserve me\n",
+      );
+      expect(value.store.getRun(value.run.id)?.sandbox?.workspaceDir).toBe(
+        workspace,
+      );
+    },
+  );
+
   test("lets AI edit a conflict while runtime owns rebase continuation", async () => {
     const value = fixture("conflict", "write");
     const issues: string[] = [];

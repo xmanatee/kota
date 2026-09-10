@@ -308,6 +308,7 @@ export class RunLifecycle {
         signal,
         store: this.options.store,
         now: this.now,
+        ...(run.wait === undefined ? {} : { resumeWait: run.wait }),
       });
       signal.throwIfAborted();
 

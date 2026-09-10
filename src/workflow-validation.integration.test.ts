@@ -709,6 +709,7 @@ describe("workflow validation", () => {
               effort: "xhigh",
               autonomyMode: "autonomous",
               repairLoop: {
+                maxRepairAttempts: 2,
                 checks: [
                   {
                     id: "build-output",

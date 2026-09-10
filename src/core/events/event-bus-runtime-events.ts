@@ -27,6 +27,7 @@ export type AutonomyQueueAvailableEvent = Readonly<{
   taskPath: string;
   taskState: "open";
   taskDigest: string;
+  taskContract: string;
   title: string;
   priority: string;
   dependsOn: readonly string[];

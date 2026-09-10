@@ -14,6 +14,7 @@ import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.
 import { WORKFLOW_RUN_METADATA_VERSION } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { WorkflowStepResult } from "#core/workflow/run-types.js";
+import type { WorkflowAgentStep } from "#core/workflow/step-types.js";
 import {
   EVALUATOR_CALIBRATION_ARTIFACT,
   EVALUATOR_CALIBRATION_STEP_ID,
@@ -69,16 +70,14 @@ afterEach(() => {
 
 describe("targeted builder contract", () => {
   it("binds each run to its task resource and shared write sandbox", () => {
+    const root = project();
+    writeTask(root, "open");
+    publish(root);
+    const payload = listBuilderTaskDispatches(root)[0]!;
     const trigger = {
       event: "autonomy.queue.available",
       schemaRef: null,
-      payload: {
-        taskId: "task-target",
-        taskPath: "data/tasks/task-target.md",
-        taskState: "open",
-        taskDigest: "a".repeat(64),
-        idempotencyKey: `builder:task-target:${"a".repeat(64)}`,
-      },
+      payload,
     };
     expect(builderWorkflow.repository).toBe("write");
     expect(builderWorkflow.resources?.({
@@ -125,6 +124,7 @@ describe("targeted builder contract", () => {
   it("retains unchanged failures and reconciles a changed canonical contract without changing task identity", async () => {
     const root = project();
     writeTask(root, "open");
+    publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
@@ -137,6 +137,7 @@ describe("targeted builder contract", () => {
     try {
       expect((await assessBuilderRecovery(input))).toMatchObject({ resume: false });
       writeTask(root, "open", "Clarified acceptance; preserve the original goal");
+      publish(root);
       const revised = (await assessBuilderRecovery(input));
       expect(revised).toMatchObject({ resume: true, trigger: { payload: { taskId: payload.taskId } } });
       if (!revised.resume) throw new Error("expected changed contract recovery");
@@ -154,6 +155,7 @@ describe("targeted builder contract", () => {
   it("recovers on task-linked execution and capability exports while restraining observation churn", async () => {
     const root = project();
     writeTask(root, "open", "Requires Linux boundary results; existing cohort .kota/eval-runs/linux-boundary");
+    publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
@@ -231,6 +233,7 @@ describe("targeted builder contract", () => {
   it("ignores relocated eval attempts but retains source, isolation and result changes", async () => {
     const root = project();
     writeTask(root, "open", "Requires evidence from .kota/eval-runs/boundary");
+    publish(root);
     const store = new RunStateDatabase(join(root, ".kota"));
     store.registerScope({ id: "scope", rootPath: root, createdAt: new Date().toISOString() });
     const input = {
@@ -303,6 +306,7 @@ describe("targeted builder contract", () => {
   it("keeps the event loop responsive while recovery reads unrelated history", async () => {
     const root = project();
     writeTask(root, "open");
+    publish(root);
     const dir = join(root, ".kota/runs/unrelated");
     mkdirSync(dir, { recursive: true });
     for (let i = 0; i < 100; i++) {
@@ -448,6 +452,10 @@ describe("targeted builder contract", () => {
     );
     mkdirSync(runDir, { recursive: true });
     mkdirSync(criticVerdictRunDir, { recursive: true });
+    writeTask(root, "open");
+    publish(root);
+    const taskPayload = listBuilderTaskDispatches(root)[0]!;
+    rmSync(join(root, "data", "tasks", "task-target.md"));
     writeTask(root, "done");
     writeFileSync(
       join(runDir, "critic-review.json"),
@@ -475,7 +483,6 @@ describe("targeted builder contract", () => {
     if (!calibration || calibration.type !== "code") {
       throw new Error("missing builder calibration step");
     }
-    const taskDigest = "a".repeat(64);
     const result = await calibration.run({
       workspaceRoot: root,
       runtimeResources: { agentRunDir: criticVerdictRunDir },
@@ -486,11 +493,7 @@ describe("targeted builder contract", () => {
       },
       trigger: {
         payload: {
-          taskId: "task-target",
-          taskPath: "data/tasks/task-target.md",
-          taskState: "open",
-          taskDigest,
-          idempotencyKey: `builder:task-target:${taskDigest}`,
+          ...taskPayload,
         },
       },
       stepOutputs: { build: { repairIterations: [] } },
@@ -508,6 +511,27 @@ describe("targeted builder contract", () => {
     ).toMatchObject({
       verdict: "pass",
       criticPromptHash: "builder-critic-prompt",
+    });
+  });
+
+  it("runs continuation judgment without workspace write authority", () => {
+    const build = builderWorkflow.steps.find((step) => step.id === "build");
+    if (!build || build.type !== "agent") throw new Error("missing build step");
+    const continuation = build.repairLoop?.continuation;
+    if (!continuation) throw new Error("missing continuation policy");
+
+    const validatedBuild: WorkflowAgentStep = {
+      ...build,
+      promptPath: build.promptPath ?? "prompt.md",
+      moduleRoot: "/module",
+      harness: "test-harness",
+      model: "test-model",
+      effort: "high",
+      autonomyMode: "autonomous",
+    };
+    expect(continuation.resolveAgentContract(validatedBuild)).toMatchObject({
+      agentWriteScope: "deny-all",
+      ownerQuestionAccess: "disabled",
     });
   });
 });

@@ -489,6 +489,7 @@ describe("runtime idle dispatch", () => {
                   taskPath: "data/tasks/task-runtime-dispatch.md",
                   taskState: "open",
                   taskDigest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  taskContract: "runtime dispatch fixture contract",
                   title: "Runtime dispatch fixture",
                   priority: "p2",
                   dependsOn: [],

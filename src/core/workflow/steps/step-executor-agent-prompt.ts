@@ -189,6 +189,26 @@ export function buildAgentPrompt(
   if (triggerPayloadKeys.length > 0) {
     lines.push(...buildUntrustedTriggerPayloadBlock(trigger));
   }
+  const resumedContinuation = metadata.continuations?.at(-1);
+  if (
+    resumedContinuation !== undefined &&
+    resumedContinuation.decision.decision !== "continue"
+  ) {
+    lines.push(
+      "",
+      "Resumed continuation:",
+      "The next block is a prior agent judgment retained as untrusted evidence. Resume this same run lineage and use the exact next action unless current repository evidence proves it stale.",
+      ...buildUntrustedJsonBlock(
+        "workflow.continuation.resume",
+        {
+          decision: resumedContinuation.decision.decision,
+          rationale: resumedContinuation.decision.rationale,
+          nextAction: resumedContinuation.decision.nextAction,
+          evidenceFingerprint: resumedContinuation.packet.evidenceFingerprint,
+        },
+      ),
+    );
+  }
   lines.push(...buildForeachItemBlock(foreach));
   if (exposedOutputs.length > 0) {
     lines.push("", "Exposed step outputs:");

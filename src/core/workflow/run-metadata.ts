@@ -9,6 +9,7 @@ import {
 	UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/usage.js";
 import { JsonFileError, readOptionalJsonFile } from "#core/util/json-file.js";
+import type { WorkflowContinuationRecord } from "./continuation.js";
 import { validateWorkflowRunId } from "./run-io.js";
 import type { DurableRunState } from "./run-state-types.js";
 import type { WorkflowRunMetadata, WorkflowStepResult } from "./run-types.js";
@@ -154,6 +155,87 @@ const trajectoryDiagnostics = z.strictObject({
 	longPreambleWithoutTaskTouchCount: z.number().int().nonnegative(),
 });
 
+const continuationQueueItem = z.strictObject({
+  id: z.string(),
+  title: z.string(),
+  priority: z.number().int().nonnegative(),
+  priorityLabel: z.string(),
+  resource: z.string(),
+});
+
+const continuationRepairEvidence = z.strictObject({
+  attempt: z.number().int().nonnegative(),
+  source: z.enum(["active", "repair"]),
+  verificationResults: z.array(z.strictObject({
+    id: z.string(),
+    passed: z.boolean(),
+    output: z.string(),
+  })),
+  workspaceFingerprint: z.string(),
+  changedPaths: z.array(z.string()),
+});
+
+const continuationRecord = z.strictObject({
+  stepId: z.string().min(1),
+  decidedAt: z.string(),
+  packet: z.strictObject({
+    version: z.literal(2),
+    evidenceFingerprint: z.string(),
+    boundaryKey: z.string(),
+    boundaries: z.array(z.enum([
+      "active-verification-churn",
+      "active-workspace-churn",
+      "higher-priority-work",
+      "material-scope-expansion",
+      "repeated-repair",
+      "unresolved-acceptance",
+    ])),
+    taskContract: z.string(),
+    workspace: z.strictObject({
+      fingerprint: z.string(),
+      changedPaths: z.array(z.string()),
+      diffStat: z.string(),
+      diff: z.string(),
+    }),
+    verificationTrajectory: z.array(continuationRepairEvidence),
+    remainingFailures: z.array(z.strictObject({
+      id: z.string(),
+      output: z.string(),
+    })),
+    queue: z.strictObject({
+      revision: z.string(),
+      available: z.array(continuationQueueItem),
+    }),
+    current: z.strictObject({
+      id: z.string(),
+      priority: z.number().int().nonnegative(),
+      priorityLabel: z.string(),
+    }),
+    higherPriorityWork: z.array(continuationQueueItem),
+  }),
+  decision: z.strictObject({
+    decision: z.enum([
+      "continue",
+      "decompose",
+      "preserve-yield",
+      "needs-owner",
+    ]),
+    rationale: z.string(),
+    nextAction: z.string(),
+  }),
+});
+
+export function parseWorkflowContinuationRecord(
+  raw: unknown,
+  field = "workflow continuation record",
+): WorkflowContinuationRecord {
+  const parsed = continuationRecord.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  const issue = parsed.error.issues[0];
+  const path = issue?.path.length ? `.${issue.path.join(".")}` : "";
+  throw new Error(`${field}${path} ${issue?.message ?? "is invalid"}`);
+}
+
 const stepType = z.enum([
 	"tool",
 	"agent",
@@ -187,6 +269,7 @@ const errorKind = z.enum([
 	"repair-no-progress",
 	"repair-attempts-exhausted",
 	"output-validation",
+	"continuation-decompose",
 	"rate_limit",
 	"auth",
 	"provider",
@@ -314,6 +397,7 @@ const workflowRunMetadata = z.strictObject({
 	usage: tokenUsage.optional(),
 	runDir: z.string(),
 	steps: z.array(workflowStepResult),
+	continuations: z.array(continuationRecord).optional(),
 	warnings: z
 		.array(
 			z.strictObject({

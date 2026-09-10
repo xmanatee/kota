@@ -23,6 +23,10 @@ export type BuilderTaskIdentity = Readonly<{
   taskPath: string;
   taskState: "open";
   taskDigest: string;
+  taskContract: string;
+  title: string;
+  priority: RepoTaskFullRecord["priority"];
+  dependsOn: readonly string[];
   idempotencyKey: string;
 }>;
 
@@ -55,16 +59,24 @@ function taskPath(task: Pick<RepoTaskFullRecord, "id" | "state">): string {
   return join("data", "tasks", `${task.id}.md`);
 }
 
+function admittedTaskContract(task: RepoTaskFullRecord): string {
+  return [
+    `status: ${task.state}`,
+    `priority: ${task.priority ?? "none"}`,
+    `depends_on: ${[...task.dependsOn].sort().join(", ") || "none"}`,
+    "",
+    task.body,
+  ].join("\n");
+}
+
+function digestTaskContract(taskId: string, taskContract: string): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ taskId, taskContract }))
+    .digest("hex");
+}
+
 function digestTask(task: RepoTaskFullRecord): string {
-  const contract = {
-    id: task.id,
-    title: task.title,
-    state: task.state,
-    priority: task.priority,
-    body: task.body,
-    dependsOn: [...task.dependsOn].sort(),
-  };
-  return createHash("sha256").update(JSON.stringify(contract)).digest("hex");
+  return digestTaskContract(task.id, admittedTaskContract(task));
 }
 
 function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
@@ -72,11 +84,13 @@ function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
     throw new Error(`Task "${task.id}" is not actionable`);
   }
   const taskDigest = digestTask(task);
+  const taskContract = admittedTaskContract(task);
   return Object.freeze({
     taskId: task.id,
     taskPath: taskPath(task),
     taskState: task.state,
     taskDigest,
+    taskContract,
     title: task.title,
     priority: task.priority!,
     dependsOn: Object.freeze([...task.dependsOn]),
@@ -102,6 +116,8 @@ export function readBuilderTaskPayload(
   payload: Record<string, unknown>,
 ): BuilderTaskIdentity {
   const dispatch = payload as Partial<BuilderTaskIdentity>;
+  const priority = dispatch.priority;
+  const dependsOn = dispatch.dependsOn;
   if (
     typeof dispatch.taskId !== "string" ||
     !TASK_ID_PATTERN.test(dispatch.taskId) ||
@@ -110,6 +126,27 @@ export function readBuilderTaskPayload(
     dispatch.taskPath !== taskPath({ id: dispatch.taskId, state: dispatch.taskState }) ||
     typeof dispatch.taskDigest !== "string" ||
     !TASK_DIGEST_PATTERN.test(dispatch.taskDigest) ||
+    typeof dispatch.taskContract !== "string" ||
+    dispatch.taskContract.trim().length === 0 ||
+    typeof dispatch.title !== "string" ||
+    dispatch.title.trim().length === 0 ||
+    priority === null ||
+    priority === undefined ||
+    !PRIORITY_ORDER.has(priority) ||
+    !Array.isArray(dependsOn) ||
+    !dependsOn.every((dependency): dependency is string =>
+      typeof dependency === "string" && TASK_ID_PATTERN.test(dependency)
+    ) ||
+    !dispatch.taskContract.startsWith(
+      [
+        "status: open",
+        `priority: ${priority}`,
+        `depends_on: ${[...dependsOn].sort().join(", ") || "none"}`,
+        "",
+      ].join("\n"),
+    ) ||
+    digestTaskContract(dispatch.taskId, dispatch.taskContract) !==
+      dispatch.taskDigest ||
     dispatch.idempotencyKey !==
       `builder:${dispatch.taskId}:${dispatch.taskDigest}`
   ) {
@@ -120,6 +157,10 @@ export function readBuilderTaskPayload(
     taskPath: dispatch.taskPath,
     taskState: dispatch.taskState,
     taskDigest: dispatch.taskDigest,
+    taskContract: dispatch.taskContract,
+    title: dispatch.title,
+    priority,
+    dependsOn: Object.freeze([...dependsOn]),
     idempotencyKey: dispatch.idempotencyKey,
   };
 }

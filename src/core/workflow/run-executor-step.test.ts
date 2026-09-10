@@ -142,6 +142,7 @@ describe("executeWorkflowStep agent usage capture", () => {
   };
   const run = {
     metadata,
+    recordContinuation: vi.fn(),
     recordStep: vi.fn(),
     appendAgentMessage: vi.fn(),
     writeAgentInputs: vi.fn(),

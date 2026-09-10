@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
+  parseFlatFrontMatter,
   serializeFlatFrontMatter,
   splitFrontMatter,
 } from "#core/util/frontmatter.js";
@@ -10,6 +11,7 @@ import {
 } from "#modules/autonomy/generated-task-text.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
 import {
+  extractRepoTaskTitle,
   extractTaskSections,
   getRepoTaskContainerDir,
   moveTaskById,
@@ -62,7 +64,8 @@ function subtaskBody(args: {
     howWeWillKnow: renderList(args.howWeWillKnow),
     context:
       `Decomposed from \`${args.taskId}\` after builder run ` +
-      `\`${args.failedRunId}\` exhausted repair.`,
+      `\`${args.failedRunId}\` exhausted repair. The archived parent task ` +
+      `remains the authority for its original intent and acceptance evidence.`,
   });
 }
 
@@ -81,6 +84,13 @@ export function applyDecompositionPlan(args: {
     throw new Error(`Task ${args.taskId} has malformed frontmatter`);
   }
   const originalBody = originalFrontMatter.body;
+  const originalDependencies = parseFlatFrontMatter(original.content).attrs.depends_on;
+  if (
+    originalDependencies !== undefined &&
+    !Array.isArray(originalDependencies)
+  ) {
+    throw new Error(`Task ${args.taskId} has malformed depends_on metadata`);
+  }
   if (extractTaskSections(originalBody, ["Decomposed"]).Decomposed) {
     throw new Error(`Task ${args.taskId} already records a decomposition`);
   }
@@ -96,7 +106,9 @@ export function applyDecompositionPlan(args: {
     ...task,
     title: normalizeScalar("title", task.title),
   }));
-  const subtaskIds = subtasks.map((task) => `task-${slugifyTaskTitle(task.title)}`);
+  const subtaskIds = subtasks.map((task) =>
+    task.reuseTaskId ?? `task-${slugifyTaskTitle(task.title)}`
+  );
   if (subtaskIds.includes("task-")) {
     throw new Error("Decomposer subtask title must produce a non-empty task id");
   }
@@ -106,18 +118,70 @@ export function applyDecompositionPlan(args: {
   if (new Set(subtaskIds).size !== subtaskIds.length) {
     throw new Error("Decomposer subtask titles produce duplicate task ids");
   }
-  for (const id of subtaskIds) {
-    if (showTask(args.workspaceRoot, id).found) {
+  for (const [index, id] of subtaskIds.entries()) {
+    const reuseTaskId = subtasks[index]!.reuseTaskId;
+    const existing = showTask(args.workspaceRoot, id);
+    if (reuseTaskId === null && existing.found) {
       throw new Error(`Decomposer subtask already exists: ${id}`);
+    }
+    if (reuseTaskId !== null) {
+      if (!existing.found || existing.state === "dropped") {
+        throw new Error(`Reusable decomposer subtask is unavailable: ${id}`);
+      }
+      const existingTitle = extractRepoTaskTitle(
+        splitFrontMatter(existing.content)?.body ?? existing.content,
+        id,
+      );
+      if (existingTitle !== subtasks[index]!.title) {
+        throw new Error(
+          `Reusable decomposer subtask ${id} has title "${existingTitle}", expected "${subtasks[index]!.title}"`,
+        );
+      }
     }
   }
 
   const openDir = getRepoTaskContainerDir(args.workspaceRoot, "open");
   for (const [index, task] of subtasks.entries()) {
     const id = subtaskIds[index]!;
-    const dependsOn = [...new Set(task.dependsOn)].map(
-      (dependencyIndex) => subtaskIds[dependencyIndex]!,
-    );
+    const dependsOn = [
+      ...(originalDependencies ?? []),
+      ...[...new Set(task.dependsOn)].map(
+        (dependencyIndex) => subtaskIds[dependencyIndex]!,
+      ),
+    ];
+    if (task.reuseTaskId !== null) {
+      const existing = showTask(args.workspaceRoot, id);
+      if (!existing.found) throw new Error(`Reusable decomposer subtask is unavailable: ${id}`);
+      if (existing.state === "open" || existing.state === "blocked") {
+        const parsed = parseFlatFrontMatter(existing.content);
+        const existingDependencies = parsed.attrs.depends_on;
+        if (
+          existingDependencies !== undefined &&
+          !Array.isArray(existingDependencies)
+        ) {
+          throw new Error(`Reusable decomposer subtask ${id} has malformed depends_on metadata`);
+        }
+        const mergedDependencies = [...new Set([
+          ...(existingDependencies ?? []),
+          ...dependsOn,
+        ])];
+        const { depends_on: _ignoredDependencies, ...existingAttrs } = parsed.attrs;
+        writeRepoTaskFile(
+          args.workspaceRoot,
+          join(getRepoTaskContainerDir(args.workspaceRoot, existing.state), `${id}.md`),
+          serializeFlatFrontMatter(
+            {
+              ...existingAttrs,
+              ...(mergedDependencies.length === 0
+                ? {}
+                : { depends_on: mergedDependencies }),
+            },
+            parsed.body,
+          ),
+        );
+      }
+      continue;
+    }
     const attrs: Record<string, string | string[]> = {
       status: "open",
       priority: task.priority,
