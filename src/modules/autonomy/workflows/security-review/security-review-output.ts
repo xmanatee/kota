@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isSafeRepoRelativePath } from "./security-review-scan-model.js";
 
 const severitySchema = z.enum(["critical", "high", "medium", "low"]);
 const verdictSchema = z.enum(["confirmed", "rejected", "follow-up-needed"]);
@@ -16,6 +17,11 @@ export const investigationFindingSchema = z.object({
   repair: z.string().min(1),
   exploitPreconditions: z.string().min(1),
   evidenceIdentity: z.string().min(1),
+  evidenceLineage: z.object({
+    kind: z.enum(["unchanged", "new-variant", "regression"]),
+    reference: z.string().min(1),
+    rationale: z.string().min(1),
+  }).strict().nullable(),
   claim: z.string().min(1),
   severity: severitySchema,
   affectedPath: z.string().min(1),
@@ -32,7 +38,12 @@ const revalidationVerdictSchema = z.object({
   rationale: z.string().min(1),
 }).strict();
 const investigationOutputSchema = z.object({
-  coverage: z.array(z.object({ path: z.string().min(1), disposition: z.enum(["reviewed", "unreviewed"]), rationale: z.string().min(1) }).strict()),
+  coverage: z.array(z.union([
+    z.object({ path: z.string().min(1), disposition: z.enum(["reviewed", "unreviewed"]), rationale: z.string().min(1) }).strict(),
+    z.object({ path: z.string().min(1), disposition: z.literal("unavailable"), rationale: z.string().min(1),
+      prerequisitePaths: z.array(z.string().refine(isSafeRepoRelativePath)),
+    }).strict(),
+  ])),
   findings: z.array(investigationFindingSchema),
 }).strict();
 const revalidationOutputSchema = z.object({

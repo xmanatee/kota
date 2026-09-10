@@ -26,16 +26,36 @@ the execution-head scan; request histories and coverage maps never travel in the
 agent candidate packet.
 This preserves first-attempt boundaries and explicit requests across failure;
 editing or deleting a keyword-free guard cannot erase its review eligibility. Failed, capped,
-uncertain, or unchecked evidence remains eligible. A no-finding verdict describes the boundary examined and its
-limits; scanner silence is not authorization or sandbox proof. Related changed
+uncertain, or unchecked evidence remains eligible. A settled unavailable review
+retains unknown coverage and its concrete prerequisite. Its unchanged content
+waits for a relevant repository prerequisite change or a new explicit request
+(for external capability/evidence); cooldown expiry alone cannot readmit it.
+A no-finding verdict describes the boundary examined and its limits; scanner silence is not authorization or sandbox proof. Related changed
 paths share a bounded investigation without a finding or task quota.
 
 A family identifies the production authority owner plus the violated invariant.
 Coalesce only when one common repair resolves every variant; preserve each
 variant's attacker control, exploit preconditions, cited evidence and regression
 obligation. Revalidation independently checks both the exploit and that grouping.
-Use a stable evidence revision across wording and line shifts. Reopen completed
-work only for new evidence; preserve its earlier resolution and proof.
+A revalidated existing-task nomination anchors canonical family identity; reviewer
+owner/invariant synonyms cannot rename it. Retain evidence lineage to the task's
+prior evidence key or historical finding id. Use a stable evidence revision across
+wording, excerpt boundaries and line shifts. Reopen completed work only for new
+evidence; preserve its earlier resolution and proof.
+Legacy evidence revisions are verified against the original retained hash inputs.
+An unmatched legacy hash requires revalidated lineage before task mutation; it
+does not establish new evidence. Appending versioned variants cannot remove the
+lineage requirement for retained unversioned evidence, including while a new
+variant has reopened the task. Superseded family markers cannot veto a validated
+nomination of the canonical replacement; competing canonical owners still reject.
+Keep pending provenance until publication succeeds.
+Revalidated lineage reconciles matching pending evidence before replay suppression;
+retain the original evidence and link its review provenance to the revalidation.
+Unresolved historical nominations and missing required lineage stay pending with attributable parking reasons;
+they cannot nominate tasks for, suppress, or reject independently confirmed findings.
+Lineage-required identities remain available for subsequent revalidation, not
+publication; validated evidence can publish to the same task independently.
+Reconciliation remains with the existing task identity and publication owners.
 
 Confirmed evidence stages into runtime state until the existing writer runtime
 can publish under its task resource. Dispatcher retries pending publication when

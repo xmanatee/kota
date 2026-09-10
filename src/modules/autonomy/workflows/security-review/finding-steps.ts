@@ -5,7 +5,7 @@ import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { stepSucceeded } from "#modules/autonomy/shared.js";
 import { refreshReviewInput, scanCandidates } from "./candidate-steps.js";
 import { refreshedReviewInputArtifact } from "./review-input-artifact.js";
-import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "./review-state.js";
+import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable } from "./review-state.js";
 import {
   decodeSecurityInvestigationOutput,
   decodeSecurityRevalidationOutputForInvestigation,
@@ -13,7 +13,7 @@ import {
   type SecurityRevalidationOutput,
   writeJsonArtifact,
 } from "./security-review.js";
-import { resolveSecurityFindingTaskTarget, securityFindingEvidenceKey, securityFindingFamilyKey } from "./security-review-task-identity.js";
+import { resolvePendingSecurityFindings, resolveSecurityFindingTaskTarget, securityFindingFamilyKey } from "./security-review-task-identity.js";
 
 function investigationOutput(
   ctx: WorkflowStepContext,
@@ -109,6 +109,9 @@ export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
   const reviewedPaths = investigation.coverage.filter((entry) => entry.disposition === "reviewed" &&
     !packet.candidates.some((candidate) => candidate.path === entry.path && unresolved.has(candidate.id))).map((entry) => entry.path);
   const input = refreshedReviewInputArtifact.read(runDirPath, refreshReviewInput.outputRequired(ctx));
+  const selectedPaths = [...new Set(packet.candidates.map((candidate) => candidate.path))];
+  const revisitedUnavailablePaths = selectedPaths.filter((path) => state.unavailable[path]?.digest === packet.contentDigests[path]);
+  const deferredUnavailablePaths = Object.keys(state.unavailable).filter((path) => securityReviewPathUnavailable(state, path, input.contentDigests, input.evidenceRequest?.paths.includes(path) ? input.evidenceRequest.id : null));
   state.unreviewedSurfaces = { ...state.unreviewedSurfaces, ...input.previousSurfaces };
   for (const path of reviewedPaths) {
     state.reviewed[path] = {
@@ -120,13 +123,23 @@ export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
       ])],
     };
     delete state.unreviewedSurfaces[path];
+    delete state.unavailable[path];
   }
-  for (const finding of revalidation?.findings ?? []) {
-    if (finding.verdict !== "confirmed" || resolveSecurityFindingTaskTarget(ctx.scopeRoot, finding).current) continue;
-    if (!state.pending.some((entry) => securityFindingEvidenceKey(entry.finding) === securityFindingEvidenceKey(finding))) {
-      state.pending.push({ runId: ctx.runId, finding: { ...finding, verdict: "confirmed" } });
+  for (const coverage of investigation.coverage) {
+    if (coverage.disposition !== "unavailable") {
+      delete state.unavailable[coverage.path];
+      continue;
     }
+    if (packet.candidates.some((candidate) => candidate.path === coverage.path && unresolved.has(candidate.id))) continue;
+    state.unavailable[coverage.path] = {
+      requestIds: [...new Set([
+        ...securityReviewPathUnavailable(state, coverage.path, input.contentDigests, null) ? state.unavailable[coverage.path]!.requestIds : [],
+        ...input.evidenceRequest?.paths.includes(coverage.path) ? [input.evidenceRequest.id] : [],
+      ])], digest: packet.contentDigests[coverage.path]!, runId: ctx.runId, rationale: coverage.rationale,
+      prerequisites: Object.fromEntries(coverage.prerequisitePaths.map((path) => [path, input.contentDigests[path] ?? "deleted"])),
+    };
   }
+  const confirmed = (revalidation?.findings ?? []).filter((finding) => finding.verdict === "confirmed");
   if (input.evidenceRequest) {
     const request = input.evidenceRequest;
     const reviewed = { ...input.evidenceReviewed };
@@ -140,21 +153,72 @@ export function finalizeSecurityReview(ctx: WorkflowFinalizationContext): void {
       state.evidenceRequests.push({ request, reviewed });
     }
   }
+  const incoming = confirmed.map((finding) => ({ runId: ctx.runId, finding: { ...finding, verdict: "confirmed" as const } }));
+  const retained = resolvePendingSecurityFindings(ctx.scopeRoot, state.pending);
   const nominations = new Map<string, string>();
-  for (const entry of state.pending) {
+  // Fresh nominations are checked together. Historical ambiguity cannot reject
+  // an unrelated review or nominate a stale task on its behalf.
+  for (const entry of incoming) {
     const key = securityFindingFamilyKey(entry.finding);
     const id = entry.finding.existingTaskId;
     if (id === null) continue;
     if (nominations.has(key) && nominations.get(key) !== id) throw new Error("Security family has conflicting existing task nominations");
     nominations.set(key, id);
   }
-  for (const entry of state.pending) {
-    entry.finding.existingTaskId = nominations.get(securityFindingFamilyKey(entry.finding)) ?? entry.finding.existingTaskId;
+  for (const entry of incoming) {
+    const key = securityFindingFamilyKey(entry.finding);
+    const historical = new Set(retained.resolved.filter(({ entry: pending }) => pending.finding.existingTaskId !== null && securityFindingFamilyKey(pending.finding) === key).map(({ target }) => target.id));
+    if (!nominations.has(key) && historical.size > 1) throw new Error("Security family requires a revalidated canonical task nomination");
+    entry.finding.existingTaskId = nominations.get(key) ?? (historical.size === 1 ? [...historical][0]! : entry.finding.existingTaskId);
+    if (entry.finding.existingTaskId !== null) nominations.set(key, entry.finding.existingTaskId);
+  }
+  const parkedFindings = [...retained.parked];
+  const parkedEntries = new Set<(typeof state.pending)[number]>();
+  for (const retainedFinding of retained.resolved) {
+    const { entry } = retainedFinding;
+    const nominated = nominations.get(securityFindingFamilyKey(entry.finding));
+    if (entry.finding.existingTaskId !== null || nominated === undefined) continue;
+    const finding = { ...entry.finding, existingTaskId: nominated };
+    try {
+      retainedFinding.target = resolveSecurityFindingTaskTarget(ctx.scopeRoot, finding);
+      entry.finding = finding;
+    } catch (error) {
+      parkedFindings.push({ runId: entry.runId, findingId: finding.id, reason: String(error) });
+      parkedEntries.add(entry);
+    }
+  }
+  const lineageReconciliations: { pendingRunId: string; pendingFindingId: string; revalidationRunId: string; evidenceKey: string }[] = [];
+  for (const entry of incoming) {
+    const target = resolveSecurityFindingTaskTarget(ctx.scopeRoot, entry.finding);
+    const matching = [...retained.resolved, ...retained.lineageRequired].filter(({ entry: pending, target: pendingTarget }) => !parkedEntries.has(pending) && pendingTarget.evidenceKey === target.evidenceKey).map(({ entry: pending }) => pending);
+    // Revalidation repairs the retained outbox before replay suppression. Keep
+    // its original evidence and run provenance for the task publication owner.
+    for (const pending of matching) {
+      if (pending.finding.evidenceLineage !== null || entry.finding.evidenceLineage === null) continue;
+      const finding = { ...pending.finding, existingTaskId: target.id, evidenceLineage: entry.finding.evidenceLineage };
+      try {
+        resolveSecurityFindingTaskTarget(ctx.scopeRoot, finding);
+      } catch (error) {
+        parkedFindings.push({ runId: pending.runId, findingId: finding.id, reason: String(error) });
+        parkedEntries.add(pending);
+        continue;
+      }
+      pending.finding = finding;
+      for (let index = parkedFindings.length - 1; index >= 0; index -= 1) {
+        if (parkedFindings[index]!.runId === pending.runId && parkedFindings[index]!.findingId === finding.id) parkedFindings.splice(index, 1);
+      }
+      lineageReconciliations.push({ pendingRunId: pending.runId, pendingFindingId: finding.id, revalidationRunId: entry.runId, evidenceKey: target.evidenceKey });
+    }
+    if (target.current) continue;
+    if (!matching.some((pending) => !parkedEntries.has(pending))) {
+      state.pending.push(entry);
+      retained.resolved.push({ entry, target });
+    }
   }
   state.lastReview = { runId: ctx.runId, head: packet.head, completedAt: new Date().toISOString() };
   ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, state);
   writeJsonArtifact(runDirPath, "security-review-outcome.json", {
     outcome: state.pending.length ? "publication-pending" : "no-op", head: packet.head,
-    coverage: investigation.coverage, reviewedPaths, pendingFindingCount: state.pending.length,
+    coverage: investigation.coverage, selectedPaths, revisitedUnavailablePaths, deferredUnavailablePaths, reviewedPaths, pendingFindingCount: state.pending.length, lineageReconciliations, parkedFindings,
   });
 }

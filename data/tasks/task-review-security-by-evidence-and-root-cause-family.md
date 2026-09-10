@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Review security by evidence and root-cause family
@@ -257,3 +257,174 @@ safety. Keep the documented no-adoption decision unless a new experiment shows
 useful evidence. Prove synonymous repeated findings update/no-op once, a genuinely
 new variant survives, held-owner publication defers safely, and failed reviews
 retain unchecked coverage. Then measure a pinned live after-cohort honestly.
+
+## Identity and unavailable-coverage repair (2026-09-10)
+
+Run `2026-09-10T02-03-15-660Z-builder-59xofb` repairs the reopened implementation
+issues. Revalidated task nominations now anchor canonical family identity;
+evidence revisions survive owner/invariant synonyms and excerpt changes.
+Explicit evidence lineage references retained evidence or historical finding ids.
+New variants and regressions remain distinct. Existing pending entries migrate
+without losing provenance and reconcile through the existing materializer;
+active/retained task contracts remain under their resource owner.
+
+Settled unavailable coverage retains content/prerequisite digests, rationale and
+individually considered evidence requests. Cooldown expiry alone cannot readmit
+it. Relevant content or prerequisite changes and unseen explicit requests can;
+failed reviews retain unknown coverage. External capability changes use explicit
+evidence requests. Outcome artifacts distinguish selected, revisited unavailable
+and deferred unavailable paths. The scanner no-adoption decision is unchanged.
+
+`pnpm check:fast`, the blocking-worker integration test and both definition
+validators pass. The affected security-review/publication/dispatcher portfolio
+reports 69 passing cases and the existing full-publication failure at
+`spawnSync /bin/ps EPERM`. New production-workflow and materializer regressions
+prove synonymous replay, one update/no-op, preserved variants, unknown coverage,
+failed-review retry and individual pending-request consideration. The code is
+retained safely; full production completion is not claimed.
+
+Evidence and the pinned comparison are in this run's
+`agent/security-review-evidence/review-summary.md`, `cohort.json` and validation
+logs. The two reported recent run identities are pinned separately from the wider
+supplied 28-run/87.1-minute baseline. Neither baseline transcripts nor live
+post-change agent durations were obtained. No occupancy or yield improvement is
+claimed. Canonical pending entries have not been mutated from this sandbox.
+
+## Critic repair: legacy replay and recovery discovery (2026-09-10)
+
+Legacy pending evidence now verifies its revision using the owner, invariant and
+excerpts retained beside the original task hash. Synonymous later reviews cannot
+reopen completed work by changing those hash inputs. Unverifiable legacy evidence
+requires explicit revalidated lineage before mutation; pending provenance remains
+with the publication owner. A new referenced variant still reopens the same task
+and preserves the completed evidence. No canonical pending state was edited.
+
+The regression reproduced reopening before the fix and now exercises version-1
+pending migration against production-rendered legacy task evidence, multiple
+excerpts, unchanged archive bytes, rejected unknown lineage and retained new
+variants. The supported operator-capture precondition below makes this task
+visible to the existing recovery owner. A read-only production discovery and
+classification probe returns operator-capture-due, requiring outcome/provenance
+review rather than treating directory existence as completion. Equivalent
+already-authorized exports remain acceptable; no renewed permission or manual
+capture is required. Evidence is in this run's agent/security-review-evidence/
+repair-blocked-recovery.json and repair validation logs. The original canonical
+publication and live-cohort acceptance remains outstanding.
+
+## Critic repair: completed partial-request coverage (2026-09-10)
+
+Admission now respects each request's completed content coverage when deciding
+whether it supplies unseen evidence, including explicit replays. A production
+workflow regression reproduced repeated admission after one request reviewed A
+and settled B unavailable, then another request settled unchanged A unavailable.
+It now proves cooldown expiry and both request replays skip investigation, while
+a new explicit request and changed content still admit review. `pnpm check:fast`
+passes; the affected owner portfolio reports 82 passes and the existing single
+publication failure at `spawnSync /bin/ps EPERM`. Evidence is in this run's
+`agent/security-review-evidence/repair-2-summary.md` and its validation logs.
+The publication and live-measurement prerequisites below remain outstanding.
+
+## Critic repair: pending lineage handoff (2026-09-10)
+
+Independent revalidation now reconciles lineage into every matching pending
+evidence entry before unchanged-evidence suppression or deduplication. Original
+findings and run provenance remain pending for the existing publication owner;
+the review outcome links those entries to the revalidation run. Review recording
+does not mutate task contracts. Production-workflow/materializer regressions
+cover both unchanged and new-variant recovery, multiple synonymous legacy entries,
+preserved completed evidence and publication of a distinct finding. Validation
+details are in this run's `agent/security-review-evidence/repair-3-summary.md`.
+Canonical publication and live measurement remain outstanding as described below.
+
+## Critic repair: historical replay after later completion (2026-09-10)
+
+Completed-task replay protection now checks each retained evidence record.
+Appending a versioned variant no longer disables the lineage requirement for
+older unversioned evidence. The production materializer regression reproduced
+the defect before the fix, then passed a second completion, rejection of an
+unreferenced historical replay, unchanged referenced/versioned replays and a
+further distinct variant. Retained legacy hashes also remain verifiable after
+new evidence is appended; lossy historical evidence still requires lineage.
+Validation is recorded in this run's
+`agent/security-review-evidence/repair-4-summary.md`. The canonical publication
+and live-measurement prerequisites remain outstanding.
+
+## Critic repair: unresolved pending identity isolation (2026-09-10)
+
+Review recording, dispatcher routing and task publication now resolve pending
+entries independently. Superseded or missing task nominations and invalid lineage
+retain their original evidence and run provenance with a parking reason, while
+independently confirmed findings enter the durable outbox. Historical nominations
+cannot contaminate unrelated findings; valid lineage reconciliation and replay
+suppression remain intact. The publication owner consumes only resolved evidence
+for its task resource and still rejects an unresolved publication target.
+
+The production review regression reproduced all three identity failures before
+the fix. Publication replay exercises durable removal of only the valid entry,
+retention of the unresolved entry, unchanged task contracts and rejection of the
+unresolved target. Evidence and validation results are recorded in this run's
+`agent/security-review-evidence/repair-5-summary.md`. Canonical publication and
+the live-cohort acceptance below remain outstanding.
+
+## Critic repair: independent same-task evidence publication (2026-09-10)
+
+Pending evidence requiring lineage now parks before dispatch and publication,
+while remaining available to independent revalidation. Valid variants can publish
+to the same task without consuming unresolved evidence. Reopening for a versioned
+variant preserves the older unversioned evidence's lineage requirement. Superseded
+family markers no longer veto their canonical replacement; competing canonical
+owners and direct superseded nominations still reject.
+
+Both critic defects and the reopened-task replay defect were reproduced before
+their fixes. The affected owner portfolio reports 91 passes and the existing
+full-publication failure at `spawnSync /bin/ps EPERM`; `pnpm check:fast` and the
+real blocking-worker integration test pass. A real worker also passes the targeted
+task check against this workspace. The reported missing export names the separate
+canonical checkout, whose code cannot be inspected or changed in this sandbox;
+that runtime import failure is not claimed repaired by the local worker proof.
+Details are in this run's `agent/security-review-evidence/repair-6-summary.md` and
+its validation logs. Canonical publication and live-cohort acceptance remain
+outstanding under the existing prerequisites below.
+
+## Critic repair: changing batch eligibility (2026-09-10)
+
+Publication now resolves each pending entry against the task after preceding
+mutations. If appending a revision makes another legacy entry require lineage,
+that entry remains pending with its provenance and parking reason; later valid
+variants and unchanged replays continue through the existing materializer.
+Only successfully materialized entries enter the staged outbox removal.
+
+The production workflow and real blocking worker reproduced the critic's batch
+abort before the fix. The repaired publication step processes the first revision,
+parks the unresolved second revision, appends a third with validated lineage and
+settles a replay without duplicating evidence. It preserves the original task
+evidence and retains canonical pending entries until publication succeeds. Full publication still
+reaches the existing denied process-identity probe. Validation and its limits are
+recorded in this run's `agent/security-review-evidence/repair-7-summary.md`.
+The canonical publication and live-cohort prerequisites below remain outstanding.
+
+## Blocked on
+
+```
+kind: operator-capture
+path: .kota/runs
+description: Attributable scoped review evidence, resource-safe canonical publication/reconciliation, and a pinned live after-cohort; collect through existing authorized evidence/recovery owners or equivalent exports, without renewed permission or mandatory manual capture.
+```
+
+The path is a discovery hint only. Inspect equivalent authorized evidence wherever
+it is available; directory existence does not establish acceptance. Resume through
+the normal task mutation owner after reviewing outcomes and execution provenance.
+
+- Authorized scoped evidence/export of the pinned canonical review runs and a
+  live after-cohort after integration. The workspace CLI lists no review runs;
+  exact canonical metadata/investigation/revalidation reads returned EPERM.
+  Consume the evidence boundary owned by
+  `task-make-blocked-outcomes-actionable-and-recoverable` or an equivalent
+  authorized export, without canonical database or daemon-control access.
+- Canonical publication/recovery must reconcile the observed pending entries
+  under the database task's existing resource ownership and prove the full
+  publication journey in an execution profile supporting its supervised
+  process-identity probe. Preserve the retained database builder's contract.
+  Then assess live coverage, actionable outcomes and agent time against an
+  attributable pinned baseline. The implementation repairs above are complete;
+  these are still-unobserved publication and measurement acceptance outcomes.

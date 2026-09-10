@@ -10,7 +10,7 @@ import type {
   SecurityFindingSeverity,
   SecurityRevalidatedFinding,
 } from "./security-review-output.js";
-import { resolveSecurityFindingTaskTarget, securityFindingEvidenceKey } from "./security-review-task-identity.js";
+import { resolveSecurityFindingTaskTarget } from "./security-review-task-identity.js";
 
 function taskPriorityForSeverity(severity: SecurityFindingSeverity): "p0" | "p1" | "p2" | "p3" {
   if (severity === "critical") return "p0";
@@ -87,6 +87,7 @@ function quoteMarkdown(value: string): string {
 function buildFindingTaskBody(args: {
   finding: SecurityRevalidatedFinding;
   reviewRunIds: readonly string[];
+  evidenceKey: string;
 }): string {
   const { finding } = args;
   const firstRunId = args.reviewRunIds[0];
@@ -116,7 +117,9 @@ function buildFindingTaskBody(args: {
     "",
     ...args.reviewRunIds.map((runId) => `- ${bodyScalar(runId)}`),
     "",
-    `security evidence: ${securityFindingEvidenceKey(finding)}`,
+    `security evidence: ${args.evidenceKey}`,
+    `evidence identity: ${bodyScalar(finding.evidenceIdentity)}`,
+    ...(finding.evidenceLineage ? [`Evidence lineage (${finding.evidenceLineage.kind}): ${bodyScalar(finding.evidenceLineage.reference)}`, quoteMarkdown(finding.evidenceLineage.rationale)] : []),
     `production owner: ${bodyScalar(finding.productionOwner)}`,
     `violated invariant: ${bodyScalar(finding.violatedInvariant)}`,
     "Common repair:", quoteMarkdown(finding.repair),
@@ -192,6 +195,7 @@ export function createOrUpdateSecurityFindingTasks(
       unchangedFindingIds.push(finding.id);
       continue;
     }
+    if (resolution.requiresEvidenceLineage) throw new Error("Legacy security evidence requires revalidated evidence lineage before task mutation");
     const { existing } = resolution;
     const priority = taskPriorityForUpdate(existing?.priority ?? undefined, taskPriorityForSeverity(finding.severity));
     let path = resolution.path;
@@ -202,7 +206,7 @@ export function createOrUpdateSecurityFindingTasks(
       state = "open";
     }
     const attrs = { ...resolution.attrs, status: state, priority };
-    const addition = buildFindingTaskBody({ finding, reviewRunIds: [normalizeControlWhitespace(args.runId)] });
+    const addition = buildFindingTaskBody({ finding, evidenceKey: resolution.evidenceKey, reviewRunIds: [normalizeControlWhitespace(args.runId)] });
     const familyMarker = existing && new RegExp(`^security family: ${resolution.key}$`, "m").test(existing.body) ? "" : `security family: ${resolution.key}\n\n`;
     const body = existing
       ? `${existing.body.trimEnd()}\n\n${familyMarker}## Additional confirmed evidence\n\n${addition}`

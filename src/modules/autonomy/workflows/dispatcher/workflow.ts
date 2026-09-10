@@ -29,7 +29,7 @@ import {
 } from "../security-review/due-check.js";
 import { securityFindingPublicationRequested } from "../security-review/events.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY, type SecurityReviewState } from "../security-review/review-state.js";
-import { resolveSecurityFindingTaskTarget, securityFindingEvidenceKey } from "../security-review/security-review-task-identity.js";
+import { resolvePendingSecurityFindings } from "../security-review/security-review-task-identity.js";
 import { type DispatcherInspection, dispatcherInspectionOperation } from "./inspection.js";
 import {
   inspectProgressSemanticBoundary,
@@ -153,14 +153,11 @@ export function finalizeDispatcher(ctx: WorkflowFinalizationContext): void {
   const parkedSecurityPublications: Array<{ findingId: string; reason: string }> = [];
   if (queue.ownershipAvailable) {
     const pendingTasks = new Map<string, string[]>();
-    for (const entry of securityState.pending) {
-      try {
-        const { id } = resolveSecurityFindingTaskTarget(scopeRoot, entry.finding);
-        if (queue.owners.some((owner) => owner.taskId === id)) continue;
-        pendingTasks.set(id, [...(pendingTasks.get(id) ?? []), securityFindingEvidenceKey(entry.finding)]);
-      } catch (error) {
-        parkedSecurityPublications.push({ findingId: entry.finding.id, reason: String(error) });
-      }
+    const { resolved, parked } = resolvePendingSecurityFindings(scopeRoot, securityState.pending);
+    parkedSecurityPublications.push(...parked);
+    for (const { target: { id, evidenceKey } } of resolved) {
+      if (queue.owners.some((owner) => owner.taskId === id)) continue;
+      pendingTasks.set(id, [...(pendingTasks.get(id) ?? []), evidenceKey]);
     }
     for (const [taskId, evidence] of pendingTasks) {
       publish(securityFindingPublicationRequested.name, {

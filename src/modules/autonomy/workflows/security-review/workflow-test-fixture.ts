@@ -85,7 +85,7 @@ export class SecurityReviewProjectFixture {
           id: "finding-terminal-task-regression",
           candidateId: "task-workflow-mutation:src/modules/example.ts:12",
           existingTaskId: null, productionOwner: "core/workflow", violatedInvariant: "task-authority",
-          repair: "Protect the task mutation boundary", exploitPreconditions: "Untrusted task input", evidenceIdentity: "task-write-v1",
+          repair: "Protect the task mutation boundary", exploitPreconditions: "Untrusted task input", evidenceLineage: null, evidenceIdentity: "task-write-v1",
           claim,
           severity: "medium",
           affectedPath: "src/modules/example.ts",

@@ -29,7 +29,7 @@ describe("security-review workflow", () => {
           id: "finding-one",
           candidateId: "external-fetch:src/modules/web-access/web-fetch.ts:1",
           existingTaskId: null, productionOwner: "core/outbound-http", violatedInvariant: "trusted-destination",
-          repair: "Validate URLs", exploitPreconditions: "Caller controls URL", evidenceIdentity: "direct-fetch-v1",
+          repair: "Validate URLs", exploitPreconditions: "Caller controls URL", evidenceLineage: null, evidenceIdentity: "direct-fetch-v1",
           claim: "Caller-controlled URL reaches fetch without validation.",
           severity: "high",
           affectedPath: "src/modules/web-access/web-fetch.ts",

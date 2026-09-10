@@ -11,12 +11,12 @@ const securityFindingEvidenceSchema = {
   },
 } satisfies JsonSchemaObject;
 
-const securityInvestigationFindingSchema = {
+const securityInvestigationFindingSchema: JsonSchemaObject = {
   type: "object",
   required: [
     "id",
     "candidateId",
-    "existingTaskId", "productionOwner", "violatedInvariant", "repair", "exploitPreconditions", "evidenceIdentity",
+    "evidenceLineage", "existingTaskId", "productionOwner", "violatedInvariant", "repair", "exploitPreconditions", "evidenceIdentity",
     "claim",
     "severity",
     "affectedPath",
@@ -33,6 +33,10 @@ const securityInvestigationFindingSchema = {
     repair: { type: "string" },
     exploitPreconditions: { type: "string" },
     evidenceIdentity: { type: "string" },
+    evidenceLineage: { anyOf: [{ type: "null" }, {
+      type: "object", required: ["kind", "reference", "rationale"], additionalProperties: false,
+      properties: { kind: { enum: ["unchanged", "new-variant", "regression"] }, reference: { type: "string" }, rationale: { type: "string" } },
+    }] } satisfies JsonSchemaObject,
     claim: { type: "string" },
     severity: { type: "string" },
     affectedPath: { type: "string" },
@@ -45,15 +49,19 @@ const securityInvestigationFindingSchema = {
   },
 } satisfies JsonSchemaObject;
 
-export const securityInvestigationOutputSchema = {
+export const securityInvestigationOutputSchema: JsonSchemaObject = {
   type: "object",
   required: ["findings", "coverage"],
   additionalProperties: false,
   properties: {
     coverage: {
       type: "array",
-      items: { type: "object", required: ["path", "disposition", "rationale"], additionalProperties: false,
-        properties: { path: { type: "string" }, disposition: { enum: ["reviewed", "unreviewed"] }, rationale: { type: "string" } } },
+      items: { anyOf: [
+        { type: "object", required: ["path", "disposition", "rationale"], additionalProperties: false,
+          properties: { path: { type: "string" }, disposition: { enum: ["reviewed", "unreviewed"] }, rationale: { type: "string" } } },
+        { type: "object", required: ["path", "disposition", "rationale", "prerequisitePaths"], additionalProperties: false,
+          properties: { path: { type: "string" }, disposition: { const: "unavailable" }, rationale: { type: "string" }, prerequisitePaths: { type: "array", items: { type: "string" } } } },
+      ] },
     },
     findings: {
       type: "array",

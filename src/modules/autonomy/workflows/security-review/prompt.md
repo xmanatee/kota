@@ -16,7 +16,12 @@ For investigation, return structured JSON with `findings` and `coverage`.
 Each selected path needs one coverage record: `path`, `disposition` (`reviewed`
 or `unreviewed`), and `rationale` describing the boundary examined or what remains
 unchecked. Review the full changed boundary, not only the matched line. A zero
-finding result still requires coverage. A skipped or uncertain path stays unreviewed.
+finding result still requires coverage. A skipped or uncertain path stays unreviewed. When a concrete prerequisite makes
+review unavailable, use disposition `unavailable`, state that prerequisite in
+`rationale`, and add `prerequisitePaths` listing repository configuration or source
+whose change makes retry useful. Use [] for an external capability requiring a new
+explicit evidence request. This retains unknown coverage until content, those
+prerequisites, or a new request changes; elapsed time does not make it reviewable.
 
 Each finding contains `existingTaskId` (the existing active or resolved repair task
 when its owner and common repair match, otherwise null), `id`, `candidateId`, `productionOwner` (stable repository
@@ -25,11 +30,17 @@ owner token), `violatedInvariant` (stable lowercase invariant token), `repair`
 `evidenceIdentity` (stable exploit/evidence revision, independent of line and prose
 changes), `claim`, `severity` (`critical`, `high`, `medium`, `low`), `affectedPath`,
 `evidence` (array of `path`, `line`, `excerpt`), and `recommendedOutcome`.
+Include `evidenceLineage`: null for evidence without an established predecessor,
+or {`kind`: `unchanged`, `new-variant`, or `regression`, `reference`, `rationale`}.
+The reference must be a `security evidence` key retained in the nominated task
+(or its historical `finding id` when no evidence key exists). Explain why the cited
+predecessor is unchanged or how the new exploit differs. A different excerpt is
+not a new revision. Use a new evidenceIdentity for a new variant or regression.
 
 For independent revalidation, return `findings` and a top-level `summary`.
 Return one verdict per investigation finding with only `id`, `verdict`
 (`confirmed`, `rejected`, `follow-up-needed`), and `rationale`. Inspect the actual
-code, exploit preconditions and common repair; reject grouping that would hide a
+code, exploit preconditions, referenced evidence lineage and common repair; reject grouping that would hide a
 distinct invariant or leave a variant unfixed. Confirm only cited, supported
 findings. If an exploit is plausible but its grouping needs correction, return
 follow-up-needed so the path remains unreviewed. A demonstrated reintroduction

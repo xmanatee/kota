@@ -4,7 +4,7 @@ import {
 } from "./blocking-operations.js";
 import { collectSecurityReviewGitEvidence } from "./due-check.js";
 import { type ReviewInputReference, refreshedReviewInputArtifact, retainedReviewInputArtifact, reviewInputReferenceSchema } from "./review-input-artifact.js";
-import { decodeSecurityReviewState, evidenceRequestSchema, SECURITY_REVIEW_STATE_KEY } from "./review-state.js";
+import { decodeSecurityReviewState, evidenceRequestSchema, SECURITY_REVIEW_STATE_KEY, securityReviewPathUnavailable } from "./review-state.js";
 import {
   type SecurityReviewCandidate,
   type SecurityReviewCandidatePacket,
@@ -29,13 +29,14 @@ export const retainReviewInput = typedCodeStep<ReviewInputReference>({
   validate: (raw) => reviewInputReferenceSchema.parse(raw),
   run: async ({ workspaceRoot, scopeRoot, stateDir, state, runCommand, trigger, workflow }) => {
     const reviewState = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
-    const request = trigger.payload.evidence === undefined
-      ? [...reviewState.evidenceRequests].sort((a, b) => Number(b.request.critical) - Number(a.request.critical))[0]?.request ?? null
-      : evidenceRequestSchema.parse(trigger.payload.evidence);
-    const evidenceRequest = request && !reviewState.reviewedEvidenceIds.includes(request.id) ? request : null;
+    const explicit = trigger.payload.evidence === undefined ? null : evidenceRequestSchema.parse(trigger.payload.evidence);
     const git = await collectSecurityReviewGitEvidence({ workspaceRoot, scopeRoot, stateDir, runCommand,
-      reviewState, evidencePaths: evidenceRequest?.paths,
+      reviewState, evidencePaths: explicit?.paths, evidenceRequestId: explicit?.id,
     });
+    const request = explicit === null
+      ? [...reviewState.evidenceRequests].filter(({ request, reviewed }) => request.paths.some((path) => reviewed[path] !== git.contentDigests[path] && !securityReviewPathUnavailable(reviewState, path, git.contentDigests, request.id))).sort((a, b) => Number(b.request.critical) - Number(a.request.critical))[0]?.request ?? null
+      : explicit;
+    const evidenceRequest = request && !reviewState.reviewedEvidenceIds.includes(request.id) ? request : null;
     if (git.currentHead.kind !== "commit") throw new Error("Security review requires a readable pinned Git head");
     const unreviewedSurfaces = { ...git.previousSurfaces };
     for (const path of evidenceRequest?.paths ?? []) {
@@ -60,13 +61,13 @@ export const refreshReviewInput = typedCodeStep<ReviewInputReference>({
       reviewState.unreviewedSurfaces[path] = [...new Set([...reviewState.unreviewedSurfaces[path] ?? [], ...surfaces])];
     }
     const git = await collectSecurityReviewGitEvidence({ workspaceRoot, scopeRoot, stateDir, runCommand,
-      reviewState, evidencePaths: evidenceRequest?.paths,
+      reviewState, evidencePaths: evidenceRequest?.paths, evidenceRequestId: evidenceRequest?.id,
     });
     if (git.currentHead.kind !== "commit") throw new Error("Security review requires a readable pinned Git head");
     const evidenceReviewed = Object.fromEntries(Object.entries(
       reviewState.evidenceRequests.find((entry) => entry.request.id === evidenceRequest?.id)?.reviewed ?? {},
     ).filter(([path, digest]) => git.contentDigests[path] === digest));
-    const evidencePaths = evidenceRequest?.paths.filter((path) => evidenceReviewed[path] === undefined) ?? [];
+    const evidencePaths = evidenceRequest?.paths.filter((path) => evidenceReviewed[path] === undefined && !securityReviewPathUnavailable(reviewState, path, git.contentDigests, evidenceRequest?.id ?? null)) ?? [];
     return refreshedReviewInputArtifact.write(ctx.workflow.runDirPath, {
       currentHead: git.currentHead, changedPaths: git.changedPaths,
       contentDigests: git.contentDigests, previousSurfaces: git.previousSurfaces,

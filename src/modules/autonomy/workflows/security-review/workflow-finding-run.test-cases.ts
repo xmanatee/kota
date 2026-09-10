@@ -7,6 +7,7 @@ import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import dispatcher from "../dispatcher/workflow.js";
 import { runGitEvidenceCommand } from "../git-evidence-test-support.js";
 import publication from "../security-finding-publication/workflow.js";
+import { createSecurityFindingTasksInWorker } from "./blocking-operations.js";
 import { collectSecurityReviewGitEvidence, inspectSecurityReviewDue } from "./due-check.js";
 import { securityFindingPublicationRequested } from "./events.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "./review-state.js";
@@ -47,6 +48,253 @@ export function describeSecurityReviewFindingRunTests(workflow: WorkflowDefiniti
       expect(published.status, published.error).toBe("success");
       expect(readFileSync(join(fixture.workspaceRoot, `data/tasks/${taskId}.md`), "utf8")).toContain("Task writes lack authority");
       expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).pending).toEqual([]);
+    });
+
+    it.each(["superseded", "missing", "invalid-lineage"] as const)("parks %s pending identity without blocking an independent confirmed finding", async (failure) => {
+      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+      const taskId = "task-stale";
+      if (failure !== "missing") fixture.writeLegacySecurityFindingTask({
+        id: taskId, state: "done", runId: "historical", claim: "Historical repair",
+        ...(failure === "superseded" ? { supersededBy: "task-canonical" } : {}),
+      });
+      const taskPath = join(fixture.workspaceRoot, `data/tasks/archive/${taskId}.md`);
+      const contract = failure === "missing" ? null : readFileSync(taskPath, "utf8");
+      fixture.commitProjectState();
+      const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+      const stale = { runId: "older-review", finding: {
+        ...fixture.confirmedFindingForClaim("Unresolved old nomination"), existingTaskId: taskId,
+        evidenceLineage: failure === "invalid-lineage" ? { kind: "unchanged" as const, reference: "missing-evidence", rationale: "Stale reference" } : null,
+      } };
+      state.compareAndSet(SECURITY_REVIEW_STATE_KEY, state.read(SECURITY_REVIEW_STATE_KEY).revision, {
+        ...decodeSecurityReviewState(null), pending: [stale],
+      });
+      const finding = { ...fixture.confirmedFindingForClaim("Independent confirmed exploit"),
+        id: "independent", candidateId: `reported-boundary:${path}:1`, productionOwner: "core/network", violatedInvariant: "egress-authority",
+      };
+      const result = await new WorkflowScenarioDriver(workflow, {
+        workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
+        trigger: { event: "autonomy.security-review.requested", payload: { evidence: { id: "independent", paths: [path], critical: true, reason: "New exploit" } } },
+        stepOutputs: {
+          "investigate-candidates": { findings: [(({ verdict: _verdict, rationale: _rationale, ...input }) => input)(finding)], coverage: [{ path, disposition: "reviewed", rationale: "Examined the independent boundary" }, ...(failure === "missing" ? [] : [{ path: `data/tasks/archive/${taskId}.md`, disposition: "reviewed", rationale: "Inspected historical task" }])] },
+          "revalidate-findings": { findings: [{ id: finding.id, verdict: "confirmed", rationale: "Independent exploit reproduced" }], summary: "New supported finding" },
+        },
+      }).run();
+      expect(result.status, result.error).toBe("success");
+      const pending = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).pending;
+      expect(pending).toHaveLength(2);
+      expect(pending[0]).toEqual(stale);
+      expect(pending[1]?.finding.id).toBe("independent");
+      expect(JSON.parse(readFileSync(join(result.runDirPath, "security-review-outcome.json"), "utf8")).parkedFindings).toEqual([
+        { runId: stale.runId, findingId: stale.finding.id, reason: expect.any(String) },
+      ]);
+      const published = createSecurityFindingTasksInWorker({ workspaceRoot: fixture.workspaceRoot, runId: pending[1]!.runId, findings: [pending[1]!.finding] });
+      expect(published.createdTaskIds).toHaveLength(1);
+      if (contract !== null) expect(readFileSync(taskPath, "utf8")).toBe(contract);
+    });
+
+    it("deduplicates nominated synonymous evidence before outbox publication while retaining a new variant", async () => {
+      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+      fixture.writeLegacySecurityFindingTask({ id: "task-database", state: "open", runId: "original", claim: "Database confidentiality" });
+      fixture.commitProjectState();
+      const taskPath = join(fixture.workspaceRoot, "data/tasks/task-database.md");
+      const contract = readFileSync(taskPath, "utf8");
+      const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+      const first = { ...fixture.confirmedFindingForClaim("Database bypass"), existingTaskId: "task-database", candidateId: `reported-boundary:${path}:1` };
+      const run = (finding: typeof first, requestId: string) => new WorkflowScenarioDriver(workflow, {
+        workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
+        trigger: { event: "autonomy.security-review.requested", payload: { evidence: { id: requestId, paths: [path], critical: true, reason: "Revalidate the reported database precondition" } } },
+        stepOutputs: {
+          "investigate-candidates": { findings: [(( { verdict: _verdict, rationale: _rationale, ...input }) => input)(finding)], coverage: [{ path, disposition: "reviewed", rationale: "Inspected the reported authority crossing" }, ...requestId === "first" ? [{ path: "data/tasks/task-database.md", disposition: "reviewed", rationale: "Inspected existing repair contract" }] : []] },
+          "revalidate-findings": { findings: [{ id: finding.id, verdict: "confirmed", rationale: "The nominated task owns the same invariant and repair" }], summary: "Supported evidence" },
+        },
+      }).run();
+      const initial = await run(first, "first");
+      expect(initial.status, initial.error).toBe("success");
+      const originalPending = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).pending;
+      expect(originalPending).toHaveLength(1);
+      const synonym = { ...first, productionOwner: "src/core/native-sandbox", violatedInvariant: "database-confidentiality", evidence: [{ path, line: 42, excerpt: "A wider excerpt of the same bypass" }] };
+      expect((await run(synonym, "revalidation")).status).toBe("success");
+      expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).pending).toEqual(originalPending);
+      expect((await run({ ...synonym, evidenceIdentity: "new-journal-variant" }, "new-variant")).status).toBe("success");
+      expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).pending).toHaveLength(2);
+      expect(readFileSync(taskPath, "utf8")).toBe(contract);
+    });
+
+    it.each(["unchanged", "new-variant"] as const)("reconciles %s lineage into every matching legacy pending finding before publication", async (kind) => {
+      const taskId = "task-legacy";
+      fixture.writeLegacySecurityFindingTask({ id: taskId, state: "done", runId: "original", claim: "Resolved database bypass", findingId: "historical-bypass" });
+      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+      fixture.commitProjectState();
+      const taskPath = join(fixture.workspaceRoot, `data/tasks/archive/${taskId}.md`);
+      const contract = readFileSync(taskPath, "utf8");
+      const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+      const original = { ...fixture.confirmedFindingForClaim("Pending database bypass"), existingTaskId: taskId, candidateId: `reported-boundary:${path}:1` };
+      const { unavailable: _unavailable, ...initial } = decodeSecurityReviewState(null);
+      const legacyPending = [original, { ...original, id: "synonymous-pending", productionOwner: "core/native-sandbox", violatedInvariant: "database-confidentiality", evidence: [{ path, line: 99, excerpt: "Retained second excerpt" }] }]
+        .map(({ evidenceLineage: _lineage, ...finding }, index) => ({ runId: `legacy-review-${index}`, finding }));
+      state.compareAndSet(SECURITY_REVIEW_STATE_KEY, state.read(SECURITY_REVIEW_STATE_KEY).revision, { ...initial, version: 1, pending: legacyPending });
+      expect(() => createSecurityFindingTasksInWorker({ workspaceRoot: fixture.workspaceRoot, runId: "unvalidated", findings: [original] })).toThrow("requires revalidated evidence lineage");
+      const lineage = { kind, reference: "historical-bypass", rationale: "Independently checked the historical exploit and its repair" };
+      const revalidated = { ...original, id: "fresh-revalidation", productionOwner: "core/database-authority", violatedInvariant: "database-read-isolation", evidenceLineage: lineage };
+      const distinct = { ...original, id: "distinct-exploit", existingTaskId: null, violatedInvariant: "network-egress", evidenceIdentity: "distinct-egress-v1" };
+      const findings = [revalidated, distinct];
+      const runId = `revalidate-legacy-${kind}`;
+      const result = await new WorkflowScenarioDriver(workflow, {
+        runId, workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand },
+        trigger: { event: "autonomy.security-review.requested", payload: { evidence: { id: "revalidate-legacy", paths: [path], critical: true, reason: "Resolve retained evidence lineage" } } },
+        stepOutputs: {
+          "investigate-candidates": { findings: findings.map(({ verdict: _verdict, rationale: _rationale, ...finding }) => finding), coverage: [{ path, disposition: "reviewed", rationale: "Examined the reported boundary" }, { path: `data/tasks/archive/${taskId}.md`, disposition: "reviewed", rationale: "Checked historical evidence" }] },
+          "revalidate-findings": { findings: findings.map((finding) => ({ id: finding.id, verdict: "confirmed", rationale: "Checked exploit and common repair independently" })), summary: "Lineage and distinct exploit confirmed" },
+        },
+      }).run();
+      expect(result.status, result.error).toBe("success");
+      const pending = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).pending;
+      expect(pending).toHaveLength(3);
+      expect(pending.slice(0, 2)).toEqual(legacyPending.map((entry) => ({ ...entry, finding: { ...entry.finding, evidenceLineage: lineage } })));
+      expect(readFileSync(taskPath, "utf8")).toBe(contract);
+      expect(JSON.parse(readFileSync(join(result.runDirPath, "security-review-outcome.json"), "utf8")).lineageReconciliations).toEqual(legacyPending.map((entry) => ({
+        pendingRunId: entry.runId, pendingFindingId: entry.finding.id, revalidationRunId: runId,
+        evidenceKey: resolveSecurityFindingTaskTarget(fixture.workspaceRoot, revalidated).evidenceKey,
+      })));
+      expect(JSON.parse(readFileSync(join(result.runDirPath, "security-review-outcome.json"), "utf8")).parkedFindings).toEqual([]);
+      // Exercise the publication owner's real materializer with the retained
+      // outbox. Process supervision and resource admission have separate owners.
+      const published = pending.map((entry) => createSecurityFindingTasksInWorker({ workspaceRoot: fixture.workspaceRoot, runId: entry.runId, findings: [entry.finding] }));
+      expect(published.flatMap((entry) => entry.createdTaskIds)).toHaveLength(1);
+      expect(published.flatMap((entry) => entry.updatedTaskIds)).toEqual(kind === "unchanged" ? [] : [taskId]);
+      if (kind === "unchanged") expect(readFileSync(taskPath, "utf8")).toBe(contract);
+      else {
+        const reopened = readFileSync(join(fixture.workspaceRoot, `data/tasks/${taskId}.md`), "utf8");
+        expect(reopened).toContain("Resolved database bypass");
+        expect(reopened).toContain("legacy-review-0");
+        expect(reopened).toContain(`Evidence lineage (${kind}): historical-bypass`);
+      }
+    });
+
+    it("parks unchanged unavailable coverage and resumes only relevant evidence without losing failed attempts", async () => {
+      const prerequisite = "clients/mobile/build.json";
+      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+      fixture.writeProjectFile(prerequisite, '{"nativeBridge":false}');
+      fixture.commitProjectState();
+      const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+      const evidence = { id: "mobile-report", paths: [path], critical: false, reason: "Mobile authorization requires a native bridge" };
+      const unavailable = { path, disposition: "unavailable", rationale: "Native bridge unavailable; recheck on build configuration or explicit capability report", prerequisitePaths: [prerequisite] };
+      const run = (payload: Record<string, unknown>, coverage: unknown[], fail = false) => new WorkflowScenarioDriver(workflow, {
+        workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand,
+          runAgent: async () => { if (fail) throw new Error("provider unavailable"); return { findings: [], coverage }; },
+        }, trigger: { event: payload.evidence ? "autonomy.security-review.requested" : "autonomy.security-review.due", payload },
+      }).run();
+      const due = async () => inspectSecurityReviewDue(fixture.workspaceRoot, { stateDir: state.stateDir, cooldownMs: 0 },
+        await collectSecurityReviewGitEvidence({ workspaceRoot: fixture.workspaceRoot, scopeRoot: fixture.workspaceRoot, stateDir: state.stateDir, runCommand: runGitEvidenceCommand, reviewState: decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value) }));
+      expect((await run({ evidence }, [unavailable])).status).toBe("success");
+      const held = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
+      expect(held.reviewed[path]).toBeUndefined();
+      expect(held.unavailable[path]?.rationale).toContain("Native bridge unavailable");
+      expect(held.evidenceRequests).toHaveLength(1);
+      expect((await due()).due).toBe(false);
+      expect((await run({ evidence }, [])).steps["investigate-candidates"].status).toBe("skipped");
+
+      const other = "src/other.ts";
+      fixture.writeProjectFile(other, "fetch(url);\n");
+      fixture.commitProjectState();
+      expect((await due()).changedSurfaces.flatMap((surface) => surface.paths)).not.toContain(path);
+      expect((await run({}, [{ path: other, disposition: "reviewed", rationale: "Inspected destination policy" }])).status).toBe("success");
+      expect((await due()).due).toBe(false);
+
+      fixture.writeProjectFile(prerequisite, '{"nativeBridge":true}');
+      fixture.commitProjectState();
+      expect((await due()).due).toBe(true);
+      const beforeFailure = state.read(SECURITY_REVIEW_STATE_KEY).value;
+      expect((await run({}, [], true)).status).toBe("failed");
+      expect(state.read(SECURITY_REVIEW_STATE_KEY).value).toEqual(beforeFailure);
+      expect((await due()).due).toBe(true);
+      expect((await run({}, [unavailable])).status).toBe("success");
+      expect((await due()).due).toBe(false);
+
+      const newEvidence = { ...evidence, id: "bridge-now-available", critical: true };
+      expect((await run({ evidence: newEvidence }, [{ path, disposition: "unreviewed", rationale: "Caller still needs investigation" }])).status).toBe("success");
+      expect((await due()).due).toBe(true);
+      expect((await run({}, [unavailable])).status).toBe("success");
+      fixture.writeProjectFile(path, "writeFileSync(otherTask, body);\n");
+      fixture.commitProjectState();
+      expect((await due()).due).toBe(true);
+      expect((await run({}, [{ path, disposition: "reviewed", rationale: "Inspected changed caller and destination" }])).status).toBe("success");
+      expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).unavailable[path]).toBeUndefined();
+    });
+
+    it("settles unavailable requests individually without cycling or suppressing unseen reports", async () => {
+      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+      fixture.commitProjectState();
+      const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+      const request = (id: string) => ({ id, paths: [path], critical: false, reason: `Independent report ${id}` });
+      const run = (payload: Record<string, unknown>) => new WorkflowScenarioDriver(workflow, {
+        workspaceRoot: fixture.workspaceRoot, ports: { state, runCommand: runGitEvidenceCommand, runAgent: async () => ({ findings: [], coverage: [{ path, disposition: "unavailable", prerequisitePaths: [], rationale: "External native bridge remains unavailable" }] }) },
+        trigger: { event: "autonomy.security-review.requested", payload },
+      }).run();
+      expect((await run({ evidence: request("first") })).status).toBe("success");
+      const snapshot = state.read(SECURITY_REVIEW_STATE_KEY);
+      const pending = decodeSecurityReviewState(snapshot.value);
+      pending.evidenceRequests.push({ request: request("second"), reviewed: {} }, { request: request("third"), reviewed: {} });
+      state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, pending);
+      const second = await run({});
+      expect(second.status, second.error).toBe("success");
+      expect(decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value).unavailable[path]?.requestIds).toEqual(["first", "second"]);
+      const third = await run({});
+      expect(third.status, third.error).toBe("success");
+      const held = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
+      expect(held.unavailable[path]?.requestIds).toEqual(["first", "second", "third"]);
+      expect(held.evidenceRequests).toHaveLength(3);
+      expect(held.reviewedEvidenceIds).toEqual([]);
+      expect((await run({})).steps["investigate-candidates"].status).toBe("skipped");
+      const git = await collectSecurityReviewGitEvidence({ workspaceRoot: fixture.workspaceRoot, scopeRoot: fixture.workspaceRoot, stateDir: state.stateDir, runCommand: runGitEvidenceCommand, reviewState: held });
+      expect(inspectSecurityReviewDue(fixture.workspaceRoot, { stateDir: state.stateDir, cooldownMs: 0 }, git).due).toBe(false);
+    });
+
+    it("keeps completed partial-request coverage from readmitting another request's unavailable path", async () => {
+      const other = "src/modules/other.ts";
+      fixture.writeProjectFile(path, "writeFileSync(taskPath, body);\n");
+      fixture.writeProjectFile(other, "writeFileSync(otherTask, body);\n");
+      fixture.commitProjectState();
+      const state = createTestTransactionalRunState(join(fixture.workspaceRoot, ".kota/state"));
+      const first = { id: "partial", paths: [path, other], critical: false, reason: "Inspect both authority boundaries" };
+      const second = { id: "later", paths: [path], critical: false, reason: "Inspect an external native precondition" };
+      const unavailable = (path: string) => ({ path, disposition: "unavailable", prerequisitePaths: [], rationale: "External native bridge remains unavailable" });
+      const reviewed = { path, disposition: "reviewed", rationale: "Inspected caller authority and destination" };
+      const run = (payload: Record<string, unknown>, coverage: unknown[]) => new WorkflowScenarioDriver(workflow, {
+        workspaceRoot: fixture.workspaceRoot,
+        ports: { state, runCommand: runGitEvidenceCommand, runAgent: async () => ({ findings: [], coverage }) },
+        trigger: { event: payload.evidence ? "autonomy.security-review.requested" : "autonomy.security-review.due", payload },
+      }).run();
+      const evidence = () => collectSecurityReviewGitEvidence({
+        workspaceRoot: fixture.workspaceRoot, scopeRoot: fixture.workspaceRoot, stateDir: state.stateDir,
+        runCommand: runGitEvidenceCommand, reviewState: decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value),
+      });
+      const initial = await run({ evidence: first }, [reviewed, unavailable(other)]);
+      expect(initial.status, initial.error).toBe("success");
+      const later = await run({ evidence: second }, [unavailable(path)]);
+      expect(later.status, later.error).toBe("success");
+      const held = decodeSecurityReviewState(state.read(SECURITY_REVIEW_STATE_KEY).value);
+      expect(held.evidenceRequests.find(({ request }) => request.id === first.id)?.reviewed[path]).toBe(held.reviewed[path]?.digest);
+      expect(held.unavailable[path]?.requestIds).toEqual([second.id]);
+      const git = await evidence();
+      expect(git.pendingEvidence).toBe(false);
+      expect(inspectSecurityReviewDue(fixture.workspaceRoot, { stateDir: state.stateDir, cooldownMs: 0 }, git).due).toBe(false);
+      for (const payload of [{}, { evidence: first }, { evidence: second }]) {
+        const replay = await run(payload, []);
+        expect(replay.status, replay.error).toBe("success");
+        expect(replay.steps["investigate-candidates"].status).toBe("skipped");
+      }
+
+      const fresh = await run({ evidence: { ...second, id: "new-precondition" } }, [unavailable(path)]);
+      expect(fresh.status, fresh.error).toBe("success");
+      expect(fresh.steps["investigate-candidates"].status).toBe("success");
+      fixture.writeProjectFile(path, "writeFileSync(changedTask, body);\n");
+      fixture.commitProjectState();
+      const changed = await evidence();
+      expect(changed.pendingEvidence).toBe(true);
+      expect(inspectSecurityReviewDue(fixture.workspaceRoot, { stateDir: state.stateDir, cooldownMs: 0 }, changed).due).toBe(true);
+      const resumed = await run({}, [reviewed]);
+      expect(resumed.status, resumed.error).toBe("success");
     });
 
     it("reviews explicit evidence without scanner matches and admits new evidence on unchanged content once", async () => {

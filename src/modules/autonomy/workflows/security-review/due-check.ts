@@ -6,7 +6,7 @@ import {
   type RepoTaskFullRecord,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
-import { decodeSecurityReviewState, type SecurityReviewState } from "./review-state.js";
+import { decodeSecurityReviewState, type SecurityReviewState, securityReviewPathUnavailable } from "./review-state.js";
 import { securityReviewSurfacesForChangedPath } from "./security-review-file-scan.js";
 import {
   SECURITY_REVIEW_MAX_DUE_PATHS,
@@ -137,6 +137,7 @@ export async function collectSecurityReviewGitEvidence(args: {
   runCommand: WorkflowCommandRunner;
   reviewState?: SecurityReviewState;
   evidencePaths?: readonly string[];
+  evidenceRequestId?: string;
 }): Promise<SecurityReviewGitEvidence> {
   const state = args.reviewState ?? decodeSecurityReviewState(null);
   const lastReview = lastReviewEvidence(state);
@@ -153,13 +154,29 @@ export async function collectSecurityReviewGitEvidence(args: {
     const retainedPaths = new Set([
       ...Object.keys(state.reviewed),
       ...Object.keys(state.unreviewedSurfaces),
+      ...Object.keys(state.unavailable),
+      ...Object.values(state.unavailable).flatMap((entry) => Object.keys(entry.prerequisites)),
       ...args.evidencePaths ?? [],
       ...state.evidenceRequests.flatMap(({ request }) => request.paths),
     ]);
     for (const path of retainedPaths) {
       if (!(path in contentDigests)) contentDigests[path] = "deleted";
     }
-    const changedPaths = Object.keys(contentDigests).filter((path) => contentDigests[path] !== state.reviewed[path]?.digest).sort();
+    const requestedPaths = new Map<string, string[]>();
+    const addUnreviewedRequestPaths = (id: string, paths: readonly string[], reviewed: Record<string, string>) => {
+      if (state.reviewedEvidenceIds.includes(id)) return;
+      for (const path of paths) {
+        if (reviewed[path] !== contentDigests[path]) requestedPaths.set(path, [...requestedPaths.get(path) ?? [], id]);
+      }
+    };
+    for (const { request, reviewed } of state.evidenceRequests) {
+      addUnreviewedRequestPaths(request.id, request.paths, reviewed);
+    }
+    addUnreviewedRequestPaths(args.evidenceRequestId ?? "explicit", args.evidencePaths ?? [],
+      state.evidenceRequests.find(({ request }) => request.id === args.evidenceRequestId)?.reviewed ?? {});
+    const changedPaths = Object.keys(contentDigests).filter((path) => (contentDigests[path] !== state.reviewed[path]?.digest || state.unavailable[path] !== undefined) &&
+      (!securityReviewPathUnavailable(state, path, contentDigests, null) ||
+        requestedPaths.get(path)?.some((id) => !securityReviewPathUnavailable(state, path, contentDigests, id)))).sort();
     const previousSurfaces: Record<string, SecurityReviewSurface[]> = {};
     for (const path of changedPaths) {
       const surfaces = securityReviewSurfacesForChangedPath(args.workspaceRoot, path, [
@@ -173,7 +190,7 @@ export async function collectSecurityReviewGitEvidence(args: {
       comparison: lastReview.kind === "found" && lastReview.head.kind === "commit"
         ? { kind: "commit-range", baseSha: lastReview.head.sha, headSha: head }
         : { kind: "full-tree", reason: "no-review-evidence" },
-      changedPaths, contentDigests, previousSurfaces, pendingEvidence: state.evidenceRequests.length > 0,
+      changedPaths, contentDigests, previousSurfaces, pendingEvidence: state.evidenceRequests.some(({ request, reviewed }) => request.paths.some((path) => reviewed[path] !== contentDigests[path] && !securityReviewPathUnavailable(state, path, contentDigests, request.id))),
     };
   } catch (error) {
     return {
