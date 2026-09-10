@@ -3,7 +3,6 @@ status: blocked
 priority: p1
 depends_on: [task-prove-agy-builder-parity-end-to-end]
 ---
-
 # Make continuous AGY autonomy quota-aware and productive
 
 ## Problem
@@ -94,13 +93,6 @@ Evidence-gated AGY autonomy rollout.
 - A runtime transcript showing redundant dispatch suppression during quota
   backoff and preserved-work resumption after recovery.
 
-## Blocked on
-```
-kind: operator-capture
-path: .kota/runs/agy-continuous-live-canary/agy-continuous-canary/
-description: Authenticated AGY live evidence — run the continuous daemon canary with run id agy-continuous-live-canary, establish its command-captured baseline through `pnpm kota agy-canary --run-id agy-continuous-live-canary --start`, capture the first three-hour and at least one six-hour observation through the matching `--phase` commands, and retain collected run/task evidence, cited diff-scope review, provider incidents, the continue-or-pause decision, and a runtime transcript proving quota suppression and preserved-work resumption under the path above.
-```
-
 ## Status (2026-09-02 builder)
 
 Provider and quality incidents now share one daemon-wide durable
@@ -131,3 +123,22 @@ before the canary can decide. Its daemon one-shot review joins the fleet gate
 before sending; a newly classified provider or successful-empty failure parks
 agent dispatch and checkpoints those runs for later review. The task remains blocked on the elapsed
 authenticated live evidence required by Acceptance Evidence.
+
+## Current disposition (2026-09-10)
+
+AGY host authentication/model discovery now works, but no command-owned canary
+baseline and elapsed observation windows were established by today's readiness
+check. Production is intentionally Codex-backed; do not silently switch it or
+start a competing daemon to manufacture evidence. Use the existing agy-canary
+--run-id <id> --start and matching --phase commands when an authorized controlled
+AGY window is arranged through the host lifecycle. Preserve 3h/6h useful-work
+review, quota suppression, same-lineage recovery and continue/pause evidence.
+Do not reduce elapsed acceptance to a readiness check.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: An authorized controlled AGY runtime window with a command-captured baseline, first three-hour and subsequent six-hour evidence, quality review, quota suppression and retained-work resumption. Current Codex production selection is intentional; readiness alone cannot supply these elapsed outcomes. Returned attributable artifacts are accepted without a mandatory fixed directory.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

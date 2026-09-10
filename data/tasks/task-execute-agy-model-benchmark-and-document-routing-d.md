@@ -3,7 +3,6 @@ status: blocked
 priority: p1
 depends_on: [task-build-reusable-agy-model-evaluation-suite-in-eval, task-enforce-agy-model-readiness-gates-and-dynamic-pres]
 ---
-
 # Execute AGY model benchmark and document routing decision evidence
 
 ## Problem
@@ -39,13 +38,6 @@ Decomposed from `task-validate-agy-model-routing-against-long-horizon-co` after 
 - Artifact directory under .kota/runs/<run-id>/agy-model-routing/ containing full benchmark reports and decision documentation.
 - Transcript verifying selected model execution at max effort via the real AGY CLI adapter.
 
-## Blocked on
-```text
-kind: operator-capture
-path: .kota/runs/2026-08-11T11-04-08-772Z-builder-l9gfun/agy-model-routing
-description: In an operator-controlled environment with authenticated AGY and a running Docker-compatible engine, provide a KOTA/AGY candidate image plus an internal Google provider-egress network and proxy, then run `pnpm kota eval agy-models --candidate gemini-3.6-flash --candidate gemini-3.1-pro --repeats 3 --effort max --container-executable docker --container-image <image> --container-kota-binary-path /opt/kota/bin/kota.mjs --provider-egress-network <network> --provider-egress-proxy http://<proxy-host>:<port> --keep --json`. Capture the full transcript, availability evidence, suite report, all three scenario traces per repeat and candidate, changed-path reports, rubric verdicts, and final routing decision at this path. The capture must use the real antigravity-cli adapter and must not use replay, host execution, a fake container runtime, or fallback.
-```
-
 ## Status (2026-08-11 builder preflight)
 
 The live suite could not start in this builder environment. Docker 29.3.1 is
@@ -55,3 +47,25 @@ Google provider-egress network, proxy, or candidate image is available. AGY
 and `gemini-3.6-flash-high` availability cannot be verified. The screened
 preflight transcript and fail-closed `needs-more-data` decision are recorded in
 `.kota/runs/2026-08-11T11-04-08-772Z-builder-l9gfun/evidence/artifacts/agy-model-routing/`.
+
+## Current disposition (2026-09-10)
+
+Host Docker engine and AGY authentication/model discovery now work (Docker
+29.3.1, AGY 1.1.27). Remove them as current blockers. The shipped AGY default is
+now 3.7 Flash, not the historically described 3.6. Keep the requested 3.6/3.1
+comparison, and include the actual selected model before claiming current routing
+validation. Do not switch the live Codex daemon to run this benchmark.
+Use the existing eval agy-models owner and current container options. Candidate
+image/AGY authentication and Google internal egress/proxy still need verification;
+there is currently no Google provider-egress network. Intrinsic-reasoning models
+must not receive unsupported effort flags. Record unavailable rows and quota
+without blind retries. Readiness and model listing do not replace benchmark
+traces, repeats, rubric evidence or a routing decision.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Verified current KOTA/AGY candidate image, authenticated isolated execution and an internal Google provider-egress network/proxy, followed by the required real three-repeat suite with returned artifacts and quota evidence. Host Docker and AGY model discovery are ready; container readiness and live results remain unproven. Equivalent attributable artifact locations are accepted.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

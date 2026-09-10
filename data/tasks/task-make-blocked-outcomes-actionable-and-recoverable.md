@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Make blocked outcomes actionable and recoverable
@@ -106,10 +106,35 @@ Full comparison, case dispositions, commands/limitations, and discovery results
 are retained in builder run 2026-09-09T16-49-09-994Z-builder-omacue agent artifacts
 blocked-outcomes-summary.md and blocked-discovery.json.
 
-## Blocked on
+## Current disposition (2026-09-10)
 
-kind: operator-capture
-path: .kota/runs
-description: Runtime-owned scoped inspection/export and same-run recovery access for qj0mm4, hjhox7, 720nnv and un8vlq, plus execution capability for the required subprocess/Linux/live evidence. Permission is already granted; use authorized collection and equivalent attributable evidence wherever available. Review the evidence and remaining implementation before reopening; no named file or directory alone satisfies this precondition.
+Reopened for the unfinished shared mechanism, not for another blind attempt at
+the four retained builders. The earlier implementation and safe dispositions
+remain valid, but automatic evidence collection/review, relevant-change retry
+admission and retained-owner contract reconciliation are not implemented fully.
+These are actionable repository changes; subsequent live acceptance must not
+prevent implementing them. Do not mark this task blocked again merely because
+its own candidate cannot control the launching daemon.
 
-<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-09T20:06:51.149Z -->
+Reuse existing scoped runtime probes/exports, issue reconciliation, task mutation
+and same-run recovery. Give investigators the narrowly authorized, read-only run
+evidence they need without granting raw canonical SQLite, secrets, Docker socket
+or daemon-control authority to candidate code. Carry provenance and unavailable
+diagnostics, not a new evidence database/protocol. Correct publication must use
+the owning resource boundary; do not enqueue an ordinary mutation against any
+of the four retained owners or rewrite their admitted contracts out of band.
+
+Host check today: Docker client/server 29.3.1 works on Linux ARM64 (16 CPUs,
+about 7.65 GiB RAM); Codex CLI login is active; AGY 1.1.27 authenticated model
+discovery succeeds. Existing OpenRouter credential authentication returned 200
+through an operator read-only probe, while normal scope resolution found none.
+Ollama answers but has zero installed models; LM Studio is not listening.
+Container authentication and provider egress remain unproven. Readiness is not
+a passed benchmark. Docker is already authorized; do not ask for that permission
+again or reinterpret native sandbox denial as absent host capabilities.
+
+Finish the four specific dispositions and eight evidence-task triages above.
+Retries need relevant new evidence/capability/contract change; repeated unchanged
+failure must not consume another repair loop. A completed task must cite actual
+integration, owner-safe cleanup or intentional retention, and honest remaining
+external prerequisites. Keep validation focused on these shared contracts.

@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 ---
 # Review security by evidence and root-cause family
@@ -216,23 +216,44 @@ were obtained, and no occupancy saving or production yield improvement is claime
 The existing Blocked on acceptance below still applies; these safe retained
 changes do not constitute full completion of the original task.
 
-## Blocked on
+## Current disposition (2026-09-10)
 
-kind: operator-capture
-path: .kota/runs/*security-review*
-description: Attributable original review/critic transcripts, successful full publication validation in an authorized execution profile, and a pinned after-change cohort with elapsed agent-step durations and actionable outcomes. The path is a discovery hint; equivalent scoped exports and runtime evidence are acceptable, without mandatory manual execution.
+Reopened for concrete post-integration defects. Prior persistence and coverage
+repairs remain valid; the historical external capture is acceptance work, not a
+reason to defer these fixes. Do not replace the established reviewer or add a
+second finding database.
 
-Equivalent scoped access to the original September 3–9 review and relevant critic
-repair transcripts, plus an authorized execution profile for the full publication
-scenario and a pinned after-change review cohort. The current workspace's normal
-workflow-list command returns no recent runs; selecting the canonical scope fails
-on its daemon-discovery read (EPERM), and canonical run-artifact enumeration is also
-denied. These restrictions do not establish that host credentials or capabilities
-are absent. Runtime publication validation additionally fails at `/bin/ps` (EPERM),
-not at task validation. No privileged fallback or candidate host authority was used.
+Run 2026-09-09T22-54-43-700Z-security-review-nrrakv and run
+2026-09-10T00-19-55-369Z-security-review-qkfgdg both revalidate the existing
+database-read task with evidenceIdentity native-nonwriter-database-read and
+explicitly unchanged evidence. Their security-review-revalidation.json artifacts
+use different strings: core/agent-harness/native-cli-sandbox versus
+src/core/agent-harness/native-cli-sandbox; daemon-database-read-isolation versus
+nonwriter-daemon-database-confidentiality. security-review-task-identity.ts hashes
+the raw owner/invariant strings and then hashes excerpts. Semantic synonyms or
+excerpt boundaries therefore create new family/evidence keys despite the same
+nominated task. The total pending outbox grew from one to two; this is not proof
+of two new vulnerabilities. Existing-family marker mismatch can also reject
+publication. Verify that path rather than claiming it already occurred live.
 
-Resume by making equivalent attributable exports and runtime execution available,
-then inspect the original traces, complete publication validation, and compare actual
-elapsed agent-step time and actionable outcomes over a pinned after-change cohort.
-No particular capture directory or manual-execution procedure is required. The
-retained implementation is not claimed as full completion of this task.
+Use stable canonical task/family identity and evidence lineage in the existing
+materializer. Let the investigator distinguish a new variant or regression from
+the known family, with references; code enforces identity, resource-safe updates
+and replay. Prefix stripping or fuzzy-text suppression alone is insufficient.
+Reconcile the observed pending entries through their owner without dropping a
+distinct finding or altering the retained database builder's contract.
+
+The same unreviewable mobile boundary digests recur after cooldown even without
+new capability/evidence. Retain unknown coverage, but revisit settled unavailable
+inputs when a relevant prerequisite, content or explicit request changes, not
+simply because time passed. These runs also contained new paths; do not label
+the entire batch a no-op. Report changed vs repeated coverage separately.
+
+Missing artifact access belongs to the scoped evidence/recovery mechanism in
+task-make-blocked-outcomes-actionable-and-recoverable; consume that boundary or
+equivalent authorized exports, not raw database access. The existing Biome rule
+is a narrow policy signal; the scanner experiment did not prove native sandbox
+safety. Keep the documented no-adoption decision unless a new experiment shows
+useful evidence. Prove synonymous repeated findings update/no-op once, a genuinely
+new variant survives, held-owner publication defers safely, and failed reviews
+retain unchecked coverage. Then measure a pinned live after-cohort honestly.

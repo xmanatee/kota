@@ -104,12 +104,6 @@ capability blocker. KOTA should collect results automatically when authorized,
 without requiring a person to type the command. Keep credentials private and
 verify live outcome and provenance, not just readiness or a nonempty transcript.
 
-## Blocked on
-
-kind: operator-capture
-path: .kota/runs/scientific-claim-reproduction-live-pass/
-description: Attributable passing live builder-scientific-claim-reproduction evidence from the current eval runner in its required isolated and authenticated context. Retain transcript, eval-set-report.json, predicate details, isolation/resource evidence and claim-result.json, claim-holdout-result.json and objective metric. An authorized runtime may collect and retain this capture; manual owner execution is not a requirement. Existing equivalent evidence may be reused only after verifying the same fixture, candidate and execution provenance.
-
 ## Status (2026-05-27 builder)
 
 The fixture files, minimal initial project, scorer, objective metric, and
@@ -214,3 +208,15 @@ calibration before execution reaches nested builder execution
 step and stops at the sandbox's loopback-listener preflight. The remaining
 product criterion is the authenticated trusted-host live eval evidence named
 by the operator-capture precondition.
+
+## Current disposition (2026-09-10)
+
+Production fixture loading succeeds. Docker 29.3.1 and host Codex login are ready; historical authentication/loopback denials describe older execution contexts, not the current host. The remaining prerequisite is the isolated candidate setup described below. Use the existing eval owner: pnpm kota eval run --fixture builder-scientific-claim-reproduction --repeats 1 with current container/egress options. Retain claim-result.json, claim-holdout-result.json, predicate details and objective metric, live builder provenance and eval-set-report.json. Use the artifact path returned by the runner (.kota/eval-runs/<stamp>), linked to the parent run. No human-only capture or exact directory prefix is required. The Docker engine has about 7.65 GiB RAM; do not reuse a historical 128-GiB profile. Existing calibration passes are partial evidence, not a live builder pass.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Current-source image with image-local KOTA executable, functional provider-egress proxy and authentication inside the required isolated candidate execution. Docker and host Codex login were verified on 2026-09-10; they are not missing permissions. Use an authorized current eval run and inspect its returned evidence location, not directory existence. Preserve all required positive/negative, transcript, isolation and scoring evidence; readiness alone is not a passing live result.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

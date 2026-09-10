@@ -50,13 +50,6 @@ either converted into follow-up tasks or explained why they do not block
 - The scenarios pack is reachable from the CLI or an operator-runnable
   script, not only from ad-hoc invocation.
 
-## Blocked on
-```
-kind: operator-capture
-path: .kota/runs/harness-parity-*
-description: live operator-facilitated harness-parity capture — operator runs `kota harness-parity run` against every registered harness; artifacts land under .kota/runs/harness-parity-<stamp>/<scenario>/<harness>/ with per-scenario parity.json and per-harness trace-summary.md
-```
-
 ## Source / Intent
 
 Owner direction from the Claude/Codex-alternative inbox work asked KOTA to be
@@ -146,3 +139,22 @@ passed with `verification=pass`, one turn, and one changed file. That proves
 the Codex harness path is locally viable. It does not unblock this task because
 the precondition requires the operator-captured all-registered-harness artifact
 under `.kota/runs/harness-parity-*`.
+
+## Current disposition (2026-09-10)
+
+The June 15 Codex/GPT-5.5 slice passed verification with one changed file. Its
+directory prefix does not invalidate it; it remains historical partial evidence,
+not current all-adapter parity. Use the existing harness-parity run command with
+compatible --harness/--model/--out routing and each registered adapter's actual
+auth contract. Authorized runtime collection is allowed; no human must type each
+command. Preserve paired prompt/trace/diff/verifier artifacts, missing-auth rows
+and explicit text-only capability gaps. Do not reclassify absent credentials as
+an incapable model or an unfinished row as passed.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Attributable current paired coding-task results for required registered adapters, through authorized compatible model/auth routing. Accept equivalent returned artifact locations and historical partial evidence with provenance; complete missing live rows and record capability-gap decisions. Host Codex/AGY readiness exists, but all-row credentials and execution have not been established.
+
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->

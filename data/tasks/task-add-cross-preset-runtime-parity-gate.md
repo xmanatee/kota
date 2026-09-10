@@ -1,8 +1,7 @@
 ---
-status: blocked
+status: open
 priority: p2
 ---
-
 # Add cross-preset runtime parity gate
 
 ## Problem
@@ -175,26 +174,6 @@ Siblings: `task-introduce-harness-preset-abstraction`,
   the three primary presets first; downstream providers join
   once the shape is proven.
 
-## Blocked on
-```
-kind: operator-capture
-path: .kota/runs/preset-parity-all-keys-set/
-description: operator-facilitated capture of two `pnpm test:preset-parity` transcripts on a host where Claude/Gemini env auth is set and Codex CLI login is active — first run with claude+codex+gemini all green; second run with one env-auth preset unset showing only that preset's preflight cleanly fail and the other two scenarios passing. Capture each invocation's stdout/stderr at .kota/runs/preset-parity-all-keys-set/{all-green,one-unset}/transcript.txt with the per-preset .kota/runs/<test-stamp>/preset-parity/<preset-id>/{preflight.json,transcript.txt,result.json} artifacts copied alongside.
-```
-
-The gate scaffolding is already shipped: `src/preset-parity-model-sweep.integration.test.ts`
-(stand-alone fast-feedback model-id sweep, 35/35 green without provider keys),
-`src/preset-parity.integration.test.ts` (per-preset preflight + parameterized
-single-turn scenario gate), the `pnpm test:preset-parity` script, and per-preset
-artifact recording under `.kota/runs/<run-id>/preset-parity/<preset-id>/`. The
-no-keys-set transcript captured during the implementation builder run
-demonstrates the preflight mechanism works for env-auth presets (missing env
-preflights fail loudly with actionable per-preset messages, scenario tests
-cleanly skip with the missing-env reason in the test name, the model-sweep test
-stays green). The two on-host transcripts the task contracts for require real
-ANTHROPIC_API_KEY / GEMINI_API_KEY (or GOOGLE_API_KEY) plus an active Codex CLI
-login and must be operator-captured.
-
 ## Status (2026-06-15 blocked audit)
 
 `pnpm run test:preset-parity` still passes locally (62 passed, 6 skipped).
@@ -212,3 +191,23 @@ is the doctor auth contract: AGY stores login state in the OS keyring and does
 not expose a documented headless auth-status command, so `doctor --preset
 antigravity-cli --skip-connectivity` stays conservative even though a live
 one-shot run can work.
+
+## Current disposition (2026-09-10)
+
+Reopened for unfinished product coverage, separate from live credentials. The
+current src/preset-parity.integration.test.ts around line 222 runs a single-turn
+CLI smoke, not all six operator-visible surfaces required above. Complete the
+small composed daemon/tool/capture/workflow/autonomy scenario through existing
+runtime/testing abstractions. Do not duplicate adapter tests or pin literal
+configuration/model values; assert actual resolution and public behavior.
+
+Host preflight today: Codex login works; AGY authenticated models works. Claude
+and Gemini API credentials are absent through the checked scope/environment
+resolver. Each preset must follow its actual API-key or harness-managed auth
+contract, not a requirement for all presets to expose environment variables.
+Missing auth remains an explicit unexecuted row, not a passed live gate.
+No mandatory human execution or historical capture-directory name is required.
+Build and validate the composed mechanism now; use authorized execution for the
+all-ready/missing-auth evidence when available. Keep actual external prerequisites
+explicit without blocking independent implementation or silently reducing the
+six-surface acceptance to a smoke test.

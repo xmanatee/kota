@@ -1,5 +1,5 @@
 ---
-status: blocked
+status: open
 priority: p1
 depends_on: [task-extend-harness-parity-and-eval-harness-with-model-, task-add-scaffolded-weak-and-local-model-agent-mode]
 ---
@@ -110,14 +110,30 @@ Evidence: builder run 2026-09-09T15-01-01-382Z-builder-4endrv,
 runtime agent artifacts rollout-preflight.mjs, rollout-preflight.json, and
 rollout-decision.md. Task integrity validation is retained in validate-tasks.txt.
 
-## Blocked on
+## Current disposition (2026-09-10)
 
-kind: operator-capture
-path: .kota/runs/2026-09-09T15-01-01-382Z-builder-4endrv/live-model-rollout-readiness/transcript.txt
-description: Capture redacted successful readiness evidence from the intended evaluation context showing scoped OpenRouter authentication, native Codex/GPT-5.5 execution, and a reachable identified local model endpoint. Do not include credentials. This unblocks execution of the live matrix; readiness alone is not rollout evidence.
-A runtime-authorized execution context that can resolve the existing
-OpenRouter credential, execute the Codex/GPT-5.5 baseline, and reach an
-identified local model endpoint. This sandbox has no environment key, denies
-scope credential files, and denies both local endpoint probes with EPERM.
-Once access is available, reopen this same task and execute the live matrix;
-the preflight skip does not satisfy any rollout acceptance threshold.
+Reopened for an internal execution gap before the empirical matrix. In
+harness-parity/model-matrix-eval.ts around line 209, the eval executor hardcodes
+host subprocess isolation although the selected fixtures require containers.
+Route the matrix through the existing eval execution/isolation configuration and
+credential owner; do not add a parallel executor or bypass fixture isolation.
+Prove required isolation reaches real candidate launches and missing capability
+is reported before consuming inference. Preserve the exact GPT-5.5 baseline,
+candidate rows, comparable repeats, metrics and 90% pass^k/no-P0 acceptance.
+
+Host check today: the existing deploy/telegram-assistant/.env OpenRouter
+credential returned HTTP 200 at the read-only authentication endpoint, while
+normal scope resolution found none. This is authorized credential routing work,
+not a request to buy or paste a new key. Never copy secrets into task/run artifacts
+or broadly expose deployment secrets to agents. Ollama is reachable with zero
+models installed; LM Studio is not listening. The old blanket EPERM description
+is historical, not current host readiness. Docker works, but the internal
+OpenRouter network currently has no attached containers and its proxy is stopped.
+
+Fix shared execution/routing first. Establish a compatible isolated image and
+egress/auth readiness before live rows, using existing owners and already granted
+Docker permission. Identify/install an appropriate local model within available
+host capacity through its normal local runtime; do not fabricate local parity or
+substitute a cloud row. Preserve real missing credentials/model availability and
+unrun evidence as explicit remaining acceptance, not as grounds to defer code
+that can be corrected now. Keep Codex production defaults unchanged.

@@ -2,7 +2,6 @@
 status: blocked
 priority: p3
 ---
-
 # Publish KOTA Telegram production deploy artifact
 
 ## Problem
@@ -42,13 +41,6 @@ artifact does not ship credentials.
   what supervisor it targets, and how to roll back.
 - A live-run or integration artifact under `.kota/runs/` records at
   least one end-to-end launch against a staging bot.
-
-## Blocked on
-```
-kind: operator-capture
-path: .kota/runs/telegram-deploy-staging
-description: staging-bot launch artifact — operator populates deploy/telegram-assistant/.env, runs `sudo deploy/telegram-assistant/install.sh` and `deploy/telegram-assistant/smoke-test.sh > .kota/runs/telegram-deploy-staging/smoke.txt`, then captures an actual Telegram `/status` message and bot reply under `.kota/runs/telegram-deploy-staging/` against the same real bot token/chat
-```
 
 ## Source / Intent
 
@@ -102,3 +94,22 @@ container reached healthy state. It does not capture an actual Telegram
 deployment, so the task remains blocked pending the operator-capture artifact.
 
 <!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-08-27T05:01:35.220Z -->
+
+## Current disposition (2026-09-10)
+
+Existing Docker smoke evidence and populated deployment credential inputs are
+already present. No mandatory sudo, systemd reinstall or new token is required.
+The current host daemon reports Telegram channels started; the deployment
+container is stopped. Host-channel readiness does not prove staging interaction.
+Use deploy/telegram-assistant/install.sh --mode docker and smoke-test.sh docker
+when scheduling the controlled deployment. Do not run simultaneous pollers for
+the same token or drain unrelated automation just to reproduce an old install.
+The remaining proof is a real /status exchange attributable to that staging
+deployment, with healthy supervisor and rollback/secret-input behavior retained.
+Do not synthesize an inbound owner message or expose deployment secrets.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: A real Telegram /status request and reply attributable to the controlled staging deployment, alongside its current health/launch evidence. Existing credentials and Docker smoke are partial evidence; no sudo or exact capture-directory name is required. Coordinate single Bot API poll ownership with the active host before deployment.

@@ -235,24 +235,25 @@ The web-fetch regression cases reproduced both defects before the repair. All
 production/test typechecks and scoped lint. The broader four-file extraction
 owner run passed 193 checks with one sandbox-denied save-path cleanup failure.
 
+## Current disposition (2026-09-10)
+
+Operator activation completed at 2026-09-10T01:47:22.368Z: old daemon PID 79706
+was drained with zero active workflows; normal daemon stop allowed launchd to
+start PID 18188 on main 4ef8db519, including extraction fix 09086d643. The single
+queued explorer 2026-09-10T01-24-06-873Z-explorer-aj0ef1 was preserved. Dispatch
+was temporarily operator-paused for coordinated task corrections, not an agent
+failure. Follow that queued run after resume for fresh extraction evidence.
+
+This removes the activation prerequisite, not the remaining empirical acceptance.
+Watchlist serialization corruption has a separate precise repair task; avoid
+conflating changed escaping with new source evidence. Retain the original
+unchanged-input decision and capacity-refill requirements, and do not manufacture
+opportunities merely to make an idle queue nonempty.
+
 ## Blocked on
 
 kind: operator-capture
-path: .kota/operator-captures/claim-aware-work-supply-live.md
-description: After runtime publication, capture live useful source review, unchanged-input suppression and slot refill; equivalent attributable runtime evidence is accepted.
+path: .kota/runs
+description: Attributable post-activation useful source review, unchanged-input suppression and capacity refill through normal dispatch. The extraction fix is now loaded; activation and host permission are no longer missing. The operator monitor collects live evidence using the preserved explorer run and subsequent public dispatch, not a privileged candidate action.
 
-Runtime publication of this repaired revision and an operator-resumed live
-observation satisfying Outstanding live acceptance above. Retain attributable
-trigger provenance, task/claim counts, useful source review with a justified
-opportunity or specific no-action revisit condition, the unchanged-input decision,
-and slot refill after completion. An equivalent runtime artifact is sufficient;
-the named capture directory is not mandatory.
-
-This run attempted to read the named operator capture (absent) and the cited
-2026-09-09T22-54-43-618Z-explorer-wj7210 inspect-watchlist artifact (EPERM).
-The launching-daemon control prohibition prevents deploying or resuming this
-candidate from inside its builder. Canonical SQLite remains policy-denied.
-These restrictions do not establish absent host capability or credentials.
-Retained owners, worktrees, pauses and backoff remain runtime-owned and unchanged.
-The implementation repair is retained and independently verified; task completion
-still requires the live outcome evidence after integration.
+<!-- blocked-promoter-operator-capture-instructed: last_instructed_at=2026-09-10T02:03:29.049Z -->
