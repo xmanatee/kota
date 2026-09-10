@@ -212,12 +212,12 @@ export class StandaloneRunHost {
     }
   }
 
-  enqueue(
+  async enqueue(
     workflowName: string,
     options: WorkflowEnqueueOptions = {},
-  ): string {
+  ): Promise<string> {
     this.assertOpen();
-    const result = this.scopeRuntime.workflowRuntime.enqueuePendingRun(
+    const result = await this.scopeRuntime.workflowRuntime.enqueuePendingRun(
       workflowName,
       options,
     );
@@ -237,7 +237,7 @@ export class StandaloneRunHost {
     options: WorkflowEnqueueOptions = {},
     signal?: AbortSignal,
   ): Promise<StandaloneRunResult> {
-    const runId = this.enqueue(workflowName, options);
+    const runId = await this.enqueue(workflowName, options);
     this.startDispatch();
     return this.waitForTerminal(runId, signal);
   }
@@ -413,7 +413,7 @@ export class StandaloneRunHost {
     childOutput?: unknown;
   }> {
     if (!triggerId) throw new Error("Child workflow trigger identity is required");
-    const runId = this.enqueue(workflowName, {
+    const runId = await this.enqueue(workflowName, {
       event: "workflow.triggered",
       payload: {
         ...payload,

@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { agentBackoffQueueUntil } from "./agent-backoff.js";
 import type { RunCoordinator } from "./run-coordinator.js";
@@ -10,6 +11,7 @@ import {
   type RunStateDatabase,
   type StoredRun,
 } from "./run-state-database.js";
+import { canRestartRetainedWorkflow } from "./run-state-types.js";
 import type { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
 import {
@@ -330,7 +332,13 @@ export class WorkflowQueueManager {
       ? this.applyAgentBackoffEligibility(definition, queued.notBeforeMs)
       : queued.notBeforeMs;
     const current = this.config.runState.getRun(runId);
-    if (current?.state === "waiting" || current?.state === "needs_attention") {
+    if (current?.state === "needs_attention") {
+      void this.resumeRetainedRun(runId, notBeforeMs).catch((error: unknown) => {
+        this.config.log(`Retained recovery failed for ${runId}: ${String(error)}`);
+      });
+      return;
+    }
+    if (current?.state === "waiting") {
       this.config.runState.resumeRun(runId, new Date(notBeforeMs).toISOString());
       this.config.coordinator.refill();
       return;
@@ -338,14 +346,38 @@ export class WorkflowQueueManager {
     this.appendRun({ ...queued, notBeforeMs });
   }
 
-  resumeRetainedRun(runId: string, resumedAtMs: number): boolean {
+  async resumeRetainedRun(runId: string, resumedAtMs: number): Promise<boolean> {
     const run = this.config.runState.getRun(runId);
-    if (run?.state !== "needs_attention") return false;
+    if (run?.state !== "needs_attention" || run.scopeId !== this.config.scopeId) return false;
     const definition = this.definition(run.workflow);
     if (!definition?.enabled) return false;
-    if (this.restoredRunRejection(run, definition) !== null) return false;
+    const recovery = canRestartRetainedWorkflow(run) ? await definition.recovery?.({
+      scopeRoot: this.config.scopeRoot,
+      stateDir: this.config.store.rootDir,
+      scopeId: this.config.scopeId,
+      workflowName: run.workflow,
+      runId,
+      trigger: run.trigger,
+      state: { read: (key) => this.config.runState.readScopeStateValue(this.config.scopeId, key) },
+    }) : undefined;
+    if (recovery?.resume === false) {
+      this.config.log(`Retained ${runId}: ${recovery.reason}`);
+      return false;
+    }
+    if (this.definition(run.workflow) !== definition || !definition.enabled ||
+      !isDeepStrictEqual(this.config.runState.getRun(runId), run)) return false;
+    const reconciled = recovery?.resume ? { ...run, trigger: recovery.trigger } : run;
+    if (this.restoredRunRejection(reconciled, definition) !== null) return false;
     const resumedAt = this.applyAgentBackoffEligibility(definition, resumedAtMs);
-    this.config.runState.resumeRun(run.id, new Date(resumedAt).toISOString());
+    if (recovery?.resume) {
+      if (!this.config.runState.reconcileRetainedRun({
+        expected: run, trigger: reconciled.trigger, revision: recovery.revision,
+        admission: workflowDispatchIdempotency(this.config.scopeId, run.workflow, reconciled.trigger) ?? undefined,
+        resumedAt: new Date(resumedAt).toISOString(),
+      })) return false;
+    } else {
+      this.config.runState.resumeRun(run.id, new Date(resumedAt).toISOString());
+    }
     this.config.coordinator.refill();
     return true;
   }
@@ -404,6 +436,7 @@ export class WorkflowQueueManager {
       stateDir: this.config.store.rootDir,
       workflowName: definition.name,
       trigger: run.trigger,
+      admittedResources: run.resources,
     }) ?? [];
     return run.repository === definition.repository && sameResources(run.resources, resources)
       ? null

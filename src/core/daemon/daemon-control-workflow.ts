@@ -276,7 +276,7 @@ export function handleTriggerWorkflow(
     return;
   }
   readBody(req)
-    .then((buf) => {
+    .then(async (buf) => {
       let body: Record<string, unknown>;
       try {
         body = JSON.parse(buf.toString()) as Record<string, unknown>;
@@ -294,7 +294,7 @@ export function handleTriggerWorkflow(
         jsonResponse(res, 400, { error: options.error });
         return;
       }
-      const result = handle.enqueuePendingRun(name, options.value, scope.scopeId);
+      const result = await handle.enqueuePendingRun(name, options.value, scope.scopeId);
       if (result.alreadyQueued) {
         jsonResponse(res, 409, { error: `Workflow "${name}" is already queued` });
         return;

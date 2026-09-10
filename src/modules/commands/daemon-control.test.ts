@@ -74,7 +74,7 @@ function makeHandle(): DaemonControlHandle {
     getWorkflowDefinitions: vi.fn(() => []),
     enableWorkflow: vi.fn(() => ({ ok: true })),
     disableWorkflow: vi.fn(() => ({ ok: true })),
-    enqueuePendingRun: vi.fn(() => ({ ok: true })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),
@@ -185,8 +185,8 @@ function registerCatalog(scopeRoot: string, scenario: CatalogScenario): void {
 
 function registerDispatcher(
   result: EnqueuePendingRunResult | (() => EnqueuePendingRunResult),
-): Mock<(name: string) => EnqueuePendingRunResult> {
-  const fn = vi.fn((_name: string) => (typeof result === "function" ? result() : result));
+): Mock<(name: string) => Promise<EnqueuePendingRunResult>> {
+  const fn = vi.fn(async (_name: string) => (typeof result === "function" ? result() : result));
   const dispatcher: WorkflowDispatcher = {
     enqueuePendingRun: fn,
     enqueueWebhookRun: vi.fn(() => ({ ok: false, notFound: true })),

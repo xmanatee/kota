@@ -42,7 +42,7 @@ function projectWithTask() {
 
 function dispatcher(execute: WorkflowDispatcher["execute"]): WorkflowDispatcher {
   return {
-    enqueuePendingRun: () => ({ ok: false }),
+    enqueuePendingRun: async () => ({ ok: false }),
     enqueueWebhookRun: () => ({ ok: false }),
     execute,
   };

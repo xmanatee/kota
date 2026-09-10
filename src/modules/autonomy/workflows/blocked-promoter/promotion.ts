@@ -93,9 +93,10 @@ export type DeterministicPromotionResult = {
 export function promoteSatisfiedBlockedTasks(
   workspaceRoot: string,
   scopeRoot: string = workspaceRoot,
+  taskIds?: readonly string[],
 ): DeterministicPromotionResult {
   const actions = classifyBlockedActions(
-    listBlockedTasksWithPreconditions(workspaceRoot), workspaceRoot, Date.now(), scopeRoot,
+    listBlockedTasksWithPreconditions(workspaceRoot).filter((task) => taskIds === undefined || taskIds.includes(task.id)), workspaceRoot, Date.now(), scopeRoot,
   );
   return {
     promotions: actions.flatMap((action) =>

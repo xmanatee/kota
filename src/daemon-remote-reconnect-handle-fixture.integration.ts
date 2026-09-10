@@ -87,7 +87,7 @@ export function makeRemoteReconnectHandle(
     getWorkflowDefinitions: () => [],
     enableWorkflow: () => ({ ok: true }),
     disableWorkflow: () => ({ ok: true }),
-    enqueuePendingRun: () => ({ ok: true, queued: "builder", runId: REMOTE_RECONNECT_RUN_ID }),
+    enqueuePendingRun: async () => ({ ok: true, queued: "builder", runId: REMOTE_RECONNECT_RUN_ID }),
     cancelQueuedRun: () => ({ ok: false, active: true }),
     subscribeToEvents: (handler: (event: DaemonSseEvent) => void) => {
       const stops = [

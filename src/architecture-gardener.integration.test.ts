@@ -95,15 +95,15 @@ it("admits scoped API/CLI requests, investigates once, and rejects unknown scope
   });
   loader.getProviderRegistry().register(WORKFLOW_DISPATCHER_PROVIDER_TYPE, "fixture", {
     execute: (request) => host.runtime.execute(request),
-    enqueuePendingRun: (name) => host.runtime.enqueuePendingRun(name),
+    enqueuePendingRun: async (name) => (await host.runtime.enqueuePendingRun(name)),
     enqueueWebhookRun: (name, payload) => host.runtime.enqueueWebhookRun(name, payload),
   });
   const handle = {
     hasScope: (selected: string) => selected === scopeId,
     getActiveScopeId: () => null, getScopeRegistryProjection: () => projection,
-    enqueuePendingRun: (name, options, selected) => {
+    enqueuePendingRun: async (name, options, selected) => {
       expect(selected).toBe(scopeId);
-      return host.runtime.enqueuePendingRun(name, options);
+      return (await host.runtime.enqueuePendingRun(name, options));
     },
   } satisfies Pick<DaemonControlHandle, "hasScope" | "getActiveScopeId" | "getScopeRegistryProjection" | "enqueuePendingRun">;
   const link = {

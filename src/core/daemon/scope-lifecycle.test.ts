@@ -249,7 +249,7 @@ describe("ScopeLifecycleService", () => {
     clearAwaitFiles(timedAwaitRunDir, "wait-for-signal");
 
     runtime.workflowRuntime.setDispatchPaused(true);
-    const queued = runtime.workflowRuntime.enqueuePendingRun("pending-scope-work");
+    const queued = (await runtime.workflowRuntime.enqueuePendingRun("pending-scope-work"));
     expect(queued.ok).toBe(true);
     const approval = runtime.approvalQueue.enqueue(
       "shell",
@@ -300,7 +300,7 @@ describe("ScopeLifecycleService", () => {
     expect(await lifecycle.drainScope(scopeBId))
       .toMatchObject({ ok: true, status: "drained" });
 
-    const lateQueued = runtime.workflowRuntime.enqueuePendingRun("pending-scope-work");
+    const lateQueued = (await runtime.workflowRuntime.enqueuePendingRun("pending-scope-work"));
     expect(lateQueued.ok).toBe(true);
     expect(await lifecycle.removeScope(scopeBId)).toMatchObject({
       ok: false,

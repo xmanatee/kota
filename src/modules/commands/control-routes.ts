@@ -105,7 +105,7 @@ export async function handleInvokeCommandControl(
     jsonResponse(res, 503, { error: "Workflow dispatcher unavailable" });
     return;
   }
-  const result = dispatcher.enqueuePendingRun(action.workflow);
+  const result = await dispatcher.enqueuePendingRun(action.workflow);
   if (result.alreadyQueued) {
     jsonResponse(res, 409, {
       error: `Workflow "${action.workflow}" is already queued`,

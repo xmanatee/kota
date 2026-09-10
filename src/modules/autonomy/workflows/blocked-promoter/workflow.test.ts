@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -126,6 +127,22 @@ function runBlockedScenario(
 }
 
 describe("blocked-promoter workflow", () => {
+  it("retains admitted task selection after the blocked queue changes", () => {
+    const scopeRoot = mkdtempSync(join(tmpdir(), "blocked-resource-selection-"));
+    mkdirSync(join(scopeRoot, "data/tasks"), { recursive: true });
+    const input = { scopeRoot, stateDir: join(scopeRoot, ".kota"), workflowName: "blocked-promoter",
+      trigger: { event: "autonomy.queue.empty", schemaRef: null, payload: {} },
+    };
+    const path = join(scopeRoot, "data/tasks/task-blocked.md");
+    writeFileSync(path, TASK_TEMPLATE("task-blocked", "## Blocked on\nkind: operator-capture\npath: .kota/runs\ndescription: Result required"));
+    const admittedResources = blockedPromoterWorkflow.resources?.(input);
+    expect(admittedResources).toEqual(["task:task-blocked"]);
+    writeFileSync(path, readFileSync(path, "utf8").replace("status: blocked", "status: open"));
+    expect(blockedPromoterWorkflow.resources?.(input)).toEqual([]);
+    expect(blockedPromoterWorkflow.resources?.({ ...input, admittedResources })).toEqual(["task:task-blocked"]);
+    rmSync(scopeRoot, { recursive: true, force: true });
+  });
+
 
 
   it("keeps discovered capture files blocked until their outcome is reviewed", async () => {

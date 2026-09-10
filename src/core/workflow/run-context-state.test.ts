@@ -73,6 +73,17 @@ describe("run transactional state", () => {
       });
 
       expect(context.runtimeStateDir).toBe(join(root, "state"));
+      store.registerScope({ id: "scope-b", rootPath: join(root, "other"), createdAt: "2026-08-25T10:00:00.000Z" });
+      store.admitRun({
+        id: "other-run", scopeId: "scope-b", workflow: "counter", repository: "none",
+        trigger: { event: "manual", schemaRef: null, payload: {} }, resources: [],
+        admittedAt: "2026-08-25T10:00:01.000Z",
+      });
+      expect(context.runEvidence?.getRun("other-run")).toBeNull();
+      expect(context.runEvidence?.listRuns().map((run) => run.id)).toEqual(["run-a"]);
+      const runSnapshot = context.runEvidence!.getRun("run-a")!;
+      expect(Object.isFrozen(runSnapshot.trigger.payload)).toBe(true);
+      expect(() => { runSnapshot.resources.push("foreign-resource"); }).toThrow();
       const snapshot = context.state.read<{ count: number }>("counter/value");
       context.state.compareAndSet("counter/value", snapshot.revision, { count: 1 });
       expect(context.state.read("counter/value")).toEqual({

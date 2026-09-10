@@ -32,7 +32,7 @@ import {
 type JsonObject = AutonomyHealthJsonObject;
 export type AutonomyIssueSourceContext = Pick<
   ModuleRuntimeContext,
-  "events" | "getProvider"
+  "events" | "getProvider" | "log"
 >;
 
 function workspacePath(workspaceRoot: string, candidate: string): string | null {

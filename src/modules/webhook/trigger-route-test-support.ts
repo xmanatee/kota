@@ -87,7 +87,7 @@ function makeHandle(): DaemonControlHandle {
     getWorkflowDefinitions: vi.fn(() => []),
     enableWorkflow: vi.fn(() => ({ ok: true })),
     disableWorkflow: vi.fn(() => ({ ok: true })),
-    enqueuePendingRun: vi.fn(() => ({ ok: true })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),
@@ -169,7 +169,7 @@ export function registerDispatcher(
     typeof result === "function" ? result() : result,
   );
   const dispatcher: WorkflowDispatcher = {
-    enqueuePendingRun: vi.fn(() => ({ ok: true })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true })),
     enqueueWebhookRun: fn,
     execute: vi.fn(async () => ({ ok: false as const, error: "unused" })),
   };

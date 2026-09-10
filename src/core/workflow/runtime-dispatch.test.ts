@@ -200,7 +200,7 @@ describe("runtime idle dispatch", () => {
     });
 
     runtime.start();
-    const result = runtime.enqueuePendingRun("manual-listener");
+    const result = (await runtime.enqueuePendingRun("manual-listener"));
     await wait(120);
     await runtime.stop();
 

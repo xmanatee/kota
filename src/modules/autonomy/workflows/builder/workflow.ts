@@ -20,6 +20,7 @@ import {
   inspectTargetTaskStep,
   taskIssueEvidenceStep,
 } from "./queue-preflight-steps.js";
+import { assessBuilderRecovery } from "./recovery.js";
 import { builderRepairChecks } from "./repair-checks.js";
 import {
   BUILDER_TASK_EVENT,
@@ -47,6 +48,7 @@ const builderWorkflow: WorkflowDefinitionInput = {
     postReconcile: verifyBuilderTaskContractAfterReconcile,
   },
   resources: builderTaskResources,
+  recovery: assessBuilderRecovery,
   inputSchema: {
     type: "object",
     additionalProperties: true,

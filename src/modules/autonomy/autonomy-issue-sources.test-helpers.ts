@@ -61,6 +61,7 @@ export function makeAutonomyIssueSourceContext(
   return {
     ctx: {
       events: makeStubEventProxy(bus),
+      log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getProvider: (token) => registry.get(token),
     },
     runtime,

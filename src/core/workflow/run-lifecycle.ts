@@ -21,6 +21,7 @@ import { RunResourceAllocator } from "./run-resources.js";
 import type { RunSandbox } from "./run-sandbox.js";
 import { RunSandboxManager } from "./run-sandbox.js";
 import type { RunStateDatabase, StoredRun } from "./run-state-database.js";
+import { canRestartRetainedWorkflow } from "./run-state-types.js";
 import type { WorkflowPostReconcileInvariantResult } from "./types.js";
 import {
   type WriterIntegrationEvidence,
@@ -314,7 +315,7 @@ export class RunLifecycle {
         const journal = readJournal(run.integration);
         // Semantic rejection invalidates the workflow result, not just its merge.
         // Keep the rejected journal until fresh execution produces a replacement.
-        if (journal?.phase !== "pending" || journal.outcome?.status !== "invariant-failed") {
+        if (!canRestartRetainedWorkflow(run)) {
           return await this.finalizeWriter(context, manager, journal);
         }
       }

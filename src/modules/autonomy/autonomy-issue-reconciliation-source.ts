@@ -1,6 +1,7 @@
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { formatRunId } from "#core/workflow/run-io.js";
 import { StateValueConflictError } from "#core/workflow/run-state-database.js";
+import { canRestartRetainedWorkflow } from "#core/workflow/run-state-types.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   autonomyIssueDecisionRequested,
@@ -19,14 +20,21 @@ import { resolveAutonomyIssueRuntimeScope } from "./autonomy-issue-runtime-scope
 
 type ReconciliationSourceContext = Pick<
   ModuleRuntimeContext,
-  "events" | "getProvider"
+  "events" | "getProvider" | "log"
 >;
 
-function reconcile(
+async function reconcile(
   ctx: ReconciliationSourceContext,
   payload: { scopeId: string; requestedAt: string },
-): void {
+): Promise<void> {
   const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
+  // The owning runtime assesses relevance and reconciles its own suspended
+  // contract atomically. Rejection is intentional retention, not a new task.
+  for (const run of runtime.runState.listRuns(runtime.scopeId)) {
+    if (run.workflow === "builder" && run.state === "needs_attention" && canRestartRetainedWorkflow(run)) {
+      await runtime.workflowRuntime.enqueuePendingRun(run.workflow, { payload: { retryOf: run.id } });
+    }
+  }
   const snapshot = runtime.runState.readScopeStateValue<AutonomyIssueProjection>(
     runtime.scopeId,
     AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
@@ -71,7 +79,7 @@ function reconcile(
       });
       continue;
     }
-    const admission = runtime.workflowRuntime.enqueuePendingRun("improver", {
+    const admission = await runtime.workflowRuntime.enqueuePendingRun("improver", {
       event: autonomyIssueDecisionRequested.name,
       payload: { scopeId: runtime.scopeId, ...request },
       runId: formatRunId("improver"),
@@ -89,23 +97,28 @@ function reconcile(
 export function subscribeAutonomyIssueReconciliation(
   ctx: ReconciliationSourceContext,
 ): void {
+  const observe = (payload: { scopeId: string; requestedAt: string }): void => {
+    void reconcile(ctx, payload).catch((error: unknown) => {
+      ctx.log.error(`Autonomy issue reconciliation failed for ${payload.scopeId}`, error);
+    });
+  };
   ctx.events.subscribe(autonomyIssueReconciliationRequested, (payload) => {
-    reconcile(ctx, payload);
+    observe(payload);
   });
   ctx.events.subscribe("workflow.completed", (payload) => {
-    reconcile(ctx, {
+    observe({
       scopeId: payload.scopeId,
       requestedAt: new Date().toISOString(),
     });
   });
   ctx.events.subscribe("workflow.run.reconciliation-needed", (payload) => {
-    reconcile(ctx, {
+    observe({
       scopeId: payload.scopeId,
       requestedAt: payload.transitionedAt,
     });
   });
   ctx.events.subscribe("owner.decision.resolved", (payload) => {
-    reconcile(ctx, {
+    observe({
       scopeId: payload.scopeId,
       requestedAt: new Date().toISOString(),
     });

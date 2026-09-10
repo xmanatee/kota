@@ -87,7 +87,7 @@ function makeHandle(
     getWorkflowDefinitions: vi.fn(() => []),
     enableWorkflow: vi.fn(() => ({ ok: true })),
     disableWorkflow: vi.fn(() => ({ ok: true })),
-    enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "any" })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true, queued: "any" })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),

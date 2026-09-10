@@ -25,6 +25,7 @@ export type AgentJudgeConfig = {
    * validator filled from `config.defaultAgentHarness`).
    */
   harness: string;
+  agentWriteScope?: WorkflowAgentRunContractSpec["agentWriteScope"];
   maxRetries?: number;
   retryBaseDelayMs?: number;
 };
@@ -54,6 +55,7 @@ export function resolveAgentJudgeRunContract(
     effort: config.effort,
     autonomyMode: "autonomous",
     ownerQuestionAccess: "disabled",
+    ...(config.agentWriteScope !== undefined ? { agentWriteScope: config.agentWriteScope } : {}),
     ...(harness?.toolControl === "kota"
       ? { disallowedTools: AUTONOMY_DISALLOWED_TOOLS }
       : {}),

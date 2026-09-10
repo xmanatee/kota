@@ -71,7 +71,7 @@ describe("autonomy issue restart reconciliation", () => {
     const enqueuePendingRun = vi.spyOn(
       source.runtime.workflowRuntime,
       "enqueuePendingRun",
-    ).mockReturnValue({ ok: true, queued: "improver", runId: "retry-run" });
+    ).mockResolvedValue({ ok: true, queued: "improver", runId: "retry-run" });
     const cancelledAt = "2026-09-03T10:00:00.000Z";
     const projection = applyAutonomyIssueObservations({
       current: emptyAutonomyIssueProjection(),

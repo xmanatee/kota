@@ -72,7 +72,7 @@ describe("buildDaemonHandle workflow run projections", () => {
 });
 
 describe("buildDaemonHandle sessions", () => {
-  it("attributes serve-registered sessions to the selected scope", () => {
+  it("attributes serve-registered sessions to the selected scope", async () => {
     const bus = new EventBus();
     const registered: BusEvents["session.registered"][] = [];
     const unregistered: BusEvents["session.unregistered"][] = [];
@@ -81,7 +81,7 @@ describe("buildDaemonHandle sessions", () => {
 
     const workflowRuntime = {
       getDefinitionCount: vi.fn(() => 0),
-      enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
+      enqueuePendingRun: vi.fn(async () => ({ ok: true, queued: "builder" })),
     };
     const runtimeA = {
       pbus: new ScopedEventBus(bus, "scope-a"),
@@ -199,7 +199,7 @@ describe("buildDaemonHandle sessions", () => {
       scopeId: "scope-b",
       state: "draining",
     });
-    expect(handle.enqueuePendingRun("builder", undefined, "scope-b"))
+    expect((await handle.enqueuePendingRun("builder", undefined, "scope-b")))
       .toEqual({
         ok: false,
         error: "Scope scope-b is draining and cannot accept workflow runs",

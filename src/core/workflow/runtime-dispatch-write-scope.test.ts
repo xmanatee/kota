@@ -176,7 +176,7 @@ describe("runtime dispatch write-scope attribution", () => {
     runtime.start();
     try {
       for (const repository of modes) {
-        expect(runtime.enqueuePendingRun(`repository-${repository}`).ok).toBe(true);
+        expect((await runtime.enqueuePendingRun(`repository-${repository}`)).ok).toBe(true);
       }
       await waitUntil(
         () => observed.size === modes.length && !runtime.isBusy(),
@@ -320,7 +320,7 @@ describe("runtime dispatch write-scope attribution", () => {
 
     runtime.start();
     try {
-      expect(runtime.enqueuePendingRun("security-review").ok).toBe(true);
+      expect((await runtime.enqueuePendingRun("security-review")).ok).toBe(true);
       await waitUntil(
         () => reviewerStarted,
         "Timed out waiting for security reviewer",
@@ -483,7 +483,7 @@ describe("runtime dispatch write-scope attribution", () => {
 
     runtime.start();
     try {
-      expect(runtime.enqueuePendingRun("security-review").ok).toBe(true);
+      expect((await runtime.enqueuePendingRun("security-review")).ok).toBe(true);
       await waitUntil(
         () =>
           countWorkflowRuns(workspaceRoot, "security-review") === 1 &&

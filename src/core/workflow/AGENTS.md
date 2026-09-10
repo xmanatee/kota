@@ -41,6 +41,16 @@ and publication.
 - New admissions cannot compete with a suspended run's retained resources.
   Reconciliation and resumption must enter through that run's recovery owner;
   ordinary mutators cannot queue behind it to revise its contract.
+- Definitions may assess relevant changes before retained business execution.
+  Runtime reconciles the trigger, recovery revision and dispatch identity
+  atomically while preserving resources. Publication journals continue through
+  integration recovery instead of restarting business execution.
+- Discovery-based resource resolvers select work at admission and reuse the
+  runtime's admitted resource snapshot on restoration. Queue changes, including
+  a writer's own publication, cannot strand its publication or cleanup recovery.
+- Workflow code obtains immutable, scope-filtered run observations through
+  `ctx.runEvidence`. Investigators receive redacted exports and unavailable
+  diagnostics; database handles and host control authority stay in the runtime.
 - Daemon startup may repair authority-critical or restart-recovered malformed
   run metadata only when the durable run, `workflow.json`, and `trigger.json`
   agree. Terminal history otherwise keeps its quarantinable inspection

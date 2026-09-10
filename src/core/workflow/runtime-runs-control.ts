@@ -42,18 +42,18 @@ export function abortActiveRun(
   return { ok: false, notFound: true };
 }
 
-export function enqueuePendingRun(
+export async function enqueuePendingRun(
   state: WorkflowRuntimeRunsControlState,
   name: string,
   options: WorkflowEnqueueOptions = {},
-): {
+): Promise<{
   ok: boolean;
   queued?: string;
   runId?: string;
   alreadyQueued?: boolean;
   error?: string;
   reason?: "workflow_contract_conflict";
-} {
+}> {
   const definition = state.definitions.find((d) => d.name === name);
   if (!definition) return { ok: false, error: `Unknown workflow "${name}"` };
   if (!definition.enabled) return { ok: false, error: `Workflow "${name}" is disabled` };
@@ -64,10 +64,10 @@ export function enqueuePendingRun(
       return { ok: false, reason: "workflow_contract_conflict", error: `Workflow "${name}" cannot retry run "${retryOf}"` };
     }
     if (source?.state === "needs_attention") {
-      if (!state.wfQueue.resumeRetainedRun(retryOf, Date.now())) {
+      if (!await state.wfQueue.resumeRetainedRun(retryOf, Date.now())) {
         return {
           ok: false,
-          error: `Retained run "${retryOf}" no longer matches the loaded workflow contract`,
+          error: `Retained run "${retryOf}" requires a relevant change and a compatible recovery contract; its sandbox and resources remain retained`,
           reason: "workflow_contract_conflict",
         };
       }

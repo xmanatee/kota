@@ -85,7 +85,7 @@ describe("operator authorization boundary", () => {
       text,
       routedPayloads,
       triggerWorkflow: async (name, options) => {
-        const result = runtime.enqueuePendingRun(name, options);
+        const result = (await runtime.enqueuePendingRun(name, options));
         return result.ok
           ? { ok: true, path: "daemon", queued: name, ...(result.runId ? { runId: result.runId } : {}) }
           : { ok: false, reason: result.alreadyQueued ? "already_queued" : "daemon_required" };

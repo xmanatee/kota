@@ -1,6 +1,7 @@
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import type { BlockerAction } from "./blocker-policy.js";
+import { evidenceDigest } from "./evidence.js";
 import {
   type AskOutcomeApplication,
   applyAskOutcome,
@@ -20,29 +21,35 @@ export type InspectBlockedResult = {
   blockedCount: number;
   ownerAsk: OwnerAskCandidate | null;
   actions: BlockerAction[];
+  contracts: Array<{ taskId: string; digest: string }>;
 };
 
 export function inspectBlockedInWorker(input: {
   workspaceRoot: string;
   scopeRoot: string;
   nowMs: number;
+  taskIds: readonly string[];
 }): InspectBlockedResult {
   const worktree = getRepoWorktreeStatus(input.workspaceRoot);
-  const records = listBlockedTasksWithPreconditions(input.workspaceRoot);
+  const records = listBlockedTasksWithPreconditions(input.workspaceRoot).filter((task) => input.taskIds.includes(task.id));
   const actions = classifyBlockedActions(records, input.workspaceRoot, input.nowMs, input.scopeRoot);
   return {
     dirty: worktree.available && worktree.dirty,
     blockedCount: records.length,
     ownerAsk: pickOwnerAskCandidate(records, actions),
     actions,
+    contracts: records.map((task) => ({
+      taskId: task.id, digest: evidenceDigest({ body: task.body, dependsOn: task.dependsOn }),
+    })),
   };
 }
 
 export function promoteSatisfiedBlockedTasksInWorker(input: {
   workspaceRoot: string;
   scopeRoot: string;
+  taskIds: readonly string[];
 }): DeterministicPromotionResult {
-  return promoteSatisfiedBlockedTasks(input.workspaceRoot, input.scopeRoot);
+  return promoteSatisfiedBlockedTasks(input.workspaceRoot, input.scopeRoot, input.taskIds);
 }
 
 export function applyAskOutcomeInWorker(input: {
@@ -63,9 +70,10 @@ export function instructOperatorCaptureInWorker(input: {
   workspaceRoot: string;
   scopeRoot: string;
   nowMs: number;
+  taskIds: readonly string[];
 }): { instructions: OperatorCaptureInstruction[] } {
   const candidates = listOperatorCaptureInstructCandidates(
-    listBlockedTasksWithPreconditions(input.workspaceRoot),
+    listBlockedTasksWithPreconditions(input.workspaceRoot).filter((task) => input.taskIds.includes(task.id)),
     input.workspaceRoot,
     input.nowMs,
     input.scopeRoot,
@@ -83,12 +91,12 @@ export function instructOperatorCaptureInWorker(input: {
 }
 
 export const inspectBlockedOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string; scopeRoot: string; nowMs: number },
+  { workspaceRoot: string; scopeRoot: string; nowMs: number; taskIds: readonly string[] },
   InspectBlockedResult
 >(import.meta.url, "inspectBlockedInWorker");
 
 export const promoteSatisfiedBlockedTasksOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string; scopeRoot: string },
+  { workspaceRoot: string; scopeRoot: string; taskIds: readonly string[] },
   DeterministicPromotionResult
 >(import.meta.url, "promoteSatisfiedBlockedTasksInWorker");
 
@@ -103,6 +111,6 @@ export const applyAskOutcomeOperation = defineWorkflowBlockingOperation<
 >(import.meta.url, "applyAskOutcomeInWorker");
 
 export const instructOperatorCaptureOperation = defineWorkflowBlockingOperation<
-  { workspaceRoot: string; scopeRoot: string; nowMs: number },
+  { workspaceRoot: string; scopeRoot: string; nowMs: number; taskIds: readonly string[] },
   { instructions: OperatorCaptureInstruction[] }
 >(import.meta.url, "instructOperatorCaptureInWorker");

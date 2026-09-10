@@ -58,6 +58,14 @@ export type StoredRun = {
   resultStatus?: WorkflowRunStatus;
 };
 
+/** Publication journals continue through integration recovery; semantic rejection requires fresh business execution. */
+export function canRestartRetainedWorkflow(run: Pick<StoredRun, "integration">): boolean {
+  if (run.integration === undefined) return true;
+  const outcome = run.integration.outcome;
+  return run.integration.phase === "pending" && typeof outcome === "object" && outcome !== null &&
+    "status" in outcome && outcome.status === "invariant-failed";
+}
+
 /** A terminal event committed atomically with the run that produced it. */
 export type RunPublication = Readonly<{
   id: string;

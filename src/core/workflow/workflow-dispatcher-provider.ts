@@ -67,7 +67,7 @@ export type WorkflowDispatcher = {
    * `DaemonControlHandle.enqueuePendingRun` so module handlers can forward it
    * directly.
    */
-  enqueuePendingRun(name: string): EnqueuePendingRunResult;
+  enqueuePendingRun(name: string): Promise<EnqueuePendingRunResult>;
   /**
    * Enqueue a webhook-triggered workflow run. Mirrors the signature of the
    * core workflow runtime's `enqueueWebhookRun` so module handlers (today

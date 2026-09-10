@@ -327,17 +327,17 @@ export class WorkflowRuntime {
     return validateDefinitions(this.ctx);
   }
 
-  enqueuePendingRun(
+  async enqueuePendingRun(
     name: string,
     options: WorkflowEnqueueOptions = {},
-  ): {
+  ): Promise<{
     ok: boolean;
     queued?: string;
     runId?: string;
     alreadyQueued?: boolean;
     error?: string;
     reason?: "workflow_contract_conflict";
-  } {
+  }> {
     return enqueuePendingRun(this.ctx, name, options);
   }
 
@@ -375,7 +375,7 @@ export class WorkflowRuntime {
       }
     }
     const runId = formatRunId(request.workflow);
-    const admitted = this.enqueuePendingRun(request.workflow, {
+    const admitted = await this.enqueuePendingRun(request.workflow, {
       event: request.event,
       payload: { ...request.payload },
       runId,

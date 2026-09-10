@@ -54,6 +54,8 @@ export type WorkflowDefinitionInput = {
    * expressed by an event filter alone.
    */
   triggerAdmission?: WorkflowTriggerAdmissionResolver;
+  /** Pure domain assessment used only by the retained run's recovery owner. */
+  recovery?: WorkflowRecoveryResolver;
   /**
    * Optional JSON Schema object describing the expected shape of trigger payloads.
    * When present, the runtime validates each trigger payload against this schema
@@ -132,7 +134,18 @@ export type WorkflowResourceInput = {
   stateDir: string;
   workflowName: string;
   trigger: WorkflowRunTrigger;
+  /** Present during restoration, including publication recovery. Discovery-based
+   * resolvers retain this admission snapshot instead of selecting new work. */
+  admittedResources?: readonly string[];
 };
+
+export type WorkflowRecoveryDecision =
+  | { resume: false; reason: string }
+  | { resume: true; trigger: WorkflowRunTrigger; revision: string };
+
+export type WorkflowRecoveryResolver = (
+  input: WorkflowTriggerAdmissionInput & { runId: string },
+) => WorkflowRecoveryDecision | Promise<WorkflowRecoveryDecision>;
 
 export type WorkflowResourceResolver = (
   input: WorkflowResourceInput,
@@ -218,6 +231,7 @@ export type WorkflowDefinition = {
   finalize?: WorkflowFinalizer;
   /** Definition-owned pre-queue semantic replay admission. */
   triggerAdmission?: WorkflowTriggerAdmissionResolver;
+  recovery?: WorkflowRecoveryResolver;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */
   inputSchema?: Record<string, unknown>;
   /** Optional JSON Schema for validating the last step output on successful completion. */

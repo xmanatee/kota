@@ -111,6 +111,7 @@ export function resolveWorkflowAgentRunContract(input: {
     }),
     askOwner,
     autonomyMode,
+    ...(step.agentWriteScope !== undefined ? { agentWriteScope: step.agentWriteScope } : {}),
     harnessOverrides: step.harnessOptions?.[harness.name],
     outputSchema: step.outputSchema,
     persistSession: step.persistSession ?? false,

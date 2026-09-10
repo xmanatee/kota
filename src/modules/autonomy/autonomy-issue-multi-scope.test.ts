@@ -62,6 +62,7 @@ describe("multi-scope autonomy issue source routing", () => {
     bus.on(autonomyHealthSignal, (signal) => signals.push(signal));
     subscribeAutonomyIssueSources({
       events: makeStubEventProxy(bus),
+      log: { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} },
       getProvider: (token) => registry.get(token),
     });
   });

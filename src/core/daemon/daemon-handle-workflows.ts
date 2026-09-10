@@ -175,7 +175,7 @@ export function buildDaemonWorkflowHandle(
       lookupRuntime(scopeId).workflowRuntime.enableWorkflow(name),
     disableWorkflow: (name: string, scopeId?: ScopeId) =>
       lookupRuntime(scopeId).workflowRuntime.disableWorkflow(name),
-    enqueuePendingRun: (
+    enqueuePendingRun: async (
       name: string,
       options?: WorkflowEnqueueOptions,
       scopeId?: ScopeId,

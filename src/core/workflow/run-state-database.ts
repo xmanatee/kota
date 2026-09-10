@@ -10,6 +10,7 @@ import {
 import {
   AdmissionKeyConflictError,
   type AdmittedRun,
+  canRestartRetainedWorkflow,
   type DurableRunState,
   type PendingRunPublication,
   PublicationIntentConflictError,
@@ -670,6 +671,41 @@ export class RunStateDatabase {
       )
       .run(resumedAt, runId);
     if (updated.changes !== 1) throw new Error(`Run "${runId}" is not suspended`);
+  }
+
+  /** Reconcile only the suspended owner; a stale assessment cannot replace a newer attempt. */
+  reconcileRetainedRun(input: {
+    expected: StoredRun;
+    trigger: WorkflowRunTrigger;
+    revision: string;
+    admission?: RunAdmissionIdentity;
+    resumedAt: string;
+  }): boolean {
+    return this.database.transaction(() => {
+      const current = this.getRun(input.expected.id);
+      if (!current || current.state !== "needs_attention" ||
+        !isDeepStrictEqual(current, input.expected)) return false;
+      if (!canRestartRetainedWorkflow(current)) return false;
+      const key = `workflow:recovery:${current.id}`;
+      const prior = this.readScopeStateValue<{ revision: string }>(current.scopeId, key);
+      if (prior.value?.revision === input.revision) return false;
+      if (input.admission) {
+        if (input.admission.scopeId !== current.scopeId) return false;
+        const admission = this.resolveAdmission(input.admission);
+        if (admission.disposition !== "new" &&
+          !(admission.disposition === "duplicate" && admission.runId === current.id)) return false;
+        if (admission.disposition === "new") this.insertAdmission(input.admission, current.id, input.resumedAt);
+      }
+      this.compareAndSetScopeStateValue({
+        scopeId: current.scopeId, key, expectedRevision: prior.revision,
+        value: { revision: input.revision, previousTrigger: current.trigger }, updatedAt: input.resumedAt,
+      });
+      this.database.prepare(
+        `UPDATE runs SET trigger_json = ?, integration_json = NULL WHERE id = ?`,
+      ).run(JSON.stringify(input.trigger), current.id);
+      this.resumeRun(current.id, input.resumedAt);
+      return true;
+    })();
   }
 
   requireRunAttention(runId: string, reason: string, evidence: readonly string[]): void {

@@ -10,7 +10,7 @@ import {
   type WorkflowRuntimeRunsControlState,
 } from "./runtime-runs-control.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
-import type { WorkflowDefinition } from "./types.js";
+import type { WorkflowDefinition, WorkflowRecoveryDecision } from "./types.js";
 import { registerWorkflowDefinition, validateWorkflowDefinitions } from "./validation.js";
 import { workflowDispatchIdempotency } from "./workflow-idempotency.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
@@ -190,7 +190,7 @@ describe("durable workflow queue restoration", () => {
     ["repository access changed", "repository"],
   ] as const)(
     "keeps a retained run in attention when %s",
-    (_reason, contractChange) => {
+    async (_reason, contractChange) => {
       const admittedDefinition = workflow(scopeRoot);
       const runId = `retained-${contractChange}`;
       runState.admitRun({
@@ -222,18 +222,18 @@ describe("durable workflow queue restoration", () => {
         wfQueue: queue,
       } as unknown as WorkflowRuntimeRunsControlState;
 
-      expect(enqueuePendingRun(state, currentDefinition.name, {
+      expect((await enqueuePendingRun(state, currentDefinition.name, {
         payload: { retryOf: runId },
-      })).toMatchObject({ ok: false, reason: "workflow_contract_conflict" });
+      }))).toMatchObject({ ok: false, reason: "workflow_contract_conflict" });
       expect(runState.getRun(runId)?.state).toBe("queued");
       runState.requireRunAttention(runId, "preserved after runtime interruption", []);
       expect(
-        enqueuePendingRun(state, currentDefinition.name, {
+        (await enqueuePendingRun(state, currentDefinition.name, {
           payload: { retryOf: runId },
-        }),
+        })),
       ).toEqual({
         ok: false,
-        error: `Retained run "${runId}" no longer matches the loaded workflow contract`,
+        error: `Retained run "${runId}" requires a relevant change and a compatible recovery contract; its sandbox and resources remain retained`,
         reason: "workflow_contract_conflict",
       });
       expect(runState.getRun(runId)?.state).toBe("needs_attention");
@@ -241,8 +241,12 @@ describe("durable workflow queue restoration", () => {
     },
   );
 
-  it("rejects a competing admission while the retained owner can resume with its identity intact", () => {
+  it.each(["trigger", "discovery"])("rejects competing admissions and resumes the retained %s resources", async (selection) => {
     const definition = workflow(scopeRoot);
+    let discovered = ["task:held"];
+    if (selection === "discovery") {
+      definition.resources = ({ admittedResources }) => admittedResources ?? discovered;
+    }
     const originalTrigger = trigger("review.changed", { taskId: "held", revision: 2, idempotencyKey: "held-contract" });
     runState.admitRun({
       id: "retained-owner",
@@ -284,18 +288,79 @@ describe("durable workflow queue restoration", () => {
     })).toBeNull();
     expect(runState.getRun("competing-mutator")).toBeNull();
     expect(logs).toContainEqual(expect.stringContaining('retained run "retained-owner"'));
-    expect(queue.resumeRetainedRun("retained-owner", Date.now())).toBe(true);
+    // Discovery may change while an owner is suspended, including after its
+    // own promotion is published but cleanup still needs recovery.
+    discovered = ["task:newly-blocked"];
+    expect((await queue.resumeRetainedRun("retained-owner", Date.now()))).toBe(true);
     expect(runState.getRun("retained-owner")).toMatchObject({
       state: "queued",
       trigger: originalTrigger,
       resources: ["task:held"],
     });
     expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
+    queue.restorePending();
+    expect(runState.getRun("retained-owner")?.state).toBe("queued");
+  });
+
+  it("reconciles a retained contract once, preserves its resource, and deduplicates the new dispatch", async () => {
+    const original = trigger("review.changed", { taskId: "held", revision: 1, idempotencyKey: "old" });
+    const revised = trigger("review.changed", { taskId: "held", revision: 2, idempotencyKey: "new" });
+    const definition = workflow(scopeRoot);
+    let ready = false;
+    definition.recovery = () => ready
+      ? { resume: true, trigger: revised, revision: "new-evidence" }
+      : { resume: false, reason: "external prerequisite unchanged" };
+    const queue = new WorkflowQueueManager({
+      store: new WorkflowRunStore(scopeRoot), runState,
+      coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
+      scopeId: SCOPE_ID, scopeRoot, getScopeId: () => SCOPE_ID,
+      getActiveBackoff: () => null, workflowUsesAgent: () => false,
+      getDefinitions: () => [definition], log: vi.fn(),
+    });
+    const queued = (runId: string, input: WorkflowRunTrigger) => ({
+      runId, workflowName: definition.name, trigger: input,
+      enqueuedAtMs: Date.now(), notBeforeMs: Date.now(),
+    });
+    queue.appendRun(queued("held-owner", original));
+    runState.requireRunAttention("held-owner", "blocked", []);
+    expect((await queue.resumeRetainedRun("held-owner", Date.now()))).toBe(false);
+    expect(runState.getRun("held-owner")).toMatchObject({ state: "needs_attention", trigger: original });
+    ready = true;
+    expect((await queue.resumeRetainedRun("held-owner", Date.now()))).toBe(true);
+    expect(runState.getRun("held-owner")).toMatchObject({ state: "queued", trigger: revised, resources: ["task:held"] });
+    expect(queue.appendRun(queued("duplicate", revised))).toEqual({ status: "duplicate", runId: "held-owner" });
+    runState.requireRunAttention("held-owner", "same failure", []);
+    expect((await queue.resumeRetainedRun("held-owner", Date.now()))).toBe(false);
+    expect(runState.listRuns(SCOPE_ID)).toHaveLength(1);
+    expect(runState.readScopeStateValue(SCOPE_ID, "workflow:recovery:held-owner").value)
+      .toMatchObject({ revision: "new-evidence", previousTrigger: original });
+  });
+
+  it("cannot resume a retained run changed while its asynchronous recovery is being assessed", async () => {
+    const definition = workflow(scopeRoot);
+    const original = trigger("review.changed", { taskId: "held", revision: 1 });
+    let finish!: (decision: WorkflowRecoveryDecision) => void;
+    definition.recovery = () => new Promise((resolve) => { finish = resolve; });
+    const queue = new WorkflowQueueManager({
+      store: new WorkflowRunStore(scopeRoot), runState,
+      coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
+      scopeId: SCOPE_ID, scopeRoot, getScopeId: () => SCOPE_ID,
+      getActiveBackoff: () => null, workflowUsesAgent: () => false,
+      getDefinitions: () => [definition], log: vi.fn(),
+    });
+    queue.appendRun({ runId: "held-owner", workflowName: definition.name, trigger: original,
+      enqueuedAtMs: Date.now(), notBeforeMs: Date.now() });
+    runState.requireRunAttention("held-owner", "blocked", []);
+    const pending = queue.resumeRetainedRun("held-owner", Date.now());
+    runState.cancelQueuedRun("held-owner", new Date().toISOString());
+    finish({ resume: true, trigger: original, revision: "new-evidence" });
+    expect(await pending).toBe(false);
+    expect(runState.getRun("held-owner")).toMatchObject({ state: "cancelled", trigger: original });
   });
 
   it.each(["manual", "resume", "workflow.triggered"] as const)(
     "revalidates the current payload schema before resuming a retained %s run",
-    (event) => {
+    async (event) => {
       const admittedDefinition = workflow(scopeRoot);
       const runId = `retained-${event}`;
       runState.admitRun({
@@ -330,12 +395,12 @@ describe("durable workflow queue restoration", () => {
       } as unknown as WorkflowRuntimeRunsControlState;
 
       expect(
-        enqueuePendingRun(state, currentDefinition.name, {
+        (await enqueuePendingRun(state, currentDefinition.name, {
           payload: { retryOf: runId },
-        }),
+        })),
       ).toEqual({
         ok: false,
-        error: `Retained run "${runId}" no longer matches the loaded workflow contract`,
+        error: `Retained run "${runId}" requires a relevant change and a compatible recovery contract; its sandbox and resources remain retained`,
         reason: "workflow_contract_conflict",
       });
       expect(runState.getRun(runId)?.state).toBe("needs_attention");

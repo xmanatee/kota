@@ -12,7 +12,7 @@ import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
-import type { RunRepositoryAccess, TransactionalRunState } from "./run-context.js";
+import type { RunEvidenceReader, RunRepositoryAccess, TransactionalRunState } from "./run-context.js";
 import type {
   WorkflowRunStatus,
   WorkflowRuntimeSummary,
@@ -143,6 +143,8 @@ export type WorkflowStepContext = {
   scopeRoot: string;
   agentRuntime: AgentRuntimeSelection;
   runtimeResources?: WorkflowRuntimeResources;
+  /** Scope-filtered snapshots supplied by the runtime; no database handle crosses this port. */
+  runEvidence?: RunEvidenceReader;
   /** Scope-local runtime artifact directory. */
   stateDir: string;
   /** Authoritative durable runtime database directory, potentially shared across scopes. */

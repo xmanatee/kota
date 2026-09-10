@@ -5,7 +5,7 @@ import type { ProcessIdentity } from "#core/execution/process-supervisor.js";
 import { nativeRunWriterAuthorization } from "./native-run-authorization.js";
 import type { RunResourceProfile } from "./run-resources.js";
 import type { RunSandbox } from "./run-sandbox.js";
-import type { RunStateDatabase } from "./run-state-database.js";
+import type { RunStateDatabase, StoredRun } from "./run-state-database.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 
 export type DurableEffectValue =
@@ -174,6 +174,11 @@ export class AmbiguousExternalEffectError extends Error {
   }
 }
 
+export type RunEvidenceReader = Readonly<{
+  getRun(runId: string): Readonly<StoredRun> | null;
+  listRuns(): readonly Readonly<StoredRun>[];
+}>;
+
 export type RunContext = Readonly<{
   runtimeStateDir: string;
   run: Readonly<{
@@ -195,6 +200,7 @@ export type RunContext = Readonly<{
   effects: DurableExternalEffects;
   publications: TransactionalRunPublications;
   state: TransactionalRunState;
+  runEvidence?: RunEvidenceReader;
 }>;
 
 type CreateRunContextInput = {
@@ -339,5 +345,14 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
     effects,
     publications,
     state,
+    runEvidence: Object.freeze({
+      getRun(runId: string) {
+        const run = input.store.getRun(runId);
+        return run?.scopeId === input.scopeId ? deepFreeze(structuredClone(run)) : null;
+      },
+      listRuns() {
+        return deepFreeze(structuredClone(input.store.listRuns(input.scopeId)));
+      },
+    }),
   });
 }

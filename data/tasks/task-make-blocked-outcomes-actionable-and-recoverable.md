@@ -1,5 +1,5 @@
 ---
-status: open
+status: blocked
 priority: p1
 ---
 # Make blocked outcomes actionable and recoverable
@@ -138,3 +138,86 @@ Retries need relevant new evidence/capability/contract change; repeated unchange
 failure must not consume another repair loop. A completed task must cite actual
 integration, owner-safe cleanup or intentional retention, and honest remaining
 external prerequisites. Keep validation focused on these shared contracts.
+
+## Shared implementation and remaining live acceptance (2026-09-10, 2e94l1)
+
+Automatic scoped collection and independent precondition review, content-based
+review restraint, and runtime-owned retained builder reconciliation are now
+implemented. The recovery transaction preserves run ID, sandbox and logical
+resources, records the prior trigger and new dispatch identity, and rejects
+unchanged semantic inputs. Builder supplies the freshly admitted canonical task.
+Blocked-promoter owns its task resources and rechecks source contracts before
+publication. Existing issue reconciliation requests relevant business recovery;
+publication journals remain with their existing owner. No competing task,
+mutator, sandbox, evidence database or host-authority exception was introduced.
+
+The shared implementation was completed before assessing the remaining external
+evidence. This disposition does not defer that implementation or infer missing
+host capability from the candidate's inability to control the daemon. Exact
+read-only canonical metadata observations for three established run IDs returned
+EPERM. The fourth complete ID was not guessed. Current attributable live owner
+outcomes remain unavailable; historical contracts are not substituted for them.
+
+Intentional retention is the safe proposed disposition of all four owners:
+qj0mm4 still needs its pinned calibration cohort and existing August 14 trajectory;
+hjhox7 retains its stale-anchor correction and the 70% goal, with real work beyond
+14.506% still required; 720nnv needs Linux child denial plus allowed-read proof;
+un8vlq needs secure persistence beyond disabling saves. Their resources, task
+contracts and diffs were left intact. No live blocker was proven removed and no
+live retention/recovery/cleanup decision was fabricated.
+
+The eight-task triage identifies six external-evidence blockers and two tasks
+already open for implementation (cross-preset parity and the live rollout matrix).
+No evidence task was promoted. Docker, Codex and AGY host readiness remain accepted
+observations; container authentication, provider egress and actual result rows
+are separate prerequisites. OpenRouter operator authentication is distinct from
+scope credential resolution. Full per-task obligations and source limitations
+are in the ordinary run summary.
+
+Proof: check:fast; 111 focused owner tests; a 29-test recovery/lifecycle/builder
+follow-up; and 20 final collection/critic tests. Tests use real task/state owners
+and a controlled external reviewer port; they do not claim model calibration.
+Broader workflow integration validation encountered spawnSync /bin/ps EPERM.
+The anchored reader now handles the authorized root's OS alias while rejecting
+links inside the evidence tree. Runtime-owned integration and actual four-owner
+acceptance remain unmeasured.
+
+Evidence: builder run 2026-09-10T02-03-15-088Z-builder-2e94l1, agent artifacts
+blocked-outcomes-summary.md, live-owner-inspection.json, owner-tests.log,
+recovery-tests.log, collection-critic-tests.log and workflow-journey.log.
+
+## Critic repair (2026-09-10, attempt 2)
+
+Recovery now observes task-linked scoped execution and capability exports in the
+owning assessment. Unrelated activity, collection timestamps and the retained
+writer's own artifacts do not admit another attempt. The blocked-precondition
+reviewer now declares deny-all filesystem authority through the shared agent
+launch contract, enforced by the tool and native sandbox boundaries before
+publication. Task reopening remains a workflow-owned mutation after review.
+These repairs do not establish the outstanding live owner outcomes above.
+
+## Critic repair (2026-09-10, attempt 4)
+
+Recovery fingerprints now discard execution timestamps, duration and attempt
+identifiers while retaining source, isolation and result facts. An unchanged
+failed execution cannot admit another builder attempt merely by running later.
+Discovery-based promoter task resources remain the runtime's admitted snapshot
+on restoration, including after publication changes the blocked queue. Declared
+probes recheck trusted declaration provenance and executable repository source
+identity before consulting cached reviews, so corrected source is collected and
+reviewed again. Task-only commits do not invalidate that source identity.
+
+The production recovery, review and SQLite queue paths pass 25 focused tests.
+The broader workflow/lifecycle collection passes 18 tests, including the promoter
+resource binding, while six publication journeys encounter the existing
+spawnSync /bin/ps EPERM boundary. The source-tree query was also exercised
+read-only against this checkout. These repairs do not establish live publication,
+cleanup or the four external owner outcomes; their outstanding acceptance and
+retained ownership remain as recorded above. Commands and results are retained
+in this run's ordinary summary and repair-4 logs.
+
+## Blocked on
+
+kind: operator-capture
+path: .kota/runs
+description: Attributable current scoped runtime exports and owner dispositions for qj0mm4, hjhox7, 720nnv and un8vlq after the shared recovery path is integrated; prove relevant-change same-lineage recovery or explicit owner retention/cleanup, and distinguish each remaining prerequisite. Existing authorized runtime exports/probes may collect these results automatically; no new permission or ceremonial capture location is required.

@@ -194,7 +194,7 @@ describe("approval review receipt binding", () => {
 		const { runtime } = runtimeFixture;
 		runtime.start();
 		try {
-			const dispatch = runtime.enqueuePendingRun("route-gated-workflow");
+			const dispatch = (await runtime.enqueuePendingRun("route-gated-workflow"));
 			expect(dispatch.ok).toBe(true);
 			if (dispatch.runId === undefined) throw new Error("Expected workflow run id");
 			await waitUntil(

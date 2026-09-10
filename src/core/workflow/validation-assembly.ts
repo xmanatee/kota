@@ -135,6 +135,13 @@ export function assembleWorkflowDefinition(
       }
       return definition.triggerAdmission;
     })(),
+    recovery: (() => {
+      if (definition.recovery === undefined) return undefined;
+      if (typeof definition.recovery !== "function") {
+        throw new WorkflowDefinitionError("recovery must be a function", definitionPath);
+      }
+      return definition.recovery;
+    })(),
     inputSchema:
       definition.inputSchema != null
         ? (definition.inputSchema as Record<string, unknown>)

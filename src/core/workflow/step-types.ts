@@ -2,6 +2,7 @@ import type { AgentTokenBudgetConfig } from "#core/agent-harness/token-budget.js
 import type {
   AgentHarnessStepOverrides,
 } from "#core/agent-harness/types.js";
+import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ModelTier } from "#core/model/model-router.js";
 import type { AgentRuntimeSelection } from "#core/model/preset.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
@@ -104,6 +105,8 @@ export type WorkflowAgentRunContractSpec = Pick<
   | "autonomyMode"
   | "outputSchema"
 > & {
+  /** Filesystem authority for internally launched agents, enforced by the harness. */
+  agentWriteScope?: AgentWriteScope;
   ownerQuestionAccess?: "available" | "disabled";
   persistSession?: boolean;
   enableFileCheckpointing?: boolean;

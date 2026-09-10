@@ -1,3 +1,4 @@
+import type { WorkflowStepContext } from "#core/workflow/run-types.js";
 import {
   expectArrayOutput,
   expectStructuredOutput,
@@ -22,6 +23,12 @@ import type {
   OperatorCaptureInstruction,
 } from "./promotion.js";
 
+function ownedTasks(ctx: Pick<WorkflowStepContext, "runEvidence" | "workflow">): string[] {
+  const run = ctx.runEvidence?.getRun(ctx.workflow.runId);
+  if (!run) throw new Error("Blocked promotion requires its runtime resource ownership");
+  return run.resources.filter((resource) => resource.startsWith("task:")).map((resource) => resource.slice(5));
+}
+
 export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
   id: "inspect-blocked",
   type: "code",
@@ -32,10 +39,11 @@ export const inspectBlocked = typedCodeStep<InspectBlockedResult>({
       "ownerAsk",
       "actions",
     ]),
-  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
-    runBlocking(inspectBlockedOperation, {
-      workspaceRoot,
-      scopeRoot,
+  run: (ctx) =>
+    ctx.runBlocking(inspectBlockedOperation, {
+      workspaceRoot: ctx.workspaceRoot,
+      scopeRoot: ctx.scopeRoot,
+      taskIds: ownedTasks(ctx),
       nowMs: Date.now(),
     }),
 });
@@ -51,8 +59,9 @@ export const promoteDeterministic = typedCodeStep<DeterministicPromotion>({
   },
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
-  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
-    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot, scopeRoot }),
+  run: (ctx) => ctx.runBlocking(promoteSatisfiedBlockedTasksOperation, {
+    workspaceRoot: ctx.workspaceRoot, scopeRoot: ctx.scopeRoot, taskIds: ownedTasks(ctx),
+  }),
 });
 
 export const inspectOwnerDecisionResolution =
@@ -76,6 +85,9 @@ export const applyOutcome = typedCodeStep<AskOutcomeApplication[]>({
     ),
   run: async (ctx) => {
     const resolution = inspectOwnerDecisionResolution.outputRequired(ctx);
+    if (!ownedTasks(ctx).includes(resolution.candidate.taskId)) {
+      throw new Error("Owner-decision task is not owned by this promoter run");
+    }
     return await ctx.runBlocking(applyAskOutcomeOperation, {
       workspaceRoot: ctx.workspaceRoot,
       candidate: ownerAskCandidateForWorkspace(
@@ -96,8 +108,9 @@ export const promoteAfterApproval = typedCodeStep<DeterministicPromotion>({
     (applyOutcome.output(ctx) ?? []).some((application) => application.kind === "resolved"),
   validate: (raw) =>
     expectStructuredOutput<DeterministicPromotion>(raw, ["promotions"]),
-  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
-    runBlocking(promoteSatisfiedBlockedTasksOperation, { workspaceRoot, scopeRoot }),
+  run: (ctx) => ctx.runBlocking(promoteSatisfiedBlockedTasksOperation, {
+    workspaceRoot: ctx.workspaceRoot, scopeRoot: ctx.scopeRoot, taskIds: ownedTasks(ctx),
+  }),
 });
 
 export const instructOperatorCapture = typedCodeStep<{
@@ -114,10 +127,11 @@ export const instructOperatorCapture = typedCodeStep<{
     expectStructuredOutput<{ instructions: OperatorCaptureInstruction[] }>(raw, [
       "instructions",
     ]),
-  run: ({ workspaceRoot, scopeRoot, runBlocking }) =>
-    runBlocking(instructOperatorCaptureOperation, {
-      workspaceRoot,
-      scopeRoot,
+  run: (ctx) =>
+    ctx.runBlocking(instructOperatorCaptureOperation, {
+      workspaceRoot: ctx.workspaceRoot,
+      scopeRoot: ctx.scopeRoot,
+      taskIds: ownedTasks(ctx),
       nowMs: Date.now(),
     }),
 });

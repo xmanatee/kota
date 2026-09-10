@@ -146,7 +146,7 @@ export function createStepContext(
     runCommand?: WorkflowCommandRunner;
     runContext?: Pick<
       RunContext,
-      "effects" | "processes" | "publications" | "repositoryAccess" | "runtimeStateDir" | "signal" | "state"
+      "effects" | "processes" | "publications" | "repositoryAccess" | "runtimeStateDir" | "signal" | "state" | "runEvidence"
     > & { sandbox: Pick<RunContext["sandbox"], "repository"> };
     scopePolicyAuthority?: ScopePolicyAuthority;
     runAgentHarness: WorkflowAgentHarnessRunner;
@@ -273,6 +273,7 @@ export function createStepContext(
       ? { approvalQueue: deps.approvalQueue }
       : {}),
     scopeId: deps.pbus.getScopeId(),
+    runEvidence: deps.runContext?.runEvidence,
     workspaceRoot: deps.workspaceRoot,
     ...(deps.runContext?.repositoryAccess !== undefined
       ? { repositoryAccess: deps.runContext.repositoryAccess }

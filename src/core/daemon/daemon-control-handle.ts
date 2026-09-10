@@ -167,7 +167,7 @@ export type DaemonControlHandle = {
     name: string,
     options?: WorkflowEnqueueOptions,
     scopeId?: ScopeId,
-  ): {
+  ): Promise<{
     ok: boolean;
     queued?: string;
     runId?: string;
@@ -176,7 +176,7 @@ export type DaemonControlHandle = {
     reason?: "scope_not_hosted" | "workflow_contract_conflict";
     scopeId?: ScopeId;
     state?: Exclude<ScopeHostingState, "hosted">;
-  };
+  }>;
   cancelQueuedRun(
     runId: string,
     scopeId?: ScopeId,

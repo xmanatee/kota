@@ -2,12 +2,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expectStructuredOutput, typedCodeStep } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
+import { reviewBlockedEvidence } from "./evidence-review.js";
+import { verifyBlockedContracts } from "./integration.js";
 import { displayedOwnerAnswers } from "./owner-decision-authorization.js";
 import {
   BLOCKED_OWNER_DECISION_REQUESTED_EVENT,
   BLOCKED_OWNER_DECISION_RESOLVED_EVENT,
   blockedOwnerDecisionKey,
 } from "./owner-decision-follow-up.js";
+import { listBlockedTasksWithPreconditions } from "./promotion.js";
 import {
   applyOutcome,
   inspectBlocked,
@@ -65,7 +68,7 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
   validate: (raw) =>
     expectStructuredOutput<{ written: boolean }>(raw, ["written"]),
   when: (ctx) =>
-    workflowChangedAnything(
+    (reviewBlockedEvidence.output(ctx)?.reviews.some((review) => review.promoted) ?? false) || workflowChangedAnything(
       (promoteDeterministic.output(ctx)?.promotions ?? []).length,
       (promoteAfterApproval.output(ctx)?.promotions ?? []).length,
       (applyOutcome.output(ctx) ?? []).length,
@@ -79,6 +82,9 @@ const writeCommitMessage = typedCodeStep<{ written: boolean }>({
     const lines = [
       "blocked-promoter: promote satisfied tasks and refresh blocker markers",
       "",
+      ...(reviewBlockedEvidence.output(ctx)?.reviews ?? [])
+        .filter((review) => review.promoted)
+        .map((review) => `- promote ${review.taskId}: ${review.reason}`),
       ...deterministic.map(
         (move) => `- promote ${move.id}: blocked -> ${move.toState} (precondition satisfied)`,
       ),
@@ -128,11 +134,14 @@ const validateChanges = typedCodeStep<{ ok: true }>({
 const blockedPromoterWorkflow: WorkflowDefinitionInput = {
   name: "blocked-promoter",
   repository: "write",
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  resources: ({ scopeRoot, admittedResources }) => admittedResources ??
+    listBlockedTasksWithPreconditions(scopeRoot).map((task) => `task:${task.id}`),
+  integration: { validationCommand: ["pnpm", "validate-tasks"], postReconcile: verifyBlockedContracts },
   description:
-    "Auto-promote blocked tasks whose typed unblock precondition is satisfied; re-ask owner-decision slots on a 14-day cadence.",
+    "Collect and review blocked evidence, promote satisfied preconditions, and reconcile owner decisions.",
   tags: ["monitored"],
   triggers: [
+    { event: "autonomy.queue.empty", cooldownMs: 60_000, queueMode: "latest" },
     {
       event: "autonomy.queue.available",
       cooldownMs: 60_000,
@@ -147,6 +156,7 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
   steps: [
     inspectOwnerDecisionResolution,
     inspectBlocked,
+    reviewBlockedEvidence,
     promoteDeterministic,
     applyOutcome,
     promoteAfterApproval,
@@ -181,7 +191,8 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
       when: (ctx) =>
         validateChanges.output(ctx)?.ok === true &&
         (promoteDeterministic.output(ctx)?.promotions ?? []).length +
-          (promoteAfterApproval.output(ctx)?.promotions ?? []).length >
+          (promoteAfterApproval.output(ctx)?.promotions ?? []).length +
+          (reviewBlockedEvidence.output(ctx)?.reviews.filter((review) => review.promoted).length ?? 0) >
           0,
       event: "autonomy.blocked.promoted",
       payload: (ctx) => {
@@ -191,7 +202,8 @@ const blockedPromoterWorkflow: WorkflowDefinitionInput = {
         ];
         return {
           runId: ctx.workflow.runId,
-          promotedTaskIds: all.map((move) => move.id),
+          promotedTaskIds: [...all.map((move) => move.id),
+            ...(reviewBlockedEvidence.output(ctx)?.reviews ?? []).filter((review) => review.promoted).map((review) => review.taskId)],
         };
       },
     },

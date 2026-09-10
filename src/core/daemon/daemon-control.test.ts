@@ -183,7 +183,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     getWorkflowDefinitions: vi.fn(() => []),
     enableWorkflow: vi.fn(() => ({ ok: true })),
     disableWorkflow: vi.fn(() => ({ ok: true })),
-    enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true, queued: "builder", runId: "2026-01-01T00-00-00-000Z-builder-abc123" })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),
@@ -1509,7 +1509,7 @@ describe("DaemonControlServer", () => {
 
     it("returns 409 when workflow is already queued", async () => {
       handle = makeHandle({
-        enqueuePendingRun: vi.fn(() => ({ ok: false, alreadyQueued: true })),
+        enqueuePendingRun: vi.fn(async () => ({ ok: false, alreadyQueued: true })),
       });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);
@@ -1525,7 +1525,7 @@ describe("DaemonControlServer", () => {
 
     it("returns 409 when a retained run no longer matches the workflow contract", async () => {
       handle = makeHandle({
-        enqueuePendingRun: vi.fn(() => ({
+        enqueuePendingRun: vi.fn(async () => ({
           ok: false,
           error: "Retained run no longer matches the loaded workflow contract",
           reason: "workflow_contract_conflict" as const,
@@ -1553,7 +1553,7 @@ describe("DaemonControlServer", () => {
 
     it("returns 400 when enqueue fails with an error message", async () => {
       handle = makeHandle({
-        enqueuePendingRun: vi.fn(() => ({ ok: false, error: "No such workflow" })),
+        enqueuePendingRun: vi.fn(async () => ({ ok: false, error: "No such workflow" })),
       });
       await server.stop();
       server = new DaemonControlServer(handle, TEST_TOKEN);

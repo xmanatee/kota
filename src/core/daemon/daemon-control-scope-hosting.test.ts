@@ -30,7 +30,7 @@ function makeHandle(
       ok: true,
       activeScopeId: SCOPE_ID,
     })),
-    enqueuePendingRun: vi.fn(() => ({ ok: true, queued: "builder" })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true, queued: "builder" })),
     ...overrides,
   } as unknown as DaemonControlHandle;
 }
@@ -116,7 +116,7 @@ describe("DaemonControlServer scope hosting admission", () => {
     await server.stop();
     server = new DaemonControlServer(
       makeHandle({
-        enqueuePendingRun: vi.fn(() => ({
+        enqueuePendingRun: vi.fn(async () => ({
           ok: false,
           error: `Scope ${SCOPE_ID} is draining and cannot accept workflow runs`,
           reason: "scope_not_hosted",

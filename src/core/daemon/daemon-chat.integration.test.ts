@@ -109,7 +109,7 @@ function makeHandle(overrides: Partial<DaemonControlHandle> = {}): DaemonControl
     getWorkflowDefinitions: vi.fn(() => []),
     enableWorkflow: vi.fn(() => ({ ok: true })),
     disableWorkflow: vi.fn(() => ({ ok: true })),
-    enqueuePendingRun: vi.fn(() => ({ ok: true })),
+    enqueuePendingRun: vi.fn(async () => ({ ok: true })),
     cancelQueuedRun: vi.fn(() => ({ ok: false, notFound: true })),
     subscribeToEvents: vi.fn(() => () => {}),
     listWorkflowRuns: vi.fn(() => []),
