@@ -15,45 +15,23 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
-import type { WorkflowLiveStatus } from "#core/daemon/daemon-control.js";
-import { getWorkflowMetricsSource } from "#core/daemon/metrics-source-provider.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
-import { renderOnDemandAttention } from "./step.js";
+import { createAutonomyClient } from "#modules/autonomy/client.js";
 
 export function attentionRoutes(opts: {
   workspaceRoot: string;
-  getWorkflowStatus?: () => WorkflowLiveStatus | Promise<WorkflowLiveStatus>;
+  stateDir?: string;
 }): RouteRegistration[] {
+  const client = createAutonomyClient(opts.workspaceRoot, opts.stateDir);
   return [
     {
       method: "GET",
       path: "/api/attention",
-      handler: async (_req: IncomingMessage, res: ServerResponse) => {
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
         try {
-          const runsDir = join(opts.workspaceRoot, ".kota", "runs");
-          const status = opts.getWorkflowStatus
-            ? await opts.getWorkflowStatus()
-            : getWorkflowMetricsSource()?.getWorkflowLiveStatus();
-          if (status === undefined) {
-            jsonResponse(res, 503, { error: "Workflow authority unavailable" });
-            return;
-          }
-          const result = renderOnDemandAttention({
-            scopeRoot: opts.workspaceRoot,
-            runsDir,
-            authority: requireWorkflowRunDurableAuthority(
-              status.authorityCriticalRunIds,
-              status.operationallyActiveRunIds,
-              status.terminalRunIds,
-            ),
-          });
-          jsonResponse(res, 200, {
-            data: { items: result.items },
-            text: result.text,
-          });
+          const query = new URL(req.url ?? "/", "http://localhost").searchParams;
+          jsonResponse(res, 200, await client.attention({ scopeId: query.get("scopeId") ?? undefined }));
         } catch (err) {
           jsonResponse(res, 500, { error: (err as Error).message });
         }

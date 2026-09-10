@@ -86,14 +86,12 @@ function explorerSection(
   items: DailyDigestData["explorerAdditions"],
 ): RenderNode[] {
   if (items.length === 0) return [];
-  const taskTotal = items.reduce((sum, i) => sum + i.taskCount, 0);
-  const watchTotal = items.reduce((sum, i) => sum + i.watchlistAdds, 0);
-  const label = `Explorer additions (${items.length} run${items.length === 1 ? "" : "s"}, ${taskTotal} task batch${taskTotal === 1 ? "" : "es"}, ${watchTotal} watchlist add${watchTotal === 1 ? "" : "s"})`;
+  const label = `Explorer updates (${items.length} run${items.length === 1 ? "" : "s"})`;
   const rows: ListItem[] = items.map((item) => ({
     spans: [
       plain(item.runId),
       span(
-        `: +${item.taskCount} tasks, +${item.watchlistAdds} watchlist`,
+        `: ${item.taskCount} task file${item.taskCount === 1 ? "" : "s"} changed${item.watchlistUpdated ? ", watchlist updated" : ""}`,
         "neutral",
       ),
     ],

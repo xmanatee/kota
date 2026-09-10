@@ -25,6 +25,7 @@ function unavailableNamespace(namespace: string, declared: object = {}): object 
 }
 
 const ROUTINE_NAMESPACES = new Set<string>([
+  "autonomy",
   "agents",
   "skills",
   "recall",

@@ -121,6 +121,7 @@ describe("createStepContext", () => {
             pbus,
             store,
             runContext: {
+              runtimeStateDir: join(workspaceRoot, "daemon-state"),
               sandbox: { repository: "read" },
               signal: new AbortController().signal,
               processes: { register },
@@ -132,6 +133,8 @@ describe("createStepContext", () => {
           },
         );
 
+        expect(context.runtimeStateDir).toBe(join(workspaceRoot, "daemon-state"));
+        expect(context.stateDir).toBe(store.rootDir);
         const result = await context.runCommand({
           command: process.execPath,
           args: ["-e", "process.stdout.write('registered')"],
@@ -184,6 +187,7 @@ describe("createStepContext", () => {
           store,
           currentStepId: "mutate",
           runContext: {
+            runtimeStateDir: store.rootDir,
             sandbox: { repository: "write" },
             signal: new AbortController().signal,
             processes: { register: () => undefined },
@@ -251,6 +255,7 @@ describe("createStepContext", () => {
       );
 
       expect(context.stateDir).toBe(store.rootDir);
+      expect(context.runtimeStateDir).toBe(store.rootDir);
 
       expect(runTool).toHaveBeenCalledWith(
         "composition.workspace",

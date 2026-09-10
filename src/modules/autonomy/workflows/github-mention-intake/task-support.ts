@@ -1,14 +1,9 @@
-import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoWorktreeStatus } from "#core/util/repo-worktree.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
 import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import { assertOutboundGitHubCommentBodyIsSafe } from "#modules/autonomy/github-comment-safety.js";
-import {
-  getRepoTaskContainerDir,
-  writeRepoTaskFile,
-} from "#modules/repo-tasks/repo-tasks-domain.js";
+import { getRepoTaskContainerDir } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   createNormalizedTask,
   showTask,
@@ -61,6 +56,7 @@ export function createMentionTaskInWorker(input: {
   }
   const result = createNormalizedTask(input.workspaceRoot, {
     title: input.taskTitle,
+    body: input.taskBody,
     priority: "p2",
     state: "open",
   });
@@ -69,14 +65,6 @@ export function createMentionTaskInWorker(input: {
       `failed to create GitHub mention task: ${result.reason}${result.message ? `: ${result.message}` : ""}`,
     );
   }
-  const absolutePath = join(input.workspaceRoot, result.path);
-  const content = readFileSync(absolutePath, "utf-8");
-  const { attrs } = parseFlatFrontMatter(content);
-  writeRepoTaskFile(
-    input.workspaceRoot,
-    absolutePath,
-    serializeFlatFrontMatter(attrs, input.taskBody),
-  );
   return {
     kind: "created",
     taskId: result.id,

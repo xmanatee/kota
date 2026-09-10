@@ -29,6 +29,7 @@ import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import { makeAutonomyIssueSourceContext } from "./autonomy-issue-sources.test-helpers.js";
 import { createTestWorkflowRuntime } from "./autonomy-runtime.test-helpers.js";
 import { autonomyHealthSignal, normalizeHealthSignal } from "./health-signal.js";
+import { scopePolicySnapshotForTest } from "./workflows/scope-improver/scope-policy-test-support.js";
 
 vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   const actual = await vi.importActual("../claude-agent-harness/executor.js");
@@ -136,6 +137,10 @@ describe("issue-driven autonomy lifecycle integration", () => {
         },
         bus,
         scopeRoot: workspaceRoot,
+        scopePolicyAuthority: {
+          getSnapshot: () => scopePolicySnapshotForTest(workspaceRoot),
+          subscribeRestrictiveChanges: () => () => {},
+        },
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflowNames.includes(workflow.name)
@@ -144,9 +149,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
       const issueRuntime = createRuntime([
         "autonomy-health-reviewer",
-        "autonomy-issue-projection-materialization",
         "improver",
-        "improver-disposition-publication",
       ]);
       issueRuntime.runtime.start();
       try {
@@ -199,11 +202,11 @@ describe("issue-driven autonomy lifecycle integration", () => {
 
         await waitForLifecycle(
           () =>
-            readAutonomyIssueProjection(workspaceRoot).issues[0]
+            readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]
               ?.links.deadLetterIds.includes(deadLetter.id) === true,
           "the later dead-letter evidence to enrich the original issue",
         );
-        expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([
+        expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues).toEqual([
           expect.objectContaining({
             semanticRevision: 1,
             links: expect.objectContaining({ deadLetterIds: [deadLetter.id] }),
@@ -233,7 +236,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         await dispatcherRuntime.stop();
       }
 
-      const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
+      const issue = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]!;
       const tasks = listFullRepoTasks(workspaceRoot);
       expect(tasks).toEqual([expect.objectContaining({ state: "open" })]);
       expect(issue).toMatchObject({
@@ -284,7 +287,6 @@ describe("issue-driven autonomy lifecycle integration", () => {
       );
       const clearRuntime = createRuntime([
         "autonomy-health-reviewer",
-        "autonomy-issue-projection-materialization",
         "repo-task-mutation",
       ]);
       clearRuntime.runtime.start();
@@ -313,7 +315,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
         );
 
         await waitForLifecycle(
-          () => readAutonomyIssueProjection(workspaceRoot).issues[0]?.status === "resolved",
+          () => readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]?.status === "resolved",
           "the explicit clear observation",
         );
         await waitForLifecycle(
@@ -324,7 +326,7 @@ describe("issue-driven autonomy lifecycle integration", () => {
           () => listFullRepoTasks(workspaceRoot)[0]?.state === "dropped",
           "the shared task mutation writer",
         );
-        expect(readAutonomyIssueProjection(workspaceRoot).issues[0]).toMatchObject({
+        expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]).toMatchObject({
           status: "resolved",
           semanticRevision: 1,
           links: { taskIds: [], ownerQuestionIds: [] },

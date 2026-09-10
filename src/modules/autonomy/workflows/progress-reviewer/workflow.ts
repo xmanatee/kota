@@ -14,10 +14,7 @@ import {
   validateProgressReviewAgentStepOutput,
 } from "./progress-review.js";
 import { admitProgressReviewTrigger } from "./semantic-input.js";
-import {
-  PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT,
-  progressReviewPublicationKey,
-} from "./semantic-publication.js";
+import { finalizeProgressReview } from "./semantic-publication.js";
 import { progressReviewOutputSchema } from "./workflow-output-schema.js";
 import {
   agent,
@@ -37,6 +34,7 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
   name: "progress-reviewer",
   repository: "write",
   integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  finalize: finalizeProgressReview,
   description:
     "Review coalesced cross-run outcomes and follow systemic interventions through integration and later evidence.",
   tags: ["systemic-observer", "progress-reviewer"],
@@ -83,20 +81,6 @@ const progressReviewerWorkflow: WorkflowDefinitionInput = {
     writeArtifact,
     writeCommitMessage,
     validateChanges,
-    {
-      id: "emit-progress-publication",
-      type: "emit",
-      when: stepSucceeded("write-artifact"),
-      event: PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT,
-      payload: (ctx) => {
-        const publicationKey = progressReviewPublicationKey(ctx.workflow.runId);
-        return {
-          idempotencyKey: publicationKey,
-          publicationKey,
-          sourceRunId: ctx.workflow.runId,
-        };
-      },
-    },
     {
       id: "emit-attention",
       type: "emit",

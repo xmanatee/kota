@@ -65,7 +65,7 @@ External target.
 
     expect(() =>
       updateTaskBody(repoRoot, "task-linked", "## Problem\n\nChanged."),
-    ).toThrow(/symbolic-link markdown entries are forbidden/);
+    ).toThrow(/symbolic-link file entries are forbidden/);
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
   });
 
@@ -78,6 +78,7 @@ External target.
     expect(() =>
       createNormalizedTask(repoRoot, {
         title: "Escaping parent",
+        body: "Keep the task within the project.",
         priority: "p1",
         state: "open",
       }),
@@ -95,10 +96,11 @@ External target.
     expect(() =>
       createNormalizedTask(repoRoot, {
         title: "Directory entry",
+        body: "Only create regular Markdown files.",
         priority: "p1",
         state: "open",
       }),
-    ).toThrow(/markdown entries must be regular files/);
+    ).toThrow(/file entries must be regular files/);
   });
 
 });

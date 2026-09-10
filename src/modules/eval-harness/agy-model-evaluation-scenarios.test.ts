@@ -74,12 +74,10 @@ function tracedReport(
 
 const TARGETED_TEST_REQUIRED_COMMANDS = [
   "node scripts/check-targeted-tests.mjs",
-  "pnpm kota task move task-cover-cart-pricing-rules done",
 ] as const;
 
 const REPAIR_REQUIRED_COMMANDS = [
   "node scripts/check-debug-trace.mjs",
-  "pnpm kota task move task-fix-cross-hierarchy-signal-routing done",
 ] as const;
 
 describe("AGY scenario contract", () => {
@@ -237,9 +235,16 @@ describe("AGY scenario contract", () => {
     );
   });
 
-  it("passes trace-backed checks when required commands are present", () => {
+  it.each([
+    ["builder-targeted-test-writing", TARGETED_TEST_REQUIRED_COMMANDS],
+    ["builder-cross-hierarchy-debugging", REPAIR_REQUIRED_COMMANDS],
+    ["builder-unfamiliar-language-strategy-construction", [
+      "node scripts/check-strategy.mjs --visible-only --no-strategy",
+      "node scripts/check-strategy.mjs",
+    ]],
+  ] as const)("accepts verified %s outcomes without a task completion command", (fixtureId, commands) => {
     const rubric = scoreAgyScenarioRun(
-      tracedReport(TARGETED_TEST_REQUIRED_COMMANDS),
+      tracedReport(commands, fixtureId),
     );
     expect(rubric.passed).toBe(true);
     expect(rubric.score).toBe(100);

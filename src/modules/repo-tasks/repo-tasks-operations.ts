@@ -1,9 +1,8 @@
 /**
  * Shared mutation logic for task create, capture, show, move, and body updates.
  *
- * Both the CLI subcommands (via the local-client handler) and the daemon
- * HTTP routes route through these functions so the two transports cannot
- * diverge in behavior.
+ * Optional local-client and HTTP helpers share these operations. Agents can
+ * author complete task Markdown directly in their supplied workspace.
  */
 import { join, relative } from "node:path";
 import type { RepoTasksProvider } from "#core/modules/provider-types.js";
@@ -21,7 +20,6 @@ import type {
   RepoTaskUpdateBodyResult,
 } from "./client.js";
 import { readVerifiedRepoMarkdownFile } from "./repo-file-mutations.js";
-import { renderRepoTaskIntent } from "./repo-task-intent.js";
 import {
   getRepoInboxDir,
   getRepoTaskPath,
@@ -33,6 +31,7 @@ import {
   writeRepoTaskFile,
 } from "./repo-tasks-domain.js";
 import { isRepoTaskId } from "./task-id.js";
+import { validateTaskBody } from "./task-queue-validation.js";
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "./work-supply.js";
 
 const DEFAULT_SEARCH_LIMIT = 20;
@@ -91,8 +90,7 @@ export async function reindexRepoTasks(
 /**
  * Slugify a task title into a stable kebab-case suffix used in filenames.
  *
- * Distinct from the random-suffix slug used by the public `POST /api/tasks`
- * inbox route (kept for the web UI). The CLI and contract use this shape so
+ * The CLI inbox convenience and client contract use this shape so
  * `kota task capture "Fix auth"` produces `task-fix-auth.md` deterministically
  * and the duplicate check is meaningful.
  */
@@ -142,29 +140,25 @@ export function updateTaskBody(
     filePath,
   });
   if (content === null) return { ok: false, reason: "not_found" };
+  if (validateTaskBody(body, record.state).length > 0) return { ok: false, reason: "malformed" };
   const { attrs } = parseFlatFrontMatter(content);
   const nextContent = serializeFlatFrontMatter(attrs, body.trim());
   writeRepoTaskFile(repoRoot, filePath, nextContent);
   return { ok: true, id, state: record.state, content: nextContent };
 }
 
-function buildNormalizedTaskBody(): string {
-  return renderRepoTaskIntent({
-    problem: "Describe the problem and why it matters.",
-    desiredOutcome: "Describe the observable outcome, without prescribing an implementation.",
-    constraints: "Name only constraints that materially limit a valid solution.",
-    howWeWillKnow: "Describe the behavior or observation that will make completion credible.",
-  });
-}
-
-/**
- * Create a normalized task file with the recommended intent scaffold. Used by both the CLI
- * `task create` and the matching daemon HTTP route.
- */
+/** Create a complete authored task in one domain write. */
 export function createNormalizedTask(
   repoRoot: string,
   options: RepoTaskCreateOptions,
 ): RepoTaskCreateResult {
+  if (typeof options.body !== "string") {
+    return {
+      ok: false,
+      reason: "invalid_body",
+      message: "A complete task body is required. Capture rough ideas in the inbox.",
+    };
+  }
   const slug = slugifyTaskTitle(options.title);
   if (!slug) {
     return {
@@ -176,6 +170,15 @@ export function createNormalizedTask(
 
   const id = `task-${slug}`;
   const state = options.state ?? "open";
+  const body = `# ${options.title}\n\n${options.body}`;
+  const bodyFindings = validateTaskBody(body, state);
+  if (bodyFindings.length > 0) {
+    return {
+      ok: false,
+      reason: "invalid_body",
+      message: bodyFindings.map(({ message }) => `Task ${message}.`).join(" "),
+    };
+  }
   const filePath = getRepoTaskPath(repoRoot, state, id);
 
   if (
@@ -200,7 +203,7 @@ export function createNormalizedTask(
   writeRepoTaskFile(
     repoRoot,
     filePath,
-    serializeFlatFrontMatter(attrs, `# ${options.title}\n\n${buildNormalizedTaskBody()}`),
+    serializeFlatFrontMatter(attrs, body),
   );
   return { ok: true, id, path: relative(repoRoot, filePath) };
 }

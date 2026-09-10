@@ -146,7 +146,7 @@ export function createStepContext(
     runCommand?: WorkflowCommandRunner;
     runContext?: Pick<
       RunContext,
-      "effects" | "processes" | "publications" | "repositoryAccess" | "signal" | "state"
+      "effects" | "processes" | "publications" | "repositoryAccess" | "runtimeStateDir" | "signal" | "state"
     > & { sandbox: Pick<RunContext["sandbox"], "repository"> };
     scopePolicyAuthority?: ScopePolicyAuthority;
     runAgentHarness: WorkflowAgentHarnessRunner;
@@ -283,6 +283,7 @@ export function createStepContext(
       ? { runtimeResources: deps.runtimeResources }
       : {}),
     stateDir,
+    runtimeStateDir: deps.runContext?.runtimeStateDir ?? deps.store.rootDir,
     ...(deps.eventJournal !== undefined
       ? { eventJournal: deps.eventJournal }
       : {}),

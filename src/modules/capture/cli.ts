@@ -48,8 +48,8 @@ export function registerCaptureCommand(
         textParts: string[],
         opts: { target?: string; hint?: string; json?: boolean },
       ) => {
-        const text = textParts.join(" ").trim();
-        if (text === "") {
+        const text = textParts.join(" ");
+        if (text.trim() === "") {
           printToStderr(
             line(span("Usage: kota capture <text>", "warn")),
           );

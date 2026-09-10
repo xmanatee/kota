@@ -9,10 +9,10 @@ primitives. This module is the operator surface: listing pending questions,
 answering, dismissing, and exposing the same actions over HTTP so clients
 beyond the local CLI can handle escalations.
 
-Workflow-authored dismissals publish `owner.question.mutation.requested` only
-after their owning run commits. The module's `owner-question-mutation` workflow
-is the single durable writer for those requests; producers never mutate the
-queue before commit.
+Workflow-authored dismissals use their owning workflow's synchronous successful
+finalization hook and the queue's pending-only dismissal API. They retain the
+question revision they observed, preserve newer or terminal owner responses,
+and stage notification events through the run's transactional publication API.
 
 The module contributes two HTTP surfaces against the selected scope's
 `OwnerQuestionQueue`: the public `/api/owner-questions*` routes

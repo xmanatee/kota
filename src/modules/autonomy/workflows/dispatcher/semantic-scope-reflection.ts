@@ -15,6 +15,41 @@ export type ScopeBoundaryInspection = {
   nextState: ScopeImprovementState | null;
 };
 
+/** Rebase a pinned inspection on current reservation authority, never an old row. */
+export function reserveObservedScopeBoundary(
+  observedState: ScopeImprovementState,
+  currentState: ScopeImprovementState,
+  inspection: ScopeBoundaryInspection,
+): ScopeBoundaryInspection {
+  const payload = inspection.payload;
+  if (!inspection.shouldEmit || !payload) return inspection;
+  const { fingerprint, boundary } = payload;
+  if (typeof fingerprint !== "string" || !fingerprint ||
+      (boundary !== "initial-onboarding" && boundary !== "content-policy-changed") ||
+      typeof payload.deliveryAttempt !== "number" || !Number.isSafeInteger(payload.deliveryAttempt)) {
+    throw new Error("scope boundary observation requires a fingerprint, automatic boundary and delivery attempt");
+  }
+  const quiet = (reason: string): ScopeBoundaryInspection => ({ shouldEmit: false, reason, payload: null, nextState: null });
+  if (currentState.consumedFingerprint === payload.fingerprint ||
+      (currentState.pendingFingerprint === payload.fingerprint && currentState.pendingDelivery !== "deferred") ||
+      (payload.boundary === "initial-onboarding" && (currentState.consumedFingerprint || currentState.pendingFingerprint) && currentState.pendingDelivery !== "deferred")) {
+    return quiet("scope input is already reserved or consumed");
+  }
+  if (currentState.consumedFingerprint !== observedState.consumedFingerprint ||
+      (currentState.pendingFingerprint !== observedState.pendingFingerprint && currentState.pendingFingerprint !== payload.fingerprint)) {
+    return quiet("scope reservation advanced after inspection; retain current input authority");
+  }
+  const deliveryAttempt = currentState.pendingDelivery === "deferred"
+    ? currentState.pendingDeliveryAttempt : payload.deliveryAttempt;
+  return {
+    ...inspection,
+    payload: { ...payload, deliveryAttempt, idempotencyKey: scopeImprovementDispatchKey(currentState.scopeId, fingerprint, deliveryAttempt) },
+    nextState: reserveScopeImprovementInput(currentState, {
+      fingerprint, boundary, delivery: "queued", deliveryAttempt,
+    }),
+  };
+}
+
 export function inspectScopeSemanticBoundary(args: {
   workspaceRoot: string;
   scopeRoot: string;

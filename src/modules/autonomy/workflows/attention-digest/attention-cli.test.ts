@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import { createAutonomyClient } from "#modules/autonomy/client.js";
 import { buildAttentionCommand } from "./attention-cli.js";
 import { NO_ATTENTION_ITEMS_TEXT, renderOnDemandAttention } from "./step.js";
 
@@ -27,25 +27,8 @@ function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
   program.addCommand(buildAttentionCommand({
-    client: {
-      workflow: {
-        status: async () => ({
-          activeRuns: [],
-          pendingRuns: [],
-          queueLength: 0,
-          completedRuns: 0,
-          protectedRunIds: [],
-          authorityCriticalRunIds: [],
-          operationallyActiveRunIds: [],
-          terminalRunIds: [],
-          workflows: {},
-          paused: false,
-          pendingAbort: false,
-          concurrency: 1,
-        }),
-      },
-    },
-  } as unknown as ModuleContext));
+    client: { autonomy: createAutonomyClient(process.cwd()) },
+  }));
   return program;
 }
 

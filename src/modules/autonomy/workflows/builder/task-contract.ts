@@ -8,6 +8,7 @@ import type {
   WorkflowResourceInput,
 } from "#core/workflow/types.js";
 import type { TaskReviewContract } from "#modules/autonomy/task-review-target.js";
+import { type PublishedRepoTaskQueue, readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
 import {
   listFullRepoTasks,
   type RepoTaskFullRecord,
@@ -85,8 +86,9 @@ function payloadFor(task: RepoTaskFullRecord): BuilderTaskDispatchPayload {
 
 export function listBuilderTaskDispatches(
   workspaceRoot: string,
+  snapshot: Pick<PublishedRepoTaskQueue, "tasks"> = readPublishedRepoTaskQueue(workspaceRoot),
 ): BuilderTaskDispatchPayload[] {
-  return selectActionableRepoTasks(listFullRepoTasks(workspaceRoot))
+  return selectActionableRepoTasks(snapshot.tasks)
     .sort((left, right) => {
       const priority =
         (PRIORITY_ORDER.get(left.priority!) ?? Number.MAX_SAFE_INTEGER) -

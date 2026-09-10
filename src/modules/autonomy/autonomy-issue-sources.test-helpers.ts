@@ -6,9 +6,9 @@ import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { ProviderRegistry } from "#core/modules/provider-registry.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
-import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
-  materializeAutonomyIssueProjection,
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   readAutonomyIssueProjection,
 } from "./autonomy-issue-projection.js";
 import {
@@ -93,7 +93,8 @@ export function applyHealthReviewSignals(args: {
     sourceEventName: "autonomy.health.signal",
     reason: args.reason,
   });
-  const currentProjection = readAutonomyIssueProjection(args.workspaceRoot);
+  const stateDir = join(args.workspaceRoot, ".kota");
+  const currentProjection = readAutonomyIssueProjection(args.workspaceRoot, stateDir);
   const plannedActions = planAutonomyHealthReviewActions({
     workspaceRoot: args.workspaceRoot,
     currentProjection,
@@ -109,6 +110,20 @@ export function applyHealthReviewSignals(args: {
     review,
     plannedActions,
   });
-  materializeAutonomyIssueProjection(args.workspaceRoot, finalized.projection);
+  const database = RunStateDatabase.openExisting(stateDir);
+  try {
+    const scopeId = database.getScopeIdByRootPath(args.workspaceRoot);
+    if (scopeId === null) throw new Error("Issue source fixture scope is missing");
+    const snapshot = database.readScopeStateValue(scopeId, AUTONOMY_ISSUE_PROJECTION_STATE_KEY);
+    database.compareAndSetScopeStateValue({
+      scopeId,
+      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      expectedRevision: snapshot.revision,
+      value: finalized.projection,
+      updatedAt: args.generatedAt,
+    });
+  } finally {
+    database.close();
+  }
   return finalized;
 }

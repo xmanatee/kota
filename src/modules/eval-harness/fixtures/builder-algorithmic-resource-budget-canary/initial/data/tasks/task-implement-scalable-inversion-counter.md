@@ -59,8 +59,8 @@ node scripts/check-resource-budget.mjs
   configured comparison budgets, and `resourceBudgetScore: 1`.
 - `src/inversions.mjs` avoids sample-only or hardcoded shortcuts and keeps the
   comparison proxy below the configured threshold for every canary.
-- This task has moved from `data/tasks/` to `data/tasks/archive/` by
-  running exactly `pnpm run finish-task`.
+- This task has moved from `data/tasks/` to `data/tasks/archive/` with
+  `status: done` as its only frontmatter and its body preserved.
 
 ## Acceptance Evidence
 

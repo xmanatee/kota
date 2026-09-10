@@ -34,6 +34,7 @@ describe("repo-tasks localClient", () => {
 		await expect(
 			contributed.tasks!.create({
 				title: "Command-created task",
+				body: "Publish only through the active workflow runtime.",
 				priority: "p2",
 				state: "open",
 			}),
@@ -41,6 +42,7 @@ describe("repo-tasks localClient", () => {
 
 		const listed = await contributed.tasks!.list(["open"]);
 		expect(listed.tasks).toEqual([]);
+		expect(listed.workSupply).toMatchObject({ headSha: "", availableCount: 0, activeCount: 0 });
 	});
 
 	it("returns a client error for traversal-shaped move ids", async () => {

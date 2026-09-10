@@ -91,7 +91,7 @@ export async function handleTaskBodyUpdate(
         return;
       }
       if (result.reason === "malformed") {
-        jsonResponse(res, 500, { error: "Could not parse task file" });
+        jsonResponse(res, 400, { error: "Task body must begin with an H1 title and contain authored intent, without unchanged default intent text" });
         return;
       }
       jsonResponse(res, 404, { error: "Task not found" });

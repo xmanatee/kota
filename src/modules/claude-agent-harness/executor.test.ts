@@ -164,7 +164,7 @@ describe("agent-sdk executor", () => {
     expect(isDaemonHostControlCommand("kill -TERM 7315", 7315)).toBe(true);
     expect(isDaemonHostControlCommand("kill -s TERM 7315", 7315)).toBe(true);
     expect(isDaemonHostControlCommand("pnpm kota workflow abort", 7315)).toBe(true);
-    expect(isDaemonHostControlCommand("pnpm kota task move example done", 7315)).toBe(false);
+    expect(isDaemonHostControlCommand("pnpm kota task capture example", 7315)).toBe(false);
     expect(isDaemonHostControlCommand("pnpm build", 7315)).toBe(false);
   });
 
@@ -179,10 +179,10 @@ describe("agent-sdk executor", () => {
       updatedInput: { file_path: "src/index.ts" },
     });
     await expect(
-      guard("Bash", { command: "pnpm kota task move example done" }, options),
+      guard("Bash", { command: "pnpm kota task capture example" }, options),
     ).resolves.toEqual({
       behavior: "allow",
-      updatedInput: { command: "pnpm kota task move example done" },
+      updatedInput: { command: "pnpm kota task capture example" },
     });
     const denied = await guard(
       "Bash",

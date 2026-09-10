@@ -28,7 +28,7 @@ function writeRunMetadata(
   );
 }
 
-function writeBuilderIntegrationEvidence(
+function writeIntegrationEvidence(
   runsDir: string,
   id: string,
   evidence: Record<string, unknown>,
@@ -147,7 +147,7 @@ describe("aggregateDailyDigest", () => {
       durationMs: 30_000,
       steps: [],
     });
-    writeBuilderIntegrationEvidence(runsDir, id, {
+    writeIntegrationEvidence(runsDir, id, {
       commitSubject: "Add foo",
       commitMessage: "Add foo\n\nBody",
     });
@@ -161,6 +161,34 @@ describe("aggregateDailyDigest", () => {
     });
   });
 
+  it("reports explorer file changes only after durable integration", () => {
+    const id = "2026-04-25-explorer-a";
+    writeRunMetadata(runsDir, id, {
+      workflow: "explorer",
+      status: "success",
+      startedAt: new Date(NOW - 60_000).toISOString(),
+      completedAt: new Date(NOW - 30_000).toISOString(),
+      steps: [],
+    });
+    expect(aggregate().explorerAdditions).toEqual([]);
+    writeIntegrationEvidence(runsDir, id, {
+      workflow: "explorer",
+      changedPaths: ["data/watchlist.yaml"],
+    });
+    expect(aggregate().explorerAdditions).toEqual([
+      { runId: id, taskCount: 0, watchlistUpdated: true },
+    ]);
+    writeIntegrationEvidence(runsDir, id, {
+      workflow: "explorer",
+      changedPaths: ["data/tasks/task-revised.md", "data/tasks/AGENTS.md"],
+    });
+    expect(aggregate().explorerAdditions).toEqual([
+      { runId: id, taskCount: 1, watchlistUpdated: false },
+    ]);
+    writeIntegrationEvidence(runsDir, id, { workflow: "explorer", changedPaths: [] });
+    expect(aggregate().quiet).toBe(true);
+  });
+
   it("ignores runs older than the window", () => {
     const id = "2026-04-23-builder-old";
     writeRunMetadata(runsDir, id, {
@@ -171,7 +199,7 @@ describe("aggregateDailyDigest", () => {
       durationMs: 1000,
       steps: [],
     });
-    writeBuilderIntegrationEvidence(runsDir, id, {
+    writeIntegrationEvidence(runsDir, id, {
       commitSubject: "Old",
       commitMessage: "Old",
     });

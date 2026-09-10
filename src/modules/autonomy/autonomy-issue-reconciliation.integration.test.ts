@@ -1,11 +1,13 @@
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { registerAgentHarness } from "#core/agent-harness/registry.js";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/usage.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
+import { PRESET_ENV_VAR } from "#core/model/preset.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -32,15 +34,26 @@ vi.mock("#modules/claude-agent-harness/executor.js", async () => {
   return { ...actual, executeWithAgentSDK: vi.fn() };
 });
 
-import "#modules/claude-agent-harness/index.js";
+import { claudeAgentHarness } from "#modules/claude-agent-harness/adapter.js";
 
 const mockedExecuteWithAgentSDK = vi.mocked(executeWithAgentSDK);
 const FIRST_SEEN = "2026-09-01T20:00:00.000Z";
 
 describe("autonomy issue restart reconciliation", () => {
   const roots: string[] = [];
+  let savedPreset: string | undefined;
+  let unregisterHarness: () => void;
+
+  beforeEach(() => {
+    savedPreset = process.env[PRESET_ENV_VAR];
+    process.env[PRESET_ENV_VAR] = "claude";
+    unregisterHarness = registerAgentHarness(claudeAgentHarness);
+  });
 
   afterEach(() => {
+    unregisterHarness();
+    if (savedPreset === undefined) delete process.env[PRESET_ENV_VAR];
+    else process.env[PRESET_ENV_VAR] = savedPreset;
     mockedExecuteWithAgentSDK.mockReset();
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   });
@@ -204,6 +217,7 @@ describe("autonomy issue restart reconciliation", () => {
       (workflow) => workflow.name === "improver",
     );
     const runtime = createTestWorkflowRuntime({
+      config: { defaultAgentHarness: "claude-agent-sdk", defaultPreset: "claude" },
       bus,
       pbus,
       scopeRoot: workspaceRoot,
@@ -365,9 +379,7 @@ describe("autonomy issue restart reconciliation", () => {
       const workflows = (await loadAutonomyWorkflowDefinitions()).filter((workflow) =>
         [
           "autonomy-health-reviewer",
-          "autonomy-issue-projection-materialization",
           "improver",
-          "improver-disposition-publication",
         ].includes(workflow.name)
       );
       const runtime = createTestWorkflowRuntime({
@@ -423,14 +435,17 @@ describe("autonomy issue restart reconciliation", () => {
         );
 
         await waitUntil(
-          () => completed.includes("improver-disposition-publication"),
-          "the reconciled disposition publication",
+          () => completed.includes("improver") &&
+            runtime.runState.listRuns(scopeId).some((run) =>
+              run.workflow === "improver" && run.state === "succeeded"
+            ),
+          "the reconciled improver finalization",
           45_000,
         );
         await waitUntil(
-          () => readAutonomyIssueProjection(workspaceRoot).issues[0]
+          () => readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]
             ?.links.taskIds.length === 1,
-          "the materialized issue owner",
+          "the canonical issue owner",
           45_000,
         );
 
@@ -438,7 +453,7 @@ describe("autonomy issue restart reconciliation", () => {
         expect(listFullRepoTasks(workspaceRoot)).toEqual([
           expect.objectContaining({ state: "open" }),
         ]);
-        expect(readAutonomyIssueProjection(workspaceRoot).issues[0]).toMatchObject({
+        expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]).toMatchObject({
           semanticRevision: 1,
           occurrenceCount: 44,
           status: "open",

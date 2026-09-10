@@ -13,6 +13,7 @@ export const DAEMON_WIRE_SOURCE = "src/client/wire-contracts.ts";
 export const DAEMON_WIRE_ROOT_TYPE = "DaemonWireContract";
 
 export const KOTA_CLIENT_NAMESPACE_GRAPH = [
+  ["autonomy", "AutonomyClient", "#modules/autonomy/client.js"],
   ["workflow", "WorkflowClient", "#modules/workflow-ops/client.js"],
   ["approvals", "ApprovalsClient", "#modules/approval-queue/client.js"],
   ["secrets", "SecretsClient", "#modules/secrets/client.js"],
@@ -55,6 +56,7 @@ export const KOTA_CLIENT_NAMESPACE_GRAPH = [
  * owning module.
  */
 export const GENERATED_DAEMON_CLIENT_GRAPH = [
+  { namespace: "autonomy", kind: "complete" },
   { namespace: "agents", kind: "complete" },
   { namespace: "skills", kind: "complete" },
   { namespace: "recall", kind: "complete" },
@@ -140,6 +142,9 @@ export const DAEMON_EVENT_GRAPH = [
 export const DAEMON_CAPABILITY_GRAPH = ["dashboard", "workflow.trigger"];
 
 export const DAEMON_OPERATION_DESCRIPTORS = [
+  { id: "autonomy.attention", namespace: "autonomy", clientMethod: "attention", method: "GET", path: "/api/attention", classification: "routine", responseType: "AttentionResult", timeoutMs: 35_000, parameters: [{ name: "scope", type: "scopeQuery", optional: true }] },
+  { id: "autonomy.digest", namespace: "autonomy", clientMethod: "digest", method: "GET", path: "/api/digest", classification: "routine", responseType: "DigestResponse", timeoutMs: 35_000, parameters: [{ name: "options", type: "queryOptions", optional: true }] },
+  { id: "autonomy.report", namespace: "autonomy", clientMethod: "report", method: "GET", path: "/api/autonomy/report", classification: "routine", responseType: "AutonomyReportDataWithControlCoverage", timeoutMs: 35_000, parameters: [{ name: "options", type: "queryOptions", optional: true }] },
   // agents (agent-ops)
   { id: "agents.list", namespace: "agents", clientMethod: "list", method: "GET", path: "/agents", classification: "routine", responseType: "AgentsListResult" },
   { id: "agents.inspect", namespace: "agents", clientMethod: "inspect", method: "GET", path: "/agents/:name", classification: "routine", responseType: "AgentInspectResult", parameters: [{ name: "name", type: "path" }] },

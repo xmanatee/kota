@@ -18,7 +18,7 @@ const TARGET_DESCRIPTIONS: Record<CaptureTarget, string> = {
   knowledge:
     "knowledge — durable structured reference entries (definitions, learned rules, factual notes worth re-reading).",
   tasks:
-    "tasks — actionable work items with a clear desired outcome (review X, fix Y, ship Z).",
+    "tasks — reserved for explicit task capture; send untriaged work requests to inbox.",
   inbox:
     "inbox — raw thoughts and rough captures that have not been triaged into one of the other stores yet.",
 };

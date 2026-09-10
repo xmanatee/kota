@@ -1,9 +1,10 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename, join, relative } from "node:path";
+import type { FileSnapshot } from "#core/util/filesystem/anchored-file-protocol.js";
 import { parseFlatFrontMatter, serializeFlatFrontMatter } from "#core/util/frontmatter.js";
 import { getRepoHeadSha } from "#core/util/repo-worktree.js";
+import type { RepositoryTextTree } from "#core/util/repository-tree.js";
 import {
-  type FileSnapshot,
   listVerifiedRepoMarkdownFiles,
   moveRepoMarkdownFile,
   readVerifiedRepoMarkdownFile,
@@ -191,19 +192,17 @@ function taskContainers(repoRoot: string): TaskContainer[] {
   ];
 }
 
-function recordFromEntry(args: {
-  repoRoot: string;
-  container: TaskContainer;
-  name: string;
+export function parseRepoTaskRecord(args: {
+  path: string;
+  archived: boolean;
   content: string;
-  snapshot: FileSnapshot;
-}): VerifiedRepoTaskFullRecord {
-  const id = basename(args.name, ".md");
-  const path = relative(args.repoRoot, join(args.container.directory, args.name));
+}): RepoTaskFullRecord {
+  const { path } = args;
+  const id = basename(path, ".md");
   if (!isRepoTaskId(id)) throw new Error(`Task entry ${path} has invalid filename identity`);
   const { attrs, body } = parseFlatFrontMatter(args.content);
   const state = parseRepoTaskState(attrs.status, path);
-  if (args.container.archived !== isArchivedRepoTaskState(state)) {
+  if (args.archived !== isArchivedRepoTaskState(state)) {
     throw new Error(`Task entry ${path} is stored in the wrong task container for ${state}`);
   }
   const priority = isActiveRepoTaskState(state)
@@ -217,7 +216,6 @@ function recordFromEntry(args: {
     priority,
     body,
     dependsOn,
-    taskFile: { path, snapshot: args.snapshot },
   };
 }
 
@@ -234,7 +232,11 @@ export function listVerifiedFullRepoTasks(
       directoryPath: container.directory,
     })) {
       if (entry.name === "AGENTS.md") continue;
-      const record = recordFromEntry({ repoRoot, container, ...entry });
+      const path = relative(repoRoot, join(container.directory, entry.name));
+      const record = {
+        ...parseRepoTaskRecord({ path, archived: container.archived, content: entry.content }),
+        taskFile: { path, snapshot: entry.snapshot },
+      };
       if (wanted.has(record.state)) result.push(record);
     }
   }
@@ -246,6 +248,16 @@ export function listFullRepoTasks(
   states: readonly RepoTaskState[] = REPO_TASK_STATES,
 ): RepoTaskFullRecord[] {
   return listVerifiedFullRepoTasks(repoRoot, states);
+}
+
+export function listRepoTasksFromTree(tree: RepositoryTextTree): RepoTaskFullRecord[] {
+  return [REPO_TASKS_DIR, REPO_TASK_ARCHIVE_DIR].flatMap((directory) =>
+    tree.list(directory).filter(({ name, kind }) => kind === "file" && name !== "AGENTS.md" && name.endsWith(".md"))
+      .map(({ name }) => {
+        const path = `${directory}/${name}`;
+        return parseRepoTaskRecord({ path, archived: directory === REPO_TASK_ARCHIVE_DIR, content: tree.read(path) });
+      }),
+  );
 }
 
 export function countRepoTaskState(repoRoot: string, state: RepoTaskState): number {
@@ -331,11 +343,17 @@ export function selectActionableRepoTasks(
 }
 
 export function getRepoTaskQueueSnapshot(repoRoot: string): RepoTaskQueueSnapshot {
-  const tasks = listFullRepoTasks(repoRoot);
+  return summarizeRepoTaskQueue(listFullRepoTasks(repoRoot), countRepoInboxEntries(repoRoot), getRepoHeadSha(repoRoot));
+}
+
+export function summarizeRepoTaskQueue(
+  tasks: readonly RepoTaskFullRecord[],
+  inboxCount: number,
+  headSha: string,
+): RepoTaskQueueSnapshot {
   const counts = Object.fromEntries(
     REPO_TASK_STATES.map((state) => [state, tasks.filter((task) => task.state === state).length]),
   ) as Record<RepoTaskState, number>;
-  const inboxCount = countRepoInboxEntries(repoRoot);
   const dependencyBlockedTasks = taskDependencyWaits(tasks, ["open"]);
   const actionableCount = selectActionableRepoTasks(tasks).length;
   const dispatchableCount = inboxCount + actionableCount;
@@ -347,7 +365,7 @@ export function getRepoTaskQueueSnapshot(repoRoot: string): RepoTaskQueueSnapsho
     dispatchableCount,
     hasDispatchableWork: dispatchableCount > 0,
     dependencyBlockedTasks,
-    headSha: getRepoHeadSha(repoRoot),
+    headSha,
   };
 }
 

@@ -59,6 +59,7 @@ type RunRow = {
   finished_at: string | null;
   sandbox_json: string | null;
   integration_json: string | null;
+  execution_completed_at: string | null;
   wait_json: string | null;
   last_error: string | null;
   result_status: WorkflowRunStatus | null;
@@ -698,6 +699,21 @@ export class RunStateDatabase {
     }
   }
 
+  completeNonWriterExecution(runId: string, epoch: number, completedAt: string): void {
+    this.assertCurrentEpoch(epoch);
+    const updated = this.database
+      .prepare(
+        `UPDATE runs
+         SET execution_completed_at = COALESCE(execution_completed_at, ?)
+         WHERE id = ? AND state = 'running' AND daemon_epoch = ?
+           AND repository_access IN ('none', 'read')`,
+      )
+      .run(completedAt, runId, epoch);
+    if (updated.changes !== 1) {
+      throw new Error(`Run "${runId}" is not an active non-writer in daemon epoch ${epoch}`);
+    }
+  }
+
   clearSandbox(runId: string, epoch: number): void {
     this.assertCurrentEpoch(epoch);
     const updated = this.database
@@ -1076,7 +1092,7 @@ export class RunStateDatabase {
           state: DurableRunState;
         } | undefined;
       if (!run) throw new Error(`Unknown run "${input.runId}"`);
-      if (run.state !== "running") {
+      if (run.state !== "running" && run.state !== "integrating") {
         throw new Error(
           `Run "${input.runId}" cannot stage state mutations while ${run.state}`,
         );
@@ -1157,9 +1173,20 @@ export class RunStateDatabase {
     error?: string,
     publication?: Omit<RunPublication, "createdAt" | "deliveredAt">,
     resultStatus?: WorkflowRunStatus,
+    finalize?: () => void,
   ): void {
     this.database.transaction(() => {
       this.assertCurrentEpoch(epoch);
+      if (finalize !== undefined) {
+        if (state !== "succeeded") throw new Error("Only successful runs can finalize");
+        const active = this.database.prepare(
+          "SELECT 1 FROM runs WHERE id = ? AND state IN ('running', 'integrating') AND daemon_epoch = ?",
+        ).get(runId, epoch);
+        if (!active) {
+          throw new Error(`Run "${runId}" is not running in daemon epoch ${epoch}`);
+        }
+        finalize();
+      }
       const updated = this.database
         .prepare(
           `UPDATE runs
@@ -1260,7 +1287,7 @@ export class RunStateDatabase {
         .prepare("SELECT scope_id, state FROM runs WHERE id = ?")
         .get(input.runId) as { scope_id: string; state: DurableRunState } | undefined;
       if (!run) throw new Error(`Unknown run "${input.runId}"`);
-      if (run.state !== "running") {
+      if (run.state !== "running" && run.state !== "integrating") {
         throw new Error(`Run "${input.runId}" cannot stage emit intents while ${run.state}`);
       }
       const existing = this.database
@@ -1535,6 +1562,9 @@ export class RunStateDatabase {
         : {}),
       ...(row.integration_json !== null
         ? { integration: JSON.parse(row.integration_json) as Record<string, unknown> }
+        : {}),
+      ...(row.execution_completed_at !== null
+        ? { executionCompletedAt: row.execution_completed_at }
         : {}),
       processes: this.getAttemptProcesses(runId),
       ...(row.wait_json !== null

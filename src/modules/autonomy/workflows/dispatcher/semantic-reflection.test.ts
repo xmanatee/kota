@@ -53,6 +53,7 @@ function taskFixture(args: {
     "## Problem",
     "",
     "Fixture task.",
+    ...(args.state === "blocked" ? ["", "## Blocked on", "kind: operator-capture", "path: evidence", "description: Required operator evidence is unavailable"] : []),
     ...(args.strategic ? ["", "## Initiative", "", "Semantic reflection."] : []),
     "",
   ].join("\n");
@@ -136,6 +137,7 @@ async function inspect(workspaceRoot: string, scopeRoot = workspaceRoot, consume
     workspaceRoot,
     scopeRoot,
     stateDir: join(scopeRoot, ".kota"),
+    runtimeStateDir: join(scopeRoot, ".kota"),
     progressBoundaryState: boundaryStates.get(workspaceRoot) ?? null,
     consumedRevision,
     runCommand: runGitEvidenceCommand,

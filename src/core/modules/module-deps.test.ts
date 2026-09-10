@@ -1,8 +1,18 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const MODULES_DIR = join(import.meta.dirname, "..", "..", "modules");
+const buildConfigPath = join(import.meta.dirname, "..", "..", "..", "tsconfig.build.json");
+const buildConfig = ts.getParsedCommandLineOfConfigFile(buildConfigPath, {}, {
+  ...ts.sys,
+  onUnRecoverableConfigFileDiagnostic(diagnostic) {
+    throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
+  },
+});
+if (!buildConfig || buildConfig.errors.length) throw new Error("Cannot read production TypeScript sources");
+const productionFiles = buildConfig.fileNames;
 
 function listModuleDirs(): string[] {
   return readdirSync(MODULES_DIR).filter((name) => {
@@ -11,28 +21,6 @@ function listModuleDirs(): string[] {
       statSync(full).isDirectory() && existsSync(join(full, "index.ts"))
     );
   });
-}
-
-function collectTsFiles(dir: string): string[] {
-  const results: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    // Eval-harness fixtures snapshot repo `.ts` sources via
-    // `git show <commit>^:<path>` for replay, so their `initial/` trees
-    // hide stale imports that are not part of the runtime module. Skip
-    // them here the same way vitest `exclude` does.
-    if (entry.isDirectory() && entry.name === "fixtures") continue;
-    const full = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...collectTsFiles(full));
-    } else if (
-      entry.name.endsWith(".ts")
-      && !entry.name.endsWith(".test.ts")
-      && !entry.name.endsWith(".integration.ts")
-    ) {
-      results.push(full);
-    }
-  }
-  return results;
 }
 
 type CrossModuleImport = {
@@ -44,7 +32,7 @@ type CrossModuleImport = {
 
 function findCrossModuleImports(moduleName: string): CrossModuleImport[] {
   const moduleDir = join(MODULES_DIR, moduleName);
-  const files = collectTsFiles(moduleDir);
+  const files = productionFiles.filter((file) => file.startsWith(`${moduleDir}/`));
   const imports: CrossModuleImport[] = [];
 
   for (const file of files) {

@@ -6,6 +6,7 @@ import type { AgentsClient } from "#modules/agent-ops/client.js";
 import type { AnswerClient } from "#modules/answer/client.js";
 import { decodeAnswerHistoryListResult, decodeAnswerHistoryShowResult } from "#modules/answer/client.js";
 import type { ApprovalsClient } from "#modules/approval-queue/client.js";
+import type { AutonomyClient } from "#modules/autonomy/client.js";
 import type { CaptureClient } from "#modules/capture/client.js";
 import type { ConfigClient } from "#modules/config/client.js";
 import type { DaemonOpsClient, ScopesClient, SessionsClient, UiClient } from "#modules/daemon-ops/client.js";
@@ -36,6 +37,7 @@ import { parseCaptureResult, parseHistorySearchResponse, parseKnowledgeSearchRes
 
 export interface KotaClient {
   forScope(scopeId: string): KotaClient;
+  readonly autonomy: AutonomyClient;
   readonly workflow: WorkflowClient;
   readonly approvals: ApprovalsClient;
   readonly secrets: SecretsClient;
@@ -72,6 +74,7 @@ export interface KotaClient {
 }
 
 export const KOTA_CLIENT_NAMESPACES = [
+  "autonomy",
   "workflow",
   "approvals",
   "secrets",
@@ -115,6 +118,7 @@ export type LocalClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 export type DaemonClientHandlers = { [K in KotaClientNamespace]: KotaClient[K] };
 
 export const KOTA_CLIENT_HANDLER_METHODS = {
+  "autonomy": ["attention", "digest", "report"],
   "workflow": ["listRuns", "listDeadLetters", "getDeadLetter", "dismissDeadLetter", "redriveDeadLetter", "exportDeadLetterDiagnostics", "status", "getRun", "listDefinitions", "pause", "pauseAgentForQuality", "resume", "abort", "reload", "triggerByName", "trial", "explain", "simulate", "enable", "disable", "cancelRun", "abortRun"],
   "approvals": ["list", "approve", "reject"],
   "secrets": ["list", "get", "set", "remove"],
@@ -205,6 +209,7 @@ function assignKotaClientNamespaces(
 
 export abstract class KotaClientNamespaceHost implements KotaClient {
   abstract forScope(scopeId: string): KotaClient;
+  declare readonly autonomy: AutonomyClient;
   declare readonly workflow: WorkflowClient;
   declare readonly approvals: ApprovalsClient;
   declare readonly secrets: SecretsClient;
@@ -292,6 +297,28 @@ function omitBodyKeys(
   return Object.fromEntries(
     Object.entries(value).filter(([name]) => !omitted.includes(name)),
   );
+}
+
+class RoutineAutonomyClient implements AutonomyClient {
+  constructor(private readonly transport: DaemonTransport) {}
+
+  async attention(...[scope]: Parameters<AutonomyClient["attention"]>): Promise<Awaited<ReturnType<AutonomyClient["attention"]>>> {
+    const params = new URLSearchParams();
+    appendQueryValue(params, "scopeId", scope?.scopeId);
+    return this.transport.requestStrict<Awaited<ReturnType<AutonomyClient["attention"]>>>("GET", withQuery("/api/attention", params), undefined, {"timeoutMs":35000});
+  }
+
+  async digest(...[options]: Parameters<AutonomyClient["digest"]>): Promise<Awaited<ReturnType<AutonomyClient["digest"]>>> {
+    const params = new URLSearchParams();
+    appendQueryObject(params, options);
+    return this.transport.requestStrict<Awaited<ReturnType<AutonomyClient["digest"]>>>("GET", withQuery("/api/digest", params), undefined, {"timeoutMs":35000});
+  }
+
+  async report(...[options]: Parameters<AutonomyClient["report"]>): Promise<Awaited<ReturnType<AutonomyClient["report"]>>> {
+    const params = new URLSearchParams();
+    appendQueryObject(params, options);
+    return this.transport.requestStrict<Awaited<ReturnType<AutonomyClient["report"]>>>("GET", withQuery("/api/autonomy/report", params), undefined, {"timeoutMs":35000});
+  }
 }
 
 class RoutineAgentsClient implements AgentsClient {
@@ -594,6 +621,7 @@ export function createRepoTasksDaemonClient(
 
 export type RoutineDaemonClientHandlers = Pick<
   DaemonClientHandlers,
+  | "autonomy"
   | "agents"
   | "skills"
   | "recall"
@@ -613,6 +641,7 @@ export function createRoutineDaemonClientHandlers(
   transport: DaemonTransport,
 ): RoutineDaemonClientHandlers {
   return {
+    autonomy: new RoutineAutonomyClient(transport),
     agents: new RoutineAgentsClient(transport),
     skills: new RoutineSkillsClient(transport),
     recall: new RoutineRecallClient(transport),

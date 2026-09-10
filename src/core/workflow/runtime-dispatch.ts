@@ -238,19 +238,6 @@ export async function executeAdmittedWorkflowRun(
       );
     }
     if (
-      definition.repository !== "write" &&
-      state.deadLetterQueue !== undefined &&
-      (result.metadata.status === "success" ||
-        result.metadata.status === "completed-with-warnings")
-    ) {
-      dismissSupersededWorkflowDeadLetters({
-        deadLetterQueue: state.deadLetterQueue,
-        runStore: state.store,
-        successfulRun: result.metadata,
-        log: state.log,
-      });
-    }
-    if (
       !result.agentBackoff &&
       state.backoff.getActive() === null &&
       runHasSuccessfulAgentExecution(definition, result.metadata.steps)

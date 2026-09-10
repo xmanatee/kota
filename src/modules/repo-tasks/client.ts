@@ -79,6 +79,8 @@ export type RepoTaskPriority = "p0" | "p1" | "p2" | "p3";
 
 export type RepoTaskCreateOptions = ScopeSelector & {
   title: string;
+  /** Complete authored Markdown below the title; never a generated scaffold. */
+  body: string;
   priority: RepoTaskPriority;
   state?: "open" | "blocked";
 };
@@ -88,7 +90,7 @@ export type RepoTaskCreateResult =
   | { ok: true; id: string; path: string }
   | {
       ok: false;
-      reason: "invalid_slug" | "already_exists";
+      reason: "invalid_slug" | "invalid_body" | "already_exists";
       message?: string;
     };
 

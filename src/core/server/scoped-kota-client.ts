@@ -38,6 +38,11 @@ function assembleScopedKotaClient(
   const scoped = runScopedKotaClientOperation;
   return {
     ...base,
+    autonomy: {
+      attention: () => scoped(selectedId, () => base.autonomy.attention(selector)),
+      digest: (options) => scoped(selectedId, () => base.autonomy.digest(withScope(options, selector))),
+      report: (options) => scoped(selectedId, () => base.autonomy.report(withScope(options, selector))),
+    },
     forScope: (nextScopeId) =>
       createScopedKotaClient(base, nextScopeId),
     workflow: createScopedWorkflowClient({

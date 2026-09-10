@@ -9,6 +9,7 @@ import { deadLetterChangedEventPayload } from "#core/daemon/dead-letter-queue-ev
 import { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import { PRESET_ENV_VAR } from "#core/model/preset.js";
+import { withShortBatchWindows } from "#core/workflow/testing/runtime-fixture.js";
 import { executeWithAgentSDK } from "#modules/claude-agent-harness/executor.js";
 import repoTaskMutationWorkflow from "#modules/repo-tasks/repo-task-mutation-workflow.js";
 import {
@@ -71,13 +72,20 @@ describe("production dead-letter routing replay", () => {
   });
 
   it(
-    "routes the four captured passive-Codex dead letters through one issue, decision, task, and clear",
+    "routes the captured scheduled and batch failures through two revisions of one issue and repair task",
     { timeout: 90_000 },
     async () => {
       const capture = readJson<DeadLetterCapture>(
         join(CAPTURE_DIR, "progress-reviewer-dead-letters.json"),
       );
       expect(capture.records).toHaveLength(4);
+      expect(capture.records.map((record) => record.source.kind === "workflow-dispatch"
+        ? record.source.triggerEvent : null)).toEqual([
+        "autonomy.progress-review.scheduled",
+        "workflow.batch.flushed",
+        "workflow.batch.flushed",
+        "workflow.batch.flushed",
+      ]);
       expect(capture.verification).toMatchObject({
         recordCount: 4,
         allTerminal: true,
@@ -163,11 +171,10 @@ describe("production dead-letter routing replay", () => {
           .filter(
             (workflow) =>
               workflow.name === "autonomy-health-reviewer" ||
-              workflow.name === "autonomy-issue-projection-materialization" ||
               workflow.name === "improver" ||
-              workflow.name === "improver-disposition-publication" ||
               workflow.name === "repo-task-mutation",
           )
+          .map(withShortBatchWindows)
           .map((workflow) => ({
             ...workflow,
             triggers: workflow.triggers.filter((trigger) => trigger.schedule === undefined),
@@ -177,7 +184,7 @@ describe("production dead-letter routing replay", () => {
       const { runtime } = runtimeFixture;
       const recordsById = new Map(capture.records.map((record) => [record.id, record]));
       const capturedIssue = () =>
-        readAutonomyIssueProjection(workspaceRoot).issues.find(
+        readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues.find(
           (issue) => issue.source.kind === "workflow" && issue.source.id === "progress-reviewer",
         );
       const openItems: DeadLetterItem[] = [];
@@ -206,6 +213,12 @@ describe("production dead-letter routing replay", () => {
           }
         }
 
+        await waitForLifecycle(
+          () => runtimeFixture.runState.listRuns(scopeId).filter((run) =>
+            run.workflow === "improver" && run.state === "succeeded"
+          ).length === 2,
+          "the original improver run for each captured trigger revision",
+        );
         const openIssue = capturedIssue()!;
         const readyTasks = listFullRepoTasks(workspaceRoot).filter((task) =>
           openIssue.links.taskIds.includes(task.id)
@@ -215,10 +228,14 @@ describe("production dead-letter routing replay", () => {
           issueKey: openIssue.issueKey,
           semanticRevision: 1,
           transition: "opened",
+          }, {
+          issueKey: openIssue.issueKey,
+          semanticRevision: 2,
+          transition: "revised",
           }]);
         expect(openIssue).toMatchObject({
           status: "open",
-          semanticRevision: 1,
+          semanticRevision: 2,
           disposition: { kind: "task" },
           links: {
             deadLetterIds: capture.records.map((record) => record.id).sort(),
@@ -227,7 +244,7 @@ describe("production dead-letter routing replay", () => {
         });
         expect(openIssue.history.map((entry) => entry.transition)).toEqual([
           "opened",
-          "repeated",
+          "revised",
           "repeated",
           "repeated",
         ]);
@@ -273,7 +290,7 @@ describe("production dead-letter routing replay", () => {
         const resolvedIssue = capturedIssue()!;
         expect(resolvedIssue).toMatchObject({
           status: "resolved",
-          semanticRevision: 1,
+          semanticRevision: 2,
           disposition: { kind: "cleared" },
           links: {
             taskIds: [],
@@ -283,7 +300,7 @@ describe("production dead-letter routing replay", () => {
         });
         expect(resolvedIssue.history.map((entry) => entry.transition)).toEqual([
           "opened",
-          "repeated",
+          "revised",
           "repeated",
           "repeated",
           "cleared",
@@ -292,7 +309,8 @@ describe("production dead-letter routing replay", () => {
           expect.objectContaining({ id: readyTasks[0]!.id, state: "dropped" }),
         );
         expect(attention.some((text) => text.includes("action resolved"))).toBe(true);
-        expect(completed.filter((run) => run.workflow === "improver")).toHaveLength(1);
+        expect(completed.filter((run) => run.workflow === "improver")).toHaveLength(2);
+        expect(mockedExecuteWithAgentSDK).toHaveBeenCalledTimes(2);
         expect(
           completed.some((run) => run.workflow === "autonomy-health-reviewer"),
         ).toBe(true);

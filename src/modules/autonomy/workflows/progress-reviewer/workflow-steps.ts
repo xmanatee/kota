@@ -36,10 +36,7 @@ import {
   writeProgressReviewArtifact,
 } from "./progress-review.js";
 import {
-  completeProgressReviewSemanticInput,
-  decodeProgressReviewConsumptionState,
   inspectProgressReviewSemanticInput,
-  PROGRESS_REVIEW_STATE_KEY,
   type ProgressReviewSemanticInput,
 } from "./semantic-input.js";
 
@@ -98,12 +95,13 @@ export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
     inspectSemanticInput.output(ctx)?.shouldReview === true,
   validate: validateProgressReviewEvidenceHandle,
   run: async (ctx) => {
-    const { workspaceRoot, scopeRoot, stateDir, trigger, workflow } = ctx;
+    const { workspaceRoot, scopeRoot, stateDir, runtimeStateDir, trigger, workflow } = ctx;
     const now = new Date();
     const gitEvidenceByScope = await collectProgressReviewGitEvidence({
       workspaceRoot,
       scopeRoot,
       stateDir,
+      runtimeStateDir,
       trigger,
       now,
       runCommand: ctx.runCommand,
@@ -112,6 +110,7 @@ export const collectEvidence = typedCodeStep<ProgressReviewEvidenceHandle>({
       workspaceRoot,
       scopeRoot,
       stateDir,
+      runtimeStateDir,
       trigger,
       nowIso: now.toISOString(),
       semanticInput: inspectSemanticInput.outputRequired(ctx),
@@ -164,19 +163,6 @@ export const recordReviewRejection = typedCodeStep<ProgressReviewRejection>({
     // A damaged runtime packet is an integrity failure, not a rejected review.
     readProgressReviewEvidencePacket(ctx);
     prepareReviewInput.outputRequired(ctx);
-    // Rejection consumes only this pinned input, never its proposed actions.
-    // Stage the watermark with the run outcome so dispatcher can compare later
-    // evidence after restart without replaying this exhausted correction.
-    const snapshot = ctx.state.read(PROGRESS_REVIEW_STATE_KEY);
-    const current = decodeProgressReviewConsumptionState(snapshot.value, ctx.scopeRoot);
-    const next = completeProgressReviewSemanticInput({
-      current,
-      input: inspectSemanticInput.outputRequired(ctx),
-      consumedAt: new Date().toISOString(),
-    });
-    if (next !== current) {
-      ctx.state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, snapshot.revision, next);
-    }
     return {
       kind: "output-validation-exhausted",
       reason: review.error,

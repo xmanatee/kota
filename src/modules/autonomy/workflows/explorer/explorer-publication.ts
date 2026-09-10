@@ -1,51 +1,17 @@
 import { join } from "node:path";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { validateWorkflowRunId } from "#core/workflow/run-io.js";
-import { decodeExplorerState, type ExplorerState } from "./explorer-state.js";
+import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
+import { decodeExplorerState, EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
 
 export const EXPLORER_PUBLICATION_ARTIFACT = "explorer-publication.json";
-export const EXPLORER_PUBLICATION_REQUESTED_EVENT =
-  "autonomy.explorer.publication.requested";
-
-export type ExplorerPublicationRequest = {
-  publicationKey: string;
-  sourceRunId: string;
-};
-
-export function explorerPublicationKey(sourceRunId: string): string {
-  return `explorer-publication:${sourceRunId}`;
-}
-
-export function decodeExplorerPublicationRequest(
-  value: object,
-): ExplorerPublicationRequest {
-  const request = value as Partial<ExplorerPublicationRequest>;
-  if (typeof request.sourceRunId !== "string") {
-    throw new Error("explorer publication request is invalid");
-  }
-  const sourceRunId = validateWorkflowRunId(
-    request.sourceRunId,
-    "Explorer publication",
-  );
-  if (request.publicationKey !== explorerPublicationKey(sourceRunId)) {
-    throw new Error("explorer publication request is invalid");
-  }
-  return { publicationKey: request.publicationKey, sourceRunId };
-}
-
-export function publishExplorerCompletion(args: {
-  sourceRunId: string;
-  scopeRoot: string;
-}): ExplorerState | null {
+export function finalizeExplorer(ctx: WorkflowFinalizationContext): void {
   const artifact = readOptionalJsonFile<ExplorerState>(
-    join(
-      args.scopeRoot,
-      ".kota",
-      "runs",
-      args.sourceRunId,
-      EXPLORER_PUBLICATION_ARTIFACT,
-    ),
+    join(ctx.stateDir, "runs", ctx.runId, EXPLORER_PUBLICATION_ARTIFACT),
   );
-  if (artifact === null) return null;
-  return decodeExplorerState(artifact);
+  if (artifact === null) return;
+  const next = decodeExplorerState(artifact);
+  const snapshot = ctx.state.read<ExplorerState>(EXPLORER_STATE_KEY);
+  const current = decodeExplorerState(snapshot.value);
+  if (current.observedAt && (!next.observedAt || current.observedAt >= next.observedAt)) return;
+  ctx.state.compareAndSet(EXPLORER_STATE_KEY, snapshot.revision, next);
 }

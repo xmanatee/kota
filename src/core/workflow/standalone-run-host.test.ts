@@ -1,9 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { EventBus } from "#core/events/event-bus.js";
+import { initModuleEventRegistry } from "#core/events/module-event.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
 import { StandaloneRunHost } from "./standalone-run-host.js";
 
 describe("StandaloneRunHost", () => {
@@ -72,6 +74,16 @@ describe("StandaloneRunHost", () => {
     const workspaceRoot = join(root, "project");
     const stateDir = join(root, "state");
     mkdirSync(workspaceRoot);
+    const bus = new EventBus();
+    const event = defineScopedModuleEvent<{ runId: string }>("standalone.finalized", ["runId"]);
+    const release = initModuleEventRegistry().acquire("standalone-finalizer", event);
+    const finalized: string[] = [];
+    bus.on("standalone.finalized", (payload) => {
+      const pending = host.state.listPendingPublications().find((entry) => entry.event === event.name)!;
+      expect(pending.payload).toEqual({ runId: payload.runId, scopeId: "standalone-test" });
+      expect(() => bus.validate(event.name, { ...pending.payload })).not.toThrow();
+      finalized.push(String(payload.runId));
+    });
     const host = new StandaloneRunHost({
       stateDir,
       scope: {
@@ -79,7 +91,7 @@ describe("StandaloneRunHost", () => {
         scopeRoot: workspaceRoot,
         displayName: "Standalone test",
       },
-      bus: new EventBus(),
+      bus,
       workflows: [{
         name: "explicit-run",
         enabled: true,
@@ -88,6 +100,14 @@ describe("StandaloneRunHost", () => {
         repository: "none",
         tags: [],
         triggers: [{ event: "manual", cooldownMs: 0 }],
+        finalize: (ctx) => {
+          expect(ctx.scopeRoot).toBe(workspaceRoot);
+          expect(ctx.stateDir).toBe(join(workspaceRoot, ".kota"));
+          expect(existsSync(join(ctx.stateDir, "runs", ctx.runId, "metadata.json"))).toBe(true);
+          expect(ctx.trigger.payload).toMatchObject({ requested: true });
+          ctx.state.compareAndSet("finalized", 0, ctx.runId);
+          ctx.emit("standalone.finalized", { runId: ctx.runId }, "finalize");
+        },
         steps: [{
           id: "complete",
           type: "code",
@@ -105,8 +125,10 @@ describe("StandaloneRunHost", () => {
       expect(result.run.state).toBe("succeeded");
       expect(result.metadata?.status).toBe("success");
       expect(host.listRuns().map((run) => run.id)).toEqual(["explicit-run-test"]);
+      expect(finalized).toEqual(["explicit-run-test"]);
     } finally {
       await host.close();
+      release();
     }
   });
 

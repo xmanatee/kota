@@ -136,7 +136,6 @@ describe("autonomy-health-reviewer workflow", () => {
       issues: [expect.objectContaining({ status: "needs-decision" })],
     });
     expect(result.emitted.map((event) => event.event)).toEqual([
-      "autonomy.issue-projection.materialization.requested",
       "autonomy.issue.decision-requested",
       "workflow.attention.digest",
     ]);

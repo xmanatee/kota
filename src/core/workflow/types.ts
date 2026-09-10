@@ -1,6 +1,7 @@
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { TransactionalRunState } from "./run-context.js";
 import type { RepositoryAccess } from "./run-sandbox.js";
+import type { WorkflowStepContext } from "./run-types.js";
 import type { WorkflowNotifyConfig } from "./step-input-base.js";
 import type { WorkflowStepInput } from "./step-input-types.js";
 import type { WorkflowStep } from "./step-types.js";
@@ -39,6 +40,13 @@ export type WorkflowDefinitionInput = {
   integration?: WorkflowIntegrationPolicy;
   /** Logical resources claimed atomically before the run consumes capacity. */
   resources?: WorkflowResourceResolver;
+  /**
+   * Synchronous owner completion after lifecycle success and cleanup, inside the
+   * success/state/outbox transaction. Local effects MUST be idempotent: a crash
+   * or rollback replays this hook on the same run. External non-idempotent
+   * actions belong in separate workflows. Promise-returning hooks are rejected.
+   */
+  finalize?: WorkflowFinalizer;
   /**
    * Optional definition-owned admission check that runs after trigger payload
    * validation but before any pending-queue or dispatch-idempotency mutation.
@@ -130,9 +138,25 @@ export type WorkflowResourceResolver = (
   input: WorkflowResourceInput,
 ) => readonly string[];
 
+export type WorkflowFinalizationContext = Readonly<{
+  runId: string;
+  scopeId: string;
+  scopeRoot: string;
+  stateDir: string;
+  trigger: WorkflowRunTrigger;
+  stepOutputs: WorkflowStepContext["stepOutputs"];
+  /** Reads latest canonical values; writes use the run's existing staged CAS. */
+  state: TransactionalRunState;
+  /** Stable step ids share the run's existing emit-intent namespace. */
+  emit(event: string, payload: Readonly<Record<string, unknown>>, stepId: string): void;
+}>;
+
+export type WorkflowFinalizer = (context: WorkflowFinalizationContext) => void;
+
 export type WorkflowTriggerAdmissionInput = {
   scopeRoot: string;
   stateDir: string;
+  runtimeStateDir: string;
   /** Canonical scope identity resolved by the queue before repository isolation. */
   scopeId: string;
   workflowName: string;
@@ -191,6 +215,7 @@ export type WorkflowDefinition = {
   repository: RepositoryAccess;
   integration?: WorkflowIntegrationPolicy;
   resources?: WorkflowResourceResolver;
+  finalize?: WorkflowFinalizer;
   /** Definition-owned pre-queue semantic replay admission. */
   triggerAdmission?: WorkflowTriggerAdmissionResolver;
   /** Optional JSON Schema for validating trigger payloads at enqueue time. */

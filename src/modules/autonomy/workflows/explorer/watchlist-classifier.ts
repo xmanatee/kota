@@ -1,21 +1,4 @@
 import { createHash } from "node:crypto";
-import type { WatchlistSnapshot } from "./watchlist.js";
-
-export type WatchlistFetchOutcome =
-  | { accessible: true; content: string; summary: string }
-  | { accessible: false };
-
-export type WatchlistClassification =
-  | { kind: "new"; fingerprint: string; summary: string; normalized: string }
-  | {
-      kind: "changed";
-      fingerprint: string;
-      summary: string;
-      normalized: string;
-      previousFingerprint: string;
-    }
-  | { kind: "unchanged"; fingerprint: string }
-  | { kind: "inaccessible" };
 
 const ISO_DATE_RE =
   /\b\d{4}-\d{2}-\d{2}(?:[t ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:z|[+-]\d{2}:?\d{2})?)?\b/g;
@@ -40,33 +23,4 @@ export function normalizeWatchlistContent(raw: string): string {
 export function computeWatchlistFingerprint(normalized: string): string {
   const hash = createHash("sha256").update(normalized, "utf-8").digest("hex");
   return `sha256:${hash.slice(0, 32)}`;
-}
-
-export function classifyWatchlistUpdate(
-  previous: WatchlistSnapshot | undefined,
-  outcome: WatchlistFetchOutcome,
-): WatchlistClassification {
-  if (!outcome.accessible) {
-    return { kind: "inaccessible" };
-  }
-  const normalized = normalizeWatchlistContent(outcome.content);
-  const fingerprint = computeWatchlistFingerprint(normalized);
-  if (!previous) {
-    return {
-      kind: "new",
-      fingerprint,
-      summary: outcome.summary,
-      normalized,
-    };
-  }
-  if (previous.fingerprint === fingerprint) {
-    return { kind: "unchanged", fingerprint };
-  }
-  return {
-    kind: "changed",
-    fingerprint,
-    summary: outcome.summary,
-    normalized,
-    previousFingerprint: previous.fingerprint,
-  };
 }

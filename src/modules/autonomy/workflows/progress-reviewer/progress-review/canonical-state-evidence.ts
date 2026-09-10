@@ -65,14 +65,14 @@ export function listCanonicalProgressState(args: {
   semanticInput: ProgressReviewSemanticInput;
   autonomyIssueProjection: AutonomyIssueProjection;
 }): ProgressReviewEvidenceRef[] {
-  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ ...args.source, workspaceRoot: args.source.scopeRoot }));
+  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ ...args.source, workspaceRoot: args.source.scopeRoot, stateDir: args.source.authorityStateDir }));
   const issues = args.autonomyIssueProjection.issues;
   const issueCounts = new Map<string, number>();
   for (const issue of issues) {
     issueCounts.set(issue.status, (issueCounts.get(issue.status) ?? 0) + 1);
   }
   const operational = readRunOperationalProjection({
-    stateDir: args.source.stateDir,
+    stateDir: args.source.authorityStateDir,
     scopeRoot: args.source.scopeRoot,
   });
   const attentionRuns = operational.runs.filter(

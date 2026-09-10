@@ -15,6 +15,7 @@ import {
   createWorkflowDispatchDeadLetter,
   DeadLetterQueueStore,
 } from "#core/daemon/dead-letter-queue.js";
+import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
   deriveDirectoryScopeId,
   GLOBAL_SCOPE_ID,
@@ -485,6 +486,7 @@ describe("progress-reviewer workflow", () => {
     const harness = new WorkflowScenarioDriver(progressReviewerWorkflow, {
       workspaceRoot: scopeARoot,
       ports: {
+        state: { stateDir: join(scopeARoot, ".kota"), scopeId: scopeAId },
         runCommand: runGitEvidenceCommand,
       },
       trigger: {
@@ -676,7 +678,7 @@ describe("progress-reviewer workflow", () => {
     expect(
       readTaskStatus(workspaceRoot, "task-generated-2a2c3d885f63407d"),
     ).toBe("open");
-    expect(existsSync(join(workspaceRoot, ".kota", "owner-questions"))).toBe(false);
+    expect(new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions")).list()).toEqual([]);
     expect(() => assertTaskQueueValid(workspaceRoot)).not.toThrow();
     expect(result.emitted.map((event) => event.event)).toContain(
       "workflow.attention.digest",
@@ -723,7 +725,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -903,7 +905,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -959,7 +961,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1051,7 +1053,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1170,7 +1172,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,
@@ -1324,7 +1326,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1422,7 +1424,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -1796,7 +1798,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot: scopeARoot,
       scopeRoot: scopeARoot,
-      stateDir: join(scopeARoot, ".kota"),
+      stateDir: join(scopeARoot, ".kota"), runtimeStateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId: scopeAId, windowMs: 3_600_000 },
@@ -1825,7 +1827,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -1913,7 +1915,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -2022,7 +2024,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -2058,7 +2060,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -2155,7 +2157,7 @@ describe("progress-reviewer workflow", () => {
       collectProgressReviewEvidence({
         workspaceRoot,
         scopeRoot: workspaceRoot,
-        stateDir: join(workspaceRoot, ".kota"),
+        stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
         trigger: {
           event: progressReviewRequested.name,
           schemaRef: null,
@@ -2194,7 +2196,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2262,7 +2264,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2336,7 +2338,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2396,7 +2398,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -2441,7 +2443,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: { scopeId, windowMs: 3_600_000 },
@@ -2477,7 +2479,7 @@ describe("progress-reviewer workflow", () => {
     const gitEvidenceByScope = await collectProgressReviewGitEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger,
       now: NOW,
       runCommand: runGitEvidenceCommand,
@@ -2485,7 +2487,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger,
       now: NOW,
       gitEvidenceByScope,
@@ -2535,7 +2537,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot: scopeARoot,
       scopeRoot: scopeARoot,
-      stateDir: join(scopeARoot, ".kota"),
+      stateDir: join(scopeARoot, ".kota"), runtimeStateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
@@ -2606,7 +2608,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot: scopeARoot,
       scopeRoot: scopeARoot,
-      stateDir,
+      stateDir, runtimeStateDir: stateDir,
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,
@@ -2643,7 +2645,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot: scopeARoot,
       scopeRoot: scopeARoot,
-      stateDir: join(scopeARoot, ".kota"),
+      stateDir: join(scopeARoot, ".kota"), runtimeStateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
@@ -2690,7 +2692,7 @@ describe("progress-reviewer workflow", () => {
       evidence: collectProgressReviewEvidence({
         workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
         trigger: {
           event: WORKFLOW_BATCH_FLUSH_EVENT,
           schemaRef: null,
@@ -2727,7 +2729,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot: scopeARoot,
       scopeRoot: scopeARoot,
-      stateDir: join(scopeARoot, ".kota"),
+      stateDir: join(scopeARoot, ".kota"), runtimeStateDir: join(scopeARoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null, payload: {
@@ -2849,7 +2851,7 @@ describe("progress-reviewer workflow", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: WORKFLOW_BATCH_FLUSH_EVENT,
         schemaRef: null,

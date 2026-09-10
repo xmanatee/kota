@@ -13,9 +13,9 @@ import {
 } from "./candidate-steps.js";
 import { SECURITY_REVIEW_DUE_EVENT } from "./due-check.js";
 import {
+  finalizeSecurityReview,
   recordInvestigationFindings,
   recordRevalidation,
-  recordReview,
 } from "./finding-steps.js";
 import {
   securityInvestigationOutputSchema,
@@ -37,6 +37,7 @@ export const agent: AgentDef = {
 
 const securityReviewWorkflow: WorkflowDefinitionInput = {
   name: "security-review",
+  finalize: finalizeSecurityReview,
   // Keep the existing native writer isolation contract while non-writer
   // database confinement remains separately tracked. Agents still deny all writes.
   repository: "write",
@@ -89,7 +90,6 @@ const securityReviewWorkflow: WorkflowDefinitionInput = {
         (recordInvestigationFindings.output(ctx)?.findings.length ?? 0) > 0,
     },
     recordRevalidation,
-    recordReview,
   ],
 };
 

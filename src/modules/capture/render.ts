@@ -18,6 +18,8 @@ export function renderCaptureResultPlain(result: CaptureResult): string {
       return `Ambiguous capture. Re-run with --target <one of: ${result.suggestions.join(", ")}>.`;
     case "invalid_slug":
       return `Capture into ${result.target} rejected an invalid title${result.message ? `: ${result.message}` : "."}`;
+    case "invalid_body":
+      return `Capture into ${result.target} requires a complete task body${result.message ? `: ${result.message}` : "."}`;
     case "already_exists":
       return `Capture into ${result.target} already exists${result.message ? `: ${result.message}` : "."}`;
     case "write_failed":

@@ -1295,7 +1295,7 @@ struct BuilderCommitItem: Codable, Equatable {
 struct ExplorerAdditionItem: Codable, Equatable {
     let runId: String
     let taskCount: Double
-    let watchlistAdds: Double
+    let watchlistUpdated: Bool
 }
 
 struct DecomposerSplitItem: Codable, Equatable {
@@ -1766,6 +1766,7 @@ indirect enum AnswerHistoryEntryResult: Codable, Equatable {
 
 enum CaptureResultTasksFailureReason: String, Codable, Equatable, CaseIterable {
     case invalidSlug = "invalid_slug"
+    case invalidBody = "invalid_body"
     case alreadyExists = "already_exists"
 }
 

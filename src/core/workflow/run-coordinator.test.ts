@@ -2,11 +2,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import { RunCoordinator, type RunExecutionOutcome } from "./run-coordinator.js";
+import { withWorkflowFinalization } from "./run-finalization.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import { WorkflowRunStore } from "./run-store.js";
 import type { WorkflowQueuedRun } from "./run-types.js";
-import type { WorkflowDefinition } from "./types.js";
+import type { WorkflowDefinition, WorkflowFinalizationContext } from "./types.js";
 import { WorkflowQueueManager } from "./workflow-queue.js";
 
 type Deferred<T> = {
@@ -67,6 +70,90 @@ afterEach(() => {
 });
 
 describe("RunCoordinator", () => {
+  test.each(["throw", "promise", "cas"] as const)(
+    "rolls back %s finalization and retries the durable identity with fresh state",
+    async (failure) => {
+      const store = createStore();
+      const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
+      admit(store, "run-finalize", "scope-a", "alpha", "2026-08-25T10:00:01.000Z", undefined, ["owner:alpha"]);
+      const originalError = new Error("owner file changed");
+      const pbus = new ScopedEventBus(new EventBus(), "scope-a");
+      const onError = vi.fn();
+      let reject = true;
+      let retainedContext: WorkflowFinalizationContext | undefined;
+      const definition = {
+        finalize: (ctx: WorkflowFinalizationContext) => {
+          retainedContext = ctx;
+          const current = ctx.state.read<number>("fresh");
+          expect(current.value).toBe(reject ? 1 : 2);
+          ctx.state.compareAndSet("finalized", 0, current.value);
+          ctx.emit("owner.finalized", { revision: current.revision }, "finalize");
+          if (!reject) return;
+          if (failure === "promise") return Promise.reject(originalError);
+          if (failure === "cas") ctx.state.compareAndSet("fresh", 0, 3);
+          throw originalError;
+        },
+      };
+      const coordinator = new RunCoordinator({
+        store, daemonEpoch: epoch, concurrency: 1, onError,
+        execute: async (run) => {
+          store.stageScopeStateMutation({
+            runId: run.id, key: "step-value", expectedRevision: 0, value: true,
+            stagedAt: "2026-08-25T10:00:02.000Z",
+          });
+          store.stageEmitIntent({
+            runId: run.id, stepId: "step", event: "step.completed", payload: {},
+            stagedAt: "2026-08-25T10:00:02.000Z",
+          });
+          const outcome = withWorkflowFinalization({
+            kind: "terminal", state: "succeeded", error: "original completion diagnostic",
+            publication: { id: "terminal", runId: run.id, scopeId: run.scopeId, event: "workflow.completed", payload: {} },
+          } as const, { definition, run, store, stateDir: join(store.getScopeRoot(run.scopeId)!, ".kota"), pbus, stepOutputs: {} });
+          if (run.attempt === 1) store.compareAndSetScopeStateValue({
+            scopeId: run.scopeId, key: "fresh", expectedRevision: 0, value: 1,
+            updatedAt: "2026-08-25T10:00:03.000Z",
+          });
+          return outcome;
+        },
+      });
+      try {
+        coordinator.refill();
+        await coordinator.whenIdle();
+        expect(store.getRun("run-finalize")).toMatchObject({
+          state: "needs_attention", attempt: 1, resources: ["owner:alpha"],
+          wait: { reason: "workflow-finalization-failed", evidence: expect.arrayContaining(["original completion diagnostic"]) },
+        });
+        expect(store.getRun("run-finalize")?.lastError).toContain(failure === "throw"
+          ? originalError.message : failure === "promise" ? "returned a Promise" : "expected 0");
+        expect(onError).toHaveBeenCalledOnce();
+        if (failure === "throw") expect(onError.mock.calls[0][0]).toBe(originalError);
+        expect(coordinator.isGlobalAdmissionPaused()).toBe(false);
+        expect(store.listPendingPublications()).toEqual([]);
+        expect(store.readScopeStateValue("scope-a", "finalized")).toEqual({ revision: 0, value: null });
+        expect(store.readScopeStateValue("scope-a", "step-value")).toEqual({ revision: 0, value: null });
+        expect(() => retainedContext!.emit("late", {}, "late")).toThrow("no longer active");
+        expect(() => retainedContext!.state.compareAndSet("late", 0, true)).toThrow("no longer active");
+
+        store.compareAndSetScopeStateValue({
+          scopeId: "scope-a", key: "fresh", expectedRevision: 1, value: 2,
+          updatedAt: "2026-08-25T10:00:04.000Z",
+        });
+        reject = false;
+        store.resumeRun("run-finalize", "2026-08-25T10:00:05.000Z");
+        coordinator.refill();
+        await coordinator.whenIdle();
+        expect(store.getRun("run-finalize")).toMatchObject({ state: "succeeded", attempt: 2, resources: [] });
+        expect(store.readScopeStateValue("scope-a", "finalized")).toEqual({ revision: 1, value: 2 });
+        expect(store.readScopeStateValue("scope-a", "step-value")).toEqual({ revision: 1, value: true });
+        expect(store.listPendingPublications().map((entry) => [entry.event, entry.payload])).toEqual([
+          ["step.completed", {}], ["owner.finalized", { revision: 2, scopeId: "scope-a" }], ["workflow.completed", {}],
+        ]);
+      } finally {
+        await coordinator.dispose();
+      }
+    },
+  );
+
   test("quota release does not release an operator or recovery admission hold", async () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");

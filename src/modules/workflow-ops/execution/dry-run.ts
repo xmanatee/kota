@@ -84,6 +84,7 @@ function makeDryRunContext(
     workspaceRoot: process.cwd(),
     scopeRoot: process.cwd(),
     stateDir: join(process.cwd(), ".kota"),
+    runtimeStateDir: join(process.cwd(), ".kota"),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: definition.name,

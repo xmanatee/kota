@@ -41,11 +41,11 @@ const buildDigest = typedCodeStep<DailyDigestData>({
       "queueDelta",
       "quiet",
     ]),
-  run: async ({ workspaceRoot, stateDir, state, workflow, emit, runBlocking }) => {
+  run: async ({ scopeRoot, runtimeStateDir, state, workflow, emit, runBlocking }) => {
     const previous = state.read<DigestState>(DAILY_DIGEST_STATE_KEY);
     const snapshot = await runBlocking(dailyDigestBuildOperation, {
-      workspaceRoot,
-      stateDir,
+      workspaceRoot: scopeRoot,
+      stateDir: runtimeStateDir,
       runDirPath: workflow.runDirPath,
       previousQueueCounts: previous.value?.counts ?? null,
     });

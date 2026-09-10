@@ -1,20 +1,18 @@
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import {
-  readOptionalJsonFile,
-  writeJsonFileAtomic,
-} from "#core/util/json-file.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import type { RunStateReader } from "#core/workflow/run-state-reader-provider.js";
 import {
   uniqueAutonomyIssueStrings,
 } from "./autonomy-issue-observation.js";
 import { reduceAutonomyIssueProjection } from "./autonomy-issue-projection-reducer.js";
-import {
-  AUTONOMY_ISSUE_PROJECTION_FILE,
-  type AutonomyIssue,
-  type AutonomyIssueDispositionUpdate,
-  type AutonomyIssueObservation,
-  type AutonomyIssueProjection,
-  type AutonomyIssueProjectionResult,
-  type AutonomyIssueStatus,
+import type {
+  AutonomyIssue,
+  AutonomyIssueDispositionUpdate,
+  AutonomyIssueObservation,
+  AutonomyIssueProjection,
+  AutonomyIssueProjectionResult,
+  AutonomyIssueStatus,
 } from "./autonomy-issue-projection-types.js";
 import type { AutonomyHealthJsonValue } from "./health-signal.js";
 import { isAutonomyHealthJsonObject } from "./health-signal.js";
@@ -25,7 +23,6 @@ export {
 } from "./autonomy-issue-observation.js";
 export { reduceAutonomyIssueProjection } from "./autonomy-issue-projection-reducer.js";
 export type * from "./autonomy-issue-projection-types.js";
-export { AUTONOMY_ISSUE_PROJECTION_FILE };
 
 export const AUTONOMY_ISSUE_PROJECTION_RESOURCE =
   "autonomy:issue-projection";
@@ -67,17 +64,23 @@ export function emptyAutonomyIssueProjection(): AutonomyIssueProjection {
   return { schemaVersion: 1, updatedAt: null, issues: [] };
 }
 
-function projectionPath(workspaceRoot: string): string {
-  return join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE);
-}
-
 export function readAutonomyIssueProjection(
-  workspaceRoot: string,
+  scopeRoot: string,
+  stateDir: string | RunStateReader,
 ): AutonomyIssueProjection {
-  const raw = readOptionalJsonFile<AutonomyHealthJsonValue>(
-    projectionPath(workspaceRoot),
-  );
-  return decodeAutonomyIssueProjection(raw);
+  if (typeof stateDir !== "string") {
+    const scopeId = stateDir.getScopeIdByRootPath(scopeRoot);
+    return scopeId === null ? emptyAutonomyIssueProjection() : decodeAutonomyIssueProjection(
+      stateDir.readScopeStateValue<AutonomyIssueProjection>(scopeId, AUTONOMY_ISSUE_PROJECTION_STATE_KEY).value,
+    );
+  }
+  if (!existsSync(join(stateDir, "kota.sqlite"))) return emptyAutonomyIssueProjection();
+  const database = RunStateDatabase.openReadOnly(stateDir);
+  try {
+    return readAutonomyIssueProjection(scopeRoot, database);
+  } finally {
+    database.close();
+  }
 }
 
 export function applyAutonomyIssueObservations(args: {
@@ -143,19 +146,13 @@ export function recordAutonomyIssueDispositions(args: {
   return projection;
 }
 
-export function materializeAutonomyIssueProjection(
-  workspaceRoot: string,
-  projection: AutonomyIssueProjection,
-): void {
-  writeJsonFileAtomic(projectionPath(workspaceRoot), projection);
-}
-
 export function listAutonomyIssues(
-  workspaceRoot: string,
+  scopeRoot: string,
+  stateDir: string,
   statuses?: readonly AutonomyIssueStatus[],
 ): AutonomyIssue[] {
   const selected = statuses === undefined ? null : new Set(statuses);
-  return readAutonomyIssueProjection(workspaceRoot).issues.filter(
+  return readAutonomyIssueProjection(scopeRoot, stateDir).issues.filter(
     (issue) => selected === null || selected.has(issue.status),
   );
 }

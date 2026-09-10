@@ -6,9 +6,6 @@ import type {
   AutonomyHealthSignalSource,
 } from "./health-signal.js";
 
-export const AUTONOMY_ISSUE_PROJECTION_FILE =
-  ".kota/autonomy-issues/projection.json";
-
 export type AutonomyIssueStatus = "open" | "needs-decision" | "resolved";
 export type AutonomyIssueTransitionKind =
   | "opened"

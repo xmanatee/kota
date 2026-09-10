@@ -61,6 +61,51 @@ afterEach(() => {
 });
 
 describe("RunStateDatabase", () => {
+  test("migrates and owns non-writer execution receipts without changing writer recovery", () => {
+    const initial = createStore();
+    const stateDir = dirname(initial.path);
+    const { epoch } = initial.beginDaemonSession("2026-08-25T10:00:00.000Z");
+    admitAndStart(initial, "completed-reader", epoch);
+    initial.admitRun({
+      id: "writer", scopeId: "scope-a", workflow: "writer", repository: "write",
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      resources: [], admittedAt: "2026-08-25T10:00:01.000Z",
+    });
+    initial.startRun("writer", epoch, "2026-08-25T10:00:02.000Z");
+    initial.close();
+    const previous = new Database(join(stateDir, "kota.sqlite"));
+    previous.exec("ALTER TABLE runs DROP COLUMN execution_completed_at");
+    previous.pragma("user_version = 6");
+    previous.close();
+    expect(() => RunStateDatabase.openExisting(stateDir)).toThrow(/requires daemon-owned migration/);
+
+    const store = new RunStateDatabase(stateDir);
+    try {
+      expect(store.getRun("completed-reader")?.executionCompletedAt).toBeUndefined();
+      const completedAt = "2026-08-25T10:00:03.000Z";
+      expect(() => store.completeNonWriterExecution("completed-reader", epoch - 1, completedAt))
+        .toThrow(StaleDaemonEpochError);
+      expect(() => store.completeNonWriterExecution("writer", epoch, completedAt))
+        .toThrow(/not an active non-writer/);
+      store.completeNonWriterExecution("completed-reader", epoch, completedAt);
+      store.completeNonWriterExecution("completed-reader", epoch, "2026-08-25T10:00:04.000Z");
+      expect(store.getRun("completed-reader")?.executionCompletedAt).toBe(completedAt);
+      expect(store.getRun("writer")?.executionCompletedAt).toBeUndefined();
+      store.suspendRun({
+        runId: "completed-reader", epoch, state: "needs_attention",
+        suspendedAt: "2026-08-25T10:00:05.000Z",
+      });
+      expect(() => store.completeNonWriterExecution("completed-reader", epoch, completedAt))
+        .toThrow(/not an active non-writer/);
+      store.resumeRun("completed-reader", "2026-08-25T10:00:06.000Z");
+      expect(store.getRun("completed-reader")).toMatchObject({
+        state: "queued", executionCompletedAt: completedAt,
+      });
+    } finally {
+      store.close();
+    }
+  });
+
   test("derives workflow summaries from durable run outcomes", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
@@ -872,7 +917,7 @@ describe("RunStateDatabase", () => {
     expect(store.listPendingPublications()).toHaveLength(1);
   });
 
-  test("rolls back state and terminal status when a publication cannot commit", () => {
+  test("rolls back finalization, state and terminal status when a publication cannot commit", () => {
     const store = createStore();
     const { epoch } = store.beginDaemonSession("2026-08-25T10:00:00.000Z");
     admitAndStart(store, "run-a", epoch);
@@ -896,6 +941,16 @@ describe("RunStateDatabase", () => {
       value: { completed: 1 },
       stagedAt: "2026-08-25T10:00:04.000Z",
     });
+    const finalize = (value: number) => () => {
+      store.stageScopeStateMutation({
+        runId: "run-b", key: "finalized", expectedRevision: 0, value,
+        stagedAt: "2026-08-25T10:00:05.000Z",
+      });
+      store.stageEmitIntent({
+        runId: "run-b", stepId: "finalize", event: "owner.completed", payload: { value },
+        stagedAt: "2026-08-25T10:00:05.000Z",
+      });
+    };
 
     expect(() =>
       store.finishRun(
@@ -908,6 +963,8 @@ describe("RunStateDatabase", () => {
           ...completionPublication("run-b"),
           id: "shared-publication",
         },
+        undefined,
+        finalize(1),
       ),
     ).toThrow();
     expect(store.getRun("run-b")?.state).toBe("running");
@@ -916,6 +973,19 @@ describe("RunStateDatabase", () => {
       value: null,
     });
     expect(store.listPendingPublications()).toHaveLength(1);
+    expect(store.readScopeStateValue("scope-a", "finalized")).toEqual({ revision: 0, value: null });
+
+    store.finishRun(
+      "run-b", epoch, "succeeded", "2026-08-25T10:00:06.000Z",
+      undefined, completionPublication("run-b"), undefined, finalize(2),
+    );
+    expect(store.getRun("run-b")?.state).toBe("succeeded");
+    expect(store.readScopeStateValue("scope-a", "digest/window")).toEqual({ revision: 1, value: { completed: 1 } });
+    expect(store.readScopeStateValue("scope-a", "finalized")).toEqual({ revision: 1, value: 2 });
+    expect(store.listPendingPublications().filter((entry) => entry.runId === "run-b")).toEqual([
+      expect.objectContaining({ event: "owner.completed", payload: { value: 2 } }),
+      expect.objectContaining({ event: "workflow.completed" }),
+    ]);
   });
 
   test("commits a publication with terminal state and acknowledges delivery", () => {

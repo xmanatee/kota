@@ -9,9 +9,8 @@ This workflow is the single AI decision path for durable autonomy issues.
 - Keep the agent read-only. Source implementation belongs to builder.
 - Route task and owner-question proposals through the shared generated-work
   transaction using the issue key as stable proposal identity. Repository task
-  changes stage in the writer; owner-question effects and issue disposition
-  projection publish through the staged `improver-disposition-publication`
-  `repository: none` follow-up.
+  changes stage in the writer; idempotent owner-question effects and issue
+  disposition publish in the original run's shared success finalizer.
 - Bind the staged disposition to the issue's owner fingerprint. Recheck that
   fingerprint against canonical scope state immediately before integrating
   task changes and before finalizing any follow-up owner effects.

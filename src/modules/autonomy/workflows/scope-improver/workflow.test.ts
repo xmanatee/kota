@@ -300,8 +300,7 @@ describe("scope-improver semantic boundaries", () => {
       setupWorkspace: (workspaceDir) => {
         if (!existsSync(join(workspaceDir, ".git"))) return;
         writerStarted = true;
-        const parent = new WorkflowRunStore(workspaceRoot).getRun(runId)!;
-        expect(parent.steps.some((step) => step.id === "emit-scope-improvement-publication")).toBe(false);
+        expect(transactionalState.read(SCOPE_IMPROVEMENT_STATE_KEY).value).toEqual(initialState);
         expect(existsSync(join(workspaceRoot, ".kota", "runs", runId, "scope-improvement.json"))).toBe(false);
       },
       ports: { state: transactionalState },
@@ -332,9 +331,11 @@ describe("scope-improver semantic boundaries", () => {
     expect(child.status).toBe("success");
     expect(child.steps.find((step) => step.id === "return-actions")?.output)
       .toEqual(run.steps["apply-recommendations"].output);
-    expect(run.emitted).toContainEqual(expect.objectContaining({
-      event: "autonomy.scope-improvement.publication.requested",
-    }));
+    expect(transactionalState.read(SCOPE_IMPROVEMENT_STATE_KEY).value).toMatchObject({
+      consumedFingerprint: null,
+      pendingDelivery: "deferred",
+      pendingDeliveryAttempt: 1,
+    });
     expect(readdirSync(join(workspaceRoot, "data", "tasks")).filter((file) => file.endsWith(".md"))).toEqual([]);
 
     expect(publishScopeImprovement({
@@ -375,7 +376,7 @@ describe("scope-improver semantic boundaries", () => {
         deliveryAttempt: 0,
       },
     );
-    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), scopeId);
     transactionalState.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,
@@ -504,7 +505,7 @@ describe("scope-improver semantic boundaries", () => {
         deliveryAttempt: 0,
       },
     );
-    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    const transactionalState = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), scopeId);
     transactionalState.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,

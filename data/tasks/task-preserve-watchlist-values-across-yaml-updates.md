@@ -15,21 +15,22 @@ deep-equal to parsed. This corrupts evidence and creates false novelty.
 
 ## Desired Outcome
 
-Use a maintained structured YAML parser/serializer with a small typed boundary
-instead of the bespoke line/quote parser. Check existing workspace dependencies
-and choose the smallest conventional owner; declare a dependency properly if
-needed. Preserve operator fields, dates, source identity, comments/header where
-supported, and untouched snapshots. Invalid input must be diagnosed, not silently
-lost. Do not introduce a second format, compatibility parser or general migration
-framework. Repair the demonstrated corrupted snapshot from attributable Git or
-source evidence, never by globally unescaping owner-authored strings.
+Keep watchlist authoring editor-first, with the maintained YAML parser and a
+small typed validation boundary before publication. Do not recreate a JSON
+editing envelope or automatic read/modify/write pipeline for ordinary file
+edits. Preserve operator fields, dates, source identity, comments/header, and
+untouched snapshots. Invalid input must be diagnosed, not silently lost. Source
+fingerprints and review admission remain runtime-owned evidence, not claims in
+an agent-authored update request. Repair demonstrated corruption only from
+attributable Git or source evidence, never by globally unescaping owner strings.
 
 ## How We Will Know
 
-Reproduce the real watchlist round-trip failure, then prove repeated load/save
-and single-source updates preserve semantic values of all other entries. Include
-quotes, literal backslashes, multiline text, dates and malformed input at the
-serialization owner. Use proportionate existing tests and one real-file check,
+Retain the historical round-trip failure as evidence of the removed writer's
+defect. Prove direct single-source edits preserve semantic values of all other
+entries and that completed-change validation accepts quotes, literal backslashes,
+multiline text and dates while rejecting malformed input. Use proportionate
+existing tests and one real-file check,
 not field-by-field configuration assertions. Observe a live explorer update
 without unrelated escaping churn; unchanged evidence must not trigger review.
 
@@ -49,12 +50,13 @@ directory is required; equivalent accessible evidence is sufficient.
 
 ## Retained implementation and evidence
 
-The structured YAML boundary, document-preserving update consumer, focused
-regressions, and evidence-backed Anthropic snapshot repair are retained. These
-changes address serialization safely; they do not establish live acceptance.
-The prior done disposition was premature.
+The structured YAML boundary and evidence-backed Anthropic snapshot repair are
+retained. Ordinary edits now belong to the editor, not a document-preserving
+mutation consumer. This removes the repeated automatic serialization that caused
+the defect; it does not establish live acceptance. The prior done disposition
+was premature.
 
-The existing real-file probe preserves all 116 entries through five round trips
+The historical real-file probe preserves all 116 entries through five round trips
 and the other 115 entries through a single-source update. It uses a freshly
 fetched GitHub README replayed through a controlled web tool port. Its initial
 review admission and repeated review suppression are production-owner checks,

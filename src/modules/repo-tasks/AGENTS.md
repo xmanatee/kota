@@ -14,9 +14,9 @@ projections.
 - Active task files live directly under `data/tasks/`; terminal files live in
   `data/tasks/archive/`. In-progress state is a transient projection of active
   builder workflow runs and is never persisted in task frontmatter or paths.
-- Every production mutation under `data/tasks/` or `data/inbox/` goes through
-  the domain operations. They own state-transition semantics, physical path
-  safety, directory creation, and rollback of failed file operations.
+- Task and inbox Markdown are authored directly, including multi-file changes.
+  Domain operations are conveniences for deterministic callers and remote UI,
+  not an authoring protocol. Validate the completed change at publication.
 - Task enumeration and reads use the same descriptor-anchored boundary. It
   rejects linked parents and non-regular entries and returns verified content
   snapshots for semantic dispatch and mutation rechecks.
@@ -24,9 +24,7 @@ projections.
   workflow runtime owns run admission, logical resources, final index staging,
   commit, integration, and recovery; repo-tasks does not create task claims,
   workflow leases, worktrees, or merge gates.
-- Operator and module callers use the same domain operations. Do not add a
-  second move, write, validation, or task-status implementation.
-- Canonical mutations of an existing task enter through
+- Remote client mutations enter through
   `repo-task-mutation-boundary.ts`. They always dispatch the ordinary
   `repo-task-mutation` writer workflow and fail closed when daemon workflow
   authority is unavailable. Direct domain mutation is limited to a writer
@@ -34,18 +32,18 @@ projections.
   active for the supplied run and canonical scope. The shared runtime supplies
   its sandbox, logical resources, validation, integration, and recovery; the
   module does not create a task claim, lease, worktree, or second lock table.
-  Native CLI callers obtain fresh writer authorization through the shared
-  runtime boundary; task commands never open the daemon database directly.
+  Local editors do not need this adapter. Native agents edit their supplied
+  writer sandbox; the runtime publishes the complete run, not each file edit.
 - The domain mechanically owns identity, safe paths, lifecycle states,
-  dependencies, and mutation authorization. Whether a task outcome is good,
+  dependencies, and submitted-content validation. Whether a task outcome is good,
   complete, or supported by proportionate evidence is an agent review decision,
   not a growing set of task-class and artifact-shape gates.
 - Tests exercise distinct path-safety, state-transition, authorization, and
   public-projection behavior without pinning source scans, helper order,
   staging mechanics, evidence filenames, or literal catalogs.
 - `/api/tasks` and task search are module-owned surfaces. Visual clients and the
-  CLI use the shared control/client contract rather than reading task files
-  directly.
+  CLI use the shared control/client contract; native agents may inspect and
+  edit the underlying Markdown directly.
 - `repo-tasks-operations.ts` owns the normalized list collection, dependency
   waiting projection, keyword/semantic search selection, semantic-unavailable
   result, and reindex result. Routes and local clients share those operations;
@@ -57,4 +55,4 @@ projections.
 
 Directory selection delegates to the shared daemon scope selector. Registered
 search providers stay bound to their construction workspace as the live default
-changes; store caching and native-writer authority remain task-owned.
+changes. Filesystem anchoring is shared infrastructure, not a task protocol.

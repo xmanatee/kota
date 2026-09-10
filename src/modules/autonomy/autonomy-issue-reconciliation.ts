@@ -75,19 +75,6 @@ function investigationRuns(issue: AutonomyIssue, runs: readonly StoredRun[]) {
   });
 }
 
-function activePublicationFor(
-  attempts: readonly StoredRun[],
-  runs: readonly StoredRun[],
-): boolean {
-  const sourceRunIds = new Set(attempts.map((run) => run.id));
-  return runs.some((run) =>
-    run.workflow === "improver-disposition-publication" &&
-    ACTIVE_RUN_STATES.has(run.state) &&
-    typeof run.trigger.payload.sourceRunId === "string" &&
-    sourceRunIds.has(run.trigger.payload.sourceRunId)
-  );
-}
-
 function taskOwner(
   issue: AutonomyIssue,
   taskById: ReadonlyMap<string, RepoTaskFullRecord>,
@@ -186,8 +173,6 @@ export function inspectAutonomyIssueOwner(args: {
   const retained = runs.find((run) =>
     run.state === "needs_attention" &&
     (attempts.some((attempt) => attempt.id === run.id) ||
-      (run.workflow === "improver-disposition-publication" &&
-        attempts.some((attempt) => attempt.id === run.trigger.payload.sourceRunId)) ||
       issue.links.taskIds.some((taskId) => run.resources.includes(`task:${taskId}`)))
   );
   if (retained !== undefined) {
@@ -201,7 +186,7 @@ export function inspectAutonomyIssueOwner(args: {
     };
   }
   const activeAttempt = attempts.some((run) => ACTIVE_RUN_STATES.has(run.state));
-  if (activeAttempt || activePublicationFor(attempts, runs)) {
+  if (activeAttempt) {
     return {
       issueKey: issue.issueKey,
       semanticRevision: issue.semanticRevision,
@@ -209,9 +194,7 @@ export function inspectAutonomyIssueOwner(args: {
         ? "retrying-investigation"
         : "awaiting-investigation",
       owned: true,
-      reason: activeAttempt
-        ? "investigation is queued or active"
-        : "disposition publication is queued or active",
+      reason: "investigation is queued or active",
       investigationAttempts: attempts.length,
     };
   }
@@ -283,7 +266,7 @@ export function inspectAutonomyIssueOwner(args: {
     owned: false,
     reason: attempts.length === 0
       ? "issue revision has no investigation"
-      : "every investigation and disposition publication is terminal",
+      : "every investigation is terminal without a current disposition owner",
     investigationAttempts: attempts.length,
   };
 }

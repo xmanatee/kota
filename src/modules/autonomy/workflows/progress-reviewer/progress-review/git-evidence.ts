@@ -187,6 +187,7 @@ export async function collectProgressReviewGitEvidence(args: {
   workspaceRoot: string;
   scopeRoot: string;
   stateDir: string;
+  runtimeStateDir: string;
   trigger: WorkflowRunTrigger;
   now: Date;
   runCommand: WorkflowCommandRunner;
@@ -196,6 +197,7 @@ export async function collectProgressReviewGitEvidence(args: {
     args.scopeRoot,
     args.trigger,
     args.stateDir,
+    args.runtimeStateDir,
   );
   const payload = requestPayload(args.trigger);
   const windowStartMs = Date.parse(progressEvidenceWindow(payload, args.now).startedAt);

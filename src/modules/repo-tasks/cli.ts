@@ -7,7 +7,6 @@ import {
 	plain,
 	type SemanticRole,
 	span,
-	stack,
 } from "#modules/rendering/primitives.js";
 import { print, printToStderr, writeJson, writeStdout } from "#modules/rendering/transport.js";
 import type {
@@ -22,12 +21,6 @@ import {
 	type RepoTaskState,
 } from "./repo-tasks-domain.js";
 
-const ALLOWED_PRIORITIES: readonly RepoTaskPriority[] = ["p0", "p1", "p2", "p3"];
-
-function isRepoTaskPriority(value: string): value is RepoTaskPriority {
-	return (ALLOWED_PRIORITIES as readonly string[]).includes(value);
-}
-
 function collectStates(value: string, previous: RepoTaskState[]): RepoTaskState[] {
 	if (!REPO_TASK_STATES.includes(value as RepoTaskState)) {
 		printToStderr(line(span(`Unknown state "${value}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
@@ -39,7 +32,7 @@ function collectStates(value: string, previous: RepoTaskState[]): RepoTaskState[
 export function registerTaskCommands(program: Command, ctx: ModuleContext): void {
 	const taskCmd = program
 		.command("task")
-		.description("Inspect and manage the repo task queue");
+		.description("Inspect the repo task queue and capture inbox notes");
 
 	taskCmd
 		.command("list")
@@ -82,70 +75,6 @@ export function registerTaskCommands(program: Command, ctx: ModuleContext): void
 			}
 			writeStdout(result.content);
 			if (!result.content.endsWith("\n")) writeStdout("\n");
-		});
-
-	taskCmd
-		.command("move <id> <state>")
-		.description("Move a normalized task to the target state, updating status frontmatter")
-		.action(async (id: string, targetState: string) => {
-			if (!REPO_TASK_STATES.includes(targetState as RepoTaskState)) {
-				printToStderr(line(span(`Unknown state "${targetState}". Valid: ${REPO_TASK_STATES.join(", ")}`, "error")));
-				process.exit(1);
-			}
-			const result = await ctx.client.tasks.move(id, targetState as RepoTaskState);
-			if (result.ok) {
-				print(line(
-					plain("Moved "),
-					span(`"${id}"`, "accent"),
-					plain(` from "${result.fromState}" to `),
-					span(`"${result.toState}"`, "success"),
-					plain("."),
-				));
-				return;
-			}
-			if (result.reason === "already_in_state") {
-				print(line(plain(`Task "${id}" is already in "${targetState}".`)));
-				return;
-			}
-			if (result.reason === "invalid_id") {
-				printToStderr(line(span(`Invalid task id "${id}".`, "error")));
-				process.exit(1);
-			}
-			printToStderr(line(span(`Task "${id}" not found in any state directory`, "error")));
-			process.exit(1);
-		});
-
-	taskCmd
-		.command("create <title>")
-		.description("Create a normalized task file with the recommended intent scaffold")
-		.option("-p, --priority <priority>", "Priority: p0, p1, p2, p3", "p2")
-		.option("-s, --state <state>", "Initial state (open or blocked)", "open")
-		.action(async (title: string, opts: { priority: string; state: string }) => {
-			if (!isRepoTaskPriority(opts.priority)) {
-				printToStderr(line(span(`Invalid priority "${opts.priority}". Must be p0, p1, p2, or p3.`, "error")));
-				process.exit(1);
-			}
-			if (opts.state !== "open" && opts.state !== "blocked") {
-				printToStderr(line(span(`Unknown active state "${opts.state}". Valid: open, blocked`, "error")));
-				process.exit(1);
-			}
-			const result = await ctx.client.tasks.create({
-				title,
-				priority: opts.priority,
-				state: opts.state,
-			});
-			if (!result.ok) {
-				printToStderr(line(span(result.message ?? `Failed to create task: ${result.reason}`, "error")));
-				process.exit(1);
-			}
-			print(stack(
-				line(
-					plain("Created task "),
-					span(`"${result.id}"`, "accent"),
-					plain(" in data/tasks/. Edit the file to fill in sections."),
-				),
-				line(span(result.path, "muted")),
-			));
 		});
 
 	taskCmd

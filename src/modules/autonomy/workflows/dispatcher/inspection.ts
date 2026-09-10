@@ -1,5 +1,7 @@
 import type { ScopePolicySnapshot } from "#core/daemon/scope-policy.js";
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
+import { summarizeRepoTaskQueue } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   inspectRepoWorkSupply,
   type RepoWorkSupply,
@@ -62,17 +64,25 @@ export function inspectDispatcherStateInWorker(
       // must fail closed for builder admission without stopping other routing.
     }
   }
-  const queue = inspectRepoWorkSupply(input.workSupplyInput);
+  // Repository-free observers still reflect scope policy, but cannot publish work from editor files.
+  const published = !builderEnabled && input.securityReviewGitEvidence.currentHead.kind === "unavailable"
+    ? null : readPublishedRepoTaskQueue(input.workspaceRoot);
+  const queue: RepoWorkSupply = published ? inspectRepoWorkSupply(input.workSupplyInput, published) : {
+    ...summarizeRepoTaskQueue([], 0, ""),
+    ownershipAvailable: false,
+    capacity: input.workSupplyInput.capacity,
+    availableTaskIds: [], owners: [], runningCount: 0, queuedCount: 0, retainedCount: 0, availableCount: 0,
+  };
   const available = new Set(queue.availableTaskIds);
   return {
     queue,
-    builderTasks: builderEnabled ? listBuilderTaskDispatches(input.workspaceRoot)
+    builderTasks: builderEnabled && published ? listBuilderTaskDispatches(input.workspaceRoot, published)
       .filter((task) => available.has(task.taskId)) : [],
-    researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot),
+    researchRetryAvailability: inspectResearchRetryAvailability(input.workspaceRoot, published?.tasks ?? []),
     securityReviewDue: inspectSecurityReviewDue(input.workspaceRoot, {
       now,
       stateDir: input.stateDir,
-    }, input.securityReviewGitEvidence),
+    }, input.securityReviewGitEvidence, published?.tasks ?? []),
     scopeBoundary: input.scopePolicySnapshot
       ? inspectScopeSemanticBoundary({
           workspaceRoot: input.workspaceRoot,

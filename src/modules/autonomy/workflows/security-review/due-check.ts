@@ -1,7 +1,9 @@
-import { extname } from "node:path";
+import { extname, relative } from "node:path";
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
-  listVerifiedFullRepoTasks,
+  getRepoTaskPath,
+  listFullRepoTasks,
+  type RepoTaskFullRecord,
   type RepoTaskState,
 } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { decodeSecurityReviewState, type SecurityReviewState } from "./review-state.js";
@@ -118,6 +120,16 @@ export type SecurityReviewGitEvidence = {
   pendingEvidence: boolean;
 };
 
+function lastReviewEvidence(state: SecurityReviewState): SecurityReviewLastEvidence {
+  return state.lastReview ? {
+    kind: "found", runId: state.lastReview.runId,
+    runDir: `.kota/runs/${state.lastReview.runId}`, workflow: "security-review",
+    outcome: "explicit-path-coverage",
+    head: { kind: "commit", sha: state.lastReview.head },
+    completedAt: { kind: "timestamp", value: state.lastReview.completedAt, epochMs: Date.parse(state.lastReview.completedAt) },
+  } : { kind: "none" };
+}
+
 export async function collectSecurityReviewGitEvidence(args: {
   workspaceRoot: string;
   scopeRoot: string;
@@ -127,13 +139,7 @@ export async function collectSecurityReviewGitEvidence(args: {
   evidencePaths?: readonly string[];
 }): Promise<SecurityReviewGitEvidence> {
   const state = args.reviewState ?? decodeSecurityReviewState(null);
-  const lastReview: SecurityReviewLastEvidence = state.lastReview ? {
-    kind: "found", runId: state.lastReview.runId,
-    runDir: `.kota/runs/${state.lastReview.runId}`, workflow: "security-review",
-    outcome: "explicit-path-coverage",
-    head: { kind: "commit", sha: state.lastReview.head },
-    completedAt: { kind: "timestamp", value: state.lastReview.completedAt, epochMs: Date.parse(state.lastReview.completedAt) },
-  } : { kind: "none" };
+  const lastReview = lastReviewEvidence(state);
   try {
     const head = (await args.runCommand({ command: "git", args: ["rev-parse", "HEAD"], cwd: args.workspaceRoot })).stdout.text.trim();
     if (!/^[a-f0-9]{40,64}$/.test(head)) throw new Error("Security review Git head is malformed");
@@ -225,14 +231,14 @@ function taskLooksLikeSecurityReviewFollowUp(id: string, body: string): boolean 
     body.includes("Created by security-review workflow run ");
 }
 
-function listOpenSecurityReviewTasks(workspaceRoot: string): SecurityReviewOpenTask[] {
-  return listVerifiedFullRepoTasks(workspaceRoot, ["open", "blocked"])
+function listOpenSecurityReviewTasks(workspaceRoot: string, tasks: readonly RepoTaskFullRecord[]): SecurityReviewOpenTask[] {
+  return tasks.filter((task) => task.state === "open" || task.state === "blocked")
     .filter((task) => taskLooksLikeSecurityReviewFollowUp(task.id, task.body))
     .map((task) => ({
       id: task.id,
       title: task.title,
       state: task.state,
-      path: task.taskFile.path,
+      path: relative(workspaceRoot, getRepoTaskPath(workspaceRoot, task.state, task.id)),
     }));
 }
 
@@ -283,16 +289,26 @@ export function inspectSecurityReviewDue(
   workspaceRoot: string,
   options: InspectSecurityReviewDueOptions,
   git: SecurityReviewGitEvidence,
+  tasks: readonly RepoTaskFullRecord[] = listFullRepoTasks(workspaceRoot),
+): SecurityReviewDueDecision {
+  return reduceSecurityReviewDue(options, git,
+    classifyChangedPaths(workspaceRoot, git.changedPaths, git.previousSurfaces),
+    listOpenSecurityReviewTasks(workspaceRoot, tasks));
+}
+
+function reduceSecurityReviewDue(
+  options: InspectSecurityReviewDueOptions,
+  git: SecurityReviewGitEvidence,
+  changedPathClassifications: SecurityReviewChangedPathClassification[],
+  openSecurityTasks: SecurityReviewOpenTask[],
 ): SecurityReviewDueDecision {
   const cooldownMs = options.cooldownMs ?? SECURITY_REVIEW_ROUTINE_COOLDOWN_MS;
   const nowMs = (options.now ?? new Date()).getTime();
   const { currentHead, lastReview, comparison, changedPaths } = git;
-  const changedPathClassifications = classifyChangedPaths(workspaceRoot, changedPaths, git.previousSurfaces);
   const changedSurfaces = changedSurfacesForPaths(changedPathClassifications);
   const highRiskChangedPaths = changedPathClassifications
     .filter(isHighRiskChangedPath)
     .map((classification) => classification.path);
-  const openSecurityTasks = listOpenSecurityReviewTasks(workspaceRoot);
   const cooldown = computeCooldown(lastReview, nowMs, cooldownMs);
   const decision = decideDue({
     pendingEvidence: git.pendingEvidence,
@@ -315,6 +331,42 @@ export function inspectSecurityReviewDue(
     openSecurityTasks,
     cooldownMs,
     cooldown,
+  };
+}
+
+/** Merge observed identities without restoring coverage superseded during inspection. */
+export function reconcileSecurityReviewObservation(args: {
+  observedState: SecurityReviewState;
+  currentState: SecurityReviewState;
+  git: SecurityReviewGitEvidence;
+  inspection: SecurityReviewDueDecision;
+  stateDir: string;
+}): { nextState: SecurityReviewState; due: SecurityReviewDueDecision } {
+  const { currentState, observedState, git } = args;
+  const changedPaths = git.changedPaths.filter((path) =>
+    currentState.reviewed[path]?.digest !== git.contentDigests[path] &&
+    currentState.reviewed[path]?.digest === observedState.reviewed[path]?.digest);
+  const unreviewedSurfaces = { ...currentState.unreviewedSurfaces };
+  const classifications = changedPaths.map((path) => {
+    const surfaces = [...new Set([
+      ...currentState.unreviewedSurfaces[path] ?? [],
+      ...git.previousSurfaces[path] ?? [],
+      ...args.inspection.changedSurfaces.filter((entry) => entry.paths.includes(path)).map((entry) => entry.surface),
+    ])].sort();
+    if (surfaces.length) unreviewedSurfaces[path] = surfaces;
+    return { path, surfaces };
+  });
+  const lastReview = lastReviewEvidence(currentState);
+  const comparison: SecurityReviewComparison = git.currentHead.kind === "unavailable"
+    ? { kind: "unavailable", reason: "git-evidence-unavailable" }
+    : lastReview.kind === "found" && lastReview.head.kind === "commit"
+      ? { kind: "commit-range", baseSha: lastReview.head.sha, headSha: git.currentHead.sha }
+      : { kind: "full-tree", reason: "no-review-evidence" };
+  return {
+    nextState: { ...currentState, unreviewedSurfaces },
+    due: reduceSecurityReviewDue({ stateDir: args.stateDir, cooldownMs: args.inspection.cooldownMs },
+      { ...git, lastReview, comparison, changedPaths, pendingEvidence: currentState.evidenceRequests.length > 0 },
+      classifications, args.inspection.openSecurityTasks),
   };
 }
 

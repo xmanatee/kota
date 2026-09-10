@@ -141,7 +141,7 @@ describe("tryWhitespaceMatch", () => {
   });
 });
 
-describe("runFileEdit cross-module (file-edit × lint × file-tracker)", () => {
+describe("runFileEdit content and tracking", () => {
   let dir: string;
 
   beforeEach(() => {
@@ -153,7 +153,7 @@ describe("runFileEdit cross-module (file-edit × lint × file-tracker)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("successful JSON edit passes lint and records modification", async () => {
+  it("successful JSON edit records modification", async () => {
     const p = join(dir, "data.json");
     writeFileSync(p, '{"name": "alice"}');
     recordRead(p);
@@ -169,7 +169,7 @@ describe("runFileEdit cross-module (file-edit × lint × file-tracker)", () => {
     expect(checkFreshness(p)).toBeNull();
   });
 
-  it("reverts JSON edit that introduces syntax error", async () => {
+  it("keeps JSON edits with unfinished syntax", async () => {
     const p = join(dir, "data.json");
     const original = '{"items": ["one"]}';
     writeFileSync(p, original);
@@ -180,60 +180,55 @@ describe("runFileEdit cross-module (file-edit × lint × file-tracker)", () => {
       new_string: '["one",]',
     });
 
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("reverted");
-    expect(result.content).toContain("syntax error");
-    expect(readFileSync(p, "utf-8")).toBe(original);
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(p, "utf-8")).toBe('{"items": ["one",]}');
   });
 
-  it("no false stale warning after lint-reverted edit", async () => {
+  it("allows a follow-up edit to complete unfinished syntax without stale warnings", async () => {
     const p = join(dir, "stale.json");
     const original = '{"key": "value"}';
     writeFileSync(p, original);
     recordRead(p);
 
-    // First edit: lint fails, gets reverted
     const bad = await runFileEdit({
       path: p,
       old_string: '"value"',
       new_string: '"value",',
     });
-    expect(bad.is_error).toBe(true);
-    expect(bad.content).toContain("reverted");
+    expect(bad.is_error).toBeUndefined();
+    expect(readFileSync(p, "utf-8")).toBe('{"key": "value",}');
 
-    // File tracker should be up-to-date after revert — no false stale warning
     expect(checkFreshness(p)).toBeNull();
 
-    // Retry with valid edit — should succeed without stale warning
     const good = await runFileEdit({
       path: p,
-      old_string: '"value"',
+      old_string: '"value",',
       new_string: '"new_value"',
     });
     expect(good.is_error).toBeUndefined();
     expect(good.content).not.toContain("modified since");
+    expect(readFileSync(p, "utf-8")).toBe('{"key": "new_value"}');
   });
 
-  it("no false stale warning after whitespace-match lint-reverted edit", async () => {
+  it("tracks unfinished whitespace-matched edits", async () => {
     const p = join(dir, "ws-stale.json");
     const original = '{\n    "setting": "old_value_here"\n}';
     writeFileSync(p, original);
     recordRead(p);
 
-    // Whitespace-tolerant match that fails lint
     const bad = await runFileEdit({
       path: p,
       old_string: '\t"setting": "old_value_here"',
       new_string: '    "setting": "bad",',
     });
-    expect(bad.is_error).toBe(true);
-    expect(bad.content).toContain("reverted");
+    expect(bad.is_error).toBeUndefined();
+    expect(bad.content).toContain("whitespace correction");
+    expect(readFileSync(p, "utf-8")).toBe('{\n    "setting": "bad",\n}');
 
-    // File tracker should be up-to-date after revert
     expect(checkFreshness(p)).toBeNull();
   });
 
-  it("whitespace-tolerant match applies valid edit through lint gate", async () => {
+  it("whitespace-tolerant match applies valid edit", async () => {
     const p = join(dir, "config.json");
     writeFileSync(p, '{\n    "setting": "old_value_here"\n}');
 
@@ -246,22 +241,6 @@ describe("runFileEdit cross-module (file-edit × lint × file-tracker)", () => {
     expect(result.is_error).toBeUndefined();
     expect(result.content).toContain("whitespace correction");
     expect(readFileSync(p, "utf-8")).toBe('{\n    "setting": "new_value_here"\n}');
-  });
-
-  it("reverts whitespace-matched edit when lint fails", async () => {
-    const p = join(dir, "config.json");
-    const original = '{\n    "setting": "old_value_here"\n}';
-    writeFileSync(p, original);
-
-    const result = await runFileEdit({
-      path: p,
-      old_string: '\t"setting": "old_value_here"',
-      new_string: '    "setting": "bad_value",',
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("reverted");
-    expect(readFileSync(p, "utf-8")).toBe(original);
   });
 
   it("shows fuzzy match with line numbers when old_string not found", async () => {

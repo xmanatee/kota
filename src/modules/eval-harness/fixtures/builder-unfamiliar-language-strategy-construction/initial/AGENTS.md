@@ -2,7 +2,6 @@
 
 This is a tiny eval fixture. Keep changes scoped to the task.
 
-- The assigned task stays `open` while the builder run is active.
 - Learn the Spool target language from `docs/spool-language.md`,
   `docs/route-key.md`, visible examples, and local verifier feedback.
 - Change `programs/solution.spool`, optionally add
@@ -11,4 +10,6 @@ This is a tiny eval fixture. Keep changes scoped to the task.
   scaffolding, or fixture metadata.
 - Use `node scripts/check-strategy.mjs --visible-only --no-strategy` for
   visible feedback and `node scripts/check-strategy.mjs` for final proof.
-- Use `pnpm run finish-task` to move the task to `done`.
+- After verification, edit the assigned task's frontmatter to contain only
+  `status: done` and move its Markdown file into `data/tasks/archive/`.
+  Preserve the task body.

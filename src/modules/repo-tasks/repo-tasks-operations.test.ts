@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   readFileSync,
@@ -51,6 +52,7 @@ describe("listRepoTasks", () => {
 
   beforeEach(() => {
     repoRoot = makeScopeRoot();
+    execFileSync("git", ["init", "--quiet"], { cwd: repoRoot });
   });
 
   afterEach(() => {
@@ -63,6 +65,7 @@ describe("listRepoTasks", () => {
     writeTaskFile(repoRoot, "dropped", "task-dropped");
 
     expect(listRepoTasks(repoRoot).tasks.map(({ id }) => id)).toEqual(["task-open"]);
+    expect(listRepoTasks(repoRoot).workSupply).toMatchObject({ headSha: "", activeCount: 0, availableCount: 0 });
     expect(
       listRepoTasks(repoRoot, ["done", "dropped"]).tasks.map(({ id, state }) => ({
         id,
@@ -144,9 +147,11 @@ describe("createNormalizedTask", () => {
     rmSync(repoRoot, { recursive: true, force: true });
   });
 
-  it("writes a normalized task file with minimal metadata and an intent template", () => {
+  it("writes the complete authored body with minimal metadata at creation", () => {
+    const body = "## Problem\n\nKeep every detail.\n\n## Desired Outcome\n\nPreserve trailing spaces.  \n";
     const result = createNormalizedTask(repoRoot, {
       title: "My new task",
+      body,
       priority: "p2",
       state: "open",
     });
@@ -159,9 +164,23 @@ describe("createNormalizedTask", () => {
       expect(content).toContain("status: open");
       expect(content).not.toContain("id:");
       expect(content).not.toContain("title:");
-      expect(content).toContain("## Problem");
-      expect(content).toContain("## How We Will Know");
+      expect(content).toBe(`---\nstatus: open\npriority: p2\n---\n# My new task\n\n${body}`);
     }
+  });
+
+  it.each([
+    " \n\t",
+    "<!-- unfinished -->",
+    "<!-- unfinished",
+    "## Problem\n\n<!-- unfinished -->\n## Outcome",
+    "Describe the problem and why it matters.",
+  ])("rejects unauthored submitted intent (%j) without creating a task", (body) => {
+    expect(createNormalizedTask(repoRoot, {
+      title: "Incomplete task",
+      body,
+      priority: "p2",
+    })).toMatchObject({ ok: false, reason: "invalid_body" });
+    expect(showTask(repoRoot, "task-incomplete-task")).toEqual({ found: false });
   });
 
   it("treats project path metacharacters as literal filesystem content", () => {
@@ -170,6 +189,7 @@ describe("createNormalizedTask", () => {
 
     const result = createNormalizedTask(unsafeScopeRoot, {
       title: "Literal path task",
+      body: "Treat repository path characters literally.",
       priority: "p2",
       state: "open",
     });
@@ -186,6 +206,7 @@ describe("createNormalizedTask", () => {
   it("returns invalid_slug for empty title", () => {
     const result = createNormalizedTask(repoRoot, {
       title: "   ",
+      body: "A task still needs a valid title.",
       priority: "p2",
       state: "open",
     });
@@ -196,11 +217,13 @@ describe("createNormalizedTask", () => {
   it("returns already_exists when file already exists", () => {
     createNormalizedTask(repoRoot, {
       title: "Dup",
+      body: "Preserve the first authored request.",
       priority: "p2",
       state: "open",
     });
     const second = createNormalizedTask(repoRoot, {
       title: "Dup",
+      body: "Do not overwrite the first request.",
       priority: "p2",
       state: "open",
     });

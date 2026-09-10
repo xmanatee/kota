@@ -183,13 +183,9 @@ export function subscribeWorkflowHealth(
   ctx: WorkflowSourceContext,
 ): void {
   ctx.events.subscribe("workflow.completed", (payload) => {
-    // These workflows consume and materialize this source. Re-emitting their
-    // own failures would create a typed event feedback loop; their durable
-    // dead letters and the scheduled auditor remain the reconciliation path.
-    if (
-      payload.workflow === "autonomy-health-reviewer" ||
-      payload.workflow === "autonomy-issue-projection-materialization"
-    ) {
+    // Re-emitting the consumer's failures would create a feedback loop;
+    // durable dead letters and the scheduled auditor own reconciliation.
+    if (payload.workflow === "autonomy-health-reviewer") {
       return;
     }
     const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);

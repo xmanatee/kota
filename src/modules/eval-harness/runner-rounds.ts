@@ -6,6 +6,7 @@ import { evaluateObjectiveMetricsForOutcome } from "./objective-metrics.js";
 import { evaluatePredicateExpectations, evaluatePredicates } from "./predicates.js";
 import {
   applyRoundTaskInput,
+  publishRoundTaskInput,
 } from "./runner-materialize.js";
 import { outcomeFromExecution } from "./runner-outcome.js";
 import type {
@@ -69,6 +70,7 @@ export async function executeRound(params: {
   }
 
   try {
+    publishRoundTaskInput(params.round.taskInput, params.workingDir);
     executionOutcome = await params.executor.execute({
       workflowName: params.round.workflowName,
       workingDir: params.workingDir,

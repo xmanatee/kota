@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetEventBus } from "#core/events/event-bus.js";
 import {
-
 	textResponse,
 	toolUseResponse,
 } from "#core/model/mock-client.test-support.js";
@@ -12,12 +11,11 @@ import {
 	makeTempDir,
 } from "./composition-test-support.js";
 
-describe("Composition: lint-gated edit recovery", () => {
+describe("Composition: incremental file editing", () => {
 	let testDir: string;
 
 	beforeEach(() => {
-
-		testDir = makeTempDir("lint");
+		testDir = makeTempDir("incremental-edit");
 		writeFileSync(
 			join(testDir, "app.js"),
 			'function run() {\n  console.log("running");\n}\nmodule.exports = run;\n',
@@ -30,60 +28,49 @@ describe("Composition: lint-gated edit recovery", () => {
 		rmSync(testDir, { recursive: true, force: true });
 	});
 
-	it("bad edit is reverted by lint gate, then agent retries with correct syntax", async () => {
+	it("retains unfinished syntax so a follow-up edit can complete it", async () => {
 		const filePath = join(testDir, "app.js");
 
 		const { session, calls } = createTestSession([
-			// Step 1: agent tries an edit that introduces a syntax error
+			toolUseResponse(
+				"file_edit",
+				{
+					path: filePath,
+					old_string: 'console.log("running");',
+					new_string: 'console.log("running"',
+				},
+				{ toolId: "unfinished-edit" },
+			),
 			toolUseResponse("file_edit", {
 				path: filePath,
-				old_string: 'console.log("running");',
-				new_string: 'console.log("running"', // missing closing paren and semicolon
-			}),
-			// Step 2: agent retries with correct syntax
-			toolUseResponse("file_edit", {
-				path: filePath,
-				old_string: 'console.log("running");',
+				old_string: 'console.log("running"',
 				new_string: 'console.log("running successfully!");',
 			}),
-			// Step 3: confirm
-			textResponse("Fixed the edit and updated the log message."),
+			textResponse("Updated the log message."),
 		]);
 
-		const result = await session.send("Update the log message in app.js");
-		session.close();
+		try {
+			const result = await session.send("Update the log message in app.js");
+			expect(calls).toHaveLength(3);
+			expect(readFileSync(filePath, "utf-8")).toBe(
+				'function run() {\n  console.log("running successfully!");\n}\nmodule.exports = run;\n',
+			);
 
-		expect(calls).toHaveLength(3);
-
-		// After the bad edit, the file should have been reverted by the lint gate
-		// The second edit should have succeeded
-		const finalContent = readFileSync(filePath, "utf-8");
-		expect(finalContent).toContain('"running successfully!"');
-		expect(finalContent).not.toContain('"running"');
-
-		// Call 2 should have the lint error from call 1
-		const call2Messages = calls[1].messages;
-		const hasLintError = call2Messages.some(
-			(m) =>
-				m.role === "user" &&
-				Array.isArray(m.content) &&
-				m.content.some(
-					(b) =>
-						"type" in b &&
-						b.type === "tool_result" &&
-						"is_error" in b &&
-						b.is_error === true &&
-						"content" in b &&
-						typeof b.content === "string" &&
-						b.content.includes("reverted"),
-				),
-		);
-		expect(hasLintError).toBe(true);
-
-		// Verify original file was preserved through the revert
-		// (the first edit was bad, so the file should have been reverted to original before second edit)
-		expect(finalContent).toContain("function run()");
-
-		expect(result).toContain("Fixed");
+			const editResult = calls[1].messages
+				.flatMap((message) =>
+					message.role === "user" && Array.isArray(message.content)
+						? message.content
+						: [],
+				)
+				.find((block) => block.type === "tool_result" && block.tool_use_id === "unfinished-edit");
+			expect(editResult).toMatchObject({
+				type: "tool_result",
+				content: expect.stringContaining("Replaced 1 occurrence(s)"),
+			});
+			expect(editResult).not.toHaveProperty("is_error", true);
+			expect(result).toContain("Updated");
+		} finally {
+			session.close();
+		}
 	});
 });

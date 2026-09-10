@@ -59,6 +59,7 @@ function makeRunContext(
     mkdirSync(path, { recursive: true });
   }
   return {
+    runtimeStateDir: join(scopeRoot, ".kota"),
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
     scope: { id: "test-scope", root: scopeRoot },
     workflow: "test",

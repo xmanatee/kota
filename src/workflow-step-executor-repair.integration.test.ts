@@ -75,6 +75,7 @@ describe("executeStep repair loop", () => {
       scopeRoot,
       workspaceRoot: scopeRoot,
       stateDir: join(scopeRoot, ".kota"),
+      runtimeStateDir: join(scopeRoot, ".kota"),
       state: createTestTransactionalRunState(join(scopeRoot, ".kota", "test-state")),
       agentRuntime: resolveAgentRuntime(undefined),
       workflow: {

@@ -96,25 +96,20 @@ describe("file_write: overwriting existing files", () => {
   });
 });
 
-describe("file_write: lint-gated writes", () => {
-  it("reverts new file creation on JSON syntax error", async () => {
+describe("file_write: unfinished content", () => {
+  it("keeps new files with unfinished JSON", async () => {
     const path = join(TEST_DIR, "bad-new.json");
     const result = await runFileWrite({ path, content: "{invalid json,,}" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("syntax error");
-    expect(result.content).toContain("reverted");
-    // File should have been removed since it didn't exist before
-    expect(existsSync(path)).toBe(false);
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(path, "utf-8")).toBe("{invalid json,,}");
   });
 
-  it("reverts existing file on JSON syntax error", async () => {
+  it("keeps unfinished overwrites of existing files", async () => {
     const path = join(TEST_DIR, "bad-existing.json");
     writeFileSync(path, '{"valid": true}', "utf-8");
     const result = await runFileWrite({ path, content: "{broken,,}" });
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("syntax error");
-    // Original content should be restored
-    expect(readFileSync(path, "utf-8")).toBe('{"valid": true}');
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(path, "utf-8")).toBe("{broken,,}");
   });
 
   it("accepts valid JSON", async () => {
@@ -125,17 +120,15 @@ describe("file_write: lint-gated writes", () => {
     expect(readFileSync(path, "utf-8")).toBe(content);
   });
 
-  it("no false stale warning after lint-reverted overwrite", async () => {
+  it("records unfinished overwrites without false stale warnings", async () => {
     const path = join(TEST_DIR, "stale-write.json");
     writeFileSync(path, '{"valid": true}', "utf-8");
     recordRead(path);
 
-    // Overwrite with broken JSON — should revert
     const result = await runFileWrite({ path, content: "{broken,,}" });
-    expect(result.is_error).toBe(true);
-    expect(readFileSync(path, "utf-8")).toBe('{"valid": true}');
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(path, "utf-8")).toBe("{broken,,}");
 
-    // File tracker should be up-to-date after revert
     expect(checkFreshness(path)).toBeNull();
   });
 });

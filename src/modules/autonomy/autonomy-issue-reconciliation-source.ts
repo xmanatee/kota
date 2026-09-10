@@ -12,9 +12,6 @@ import {
   decodeAutonomyIssueProjection,
 } from "./autonomy-issue-projection.js";
 import {
-  autonomyIssueProjectionMaterializationRequested,
-} from "./autonomy-issue-projection-publication.js";
-import {
   planAutonomyIssueOwnerReconciliation,
   publishExhaustedInvestigationAttention,
 } from "./autonomy-issue-reconciliation.js";
@@ -58,11 +55,6 @@ function reconcile(
       if (error instanceof StateValueConflictError) return;
       throw error;
     }
-    ctx.events.emit(autonomyIssueProjectionMaterializationRequested, {
-      scopeId: runtime.scopeId,
-      idempotencyKey: `autonomy-issue-projection:${snapshot.revision + 1}`,
-      stateRevision: snapshot.revision + 1,
-    });
   }
   const requests = planAutonomyIssueOwnerReconciliation({
     projection,

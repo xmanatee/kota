@@ -16,12 +16,14 @@ calls the same seam so the two paths cannot drift. Operator-facing pull
 surfaces such as Telegram, Slack, CLI, daemon HTTP, embedded web, macOS, and
 mobile should consume this seam directly and pass canonical workflow-run
 authority rather than deriving it from the run-artifact directory.
+Issue inspection uses the explicit authority state directory or the daemon's
+read-only scope-state provider. CLI inspection uses `client.autonomy` so live
+reads resolve authority on the daemon. `--state-dir` selects explicit offline inspection.
 
 Provider arm: unlike the recall, answer, and voice surfaces, attention has no
 semantic provider seam — the body is deterministic over local task state and
 run history. It does require the daemon's canonical workflow authority. The
-route returns 503 when that authority is unavailable, success (200) when it can
-render, and a defensive fallback (500) for read failures. New attention client
+route returns success (200) when it can render and reports read failures. New attention client
 surfaces should strict-decode `{ data: { items }, text }` and surface transport
 errors as plain failure banners.
 

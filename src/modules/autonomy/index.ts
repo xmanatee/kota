@@ -15,11 +15,12 @@ import {
   autonomyIssueDecisionRequested,
   autonomyIssueReconciliationRequested,
 } from "./autonomy-issue-events.js";
-import { autonomyIssueProjectionMaterializationRequested } from "./autonomy-issue-projection-publication.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
+import { createAutonomyClient } from "./client.js";
 import { autonomyHealthSignal } from "./health-signal.js";
 import { improvementHandoffRequested } from "./improvement-handoff.js";
 import { buildReportCommand } from "./report/report-cli.js";
+import { reportRoutes } from "./report/report-route.js";
 import { buildAttentionCommand } from "./workflows/attention-digest/attention-cli.js";
 import { attentionRoutes } from "./workflows/attention-digest/attention-route.js";
 import { buildDigestCommand } from "./workflows/daily-digest/digest-cli.js";
@@ -126,7 +127,6 @@ const autonomyModule: KotaModule = {
     autonomyHealthSignal,
     autonomyIssueDecisionRequested,
     autonomyIssueReconciliationRequested,
-    autonomyIssueProjectionMaterializationRequested,
   ],
   workflows: async () => await discoverAutonomyWorkflowDefinitions(),
   agents: async () => await discoverAutonomyAgents(),
@@ -139,14 +139,16 @@ const autonomyModule: KotaModule = {
   },
   commands: (ctx) => [
     buildAgyCanaryCommand(ctx),
-    buildDigestCommand(),
+    buildDigestCommand(ctx),
     buildAttentionCommand(ctx),
-    buildReportCommand(),
+    buildReportCommand(ctx),
   ],
   routes: (ctx) => [
+    ...reportRoutes(ctx.cwd),
     ...digestRoutes({ workspaceRoot: ctx.cwd }),
     ...attentionRoutes({ workspaceRoot: ctx.cwd }),
   ],
+  localClient: (ctx) => ({ autonomy: createAutonomyClient(ctx.cwd) }),
 };
 
 export default autonomyModule;

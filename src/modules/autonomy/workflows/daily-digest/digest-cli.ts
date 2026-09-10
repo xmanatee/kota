@@ -9,14 +9,12 @@
  * is not exposed to autonomy agents.
  */
 
-import { join } from "node:path";
 import { Command } from "commander";
-import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { plain, text } from "#modules/rendering/primitives.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
-import { renderOnDemandDigest } from "./on-demand.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
-export function buildDigestCommand(): Command {
+export function buildDigestCommand(ctx: { client: Pick<KotaClient, "autonomy"> }): Command {
   return new Command("digest")
     .description(
       "Print the on-demand operator digest for the current scope (24h rollup)",
@@ -25,12 +23,8 @@ export function buildDigestCommand(): Command {
       "--json",
       "Emit the structured DailyDigestData payload as JSON instead of the rendered text body",
     )
-    .action((opts: { json?: boolean }) => {
-      const scopeRoot = resolveScopeRoot();
-      const result = renderOnDemandDigest({
-        scopeRoot,
-        stateDir: join(scopeRoot, ".kota"),
-      });
+    .action(async (opts: { json?: boolean }) => {
+      const result = await ctx.client.autonomy.digest();
       if (opts.json) {
         writeJson(result.data, { pretty: true });
         return;

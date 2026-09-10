@@ -6,9 +6,9 @@ import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
   emptyAutonomyIssueProjection,
-  materializeAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { seedAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.test-helpers.js";
 import type { RepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { aggregateAutonomyReport } from "./aggregate.js";
 
@@ -597,7 +597,7 @@ describe("aggregateAutonomyReport", () => {
       current: emptyAutonomyIssueProjection(),
       observations: [observation],
     }).projection;
-    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
+    seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), recordAutonomyIssueDispositions({
       current: projected,
       updates: [
         {

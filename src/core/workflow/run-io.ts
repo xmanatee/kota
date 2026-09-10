@@ -7,32 +7,34 @@ export function ensureDir(path: string): void {
 }
 
 export function safeJsonStringify(value: unknown, indent?: number): string {
-  const seen = new WeakSet<object>();
+  const ancestors: Array<{ source: object; serialized: object }> = [];
   return JSON.stringify(
     value,
-    (_, current) => {
+    function (_, current) {
       if (typeof current === "bigint") return current.toString();
       if (typeof current === "function") {
         return `[Function ${current.name || "anonymous"}]`;
       }
+      if (!current || typeof current !== "object") return current;
+      // Only ancestors are cycles; siblings may legitimately share a value.
+      while (ancestors.length && ancestors.at(-1)!.serialized !== this) ancestors.pop();
+      if (ancestors.some(({ source }) => source === current)) return "[Circular]";
+      let serialized = current;
       if (current instanceof Error) {
-        return {
+        serialized = {
           name: current.name,
           message: current.message,
           stack: current.stack,
         };
       }
       if (current instanceof Map) {
-        return Object.fromEntries(current);
+        serialized = Object.fromEntries(current);
       }
       if (current instanceof Set) {
-        return Array.from(current);
+        serialized = Array.from(current);
       }
-      if (current && typeof current === "object") {
-        if (seen.has(current)) return "[Circular]";
-        seen.add(current);
-      }
-      return current;
+      ancestors.push({ source: current, serialized });
+      return serialized;
     },
     indent,
   );

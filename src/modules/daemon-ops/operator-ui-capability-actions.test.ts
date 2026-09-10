@@ -51,6 +51,27 @@ function projectionClient(): KotaClient {
 }
 
 describe("capability shared UI actions", () => {
+  it("requires and forwards complete Markdown when creating a task", async () => {
+    const body = "## Desired Outcome\n\nRetain all owner details.  \n";
+    const create = vi.fn(async () => ({ ok: true as const, id: "task-owner-request", path: "data/tasks/task-owner-request.md" }));
+    const client = createKotaClientTestDouble({ tasks: { create } });
+    const operation = { kind: "client-namespace", namespace: "tasks", method: "create" } as const;
+    for (const missingBody of [undefined, "", " \n"]) {
+      await expect(executeCapabilityUiAction({
+        client,
+        operation,
+        parameters: { title: "Owner request", priority: "p2", ...(missingBody === undefined ? {} : { body: missingBody }) },
+      })).resolves.toMatchObject({ ok: false });
+    }
+    expect(create).not.toHaveBeenCalled();
+    await expect(executeCapabilityUiAction({
+      client,
+      operation,
+      parameters: { title: "Owner request", priority: "p2", state: "open", body },
+    })).resolves.toEqual({ ok: true, message: "Created task-owner-request." });
+    expect(create).toHaveBeenCalledWith({ title: "Owner request", priority: "p2", state: "open", body });
+  });
+
   it("redacts config values before returning an operator UI action result", async () => {
     const inlineSecrets = {
       apiKey: "inline-api-key",

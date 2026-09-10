@@ -105,11 +105,8 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 			if (res.status === 409) {
 				return { ok: false, reason: "terminal" };
 			}
+			if (res.status === 400) return { ok: false, reason: "malformed" };
 			if (!res.ok) {
-				const error = await readRepoTaskRouteError(res);
-				if (error?.error === "Could not parse task file") {
-					return { ok: false, reason: "malformed" };
-				}
 				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);
 			}
 			const found = await link.fetchRaw(
@@ -133,8 +130,11 @@ export function buildRepoTasksDaemonHandler(link: DaemonTransport): RepoTasksCli
 				return { ok: false, reason: "already_exists", message: errBody.error };
 			}
 			if (res.status === 400) {
-				const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-				return { ok: false, reason: "invalid_slug", message: errBody.error };
+				const errBody = await readRepoTaskRouteError(res);
+				if (errBody?.reason === "invalid_body" || errBody?.reason === "invalid_slug") {
+					return { ok: false, reason: errBody.reason, message: errBody.error };
+				}
+				throw new Error(errBody?.error ?? "HTTP 400");
 			}
 			if (!res.ok) {
 				await throwRepoTaskRouteError(res, `HTTP ${res.status}`);

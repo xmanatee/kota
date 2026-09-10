@@ -20,10 +20,7 @@ import {
   writeScopeImprovementArtifact,
 } from "./scope-improvement.js";
 import { decideScopeImprovementConsumption } from "./scope-improvement-consumption.js";
-import {
-  SCOPE_IMPROVEMENT_PUBLICATION_REQUESTED_EVENT,
-  scopeImprovementPublicationKey,
-} from "./scope-improvement-publication.js";
+import { finalizeScopeImprovement } from "./scope-improvement-publication.js";
 import { admitScopeImprovementTrigger } from "./semantic-request.js";
 import { scopeImproverTriggers } from "./triggers.js";
 
@@ -153,6 +150,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
 const scopeImproverWorkflow: WorkflowDefinitionInput = {
   name: "scope-improver",
   repository: "none",
+  finalize: finalizeScopeImprovement,
   description:
     "Review explicit onboarding and material scope-policy/content changes, then propose normal tasks or owner questions.",
   tags: ["systemic-observer", "scope-improvement"],
@@ -166,22 +164,6 @@ const scopeImproverWorkflow: WorkflowDefinitionInput = {
     recommend,
     applyRecommendations,
     writeArtifact,
-    {
-      id: "emit-scope-improvement-publication",
-      type: "emit",
-      when: stepSucceeded("write-artifact"),
-      event: SCOPE_IMPROVEMENT_PUBLICATION_REQUESTED_EVENT,
-      payload: (ctx) => {
-        const publicationKey = scopeImprovementPublicationKey(
-          ctx.workflow.runId,
-        );
-        return {
-          idempotencyKey: publicationKey,
-          publicationKey,
-          sourceRunId: ctx.workflow.runId,
-        };
-      },
-    },
   ],
 };
 

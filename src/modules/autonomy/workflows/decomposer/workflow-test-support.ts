@@ -11,6 +11,7 @@ import {
   listBuilderTaskDispatches,
 } from "#modules/autonomy/workflows/builder/task-contract.js";
 import { renderRepoTaskIntent } from "#modules/repo-tasks/repo-task-intent.js";
+import { listFullRepoTasks } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 export const FAILED_RUN_ID = "run-failed-builder";
 export const TASK_ID = "task-big-refactor";
@@ -49,7 +50,9 @@ export function writeActionableTask(
     taskMarkdown(marker),
     "utf8",
   );
-  const dispatch = listBuilderTaskDispatches(workspaceRoot).find(
+  const dispatch = listBuilderTaskDispatches(workspaceRoot, {
+    tasks: listFullRepoTasks(workspaceRoot),
+  }).find(
     (candidate) => candidate.taskId === taskId,
   );
   if (dispatch === undefined) {

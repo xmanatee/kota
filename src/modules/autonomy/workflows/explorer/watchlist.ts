@@ -1,7 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { isDeepStrictEqual } from "node:util";
-import { type Document, isMap, isSeq, parseDocument, type YAMLMap } from "yaml";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { type Document, parseDocument } from "yaml";
 import { z } from "zod";
 
 export const WATCHLIST_FILE = "data/watchlist.yaml";
@@ -21,19 +20,12 @@ const entrySchema = z.strictObject({
 });
 const fileSchema = z.strictObject({ resources: z.array(entrySchema) });
 
-export type WatchlistSnapshot = z.infer<typeof snapshotSchema>;
-export type WatchlistStatus = NonNullable<z.infer<typeof entrySchema>["status"]>;
 export type WatchlistEntry = Omit<z.infer<typeof entrySchema>, "canonicalized_from"> & {
   canonicalizedFrom?: string[];
 };
 export type WatchlistFile = {
-  readonly header: string;
   entries: WatchlistEntry[];
 };
-
-// Formatting belongs to the parsed file, outside its semantic values. Keep that
-// file through read/modify/write so YAML comments and scalar styles survive.
-const documents = new WeakMap<WatchlistFile, Document.Parsed>();
 
 function parseDocumentChecked(raw: string): Document.Parsed {
   const document = parseDocument(raw);
@@ -45,8 +37,7 @@ function parseDocumentChecked(raw: string): Document.Parsed {
 }
 
 function decodeEntries(document: Document): WatchlistEntry[] {
-  // Aliases cannot be edited independently without changing another source.
-  const value: unknown = document.toJS({ maxAliasCount: 0 });
+  const value: unknown = document.toJS();
   const result = fileSchema.safeParse(value);
   if (!result.success) {
     throw new Error(`Invalid watchlist: ${result.error.issues.map((issue) =>
@@ -93,74 +84,11 @@ function decodeEntries(document: Document): WatchlistEntry[] {
 }
 
 export function parseWatchlist(raw: string): WatchlistFile {
-  const document = parseDocumentChecked(raw);
-  const entries = decodeEntries(document);
-  const header = raw.slice(0, document.contents?.range?.[0] ?? 0).trimEnd();
-  const file = { header, entries };
-  documents.set(file, document);
-  return file;
-}
-
-function wireEntry({ canonicalizedFrom, ...entry }: WatchlistEntry): z.infer<typeof entrySchema> {
-  return {
-    ...entry,
-    ...(canonicalizedFrom !== undefined ? { canonicalized_from: canonicalizedFrom } : {}),
-  };
-}
-
-function updateEntry(node: YAMLMap, entry: z.infer<typeof entrySchema>): void {
-  for (const key of Object.keys(entrySchema.shape)) {
-    const value = entry[key as keyof typeof entry];
-    if (value === undefined) {
-      node.delete(key);
-    } else if (key === "snapshot" && isMap(node.get(key, true)) && entry.snapshot) {
-      for (const [field, text] of Object.entries(entry.snapshot)) {
-        node.setIn([key, field], text);
-      }
-    } else if (!isDeepStrictEqual(node.get(key, true)?.toJSON(), value)) {
-      node.set(key, value);
-    }
-  }
-}
-
-export function serializeWatchlist(file: WatchlistFile): string {
-  const original = documents.get(file);
-  const document = original?.clone() ?? parseDocumentChecked(`${file.header}\nresources: []\n`);
-  const resources = document.get("resources", true);
-  if (!isSeq(resources)) throw new Error("Invalid watchlist: resources must be a sequence");
-  const originalEntries = new Map<string, YAMLMap>();
-  for (const node of resources.items) {
-    if (!isMap(node) || typeof node.get("url") !== "string") {
-      throw new Error("Invalid watchlist resource mapping");
-    }
-    originalEntries.set(node.get("url") as string, node);
-  }
-  resources.items = file.entries.map((entry) => {
-    // A redirect retains the source's comments; merging into an existing target
-    // retains that target's document node.
-    const previous = originalEntries.get(entry.url) ?? entry.canonicalizedFrom
-      ?.map((url) => originalEntries.get(url)).find((node) => node !== undefined);
-    const wire = wireEntry(entry);
-    if (!previous) return document.createNode(wire);
-    const node = previous.clone();
-    if (!isMap(node)) throw new Error("Invalid watchlist resource mapping");
-    updateEntry(node, wire);
-    return node;
-  });
-  resources.flow = false;
-  decodeEntries(document);
-  return document.toString({ lineWidth: 0 });
+  return { entries: decodeEntries(parseDocumentChecked(raw)) };
 }
 
 export function readWatchlist(workspaceRoot: string): WatchlistFile {
   const path = join(workspaceRoot, WATCHLIST_FILE);
-  if (!existsSync(path)) return { header: "", entries: [] };
+  if (!existsSync(path)) return { entries: [] };
   return parseWatchlist(readFileSync(path, "utf-8"));
-}
-
-export function writeWatchlist(workspaceRoot: string, file: WatchlistFile): void {
-  const path = join(workspaceRoot, WATCHLIST_FILE);
-  const serialized = serializeWatchlist(file);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, serialized, "utf-8");
 }

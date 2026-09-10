@@ -70,5 +70,14 @@ describe("task maintenance routes", () => {
     const noBody = mockResponse();
     await handleTaskBodyUpdate(mockRequest({ notbody: "wrong field" }), noBody.res, "task-nob", mutationTarget(repoRoot));
     expect(noBody.result.status).toBe(400);
+
+    const path = join(repoRoot, "data/tasks/task-nob.md");
+    const original = readFileSync(path, "utf8");
+    for (const body of ["# No Body", "# No Body\n\n<!-- unfinished -->", "# No Body\n\n## Problem\n\n<!-- unfinished", "# No Body\n\nDescribe the problem and why it matters.", "Missing title\n\nPreserve the original task when its replacement lacks an H1.", "## Wrong title\n\nKeep the H1 boundary."]) {
+      const malformed = mockResponse();
+      await handleTaskBodyUpdate(mockRequest({ body }), malformed.res, "task-nob", mutationTarget(repoRoot));
+      expect(malformed.result).toMatchObject({ status: 400, body: { error: expect.stringContaining("authored intent") } });
+      expect(readFileSync(path, "utf8")).toBe(original);
+    }
   });
 });

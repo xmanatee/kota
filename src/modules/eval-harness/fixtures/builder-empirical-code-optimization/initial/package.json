@@ -4,7 +4,6 @@
   "scripts": {
     "test": "node scripts/score.mjs --max-holdout-mae 0.25",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
-    "finish-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-improve-forecast-predictor done",
     "kota": "node \"$KOTA_DIST_DIR/cli.js\"",
     "check:fast": "pnpm validate-tasks"
   }

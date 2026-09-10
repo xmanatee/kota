@@ -33,7 +33,8 @@ into.
   foreign-module support.
 - `tools/` — core tool runtime and the remaining truly core-hosted tools.
 - `workflow/` — workflow definitions, validation, execution, runtime, and
-  repair-loop mechanics.
+  repair-loop mechanics. Local workflow completion uses the shared synchronous
+  `finalize` hook, not child bookkeeping or publication workflows.
 - `agent-harness/` — neutral `AgentHarness` protocol and registry plus the
   `SDK*` wire-type declarations (`sdk-types.ts`) the workflow runtime, run
   stores, and step executors consume. Workflow agent steps, the repair loop,

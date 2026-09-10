@@ -4,7 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { assembleUiSurfaceBundle } from "#core/modules/module-ui-surfaces.js";
 import { OutboundHttpTransport, outboundHttp } from "#core/outbound-http/index.js";
+import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
 import { clearCustomTools, deregisterTool, registerTool } from "#core/tools/index.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
@@ -15,13 +17,15 @@ import dispatcher from "#modules/autonomy/workflows/dispatcher/workflow.js";
 import { decodeExplorerState, EXPLORER_STATE_KEY, type ExplorerState } from "#modules/autonomy/workflows/explorer/explorer-state.js";
 import type { refreshExplorerSources } from "#modules/autonomy/workflows/explorer/source-evidence.js";
 import explorer from "#modules/autonomy/workflows/explorer/workflow.js";
-import explorerPublication from "#modules/autonomy/workflows/explorer-publication/workflow.js";
 import { runGitEvidenceCommand } from "#modules/autonomy/workflows/git-evidence-test-support.js";
 import { scopePolicySnapshotForTest } from "#modules/autonomy/workflows/scope-improver/scope-policy-test-support.js";
 import { renderDashboard } from "#modules/daemon-ops/dashboard.js";
 import { makeSnapshot, stripAnsi } from "#modules/daemon-ops/dashboard-test-support.js";
 import { DaemonTaskQueueProjection } from "#modules/daemon-ops/task-queue-projection.js";
-import { listRepoTasks } from "#modules/repo-tasks/repo-tasks-operations.js";
+import { listRepoTasks, showTask } from "#modules/repo-tasks/repo-tasks-operations.js";
+import { handleTaskStatus } from "#modules/repo-tasks/routes-state-handlers.js";
+import { mockResponse } from "#modules/repo-tasks/routes-test-helpers.js";
+import { repoTasksUiSurfaceSource } from "#modules/repo-tasks/ui-surface.js";
 import webAccess from "#modules/web-access/index.js";
 
 const roots: string[] = [];
@@ -43,7 +47,7 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   git("init", "--quiet");
   const writeTask = (id: string, state = "open", dependsOn: string[] = []) => {
     writeFileSync(join(root, "data/tasks", `${id}.md`),
-      `---\nstatus: ${state}\npriority: p2\ndepends_on: [${dependsOn.join(", ")}]\n---\n# ${id}\n`);
+      `---\nstatus: ${state}\npriority: p2\ndepends_on: [${dependsOn.join(", ")}]\n---\n# ${id}\n\nPreserve exclusive ownership while independent work is dispatched.\n${state === "blocked" ? "\n## Blocked on\nkind: operator-capture\npath: evidence/operator-run.txt\ndescription: Await the operator runtime evidence.\n" : ""}`);
   };
   const commitInput = () => {
     git("add", "data", ".gitignore");
@@ -62,6 +66,10 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   expect(unknownDashboard).not.toContain("dispatchable work available");
   database.registerScope({ id: scopeId, rootPath: root, createdAt: new Date().toISOString() });
   const { epoch } = database.beginDaemonSession(new Date().toISOString());
+  expect(listRepoTasks(root)).toMatchObject({
+    tasks: [expect.objectContaining({ id: "task-a" })],
+    workSupply: { headSha: "", ownershipAvailable: true, availableTaskIds: [], availableCount: 0 },
+  });
   const evidence = new WorkflowRunStore(root);
   for (const id of ["task-a", "task-b", "task-c", "task-d"]) {
     writeTask(id);
@@ -93,9 +101,9 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   }).run();
   const retained = await dispatch();
   expect(retained.status, retained.error).toBe("success");
-  expect(retained.steps["assess-and-dispatch"].output).toMatchObject({
+  expect(listRepoTasks(root).workSupply).toMatchObject({
     actionableCount: 4, availableCount: 0, retainedCount: 4, runningCount: 0,
-    builderTaskIds: [], queueDecision: { empty: true, explorationEligible: true },
+    availableTaskIds: [], hasDispatchableWork: false,
   });
   expect(retained.emitted.some((event) => event.event === "autonomy.queue.available")).toBe(false);
   expect(retained.emitted.some((event) => event.event === "autonomy.queue.empty")).toBe(true);
@@ -104,7 +112,39 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   writeTask("task-external", "blocked");
   writeTask("task-dependent", "open", ["task-external"]);
   commitInput();
+  const publishedSupply = listRepoTasks(root).workSupply;
+  rmSync(join(root, "data/tasks/task-independent.md"));
+  writeTask("task-external");
+  writeTask("task-dependent");
+  writeFileSync(join(root, "data/tasks/task-draft.md"), "---\nstatus: open\npriority: p1\n---\n# Unfinished draft\n\n<!-- intent still being edited -->\n");
+  mkdirSync(join(root, "data/inbox"));
+  writeFileSync(join(root, "data/inbox/draft.md"), "Unpublished inbox capture");
+  const workingList = listRepoTasks(root);
+  expect(workingList.workSupply).toEqual(publishedSupply);
+  expect(workingList.tasks).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: "task-draft", title: "Unfinished draft" }),
+    expect.objectContaining({ id: "task-external", state: "open" }),
+    expect.objectContaining({ id: "task-dependent", waitingOnTasks: [] }),
+  ]));
+  expect(workingList.tasks.some(({ id }) => id === "task-independent")).toBe(false);
+  expect(showTask(root, "task-draft")).toMatchObject({ found: true, content: expect.stringContaining("intent still being edited") });
+  const status = mockResponse();
+  await handleTaskStatus(status.res, root);
+  expect(status.result).toMatchObject({ status: 200, body: {
+    counts: { inbox: 1, open: 7, blocked: 0 },
+    tasks: { open: expect.arrayContaining([expect.objectContaining({ id: "task-draft" })]) },
+    workSupply: publishedSupply,
+  } });
+  const ui = await assembleUiSurfaceBundle(root, [{ moduleName: "repo-tasks", source: repoTasksUiSurfaceSource }], {
+    selector: { scopeId },
+    client: createKotaClientTestDouble({ tasks: { list: async (states) => listRepoTasks(root, states) } }),
+  });
+  expect(ui.surfaces[0].nodes).toEqual(expect.arrayContaining([
+    expect.objectContaining({ kind: "status-summary", entries: expect.arrayContaining([expect.objectContaining({ label: "Available", value: "1" })]) }),
+    expect.objectContaining({ kind: "table", rows: expect.arrayContaining([expect.objectContaining({ id: "task-draft" })]) }),
+  ]));
   const mixedDashboard = await renderWorkSupply();
+  expect(dashboard.getSnapshot()).toEqual(publishedSupply);
   expect(mixedDashboard).toContain("Dispatchable 1  Available 1  Running 0  Queued 0  Retained 4");
   expect(mixedDashboard).toContain("dispatchable work available");
   const mixed = await dispatch();
@@ -116,6 +156,12 @@ it("dispatches only independent unclaimed work while preserving retained owners 
     availableTaskIds: ["task-independent"], retainedCount: 4,
     dependencyBlockedTasks: [{ id: "task-dependent", waitingOn: ["task-external"] }],
   });
+
+  writeTask("task-independent");
+  writeTask("task-external", "blocked");
+  writeTask("task-dependent", "open", ["task-external"]);
+  rmSync(join(root, "data/tasks/task-draft.md"));
+  rmSync(join(root, "data/inbox/draft.md"));
 
   const thin = mixed.emitted.find((event) => event.event === "autonomy.queue.thin")!;
   if (!Array.isArray(webAccess.tools)) throw new Error("Expected bundled web tool declarations");
@@ -197,12 +243,7 @@ it("dispatches only independent unclaimed work while preserving retained owners 
   expect(readFileSync(sourceEvidence.observations[4].evidencePath, "utf8")).toContain("Runtime research");
   expect(readFileSync(sourceEvidence.observations[2].evidencePath, "utf8")).toContain(article);
   const publishAndMakeRecheckDue = async (review: typeof firstReview) => {
-    const publication = review.emitted.find((event) => event.event === "autonomy.explorer.publication.requested")!;
-    const published = await new WorkflowScenarioDriver(explorerPublication, {
-      workspaceRoot: root, trigger: { event: publication.event, payload: publication.payload },
-      ports: { state: { stateDir, scopeId } },
-    }).run();
-    expect(published.status, published.error).toBe("success");
+    expect(review.status, review.error).toBe("success");
     const observationStore = RunStateDatabase.openExisting(stateDir);
     try {
       const stored = observationStore.readScopeStateValue<ExplorerState>(scopeId, EXPLORER_STATE_KEY);

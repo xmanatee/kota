@@ -126,7 +126,7 @@ describe("progress-review pruned run evidence", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,

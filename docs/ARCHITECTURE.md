@@ -155,6 +155,13 @@ Run execution has one ownership chain:
   the current canonical head, validates the reconciled result, and publishes
   only while holding the repository integration resource.
 
+Repository data is editor-first. A writer publishes its complete changeset;
+remote edit APIs adapt into that same lifecycle. Dispatch reads published task
+intent, while editors and UI may inspect work in progress. The original run's
+synchronous finalizer commits completion bookkeeping, revisioned state and
+events together. Recoverable local effects are idempotent; independent external
+effects keep their own workflow and approval boundary.
+
 Conflict and validation repair are AI continuations inside runtime rails. The
 runtime bounds and screens diagnostics, constrains conflict repairs to reported
 paths, prevents agent-owned Git mutation, detects no-progress repeats, and

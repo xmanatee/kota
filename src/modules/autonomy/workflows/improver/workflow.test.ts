@@ -394,10 +394,10 @@ describe("improver issue disposition workflow", () => {
       currentProjection: projection,
     }).nextProjection;
     expect(projection.issues[0]?.links.taskIds).toEqual([taskId]);
-    execFileSync("git", ["add", "-A"], { cwd: workspaceRoot });
-    execFileSync("git", ["commit", "--quiet", "-m", "integrate repair task"], {
+    expect(execFileSync("git", ["show", `HEAD:data/tasks/${taskId}.md`], {
       cwd: workspaceRoot,
-    });
+      encoding: "utf-8",
+    })).toContain(TASK_DISPOSITION.taskTitle);
 
     const revisedObservation = buildAutonomyIssueObservation({
       kind: "changed",

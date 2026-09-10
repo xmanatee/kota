@@ -26,8 +26,8 @@ export const captureTool: KotaTool = {
   description:
     "Save a noteworthy natural-language fact into the right cross-store slot " +
     "(memory, knowledge, tasks, inbox). When `target` is set the seam dispatches " +
-    "verbatim; otherwise an internal classifier picks the destination or returns " +
-    "an ambiguous envelope listing the suggestions. Use this to persist mid-" +
+    "verbatim; otherwise an internal classifier selects memory or knowledge, " +
+    "with rough work requests and uncertain notes saved to inbox. Use this to persist mid-" +
     "conversation facts that would otherwise require an explicit /capture command.",
   input_schema: {
     type: "object",
@@ -43,7 +43,8 @@ export const captureTool: KotaTool = {
         enum: [...CAPTURE_TARGET_ORDER],
         description:
           "Optional explicit destination store. When omitted the classifier " +
-          "decides; when present the seam dispatches without classification.",
+          "can select memory or knowledge; rough or uncertain notes default to inbox. " +
+          "Only an explicit tasks target creates a task, preserving the full text.",
       },
       hint: {
         type: "string",

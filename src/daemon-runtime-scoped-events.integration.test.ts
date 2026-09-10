@@ -62,8 +62,8 @@ describe("daemon runtime scoped autonomy events", () => {
       }
 
       const baselineIssueKeys = new Map([
-        [scopeAId, new Set(readAutonomyIssueProjection(scopeRoot).issues.map((issue) => issue.issueKey))],
-        [scopeBId, new Set(readAutonomyIssueProjection(scopeB).issues.map((issue) => issue.issueKey))],
+        [scopeAId, new Set(readAutonomyIssueProjection(scopeRoot, stateDir).issues.map((issue) => issue.issueKey))],
+        [scopeBId, new Set(readAutonomyIssueProjection(scopeB, stateDir).issues.map((issue) => issue.issueKey))],
       ]);
       const baselineRunCounts = new Map([
         [scopeAId, runtimeA.runStore.listRuns({ workflow: "autonomy-health-reviewer", limit: 20 }).length],
@@ -77,8 +77,8 @@ describe("daemon runtime scoped autonomy events", () => {
       fixtureB.emitFailure();
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, (key) => key.startsWith("workflow:builder:failure:")) &&
-          projectionContains(scopeB, (key) => key.startsWith("workflow:builder:failure:")),
+          projectionContains(scopeRoot, stateDir, (key) => key.startsWith("workflow:builder:failure:")) &&
+          projectionContains(scopeB, stateDir, (key) => key.startsWith("workflow:builder:failure:")),
         "workflow failures did not reach both scoped projections",
       );
 
@@ -96,8 +96,8 @@ describe("daemon runtime scoped autonomy events", () => {
       });
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, (key) => key === "review-scrutiny:critic:builder:task-a") &&
-          projectionContains(scopeB, (key) => key === "review-scrutiny:critic:builder:task-b"),
+          projectionContains(scopeRoot, stateDir, (key) => key === "review-scrutiny:critic:builder:task-a") &&
+          projectionContains(scopeB, stateDir, (key) => key === "review-scrutiny:critic:builder:task-b"),
         "review scrutiny did not reach both scoped projections",
       );
 
@@ -116,8 +116,8 @@ describe("daemon runtime scoped autonomy events", () => {
       const trajectoryRoot = "workflow:builder:trajectory:build:missing_final_verification_after_edit";
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, (key) => key === trajectoryRoot) &&
-          projectionContains(scopeB, (key) => key === trajectoryRoot),
+          projectionContains(scopeRoot, stateDir, (key) => key === trajectoryRoot) &&
+          projectionContains(scopeB, stateDir, (key) => key === trajectoryRoot),
         "trajectory evidence did not reach both scoped projections",
       );
 
@@ -135,8 +135,8 @@ describe("daemon runtime scoped autonomy events", () => {
       });
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, (key) => key === "owner-intervention:a-owner-decision") &&
-          projectionContains(scopeB, (key) => key === "owner-intervention:b-owner-decision"),
+          projectionContains(scopeRoot, stateDir, (key) => key === "owner-intervention:a-owner-decision") &&
+          projectionContains(scopeB, stateDir, (key) => key === "owner-intervention:b-owner-decision"),
         "owner-question evidence did not reach both scoped projections",
       );
 
@@ -144,8 +144,8 @@ describe("daemon runtime scoped autonomy events", () => {
       fixtureB.emitDeadLetter();
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, (key) => key.startsWith("workflow:progress-reviewer:failure:")) &&
-          projectionContains(scopeB, (key) => key.startsWith("workflow:progress-reviewer:failure:")),
+          projectionContains(scopeRoot, stateDir, (key) => key.startsWith("workflow:progress-reviewer:failure:")) &&
+          projectionContains(scopeB, stateDir, (key) => key.startsWith("workflow:progress-reviewer:failure:")),
         "dead letters did not reach both scoped projections",
       );
 
@@ -153,13 +153,13 @@ describe("daemon runtime scoped autonomy events", () => {
       fixtureB.emitBuilderInterruption();
       await waitForRuntimeEvidence(
         () =>
-          projectionContains(scopeRoot, (key) => key === "workflow:builder:interrupted-run") &&
-          projectionContains(scopeB, (key) => key === "workflow:builder:interrupted-run"),
+          projectionContains(scopeRoot, stateDir, (key) => key === "workflow:builder:interrupted-run") &&
+          projectionContains(scopeB, stateDir, (key) => key === "workflow:builder:interrupted-run"),
         "builder interruptions did not reach both scoped projections",
       );
 
-      const projectionA = readAutonomyIssueProjection(scopeRoot);
-      const projectionB = readAutonomyIssueProjection(scopeB);
+      const projectionA = readAutonomyIssueProjection(scopeRoot, stateDir);
+      const projectionB = readAutonomyIssueProjection(scopeB, stateDir);
       const sourceIssuesA = projectionA.issues.filter(
         (issue) => !baselineIssueKeys.get(scopeAId)!.has(issue.issueKey),
       );
@@ -172,9 +172,17 @@ describe("daemon runtime scoped autonomy events", () => {
       expect(projectionB.issues.some((issue) => issue.rootCauseKey.includes("task-a"))).toBe(false);
       for (const [scopeId, sourceIssues] of [[scopeAId, sourceIssuesA], [scopeBId, sourceIssuesB]] as const) {
         for (const issue of sourceIssues) {
-          expect(decisions.filter(
+          const requests = decisions.filter(
             (decision) => decision.scopeId === scopeId && decision.issueKey === issue.issueKey,
-          )).toHaveLength(1);
+          );
+          const transitions = requests.filter((request) => request.requestKind === "transition");
+          expect(transitions).toHaveLength(1);
+          expect(new Set(requests.map((request) => request.idempotencyKey))).toEqual(
+            new Set([transitions[0]!.idempotencyKey]),
+          );
+          expect(requests.filter((request) => request.requestKind === "reconciliation").every(
+            (request) => request.transition === "replayed" && request.semanticRevision === issue.semanticRevision,
+          )).toBe(true);
         }
       }
       const newDecisionKeys = new Set(
@@ -201,14 +209,16 @@ describe("daemon runtime scoped autonomy events", () => {
         expect(journal.query({ type: autonomyHealthSignal.name, scopeId }).length).toBeGreaterThan(0);
         const issueKeys = new Set(issues.map((issue) => issue.issueKey));
         expect(journal.query({ type: autonomyIssueDecisionRequested.name, scopeId }).filter(
-          (entry) => entry.payload.kind === "inline" && issueKeys.has(String(entry.payload.payload.issueKey)),
+          (entry) => entry.payload.kind === "inline" &&
+            entry.payload.payload.requestKind === "transition" &&
+            issueKeys.has(String(entry.payload.payload.issueKey)),
         )).toHaveLength(6);
       }
 
       const scopeBBeforeForeignEvent = fixtureB.snapshotSourceStores();
       fixtureA.emitFailure("a second isolated failure");
       await waitForRuntimeEvidence(
-        () => readAutonomyIssueProjection(scopeRoot).issues.length === projectionA.issues.length + 1,
+        () => readAutonomyIssueProjection(scopeRoot, stateDir).issues.length === projectionA.issues.length + 1,
         "scope A follow-up failure was not projected",
       );
       expect(fixtureB.snapshotSourceStores()).toEqual(scopeBBeforeForeignEvent);
@@ -216,7 +226,7 @@ describe("daemon runtime scoped autonomy events", () => {
       const scopeAAfterOwnEvent = fixtureA.snapshotSourceStores();
       fixtureB.emitFailure("b second isolated failure");
       await waitForRuntimeEvidence(
-        () => readAutonomyIssueProjection(scopeB).issues.length === projectionB.issues.length + 1,
+        () => readAutonomyIssueProjection(scopeB, stateDir).issues.length === projectionB.issues.length + 1,
         "scope B follow-up failure was not projected",
       );
       expect(fixtureA.snapshotSourceStores()).toEqual(scopeAAfterOwnEvent);

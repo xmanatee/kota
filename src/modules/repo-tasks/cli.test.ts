@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,7 +10,6 @@ import { NO_COLOR_THEME } from "#modules/rendering/theme.js";
 import { renderToString } from "#modules/rendering/transport.js";
 import { buildTaskListNode, registerTaskCommands } from "./cli.js";
 import type {
-  RepoTaskCreateOptions,
   RepoTaskReindexResult,
   RepoTaskSearchFilter,
   RepoTaskSearchResult,
@@ -17,7 +17,6 @@ import type {
 } from "./client.js";
 import {
   captureInboxTask,
-  createNormalizedTask,
   listRepoTasks,
   searchRepoTasks,
   showTask,
@@ -48,12 +47,6 @@ function stubCtx(
         async show(id: string) {
           return showTask(repoRoot, id);
         },
-        async move() {
-          return { ok: false as const, reason: "already_in_state" as const, state: "open" as const };
-        },
-        async create(options: RepoTaskCreateOptions) {
-          return createNormalizedTask(repoRoot, options);
-        },
         async capture(title: string) {
           return captureInboxTask(repoRoot, title);
         },
@@ -70,18 +63,13 @@ function stubCtx(
   } as unknown as ModuleContext;
 }
 
-vi.mock("node:child_process", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:child_process")>()),
-  execSync: vi.fn(),
-  execFileSync: vi.fn(),
-}));
-
 function makeScopeRoot(): string {
   const dir = join(
     tmpdir(),
     `kota-task-cli-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
   );
   mkdirSync(dir, { recursive: true });
+  execFileSync("git", ["init", "--quiet"], { cwd: dir });
   // Resolve symlinks (macOS /var -> /private/var) so process.cwd() and tmpdir() agree
   return realpathSync(dir);
 }
@@ -234,29 +222,12 @@ describe("kota task show", () => {
   });
 });
 
-describe("kota task move", () => {
-  let repoRoot: string;
-  let origCwd: string;
-
-  beforeEach(() => {
-    repoRoot = makeScopeRoot();
-    origCwd = process.cwd();
-    process.chdir(repoRoot);
-  });
-
-  afterEach(() => {
-    process.chdir(origCwd);
-    rmSync(repoRoot, { recursive: true, force: true });
-  });
-
-  it("prints message when task is already in target state", async () => {
-    writeTaskFile(repoRoot, "open", "task-already");
-
+describe("kota task authoring", () => {
+  it.each(["create", "move"])("rejects the removed %s command", async (command) => {
     const program = makeProgram();
-    const output = await captureOutput(async () => {
-      await program.parseAsync(["node", "kota", "task", "move", "task-already", "open"]);
-    });
-    expect(output).toContain("already in");
+    program.configureOutput({ writeErr: () => {} });
+    await expect(program.parseAsync(["node", "kota", "task", command]))
+      .rejects.toThrow(`unknown command '${command}'`);
   });
 });
 

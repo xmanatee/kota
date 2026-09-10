@@ -1,4 +1,4 @@
-import { listRepoTasksInState } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { listFullRepoTasks, type RepoTaskFullRecord } from "#modules/repo-tasks/repo-tasks-domain.js";
 
 /**
  * A blocked research task's retry candidacy. A task qualifies when it is
@@ -35,8 +35,11 @@ export function extractResourceUrls(taskBody: string): string[] {
  * List blocked tasks whose body carries a `## Resources` section of URLs
  * eligible for retry. Sorted by stable task identity.
  */
-export function listResearchRetryCandidates(workspaceRoot: string): ResearchRetryCandidate[] {
-  const blocked = listRepoTasksInState(workspaceRoot, "blocked");
+export function listResearchRetryCandidates(
+  workspaceRoot: string,
+  tasks: readonly RepoTaskFullRecord[] = listFullRepoTasks(workspaceRoot),
+): ResearchRetryCandidate[] {
+  const blocked = tasks.filter((task) => task.state === "blocked");
   const candidates: ResearchRetryCandidate[] = [];
   for (const record of blocked) {
     if (!RESOURCES_HEADING_RE.test(record.body)) continue;

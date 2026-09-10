@@ -11,7 +11,7 @@
  *
  * The classifier consults the project's configured model client. When
  * the model-clients module is not loaded or the model call throws, the
- * seam falls back to the ambiguous envelope rather than guessing.
+ * note is retained in the inbox for triage.
  */
 
 import { Command } from "commander";

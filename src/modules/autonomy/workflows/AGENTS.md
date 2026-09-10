@@ -15,7 +15,8 @@ Autonomy workflows and their co-located prompts live here.
   `RunLifecycle`, and `IntegrationQueue` own queueing, capacity, isolation,
   resources, processes, recovery, commit, validation, and publication.
 - Do not add workflow-specific claims, worktrees, branches, staging helpers,
-  merge gates, port leases, terminal finalizers, or synthetic recovery triggers.
+  merge gates, port leases, or synthetic recovery triggers. Local completion
+  bookkeeping uses the shared synchronous success hook.
 - Shared cadence and watermark values use the runtime state API. Workflows read
   a revision and stage compare-and-set; they do not write canonical state files
   or publish dependent events before run success.

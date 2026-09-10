@@ -1,0 +1,26 @@
+# Anchored Filesystem I/O
+
+This boundary owns shared root-scoped UTF-8 file access, snapshot checks, and
+physical mutation rollback. Callers own authorization, allowed directories,
+filename selection, content formats, and domain transitions.
+
+- Keep filesystem safety independent of task queues and editor tools. Markdown
+  selection belongs to callers, not the filesystem helper.
+- Directory traversal and leaf operations stay in the isolated helper process.
+  Preserve no-follow opens, directory identity checks, and working-directory
+  anchoring together; pathname validation alone is not a replacement.
+- An anchored directory can be renamed during an operation. Leaf operations
+  remain attached to that directory, not a replacement at its former pathname.
+  This is not an atomic beneath-root guarantee against relocation of that inode.
+- Files must be regular and single-link. Reads carry verified metadata snapshots;
+  conditional writes and removals compare those snapshots before mutation.
+  These are optimistic checks, not atomic compare-and-swap against other writers.
+- Cross-directory moves install then remove, with snapshot-checked compensation.
+  They are not atomic transactions; failed cleanup may retain a temporary or
+  quarantined entry rather than remove an entry whose identity is uncertain.
+- Retain the source-embedded subprocess while Node lacks the required relative
+  directory-descriptor operations. Unsupported no-follow platforms fail closed.
+- Daemon record and configuration stores retain their own stricter ownership,
+  permissions, and lifecycle contracts; do not merge them by weakening those rules.
+- Safety tests belong here for shared mechanics and beside domain callers for
+  distinct semantic entry points. Do not duplicate the helper in callers.

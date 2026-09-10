@@ -62,6 +62,14 @@
   validation failures inside the supplied sandbox and write scope, while the
   runtime retains staging, rebase, commit, no-progress, cancellation, and
   publication authority.
+- Author repository content with normal editors and file tools. Validate the
+  completed change before publication, not intermediate keystrokes. Task and
+  inbox APIs are optional remote/convenience adapters, not mandatory authoring
+  protocols; runtime claims, approvals, and external effects remain controlled.
+- Finalize local bookkeeping with the original run's synchronous success hook.
+  State and events commit together; local file effects must be idempotent for
+  recovery. Separate workflows are for distinct work or external effects, not
+  merely another envelope around completion.
 
 ## Engineering Rules
 

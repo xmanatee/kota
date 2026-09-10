@@ -2,29 +2,29 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ScopedEventBus } from "#core/events/scope.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { createStepContext } from "#core/workflow/steps/step-context.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
+import { createWorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import {
   parseWatchlist,
   readWatchlist,
-  serializeWatchlist,
-  type WatchlistSnapshot,
-  writeWatchlist,
 } from "./watchlist.js";
 import {
-  classifyWatchlistUpdate,
-  computeWatchlistFingerprint,
   normalizeWatchlistContent,
 } from "./watchlist-classifier.js";
-import {
-  applyWatchlistUpdates,
-  readWatchlistUpdatesFromRun,
-} from "./watchlist-updates.js";
+import explorerWorkflow from "./workflow.js";
 
-describe("parseWatchlist / serializeWatchlist", () => {
+describe("parseWatchlist", () => {
   it("parses the seed format with only url + added fields", () => {
     const raw = [
       "# header comment",
@@ -38,41 +38,10 @@ describe("parseWatchlist / serializeWatchlist", () => {
 
     const file = parseWatchlist(raw);
 
-    expect(file.header).toContain("# header comment");
     expect(file.entries).toEqual([
       { url: "https://example.com/a", added: "2026-04-14" },
       { url: "https://example.com/b", added: "2026-04-15" },
     ]);
-  });
-
-  it("round-trips a watchlist with snapshots through parse + serialize", () => {
-    const file = {
-      header: "# header",
-      entries: [
-        {
-          url: "https://example.com/a",
-          added: "2026-04-14",
-          canonicalizedFrom: ["https://old.example.com/a"],
-          snapshot: {
-            fingerprint: "sha256:deadbeef",
-            summary: "A project",
-            last_seen_at: "2026-04-17T10:00:00.000Z",
-          },
-        },
-        {
-          url: "https://example.com/b",
-          added: "2026-04-14",
-          status: "inaccessible" as const,
-        },
-      ],
-    };
-
-    const serialized = serializeWatchlist(file);
-    const parsed = parseWatchlist(serialized);
-
-    expect(parsed.entries).toEqual(file.entries);
-    expect(serialized).toContain("canonicalized_from:");
-    expect(serialized).toContain("https://old.example.com/a");
   });
 
   it("rejects a snapshot block missing required fields", () => {
@@ -111,19 +80,9 @@ describe("parseWatchlist / serializeWatchlist", () => {
     ["resources: [{url: true, added: 2026-04-14}]", /resources\.0\.url/],
     ["resources: [{url: https://example.com, added: 123}]", /resources\.0\.added/],
     ["resources: [{url: https://example.com, added: 2026-04-14, status: active}]", /resources\.0\.status/],
-    ["resources: [&source {url: https://example.com, added: 2026-04-14}, *source]", /alias/],
+    ["resources: [&source {url: https://example.com, added: 2026-04-14}, *source]", /duplicate watchlist entry url/],
   ])("diagnoses malformed input without dropping it: %s", (raw, diagnostic) => {
     expect(() => parseWatchlist(raw)).toThrow(diagnostic);
-  });
-
-  it("round-trips empty lists and ambiguous string scalars", () => {
-    const empty = { header: "# Nothing monitored", entries: [] };
-    expect(parseWatchlist(serializeWatchlist(empty))).toEqual(empty);
-    const file = { header: "", entries: [{
-      url: "https://example.com", added: "2026-04-14", canonicalizedFrom: [],
-      notes: "true", snapshot: { fingerprint: "123", summary: "", last_seen_at: "2026-04-14T12:00:00Z" },
-    }] };
-    expect(parseWatchlist(serializeWatchlist(file))).toEqual(file);
   });
 
   it("rejects canonicalized aliases that remain listed as refresh resources", () => {
@@ -172,509 +131,86 @@ describe("normalizeWatchlistContent", () => {
   });
 });
 
-describe("classifyWatchlistUpdate", () => {
-  it("returns inaccessible when the outcome is inaccessible", () => {
-    const result = classifyWatchlistUpdate(undefined, { accessible: false });
-    expect(result.kind).toBe("inaccessible");
-  });
-
-  it("returns new when there is no prior snapshot", () => {
-    const result = classifyWatchlistUpdate(undefined, {
-      accessible: true,
-      content: "First look at the repo.",
-      summary: "A repo",
-    });
-    expect(result.kind).toBe("new");
-    if (result.kind === "new") {
-      expect(result.fingerprint).toMatch(/^sha256:/);
-      expect(result.summary).toBe("A repo");
-    }
-  });
-
-  it("returns unchanged when the fingerprint matches", () => {
-    const content = "Some stable content.";
-    const normalized = normalizeWatchlistContent(content);
-    const previous: WatchlistSnapshot = {
-      fingerprint: computeWatchlistFingerprint(normalized),
-      summary: "Stable",
-      last_seen_at: "2026-04-17T00:00:00.000Z",
-    };
-    const result = classifyWatchlistUpdate(previous, {
-      accessible: true,
-      content,
-      summary: "Stable",
-    });
-    expect(result.kind).toBe("unchanged");
-  });
-
-  it("treats trivial date-only churn as unchanged", () => {
-    const a = "Release notes. Updated 2026-04-17T10:00:00Z.";
-    const b = "Release notes. Updated 2026-04-18T11:30:00Z.";
-    const previous: WatchlistSnapshot = {
-      fingerprint: computeWatchlistFingerprint(normalizeWatchlistContent(a)),
-      summary: "Notes",
-      last_seen_at: "2026-04-17T00:00:00.000Z",
-    };
-    const result = classifyWatchlistUpdate(previous, {
-      accessible: true,
-      content: b,
-      summary: "Notes",
-    });
-    expect(result.kind).toBe("unchanged");
-  });
-
-  it("returns changed when content has meaningfully shifted", () => {
-    const previous: WatchlistSnapshot = {
-      fingerprint: computeWatchlistFingerprint(
-        normalizeWatchlistContent("A lightweight README."),
-      ),
-      summary: "Old",
-      last_seen_at: "2026-04-17T00:00:00.000Z",
-    };
-    const result = classifyWatchlistUpdate(previous, {
-      accessible: true,
-      content: "A full redesign with new architecture.",
-      summary: "New",
-    });
-    expect(result.kind).toBe("changed");
-    if (result.kind === "changed") {
-      expect(result.previousFingerprint).toBe(previous.fingerprint);
-      expect(result.summary).toBe("New");
-    }
-  });
-});
-
-describe("applyWatchlistUpdates", () => {
-  let tempDir: string;
-
+describe("direct watchlist editing", () => {
+  let root: string;
   beforeEach(() => {
-    tempDir = mkdtempSync(join(tmpdir(), "watchlist-test-"));
+    root = mkdtempSync(join(tmpdir(), "watchlist-test-"));
+    mkdirSync(join(root, "data"));
   });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-  function seed(raw: string): void {
-    const path = join(tempDir, "data", "watchlist.yaml");
-    mkdirSync(join(tempDir, "data"), { recursive: true });
-    writeFileSync(path, raw, "utf-8");
+  async function validate(boundary: "repair" | "publication") {
+    const runCommand = createWorkflowCommandRunner({ cwd: root });
+    if (boundary === "publication") {
+      const [command, ...args] = explorerWorkflow.integration!.validationCommand;
+      await runCommand({ command, args });
+      return;
+    }
+    const bus = new EventBus();
+    const trigger = { event: "autonomy.queue.empty", schemaRef: null, payload: {} };
+    const ctx = createStepContext({
+      id: "watchlist-test", workflow: "explorer", definitionPath: "workflow.ts", trigger,
+      startedAt: new Date().toISOString(), status: "running", runDir: ".kota/runs/watchlist-test", steps: [],
+    }, trigger, undefined, {}, {}, [], {
+      workspaceRoot: root, scopeRoot: root, bus, pbus: new ScopedEventBus(bus, "test"),
+      store: new WorkflowRunStore(root), readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      runAgentHarness: unexpectedWorkflowAgentHarnessRun, runCommand,
+    });
+    const explore = explorerWorkflow.steps.find((step) => step.id === "explore");
+    if (explore?.type !== "agent" || !explore.repairLoop) throw new Error("Explorer repair checks missing");
+    for (const check of explore.repairLoop.checks) {
+      if (check.type !== "code") throw new Error("Expected objective validation");
+      await check.run(ctx, {
+        id: explore.id, type: "agent", harness: "test", moduleRoot: root,
+        promptPath: "prompt.md", model: "test", effort: "high", autonomyMode: "autonomous",
+      });
+    }
   }
 
-  it("preserves YAML values and comments through repeated saves and a single-source update", () => {
-    seed(String.raw`# Operator header
-
-resources:
-  # Quoted source evidence
-  - url: https://example.com/quoted # source identity
-    added: 2026-04-14
-    canonicalized_from: ['https://old.example.com/quoted']
-    notes: 'Owner''s C:\work\n is literal' # operator note
-    status: inaccessible
-    snapshot:
-      fingerprint: sha256:quoted
-      summary: "Links \"Scenarios\" and C:\\work; line\nnext\tcolumn" # evidence note
-      last_seen_at: 2026-04-17T10:00:00.000Z
-  - url: https://example.com/multiline
-    added: '2026-04-15'
-    notes: >-
-      Folded owner text
-      with a second line.
-    snapshot:
-      fingerprint: sha256:multiline
-      summary: |
-        A multiline observation:
-          "quoted" with literal \n and C:\work
-        Final line.
-      last_seen_at: "2026-04-17T10:00:00.000Z"
-  - url: https://example.com/update
-    added: 2026-04-16
-# Footer
-`);
-    const before = readWatchlist(tempDir);
-    expect(before.entries[0].notes).toBe(String.raw`Owner's C:\work\n is literal`);
-    expect(before.entries[0].snapshot?.summary).toBe('Links "Scenarios" and C:\\work; line\nnext\tcolumn');
-    expect(before.entries[1].snapshot?.summary).toBe('A multiline observation:\n  "quoted" with literal \\n and C:\\work\nFinal line.\n');
-    for (let cycle = 0; cycle < 5; cycle++) {
-      writeWatchlist(tempDir, readWatchlist(tempDir));
-      expect(readWatchlist(tempDir)).toEqual(before);
-    }
-    const content = "Current source content.";
-    const payload = { updates: [{ url: "https://example.com/update", accessible: true as const, content, summary: 'New "quoted" summary.\nNext line.' }] };
-    const first = applyWatchlistUpdates(tempDir, payload);
-    expect(first[0].classification).toBe("new");
-    const second = applyWatchlistUpdates(tempDir, payload);
-    expect(second[0].classification).toBe("unchanged");
-    const after = readWatchlist(tempDir);
-    expect(after.entries.slice(0, 2)).toEqual(before.entries.slice(0, 2));
-    expect(after.header).toBe(before.header);
-    const saved = readFileSync(join(tempDir, "data/watchlist.yaml"), "utf8");
-    for (const comment of ["# Operator header", "# Quoted source evidence", "# source identity", "# operator note", "# evidence note", "# Footer"]) {
-      expect(saved).toContain(comment);
-    }
-    expect(parseWatchlist(serializeWatchlist(after))).toEqual(after);
-  });
-
-  it("leaves invalid input intact when an update cannot be decoded", () => {
-    const raw = "resources: [{url: https://example.com, added: 123}]\n";
-    seed(raw);
-    expect(() => applyWatchlistUpdates(tempDir, { updates: [] })).toThrow(/resources\.0\.added/);
-    expect(readFileSync(join(tempDir, "data/watchlist.yaml"), "utf8")).toBe(raw);
-  });
-
-  it("writes a snapshot for a newly-seen entry", () => {
-    seed(
-      [
-        "resources:",
-        "  - url: https://example.com/a",
-        '    added: "2026-04-14"',
-        "",
-      ].join("\n"),
-    );
-
-    const results = applyWatchlistUpdates(
-      tempDir,
-      {
-        updates: [
-          {
-            url: "https://example.com/a",
-            accessible: true,
-            content: "First view.",
-            summary: "First summary.",
-          },
-        ],
-      },
-      { now: () => "2026-04-17T00:00:00.000Z" },
-    );
-
-    expect(results).toEqual([
-      { url: "https://example.com/a", classification: "new" },
-    ]);
-    const after = readWatchlist(tempDir);
-    expect(after.entries[0].snapshot).toEqual({
-      fingerprint: expect.stringMatching(/^sha256:/),
-      summary: "First summary.",
-      last_seen_at: "2026-04-17T00:00:00.000Z",
-    });
-  });
-
-  it("marks inaccessible entries with status: inaccessible", () => {
-    seed(
-      [
-        "resources:",
-        "  - url: https://example.com/a",
-        '    added: "2026-04-14"',
-        "",
-      ].join("\n"),
-    );
-
-    const results = applyWatchlistUpdates(tempDir, {
-      updates: [{ url: "https://example.com/a", accessible: false }],
-    });
-
-    expect(results[0].classification).toBe("inaccessible");
-    const after = readWatchlist(tempDir);
-    expect(after.entries[0].status).toBe("inaccessible");
-    expect(after.entries[0].snapshot).toBeUndefined();
-  });
-
-  it("clears inaccessible status when an entry becomes reachable again", () => {
-    seed(
-      [
-        "resources:",
-        "  - url: https://example.com/a",
-        '    added: "2026-04-14"',
-        "    status: inaccessible",
-        "",
-      ].join("\n"),
-    );
-
-    applyWatchlistUpdates(
-      tempDir,
-      {
-        updates: [
-          {
-            url: "https://example.com/a",
-            accessible: true,
-            content: "Back online.",
-            summary: "Reachable again.",
-          },
-        ],
-      },
-      { now: () => "2026-04-17T00:00:00.000Z" },
-    );
-
-    const after = readWatchlist(tempDir);
-    expect(after.entries[0].status).toBeUndefined();
-    expect(after.entries[0].snapshot?.summary).toBe("Reachable again.");
-  });
-
-  it("refreshes last_seen_at but not fingerprint when unchanged", () => {
-    const content = "Steady content.";
-    const normalized = normalizeWatchlistContent(content);
-    const fingerprint = computeWatchlistFingerprint(normalized);
-
-    writeWatchlist(tempDir, {
-      header: "",
-      entries: [
-        {
-          url: "https://example.com/a",
-          added: "2026-04-14",
-          snapshot: {
-            fingerprint,
-            summary: "Old summary.",
-            last_seen_at: "2026-04-16T00:00:00.000Z",
-          },
-        },
-      ],
-    });
-
-    applyWatchlistUpdates(
-      tempDir,
-      {
-        updates: [
-          {
-            url: "https://example.com/a",
-            accessible: true,
-            content,
-            summary: "New summary — ignored on unchanged.",
-          },
-        ],
-      },
-      { now: () => "2026-04-17T00:00:00.000Z" },
-    );
-
-    const after = readWatchlist(tempDir);
-    expect(after.entries[0].snapshot).toEqual({
-      fingerprint,
-      summary: "Old summary.",
-      last_seen_at: "2026-04-17T00:00:00.000Z",
-    });
-  });
-
-  it("canonicalizes a redirect-only repository entry to a new target", () => {
-    const content = "Pi repository content at the current canonical URL.";
-    const oldAliasFingerprint = computeWatchlistFingerprint(
-      normalizeWatchlistContent(content),
-    );
-    seed(
-      [
-        "resources:",
-        "  - url: https://github.com/badlogic/pi-mono",
-        '    added: "2026-04-14"',
-        "    snapshot:",
-        `      fingerprint: ${oldAliasFingerprint}`,
-        '      summary: "Old Pi alias."',
-        '      last_seen_at: "2026-05-01T00:00:00.000Z"',
-        "",
-      ].join("\n"),
-    );
-
-    const results = applyWatchlistUpdates(
-      tempDir,
-      {
-        updates: [
-          {
-            url: "https://github.com/badlogic/pi-mono",
-            canonicalUrl: "https://github.com/earendil-works/pi",
-            accessible: true,
-            content,
-            summary: "Pi repository under its current canonical URL.",
-          },
-        ],
-      },
-      { now: () => "2026-05-27T12:00:00.000Z" },
-    );
-
-    expect(results).toEqual([
-      {
-        url: "https://github.com/badlogic/pi-mono",
-        classification: "canonicalized",
-        canonicalUrl: "https://github.com/earendil-works/pi",
-      },
-    ]);
-    const after = readWatchlist(tempDir);
-    expect(after.entries).toHaveLength(1);
-    expect(after.entries[0]).toMatchObject({
-      url: "https://github.com/earendil-works/pi",
-      added: "2026-04-14",
-      canonicalizedFrom: ["https://github.com/badlogic/pi-mono"],
-      snapshot: {
-        fingerprint: expect.stringMatching(/^sha256:/),
-        summary: "Pi repository under its current canonical URL.",
-        last_seen_at: "2026-05-27T12:00:00.000Z",
-      },
-    });
-    expect(after.entries[0].notes).toContain(
-      "Canonicalized from https://github.com/badlogic/pi-mono",
-    );
-  });
-
-  it("canonicalizes a moved-project pointer to an already tracked target", () => {
-    writeWatchlist(tempDir, {
-      header: "",
-      entries: [
-        {
-          url: "https://github.com/mannaandpoem/OpenManus",
-          added: "2026-04-19",
-          notes: "Old owner URL.",
-          snapshot: {
-            fingerprint: "sha256:pointer",
-            summary: "Moved to FoundationAgents/OpenManus.",
-            last_seen_at: "2026-05-26T00:00:00.000Z",
-          },
-        },
-        {
-          url: "https://github.com/FoundationAgents/OpenManus",
-          added: "2026-04-20",
-          snapshot: {
-            fingerprint: "sha256:canonical",
-            summary: "Canonical OpenManus project.",
-            last_seen_at: "2026-05-18T00:00:00.000Z",
-          },
-        },
-      ],
-    });
-
-    applyWatchlistUpdates(
-      tempDir,
-      {
-        updates: [
-          {
-            url: "https://github.com/mannaandpoem/OpenManus",
-            canonicalUrl: "https://github.com/FoundationAgents/OpenManus",
-            accessible: true,
-            content: "This project has moved to FoundationAgents/OpenManus.",
-            summary: "Moved-project pointer.",
-          },
-        ],
-      },
-      { now: () => "2026-05-27T12:00:00.000Z" },
-    );
-
-    const after = readWatchlist(tempDir);
-    expect(after.entries.map((entry) => entry.url)).toEqual([
-      "https://github.com/FoundationAgents/OpenManus",
-    ]);
-    expect(after.entries[0]).toMatchObject({
-      canonicalizedFrom: ["https://github.com/mannaandpoem/OpenManus"],
-      notes: expect.stringContaining("Old owner URL."),
-      snapshot: {
-        fingerprint: "sha256:canonical",
-        summary: "Canonical OpenManus project.",
-        last_seen_at: "2026-05-18T00:00:00.000Z",
-      },
-    });
-  });
-
-  it("removes duplicate entries when a redirect target is already tracked", () => {
-    writeWatchlist(tempDir, {
-      header: "",
-      entries: [
-        {
-          url: "https://github.com/block/goose",
-          added: "2026-04-19",
-        },
-        {
-          url: "https://github.com/aaif-goose/goose",
-          added: "2026-05-01",
-          canonicalizedFrom: ["https://old.example.com/goose"],
-          snapshot: {
-            fingerprint: "sha256:goose",
-            summary: "Canonical goose project.",
-            last_seen_at: "2026-05-20T00:00:00.000Z",
-          },
-        },
-      ],
-    });
-
-    applyWatchlistUpdates(
-      tempDir,
-      {
-        updates: [
-          {
-            url: "https://github.com/block/goose",
-            canonicalUrl: "https://github.com/aaif-goose/goose",
-            accessible: true,
-            content: "Goose repository content.",
-            summary: "Goose moved to AAIF.",
-          },
-        ],
-      },
-      { now: () => "2026-05-27T12:00:00.000Z" },
-    );
-
-    const after = readWatchlist(tempDir);
-    expect(after.entries.map((entry) => entry.url)).toEqual([
-      "https://github.com/aaif-goose/goose",
-    ]);
-    expect(after.entries[0].canonicalizedFrom).toEqual([
-      "https://old.example.com/goose",
-      "https://github.com/block/goose",
-    ]);
-  });
-
-  it("skips unknown URLs without mutating the rest of the file", () => {
-    const original = [
+  it.each(["repair", "publication"] as const)("validates completed files without rewriting them at %s", async (boundary) => {
+    await validate(boundary);
+    const path = join(root, "data/watchlist.yaml");
+    const invalid = "resources: [{url: https://example.com, added: 123}]\n";
+    writeFileSync(path, invalid);
+    await expect(validate(boundary)).rejects.toThrow(/resources\.0\.added/);
+    expect(readFileSync(path, "utf8")).toBe(invalid);
+    const edited = [
+      "# Operator header",
       "resources:",
-      "  - url: https://example.com/a",
-      '    added: "2026-04-14"',
+      "  - url: https://example.com/current # source identity",
+      "    added: &added 2026-04-14",
+      "    canonicalized_from: ['https://example.com/old']",
+      "    notes: 'Owner''s C:\\work\\n is literal' # operator note",
+      "    status: inaccessible",
+      "    snapshot:",
+      '      fingerprint: "123"',
+      "      summary: |",
+      '        A "quoted" observation with literal \\n and C:\\work.',
+      "        Second line.",
+      "      last_seen_at: 2026-04-17T10:00:00.000Z",
+      "  - url: https://example.com/another",
+      "    added: *added",
+      "# Footer",
       "",
     ].join("\n");
-    seed(original);
-
-    const results = applyWatchlistUpdates(tempDir, {
-      updates: [{ url: "https://other.example.com", accessible: false }],
+    writeFileSync(path, edited);
+    await validate(boundary);
+    expect(readFileSync(path, "utf8")).toBe(edited);
+    expect(readWatchlist(root).entries[0]).toMatchObject({
+      canonicalizedFrom: ["https://example.com/old"],
+      status: "inaccessible",
+      notes: "Owner's C:\\work\\n is literal",
+      snapshot: { fingerprint: "123", summary: 'A "quoted" observation with literal \\n and C:\\work.\nSecond line.\n' },
     });
-
-    expect(results[0].skipped).toBe("unknown-url");
-    const after = readFileSync(
-      join(tempDir, "data", "watchlist.yaml"),
-      "utf-8",
-    );
-    // Should reserialize cleanly but preserve entries.
-    expect(after).toContain("https://example.com/a");
-    expect(after).not.toContain("https://other.example.com");
-  });
-});
-
-describe("readWatchlistUpdatesFromRun", () => {
-  it("returns null when the file is absent", () => {
-    const runDir = mkdtempSync(join(tmpdir(), "watchlist-run-"));
-    expect(readWatchlistUpdatesFromRun(runDir)).toBeNull();
-  });
-
-  it("parses a valid updates file", () => {
-    const runDir = mkdtempSync(join(tmpdir(), "watchlist-run-"));
-    writeFileSync(
-      join(runDir, "watchlist-updates.json"),
-      JSON.stringify({
-        updates: [
-          {
-            url: "https://example.com/a",
-            accessible: true,
-            content: "x",
-            summary: "y",
-          },
-        ],
-      }),
-      "utf-8",
-    );
-    const payload = readWatchlistUpdatesFromRun(runDir);
-    expect(payload?.updates).toHaveLength(1);
-    expect(payload?.updates[0]).toMatchObject({
-      url: "https://example.com/a",
-      accessible: true,
+    expect(readWatchlist(root).entries[1]).toEqual({
+      url: "https://example.com/another", added: "2026-04-14",
     });
-  });
-
-  it("rejects an accessible update missing content", () => {
-    const runDir = mkdtempSync(join(tmpdir(), "watchlist-run-"));
-    writeFileSync(
-      join(runDir, "watchlist-updates.json"),
-      JSON.stringify({
-        updates: [
-          { url: "https://example.com/a", accessible: true, summary: "y" },
-        ],
-      }),
-      "utf-8",
-    );
-    expect(() => readWatchlistUpdatesFromRun(runDir)).toThrow(/missing content/);
+    writeFileSync(path, "resources: []\n");
+    await validate(boundary);
+    expect(readWatchlist(root).entries).toEqual([]);
+    mkdirSync(join(root, "data/tasks"));
+    writeFileSync(join(root, "data/tasks/task-invalid.md"), "---\nstatus: invalid\n---\n# Invalid task\n");
+    await expect(validate(boundary)).rejects.toThrow(/task-status-invalid/);
+    expect(readFileSync(path, "utf8")).toBe("resources: []\n");
   });
 });

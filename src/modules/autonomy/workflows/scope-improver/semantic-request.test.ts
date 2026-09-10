@@ -27,7 +27,7 @@ describe("scope improvement onboarding workflow", () => {
     const workspaceRoot = makeScopeFixture("production-onboarding");
     scopeRoots.push(workspaceRoot);
     const scopeId = deriveDirectoryScopeId(workspaceRoot);
-    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), scopeId);
     const options = {
       workspaceRoot,
       trigger: {

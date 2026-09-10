@@ -118,6 +118,10 @@ export async function handleTaskCreateNormalized(
     jsonResponse(res, 400, { error: "title is required" });
     return;
   }
+  if (typeof body.body !== "string" || body.body.trim() === "") {
+    jsonResponse(res, 400, { reason: "invalid_body", error: "A complete task body is required" });
+    return;
+  }
   const priority =
     typeof body.priority === "string" && isRepoTaskPriority(body.priority)
       ? body.priority
@@ -142,6 +146,7 @@ export async function handleTaskCreateNormalized(
 
   const options: RepoTaskCreateOptions = {
     title: body.title,
+    body: body.body,
     priority,
     state,
   };

@@ -1,4 +1,5 @@
 import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { getRunStateReader, type RunStateReader } from "#core/workflow/run-state-reader-provider.js";
 import { readAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import { loadRecentRuns, type RunSummary } from "#modules/autonomy/shared.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
@@ -29,8 +30,8 @@ export type RenderedAttention = {
 export const NO_ATTENTION_ITEMS_TEXT = "No attention items right now.";
 
 export type AttentionDigestStepInput = {
-  workspaceRoot: string;
-  stateDir: string;
+  scopeRoot: string;
+  runtimeStateDir: string;
   runsDir: string;
   count: number;
 };
@@ -89,6 +90,7 @@ function builderWarningsCheck(recentRuns: RunSummary[]): AttentionItem | null {
 function detectAttentionItems(
   workspaceRoot: string,
   recentRuns: RunSummary[],
+  issueState: string | RunStateReader,
 ): AttentionItem[] {
   const items: AttentionItem[] = [];
 
@@ -103,7 +105,7 @@ function detectAttentionItems(
   const warningsItem = builderWarningsCheck(recentRuns);
   if (warningsItem) items.push(warningsItem);
 
-  for (const issue of readAutonomyIssueProjection(workspaceRoot).issues) {
+  for (const issue of readAutonomyIssueProjection(workspaceRoot, issueState).issues) {
     if (issue.status === "resolved" || issue.disposition.kind !== "attention") {
       continue;
     }
@@ -149,9 +151,14 @@ export function renderOnDemandAttention(opts: {
   scopeRoot: string;
   runsDir: string;
   authority: WorkflowRunDurableAuthority;
+  issueState?: string | RunStateReader;
 }): RenderedAttention {
   const recentRuns = loadRecentRuns(opts.runsDir, opts.authority);
-  const items = detectAttentionItems(opts.scopeRoot, recentRuns);
+  const issueState = opts.issueState ?? (
+    "stateDir" in opts.authority ? opts.authority.stateDir : getRunStateReader()
+  );
+  if (issueState === null) throw new Error("Autonomy issue state authority unavailable");
+  const items = detectAttentionItems(opts.scopeRoot, recentRuns, issueState);
   const text =
     items.length === 0 ? NO_ATTENTION_ITEMS_TEXT : buildDigestText(items);
   return { items, text };
@@ -170,9 +177,9 @@ export function inspectAttentionDigestStep(
   if (input.count % DIGEST_EVERY_N_RUNS !== 0) return {};
 
   const { items, text } = renderOnDemandAttention({
-    scopeRoot: input.workspaceRoot,
+    scopeRoot: input.scopeRoot,
     runsDir: input.runsDir,
-    authority: { stateDir: input.stateDir, scopeRoot: input.workspaceRoot },
+    authority: { stateDir: input.runtimeStateDir, scopeRoot: input.scopeRoot },
   });
   if (items.length === 0) return {};
 

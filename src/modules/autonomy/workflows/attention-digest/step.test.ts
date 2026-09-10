@@ -8,18 +8,29 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ScopedEventBus } from "#core/events/scope.js";
+import { runWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import type { RunContext } from "#core/workflow/run-context.js";
+import { WorkflowRunStore } from "#core/workflow/run-store.js";
+import { createStepContext } from "#core/workflow/steps/step-context.js";
+import { unexpectedWorkflowAgentHarnessRun } from "#core/workflow/testing/agent-harness-runner.js";
+import { createTestRunContext } from "#core/workflow/testing/run-context-fixture.js";
+import { readEmptyTestWorkflowRuntimeState } from "#core/workflow/testing/runtime-state.js";
 import {
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
   emptyAutonomyIssueProjection,
-  materializeAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { seedAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.test-helpers.js";
 import {
+  ATTENTION_DIGEST_COUNTER_STATE_KEY,
   inspectAttentionDigestStep,
   NO_ATTENTION_ITEMS_TEXT,
   renderOnDemandAttention,
 } from "./step.js";
+import attentionWorkflow from "./workflow.js";
 
 function makeTaskDir(workspaceRoot: string, state: string, count: number): void {
   const dir = state === "done" || state === "dropped"
@@ -114,7 +125,7 @@ describe("attention digest inspection", () => {
 
   function runSteps(n: number): void {
     for (let count = 1; count <= n; count += 1) {
-      const result = inspectAttentionDigestStep({ workspaceRoot, stateDir, runsDir, count });
+      const result = inspectAttentionDigestStep({ scopeRoot: workspaceRoot, runtimeStateDir: stateDir, runsDir, count });
       if (result.event) emit(result.event.name, result.event.payload);
     }
   }
@@ -130,7 +141,7 @@ describe("attention digest inspection", () => {
     expect(emittedEvents).toHaveLength(0);
   });
 
-  it("surfaces a durable exhausted-investigation attention disposition", () => {
+  it("reads hosted authority from the canonical scope while retaining scope-local run evidence", async () => {
     makeTaskDir(workspaceRoot, "open", 1);
     const observed = applyAutonomyIssueObservations({
       current: emptyAutonomyIssueProjection(),
@@ -148,8 +159,8 @@ describe("attention digest inspection", () => {
         observationCount: 1,
       })],
     }).projection;
-    materializeAutonomyIssueProjection(
-      workspaceRoot,
+    const runtimeStateDir = join(workspaceRoot, "daemon-state");
+    seedAutonomyIssueProjection(workspaceRoot, runtimeStateDir,
       recordAutonomyIssueDispositions({
         current: observed,
         updates: [{
@@ -163,11 +174,37 @@ describe("attention digest inspection", () => {
       }),
     );
 
-    runSteps(10);
+    for (let i = 0; i < 3; i++) {
+      writeRunMetadata(runsDir, `failed-${i}`, "builder", "failed");
+    }
+    const sandbox = join(workspaceRoot, "isolated-workspace");
+    mkdirSync(sandbox);
+    const runContext: RunContext = {
+      ...createTestRunContext(workspaceRoot),
+      runtimeStateDir,
+      publications: { stageEmit: (_stepId, event, payload) => emit(event, payload) },
+    };
+    runContext.state.compareAndSet(ATTENTION_DIGEST_COUNTER_STATE_KEY, 0, { count: 9 });
+    const bus = new EventBus();
+    const ctx = createStepContext({
+      id: "attention-hosted", workflow: "attention-digest", definitionPath: "workflow.ts",
+      trigger: runContext.trigger, startedAt: new Date().toISOString(), status: "running",
+      runDir: ".kota/runs/attention-hosted", steps: [],
+    }, runContext.trigger, undefined, {}, {}, [], {
+      workspaceRoot: sandbox, scopeRoot: workspaceRoot, bus,
+      pbus: new ScopedEventBus(bus, "test-scope"), store: new WorkflowRunStore(workspaceRoot),
+      runContext, readRuntimeState: readEmptyTestWorkflowRuntimeState,
+      runAgentHarness: unexpectedWorkflowAgentHarnessRun,
+    });
+    const step = attentionWorkflow.steps[0]!;
+    if (step.type !== "code") throw new Error("Expected attention code step");
+    await step.run({ ...ctx, runBlocking: runWorkflowBlockingOperation });
     expect(emittedEvents[0]?.payload.text).toContain(
       "Autonomy investigation blocked",
     );
     expect(emittedEvents[0]?.payload.text).toContain(observed.issues[0]!.issueKey);
+    expect(emittedEvents[0]?.payload.text).toContain("Builder failure streak");
+    expect(emittedEvents[0]?.payload.text).not.toContain("Empty task queue");
   });
 
   it("emits workflow.attention.digest at exactly 10 invocations when builder failure streak >= 3", () => {
@@ -243,7 +280,7 @@ describe("attention digest inspection", () => {
   });
 
   it("emits digest without emit callback (no-op, no throw)", () => {
-    inspectAttentionDigestStep({ workspaceRoot, stateDir, runsDir, count: 10 });
+    inspectAttentionDigestStep({ scopeRoot: workspaceRoot, runtimeStateDir: stateDir, runsDir, count: 10 });
     expect(emittedEvents).toHaveLength(0);
   });
 

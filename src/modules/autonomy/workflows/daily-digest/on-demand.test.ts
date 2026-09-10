@@ -4,11 +4,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initEventBus, resetEventBus } from "#core/events/event-bus.js";
-import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
-import type { DurableEffectValue } from "#core/workflow/run-context.js";
-import { RUN_STATE_READER_PROVIDER_TYPE } from "#core/workflow/run-state-reader-provider.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { digestStateFromCounts, type QueueCounts } from "./aggregate.js";
-import { renderOnDemandDigest } from "./on-demand.js";
+import { DAILY_DIGEST_STATE_KEY, renderOnDemandDigest } from "./on-demand.js";
 
 
 
@@ -32,7 +30,6 @@ describe("renderOnDemandDigest", () => {
   afterEach(() => {
     unsubscribe?.();
     resetEventBus();
-    resetProviderRegistry();
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
@@ -42,13 +39,14 @@ describe("renderOnDemandDigest", () => {
       counts,
       Date.parse("2026-04-25T08:00:00.000Z"),
     );
-    initProviderRegistry().register(RUN_STATE_READER_PROVIDER_TYPE, "test", {
-      getScopeIdByRootPath: (rootPath) => rootPath === workspaceRoot ? scopeId : null,
-      readScopeStateValue: <T extends DurableEffectValue>() => ({
-        revision: 1,
-        value: value as unknown as T,
-      }),
-    });
+    const database = new RunStateDatabase(join(workspaceRoot, ".kota"));
+    try {
+      const updatedAt = new Date().toISOString();
+      database.registerScope({ id: scopeId, rootPath: workspaceRoot, createdAt: updatedAt });
+      database.compareAndSetScopeStateValue({ scopeId, key: DAILY_DIGEST_STATE_KEY, expectedRevision: 0, value, updatedAt });
+    } finally {
+      database.close();
+    }
   }
 
   it("returns the rendered digest body without creating cadence state", () => {

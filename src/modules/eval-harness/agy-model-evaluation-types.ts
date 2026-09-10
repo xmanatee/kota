@@ -83,12 +83,6 @@ export const AGY_MODEL_EVALUATION_SCENARIOS:
           sourceRoot: "fixture-initial-state",
           sourcePath: "AGENTS.md",
         },
-        {
-          kind: "required-command",
-          command: "pnpm run finish-task",
-          sourceRoot: "fixture-initial-state",
-          sourcePath: "AGENTS.md",
-        },
       ]),
     },
     {
@@ -104,12 +98,6 @@ export const AGY_MODEL_EVALUATION_SCENARIOS:
           sourcePath:
             "data/tasks/task-cover-cart-pricing-rules.md",
         },
-        {
-          kind: "required-command",
-          command: "pnpm kota task move task-cover-cart-pricing-rules done",
-          sourceRoot: "fixture-initial-state",
-          sourcePath: "AGENTS.md",
-        },
       ]),
     },
     {
@@ -124,13 +112,6 @@ export const AGY_MODEL_EVALUATION_SCENARIOS:
           sourceRoot: "fixture-initial-state",
           sourcePath:
             "data/tasks/task-fix-cross-hierarchy-signal-routing.md",
-        },
-        {
-          kind: "required-command",
-          command:
-            "pnpm kota task move task-fix-cross-hierarchy-signal-routing done",
-          sourceRoot: "fixture-initial-state",
-          sourcePath: "AGENTS.md",
         },
       ]),
     },

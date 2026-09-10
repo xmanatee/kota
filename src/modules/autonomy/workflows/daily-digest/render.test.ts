@@ -47,7 +47,7 @@ describe("renderDailyDigest", () => {
         },
       ],
       explorerAdditions: [
-        { runId: "run-explorer-a", taskCount: 2, watchlistAdds: 1 },
+        { runId: "run-explorer-a", taskCount: 2, watchlistUpdated: true },
       ],
       decomposerSplits: [
         {
@@ -97,7 +97,9 @@ describe("renderDailyDigest", () => {
     expect(text).toContain("Builder commits (1, 1m total)");
     expect(text).toContain("task-foo");
     expect(text).toContain("Add foo");
-    expect(text).toContain("Explorer additions");
+    expect(text).toContain("Explorer updates");
+    expect(text).toContain("run-explorer-a: 2 task files changed, watchlist updated");
+    expect(text).not.toContain("watchlist add");
     expect(text).toContain("Decomposer splits (1)");
     expect(text).toContain("task-big → 3 child tasks");
     expect(text).toContain("Blocked-promoter moves (2 tasks promoted across 1 run)");

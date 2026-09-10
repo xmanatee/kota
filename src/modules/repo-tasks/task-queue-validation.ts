@@ -1,15 +1,15 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import {
   findFlatFrontMatterSeparator,
   parseFlatFrontMatter,
   splitFrontMatter,
 } from "#core/util/frontmatter.js";
+import { type RepositoryTextTree, readWorkingTextTree } from "#core/util/repository-tree.js";
 import { parseBlockedPrecondition } from "./blocked-precondition.js";
 import {
-  getRepoTaskArchiveDir,
-  getRepoTasksDir,
+  REPO_TASK_ARCHIVE_DIR,
   REPO_TASK_STATES,
+  REPO_TASKS_DIR,
   type RepoTaskState,
 } from "./repo-tasks-domain.js";
 import {
@@ -41,13 +41,24 @@ type TaskFileEntry = {
   raw: string;
 };
 
-function scanContainer(repoRoot: string, directory: string, archived: boolean) {
+function scanContainer(repoRoot: string, tree: RepositoryTextTree, directory: string, archived: boolean) {
   const entries: TaskFileEntry[] = [];
   const findings: TaskQueueValidationFinding[] = [];
-  if (!existsSync(directory)) return { entries, findings };
-  for (const dirent of readdirSync(directory, { withFileTypes: true })) {
-    if (dirent.name === "AGENTS.md" || (!archived && dirent.name === "archive")) continue;
-    const path = join(directory, dirent.name);
+  let children: ReturnType<RepositoryTextTree["list"]>;
+  try {
+    children = tree.list(directory);
+  } catch (error) {
+    findings.push(finding("task-path-unsafe", String(error), join(repoRoot, directory)));
+    return { entries, findings };
+  }
+  for (const dirent of children) {
+    if (dirent.name === "AGENTS.md" && dirent.kind === "file") continue;
+    if (!archived && dirent.name === "archive" && dirent.kind === "directory") continue;
+    const path = join(repoRoot, directory, dirent.name);
+    if (dirent.kind === "unsafe") {
+      findings.push(finding("task-path-unsafe", `${relative(repoRoot, path)} must be a regular task file`, path));
+      continue;
+    }
     if (!dirent.name.endsWith(".md")) {
       findings.push({
         code: "task-layout-invalid",
@@ -57,7 +68,7 @@ function scanContainer(repoRoot: string, directory: string, archived: boolean) {
       });
       continue;
     }
-    if (!dirent.isFile()) {
+    if (dirent.kind !== "file") {
       findings.push({
         code: "task-path-unsafe",
         severity: "error",
@@ -66,19 +77,18 @@ function scanContainer(repoRoot: string, directory: string, archived: boolean) {
       });
       continue;
     }
-    entries.push({
-      archived,
-      path,
-      taskId: basename(dirent.name, ".md"),
-      raw: readFileSync(path, "utf8"),
-    });
+    try {
+      entries.push({ archived, path, taskId: basename(dirent.name, ".md"), raw: tree.read(`${directory}/${dirent.name}`) });
+    } catch (error) {
+      findings.push(finding("task-path-unsafe", String(error), path));
+    }
   }
   return { entries, findings };
 }
 
-function listTaskEntries(repoRoot: string) {
-  const active = scanContainer(repoRoot, getRepoTasksDir(repoRoot), false);
-  const archive = scanContainer(repoRoot, getRepoTaskArchiveDir(repoRoot), true);
+function listTaskEntries(repoRoot: string, tree: RepositoryTextTree) {
+  const active = scanContainer(repoRoot, tree, REPO_TASKS_DIR, false);
+  const archive = scanContainer(repoRoot, tree, REPO_TASK_ARCHIVE_DIR, true);
   return {
     entries: [...active.entries, ...archive.entries],
     findings: [...active.findings, ...archive.findings],
@@ -143,8 +153,36 @@ function finding(code: string, message: string, path?: string): TaskQueueValidat
   return { code, severity: "error", message, ...(path ? { paths: [path] } : {}) };
 }
 
-export function validateTaskQueue(repoRoot: string): TaskQueueValidationResult {
-  const scan = listTaskEntries(repoRoot);
+const DEFAULT_INTENT_PLACEHOLDERS = new Set([
+  "Describe the problem and why it matters.",
+  "Describe the observable outcome, without prescribing an implementation.",
+  "Name only constraints that materially limit a valid solution.",
+  "Describe the behavior or observation that will make completion credible.",
+]);
+
+/** Validate complete submitted Markdown using the same body rules as publication. */
+export function validateTaskBody(body: string, state: RepoTaskState): TaskQueueValidationFinding[] {
+  const findings: TaskQueueValidationFinding[] = [];
+  if (!/^#\s+\S[^\n]*$/m.test(body) || !body.trimStart().startsWith("# ")) {
+    findings.push(finding("task-title-missing", "must begin its body with one H1 title"));
+  }
+  if (state === "done" || state === "dropped") return findings;
+  const intentLines = body.replace(/<!--[\s\S]*?(?:-->|$)/g, "").trimStart().split(/\r?\n/).slice(1)
+    .map((line) => line.trim()).filter((line) => line && !/^#{1,6}\s/.test(line));
+  if (intentLines.length === 0) {
+    findings.push(finding("task-intent-empty", "must contain authored intent beyond its title"));
+  }
+  if (intentLines.some((line) => DEFAULT_INTENT_PLACEHOLDERS.has(line))) {
+    findings.push(finding("task-intent-placeholder", "contains unchanged default intent text"));
+  }
+  return findings;
+}
+
+export function validateTaskQueue(
+  repoRoot: string,
+  tree: RepositoryTextTree = readWorkingTextTree(repoRoot),
+): TaskQueueValidationResult {
+  const scan = listTaskEntries(repoRoot, tree);
   const counts = Object.fromEntries(REPO_TASK_STATES.map((state) => [state, 0])) as Record<RepoTaskState, number>;
   const findings = [...scan.findings];
   const stateByTaskId = new Map<string, RepoTaskState>();
@@ -180,9 +218,11 @@ export function validateTaskQueue(repoRoot: string): TaskQueueValidationResult {
     for (const key of Object.keys(attrs)) {
       if (!allowed.has(key)) findings.push(finding("task-attr-unnecessary", `${relative(repoRoot, entry.path)} has unnecessary frontmatter field: ${key}`, entry.path));
     }
-    if (!/^#\s+\S[^\n]*$/m.test(body) || !body.trimStart().startsWith("# ")) {
-      findings.push(finding("task-title-missing", `${relative(repoRoot, entry.path)} must begin its body with one H1 title`, entry.path));
-    }
+    findings.push(...validateTaskBody(body, state).map((bodyFinding) => ({
+      ...bodyFinding,
+      message: `${relative(repoRoot, entry.path)} ${bodyFinding.message}`,
+      paths: [entry.path],
+    })));
 
     if (shouldBeArchived) {
       dependencyGraph.set(entry.taskId, []);
@@ -226,8 +266,8 @@ export function validateTaskQueue(repoRoot: string): TaskQueueValidationResult {
   };
 }
 
-export function assertTaskQueueValid(repoRoot: string): TaskQueueValidationResult {
-  const result = validateTaskQueue(repoRoot);
+export function assertTaskQueueValid(repoRoot: string, tree?: RepositoryTextTree): TaskQueueValidationResult {
+  const result = validateTaskQueue(repoRoot, tree);
   const errors = result.findings.filter(({ severity }) => severity === "error");
   if (errors.length) throw new Error(errors.map(({ code, message }) => `- [${code}] ${message}`).join("\n"));
   return result;

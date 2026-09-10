@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,6 +44,9 @@ export function cleanupTempDirs(): void {
 
 export function makeScopeRoot(label: string): string {
   const dir = makeTempDir(label);
+  execFileSync("git", ["init", "--quiet"], { cwd: dir });
+  execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com",
+    "commit", "--quiet", "--allow-empty", "-m", "Initialize evidence fixture"], { cwd: dir });
   for (const state of TASK_STATES) {
     const stateDir = join(dir, "data", "tasks", state);
     mkdirSync(stateDir, { recursive: true });
@@ -125,7 +129,7 @@ export function collectFromBatch(
   return collectProgressReviewEvidence({
     workspaceRoot,
     scopeRoot: workspaceRoot,
-    stateDir,
+    stateDir, runtimeStateDir: stateDir,
     eventJournal: options.eventJournal,
     trigger: {
       event: WORKFLOW_BATCH_FLUSH_EVENT,

@@ -128,7 +128,7 @@ describe("task state routes", () => {
 
     expect(result.status).toBe(500);
     expect(result.body).toMatchObject({
-      error: expect.stringMatching(/symbolic-link markdown entries are forbidden/),
+      error: expect.stringMatching(/symbolic-link file entries are forbidden/),
     });
     expect(readFileSync(outsidePath, "utf-8")).toBe(outsideContent);
     expect(lstatSync(sourcePath).isSymbolicLink()).toBe(true);

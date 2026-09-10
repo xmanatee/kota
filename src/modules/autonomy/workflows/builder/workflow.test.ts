@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   mkdtempSync,
@@ -50,6 +51,13 @@ function writeTask(root: string, state: string, marker = "initial"): void {
   );
 }
 
+function publish(root: string): void {
+  const git = (args: string[]) => execFileSync("git", args, { cwd: root, stdio: "pipe" });
+  git(["init", "--quiet"]);
+  git(["add", "data"]);
+  git(["-c", "user.name=KOTA Test", "-c", "user.email=kota@example.test", "-c", "core.hooksPath=/dev/null", "commit", "--no-gpg-sign", "-m", "Task intent"]);
+}
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -84,6 +92,7 @@ describe("targeted builder contract", () => {
     const workspace = project();
     writeTask(root, "open");
     writeTask(workspace, "open", "retained implementation notes");
+    publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
     const preflight = builderWorkflow.steps.find((step) => step.id === "inspect-target-task");
     if (!preflight || preflight.type !== "code") throw new Error("missing preflight");
@@ -95,6 +104,8 @@ describe("targeted builder contract", () => {
         inspectBuilderTaskTarget(input),
     } as never)).toMatchObject({ actionable: true });
     writeTask(root, "open", "changed");
+    expect(inspectBuilderTaskTarget({ workspaceRoot: root, payload })).toMatchObject({ actionable: true });
+    publish(root);
 
     expect(inspectBuilderTaskTarget({ workspaceRoot: root, payload })).toMatchObject({
       actionable: false,
@@ -108,6 +119,7 @@ describe("targeted builder contract", () => {
     const workspace = project();
     writeTask(root, "open");
     writeTask(workspace, "open", "retained notes");
+    publish(root);
     const payload = listBuilderTaskDispatches(root)[0]!;
     const invariant = builderWorkflow.integration?.postReconcile;
     if (!invariant) throw new Error("missing builder post-reconcile invariant");
@@ -163,6 +175,7 @@ describe("targeted builder contract", () => {
     persist();
     expect(invariant(input)).toMatchObject({ satisfied: false, reason: expect.stringContaining("must move targeted task") });
     writeTask(workspace, "blocked", "## Blocked on\nkind: operator-capture\npath: evidence\ndescription: Scoped execution proof unavailable");
+    publish(workspace);
     expect(invariant(input)).toEqual({ satisfied: true });
     metadata.steps[0] = { ...successfulBuild, status: "failed" };
     persist();
@@ -171,8 +184,11 @@ describe("targeted builder contract", () => {
     persist();
     rmSync(join(workspace, "data/tasks/task-target.md"));
     writeTask(workspace, "done");
+    publish(workspace);
     expect(invariant(input)).toEqual({ satisfied: true });
     writeTask(root, "open", "changed after admission");
+    expect(invariant(input)).toEqual({ satisfied: true });
+    publish(root);
     expect(invariant(input)).toMatchObject({
       satisfied: false,
       reason: expect.stringMatching(/no longer matches its admitted source contract/i),

@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,6 +9,7 @@ import { createTestTransactionalRunState } from "#core/workflow/testing/run-cont
 import {
   WorkflowScenarioDriver,
   type WorkflowScenarioOptions,
+  type WorkflowScenarioResult,
 } from "#core/workflow/testing/testing-api.js";
 import { stageGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
@@ -33,6 +34,10 @@ import { scopePolicySnapshotForTest } from "../scope-improver/scope-policy-test-
 import { decodeSecurityReviewState, SECURITY_REVIEW_STATE_KEY } from "../security-review/review-state.js";
 import dispatcherWorkflow from "./workflow.js";
 
+function dispatcherDecision(result: WorkflowScenarioResult): Record<string, unknown> {
+  return JSON.parse(readFileSync(join(result.runDirPath, "dispatcher-decision.json"), "utf8"));
+}
+
 function taskFixture(
   id: string,
   state: "open" | "blocked" | "done" | "dropped",
@@ -55,6 +60,9 @@ function taskFixture(
     "",
     `# ${id}`,
     "",
+    "Deliver the requested task outcome and verify the resulting behavior.",
+    "",
+    ...(state === "blocked" ? ["## Blocked on", "kind: operator-capture", "path: evidence", "description: Required operator evidence is unavailable", ""] : []),
     ...(options.resources
       ? [
           "## Resources",
@@ -163,7 +171,7 @@ describe("dispatcher workflow", () => {
         directoryRoot,
         scopePolicySnapshot.policy,
       );
-      const state = createTestTransactionalRunState(join(directoryRoot, ".kota", "test-state"));
+      const state = createTestTransactionalRunState(join(directoryRoot, ".kota", "test-state"), scopeId);
       state.compareAndSet(
         SCOPE_IMPROVEMENT_STATE_KEY,
         0,
@@ -218,7 +226,10 @@ describe("dispatcher workflow", () => {
       },
     }) });
     const taskId = listFullRepoTasks(workspaceRoot)[0]!.id;
-    if (taskState === "blocked") moveTaskById(workspaceRoot, taskId, "blocked");
+    if (taskState === "blocked") {
+      appendFileSync(join(workspaceRoot, "data/tasks", `${taskId}.md`), "\n\n## Blocked on\nkind: operator-capture\npath: evidence\ndescription: Required operator evidence is unavailable\n");
+      moveTaskById(workspaceRoot, taskId, "blocked");
+    }
     const runDir = join(workspaceRoot, ".kota", "runs", "counterevidence");
     mkdirSync(runDir, { recursive: true });
     writeFileSync(join(runDir, "progress-review.json"), JSON.stringify({
@@ -234,7 +245,7 @@ describe("dispatcher workflow", () => {
     });
     expect(pending.handoffs).toEqual([]);
     const accepted = pending.nextState.proposalObservations[0]!.pendingHandoff!;
-    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), deriveDirectoryScopeId(workspaceRoot));
     state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, 0, pending.nextState);
     const idle = () => runDispatcherScenario({
       trigger: { event: "runtime.idle", schemaRef: null, payload: {} }, ports: { state },
@@ -276,7 +287,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(2);
     expect(output.dispatchableCount).toBe(2);
     expect(
@@ -312,7 +323,7 @@ describe("dispatcher workflow", () => {
       }]),
     });
 
-    const output = result.steps["assess-and-dispatch"].output as {
+    const output = dispatcherDecision(result) as {
       actionableCount: number;
       builderTaskIds: string[];
     };
@@ -339,7 +350,7 @@ describe("dispatcher workflow", () => {
       }]),
     });
 
-    const output = result.steps["assess-and-dispatch"].output as {
+    const output = dispatcherDecision(result) as {
       actionableCount: number;
       builderTaskIds: string[];
     };
@@ -361,7 +372,7 @@ describe("dispatcher workflow", () => {
     );
 
     const result = await runDispatcherScenario();
-    const output = result.steps["assess-and-dispatch"].output as {
+    const output = dispatcherDecision(result) as {
       builderTaskIds: string[];
       scopeBoundary: { shouldEmit: boolean; reason: string };
     };
@@ -388,7 +399,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(1);
     expect(output.dependencyBlockedTasks).toEqual([
       {
@@ -414,7 +425,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(1);
     expect(output.dependencyBlockedTasks).toEqual([]);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);
@@ -424,7 +435,7 @@ describe("dispatcher workflow", () => {
     writeFileSync(join(workspaceRoot, "data", "inbox", "idea.md"), "Some idea\n");
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.inboxCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.inbox.available")).toBe(true);
   });
@@ -432,7 +443,7 @@ describe("dispatcher workflow", () => {
   it("emits autonomy.queue.empty when nothing to do", async () => {
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
     expect(output.dispatchableCount).toBe(0);
     expect(output.inboxCount).toBe(0);
@@ -471,7 +482,7 @@ describe("dispatcher workflow", () => {
         waitingOn: ["task-enabler"],
       },
     ];
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
     expect(output.dependencyBlockedTasks).toEqual(expect.arrayContaining(dependencyBlockedTasks));
     expect(output.dependencyBlockedTasks).toHaveLength(2);
@@ -489,7 +500,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(true);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(false);
@@ -504,7 +515,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(0);
     expect(output.researchRetryCandidateCount).toBe(1);
     expect(output.researchRetryAttemptableCount).toBe(1);
@@ -555,7 +566,7 @@ describe("dispatcher workflow", () => {
         { surface: "tool-execution", pathCount: 1 },
       ],
     });
-    const output = result.steps["assess-and-dispatch"].output as {
+    const output = dispatcherDecision(result) as {
       securityReviewDue: { due: boolean; reason: string };
     };
     expect(output.securityReviewDue).toMatchObject({
@@ -573,7 +584,7 @@ describe("dispatcher workflow", () => {
       workspaceRoot,
       scopePolicySnapshot.policy,
     );
-    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
+    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"), deriveDirectoryScopeId(workspaceRoot));
     state.compareAndSet(
       SCOPE_IMPROVEMENT_STATE_KEY,
       0,
@@ -608,7 +619,7 @@ describe("dispatcher workflow", () => {
         `scope-policy:${scopePolicySnapshot.policy.scopeId}`,
       ]),
     });
-    const firstOutput = first.steps["assess-and-dispatch"].output as {
+    const firstOutput = dispatcherDecision(first) as {
       scopeBoundary: { shouldEmit: boolean; fingerprint: string };
     };
     expect(firstOutput.scopeBoundary).toMatchObject({
@@ -625,7 +636,7 @@ describe("dispatcher workflow", () => {
         (event) => event.event === scopeImprovementChanged.name,
       ),
     ).toBe(false);
-    const secondOutput = second.steps["assess-and-dispatch"].output as {
+    const secondOutput = dispatcherDecision(second) as {
       scopeBoundary: { shouldEmit: boolean; reason: string };
     };
     expect(secondOutput.scopeBoundary.shouldEmit).toBe(false);
@@ -641,7 +652,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.researchRetryCandidateCount).toBe(1);
     expect(output.researchRetryAttemptableCount).toBe(0);
     expect(
@@ -662,7 +673,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.researchRetryCandidateCount).toBe(1);
     expect(output.researchRetryAttemptableCount).toBe(0);
     expect(
@@ -678,7 +689,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.thin")).toBe(true);
     expect(output.quiescent).toBe(false);
@@ -712,7 +723,7 @@ describe("dispatcher workflow", () => {
     );
     const result = await runDispatcherScenario();
 
-    const output = result.steps["assess-and-dispatch"].output as Record<string, unknown>;
+    const output = dispatcherDecision(result) as Record<string, unknown>;
     expect(output.actionableCount).toBe(1);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.empty")).toBe(false);
     expect(result.emitted.some((e) => e.event === "autonomy.queue.available")).toBe(true);

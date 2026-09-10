@@ -38,9 +38,9 @@ onboarding, cited systemic handoffs, and material durable guidance or policy cha
 - Scope improvement is proposal-only for product source. Use normal task
   creation or owner questions; builder implements accepted source changes.
 - Artifacts record the trigger, fingerprint, evidence, recommendations, actions,
-  and semantic consumption disposition. The staged
-  `scope-improvement-publication` `repository: none` follow-up updates the
-  domain watermark and owner-question queue after integration.
+  and semantic consumption disposition. The original run's success finalizer
+  updates the domain watermark and idempotent owner-question effects after
+  delegated repository work integrates.
 - A systemic handoff keeps its shared topic signature and goes through the
   same posture-aware proposal lifecycle as local guidance candidates. Record the
   handed-off evidence fingerprint with its topic disposition: unchanged evidence

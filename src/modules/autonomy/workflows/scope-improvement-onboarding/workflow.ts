@@ -1,5 +1,7 @@
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
+import { readOptionalJsonFile, writeJsonFileAtomic } from "#core/util/json-file.js";
+import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { scopeImprovementRequested } from "../scope-improver/events.js";
 import {
@@ -7,13 +9,25 @@ import {
   SCOPE_IMPROVEMENT_STATE_KEY,
 } from "../scope-improver/scope-improvement-state.js";
 import type { ScopeImprovementState } from "../scope-improver/scope-improvement-types.js";
-import { prepareInitialScopeImprovement } from "./initial-request.js";
+import { observeScopeImprovement, reserveInitialScopeImprovement, type ScopeImprovementObservation } from "./initial-request.js";
+
+const observationArtifact = "scope-onboarding-observation.json";
 
 const workflow: WorkflowDefinitionInput = {
   name: "scope-improvement-onboarding",
   repository: "none",
   description:
     "Reserve and publish the initial scope-improvement request after onboarding commits.",
+  finalize: (ctx) => {
+    const observation = expectStructuredOutput<ScopeImprovementObservation>(
+      readOptionalJsonFile(join(ctx.stateDir, "runs", ctx.runId, observationArtifact)), ["eligible"],
+    );
+    const snapshot = ctx.state.read(SCOPE_IMPROVEMENT_STATE_KEY);
+    const initial = reserveInitialScopeImprovement(decodeScopeImprovementState(snapshot.value, ctx.scopeId), observation);
+    if (!initial.shouldEmit || !initial.payload || !initial.nextState) return;
+    ctx.state.compareAndSet(SCOPE_IMPROVEMENT_STATE_KEY, snapshot.revision, initial.nextState);
+    ctx.emit(scopeImprovementRequested.name, initial.payload, "reserve-initial-scope-improvement");
+  },
   triggers: [
     {
       event: "scope.lifecycle.changed",
@@ -65,38 +79,19 @@ const workflow: WorkflowDefinitionInput = {
     {
       id: "reserve-initial-scope-improvement",
       type: "code",
+      rerunOnRetry: true,
       run: (ctx) => {
         if (!ctx.scopePolicySnapshot) {
           throw new Error(
             "scope onboarding requires an authoritative resolved scope-policy snapshot",
           );
         }
-        const scopeId = deriveDirectoryScopeId(ctx.scopeRoot);
-        const snapshot = ctx.state.read<ScopeImprovementState>(
-          SCOPE_IMPROVEMENT_STATE_KEY,
-        );
-        const currentState = decodeScopeImprovementState(snapshot.value, scopeId);
-        if (
-          currentState.consumedFingerprint !== null ||
-          currentState.pendingFingerprint !== null
-        ) {
-          return { disposition: "already-reserved" };
-        }
-        const initial = prepareInitialScopeImprovement({
+        const observation = observeScopeImprovement({
           scopeRoot: ctx.scopeRoot, stateDir: ctx.stateDir,
-          scopePolicySnapshot: ctx.scopePolicySnapshot, state: currentState,
+          scopePolicySnapshot: ctx.scopePolicySnapshot,
         });
-        if (!initial.shouldEmit || !initial.payload || !initial.nextState) return { disposition: "deferred", reason: initial.reason };
-        ctx.state.compareAndSet(SCOPE_IMPROVEMENT_STATE_KEY, snapshot.revision, initial.nextState);
-        ctx.emit(
-          scopeImprovementRequested.name,
-          initial.payload,
-          {
-            delivery: "on-run-success",
-            stepId: "reserve-initial-scope-improvement",
-          },
-        );
-        return { disposition: "reserved" };
+        writeJsonFileAtomic(join(ctx.workflow.runDirPath, observationArtifact), observation);
+        return { disposition: "observed", observation };
       },
     },
   ],

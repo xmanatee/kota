@@ -1,17 +1,17 @@
-export const REPO_MUTATION_FILESYSTEM_OPERATIONS_SOURCE = `
-function listMarkdown(request, parentIdentity) {
+export const ANCHORED_FILE_OPERATIONS_SOURCE = `
+function listTextFiles(request, parentIdentity) {
   inspectAnchoredParent(request, parentIdentity);
   const names = readdirSync(".")
-    .filter((name) => name.endsWith(".md"))
+    .filter((name) => request.nameSuffix === null || name.endsWith(request.nameSuffix))
     .sort();
   const entries = [];
   for (const name of names) {
-    const snapshot = readMarkdown(
+    const snapshot = readTextFile(
       { ...request, fileName: name },
       parentIdentity,
     );
     if (!snapshot.exists) {
-      refuse("markdown entry disappeared during directory discovery");
+      refuse("file entry disappeared during directory discovery");
     }
     entries.push({ name, content: snapshot.content, snapshot: snapshot.snapshot });
   }
@@ -19,15 +19,15 @@ function listMarkdown(request, parentIdentity) {
   return entries;
 }
 
-function readMarkdown(request, parentIdentity) {
+function readTextFile(request, parentIdentity) {
   inspectAnchoredParent(request, parentIdentity);
-  const opened = inspectMarkdownEntry(request.fileName, undefined);
+  const opened = inspectTextFileEntry(request.fileName, undefined);
   if (opened === undefined) return { exists: false };
   try {
     const content = readFileSync(opened.fd, "utf8");
     const after = snapshot(fstatSync(opened.fd));
     if (!sameSnapshot(after, opened.snapshot)) {
-      refuse("markdown entry changed while it was read");
+      refuse("file entry changed while it was read");
     }
     inspectAnchoredParent(request, parentIdentity);
     return { exists: true, content, snapshot: after };
@@ -52,23 +52,23 @@ function cleanupTemporary(name, expectedIdentity) {
   }
 }
 
-function writeMarkdown(request, parentIdentity, directoryFd) {
+function writeTextFile(request, parentIdentity, directoryFd) {
   const expected =
     request.expectation === "existing" ? request.expectedSnapshot : undefined;
-  const initial = inspectMarkdownEntry(request.fileName, expected);
+  const initial = inspectTextFileEntry(request.fileName, expected);
   if (request.expectation === "missing" && initial !== undefined) {
     closeSync(initial.fd);
-    refuse("repo mutation destination already exists");
+    refuse("file destination already exists");
   }
   if (request.expectation === "existing" && initial === undefined) {
-    refuse("markdown entry changed during the repo mutation");
+    refuse("file entry changed during filesystem access");
   }
   const initialSnapshot = initial && initial.snapshot;
   const initialMode = initial && initial.mode;
   if (initial !== undefined) closeSync(initial.fd);
 
   const temporaryName =
-    ".repo-mutation." + process.pid + "." + randomUUID() + ".tmp";
+    ".anchored-file." + process.pid + "." + randomUUID() + ".tmp";
   let temporaryFd;
   let temporaryIdentity;
   let installed = false;
@@ -84,7 +84,7 @@ function writeMarkdown(request, parentIdentity, directoryFd) {
     );
     const temporaryStats = fstatSync(temporaryFd);
     if (!temporaryStats.isFile() || temporaryStats.nlink !== 1) {
-      refuse("temporary repo mutation file is not private");
+      refuse("temporary file is not private");
     }
     temporaryIdentity = identity(temporaryStats);
     if (initialMode !== undefined) fchmodSync(temporaryFd, initialMode);
@@ -92,14 +92,14 @@ function writeMarkdown(request, parentIdentity, directoryFd) {
     fsyncSync(temporaryFd);
 
     inspectAnchoredParent(request, parentIdentity);
-    const current = inspectMarkdownEntry(request.fileName, initialSnapshot);
+    const current = inspectTextFileEntry(request.fileName, initialSnapshot);
     if (current !== undefined) closeSync(current.fd);
     if (initialSnapshot === undefined) {
       try {
         linkSync(temporaryName, request.fileName);
       } catch (error) {
         if (error && error.code === "EEXIST") {
-          refuse("repo mutation destination changed before installation");
+          refuse("file destination changed before installation");
         }
         throw error;
       }
@@ -109,13 +109,13 @@ function writeMarkdown(request, parentIdentity, directoryFd) {
     }
     installed = true;
 
-    const installedEntry = inspectMarkdownEntry(request.fileName, undefined);
+    const installedEntry = inspectTextFileEntry(request.fileName, undefined);
     if (
       installedEntry === undefined ||
       !sameIdentity(installedEntry.snapshot, temporaryIdentity)
     ) {
       if (installedEntry !== undefined) closeSync(installedEntry.fd);
-      refuse("installed markdown entry is not the private temporary file");
+      refuse("installed file entry is not the private temporary file");
     }
     const installedSnapshot = installedEntry.snapshot;
     closeSync(installedEntry.fd);
@@ -138,23 +138,23 @@ function restoreQuarantinedEntry(name, quarantineName) {
   }
 }
 
-function removeMarkdown(request, parentIdentity, directoryFd) {
-  const opened = inspectMarkdownEntry(request.fileName, request.expectedSnapshot);
+function removeTextFile(request, parentIdentity, directoryFd) {
+  const opened = inspectTextFileEntry(request.fileName, request.expectedSnapshot);
   if (opened === undefined) {
-    refuse("repo mutation source does not exist");
+    refuse("file source does not exist");
   }
   closeSync(opened.fd);
   inspectAnchoredParent(request, parentIdentity);
 
   const quarantineName =
-    ".repo-mutation." + process.pid + "." + randomUUID() + ".removed";
+    ".anchored-file." + process.pid + "." + randomUUID() + ".removed";
   let quarantined = false;
   try {
     renameSync(request.fileName, quarantineName);
     quarantined = true;
-    const moved = inspectMarkdownEntry(quarantineName, undefined);
+    const moved = inspectTextFileEntry(quarantineName, undefined);
     if (moved === undefined) {
-      refuse("markdown entry changed during removal");
+      refuse("file entry changed during removal");
     }
     if (
       !sameIdentity(moved.snapshot, request.expectedSnapshot) ||
@@ -162,7 +162,7 @@ function removeMarkdown(request, parentIdentity, directoryFd) {
       moved.snapshot.mtimeMs !== request.expectedSnapshot.mtimeMs
     ) {
       closeSync(moved.fd);
-      refuse("markdown entry changed during removal");
+      refuse("file entry changed during removal");
     }
     closeSync(moved.fd);
     unlinkSync(quarantineName);

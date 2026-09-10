@@ -23,7 +23,7 @@ One of the following, chosen honestly from what you actually read:
 
 1. **Sources now readable, task progresses.** Record each source's
    finding against the task's `## Desired Outcome`. If the task is complete,
-   move it to `done` with `pnpm kota task move <id> done`. If only
+   set `status: done` and move its file into `data/tasks/archive/`. If only
    part of the work is now unblocked, split the remaining block into a
    fresh task and either promote the current task forward or leave it in
    `blocked` with updated status notes covering exactly which sources remain
@@ -34,7 +34,7 @@ One of the following, chosen honestly from what you actually read:
    rate limit, Cloudflare challenge, 404). Do not invent reasons; record only
    what the browser tool output actually said.
 3. **Sources are irrecoverable and no further attempt is worthwhile.** Drop
-   the task with `pnpm kota task move <id> dropped` and record a short
+   the task by setting `status: dropped`, archive its file, and record a short
    rationale in the task body explaining why retrying further adds no value.
 
 ## Tool Guidance
@@ -54,6 +54,5 @@ One of the following, chosen honestly from what you actually read:
 
 ## Finish
 
-- Use `pnpm kota task move <id> <state>` for every task state transition.
 - Leave the task state and source-access notes aligned with the observed result.
 - Lightweight validations run after you finish.

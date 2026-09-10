@@ -9,16 +9,14 @@
  * this output is operator-facing only and is not exposed to autonomy agents.
  */
 
-import { join } from "node:path";
 import { Command } from "commander";
 import { resolveScopeRoot } from "#core/config/scope-root.js";
-import type { ModuleContext } from "#core/modules/module-types.js";
+import { createAutonomyClient } from "#modules/autonomy/client.js";
 import { plain, text } from "#modules/rendering/primitives.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
-import { requireWorkflowRunDurableAuthority } from "#modules/workflow-ops/runs/workflow-history.js";
-import { renderOnDemandAttention } from "./step.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 
-export function buildAttentionCommand(ctx: ModuleContext): Command {
+export function buildAttentionCommand(ctx: { client: Pick<KotaClient, "autonomy"> }): Command {
   return new Command("attention")
     .description(
       "Print the on-demand attention items for the current scope (no cadence side effects)",
@@ -27,21 +25,14 @@ export function buildAttentionCommand(ctx: ModuleContext): Command {
       "--json",
       "Emit the structured AttentionItem[] payload (and rendered text) as JSON instead of the rendered text body",
     )
-    .action(async (opts: { json?: boolean }) => {
-      const scopeRoot = resolveScopeRoot();
-      const runsDir = join(scopeRoot, ".kota", "runs");
-      const status = await ctx.client.workflow.status();
-      const result = renderOnDemandAttention({
-        scopeRoot,
-        runsDir,
-        authority: requireWorkflowRunDurableAuthority(
-          status.authorityCriticalRunIds,
-          status.operationallyActiveRunIds,
-          status.terminalRunIds,
-        ),
-      });
+    .option("--state-dir <path>", "Read an explicit offline daemon state directory")
+    .action(async (opts: { json?: boolean; stateDir?: string }) => {
+      const client = opts.stateDir === undefined
+        ? ctx.client.autonomy
+        : createAutonomyClient(resolveScopeRoot(), opts.stateDir);
+      const result = await client.attention();
       if (opts.json) {
-        writeJson({ items: result.items, text: result.text }, { pretty: true });
+        writeJson({ items: result.data.items, text: result.text }, { pretty: true });
         return;
       }
       print(text(plain(result.text)));

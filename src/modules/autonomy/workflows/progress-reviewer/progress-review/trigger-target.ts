@@ -54,6 +54,7 @@ export function currentDirectorySource(
   workspaceRoot: string,
   scopeRoot: string,
   stateDir: string,
+  runtimeStateDir: string,
 ): ProgressReviewDirectorySource {
   return {
     scopeId: deriveDirectoryScopeId(scopeRoot),
@@ -61,7 +62,7 @@ export function currentDirectorySource(
     workspaceRoot,
     scopeRoot,
     stateDir,
-    authorityStateDir: stateDir,
+    authorityStateDir: runtimeStateDir,
     idPrefix: "",
   };
 }
@@ -98,11 +99,12 @@ export function selectEvidenceTarget(
   scopeRoot: string,
   trigger: WorkflowRunTrigger,
   stateDir: string,
+  runtimeStateDir: string,
 ): ProgressReviewEvidenceTarget {
   const payload = requestPayload(trigger);
   const selected = nonEmptyString(payload.scopeId);
-  const currentSource = currentDirectorySource(workspaceRoot, scopeRoot, stateDir);
-  const configured = loadConfiguredDirectorySources(stateDir);
+  const currentSource = currentDirectorySource(workspaceRoot, scopeRoot, stateDir, runtimeStateDir);
+  const configured = loadConfiguredDirectorySources(runtimeStateDir);
   const scopeId = selected ?? currentSource.scopeId;
   if (scopeId === GLOBAL_SCOPE_ID) {
     if (!configured) {
@@ -121,9 +123,12 @@ export function selectEvidenceTarget(
   }
 
   const sources = configured?.sources ?? [currentSource];
-  const source = sources.find((entry) => entry.scopeId === scopeId);
+  let source = sources.find((entry) => entry.scopeId === scopeId);
   if (!source) {
     throw new Error(`progress-review scopeId ${scopeId} is not configured`);
+  }
+  if (scopeId === currentSource.scopeId) {
+    source = { ...source, workspaceRoot, stateDir };
   }
   return {
     scope: {

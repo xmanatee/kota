@@ -49,6 +49,7 @@ export type RepoTaskMutationTarget =
 
 type NormalizedCreateInput = Readonly<{
   title: string;
+  body: string;
   priority: RepoTaskPriority;
   state?: "open" | "blocked";
 }>;
@@ -132,6 +133,7 @@ export function decodeRepoTaskMutationRequest(value: unknown): RepoTaskMutationR
         kind: value.kind,
         options: {
           title: requireString(options, "title"),
+          body: requireString(options, "body"),
           priority: requirePriority(options, "priority"),
           ...(options.state === undefined
             ? {}

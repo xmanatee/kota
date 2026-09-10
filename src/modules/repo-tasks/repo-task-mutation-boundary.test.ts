@@ -150,7 +150,7 @@ describe("repo-task mutation", () => {
   it("rejects invalid untyped workflow payloads before resource admission", () => {
     expect(() => decodeRepoTaskMutationRequest({
       kind: "create",
-      options: { title: "Bad", priority: "p9", state: "open" },
+      options: { title: "Bad", body: "Invalid priority must be rejected.", priority: "p9", state: "open" },
     })).toThrow(/valid priority/);
   });
 });

@@ -2,7 +2,6 @@
 
 This is a tiny eval fixture. Keep changes scoped to the task.
 
-- The assigned task stays `open` while the builder run is active.
 - Improve only `src/inversions.mjs`.
 - Keep the implementation self-contained. The scorer loads source independently of
   the fixture module tree and measures behavior with opaque comparison inputs.
@@ -14,6 +13,8 @@ This is a tiny eval fixture. Keep changes scoped to the task.
   the optional callback or its return value is absent.
 - Use `pnpm test` for visible examples and
   `node scripts/check-resource-budget.mjs` for the final large-case verifier.
-- Use `pnpm run finish-task` to move the task to `done`.
+- After verification, edit the assigned task's frontmatter to contain only
+  `status: done` and move its Markdown file into `data/tasks/archive/`.
+  Preserve the task body.
 - Do not edit `package.json`, scripts, fixture data, verifier files, or
   fixture metadata.

@@ -70,7 +70,6 @@ function requiredImprovementWorkflowNames(
   const reviewChain = [
     "scope-improvement-onboarding",
     "scope-improver",
-    "scope-improvement-publication",
     "dispatcher",
   ];
   if (posture === "observe") return reviewChain;

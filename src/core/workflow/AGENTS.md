@@ -72,13 +72,17 @@ and publication.
 - Agent steps receive a thin runtime envelope. Expose prior output only when
   normal repository context and tools cannot recover it cheaply.
 - `WorkflowStepContext.stateDir` is the owning directory scope's `.kota`
-  root. The event journal may be daemon-wide and must not redirect scope-local
+  artifact root; `runtimeStateDir` identifies the authoritative database root.
+  The event journal may be daemon-wide and must not redirect scope-local
   run, task, owner-state, or workflow-state inspection to the default scope.
 - Repository writers cannot approve, await owner input, restart, trigger other
   workflows, or call non-read tools before integration. Writer agent and nested
   judge contracts have owner questions disabled. Use declarative emits for
-  outbox-staged publication and `repository: none` follow-ups for external
-  effects after integration.
+  outbox-staged publication. Local completion belongs in shared synchronous
+  `finalize` after lifecycle cleanup, committing staged state and emits with
+  success, not child bookkeeping workflows. Local effects must be idempotent
+  across replay of the same durable run. Reserve `repository: none` follow-ups
+  for external effects after integration.
 - Repair accounting includes initial and repair token usage, including terminal
   failures.
 - Every workflow-owned harness call crosses its scope's agent-backoff gate,

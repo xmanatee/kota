@@ -1,13 +1,15 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
+  applyGeneratedWorkQuestionDismissal,
   dismissGeneratedWorkQuestion,
   findGeneratedWorkQuestion,
   generatedWorkProvenanceContext,
   generatedWorkQuestionDedupeKey,
+  planGeneratedWorkQuestionDismissals,
   reconcileGeneratedWorkQuestion,
 } from "./generated-work-owner-question.js";
 
@@ -32,7 +34,10 @@ function questionHistory() {
     reason: "The owner must select a policy.",
     source: "scope-improver",
     answerBehavior: "record-only" as const,
-    origin: { kind: "manual" as const, source: "scope-improver" },
+    origin: {
+      kind: "workflow" as const, workflowName: "scope-improver", runId: "review-1",
+      stepId: null, taskId: null,
+    },
   };
   const old = queue.enqueue(input);
   queue.dismiss(old.id, "Superseded by revised question", "scope-improver");
@@ -41,6 +46,28 @@ function questionHistory() {
 }
 
 describe("generated-work question history", () => {
+  it.each(["revised", "origin", "answered", "dismissed", "expired"] as const)(
+    "does not apply a retained dismissal over a %s question",
+    (change) => {
+      const history = questionHistory();
+      const { queue, proposalKey, current } = history;
+      const [dismissal] = planGeneratedWorkQuestionDismissals({
+        queue, proposalKey, linkedQuestionIds: [current.id],
+        reason: "Issue cleared", source: "autonomy-health-reviewer",
+      });
+      if (change === "revised") {
+        reconcileGeneratedWorkQuestion({ ...history, input: { ...history.input, question: "Which newer policy?" } });
+      } else if (change === "origin") {
+        writeFileSync(join(history.workspaceRoot, ".kota", "owner-questions", `${current.id}.json`),
+          JSON.stringify({ ...current, origin: { ...history.input.origin, runId: "review-2" } }));
+      } else if (change === "answered") queue.answer(current.id, "Keep it", "owner");
+      else if (change === "dismissed") queue.dismiss(current.id, "Owner decision", "owner");
+      else queue.expire(current.id);
+      const before = queue.list();
+      expect(applyGeneratedWorkQuestionDismissal(queue, dismissal!)).toBe(false);
+      expect(queue.list()).toEqual(before);
+    },
+  );
   it("revises the pending question and dismisses it when its disposition changes", () => {
     const history = questionHistory();
     const { queue, proposalKey, current, old } = history;
@@ -56,7 +83,9 @@ describe("generated-work question history", () => {
     });
     expect(queue.list("pending").map((item) => item.id)).toEqual([current.id]);
     expect(findGeneratedWorkQuestion(queue, proposalKey)?.id).toBe(current.id);
-    expect(reconcileGeneratedWorkQuestion({ ...history, input }).updated).toBe(false);
+    expect(reconcileGeneratedWorkQuestion({
+      ...history, input: { ...input, origin: { ...input.origin, runId: "review-2" } },
+    })).toMatchObject({ item: revised.item, updated: false, reopened: false });
     expect(dismissGeneratedWorkQuestion(queue, proposalKey, "Task created", "scope-improver"))
       .toEqual([{ kind: "dismissed-owner-question", questionId: current.id }]);
     expect(queue.list("pending")).toEqual([]);
@@ -64,7 +93,7 @@ describe("generated-work question history", () => {
   });
 
   it.each(["answered", "dismissed", "expired"] as const)(
-    "preserves %s responses on replay and retains them when a revised question opens",
+    "preserves %s responses across review runs and retains them when a revised question opens",
     (status) => {
       const history = questionHistory();
       const { queue, current, old, proposalKey } = history;
@@ -75,7 +104,8 @@ describe("generated-work question history", () => {
       const terminalRecord = queue.get(current.id);
 
       expect(findGeneratedWorkQuestion(queue, proposalKey)?.id).toBe(current.id);
-      expect(reconcileGeneratedWorkQuestion(history)).toMatchObject({
+      const input = { ...history.input, origin: { ...history.input.origin, runId: "review-2" } };
+      expect(reconcileGeneratedWorkQuestion({ ...history, input })).toMatchObject({
         item: terminalRecord,
         updated: false,
         reopened: false,
@@ -84,7 +114,7 @@ describe("generated-work question history", () => {
 
       const revised = reconcileGeneratedWorkQuestion({
         ...history,
-        input: { ...history.input, question: "Should the revised scope policy apply?" },
+        input: { ...input, question: "Should the revised scope policy apply?" },
       });
       expect(revised).toMatchObject({
         item: { status: "pending" },

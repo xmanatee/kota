@@ -1,9 +1,9 @@
 import { execSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { vi } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { withShortBatchWindows } from "#core/workflow/testing/runtime-fixture.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 
 export function wait(ms: number): Promise<void> {
@@ -27,12 +27,11 @@ export async function waitUntil(
 export async function loadAutonomyWorkflowDefinitions(): Promise<
   RegisteredWorkflowDefinitionInput[]
 > {
-  vi.resetModules();
-  const [{ registerAgentHarness }, { claudeAgentHarness }] = await Promise.all([
+  const [{ hasAgentHarness, registerAgentHarness }, { claudeAgentHarness }] = await Promise.all([
     import("#core/agent-harness/registry.js"),
     import("#modules/claude-agent-harness/adapter.js"),
   ]);
-  registerAgentHarness(claudeAgentHarness);
+  if (!hasAgentHarness(claudeAgentHarness.name)) registerAgentHarness(claudeAgentHarness);
   const { default: autonomyModule } = await import("./index.js");
   const workflows = autonomyModule.workflows;
   if (!workflows || typeof workflows !== "function") {
@@ -40,7 +39,7 @@ export async function loadAutonomyWorkflowDefinitions(): Promise<
       "autonomy module must expose workflows as a contribution factory",
     );
   }
-  return [...await workflows({} as never)] as RegisteredWorkflowDefinitionInput[];
+  return [...await workflows({} as never)].map(withShortBatchWindows) as RegisteredWorkflowDefinitionInput[];
 }
 
 /**

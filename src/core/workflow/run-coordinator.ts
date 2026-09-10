@@ -15,6 +15,8 @@ export type RunExecutionOutcome =
       error?: string;
       publication?: Omit<RunPublication, "createdAt" | "deliveredAt">;
       resultStatus?: WorkflowRunStatus;
+      /** Ephemeral synchronous completion, invoked only by the success transaction. */
+      finalize?: () => void;
     }
   | {
       kind: "suspended";
@@ -475,15 +477,35 @@ export class RunCoordinator {
       return;
     }
     if (outcome.kind === "terminal") {
-      this.store.finishRun(
-        run.id,
-        this.daemonEpoch,
-        outcome.state,
-        transitionedAt,
-        outcome.error,
-        outcome.publication,
-        outcome.resultStatus,
-      );
+      try {
+        this.store.finishRun(
+          run.id,
+          this.daemonEpoch,
+          outcome.state,
+          transitionedAt,
+          outcome.error,
+          outcome.publication,
+          outcome.resultStatus,
+          outcome.finalize,
+        );
+      } catch (error) {
+        if (outcome.state !== "succeeded") throw error;
+        const diagnostic = error instanceof Error ? error.message : String(error);
+        this.store.suspendRun({
+          runId: run.id,
+          epoch: this.daemonEpoch,
+          state: "needs_attention",
+          suspendedAt: transitionedAt,
+          error: `workflow-finalization-failed: ${diagnostic}`,
+          wait: {
+            reason: "workflow-finalization-failed",
+            evidence: outcome.error === undefined ? [diagnostic] : [outcome.error, diagnostic],
+          },
+        });
+        this.notifyReconciliationNeeded(run, "needs_attention", transitionedAt);
+        this.onError(error, run);
+        return;
+      }
       if (outcome.state === "cancelled") {
         this.notifyReconciliationNeeded(run, "cancelled", transitionedAt);
       }

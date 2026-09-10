@@ -7,10 +7,12 @@
  * this output must not be exposed to autonomy agents in any prompt path.
  */
 
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
-import { getRunStateReader } from "#core/workflow/run-state-reader-provider.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
+import { autonomyInspectionRoots } from "#modules/autonomy/inspection-roots.js";
 import { countRepoTaskState } from "#modules/repo-tasks/repo-tasks-domain.js";
 import {
   aggregateDailyDigest,
@@ -49,10 +51,10 @@ export function computeDigestSnapshot(opts: {
   previousQueueCounts?: QueueCounts | null;
 }): DigestSnapshot {
   const windowEndMs = opts.windowEndMs ?? Date.now();
-  const runsDir = join(opts.stateDir, "runs");
+  const runsDir = join(opts.workspaceRoot, ".kota", "runs");
   const currentCounts = readQueueCounts(opts.workspaceRoot);
   const ownerQuestions = new OwnerQuestionQueue(
-    join(opts.stateDir, "owner-questions"),
+    join(opts.workspaceRoot, ".kota", "owner-questions"),
   );
   const data = aggregateDailyDigest({
     runsDir,
@@ -66,14 +68,18 @@ export function computeDigestSnapshot(opts: {
   return { data, text: renderDailyDigest(data), currentCounts, windowEndMs };
 }
 
-function readPreviousQueueCounts(scopeRoot: string): QueueCounts | null {
-  const reader = getRunStateReader();
-  if (reader === null) return null;
-  const snapshot = reader.readScopeStateValue<DigestState>(
-    reader.getScopeIdByRootPath(scopeRoot) ?? deriveDirectoryScopeId(scopeRoot),
-    DAILY_DIGEST_STATE_KEY,
-  );
-  return snapshot.value?.counts ?? null;
+function readPreviousQueueCounts(scopeRoot: string, stateDir: string): QueueCounts | null {
+  if (!existsSync(join(stateDir, "kota.sqlite"))) return null;
+  const reader = RunStateDatabase.openReadOnly(stateDir);
+  try {
+    const snapshot = reader.readScopeStateValue<DigestState>(
+      reader.getScopeIdByRootPath(scopeRoot) ?? deriveDirectoryScopeId(scopeRoot),
+      DAILY_DIGEST_STATE_KEY,
+    );
+    return snapshot.value?.counts ?? null;
+  } finally {
+    reader.close();
+  }
 }
 
 /**
@@ -84,14 +90,14 @@ function readPreviousQueueCounts(scopeRoot: string): QueueCounts | null {
  */
 export function renderOnDemandDigest(opts: {
   scopeRoot: string;
-  stateDir: string;
+  stateDir?: string;
   windowEndMs?: number;
 }): { data: DailyDigestData; text: string } {
+  const roots = autonomyInspectionRoots(opts.scopeRoot, opts.stateDir);
   const snapshot = computeDigestSnapshot({
-    workspaceRoot: opts.scopeRoot,
-    stateDir: opts.stateDir,
+    ...roots,
     ...(opts.windowEndMs !== undefined ? { windowEndMs: opts.windowEndMs } : {}),
-    previousQueueCounts: readPreviousQueueCounts(opts.scopeRoot),
+    previousQueueCounts: readPreviousQueueCounts(opts.scopeRoot, roots.stateDir),
   });
   return { data: snapshot.data, text: snapshot.text };
 }

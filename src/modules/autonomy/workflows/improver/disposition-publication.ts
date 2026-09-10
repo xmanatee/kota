@@ -2,12 +2,16 @@ import { join } from "node:path";
 import type { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
 import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import {
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   type AutonomyIssueProjection,
   applyAutonomyIssueObservations,
   buildAutonomyIssueObservation,
+  decodeAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { stageAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection-publication.js";
 import {
   autonomyIssueOwnerFingerprint,
 } from "#modules/autonomy/autonomy-issue-reconciliation.js";
@@ -24,35 +28,21 @@ import {
 import type { IssueDisposition } from "./issue-disposition.js";
 
 export const IMPROVER_DISPOSITION_ARTIFACT = "improver-disposition.json";
-export const IMPROVER_DISPOSITION_PUBLICATION_REQUESTED_EVENT =
-  "autonomy.improver.disposition-publication.requested";
-
-export type ImproverDispositionPublicationRequest = {
-  publicationKey: string;
-  sourceRunId: string;
-};
-
-export function improverDispositionPublicationKey(sourceRunId: string): string {
-  return `improver-disposition-publication:${sourceRunId}`;
-}
-
-export function decodeImproverDispositionPublicationRequest(
-  value: object,
-): ImproverDispositionPublicationRequest {
-  const request = value as Partial<ImproverDispositionPublicationRequest>;
-  if (typeof request.sourceRunId !== "string") {
-    throw new Error("improver disposition publication request is invalid");
-  }
-  const sourceRunId = validateWorkflowRunId(
-    request.sourceRunId,
-    "Improver disposition publication",
-  );
-  if (
-    request.publicationKey !== improverDispositionPublicationKey(sourceRunId)
-  ) {
-    throw new Error("improver disposition publication request is invalid");
-  }
-  return { publicationKey: request.publicationKey, sourceRunId };
+export function finalizeImproverDisposition(ctx: WorkflowFinalizationContext): void {
+  const snapshot = ctx.state.read<AutonomyIssueProjection>(AUTONOMY_ISSUE_PROJECTION_STATE_KEY);
+  const current = decodeAutonomyIssueProjection(snapshot.value);
+  const publication = publishImproverDisposition({
+    scopeRoot: ctx.scopeRoot,
+    sourceRunId: ctx.runId,
+    currentProjection: current,
+  });
+  stageAutonomyIssueProjection({
+    state: ctx.state,
+    key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+    revision: snapshot.revision,
+    current,
+    next: publication.nextProjection,
+  });
 }
 
 export type AppliedDisposition = {

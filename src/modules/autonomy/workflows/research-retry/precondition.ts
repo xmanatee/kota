@@ -4,6 +4,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import { splitFrontMatter } from "#core/util/frontmatter.js";
 import {
   REPO_TASK_STATES,
+  type RepoTaskFullRecord,
   type RepoTaskState,
   readVerifiedRepoTaskFile,
   writeRepoTaskFile,
@@ -147,9 +148,10 @@ export type ResearchRetryAvailability = {
 
 export function inspectResearchRetryAvailability(
   workspaceRoot: string,
+  tasks?: readonly RepoTaskFullRecord[],
 ): ResearchRetryAvailability {
   const capability = checkResearchRetryCapability(workspaceRoot);
-  const candidates = listResearchRetryCandidates(workspaceRoot);
+  const candidates = listResearchRetryCandidates(workspaceRoot, tasks);
   let attemptableCount = 0;
   for (const candidate of candidates) {
     const evaluation = evaluateCandidate({

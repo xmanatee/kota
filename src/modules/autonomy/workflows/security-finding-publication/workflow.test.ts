@@ -24,7 +24,7 @@ describe("security family publication admission", () => {
     const taskPath = join(scopeRoot, `data/tasks/${taskId}.md`);
     const before = readFileSync(taskPath, "utf8");
     const trigger = { event: securityFindingPublicationRequested.name, schemaRef: null, payload: { taskId } };
-    const input = { scopeRoot, scopeId, stateDir, workflowName: workflow.name, trigger,
+    const input = { scopeRoot, scopeId, stateDir, runtimeStateDir: stateDir, workflowName: workflow.name, trigger,
       state: createTestTransactionalRunState(join(scopeRoot, ".kota/test-state"), scopeId),
     };
     try {

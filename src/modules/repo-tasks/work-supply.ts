@@ -3,12 +3,11 @@ import { loadConfig } from "#core/config/config.js";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { getProviderRegistry } from "#core/modules/provider-registry.js";
-import { defineWorkflowBlockingOperation } from "#core/workflow/blocking-operation.js";
+import { defineWorkflowBlockingOperation, type WorkflowBlockingOperationHandler } from "#core/workflow/blocking-operation.js";
 import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { readRunOperationalProjection } from "#core/workflow/run-operational-projection.js";
+import { type PublishedRepoTaskQueue, readPublishedRepoTaskQueue } from "./published-task-queue.js";
 import {
-  getRepoTaskQueueSnapshot,
-  listFullRepoTasks,
   type RepoTaskQueueSnapshot,
   selectActionableRepoTasks,
 } from "./repo-tasks-domain.js";
@@ -53,8 +52,11 @@ export function resolveRepoWorkSupplyInput(input: Omit<RepoWorkSupplyInput, "cap
   return { ...input, capacity: resolveWorkflowConcurrency(loadConfig(input.scopeRoot).scheduler) };
 }
 
-export function inspectRepoWorkSupply(input: RepoWorkSupplyInput): RepoWorkSupply {
-  const queue = getRepoTaskQueueSnapshot(input.workspaceRoot);
+export function inspectRepoWorkSupply(
+  input: RepoWorkSupplyInput,
+  published: PublishedRepoTaskQueue = readPublishedRepoTaskQueue(input.workspaceRoot),
+): RepoWorkSupply {
+  const { queue, tasks } = published;
   const runtime = readRunOperationalProjection(input);
   const capacity = input.capacity;
   const owners = runtime.runs.flatMap((run): TaskWorkOwner[] => {
@@ -66,7 +68,7 @@ export function inspectRepoWorkSupply(input: RepoWorkSupplyInput): RepoWorkSuppl
   });
   const owned = new Set(owners.map((owner) => owner.taskId));
   const availableTaskIds = runtime.available
-    ? selectActionableRepoTasks(listFullRepoTasks(input.workspaceRoot))
+    ? selectActionableRepoTasks(tasks)
       .filter((task) => !owned.has(task.id)).map((task) => task.id)
     : [];
   const retained = new Set(owners.filter((owner) => owner.state === "waiting" || owner.state === "needs_attention").map((owner) => owner.taskId));
@@ -94,6 +96,9 @@ export function inspectRepoWorkSupply(input: RepoWorkSupplyInput): RepoWorkSuppl
   };
 }
 
+export const runRepoWorkSupplyOperation: WorkflowBlockingOperationHandler<RepoWorkSupplyInput, RepoWorkSupply> =
+  (input) => inspectRepoWorkSupply(input);
+
 export const repoWorkSupplyOperation = defineWorkflowBlockingOperation<RepoWorkSupplyInput, RepoWorkSupply>(
-  import.meta.url, "inspectRepoWorkSupply",
+  import.meta.url, "runRepoWorkSupplyOperation",
 );

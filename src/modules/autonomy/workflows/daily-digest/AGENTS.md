@@ -20,6 +20,10 @@ Read from existing run artifacts, task state, and owner-question state. Do not
 add a parallel digest store or second task parser just for this workflow. The
 cadence snapshot is the only workflow-owned persistence.
 
+Explorer activity comes from durable writer integration evidence, including
+watchlist-only edits. Changed paths establish file updates, not counts of newly
+added tasks or watchlist entries; agent output is not publication evidence.
+
 ## Categories Reported
 
 Report the operator-relevant daily story: completed work, newly created work,
@@ -59,7 +63,8 @@ rolling window ending at the call moment. Telegram, CLI, slack-channel
 (`/digest` slash command via `DigestSnapshotClient`), daemon HTTP
 (`GET /api/digest`), embedded web, macOS, and mobile pull surfaces
 should consume this seam so cadence and on-demand rendering cannot
-drift. Fan-out clients consume the generated daemon contract binding; focused
+drift. CLI reads use `client.autonomy.digest`; hosted readers keep database
+authority separate from scope-local artifacts. Fan-out clients consume the generated daemon contract binding; focused
 surface tests cover the operator meaning each client renders.
 
 Snapshot invariant: the queue-delta baseline is revisioned project state owned

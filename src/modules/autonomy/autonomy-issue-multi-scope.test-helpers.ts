@@ -5,8 +5,9 @@ import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
-  materializeAutonomyIssueProjection,
-  readAutonomyIssueProjection,
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssueProjection,
+  decodeAutonomyIssueProjection,
 } from "./autonomy-issue-projection.js";
 import { createTestScopeRuntime } from "./autonomy-runtime.test-helpers.js";
 import type { AutonomyHealthSignal } from "./health-signal.js";
@@ -140,16 +141,21 @@ export function emitTrajectory(runtime: ScopeRuntime): void {
 }
 
 export function applyScopeSignals(
-  workspaceRoot: string,
+  runtime: ScopeRuntime,
   signals: readonly ScopedHealthSignal[],
 ): void {
+  const workspaceRoot = runtime.scope.scopeRoot;
   const review = buildAutonomyHealthReviewFromSignals({
     signals,
     generatedAt: NOW,
     sourceEventName: "autonomy.health.signal",
     reason: "multi-scope-runtime-fixture",
   });
-  const currentProjection = readAutonomyIssueProjection(workspaceRoot);
+  const snapshot = runtime.runState.readScopeStateValue<AutonomyIssueProjection>(
+    runtime.scope.scopeId,
+    AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  );
+  const currentProjection = decodeAutonomyIssueProjection(snapshot.value);
   const plannedActions = planAutonomyHealthReviewActions({
     workspaceRoot,
     currentProjection,
@@ -165,5 +171,11 @@ export function applyScopeSignals(
     review,
     plannedActions,
   });
-  materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
+  runtime.runState.compareAndSetScopeStateValue({
+    scopeId: runtime.scope.scopeId,
+    key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+    expectedRevision: snapshot.revision,
+    value: finalized.projection,
+    updatedAt: NOW,
+  });
 }

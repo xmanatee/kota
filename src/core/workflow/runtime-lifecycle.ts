@@ -4,7 +4,6 @@ import {
   type AwaitSuspension,
   scanSuspensions,
 } from "./awaits-store.js";
-import { dismissSupersededWorkflowDeadLetters } from "./dead-letter-supersession.js";
 import { isWithinDispatchWindow, msUntilDispatchWindowOpens } from "./dispatch-window.js";
 import type { WorkflowEventBatchManager } from "./event-batches.js";
 import {
@@ -103,13 +102,6 @@ export function startRuntime(
     state.backoff.clear(
       `after runtime changed from ${supersededBackoff.runtimeId}`,
     );
-  }
-  if (state.deadLetterQueue !== undefined) {
-    dismissSupersededWorkflowDeadLetters({
-      deadLetterQueue: state.deadLetterQueue,
-      runStore: state.store,
-      log: state.log,
-    });
   }
   state.wfQueue.restorePending();
   const activeAgentBackoff = state.backoff.getActive();

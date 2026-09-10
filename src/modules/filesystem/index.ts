@@ -1,12 +1,13 @@
 /**
  * Filesystem module — file read, write, edit, search, and watch tools.
+ * Editors preserve unfinished syntax; publication validates final results.
  *
  * Tools:
  *   file_read      — read a file with line numbers; supports images and PDFs
- *   file_write     — create or overwrite a file; lint-gated
- *   file_edit      — replace an exact string in a file; lint-gated
- *   multi_edit     — apply multiple edits atomically across files; lint-gated
- *   find_replace   — find-replace across files matching a glob; lint-gated
+ *   file_write     — create or overwrite a file
+ *   file_edit      — replace an exact string in a file
+ *   multi_edit     — prepare final contents across files with write-failure rollback
+ *   find_replace   — find-replace across files matching a glob
  *   glob           — find files matching a glob pattern
  *   grep           — search file contents using regex patterns
  *   file_watch     — watch a directory for file changes

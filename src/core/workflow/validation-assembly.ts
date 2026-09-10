@@ -1,3 +1,4 @@
+import { isAsyncFunction } from "node:util/types";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import { matchesFilter } from "./run-executor-utils.js";
 import type { WorkflowStep } from "./step-types.js";
@@ -113,6 +114,16 @@ export function assembleWorkflowDefinition(
         throw new WorkflowDefinitionError("resources must be a function", definitionPath);
       }
       return definition.resources;
+    })(),
+    finalize: (() => {
+      if (definition.finalize === undefined) return undefined;
+      if (typeof definition.finalize !== "function" || isAsyncFunction(definition.finalize)) {
+        throw new WorkflowDefinitionError(
+          "finalize must be a synchronous function; Promise finalizers are not supported",
+          definitionPath,
+        );
+      }
+      return definition.finalize;
     })(),
     triggerAdmission: (() => {
       if (definition.triggerAdmission === undefined) return undefined;

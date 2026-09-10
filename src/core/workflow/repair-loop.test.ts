@@ -79,7 +79,8 @@ function makeContext(scopeRoot: string): WorkflowStepContext {
     scopeId: "test-scope",
     workspaceRoot: scopeRoot,
     scopeRoot: scopeRoot,
-    stateDir: join(scopeRoot, ".kota"),
+   stateDir: join(scopeRoot, ".kota"),
+    runtimeStateDir: join(scopeRoot, ".kota"),
     state: createTestTransactionalRunState(join(scopeRoot, ".kota", "test-state")),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {

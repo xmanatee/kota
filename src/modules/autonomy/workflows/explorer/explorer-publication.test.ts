@@ -1,19 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { successfulWorkflowCommandRun } from "#core/workflow/testing/command-runner.js";
 import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
-import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
-import explorerPublicationWorkflow from "../explorer-publication/workflow.js";
 import {
   EXPLORER_PUBLICATION_ARTIFACT,
-  EXPLORER_PUBLICATION_REQUESTED_EVENT,
-  explorerPublicationKey,
-  publishExplorerCompletion,
 } from "./explorer-publication.js";
 import { EXPLORER_STATE_KEY, type ExplorerState } from "./explorer-state.js";
 import explorerWorkflow from "./workflow.js";
@@ -27,7 +22,7 @@ describe("explorer post-integration publication", () => {
     }
   });
 
-  it("does not advance the canonical cooldown from the writer run", async () => {
+  it("publishes the canonical cooldown when the original writer completes", async () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), "explorer-publication-"));
     scopeRoots.push(workspaceRoot);
     const authority = new RunStateDatabase(join(workspaceRoot, ".kota"));
@@ -45,46 +40,32 @@ describe("explorer post-integration publication", () => {
     execFileSync("git", ["commit", "--quiet", "-m", "scenario input"], {
       cwd: workspaceRoot,
     });
-    const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
     const result = await new WorkflowScenarioDriver(explorerWorkflow, {
       workspaceRoot,
       trigger: { event: "autonomy.queue.empty", payload: {} },
       stepOutputs: {
         explore: "explored",
       },
-      ports: { state, runCommand: successfulWorkflowCommandRun },
+      ports: {
+        state: { stateDir: join(workspaceRoot, ".kota"), scopeId: deriveDirectoryScopeId(workspaceRoot) },
+        runCommand: successfulWorkflowCommandRun,
+      },
     }).run();
 
     expect(result.status, result.error).toBe("success");
     const stateDir = join(workspaceRoot, ".kota");
     const runDirPath = result.runDirPath;
-    const sourceRunId = basename(runDirPath);
-    expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toEqual({
-      revision: 0,
-      value: null,
-    });
     expect(existsSync(join(runDirPath, EXPLORER_PUBLICATION_ARTIFACT))).toBe(true);
-    expect(publishExplorerCompletion({ sourceRunId, scopeRoot: workspaceRoot }))
-      .toEqual({ observedAt: expect.any(String), lastExplorationAt: expect.any(String), lastReviewedFingerprint: expect.any(String), sources: {} });
-
-    const publicationKey = explorerPublicationKey(sourceRunId);
-    const publication = await new WorkflowScenarioDriver(
-      explorerPublicationWorkflow,
-      {
-        workspaceRoot,
-        trigger: {
-          event: EXPLORER_PUBLICATION_REQUESTED_EVENT,
-          schemaRef: null,
-          payload: { publicationKey, sourceRunId },
-        },
-        ports: { state },
-      },
-    ).run();
-    expect(publication.status).toBe("success");
-    expect(state.read<ExplorerState>(EXPLORER_STATE_KEY)).toMatchObject({
-      revision: 1,
-      value: { observedAt: expect.any(String), lastExplorationAt: expect.any(String), lastReviewedFingerprint: expect.any(String), sources: {} },
-    });
+    const database = new RunStateDatabase(stateDir);
+    try {
+      expect(database.readScopeStateValue<ExplorerState>(deriveDirectoryScopeId(workspaceRoot), EXPLORER_STATE_KEY)).toMatchObject({
+        revision: 1,
+        value: { observedAt: expect.any(String), lastExplorationAt: expect.any(String), lastReviewedFingerprint: expect.any(String), sources: {} },
+      });
+      expect(database.listRuns(deriveDirectoryScopeId(workspaceRoot)).map((run) => run.workflow)).toEqual(["explorer"]);
+    } finally {
+      database.close();
+    }
     expect(existsSync(join(stateDir, "explorer-state.json"))).toBe(false);
   });
 });

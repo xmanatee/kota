@@ -16,7 +16,7 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 it("keeps an archived intervention inspectable and allows later evidence to reject its hypothesis without reopening it", () => {
   const root = mkdtempSync(join(tmpdir(), "kota-systemic-intervention-"));
   roots.push(root);
-  const source = currentDirectorySource(root, root, join(root, ".kota"));
+  const source = currentDirectorySource(root, root, join(root, ".kota"), join(root, ".kota"));
   const task = { topicKey: "improvement:repair-yield", title: "Correct repair evidence", problem: "The missing evidence causes every repair failure", priority: "p1" as const, evidenceIds: ["run:before"], howWeWillKnow: "After integration, the same failure family disappears" };
   const review: ProgressReviewAgentOutput = { verdict: "needs-steering", summary: task.problem,
     findings: { localScope: { claims: [], followUpTasks: [task] }, crossScope: { claims: [], followUpTasks: [] } }, ownerQuestions: [] };

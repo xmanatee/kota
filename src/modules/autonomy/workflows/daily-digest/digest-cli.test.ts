@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createAutonomyClient } from "#modules/autonomy/client.js";
 import { buildDigestCommand } from "./digest-cli.js";
 import { renderOnDemandDigest } from "./on-demand.js";
 
@@ -27,7 +28,7 @@ async function captureStdout(fn: () => Promise<void> | void): Promise<string> {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  program.addCommand(buildDigestCommand());
+  program.addCommand(buildDigestCommand({ client: { autonomy: createAutonomyClient(process.cwd()) } }));
   return program;
 }
 

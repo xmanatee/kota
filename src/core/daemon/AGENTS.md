@@ -78,8 +78,9 @@ root descriptor. Randomized staging leaves are direct children of that root;
 their creation, inspection, and no-follow, beneath-root removal always use the
 root descriptor rather than an attacker-movable temporary descriptor. Rollback
 releases runtime-directory ownership without mutating the scope filesystem;
-created directories are safe to retain and a fresh plan treats them as existing
-state. Hosts without the atomic creation primitive fail closed.
+created directories are safe to retain. Retry reuses directories confirmed by
+the same accepted operation; unverified pre-existing paths require a fresh plan.
+Hosts without the atomic creation primitive fail closed.
 Transaction compensation restores unpublished
 authority while dispatch is closed, so it does not enter the separate live
 trust-revocation restart path. Task and inbox directories remain lazily owned by

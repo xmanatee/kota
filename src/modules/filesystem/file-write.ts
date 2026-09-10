@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import { recordModification } from "#core/file-tracking/file-tracker.js";
@@ -10,7 +10,6 @@ import {
 } from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { printWriteSummary } from "./diff.js";
-import { lintFile } from "./lint.js";
 import { resolveToolPath } from "./path-resolver.js";
 
 export const fileWriteTool: KotaTool = {
@@ -68,23 +67,6 @@ export async function runFileWrite(
 
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, content, "utf-8");
-
-  // Linter-gated: syntax check after write, revert on failure
-  const lintResult = lintFile(path);
-  if (!lintResult.ok) {
-    if (previousContent !== null) {
-      writeFileSync(path, previousContent, "utf-8"); // restore original
-      recordModification(path);
-    } else {
-      unlinkSync(path); // remove newly created file
-    }
-    return {
-      content:
-        `Write reverted — syntax error detected:\n${lintResult.error}\n\n` +
-        `The file has been restored. Fix the syntax and try again.`,
-      is_error: true,
-    };
-  }
 
   recordModification(path);
   trackFileChange(path, previousContent, "file_write");

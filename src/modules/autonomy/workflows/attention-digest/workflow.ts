@@ -24,7 +24,7 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
     {
       id: "digest",
       type: "code",
-      run: async ({ workspaceRoot, stateDir, state, emit, runBlocking }) => {
+      run: async ({ scopeRoot, stateDir, runtimeStateDir, state, emit, runBlocking }) => {
         const counter = state.read<{ count: number }>(
           ATTENTION_DIGEST_COUNTER_STATE_KEY,
         );
@@ -35,8 +35,8 @@ const attentionDigestWorkflow: WorkflowDefinitionInput = {
           { count },
         );
         const result = await runBlocking(attentionDigestStepOperation, {
-          workspaceRoot,
-          stateDir,
+          scopeRoot,
+          runtimeStateDir,
           runsDir: join(stateDir, "runs"),
           count,
         });

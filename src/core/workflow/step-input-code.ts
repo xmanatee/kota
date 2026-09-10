@@ -105,14 +105,14 @@ export type TypedCodeStepInput<T> = WorkflowProgressStep & {
    * persisted value on every successful access so a resumed or otherwise-
    * corrupted output cannot be silently consumed downstream.
    */
-  output: (context: WorkflowStepContext) => T | undefined;
+  output: (context: Pick<WorkflowStepContext, "stepOutputs">) => T | undefined;
   /**
    * Strict variant of {@link output}: throws a descriptive error when the
    * step has been skipped or has not yet run. Use from callers that gate
    * themselves on the step having succeeded so the type narrows to `T`
    * without a manual undefined check.
    */
-  outputRequired: (context: WorkflowStepContext) => T;
+  outputRequired: (context: Pick<WorkflowStepContext, "stepOutputs">) => T;
 };
 
 /**
@@ -186,7 +186,7 @@ export function typedCodeStep<T>(
     rerunOnRetry?: boolean;
   },
 ): TypedCodeStepInput<T> {
-  const output = (context: WorkflowStepContext): T | undefined => {
+  const output = (context: Pick<WorkflowStepContext, "stepOutputs">): T | undefined => {
     const raw = context.stepOutputs[def.id];
     if (raw === undefined) return undefined;
     if (
@@ -205,7 +205,7 @@ export function typedCodeStep<T>(
     }
     return decodeStepOutput(def.id, "persisted", def.validate, raw);
   };
-  const outputRequired = (context: WorkflowStepContext): T => {
+  const outputRequired = (context: Pick<WorkflowStepContext, "stepOutputs">): T => {
     const value = output(context);
     if (value === undefined) {
       throw new Error(

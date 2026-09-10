@@ -21,7 +21,8 @@ function makeContext(
   return {
     workspaceRoot: "/scope",
     scopeRoot: "/scope",
-    stateDir: "/scope/.kota",
+   stateDir: "/scope/.kota",
+    runtimeStateDir: "/scope/.kota",
     workflow: {
       name: "parent",
       definitionPath: "src/modules/test/workflows/parent/workflow.ts",

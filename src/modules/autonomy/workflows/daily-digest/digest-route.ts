@@ -14,10 +14,9 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { join } from "node:path";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import { jsonResponse } from "#core/server/session-pool.js";
-import { renderOnDemandDigest } from "./on-demand.js";
+import { createAutonomyClient } from "#modules/autonomy/client.js";
 
 function parseWindowEndMs(raw: string): number | { error: string } {
   const value = Number(raw);
@@ -28,11 +27,12 @@ function parseWindowEndMs(raw: string): number | { error: string } {
 }
 
 export function digestRoutes(opts: { workspaceRoot: string }): RouteRegistration[] {
+  const client = createAutonomyClient(opts.workspaceRoot);
   return [
     {
       method: "GET",
       path: "/api/digest",
-      handler: (req: IncomingMessage, res: ServerResponse) => {
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url ?? "/", "http://localhost");
         const rawWindowEnd = url.searchParams.get("windowEndMs");
         let windowEndMs: number | undefined;
@@ -45,9 +45,8 @@ export function digestRoutes(opts: { workspaceRoot: string }): RouteRegistration
           windowEndMs = parsed;
         }
         try {
-          const result = renderOnDemandDigest({
-            scopeRoot: opts.workspaceRoot,
-            stateDir: join(opts.workspaceRoot, ".kota"),
+          const result = await client.digest({
+            scopeId: url.searchParams.get("scopeId") ?? undefined,
             windowEndMs,
           });
           jsonResponse(res, 200, { data: result.data, text: result.text });

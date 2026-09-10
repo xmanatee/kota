@@ -1884,6 +1884,7 @@
               "type": "string",
               "enum": [
                 "invalid_slug",
+                "invalid_body",
                 "already_exists"
               ]
             },
@@ -2903,14 +2904,14 @@
         "taskCount": {
           "type": "number"
         },
-        "watchlistAdds": {
-          "type": "number"
+        "watchlistUpdated": {
+          "type": "boolean"
         }
       },
       "required": [
         "runId",
         "taskCount",
-        "watchlistAdds"
+        "watchlistUpdated"
       ],
       "additionalProperties": false
     },

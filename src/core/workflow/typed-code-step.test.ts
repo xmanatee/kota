@@ -22,6 +22,7 @@ function makeRunContext(
 ): RunContext {
   const runId = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   return {
+    runtimeStateDir: join(workspaceRoot, ".kota"),
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
     scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",

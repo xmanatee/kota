@@ -4,6 +4,17 @@ import { ScopedEventBus } from "#core/events/scope.js";
 import { RunCoordinator } from "../run-coordinator.js";
 import { RunStateDatabase } from "../run-state-database.js";
 import { WorkflowRuntime, type WorkflowRuntimeConfig } from "../runtime.js";
+import type { WorkflowDefinitionInput } from "../types.js";
+
+/** Keep real batch admission in integration journeys without waiting production hours. */
+export function withShortBatchWindows<T extends WorkflowDefinitionInput>(workflow: T): T {
+  return {
+    ...workflow,
+    triggers: workflow.triggers.map((trigger) => trigger.batch
+      ? { ...trigger, batch: { ...trigger.batch, maxAgeMs: 10 } }
+      : trigger),
+  };
+}
 
 export type TestWorkflowRuntime = Readonly<{
   runtime: WorkflowRuntime;

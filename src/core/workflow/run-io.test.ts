@@ -48,10 +48,15 @@ describe("safeJsonStringify", () => {
     expect(parsed.s).toEqual([1, 2, 3]);
   });
 
-  it("handles circular references", () => {
+  it("preserves shared values while marking actual circular references", () => {
     const obj: Record<string, unknown> = {};
     obj.self = obj;
     const result = safeJsonStringify(obj);
     expect(result).toContain("[Circular]");
+    const shared = { value: 1 };
+    expect(JSON.parse(safeJsonStringify([shared, shared]))).toEqual([shared, shared]);
+    const map = new Map<string, unknown>();
+    map.set("self", map);
+    expect(JSON.parse(safeJsonStringify(map))).toEqual({ self: "[Circular]" });
   });
 });

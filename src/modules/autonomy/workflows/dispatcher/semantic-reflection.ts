@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { z } from "zod";
 import { isTerminalOwnerDecisionStatus, type OwnerDecisionRecord } from "#core/daemon/owner-decision-store.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
@@ -8,6 +9,7 @@ import {
 import type { WorkflowCommandRunner } from "#core/workflow/workflow-command.js";
 import { hasGeneratedWorkRetirement } from "#modules/autonomy/generated-work-task.js";
 import { observeOwnerDecisions } from "#modules/autonomy/owner-decision-observation.js";
+import { readPublishedRepoTaskQueue } from "#modules/repo-tasks/published-task-queue.js";
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import type { ProgressReviewRequest } from "../progress-reviewer/events.js";
 import { progressReviewDispatchKey } from "../progress-reviewer/semantic-input.js";
@@ -45,6 +47,22 @@ export type ProgressBoundaryInspection = {
   payload: ProgressReviewRequest | null;
   nextState: ProgressBoundaryState | null;
 };
+
+export function reserveObservedProgressBoundary(args: {
+  observedState: unknown;
+  currentState: unknown;
+  consumedRevision: number;
+  inspection: ProgressBoundaryInspection;
+}): ProgressBoundaryInspection {
+  if (args.inspection.shouldEmit && !Number.isSafeInteger(args.inspection.payload?.inputRevision)) {
+    throw new Error("progress boundary observation requires an input revision");
+  }
+  if (!isDeepStrictEqual(args.observedState, args.currentState) ||
+      (args.inspection.payload?.inputRevision !== undefined && args.inspection.payload.inputRevision <= args.consumedRevision)) {
+    return { shouldEmit: false, reason: "progress window advanced after inspection; retain current revision authority", payload: null, nextState: null };
+  }
+  return args.inspection;
+}
 
 function resolvedDecisionKey(record: OwnerDecisionRecord): string | null {
   if (!isTerminalOwnerDecisionStatus(record.status)) {
@@ -89,6 +107,7 @@ export async function inspectProgressSemanticBoundary(args: {
   workspaceRoot: string;
   scopeRoot: string;
   stateDir: string;
+  runtimeStateDir: string;
   progressBoundaryState: unknown;
   consumedRevision: number;
   runCommand: WorkflowCommandRunner;
@@ -153,7 +172,7 @@ export async function inspectProgressSemanticBoundary(args: {
   const dispositions = transitions.filter((entry) =>
     (entry.toState === "blocked" || entry.toState === "dropped") &&
     !(entry.currentTask && hasGeneratedWorkRetirement({ task: entry.currentTask })));
-  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput(args));
+  const queue = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ ...args, stateDir: args.runtimeStateDir }), readPublishedRepoTaskQueue(args.workspaceRoot));
   if (!queue.ownershipAvailable) return quiet("systemic evidence retained: queue ownership is unavailable", previous);
   if (queue.inboxCount > 0 || queue.availableCount + queue.runningCount + queue.queuedCount >= queue.capacity) {
     return quiet("systemic evidence coalesced while useful builder work has priority", previous);

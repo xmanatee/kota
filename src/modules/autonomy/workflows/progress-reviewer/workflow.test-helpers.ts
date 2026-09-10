@@ -113,6 +113,7 @@ export function makeProgressReviewRunContext(
   }
   const signal = new AbortController().signal;
   return {
+    runtimeStateDir: join(workspaceRoot, ".kota"),
     run: { id: runId, attempt: 1, daemonEpoch: 1 },
     scope: {
       id: deriveDirectoryScopeId(workspaceRoot),

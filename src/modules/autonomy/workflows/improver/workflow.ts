@@ -25,10 +25,9 @@ import {
 } from "./blocking-operations.js";
 import {
   type AppliedDisposition,
+  finalizeImproverDisposition,
   IMPROVER_DISPOSITION_ARTIFACT,
-  IMPROVER_DISPOSITION_PUBLICATION_REQUESTED_EVENT,
   type ImproverDispositionArtifact,
-  improverDispositionPublicationKey,
   isImproverDispositionCurrent,
   readImproverDispositionArtifact,
 } from "./disposition-publication.js";
@@ -145,6 +144,7 @@ const improverWorkflow: WorkflowDefinitionInput = {
   name: "improver",
   tags: ["systemic-observer"],
   repository: "write",
+  finalize: finalizeImproverDisposition,
   integration: {
     validationCommand: ["pnpm", "validate-tasks"],
     postReconcile: (input) => {
@@ -206,22 +206,6 @@ const improverWorkflow: WorkflowDefinitionInput = {
     writeCommitMessage,
     validateChanges,
     writeDispositionArtifact,
-    {
-      id: "emit-disposition-publication",
-      type: "emit",
-      when: stepSucceeded("write-disposition-artifact"),
-      event: IMPROVER_DISPOSITION_PUBLICATION_REQUESTED_EVENT,
-      payload: (ctx) => {
-        const publicationKey = improverDispositionPublicationKey(
-          ctx.workflow.runId,
-        );
-        return {
-          idempotencyKey: publicationKey,
-          publicationKey,
-          sourceRunId: ctx.workflow.runId,
-        };
-      },
-    },
   ],
 };
 

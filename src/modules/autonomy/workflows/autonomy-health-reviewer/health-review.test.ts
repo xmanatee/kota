@@ -4,12 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
+import { withWorkflowFinalization } from "#core/workflow/run-finalization.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import {
   emptyAutonomyIssueProjection,
-  materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { seedAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.test-helpers.js";
+import { reconcileGeneratedWorkQuestion } from "#modules/autonomy/generated-work-owner-question.js";
 import { materializeGeneratedWorkProposal } from "#modules/autonomy/generated-work-proposal.js";
 import type { GeneratedWorkQuestionProposal } from "#modules/autonomy/generated-work-proposal-types.js";
 import {
@@ -24,6 +27,7 @@ import {
   planAutonomyHealthReviewActions,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
+import { finalizeAutonomyHealthReview } from "./health-review-finalization.js";
 
 const NOW = "2026-06-17T12:30:00.000Z";
 
@@ -55,7 +59,7 @@ function review(signals: ReturnType<typeof signal>[], generatedAt = NOW) {
 }
 
 function applyReview(workspaceRoot: string, built: AutonomyHealthReview) {
-  const currentProjection = readAutonomyIssueProjection(workspaceRoot);
+  const currentProjection = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"));
   const plannedActions = planAutonomyHealthReviewActions({
     workspaceRoot,
     currentProjection,
@@ -71,7 +75,7 @@ function applyReview(workspaceRoot: string, built: AutonomyHealthReview) {
     review: built,
     plannedActions,
   });
-  materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
+  seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), finalized.projection);
   return finalized;
 }
 
@@ -93,7 +97,7 @@ describe("autonomy health issue projection", () => {
     );
 
     expect(first.issueTransitions).toEqual([]);
-    expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([]);
+    expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues).toEqual([]);
 
     const repeated = applyReview(
       workspaceRoot,
@@ -106,7 +110,7 @@ describe("autonomy health issue projection", () => {
     expect(repeated.issueTransitions).toEqual([
       expect.objectContaining({ kind: "opened", requiresDecision: true }),
     ]);
-    expect(readAutonomyIssueProjection(workspaceRoot).issues).toHaveLength(1);
+    expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues).toHaveLength(1);
   });
 
   it("requests one issue decision without writing tasks or owner questions", () => {
@@ -134,7 +138,7 @@ describe("autonomy health issue projection", () => {
     expect(actions.taskMutations).toEqual([]);
     expect(existsSync(join(workspaceRoot, "data", "tasks"))).toBe(false);
     expect(
-      readAutonomyIssueProjection(workspaceRoot).issues[0]?.evidenceRefs.map(
+      readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues[0]?.evidenceRefs.map(
         (ref) => ref.ref,
       ),
     ).toEqual([
@@ -166,7 +170,7 @@ describe("autonomy health issue projection", () => {
     expect(
       buildAutonomyHealthAttentionDigest({ review: repeatedReview, actions: repeated }),
     ).toMatchObject({ items: [], text: "Autonomy health review (0 patterns):" });
-    const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
+    const issue = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues[0]!;
     expect(issue.semanticRevision).toBe(1);
     expect(issue.occurrenceCount).toBe(2);
   });
@@ -185,8 +189,8 @@ describe("autonomy health issue projection", () => {
       answerBehavior: "record-only",
       origin: { kind: "manual", source: "fixture" },
     });
-    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(workspaceRoot),
+    seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")),
       updates: [{
         issueKey,
         semanticRevision: 1,
@@ -210,14 +214,14 @@ describe("autonomy health issue projection", () => {
       ),
     );
 
-    expect(cleared.ownerQuestionMutations).toEqual([
-      expect.objectContaining({ questionId: question.id, mutation: "dismiss" }),
+    expect(cleared.ownerQuestionDismissals).toEqual([
+      expect.objectContaining({ questionId: question.id, questionRevision: expect.any(String) }),
     ]);
     expect(cleared.applied).toEqual([
       expect.objectContaining({ kind: "resolved", transition: "cleared" }),
     ]);
     expect(queue.get(question.id)?.status).toBe("pending");
-    expect(readAutonomyIssueProjection(workspaceRoot).issues[0]?.status).toBe(
+    expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues[0]?.status).toBe(
       "resolved",
     );
   });
@@ -243,8 +247,8 @@ describe("autonomy health issue projection", () => {
         },
       },
     });
-    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(workspaceRoot),
+    seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")),
       updates: [{
         issueKey,
         semanticRevision: 1,
@@ -275,12 +279,12 @@ describe("autonomy health issue projection", () => {
     expect(existsSync(
       join(workspaceRoot, "data", "tasks", `${task.taskId}.md`),
     )).toBe(true);
-    expect(readAutonomyIssueProjection(workspaceRoot).issues[0]?.status).toBe(
+    expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues[0]?.status).toBe(
       "resolved",
     );
   });
 
-  it("retires a generated question once and renews it when the same issue returns", () => {
+  it("retires concurrent linked questions with rollback replay while preserving pinned revisions", () => {
     const opened = applyReview(workspaceRoot, review([signal()]));
     const issueKey = opened.applied[0]!.issueKey;
     const proposal: GeneratedWorkQuestionProposal = {
@@ -301,38 +305,115 @@ describe("autonomy health issue projection", () => {
     };
     const initial = materializeGeneratedWorkProposal({ workspaceRoot, proposal });
     const queue = new OwnerQuestionQueue(join(workspaceRoot, ".kota", "owner-questions"));
-    const answered = queue.enqueue({
+    const questionInput = {
       context: "Prior question",
       question: "Retry the earlier failure?",
       reason: "Earlier issue",
       source: "improver",
-      answerBehavior: "record-only",
-      origin: { kind: "manual", source: "improver" },
-    });
+      answerBehavior: "record-only" as const,
+      origin: { kind: "manual" as const, source: "improver" },
+    };
+    const answered = queue.enqueue(questionInput);
     queue.answer(answered.id, "Retry");
-    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(workspaceRoot),
+    const pinnedInput = { ...questionInput, dedupeKey: "generated-work:pinned-question" };
+    const pinned = queue.enqueue(pinnedInput);
+    seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), recordAutonomyIssueDispositions({
+      current: readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")),
       updates: [{
         issueKey,
         semanticRevision: 1,
         kind: "owner-question",
         decidedAt: NOW,
         taskIds: [],
-        ownerQuestionIds: [initial.ownerQuestionId!, answered.id],
+        ownerQuestionIds: [initial.ownerQuestionId!, answered.id, pinned.id],
       }],
     }));
     const history = queue.list();
-    const cleared = applyReview(workspaceRoot, review([signal({
+    const clearReview = review([signal({
       observation: "cleared",
       createdAt: "2026-06-17T13:00:00.000Z",
-    })], "2026-06-17T13:00:00.000Z"));
+    })], "2026-06-17T13:00:00.000Z");
+    const currentProjection = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"));
+    const cleared = applyAutonomyHealthReviewActions({
+      currentProjection, ownerQuestionQueue: queue, review: clearReview,
+      plannedActions: planAutonomyHealthReviewActions({
+        workspaceRoot, currentProjection, review: clearReview,
+      }),
+    });
 
-    expect(cleared.ownerQuestionMutations).toEqual([
-      expect.objectContaining({ questionId: initial.ownerQuestionId, mutation: "dismiss" }),
-    ]);
+    expect(cleared.ownerQuestionDismissals).toHaveLength(2);
+    expect(cleared.ownerQuestionDismissals).toEqual(expect.arrayContaining([
+      expect.objectContaining({ questionId: initial.ownerQuestionId, questionRevision: expect.any(String) }),
+      expect.objectContaining({ questionId: pinned.id, questionRevision: expect.any(String) }),
+    ]));
     expect(queue.list()).toEqual(history);
-    for (const mutation of cleared.ownerQuestionMutations) {
-      queue.dismiss(mutation.questionId, mutation.reason, mutation.resolutionSource);
+    const stateDir = join(workspaceRoot, ".kota");
+    const runId = "health-review-finalize";
+    writeAutonomyHealthReviewArtifact(join(stateDir, "runs", runId), {
+      generatedAt: clearReview.generatedAt, review: clearReview, actions: cleared,
+    });
+    const revised = reconcileGeneratedWorkQuestion({
+      workspaceRoot, queue, input: { ...pinnedInput, question: "Retry with the revised policy?" },
+    });
+    const concurrent = queue.enqueue({ ...questionInput, question: "Retry the concurrent failure?" });
+    seedAutonomyIssueProjection(workspaceRoot, stateDir, recordAutonomyIssueDispositions({
+      current: currentProjection,
+      updates: [{
+        issueKey, semanticRevision: 1, kind: "owner-question", decidedAt: NOW, taskIds: [],
+        ownerQuestionIds: [initial.ownerQuestionId!, answered.id, pinned.id, concurrent.id],
+      }],
+    }));
+    // Another publisher commits after artifact planning; finalization must retain it.
+    applyReview(workspaceRoot, review([signal({ dedupeKey: "workflow:other:failure" })]));
+    const beforeFinalization = readAutonomyIssueProjection(workspaceRoot, stateDir);
+    let database = new RunStateDatabase(stateDir);
+    const scopeId = database.getScopeIdByRootPath(workspaceRoot)!;
+    const { epoch } = database.beginDaemonSession(NOW);
+    database.admitRun({
+      id: runId, scopeId, workflow: "autonomy-health-reviewer", repository: "read",
+      trigger: { event: "manual", schemaRef: null, payload: {} },
+      resources: [], admittedAt: NOW,
+    });
+    database.startRun(runId, epoch, NOW);
+    const finish = (crash: boolean) => {
+      const outcome = withWorkflowFinalization({ kind: "terminal" as const, state: "succeeded" as const, finalize: undefined as (() => void) | undefined }, {
+        definition: { finalize: finalizeAutonomyHealthReview },
+        run: database.getRun(runId)!, store: database, stateDir, stepOutputs: {},
+        pbus: { prepareDynamic: (_event, payload) => payload },
+      });
+      database.finishRun(runId, epoch, "succeeded", NOW, undefined, undefined, undefined, () => {
+        outcome.finalize?.();
+        if (crash) throw new Error("crash before commit");
+      });
+    };
+    expect(() => finish(true)).toThrow("crash before commit");
+    expect(queue.get(initial.ownerQuestionId!)?.status).toBe("dismissed");
+    expect(queue.get(concurrent.id)?.status).toBe("dismissed");
+    expect(queue.get(pinned.id)).toEqual(revised.item);
+    expect(readAutonomyIssueProjection(workspaceRoot, stateDir)).toEqual(beforeFinalization);
+    expect(database.getRun(runId)?.state).toBe("running");
+    expect(database.listPendingPublications()).toEqual([]);
+    database.close();
+    database = new RunStateDatabase(stateDir);
+    const historyBeforeReplay = queue.list();
+    try {
+      finish(false);
+      expect(database.getRun(runId)?.state).toBe("succeeded");
+      expect(database.listPendingPublications().map((entry) => entry.event)).toEqual([
+        "workflow.attention.digest",
+        "owner.question.resolved", "owner.question.dismissed", "owner.question.changed",
+        "owner.question.resolved", "owner.question.dismissed", "owner.question.changed",
+      ]);
+      expect(queue.list()).toEqual(historyBeforeReplay);
+      const finalProjection = readAutonomyIssueProjection(workspaceRoot, stateDir);
+      expect(finalProjection.issues.find((issue) => issue.issueKey === issueKey)).toMatchObject({
+        status: "resolved", links: { ownerQuestionIds: [] },
+      });
+      expect(finalProjection.issues.filter((issue) => issue.issueKey !== issueKey)).toEqual(
+        beforeFinalization.issues.filter((issue) => issue.issueKey !== issueKey),
+      );
+    } finally {
+      database.close();
     }
     const retired = queue.get(initial.ownerQuestionId!);
     const renewed = materializeGeneratedWorkProposal({ workspaceRoot, proposal });
@@ -342,7 +423,7 @@ describe("autonomy health issue projection", () => {
     expect(renewed.ownerQuestionId).not.toBe(initial.ownerQuestionId);
     expect(queue.get(initial.ownerQuestionId!)).toEqual(retired);
     expect(queue.get(answered.id)).toEqual(history.find((item) => item.id === answered.id));
-    expect(queue.list("pending").map((item) => item.id)).toEqual([renewed.ownerQuestionId]);
+    expect(queue.list("pending").map((item) => item.id)).toEqual([pinned.id, renewed.ownerQuestionId]);
   });
 
   it("persists bounded projected evidence instead of raw runtime text", () => {

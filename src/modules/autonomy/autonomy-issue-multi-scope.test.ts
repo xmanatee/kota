@@ -1,7 +1,6 @@
 import {
   mkdirSync,
   mkdtempSync,
-  readFileSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -22,7 +21,7 @@ import {
   type ScopedHealthSignal,
   writeRun,
 } from "./autonomy-issue-multi-scope.test-helpers.js";
-import { AUTONOMY_ISSUE_PROJECTION_FILE } from "./autonomy-issue-projection.js";
+import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueSources } from "./autonomy-issue-sources.js";
 import {
   autonomyHealthSignal,
@@ -68,6 +67,8 @@ describe("multi-scope autonomy issue source routing", () => {
   });
 
   afterEach(() => {
+    runtimeA.runState.close();
+    runtimeB.runState.close();
     rmSync(rootDir, { recursive: true, force: true });
   });
 
@@ -137,8 +138,8 @@ describe("multi-scope autonomy issue source routing", () => {
         signal.labels.includes("interrupted-run"),
       ),
     ).toHaveLength(1);
-    applyScopeSignals(projectA, scopeASignals);
-    applyScopeSignals(projectB, scopeBSignals);
+    applyScopeSignals(runtimeA, scopeASignals);
+    applyScopeSignals(runtimeB, scopeBSignals);
 
     expect(scopeASignals.some((signal) =>
       signal.dedupeKey === "review-scrutiny:critic:builder:task-a"
@@ -152,17 +153,14 @@ describe("multi-scope autonomy issue source routing", () => {
     expect(scopeBSignals.some((signal) =>
       signal.dedupeKey === "review-scrutiny:critic:builder:task-a"
     )).toBe(false);
-    const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
-    const projectBBeforeForeignEvent = readFileSync(projectionBPath, "utf-8");
+    const projectBBeforeForeignEvent = readAutonomyIssueProjection(projectB, join(projectB, ".kota"));
     const signalCountBeforeForeignEvent = signals.length;
     emitReview(runtimeA, "task-a-followup");
-    applyScopeSignals(projectA, signals.slice(signalCountBeforeForeignEvent));
-    expect(readFileSync(projectionBPath, "utf-8")).toBe(projectBBeforeForeignEvent);
+    applyScopeSignals(runtimeA, signals.slice(signalCountBeforeForeignEvent));
+    expect(readAutonomyIssueProjection(projectB, join(projectB, ".kota"))).toEqual(projectBBeforeForeignEvent);
   });
 
   it("rejects an unknown scope without touching either scope", () => {
-    const projectionAPath = join(projectA, AUTONOMY_ISSUE_PROJECTION_FILE);
-    const projectionBPath = join(projectB, AUTONOMY_ISSUE_PROJECTION_FILE);
     expect(() => bus.emit("workflow.step.completed", {
       scopeId: "unknown-scope",
       workflow: "builder",
@@ -174,8 +172,8 @@ describe("multi-scope autonomy issue source routing", () => {
       runDir: ".kota/runs/unknown-run",
       definitionPath: "fixture",
     })).toThrow(/unknown scope unknown-scope/);
-    expect(() => readFileSync(projectionAPath, "utf-8")).toThrow();
-    expect(() => readFileSync(projectionBPath, "utf-8")).toThrow();
+    expect(readAutonomyIssueProjection(projectA, join(projectA, ".kota")).issues).toEqual([]);
+    expect(readAutonomyIssueProjection(projectB, join(projectB, ".kota")).issues).toEqual([]);
     expect(signals).toEqual([]);
   });
 });

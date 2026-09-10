@@ -50,6 +50,8 @@ export type StoredRun = {
   notBeforeAt?: string;
   sandbox?: RunSandbox;
   integration?: Record<string, unknown>;
+  /** Non-writer execution succeeded; only cleanup and finalization remain. */
+  executionCompletedAt?: string;
   processes: Record<string, unknown>[];
   wait?: Record<string, unknown>;
   lastError?: string;

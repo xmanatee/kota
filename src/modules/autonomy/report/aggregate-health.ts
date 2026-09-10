@@ -30,7 +30,7 @@ export function buildAutonomyHealthBreakdown(
   workspaceRoot: string,
   stateDir: string,
 ): AutonomyHealthBreakdown {
-  const projection = readAutonomyIssueProjection(workspaceRoot);
+  const projection = readAutonomyIssueProjection(workspaceRoot, stateDir);
   const tasks = listFullRepoTasks(workspaceRoot);
   const taskById = new Map(tasks.map((task) => [task.id, task]));
   const ownerQuestionDir = join(workspaceRoot, ".kota", "owner-questions");

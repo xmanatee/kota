@@ -13,11 +13,14 @@ concrete failures or repeated health patterns into bounded follow-up actions.
   materializer owns any resulting task or owner question. No disposition is
   required to create work.
 - An explicit source clear resolves the stable generated-work proposal without
-  another AI decision. This workflow owns the resource-serialized issue state
-  transition and stages task, decision, attention, materialization, and
-  owner-question mutation events in the same run transaction. Shared generated-work
-  owners select retirement effects and their dismissal provenance; this read-only
-  workflow publishes those decisions after run success.
+  another AI decision. Successful finalization reduces retained observations
+  against the freshest canonical issue state and stages decision and attention
+  events with that transition. Task retirement events remain in the same run
+  transaction. Task retirement remains a separate repository writer. Successful
+  finalization applies pending question dismissals from the retained review
+  artifact and stages their notification events. A question revision changed
+  after review or a terminal owner response is preserved; crash replay recognizes
+  matching completed dismissals without rewriting question history.
 - Batch by typed health labels and scope; avoid hardcoded workflow-name
   allowlists.
 - Treat health signals as explicit `present` / `changed` / `cleared`

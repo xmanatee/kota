@@ -39,7 +39,8 @@ import {
   resetProviderRegistry,
 } from "#core/modules/provider-registry.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
-import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import { withShortBatchWindows } from "#core/workflow/testing/runtime-fixture.js";
+import { type AutonomyIssueDecisionRequest, autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import { readAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import {
   type AutonomyHealthSignal,
@@ -179,6 +180,9 @@ describe("daemon runtime module load", () => {
     }
     expect(eventBus.listenerCount("workflow.dead-letter.changed")).toBe(0);
 
+    const journal = new EventJournal(join(stateDir, "events"));
+    const beforeRestart = journal.query({ scopeId });
+    const beforeRestartIds = new Set(beforeRestart.map((entry) => entry.id));
     const restartedLoader = await loadRuntimeModules({
       config,
       cwd: scopeRoot,
@@ -189,11 +193,11 @@ describe("daemon runtime module load", () => {
     );
     const issueProjectionWorkflowNames = new Set([
       "autonomy-health-reviewer",
-      "autonomy-issue-projection-materialization",
     ]);
     const issueProjectionWorkflows = restartedLoader
       .getContributedWorkflows()
-      .filter((workflow) => issueProjectionWorkflowNames.has(workflow.name));
+      .filter((workflow) => issueProjectionWorkflowNames.has(workflow.name))
+      .map(withShortBatchWindows);
     expect(restartedSourceListenerCount).toBe(sourceListenerCount);
     expect(issueProjectionWorkflows.map((workflow) => workflow.name).sort()).toEqual(
       [...issueProjectionWorkflowNames].sort(),
@@ -202,7 +206,7 @@ describe("daemon runtime module load", () => {
     const healthSignals: Array<AutonomyHealthSignal & {
       scopeId: string;
     }> = [];
-    const decisions: Array<{ scopeId: string; issueKey: string }> = [];
+    const decisions: Array<AutonomyIssueDecisionRequest & { scopeId: string }> = [];
     eventBus.on(autonomyHealthSignal, (payload) => healthSignals.push(payload));
     const restartedDaemon = new Daemon({
       runtimeModuleHost: { eventBus, moduleLoader: restartedLoader },
@@ -256,11 +260,12 @@ describe("daemon runtime module load", () => {
       }
       const decisionObserved = new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(
-          () => reject(new Error("timed out waiting for scoped autonomy issue decision")),
+          () => reject(new Error(`timed out waiting for scoped autonomy issue decision: ${JSON.stringify(resolvedRuntimeScope.runtime.runState.listRuns(scopeId))}`)),
           3000,
         );
         eventBus.on(autonomyIssueDecisionRequested, (payload) => {
           decisions.push(payload);
+          if (payload.requestKind !== "transition") return;
           clearTimeout(timeout);
           resolve();
         });
@@ -277,22 +282,43 @@ describe("daemon runtime module load", () => {
         }),
       ]);
       await decisionObserved;
-      expect(decisions).toEqual([
+      const transitions = decisions.filter((request) => request.requestKind === "transition");
+      expect(transitions).toEqual([
         expect.objectContaining({ scopeId }),
       ]);
       await waitForRuntimeEvidence(
-        () => readAutonomyIssueProjection(scopeRoot).issues.length === 1,
-        "scoped autonomy issue state was not materialized",
+        () => readAutonomyIssueProjection(scopeRoot, stateDir).issues.length === 1,
+        "scoped canonical autonomy issue state was not published",
       );
-      expect(readAutonomyIssueProjection(scopeRoot).issues).toEqual([
+      expect(readAutonomyIssueProjection(scopeRoot, stateDir).issues).toEqual([
         expect.objectContaining({
           status: "needs-decision",
           source: expect.objectContaining({ id: "builder" }),
         }),
       ]);
-      const journal = new EventJournal(join(stateDir, "events"));
-      expect(journal.query({ type: autonomyHealthSignal.name, scopeId })).toHaveLength(2);
-      expect(journal.query({ type: autonomyIssueDecisionRequested.name, scopeId })).toHaveLength(1);
+      const afterRestart = journal.query({ scopeId });
+      expect(afterRestart.filter((entry) => beforeRestartIds.has(entry.id))).toEqual(beforeRestart);
+      const newEntries = afterRestart.filter((entry) => !beforeRestartIds.has(entry.id));
+      expect(newEntries.filter((entry) => entry.event.name === autonomyHealthSignal.name)).toHaveLength(1);
+      const journalDecisions = newEntries.filter((entry) => entry.event.name === autonomyIssueDecisionRequested.name);
+      expect(journalDecisions.filter((entry) => entry.payload.kind === "inline" &&
+        entry.payload.payload.requestKind === "transition")).toEqual([
+        expect.objectContaining({ payload: expect.objectContaining({
+          kind: "inline", payload: expect.objectContaining({ issueKey: transitions[0]!.issueKey }),
+        }) }),
+      ]);
+      // This reviewer-only fixture has no improver to claim the issue.
+      expect(journalDecisions.filter((entry) => entry.payload.kind === "inline" &&
+        entry.payload.payload.requestKind === "reconciliation")).toEqual([
+        expect.objectContaining({ payload: expect.objectContaining({
+          kind: "inline", payload: expect.objectContaining({
+            issueKey: transitions[0]!.issueKey,
+            semanticRevision: transitions[0]!.semanticRevision,
+            idempotencyKey: transitions[0]!.idempotencyKey,
+            transition: "replayed",
+          }),
+        }) }),
+      ]);
       const deleteSessionResponse = await globalThis.fetch(
         `http://127.0.0.1:${address.port}/sessions/${createdSession.session_id}`,
         {

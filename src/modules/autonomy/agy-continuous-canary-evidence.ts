@@ -65,8 +65,6 @@ export function qualityReviewPrompt(
 
 function findingTaskBody(finding: AgyCanaryMinorFinding): string {
   return [
-    `# Investigate AGY canary finding ${finding.fingerprint}`,
-    "",
     "## Problem",
     "",
     finding.description,
@@ -88,18 +86,17 @@ export async function materializeAgyCanaryFindingTask(
 ): Promise<Awaited<ReturnType<ModuleContext["client"]["tasks"]["create"]>>> {
   const title = `Investigate AGY canary finding ${finding.fingerprint}`;
   const expectedTaskId = `task-${slugifyTaskTitle(title)}`;
-  const result = await ctx.client.tasks.create({ title, priority: "p2" });
-  let taskId: string | null = null;
-  if (result.ok) taskId = result.id;
-  else if (result.reason === "already_exists") taskId = expectedTaskId;
-  if (taskId === null) return result;
+  const body = findingTaskBody(finding);
+  const result = await ctx.client.tasks.create({ title, body, priority: "p2" });
+  if (result.ok || result.reason !== "already_exists") return result;
+  const taskId = expectedTaskId;
   const task = await ctx.client.tasks.show(taskId);
   if (!task.found || task.state === "done" || task.state === "dropped") {
     return result;
   }
   const update = await ctx.client.tasks.updateBody(
     taskId,
-    findingTaskBody(finding),
+    `# ${title}\n\n${body}`,
   );
   if (!update.ok) {
     throw new Error(`Could not make AGY canary finding task "${taskId}" actionable`);

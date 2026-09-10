@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
+import { dirname } from "node:path";
 import type { ProcessIdentity } from "#core/execution/process-supervisor.js";
 import { nativeRunWriterAuthorization } from "./native-run-authorization.js";
 import type { RunResourceProfile } from "./run-resources.js";
@@ -174,6 +175,7 @@ export class AmbiguousExternalEffectError extends Error {
 }
 
 export type RunContext = Readonly<{
+  runtimeStateDir: string;
   run: Readonly<{
     id: string;
     attempt: number;
@@ -320,6 +322,7 @@ export function createRunContext(input: CreateRunContextInput): RunContext {
     workspaceDir: sandbox.workspaceDir,
   });
   return Object.freeze({
+    runtimeStateDir: dirname(input.store.path),
     run: Object.freeze({
       id: input.runId,
       attempt: input.attempt,

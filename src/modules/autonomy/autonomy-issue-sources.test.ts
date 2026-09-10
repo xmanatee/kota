@@ -7,7 +7,7 @@ import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import {
-  materializeAutonomyIssueProjection,
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   readAutonomyIssueProjection,
   recordAutonomyIssueDispositions,
 } from "./autonomy-issue-projection.js";
@@ -36,6 +36,7 @@ describe("source-owned autonomy issue observations", () => {
   });
 
   afterEach(() => {
+    runtime.runState.close();
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
@@ -110,7 +111,7 @@ describe("source-owned autonomy issue observations", () => {
       generatedAt: NOW,
       reason: "fixture-open",
     });
-    const issue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
+    const issue = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues[0]!;
     const materialized = materializeGeneratedWorkProposal({
       workspaceRoot,
       proposal: {
@@ -136,17 +137,26 @@ describe("source-owned autonomy issue observations", () => {
         },
       },
     });
-    materializeAutonomyIssueProjection(workspaceRoot, recordAutonomyIssueDispositions({
-      current: readAutonomyIssueProjection(workspaceRoot),
-      updates: [{
-        issueKey: issue.issueKey,
-        semanticRevision: issue.semanticRevision,
-        kind: "owner-question",
-        decidedAt: NOW,
-        taskIds: [],
-        ownerQuestionIds: [materialized.ownerQuestionId!],
-      }],
-    }));
+    runtime.runState.compareAndSetScopeStateValue({
+      scopeId: ISSUE_SOURCE_SCOPE_ID,
+      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      expectedRevision: runtime.runState.readScopeStateValue(
+        ISSUE_SOURCE_SCOPE_ID,
+        AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      ).revision,
+      updatedAt: NOW,
+      value: recordAutonomyIssueDispositions({
+        current: readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")),
+        updates: [{
+          issueKey: issue.issueKey,
+          semanticRevision: issue.semanticRevision,
+          kind: "owner-question",
+          decidedAt: NOW,
+          taskIds: [],
+          ownerQuestionIds: [materialized.ownerQuestionId!],
+        }],
+      }),
+    });
 
     new OwnerQuestionQueue(
       join(workspaceRoot, ".kota", "owner-questions"),
@@ -172,7 +182,7 @@ describe("source-owned autonomy issue observations", () => {
         transition: "revised",
       }),
     ]);
-    expect(readAutonomyIssueProjection(workspaceRoot).issues).toEqual([
+    expect(readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota")).issues).toEqual([
       expect.objectContaining({
         issueKey: issue.issueKey,
         rootCauseKey: issue.rootCauseKey,

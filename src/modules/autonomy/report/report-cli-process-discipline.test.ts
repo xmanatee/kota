@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createAutonomyClient } from "../client.js";
 import { buildReportCommand } from "./report-cli.js";
 
 async function captureStdout(fn: () => Promise<void>): Promise<string> {
@@ -26,7 +27,7 @@ async function captureStdout(fn: () => Promise<void>): Promise<string> {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  program.addCommand(buildReportCommand());
+  program.addCommand(buildReportCommand({ client: { autonomy: createAutonomyClient(process.cwd()) } }));
   return program;
 }
 

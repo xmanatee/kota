@@ -140,7 +140,7 @@ describe("runFindReplace", () => {
     expect(result.content).toContain("No matches");
   });
 
-  it("reverts all changes on lint failure", async () => {
+  it("keeps replacements with unfinished syntax across files", async () => {
     writeFileSync(join(dir, "good.json"), '{"key": "value"}');
     writeFileSync(join(dir, "bad.json"), '{"name": "value"}');
 
@@ -150,11 +150,9 @@ describe("runFindReplace", () => {
       files: join(dir, "*.json"),
     });
 
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("reverted");
-    // Both files should be unchanged
-    expect(readFileSync(join(dir, "good.json"), "utf-8")).toBe('{"key": "value"}');
-    expect(readFileSync(join(dir, "bad.json"), "utf-8")).toBe('{"name": "value"}');
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(join(dir, "good.json"), "utf-8")).toBe('{"key": value"broken}');
+    expect(readFileSync(join(dir, "bad.json"), "utf-8")).toBe('{"name": value"broken}');
   });
 
   it("validates required parameters", async () => {
@@ -234,24 +232,6 @@ describe("runFindReplace", () => {
     );
   });
 
-  it("reverts already-written files on later lint failure (cross-module)", async () => {
-    writeFileSync(join(dir, "a.txt"), "target value");
-    writeFileSync(join(dir, "z.json"), '{"key": "target"}');
-
-    const result = await runFindReplace({
-      pattern: "target",
-      replacement: 'target"bad',
-      files: join(dir, "*"),
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("reverted");
-    expect(readFileSync(join(dir, "a.txt"), "utf-8")).toBe("target value");
-    expect(readFileSync(join(dir, "z.json"), "utf-8")).toBe(
-      '{"key": "target"}',
-    );
-  });
-
   it("regex capture groups across multiple files", async () => {
     writeFileSync(join(dir, "a.txt"), "getName getAge");
     writeFileSync(join(dir, "b.txt"), "getColor");
@@ -319,59 +299,7 @@ describe("runFindReplace", () => {
     expect(readFileSync(join(dir, ".config", "settings.json"), "utf-8")).toBe('{"v": "new"}');
   });
 
-  it("lint failure error preserves syntax error context", async () => {
-    writeFileSync(join(dir, "a.json"), '{"a": "target"}');
-
-    const result = await runFindReplace({
-      pattern: '"target"',
-      replacement: '"broken',
-      files: join(dir, "*.json"),
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Syntax error");
-    expect(result.content).toContain("a.json");
-    expect(result.content).toContain("reverted");
-  });
-
-  it("lint failure on later file reverts earlier successful writes", async () => {
-    // a.txt passes lint (no linter for .txt), z.json fails lint
-    writeFileSync(join(dir, "a.txt"), "target here");
-    writeFileSync(join(dir, "z.json"), '{"k": "target"}');
-
-    const result = await runFindReplace({
-      pattern: "target",
-      replacement: 'target"x',
-      files: join(dir, "*"),
-    });
-
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Syntax error");
-    expect(result.content).toContain("z.json");
-    // a.txt must be reverted even though it was successfully written
-    expect(readFileSync(join(dir, "a.txt"), "utf-8")).toBe("target here");
-    expect(readFileSync(join(dir, "z.json"), "utf-8")).toBe('{"k": "target"}');
-  });
-
-  it("reports revert failures when rollback write fails", async () => {
-    writeFileSync(join(dir, "ok.json"), '{"a": "val"}');
-    writeFileSync(join(dir, "fail.json"), '{"b": "val"}');
-
-    // Make fail.json read-only — the replacement write will succeed
-    // (file_write overwrites), but after we chmod below, rollback will fail
-    const result = await runFindReplace({
-      pattern: '"val"',
-      replacement: '"val"bad',
-      files: join(dir, "*.json"),
-    });
-
-    // This just verifies the lint error path works. The revert failure
-    // test below is more specific.
-    expect(result.is_error).toBe(true);
-    expect(result.content).toContain("Syntax error");
-  });
-
-  it("no false stale warning after lint-reverted find-replace", async () => {
+  it("tracks unfinished replacements without false stale warnings", async () => {
     const p = join(dir, "stale-fr.json");
     writeFileSync(p, '{"key": "val"}');
     recordRead(p);
@@ -382,10 +310,9 @@ describe("runFindReplace", () => {
       files: join(dir, "stale-fr.json"),
     });
 
-    expect(result.is_error).toBe(true);
-    expect(readFileSync(p, "utf-8")).toBe('{"key": "val"}');
+    expect(result.is_error).toBeUndefined();
+    expect(readFileSync(p, "utf-8")).toBe('{"key": "val"bad}');
 
-    // File tracker should be up-to-date after revert
     expect(checkFreshness(p)).toBeNull();
   });
 

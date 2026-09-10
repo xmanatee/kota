@@ -82,7 +82,7 @@ export function planAutonomyHealthReviewActions(args: {
   });
   return {
     taskMutations,
-    ownerQuestionMutations: [],
+    ownerQuestionDismissals: [],
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
   };
@@ -114,7 +114,7 @@ export function applyAutonomyHealthReviewActions(args: {
   const issueByKey = new Map(
     projected.projection.issues.map((issue) => [issue.issueKey, issue]),
   );
-  const questionMutations = projected.transitions.flatMap((transition) => {
+  const questionDismissals = projected.transitions.flatMap((transition) => {
     if (transition.kind !== "cleared") return [];
     const issue = priorIssueByKey.get(transition.issueKey) ??
       issueByKey.get(transition.issueKey);
@@ -126,13 +126,13 @@ export function applyAutonomyHealthReviewActions(args: {
       source: "autonomy-health-reviewer",
     });
   });
-  const ownerQuestionMutations = [...new Map(
-    questionMutations.map((mutation) => [mutation.questionId, mutation]),
+  const ownerQuestionDismissals = [...new Map(
+    questionDismissals.map((dismissal) => [dismissal.questionId, dismissal]),
   ).values()].sort((a, b) => a.questionId.localeCompare(b.questionId));
   return {
     projection: projected.projection,
     taskMutations: [...args.plannedActions.taskMutations],
-    ownerQuestionMutations,
+    ownerQuestionDismissals,
     issueTransitions: projected.transitions,
     applied: appliedActions(projected.transitions, observations),
   };

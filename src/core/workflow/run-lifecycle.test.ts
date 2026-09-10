@@ -3,13 +3,19 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { ScopedEventBus } from "#core/events/scope.js";
 import type { ControlMonitorCoverageArtifact } from "./control-monitor-coverage.js";
+import { RunCoordinator } from "./run-coordinator.js";
+import { withWorkflowFinalization } from "./run-finalization.js";
 import type { IntegrationContinuation } from "./run-lifecycle.js";
 import { RunLifecycle, type WorkflowContextExecutor } from "./run-lifecycle.js";
 import { RunResourceAllocator } from "./run-resources.js";
 import { type RepositoryAccess, RunSandboxManager } from "./run-sandbox.js";
 import { RunStateDatabase } from "./run-state-database.js";
 import type { StoredRun } from "./run-state-types.js";
+import { WorkflowRuntime } from "./runtime.js";
+import type { WorkflowFinalizationContext } from "./types.js";
 import {
   readWriterIntegrationEvidence,
   writerIntegrationEvidencePath,
@@ -278,7 +284,146 @@ describe("RunLifecycle", () => {
     });
   });
 
-  test("finishes after a crash between physical cleanup and clearing durable sandbox state", async () => {
+  test.each(["resume", "restart"] as const)("retries completed reader cleanup after %s without executing steps", async (recovery) => {
+    const value = fixture(`reader-cleanup-${recovery}`, "read");
+    let executions = 0;
+    let workspace = "";
+    const retainedOutput = join(value.root, ".kota", "runs", value.run.id, "retained.json");
+    const executeWorkflow: WorkflowContextExecutor = async (context) => {
+      executions += 1;
+      workspace = context.sandbox.workspaceDir;
+      write(workspace, "cleanup-blocker.txt", "retain until cleanup is resolved\n");
+      write(value.root, `.kota/runs/${value.run.id}/retained.json`, '{"planned":true}\n');
+      return { kind: "completed" };
+    };
+    const outcome = await lifecycle(value, executeWorkflow).execute(value.run, new AbortController().signal);
+    expect(outcome).toMatchObject({ kind: "suspended", wait: { reason: "sandbox-cleanup-blocked" } });
+    if (outcome.kind !== "suspended") throw new Error("Expected blocked cleanup");
+    const receipt = value.store.getRun(value.run.id)?.executionCompletedAt;
+    expect(receipt).toEqual(expect.any(String));
+    expect(existsSync(workspace)).toBe(true);
+
+    if (recovery === "resume") {
+      value.store.suspendRun({
+        runId: value.run.id, epoch: value.epoch, state: outcome.state,
+        wait: outcome.wait, suspendedAt: "2026-08-25T10:00:03.000Z",
+      });
+      value.store.resumeRun(value.run.id, "2026-08-25T10:00:04.000Z");
+    } else {
+      value.store.close();
+      value.store = RunStateDatabase.openExisting(join(value.root, ".kota", "state"));
+      value.epoch = value.store.beginDaemonSession("2026-08-25T10:10:00.000Z").epoch;
+      value.store.completeRestartRecovery(value.run.id, value.epoch, "2026-08-25T10:10:01.000Z");
+    }
+    rmSync(join(workspace, "cleanup-blocker.txt"));
+    const runtime = lifecycle(value, executeWorkflow);
+    const coordinator = new RunCoordinator({
+      store: value.store, daemonEpoch: value.epoch, concurrency: 1,
+      execute: (run, signal) => runtime.execute(run, signal),
+    });
+    try {
+      coordinator.refill();
+      await coordinator.whenIdle();
+      expect(value.store.getRun(value.run.id)).toMatchObject({
+        state: "succeeded", attempt: 2, executionCompletedAt: receipt,
+      });
+      expect(value.store.getRun(value.run.id)?.sandbox).toBeUndefined();
+      expect(executions).toBe(1);
+      expect(existsSync(workspace)).toBe(false);
+      expect(readFileSync(retainedOutput, "utf8")).toBe('{"planned":true}\n');
+    } finally {
+      await coordinator.dispose();
+    }
+  });
+
+  test.each([
+    ["read", "resume"], ["read", "restart"],
+    ["none", "resume"], ["none", "restart"],
+  ] as const)("replays %s finalization after %s with the original outputs", async (repository, recovery) => {
+    const value = fixture(`finalization-${repository}-${recovery}`, repository);
+    const marker = join(value.root, ".kota", "local-completion");
+    let executions = 0;
+    let interrupt = true;
+    const createHost = () => {
+      const bus = new EventBus();
+      let runtime!: WorkflowRuntime;
+      const coordinator = new RunCoordinator({
+        store: value.store, daemonEpoch: value.epoch, concurrency: 1,
+        execute: (run, signal) => runtime.executeAdmittedRun(run, signal),
+      });
+      runtime = new WorkflowRuntime({
+        bus, pbus: new ScopedEventBus(bus, value.run.scopeId), scopeRoot: value.root,
+        scopeId: value.run.scopeId, runState: value.store,
+        runCoordinator: coordinator, daemonEpoch: value.epoch,
+        workflows: [{
+          name: value.run.workflow, repository, moduleRoot: value.root,
+          definitionPath: "finalization-fixture", triggers: [{ event: "manual" }],
+          steps: [{
+            id: "plan", type: "code", run: () => {
+              executions += 1;
+              return { planned: !existsSync(marker) };
+            },
+          }],
+          finalize: (ctx) => {
+            expect(value.store.getRun(ctx.runId)?.sandbox).toBeUndefined();
+            expect(ctx.stepOutputs.plan).toEqual({ planned: true });
+            if (!existsSync(marker)) writeFileSync(marker, ctx.runId);
+            expect(readFileSync(marker, "utf8")).toBe(ctx.runId);
+            ctx.state.compareAndSet("completed", 0, ctx.runId);
+            ctx.emit("owner.completed", { runId: ctx.runId }, "finalize");
+            if (interrupt) throw new Error("interrupted after local completion");
+          },
+        }],
+      });
+      runtime.reloadWorkflowDefinitions();
+      return { runtime, coordinator };
+    };
+    let host = createHost();
+    try {
+      const outcome = await host.runtime.executeAdmittedRun(value.run, new AbortController().signal);
+      expect(outcome).toMatchObject({ kind: "terminal", state: "succeeded" });
+      if (outcome.kind !== "terminal") throw new Error("Expected lifecycle success");
+      const receipt = value.store.getRun(value.run.id)?.executionCompletedAt;
+      expect(receipt).toEqual(expect.any(String));
+      expect(() => value.store.finishRun(
+        value.run.id, value.epoch, outcome.state, "2026-08-25T10:00:03.000Z",
+        outcome.error, outcome.publication, outcome.resultStatus, outcome.finalize,
+      )).toThrow("interrupted after local completion");
+      expect(value.store.readScopeStateValue(value.run.scopeId, "completed")).toEqual({ revision: 0, value: null });
+      expect(value.store.listPendingPublications()).toEqual([]);
+
+      if (recovery === "resume") {
+        value.store.suspendRun({
+          runId: value.run.id, epoch: value.epoch, state: "needs_attention",
+          wait: { reason: "workflow-finalization-failed" }, suspendedAt: "2026-08-25T10:00:04.000Z",
+        });
+        value.store.resumeRun(value.run.id, "2026-08-25T10:00:05.000Z");
+      } else {
+        await host.runtime.stop();
+        await host.coordinator.dispose();
+        value.store.close();
+        value.store = RunStateDatabase.openExisting(join(value.root, ".kota", "state"));
+        value.epoch = value.store.beginDaemonSession("2026-08-25T10:10:00.000Z").epoch;
+        value.store.completeRestartRecovery(value.run.id, value.epoch, "2026-08-25T10:10:01.000Z");
+        host = createHost();
+      }
+      interrupt = false;
+      host.coordinator.refill();
+      await host.coordinator.whenIdle();
+      expect(value.store.getRun(value.run.id)).toMatchObject({
+        state: "succeeded", attempt: 2, executionCompletedAt: receipt,
+      });
+      expect(executions).toBe(1);
+      expect(value.store.readScopeStateValue(value.run.scopeId, "completed")).toEqual({ revision: 1, value: value.run.id });
+      expect(value.store.listPendingPublications().map((publication) => publication.event))
+        .toEqual(["owner.completed", "workflow.completed"]);
+    } finally {
+      await host.runtime.stop();
+      await host.coordinator.dispose();
+    }
+  });
+
+  test("replays finalization after cleanup and a rolled-back success transaction without rerunning merged work", async () => {
     const value = fixture("cleanup-crash", "write");
     const manager = new RunSandboxManager(value.root);
     const sandbox = manager.create({ runId: value.run.id, repository: "write" });
@@ -319,6 +464,54 @@ describe("RunLifecycle", () => {
       changedPaths: ["delivered.txt"],
       completedAt: "2026-08-25T10:00:03.000Z",
     });
+
+    let interrupt = true;
+    const pbus = new ScopedEventBus(new EventBus(), value.run.scopeId);
+    const marker = join(value.root, ".kota", "owner-completed");
+    const definition = { finalize: (ctx: WorkflowFinalizationContext) => {
+      expect(existsSync(sandbox.workspaceDir)).toBe(false);
+      expect(readFileSync(join(ctx.scopeRoot, "delivered.txt"), "utf8")).toBe("done\n");
+      if (!existsSync(marker)) writeFileSync(marker, ctx.runId);
+      expect(readFileSync(marker, "utf8")).toBe(ctx.runId);
+      ctx.state.compareAndSet("completed", 0, ctx.runId);
+      ctx.emit("owner.completed", { runId: ctx.runId }, "finalize");
+      if (interrupt) throw new Error("interrupted after local completion");
+    } };
+    const attached = withWorkflowFinalization(outcome, {
+      definition, run: value.run, store: value.store, stateDir: join(value.root, ".kota"), pbus, stepOutputs: {},
+    });
+    if (attached.kind !== "terminal") throw new Error("Expected lifecycle success");
+    expect(() => value.store.finishRun(
+      value.run.id, value.epoch, "succeeded", "2026-08-25T10:00:04.000Z",
+      undefined, undefined, undefined, attached.finalize,
+    )).toThrow("interrupted after local completion");
+    expect(value.store.readScopeStateValue(value.run.scopeId, "completed")).toEqual({ revision: 0, value: null });
+    expect(value.store.listPendingPublications()).toEqual([]);
+
+    const session = value.store.beginDaemonSession("2026-08-25T10:10:00.000Z");
+    value.store.completeRestartRecovery(value.run.id, session.epoch, "2026-08-25T10:10:01.000Z");
+    value.epoch = session.epoch;
+    interrupt = false;
+    const recovered = lifecycle(value, async () => {
+      throw new Error("merged writer must not execute again");
+    });
+    const coordinator = new RunCoordinator({
+      store: value.store, daemonEpoch: session.epoch, concurrency: 1,
+      execute: async (run, signal) => withWorkflowFinalization(await recovered.execute(run, signal), {
+        definition, run, store: value.store, stateDir: join(value.root, ".kota"), pbus, stepOutputs: {},
+      }),
+    });
+    try {
+      coordinator.refill();
+      await coordinator.whenIdle();
+      expect(value.store.getRun(value.run.id)).toMatchObject({ state: "succeeded", attempt: 2 });
+      expect(value.store.readScopeStateValue(value.run.scopeId, "completed")).toEqual({ revision: 1, value: value.run.id });
+      expect(value.store.listPendingPublications()).toEqual([
+        expect.objectContaining({ event: "owner.completed", runId: value.run.id }),
+      ]);
+    } finally {
+      await coordinator.dispose();
+    }
   });
 
   test("recovers evidence after canonical publication before merge acknowledgement", async () => {

@@ -1,12 +1,15 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { applyScopeImprovementOwnerQuestionEffects } from "./scope-improvement-actions.js";
 import {
   canCompleteScopeImprovementInput,
   completeScopeImprovementInput,
+  decodeScopeImprovementState,
   deferScopeImprovementInput,
+  SCOPE_IMPROVEMENT_STATE_KEY,
 } from "./scope-improvement-state.js";
 import {
   SCOPE_IMPROVEMENT_ARTIFACT,
@@ -14,40 +17,18 @@ import {
   type ScopeImprovementState,
 } from "./scope-improvement-types.js";
 
-export const SCOPE_IMPROVEMENT_PUBLICATION_REQUESTED_EVENT =
-  "autonomy.scope-improvement.publication.requested";
-export const SCOPE_IMPROVEMENT_PUBLICATION_RESOURCE =
-  "autonomy:scope-improvement-publication";
-
-export type ScopeImprovementPublicationRequest = {
-  publicationKey: string;
-  sourceRunId: string;
-};
-
 export type ScopeImprovementPublicationResult = {
   disposition: "absent" | "ignored" | "deferred" | "published";
   nextState: ScopeImprovementState | null;
 };
 
-export function scopeImprovementPublicationKey(sourceRunId: string): string {
-  return `scope-improvement-publication:${sourceRunId}`;
-}
-
-export function decodeScopeImprovementPublicationRequest(
-  value: object,
-): ScopeImprovementPublicationRequest {
-  const request = value as Partial<ScopeImprovementPublicationRequest>;
-  if (typeof request.sourceRunId !== "string") {
-    throw new Error("scope improvement publication request is invalid");
+export function finalizeScopeImprovement(ctx: WorkflowFinalizationContext): void {
+  const snapshot = ctx.state.read<ScopeImprovementState>(SCOPE_IMPROVEMENT_STATE_KEY);
+  const currentState = decodeScopeImprovementState(snapshot.value, ctx.scopeId);
+  const result = publishScopeImprovement({ scopeRoot: ctx.scopeRoot, sourceRunId: ctx.runId, currentState });
+  if (result.nextState !== null && !isDeepStrictEqual(result.nextState, currentState)) {
+    ctx.state.compareAndSet(SCOPE_IMPROVEMENT_STATE_KEY, snapshot.revision, result.nextState);
   }
-  const sourceRunId = validateWorkflowRunId(
-    request.sourceRunId,
-    "Scope improvement publication",
-  );
-  if (request.publicationKey !== scopeImprovementPublicationKey(sourceRunId)) {
-    throw new Error("scope improvement publication request is invalid");
-  }
-  return { publicationKey: request.publicationKey, sourceRunId };
 }
 
 function decodeArtifact(value: unknown): ScopeImprovementArtifact {
@@ -69,7 +50,7 @@ function decodeArtifact(value: unknown): ScopeImprovementArtifact {
   return artifact as ScopeImprovementArtifact;
 }
 
-/** Publish canonical effects from a repository:none post-integration workflow. */
+/** Complete idempotent owner effects after the delegated repository work integrates. */
 export function publishScopeImprovement(args: {
   scopeRoot: string;
   sourceRunId: string;

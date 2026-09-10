@@ -7,24 +7,20 @@
  * contract it is not exposed to autonomy agents.
  */
 
-import { join } from "node:path";
 import { Command } from "commander";
 import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { print, writeJson } from "#modules/rendering/transport.js";
+import type { KotaClient } from "#root/client/kota-client.generated.js";
 import {
-  aggregateAutonomyReport,
   DEFAULT_REPORT_WINDOW_DAYS,
 } from "./aggregate.js";
 import {
   type AutonomyReportDataWithControlCoverage,
-  attachControlCoverageToReport,
   renderAutonomyReportWithControlCoverage,
 } from "./control-coverage-report-window.js";
 import { renderAutonomyReport } from "./render.js";
 import { renderSourceDecisionCoverageReport } from "./render-source-decision-coverage.js";
 import { buildSourceDecisionCoverageReport } from "./source-decision-coverage.js";
-
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type ReportCommandOptions = {
   days?: string;
@@ -46,7 +42,7 @@ type CommanderOptions<TOptions> = TOptions & {
   };
 };
 
-export function buildReportCommand(): Command {
+export function buildReportCommand(ctx: { client: Pick<KotaClient, "autonomy"> }): Command {
   const command = new Command("report")
     .description(
       "Print the operator autonomy balance/quality report for the current scope " +
@@ -61,27 +57,9 @@ export function buildReportCommand(): Command {
       "--json",
       "Emit the structured report payload as JSON instead of the rendered text",
     )
-    .action((opts: ReportCommandOptions) => {
+    .action(async (opts: ReportCommandOptions) => {
       const days = parseDaysOption(opts.days);
-      const workspaceRoot = resolveScopeRoot();
-      const stateDir = join(workspaceRoot, ".kota");
-      const runsDir = join(stateDir, "runs");
-      const windowEndMs = Date.now();
-      const windowStartMs = windowEndMs - days * MS_PER_DAY;
-      const baseData = aggregateAutonomyReport({
-        workspaceRoot,
-        stateDir,
-        runsDir,
-        windowEndMs,
-        windowDays: days,
-      });
-      const data = attachControlCoverageToReport(baseData, {
-        runsDir,
-        stateDir,
-        scopeRoot: workspaceRoot,
-        windowStartMs,
-        windowEndMs,
-      });
+      const data = await ctx.client.autonomy.report({ days });
       emitReport(data, opts.json === true);
     });
   command.addCommand(buildSourceCoverageCommand());

@@ -162,6 +162,22 @@ export function applyRoundTaskInput(
   }
 }
 
+/** Publish host-authored input before deriving a HEAD-bound workflow trigger. */
+export function publishRoundTaskInput(
+  taskInput: FixtureRoundTaskInput,
+  workingDir: string,
+): void {
+  if (taskInput.kind !== "copy-fixture-file") return;
+  const target = relativePathInside(workingDir, taskInput.targetPath, "round taskInput.targetPath");
+  const path = relative(resolve(workingDir), target);
+  runGitSync(workingDir, ["--literal-pathspecs", "add", "--", path]);
+  runGitSync(workingDir, [
+    "--literal-pathspecs", "-c", "core.hooksPath=/dev/null",
+    "commit", "--only", "--allow-empty", "--no-gpg-sign", "--quiet",
+    "-m", "eval-harness round input", "--", path,
+  ]);
+}
+
 /**
  * Clean up a fixture run's working directory. Callers control when this
  * happens so post-run debugging (inspecting files the agent produced) stays

@@ -30,6 +30,7 @@ import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { EMITTED_EVENTS_LOG_FILENAME } from "#core/workflow/run-event-evidence.js";
 import { executeWorkflowRun } from "#core/workflow/run-executor.js";
 import { workflowUsesAgent } from "#core/workflow/run-executor-utils.js";
+import { withWorkflowFinalization } from "#core/workflow/run-finalization.js";
 import { validateRunIntegration, verifyRunPostReconcileInvariant } from "#core/workflow/run-integration-policy.js";
 import { RunLifecycle } from "#core/workflow/run-lifecycle.js";
 import { readWorkflowRunMetadataFile } from "#core/workflow/run-metadata.js";
@@ -456,7 +457,12 @@ export class WorkflowScenarioDriver {
         store: database,
         daemonEpoch: epoch,
         concurrency: 1,
-        execute: (run, signal) => lifecycle.execute(run, signal),
+        execute: async (run, signal) => withWorkflowFinalization(
+          await lifecycle.execute(run, signal),
+          { definition: definitionFor(run.workflow), run, store: database, stateDir: store.rootDir, pbus,
+            stepOutputs: Object.fromEntries(store.getRun(run.id, { authorityCritical: true }).steps.map((step) => [step.id, step.output])),
+          },
+        ),
       });
       wfQueue = new WorkflowQueueManager({
         store, runState: database, coordinator, scopeId, scopeRoot,

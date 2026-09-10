@@ -12,6 +12,7 @@ import type {
 import type { WorkflowEnqueueOptions } from "./operator-trigger.js";
 import { QuotaGuard } from "./quota-guard.js";
 import type { RunExecutionOutcome } from "./run-coordinator.js";
+import { withWorkflowFinalization } from "./run-finalization.js";
 import {
   continueRunIntegration,
   validateRunIntegration,
@@ -211,11 +212,17 @@ export class WorkflowRuntime {
         ? "interrupted"
         : "failed";
     this.ctx.store.reconcileTerminalStatus(run.id, status, outcome.error);
-    return {
+    const definition = this.ctx.definitions.find((candidate) => candidate.name === run.workflow);
+    if (!definition) throw new Error(`Unknown workflow "${run.workflow}"`);
+    return withWorkflowFinalization({
       ...outcome,
       resultStatus: status,
       publication: this.createPublication(run, status),
-    };
+    }, {
+      definition, run, store: this.ctx.runtimeConfig.runState,
+      stateDir: this.ctx.store.rootDir, pbus: this.ctx.pbus,
+      stepOutputs: Object.fromEntries(metadata.steps.map((step) => [step.id, step.output])),
+    });
   }
 
   deliverPublication(publication: PendingRunPublication): void {

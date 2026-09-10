@@ -70,7 +70,7 @@ function improverRun(
 }
 
 describe("autonomy issue disposition-owner reconciliation", () => {
-  it.each(["investigation", "publication", "task"] as const)(
+  it.each(["investigation", "task"] as const)(
     "preserves a suspended %s owner without scheduling another investigation",
     (kind) => {
       const projection = openProjection();
@@ -80,10 +80,7 @@ describe("autonomy issue disposition-owner reconciliation", () => {
         ...investigation,
         id: "retained",
         state: "needs_attention",
-        ...(kind === "publication" ? {
-          workflow: "improver-disposition-publication",
-          trigger: { event: "publication", schemaRef: null, payload: { sourceRunId: investigation.id } },
-        } : kind === "task" ? {
+        ...(kind === "task" ? {
           workflow: "builder",
           trigger: { event: "autonomy.queue.available", schemaRef: null, payload: {} },
           resources: ["task:task-repair"],
@@ -236,7 +233,7 @@ describe("autonomy issue disposition-owner reconciliation", () => {
     })).toEqual([]);
   });
 
-  it("re-admits a completed investigation only when disposition publication is absent", () => {
+  it("settles a successful investigation from its finalized canonical disposition", () => {
     const projection = openProjection();
     const issue = projection.issues[0]!;
     const completed = improverRun(
@@ -260,20 +257,32 @@ describe("autonomy issue disposition-owner reconciliation", () => {
       }),
     ]);
 
-    const publication: StoredRun = {
-      ...completed,
-      id: "2026-09-03T11-01-00-000Z-improver-publication",
-      workflow: "improver-disposition-publication",
-      state: "queued",
-      trigger: {
-        event: "autonomy.improver.disposition-publication-requested",
-        schemaRef: null,
-        payload: { sourceRunId: completed.id },
-      },
-    };
+    const finalized = recordAutonomyIssueDispositions({
+      current: projection,
+      updates: [{
+        issueKey: issue.issueKey,
+        semanticRevision: issue.semanticRevision,
+        kind: "accepted",
+        decidedAt: NOW,
+        taskIds: [],
+        ownerQuestionIds: [],
+      }],
+    });
+    expect(planAutonomyIssueOwnerReconciliation({
+      projection: finalized,
+      runs: [completed],
+      tasks: [],
+      questions: [],
+      requestedAt: NOW,
+    })).toEqual([]);
+  });
+
+  it("retains the improver while its own disposition finalization is integrating", () => {
+    const projection = openProjection();
+    const issue = projection.issues[0]!;
     expect(planAutonomyIssueOwnerReconciliation({
       projection,
-      runs: [completed, publication],
+      runs: [improverRun("finalizing", "integrating", issue.issueKey, issue.semanticRevision)],
       tasks: [],
       questions: [],
       requestedAt: NOW,

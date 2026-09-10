@@ -1,10 +1,12 @@
+import { readWorkingTextTree } from "#core/util/repository-tree.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
 import {
   BUILDER_TASK_EVENT,
   listBuilderTaskDispatches,
   readBuilderTaskPayload,
 } from "#modules/autonomy/workflows/builder/task-contract.js";
-import { readVerifiedRepoTaskFile } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { listRepoTasksFromTree } from "#modules/repo-tasks/repo-tasks-domain.js";
+import { assertTaskQueueValid } from "#modules/repo-tasks/task-queue-validation.js";
 
 export type OwnershipResolution =
   | { kind: "superseded-task"; reason: string }
@@ -37,7 +39,12 @@ export function resolveDecompositionOwnership(
     );
   }
   const expected = readBuilderTaskPayload(metadata.trigger.payload);
-  const current = listBuilderTaskDispatches(workspaceRoot).find(
+  // Authorize and return the same pinned working bytes, including retained edits.
+  const tree = readWorkingTextTree(workspaceRoot);
+  assertTaskQueueValid(workspaceRoot, tree);
+  const current = listBuilderTaskDispatches(workspaceRoot, {
+    tasks: listRepoTasksFromTree(tree),
+  }).find(
     (candidate) => candidate.taskId === expected.taskId,
   );
   if (current === undefined) {
@@ -58,32 +65,12 @@ export function resolveDecompositionOwnership(
     };
   }
 
-  const taskFile = readVerifiedRepoTaskFile(
-    workspaceRoot,
-    current.taskState,
-    current.taskId,
-  );
-  const rechecked = listBuilderTaskDispatches(workspaceRoot).find(
-    (candidate) => candidate.taskId === expected.taskId,
-  );
-  if (
-    taskFile === null ||
-    rechecked === undefined ||
-    rechecked.taskPath !== current.taskPath ||
-    rechecked.taskDigest !== current.taskDigest
-  ) {
-    return {
-      kind: "superseded-task",
-      reason: `Builder task ${expected.taskId} changed while decomposition ownership was checked`,
-    };
-  }
-
   return {
     kind: "owned-task",
     task: {
       id: current.taskId,
-      path: taskFile.path,
-      markdown: taskFile.content,
+      path: current.taskPath,
+      markdown: tree.read(current.taskPath),
       digest: current.taskDigest,
     },
   };

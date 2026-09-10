@@ -21,9 +21,11 @@ The selected store remains the write owner.
 
 ## Contract
 
-- Explicit targets bypass classification. Without a target, classification
-  either selects one of the closed target union or returns `ambiguous`; capture
-  never guesses.
+- Explicit targets bypass classification and retain the complete capture text.
+  Without a target, classification may select memory or knowledge; rough work
+  requests, uncertain notes, and captures without a classifier go to inbox.
+  Only an explicit task target creates a task, with its complete body in one
+  write. Empty input writes nothing.
 - `CaptureResult` tags direct memory, knowledge, task, and inbox domain results
   with `target`. Do not add copied record envelopes or compatibility result arms.
 - Store exceptions become `write_failed` at the cross-store boundary. Typed

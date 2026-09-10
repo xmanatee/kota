@@ -53,7 +53,7 @@ export async function writeCaptureTarget({
       if (!title) throw new Error("Task capture requires a non-empty first line.");
       const result = await mutateRepoTask(canonicalTarget(scope), {
         kind: "create",
-        options: { title, priority: "p3", state: "open" },
+        options: { title, body: text, priority: "p3", state: "open" },
       });
       return { target, ...result };
     }
@@ -72,7 +72,7 @@ export async function writeCaptureTarget({
       const result = await mutateRepoTask(canonicalTarget(scope), {
         kind: "capture-inbox",
         id: `note-${slug}`,
-        content: text.endsWith("\n") ? text : `${text}\n`,
+        content: text,
       });
       return { target, ...result };
     }

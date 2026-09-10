@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkflowDispatchDeadLetter } from "#core/daemon/dead-letter-queue.js";
 import type { ScopedEventBus } from "#core/events/scope.js";
 import type { StoredRun } from "#core/workflow/run-state-database.js";
-import { AUTONOMY_ISSUE_PROJECTION_STATE_KEY, readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
+import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
 import {
   applyHealthReviewSignals,
   ISSUE_SOURCE_SCOPE_ID,
@@ -136,7 +136,7 @@ describe("runtime-owned autonomy issue observations", () => {
     expect(applied.filter((action) => action.kind === "decision-requested")).toEqual([
       expect.objectContaining({ kind: "decision-requested", transition: "opened" }),
     ]);
-    expect(readAutonomyIssueProjection(scopeRoot).issues[0]).toMatchObject({
+    expect(readAutonomyIssueProjection(scopeRoot, join(scopeRoot, ".kota")).issues[0]).toMatchObject({
       semanticRevision: 1,
       occurrenceCount: 4,
     });
@@ -153,7 +153,7 @@ describe("runtime-owned autonomy issue observations", () => {
     );
     expect(signals.at(-1)?.summary).toContain("commit 532ab1ae");
     expect(applied.at(-1)).toMatchObject({ kind: "resolved", transition: "cleared" });
-    const issue = readAutonomyIssueProjection(scopeRoot).issues[0]!;
+    const issue = readAutonomyIssueProjection(scopeRoot, join(scopeRoot, ".kota")).issues[0]!;
     expect(issue.status).toBe("resolved");
     expect(issue.occurrenceCount).toBe(4);
     expect(issue.links.deadLetterIds).toEqual(items.map((item) => item.id).sort());
@@ -198,7 +198,7 @@ describe("runtime-owned autonomy issue observations", () => {
         transition: "opened",
       }),
     ]);
-    expect(readAutonomyIssueProjection(scopeRoot).issues[0]).toMatchObject({
+    expect(readAutonomyIssueProjection(scopeRoot, join(scopeRoot, ".kota")).issues[0]).toMatchObject({
       occurrenceCount: 2,
       status: "needs-decision",
     });
@@ -322,20 +322,13 @@ describe("runtime-owned autonomy issue observations", () => {
       occurrenceCount: 2,
     });
 
-    const moduleReview = applyHealthReviewSignals({
+    applyHealthReviewSignals({
       workspaceRoot: scopeRoot,
       signals: [signals[2]!],
       generatedAt: "2026-08-13T10:02:00.000Z",
       reason: "module-failure-boundary",
     });
 
-    runtime.runState.compareAndSetScopeStateValue({
-      scopeId: ISSUE_SOURCE_SCOPE_ID,
-      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-      expectedRevision: 0,
-      value: moduleReview.projection,
-      updatedAt: NOW,
-    });
     pbus.emit("module.operation.recovered", {
       module: "telegram",
       operation: "poll-loop",

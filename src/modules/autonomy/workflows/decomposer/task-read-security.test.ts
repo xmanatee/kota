@@ -146,7 +146,7 @@ describe("decomposer task read security", () => {
     writeRunMetadata(workspaceRoot, FAILED_RUN_ID, metadata);
 
     const result = await runScenario(workspaceRoot);
-    expect(result.steps["assess-failure"].error).toMatch(/symbolic[- ]link/i);
+    expect(result.steps["assess-failure"].error).toContain("task-path-unsafe");
     expect(result.steps.decompose).toBeUndefined();
     expect(JSON.stringify(result)).not.toContain(EXTERNAL_MARKER);
   });

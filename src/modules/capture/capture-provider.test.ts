@@ -38,7 +38,7 @@ describe("CaptureProviderImpl", () => {
 
     expect(result).toMatchObject({ ok: true, target: "memory" });
     expect(classify).not.toHaveBeenCalled();
-    expect(scope.memory.list()[0]?.content).toBe("remember this");
+    expect(scope.memory.list()[0]?.content).toBe("  remember this  ");
   });
 
   it("classifies an unpinned write against the canonical target set", async () => {
@@ -57,7 +57,7 @@ describe("CaptureProviderImpl", () => {
     expect(scope.knowledge.list()[0]?.content).toBe("fact");
   });
 
-  it("returns ambiguity without persisting when classification abstains", async () => {
+  it("selects inbox when classification abstains and reports unavailable publication", async () => {
     const provider = new CaptureProviderImpl({
       classifier: {
         classify: vi.fn().mockResolvedValue({ kind: "ambiguous" }),
@@ -66,11 +66,27 @@ describe("CaptureProviderImpl", () => {
 
     await expect(provider.capture("unclear", undefined, scope)).resolves.toEqual({
       ok: false,
-      reason: "ambiguous",
-      suggestions: ["memory", "knowledge", "tasks", "inbox"],
+      reason: "write_failed",
+      target: "inbox",
+      message: "Repo-task mutation requires the active workflow runtime",
     });
     expect(scope.memory.list()).toEqual([]);
     expect(scope.knowledge.list()).toEqual([]);
+  });
+
+  it("defaults unclassified rough captures to inbox, not open tasks", async () => {
+    await expect(new CaptureProviderImpl().capture("Rough idea", undefined, scope))
+      .resolves.toMatchObject({ ok: false, reason: "write_failed", target: "inbox" });
+    const provider = new CaptureProviderImpl({
+      classifier: { classify: async () => ({ kind: "confident", target: "tasks" }) },
+    });
+    await expect(provider.capture("Fix a thing", undefined, scope))
+      .resolves.toMatchObject({ ok: false, reason: "write_failed", target: "inbox" });
+  });
+
+  it("does not persist empty input", async () => {
+    await expect(new CaptureProviderImpl().capture(" \n\t", undefined, scope))
+      .resolves.toMatchObject({ ok: false, reason: "ambiguous" });
   });
 
   it("normalizes a selected store exception without retrying another target", async () => {

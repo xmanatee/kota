@@ -35,8 +35,8 @@ scorer, not by the builder's final summary.
 - `node scripts/score.mjs --metric-only` prints a holdout MAE at or below
   `0.25`.
 - `scripts/score.mjs` and `data/forecast/training.csv` are unchanged.
-- This task has moved from `data/tasks/` to `data/tasks/archive/` by
-  running exactly `pnpm run finish-task`.
+- This task has moved from `data/tasks/` to `data/tasks/archive/` with
+  `status: done` as its only frontmatter and its body preserved.
 
 ## Acceptance Evidence
 

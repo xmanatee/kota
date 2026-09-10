@@ -1,12 +1,11 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { StateValueConflictError } from "#core/workflow/run-state-database.js";
-import { WorkflowScenarioDriver } from "#core/workflow/testing/index.js";
+import Database from "better-sqlite3";
+import { afterEach, describe, expect, it } from "vitest";
+import { RunStateDatabase, StateValueConflictError } from "#core/workflow/run-state-database.js";
 import { createTestTransactionalRunState } from "#core/workflow/testing/run-context-fixture.js";
 import {
-  AUTONOMY_ISSUE_PROJECTION_FILE,
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   type AutonomyIssueProjection,
   applyAutonomyIssueObservations,
@@ -16,14 +15,12 @@ import {
   recordAutonomyIssueDispositions,
 } from "./autonomy-issue-projection.js";
 import {
-  AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
   stageAutonomyIssueProjection,
 } from "./autonomy-issue-projection-publication.js";
 import type {
   AutonomyHealthObservation,
   AutonomyHealthSeverity,
 } from "./health-signal.js";
-import materializationWorkflow from "./workflows/autonomy-issue-projection-materialization/workflow.js";
 
 const ROOT_CAUSE = "workflow:builder:runtime-warning";
 
@@ -99,7 +96,7 @@ describe("durable autonomy issue projection", () => {
       disposition: { kind: "task", semanticRevision: 2 },
       links: { taskIds: ["task-health-builder"] },
     });
-    expect(existsSync(join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
+    expect(existsSync(join(workspaceRoot, ".kota"))).toBe(false);
   });
 
   it("ignores a disposition produced for an older semantic revision", () => {
@@ -130,7 +127,7 @@ describe("durable autonomy issue projection", () => {
     })).toBe(current);
   });
 
-  it("stages one CAS and materializes only from the published state row", async () => {
+  it("stages changed state once and reads its canonical value offline", () => {
     const workspaceRoot = mkdtempSync(join(tmpdir(), "kota-autonomy-publish-"));
     scopeRoots.push(workspaceRoot);
     const state = createTestTransactionalRunState(join(workspaceRoot, ".kota", "test-state"));
@@ -142,41 +139,21 @@ describe("durable autonomy issue projection", () => {
         observedAt: "2026-06-17T12:00:00.000Z",
       })],
     }).projection;
-    const emit = vi.fn();
-
     expect(stageAutonomyIssueProjection({
       state,
       key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
       revision: 0,
       current,
       next,
-      emit,
-      stepId: "publish:test",
     })).toBe(true);
-    expect(existsSync(join(workspaceRoot, AUTONOMY_ISSUE_PROJECTION_FILE))).toBe(false);
-    expect(emit).toHaveBeenCalledWith(
-      AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
-      {
-        idempotencyKey: "autonomy-issue-projection:1",
-        stateRevision: 1,
-      },
-      { delivery: "on-run-success", stepId: "publish:test" },
-    );
-
-    const result = await new WorkflowScenarioDriver(materializationWorkflow, {
-      workspaceRoot,
-      trigger: {
-        event: AUTONOMY_ISSUE_PROJECTION_MATERIALIZATION_REQUESTED_EVENT,
-        schemaRef: null,
-        payload: {
-          idempotencyKey: "autonomy-issue-projection:1",
-          stateRevision: 1,
-        },
-      },
-      ports: { state },
-    }).run();
-    expect(result.status, result.error).toBe("success");
-    expect(readAutonomyIssueProjection(workspaceRoot)).toEqual(next);
+    expect(stageAutonomyIssueProjection({
+      state,
+      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      revision: 1,
+      current: next,
+      next: structuredClone(next),
+    })).toBe(false);
+    expect(readAutonomyIssueProjection(state.stateDir, state.stateDir)).toEqual(next);
     expect(state.read<AutonomyIssueProjection>(
       AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
     )).toEqual({ revision: 1, value: next });
@@ -200,8 +177,6 @@ describe("durable autonomy issue projection", () => {
       revision: 0,
       current,
       next,
-      emit: vi.fn(),
-      stepId: "publish:first",
     });
     expect(() => stageAutonomyIssueProjection({
       state,
@@ -209,8 +184,55 @@ describe("durable autonomy issue projection", () => {
       revision: 0,
       current,
       next,
-      emit: vi.fn(),
-      stepId: "publish:stale",
     })).toThrow(StateValueConflictError);
+  });
+
+  it("reads only the selected canonical scope and leaves obsolete mirrors untouched", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-issue-reader-"));
+    scopeRoots.push(root);
+    const stateDir = join(root, "daemon-state");
+    const scopeA = join(root, "scope-a");
+    const scopeB = join(root, "scope-b");
+    const projection = applyAutonomyIssueObservations({
+      current: emptyAutonomyIssueProjection(),
+      observations: [observation({ runId: "canonical", observedAt: "2026-06-17T12:00:00.000Z" })],
+    }).projection;
+    const database = new RunStateDatabase(stateDir);
+    try {
+      for (const [id, rootPath] of [["a", scopeA], ["b", scopeB]] as const) {
+        database.registerScope({ id, rootPath, createdAt: "2026-06-17T12:00:00.000Z" });
+      }
+      database.compareAndSetScopeStateValue({
+        scopeId: "a",
+        key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+        expectedRevision: 0,
+        value: projection,
+        updatedAt: "2026-06-17T12:00:00.000Z",
+      });
+    } finally {
+      database.close();
+    }
+    const mirrorDir = join(scopeA, ".kota", "autonomy-issues");
+    mkdirSync(mirrorDir, { recursive: true });
+    const mirrorPath = join(mirrorDir, "projection.json");
+    writeFileSync(mirrorPath, "obsolete mirror is not valid JSON");
+    expect(readAutonomyIssueProjection(scopeA, stateDir)).toEqual(projection);
+    expect(readAutonomyIssueProjection(scopeB, stateDir)).toEqual(emptyAutonomyIssueProjection());
+    expect(readAutonomyIssueProjection(join(root, "unknown"), stateDir)).toEqual(emptyAutonomyIssueProjection());
+    expect(readAutonomyIssueProjection(scopeA, join(root, "missing-state"))).toEqual(emptyAutonomyIssueProjection());
+    expect(existsSync(join(root, "missing-state"))).toBe(false);
+    expect(readFileSync(mirrorPath, "utf-8")).toBe("obsolete mirror is not valid JSON");
+  });
+
+  it("rejects an outdated database without migrating it during inspection", () => {
+    const root = mkdtempSync(join(tmpdir(), "kota-issue-reader-schema-"));
+    scopeRoots.push(root);
+    const path = join(root, "kota.sqlite");
+    const database = new Database(path);
+    database.pragma("user_version = 0");
+    database.close();
+    const before = readFileSync(path);
+    expect(() => readAutonomyIssueProjection(root, root)).toThrow(/daemon-owned migration/);
+    expect(readFileSync(path)).toEqual(before);
   });
 });

@@ -1,3 +1,4 @@
+import { readGitTextTree } from "#core/util/repository-tree.js";
 import { writeStderr, writeStdoutLine } from "./modules/rendering/transport.js";
 import {
   assertTaskQueueValid,
@@ -6,10 +7,11 @@ import {
 
 function usage(): string {
   return [
-    "Usage: validate-queue [--summary]",
+    "Usage: validate-queue [--summary] [--staged]",
     "",
     "Options:",
     "  --summary  Print a concise success summary for run artifacts.",
+    "  --staged   Validate the staged Git tree, including partially staged files.",
     "  --help     Show this help text.",
   ].join("\n");
 }
@@ -20,10 +22,11 @@ try {
     writeStdoutLine(usage());
     process.exit(0);
   }
-  const unknown = args.find((arg) => arg !== "--summary");
+  const unknown = args.find((arg) => arg !== "--summary" && arg !== "--staged");
   if (unknown) throw new Error(`Unknown argument: ${unknown}\n\n${usage()}`);
 
-  const result = assertTaskQueueValid(process.cwd());
+  const tree = args.includes("--staged") ? readGitTextTree(process.cwd(), "index", ["data/tasks"]).tree : undefined;
+  const result = assertTaskQueueValid(process.cwd(), tree);
   if (args.includes("--summary")) {
     writeStdoutLine(formatTaskQueueValidationSummary(result));
   }

@@ -31,10 +31,11 @@ workflow state.
 - Prefer coherent, outcome-sized work over isolated mechanical cleanup.
 - Authored priority orders otherwise actionable work. Dependencies and external
   blockers determine whether work can dispatch.
-- Use repo-task domain operations for creation and lifecycle changes. They own
-  safe paths, dependency checks, mutation authorization, and root/archive moves.
+- Edit task Markdown directly with the normal editor or agent file tools.
+  Prepare complete content before publication; related task edits belong in one
+  change. Move terminal files to `archive/` and keep their status aligned.
 - Do not restore tracking anchors or a separate backlog. If an initiative is
   decomposed, archive or drop its tracking task and let its child tasks carry
   the work.
-- Before finishing task-data changes, run the task validator and confirm safe
+- Before publishing task-data changes, run the task validator and confirm safe
   paths, unique ids, valid metadata, and valid dependency references.

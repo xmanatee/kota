@@ -1066,7 +1066,11 @@ export class ScopeOnboardingService {
         scopeRootPath: operation.acceptedPlan.directoryRoot,
         scopeRootIdentity,
         relativePath: change.path,
-        expectMissing: runtimeDirectoryOwnership(operation, change.path) === "unclaimed",
+        // Rollback leaves directories intact; a prior applied receipt permits
+        // this same accepted operation to reuse them without claiming new paths.
+        expectMissing: runtimeDirectoryOwnership(operation, change.path) === "unclaimed" &&
+          !operation.mutations.some((mutation) => mutation.kind === "create-runtime-directory" &&
+            mutation.target === change.path && mutation.status === "applied"),
       });
     }
     const results = mutate(mutations);

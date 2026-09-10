@@ -1,10 +1,13 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { readOptionalJsonFile } from "#core/util/json-file.js";
-import { validateWorkflowRunId } from "#core/workflow/run-io.js";
+import type { WorkflowFinalizationContext } from "#core/workflow/types.js";
 import { createGeneratedWorkQuestionQueue } from "#modules/autonomy/generated-work-owner-question.js";
 import { canPublishGeneratedWorkOwnerEffects, finalizeGeneratedWorkOwnerEffects } from "#modules/autonomy/generated-work-proposal.js";
 import { findGeneratedWorkTask } from "#modules/autonomy/generated-work-task.js";
+import { improvementHandoffRequested } from "#modules/autonomy/improvement-handoff.js";
 import {
   progressReviewOwnerQuestionProposal,
   progressReviewResolutionProposal,
@@ -14,40 +17,39 @@ import { progressReviewFindingGroupEntries } from "./progress-review/agent-outpu
 import type { ProgressReviewArtifact } from "./progress-review.js";
 import { PROGRESS_REVIEW_ARTIFACT } from "./progress-review.js";
 import {
+  completeProgressReviewSemanticInput,
+  decodeProgressReviewConsumptionState,
+  PROGRESS_REVIEW_STATE_KEY,
   type ProgressReviewConsumptionState,
   planProgressReviewPublication,
 } from "./semantic-input.js";
 import type { PendingProgressReviewHandoff } from "./semantic-input-state.js";
+import { inspectSemanticInput, recordReviewRejection } from "./workflow-steps.js";
 
-export const PROGRESS_REVIEW_PUBLICATION_REQUESTED_EVENT =
-  "autonomy.progress-review.publication.requested";
-export const PROGRESS_REVIEW_PUBLICATION_RESOURCE =
-  "autonomy:progress-review-publication";
-
-export type ProgressReviewPublicationRequest = {
-  publicationKey: string;
-  sourceRunId: string;
-};
-
-export function progressReviewPublicationKey(sourceRunId: string): string {
-  return `progress-review-publication:${sourceRunId}`;
-}
-
-export function decodeProgressReviewPublicationRequest(
-  value: object,
-): ProgressReviewPublicationRequest {
-  const request = value as Partial<ProgressReviewPublicationRequest>;
-  if (typeof request.sourceRunId !== "string") {
-    throw new Error("progress review publication request is invalid");
+export function finalizeProgressReview(ctx: WorkflowFinalizationContext): void {
+  const snapshot = ctx.state.read<ProgressReviewConsumptionState>(PROGRESS_REVIEW_STATE_KEY);
+  const currentState = decodeProgressReviewConsumptionState(snapshot.value, ctx.scopeRoot);
+  if (currentState.scopeId !== deriveDirectoryScopeId(ctx.scopeRoot)) {
+    throw new Error("progress review state belongs to another scope");
   }
-  const sourceRunId = validateWorkflowRunId(
-    request.sourceRunId,
-    "Progress review publication",
-  );
-  if (request.publicationKey !== progressReviewPublicationKey(sourceRunId)) {
-    throw new Error("progress review publication request is invalid");
+  if (recordReviewRejection.output(ctx)) {
+    const next = completeProgressReviewSemanticInput({
+      current: currentState, input: inspectSemanticInput.outputRequired(ctx), consumedAt: new Date().toISOString(),
+    });
+    if (next !== currentState) ctx.state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, snapshot.revision, next);
+    return;
   }
-  return { publicationKey: request.publicationKey, sourceRunId };
+  const result = publishProgressReview({
+    scopeRoot: ctx.scopeRoot,
+    sourceRunId: ctx.runId,
+    currentState,
+  });
+  if (!isDeepStrictEqual(result.nextState, currentState)) {
+    ctx.state.compareAndSet(PROGRESS_REVIEW_STATE_KEY, snapshot.revision, result.nextState);
+  }
+  for (const handoff of result.handoffs) {
+    ctx.emit(improvementHandoffRequested.name, progressReviewHandoffPayload(handoff), `progress-review:${handoff.topicKey}`);
+  }
 }
 
 function decodeArtifact(value: unknown): ProgressReviewArtifact {
@@ -62,7 +64,7 @@ function decodeArtifact(value: unknown): ProgressReviewArtifact {
   return artifact as ProgressReviewArtifact;
 }
 
-/** Advance canonical owner/runtime state from a post-integration follow-up run. */
+/** Finalize idempotent owner effects against the successfully integrated task state. */
 export function publishProgressReview(args: {
   scopeRoot: string;
   sourceRunId: string;

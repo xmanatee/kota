@@ -19,9 +19,9 @@ Your write scope is `data/` — edits outside `data/` (including `AGENTS.md` fil
 
 ## Creating Tasks
 
-When converting an inbox item to a normalized task, use the task CLI to
-scaffold the file, then follow `data/inbox/AGENTS.md`, `data/tasks/AGENTS.md`,
-and the destination state's local contract.
+Write complete task Markdown directly, following `data/inbox/AGENTS.md` and
+`data/tasks/AGENTS.md`. Related tasks and source-note updates form one change;
+do not publish placeholder tasks for later filling.
 
 ## Finish
 

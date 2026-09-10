@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -37,17 +37,26 @@ describe("decomposer assessment ownership", () => {
         id: TASK_ID,
         path: `data/tasks/${TASK_ID}.md`,
         digest: task.taskDigest,
+        markdown: readFileSync(join(workspaceRoot, task.taskPath), "utf8"),
       },
     });
   });
 
-  it("treats a canonical task-content change as a changed immutable contract", () => {
+  it("rejects uncommitted task content even when HEAD still matches the admitted contract", () => {
     const workspaceRoot = project();
     const task = writeActionableTask(workspaceRoot, TASK_ID);
     const metadata = failedBuilderMetadata(task);
     execFileSync("git", ["add", "--", task.taskPath], { cwd: workspaceRoot });
+    execFileSync("git", [
+      "-c", "user.name=KOTA Test", "-c", "user.email=test@example.com",
+      "-c", "core.hooksPath=/dev/null", "commit", "--no-gpg-sign", "--quiet", "-m", "admitted task",
+    ], { cwd: workspaceRoot });
+    const published = execFileSync("git", ["show", `HEAD:${task.taskPath}`], {
+      cwd: workspaceRoot, encoding: "utf8",
+    });
 
     writeActionableTask(workspaceRoot, TASK_ID, "Changed task intent.");
+    expect(readFileSync(join(workspaceRoot, task.taskPath), "utf8")).not.toBe(published);
 
     expect(resolveDecompositionOwnership(workspaceRoot, metadata)).toEqual({
       kind: "superseded-task",

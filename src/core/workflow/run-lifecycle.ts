@@ -238,6 +238,18 @@ export class RunLifecycle {
     const manager = this.sandboxManager(repoRoot);
     let sandbox: RunSandbox | undefined;
     try {
+      if (run.repository !== "write" && run.executionCompletedAt !== undefined) {
+        signal.throwIfAborted();
+        const reconciled = manager.reconcile(run.id, run.repository);
+        if (reconciled.status === "active") {
+          sandbox = reconciled.sandbox;
+          const cleanup = this.cleanupSandbox(manager, sandbox, run.id);
+          if (cleanup) return cleanup;
+        } else {
+          this.options.store.clearSandbox(run.id, this.options.daemonEpoch);
+        }
+        return { kind: "terminal", state: "succeeded" };
+      }
       if (run.sandbox) {
         try {
           sandbox = manager.adopt(run.sandbox);
@@ -329,6 +341,11 @@ export class RunLifecycle {
         return outcome;
       }
       if (sandbox.repository !== "write") {
+        this.options.store.completeNonWriterExecution(
+          run.id,
+          this.options.daemonEpoch,
+          this.now(),
+        );
         return (
           this.cleanupSandbox(manager, sandbox, run.id) ??
           { kind: "terminal", state: "succeeded" }
@@ -345,7 +362,11 @@ export class RunLifecycle {
       };
       return await this.finalizeWriter(context, manager, journal);
     } catch (error) {
-      const journal = readJournal(this.options.store.getRun(run.id)?.integration);
+      const current = this.options.store.getRun(run.id);
+      if (current?.executionCompletedAt !== undefined && !signal.aborted) {
+        return this.attention("sandbox-cleanup-blocked", [errorMessage(error)]);
+      }
+      const journal = readJournal(current?.integration);
       if (sandbox?.repository === "write" && journal?.phase === "publishing") {
         return this.attention("integration-publication-interrupted", [
           errorMessage(error),

@@ -5,9 +5,9 @@ import { join } from "node:path";
 import type { DeadLetterItem } from "#core/daemon/dead-letter-queue.js";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
-  materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { seedAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.test-helpers.js";
 import {
   applyAutonomyHealthReviewActions,
   buildAutonomyHealthReviewFromSignals,
@@ -49,7 +49,7 @@ export function reviewAndApplyRuntimeHealthAudit(
     sourceEventName: "autonomy.runtime-health.audit",
     reason: "test",
   });
-  const currentProjection = readAutonomyIssueProjection(workspaceRoot);
+  const currentProjection = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"));
   const plannedActions = planAutonomyHealthReviewActions({
     workspaceRoot,
     currentProjection,
@@ -65,7 +65,7 @@ export function reviewAndApplyRuntimeHealthAudit(
     review,
     plannedActions,
   });
-  materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
+  seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), finalized.projection);
   return finalized;
 }
 

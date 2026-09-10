@@ -105,9 +105,11 @@ export async function executeWorkCapabilityUiAction(
   }
   if (operation.namespace === "tasks" && operation.method === "create") {
     const title = stringParameter(parameters, "title");
+    const body = stringParameter(parameters, "body");
     const priority = stringParameter(parameters, "priority");
     const state = stringParameter(parameters, "state");
     if (!title) return missingParameter("title");
+    if (!body?.trim()) return missingParameter("body");
     if (priority !== "p0" && priority !== "p1" && priority !== "p2" && priority !== "p3") {
       return { ok: false, reason: "invalid-input", message: "priority must be p0, p1, p2, or p3." };
     }
@@ -117,6 +119,7 @@ export async function executeWorkCapabilityUiAction(
     const activeState = state === "open" || state === "blocked" ? state : undefined;
     const result = await client.tasks.create({
       title,
+      body,
       priority,
       ...(activeState ? { state: activeState } : {}),
     });

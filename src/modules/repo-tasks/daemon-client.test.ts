@@ -46,8 +46,8 @@ describe("repo-tasks exceptional daemon transforms", () => {
   it("preserves task and inbox validation failures without copied result arms", async () => {
     const invalid = client((path) => path.includes("capture")
       ? json(409, { error: "Inbox exists" })
-      : json(400, { error: "Invalid title" }));
-    await expect(invalid.create({ title: "?", priority: "p1" })).resolves.toEqual({
+      : json(400, { reason: "invalid_slug", error: "Invalid title" }));
+    await expect(invalid.create({ title: "?", body: "Keep the complete request.", priority: "p1" })).resolves.toEqual({
       ok: false,
       reason: "invalid_slug",
       message: "Invalid title",
@@ -57,6 +57,20 @@ describe("repo-tasks exceptional daemon transforms", () => {
       reason: "already_exists",
       message: "Inbox exists",
     });
+  });
+
+  it("submits the full task body and preserves body rejection", async () => {
+    const body = "First detail\n\n  Indented evidence\nLast detail.  \n";
+    const tasks = client((path, init) => {
+      expect(path).toBe("/api/tasks/normalized?scopeId=remote");
+      expect(JSON.parse(String(init?.body))).toEqual({ title: "Remote task", body, priority: "p1" });
+      return json(400, { reason: "invalid_body", error: "Complete body required" });
+    });
+    await expect(tasks.create({ title: "Remote task", body, priority: "p1", scopeId: "remote" }))
+      .resolves.toEqual({ ok: false, reason: "invalid_body", message: "Complete body required" });
+    await expect(client(() => json(400, { error: "Task body must contain authored intent beyond its title" }))
+      .updateBody("task-a", "# Requested\n\n<!-- unfinished -->"))
+      .resolves.toEqual({ ok: false, reason: "malformed" });
   });
 
   it("re-reads a body update so callers receive canonical persisted content", async () => {

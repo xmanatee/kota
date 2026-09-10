@@ -1,17 +1,28 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { expectStructuredOutput } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import { inspectRepoWorkSupply, resolveRepoWorkSupplyInput } from "#modules/repo-tasks/work-supply.js";
 import { createSecurityFindingTasksOperation } from "../security-review/blocking-operations.js";
 import { securityFindingPublicationRequested } from "../security-review/events.js";
 import { decodeSecurityReviewState, SECURITY_REVIEW_RESOURCE, SECURITY_REVIEW_STATE_KEY } from "../security-review/review-state.js";
-import { resolveSecurityFindingTaskTarget } from "../security-review/security-review-task-identity.js";
+import { resolveSecurityFindingTaskTarget, securityFindingEvidenceKey } from "../security-review/security-review-task-identity.js";
 
 const requestSchema = z.object({ taskId: z.string().regex(/^task-[a-z0-9][a-z0-9-]*$/) });
 const workflow: WorkflowDefinitionInput = {
   name: "security-finding-publication",
   repository: "write",
+  finalize: (ctx) => {
+    const receipt = expectStructuredOutput<{ publishedEvidenceKeys: string[] }>(ctx.stepOutputs["publish-findings"], ["publishedEvidenceKeys"]);
+    const published = new Set(receipt.publishedEvidenceKeys);
+    const snapshot = ctx.state.read(SECURITY_REVIEW_STATE_KEY);
+    const state = decodeSecurityReviewState(snapshot.value);
+    const pending = state.pending.filter((entry) => !published.has(securityFindingEvidenceKey(entry.finding)));
+    if (pending.length !== state.pending.length) {
+      ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, { ...state, pending });
+    }
+  },
   integration: {
     validationCommand: ["pnpm", "validate-tasks"],
     postReconcile: ({ repoRoot, trigger, readState }) => {
@@ -29,9 +40,9 @@ const workflow: WorkflowDefinitionInput = {
   description: "Publish pending confirmed security variants while holding their task resource.",
   triggers: [{ event: securityFindingPublicationRequested.name, queueMode: "all" }],
   resources: ({ trigger }) => [SECURITY_REVIEW_RESOURCE, `task:${requestSchema.parse(trigger.payload).taskId}`],
-  triggerAdmission: ({ scopeRoot, stateDir, trigger }) => {
+  triggerAdmission: ({ scopeRoot, runtimeStateDir, trigger }) => {
     const { taskId } = requestSchema.parse(trigger.payload);
-    const supply = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ workspaceRoot: scopeRoot, scopeRoot, stateDir }));
+    const supply = inspectRepoWorkSupply(resolveRepoWorkSupplyInput({ workspaceRoot: scopeRoot, scopeRoot, stateDir: runtimeStateDir }));
     return supply.ownershipAvailable && !supply.owners.some((owner) => owner.taskId === taskId)
       ? { admitted: true }
       : { admitted: false, reason: "Security evidence remains pending until task ownership is available" };
@@ -49,15 +60,10 @@ const workflow: WorkflowDefinitionInput = {
           workspaceRoot: ctx.workspaceRoot, runId: entry.runId, findings: [entry.finding],
         }));
       }
-      if (pending.length) {
-        ctx.state.compareAndSet(SECURITY_REVIEW_STATE_KEY, snapshot.revision, {
-          ...state, pending: state.pending.filter((entry) => !pending.includes(entry)),
-        });
-      }
       if (results.some((result) => result.createdTaskIds.length + result.updatedTaskIds.length > 0)) {
         writeFileSync(join(ctx.workflow.runDirPath, "commit-message.txt"), `security-review: reconcile confirmed evidence for ${taskId}\n`);
       }
-      return { taskId, results };
+      return { taskId, results, publishedEvidenceKeys: pending.map((entry) => securityFindingEvidenceKey(entry.finding)) };
     },
   }],
 };

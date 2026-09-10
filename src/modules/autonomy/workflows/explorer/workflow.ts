@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AgentDef } from "#core/agents/agent-types.js";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import { resolveAgentRunDirFromContext } from "#core/workflow/agent-run-dir.js";
@@ -19,8 +20,7 @@ import {
 } from "./assessment.js";
 import {
   EXPLORER_PUBLICATION_ARTIFACT,
-  EXPLORER_PUBLICATION_REQUESTED_EVENT,
-  explorerPublicationKey,
+  finalizeExplorer,
 } from "./explorer-publication.js";
 import {
   decodeExplorerState,
@@ -28,11 +28,14 @@ import {
   type ExplorerState,
 } from "./explorer-state.js";
 import { explorationFingerprint, refreshExplorerSources } from "./source-evidence.js";
-import {
-  applyWatchlistUpdates,
-  checkWatchlistUpdatesCommitMessage,
-  readWatchlistUpdatesFromRun,
-} from "./watchlist-updates.js";
+
+const validationCommand = [
+  "node",
+  ...(import.meta.url.endsWith(".ts")
+    ? ["--conditions=source", "--import", import.meta.resolve("tsx")]
+    : []),
+  fileURLToPath(import.meta.resolve("#modules/autonomy/workflows/explorer/validate.js")),
+] as const;
 
 export const agent: AgentDef = {
   name: "explorer",
@@ -60,12 +63,12 @@ const inspectQueue = typedCodeStep<ExplorerAssessment>({
       "needsAttention",
       "explorationRefreshDue",
     ]),
-  run: ({ workspaceRoot, scopeRoot, stateDir, state, runBlocking }) => {
+  run: ({ workspaceRoot, scopeRoot, runtimeStateDir, state, runBlocking }) => {
     const current = decodeExplorerState(
       state.read<ExplorerState>(EXPLORER_STATE_KEY).value,
     );
     return runBlocking(explorerAssessmentOperation, {
-      ...resolveRepoWorkSupplyInput({ workspaceRoot, scopeRoot, stateDir }),
+      ...resolveRepoWorkSupplyInput({ workspaceRoot, scopeRoot, stateDir: runtimeStateDir }),
       lastExplorationAt: current.lastExplorationAt,
     });
   },
@@ -93,7 +96,8 @@ const explorerWorkflow: WorkflowDefinitionInput = {
   name: "explorer",
   repository: "write",
   resources: () => ["autonomy:exploration"],
-  integration: { validationCommand: ["pnpm", "validate-tasks"] },
+  integration: { validationCommand },
+  finalize: finalizeExplorer,
   description:
     "Search broadly for external ideas and promising improvements when the local queue is empty or running thin.",
   tags: ["monitored"],
@@ -123,39 +127,18 @@ const explorerWorkflow: WorkflowDefinitionInput = {
       repairLoop: {
         checks: [
           {
-            id: "task-queue-valid",
+            id: "explorer-files-valid",
             type: "code" as const,
             run: async (ctx) =>
               workflowCommandOutput(
                 await ctx.runCommand({
-                  command: "pnpm",
-                  args: ["run", "validate-tasks"],
+                  command: validationCommand[0],
+                  args: validationCommand.slice(1),
                   cwd: ctx.workspaceRoot,
                 }),
               ),
           },
-          {
-            id: "watchlist-update-commit-message",
-            type: "code" as const,
-            run: (ctx) =>
-              checkWatchlistUpdatesCommitMessage(
-                resolveAgentRunDirFromContext(ctx),
-              ),
-          },
         ],
-      },
-    },
-    {
-      id: "apply-watchlist-updates",
-      type: "code",
-      when: stepSucceeded("explore"),
-      run: (ctx) => {
-        const payload = readWatchlistUpdatesFromRun(
-          resolveAgentRunDirFromContext(ctx),
-        );
-        if (!payload) return { applied: [] };
-        const applied = applyWatchlistUpdates(ctx.workspaceRoot, payload);
-        return { applied };
       },
     },
     {
@@ -179,20 +162,6 @@ const explorerWorkflow: WorkflowDefinitionInput = {
           next,
         );
         return { reviewed, ...next, revisit: evidence.revisit };
-      },
-    },
-    {
-      id: "emit-exploration-publication",
-      type: "emit",
-      when: stepSucceeded("record-exploration-publication"),
-      event: EXPLORER_PUBLICATION_REQUESTED_EVENT,
-      payload: (ctx) => {
-        const publicationKey = explorerPublicationKey(ctx.workflow.runId);
-        return {
-          idempotencyKey: publicationKey,
-          publicationKey,
-          sourceRunId: ctx.workflow.runId,
-        };
       },
     },
   ],

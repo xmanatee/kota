@@ -43,13 +43,17 @@ before proposing work and follow interventions beyond task creation.
 - **Eval provenance.** Retired SWE-bench fixtures are reference-only; new
   fixtures come from local failures or justified non-vacuous smoke cases.
 - **Repository isolation is runtime-owned.** Workflows declare repository
-  access and logical resources. The runtime supplies the isolated `scopeRoot`
-  and canonical `scopeDir`, then owns integration, recovery, and cleanup.
+  access and logical resources. The runtime supplies the isolated `workspaceRoot`
+  and canonical `scopeRoot`, then owns integration, recovery, and cleanup.
   Workflows do not own worktrees, branches, commits, merges, leases, or
-  finalizers.
+  integration finalizers.
 - **Shared autonomy state is runtime-owned.** Issue projections, watermarks,
-  and cooldowns publish through `ctx.state` compare-and-set. JSON projections
-  are read-only materializations, never authority or rebuild input.
+  and cooldowns publish through `ctx.state` compare-and-set. Offline issue
+  inspection reads canonical SQLite state with an explicit scope root and state
+  directory; it never maintains JSON mirrors or runs schema migrations.
+- **Operator inspection uses `client.autonomy`.** Report, attention, and digest
+  commands use the selected daemon/local client. Shared inspection resolves
+  database authority on the host and keeps artifacts in the canonical scope.
 - **Evaluator calibration.** Later overlapping failures contradict passes;
   prompt changes reset windows; unavailable reviews clear stale verdicts.
   Critic rejects outcomes that are incorrect, unsafe, incomplete, unsupported,

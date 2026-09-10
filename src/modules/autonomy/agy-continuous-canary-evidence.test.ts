@@ -39,6 +39,29 @@ afterEach(() => {
 });
 
 describe("AGY canary quality evidence", () => {
+  it("submits the complete finding in the initial create request", async () => {
+    const create = vi.fn(async () => ({
+      ok: true as const,
+      id: "task-investigate-agy-canary-finding-review-timeout",
+      path: "data/tasks/task-investigate-agy-canary-finding-review-timeout.md",
+    }));
+    const ctx = { client: { tasks: { create } } } as unknown as ModuleContext;
+    await expect(materializeAgyCanaryFindingTask(ctx, {
+      fingerprint: "review-timeout",
+      title: "Review latency was elevated",
+      description: "The review exceeded its expected latency during the canary window.",
+      evidenceRef: "artifact:.kota/runs/canary/evidence.json",
+    })).resolves.toMatchObject({ ok: true });
+    expect(create).toHaveBeenCalledWith({
+      title: "Investigate AGY canary finding review-timeout",
+      priority: "p2",
+      body: expect.stringContaining("The review exceeded its expected latency during the canary window."),
+    });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      body: expect.stringContaining("artifact:.kota/runs/canary/evidence.json"),
+    }));
+  });
+
   it("makes a deduplicated minor-finding task actionable", async () => {
     const updateBody = vi.fn(async () => ({
       ok: true as const,

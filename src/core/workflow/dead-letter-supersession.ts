@@ -92,63 +92,44 @@ function runContinuesDeadLetter(
   );
 }
 
-function supersedingRun(
+function runSupersedesDeadLetter(
   item: DeadLetterItem,
   runStore: WorkflowRunStore,
-  candidates: WorkflowRunMetadata[],
-): WorkflowRunMetadata | null {
+  run: WorkflowRunMetadata,
+): boolean {
   const failedAtMs = Date.parse(item.failure.lastFailedAt);
-  if (!Number.isFinite(failedAtMs)) return null;
+  if (!Number.isFinite(failedAtMs)) return false;
+  if (run.status !== "success" && run.status !== "completed-with-warnings") {
+    return false;
+  }
+  const completedAtMs = Date.parse(run.completedAt ?? run.startedAt);
+  if (!Number.isFinite(completedAtMs) || completedAtMs <= failedAtMs) {
+    return false;
+  }
+  if (!runContinuesDeadLetter(item, run, runStore)) return false;
   const stepId = failedStepId(item, runStore);
-  return candidates.find((run) => {
-    if (run.status !== "success" && run.status !== "completed-with-warnings") {
-      return false;
-    }
-    const completedAtMs = Date.parse(run.completedAt ?? run.startedAt);
-    if (!Number.isFinite(completedAtMs) || completedAtMs <= failedAtMs) {
-      return false;
-    }
-    if (!runContinuesDeadLetter(item, run, runStore)) return false;
-    return stepId === null || run.steps.some(
-      (step) => step.id === stepId && step.status === "success",
-    );
-  }) ?? null;
+  return stepId === null || run.steps.some(
+    (step) => step.id === stepId && step.status === "success",
+  );
 }
 
+/** Called only while delivering the durable terminal publication, including replay. */
 export function dismissSupersededWorkflowDeadLetters(args: {
   deadLetterQueue: DeadLetterQueueStore;
   runStore: WorkflowRunStore;
-  successfulRun?: WorkflowRunMetadata;
+  successfulRun: WorkflowRunMetadata;
   log?: (message: string) => void;
 }): string[] {
   const dismissed: string[] = [];
-  const runsByWorkflow = new Map<string, WorkflowRunMetadata[]>();
+  const run = args.successfulRun;
   for (const item of args.deadLetterQueue.list({
     status: "open",
     type: "workflow-dispatch",
   })) {
     if (!isSupersedableWorkflowFailure(item)) continue;
     const workflow = deadLetterWorkflowName(item);
-    if (!workflow) continue;
-    if (
-      args.successfulRun !== undefined &&
-      args.successfulRun.workflow !== workflow
-    ) {
-      continue;
-    }
-    let candidates: WorkflowRunMetadata[];
-    if (args.successfulRun !== undefined) {
-      candidates = [args.successfulRun];
-    } else {
-      candidates = runsByWorkflow.get(workflow) ??
-        args.runStore.listRuns({
-          workflow,
-          limit: Number.MAX_SAFE_INTEGER,
-        });
-      runsByWorkflow.set(workflow, candidates);
-    }
-    const run = supersedingRun(item, args.runStore, candidates);
-    if (!run) continue;
+    if (run.workflow !== workflow) continue;
+    if (!runSupersedesDeadLetter(item, args.runStore, run)) continue;
     const repair = isWorkflowMetadataAuthorityFailure(item)
       ? args.runStore.retainedMetadataAuthorityRepair(item.failure.reason)
       : null;

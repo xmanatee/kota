@@ -6,8 +6,10 @@ This is the only autonomy workflow that listens to `runtime.idle`.
 Queue shape comes from the shared autonomy queue policy; task eligibility
 comes from the repo-tasks work-supply projection, including runtime ownership.
 Independent exploration uses a capacity-sized reserve of available tasks;
-retained runs and unrelated dependency waits never count as spare supply. The emitted-event summary records actual publication
-intents rather than independently recomputing routing conditions. Owner-decision
+retained runs and unrelated dependency waits never count as spare supply. Ordinary
+steps retain inspection evidence in the run directory. The finalization decision
+artifact records staged intents; durable run success/outbox remains publication
+authority. Owner-decision
 observations use the scoped core repository, never a second JSON reader.
 
 Keep routing decisions semantic: emit events that describe repo conditions, not
@@ -20,8 +22,11 @@ admit agent assessment; ordinary source growth alone stays pending. One pending
 revision owns the decision until publication or durable output rejection,
 including across restart.
 Idle reconciliation also releases accepted handoff evidence once its intervention
-is terminal, independently of agent-review admission. It shares the publication
-resource and stages evidence receipts with delivery through runtime state.
+is terminal, independently of agent-review admission. Shared synchronous finalization
+reads fresh consumption, scope and security state, then stages reservations,
+evidence receipts and delivery in the success transaction. No long-lived
+publication resource protects these rows. Superseded observations preserve current
+authority and leave newer evidence for the next ordinary idle inspection.
 Generated proposal retirements remain context, not fresh disposition signals.
 Compare outcome yield against the last consumed cohort for the same workflow;
 recovery can admit review in spare capacity even when success is already known,

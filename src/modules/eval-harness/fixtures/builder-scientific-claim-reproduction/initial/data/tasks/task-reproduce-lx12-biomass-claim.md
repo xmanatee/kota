@@ -42,7 +42,7 @@ least 40 percent.
 ## Constraints
 
 - Only change `scripts/analyze-claim.mjs`, write `claim-result.json` and
-  `claim-holdout-result.json`, and move this task to `done/`.
+  `claim-holdout-result.json`, and archive this task as `done`.
 - Do not edit `scripts/check-claim.mjs`, `docs/paper-excerpt.md`,
   `data/claims/lx12-biomass.csv`, `data/claims/lx12-holdout.csv`, or fixture
   metadata.
@@ -63,8 +63,8 @@ least 40 percent.
   support/refute verdict from the holdout data.
 - `scripts/check-claim.mjs`, `docs/paper-excerpt.md`, and
   both files under `data/claims/` are unchanged.
-- This task has moved from `data/tasks/` to `data/tasks/archive/` by
-  running exactly `pnpm run finish-task`.
+- This task has moved from `data/tasks/` to `data/tasks/archive/` with
+  `status: done` as its only frontmatter and its body preserved.
 
 ## Acceptance Evidence
 

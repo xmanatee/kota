@@ -6,6 +6,11 @@ This directory contains the filesystem capability pack — a repo module that ow
 - Tools, helpers, and tests are co-located here, following the pattern established by `web-access/`.
 - Read-only tools (`file_read`, `glob`, `grep`, `files_overview`) are classified as safe in guardrails.
 - Write tools (`file_write`, `file_edit`, `multi_edit`, `find_replace`, `file_watch`) are classified as moderate.
+- Editors preserve requested content, including unfinished syntax; final-result
+  validation belongs to the publication workflow, not individual edits.
+- Batch edits prepare final contents before writing. Write failures roll back
+  only attempted files; report incomplete rollback and retain existing undo
+  tracking for any files that could not be restored.
 - Mutation tools reject the machine-authority directory supplied by the runtime;
   trust and policy changes must use the authenticated scope-authority service so
   they retain operator verification and audit provenance.

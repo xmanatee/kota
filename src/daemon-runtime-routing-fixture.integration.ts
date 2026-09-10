@@ -10,13 +10,13 @@ import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import { initEventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
-import { autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
+import { withShortBatchWindows } from "#core/workflow/testing/runtime-fixture.js";
+import { type AutonomyIssueDecisionRequest, autonomyIssueDecisionRequested } from "#modules/autonomy/autonomy-issue-events.js";
 import { readAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
 import {
   AUTONOMY_SOURCE_EVENT_NAMES,
   createRuntimeSourceFixture,
-  flushCapturedWarningBatch,
   type RuntimeSourceFixture,
   type ScopedAutonomyHealthSignal,
 } from "#root/daemon-runtime-event-fixture.integration.js";
@@ -48,9 +48,8 @@ export function initializeRuntimeRoutingScope(scopeRoot: string): void {
   );
 }
 
-export type RuntimeDecision = {
+export type RuntimeDecision = AutonomyIssueDecisionRequest & {
   scopeId: string;
-  issueKey: string;
 };
 
 export type RuntimeRoutingScenario = {
@@ -103,11 +102,11 @@ export async function startRuntimeRoutingScenario(args: {
   const issueProjectionWorkflowNames = new Set([
     "runtime-health-auditor",
     "autonomy-health-reviewer",
-    "autonomy-issue-projection-materialization",
   ]);
   const issueProjectionWorkflows = loader
     .getContributedWorkflows()
-    .filter((workflow) => issueProjectionWorkflowNames.has(workflow.name));
+    .filter((workflow) => issueProjectionWorkflowNames.has(workflow.name))
+    .map(withShortBatchWindows);
   if (issueProjectionWorkflows.length !== issueProjectionWorkflowNames.size) {
     await loader.unloadAll();
     throw new Error("runtime modules did not contribute the autonomy issue publication path");
@@ -185,9 +184,10 @@ export async function startRuntimeRoutingScenario(args: {
 
 export function projectionContains(
   scopeRoot: string,
+  stateDir: string,
   predicate: (rootCauseKey: string) => boolean,
 ): boolean {
-  return readAutonomyIssueProjection(scopeRoot).issues.some(
+  return readAutonomyIssueProjection(scopeRoot, stateDir).issues.some(
     (issue) => predicate(issue.rootCauseKey),
   );
 }
@@ -200,14 +200,15 @@ export function emitWarningFamily(args: {
 }): void {
   const { scenario, emit, scopeId, predicate } = args;
   const cursor = scenario.healthSignals.length;
+  // Warning admission requires repeated observations, independent of batch timing.
   emit();
-  const signal = scenario.healthSignals.slice(cursor).find(
+  emit();
+  const signals = scenario.healthSignals.slice(cursor).filter(
     (candidate) => candidate.scopeId === scopeId && predicate(candidate),
   );
-  if (!signal) {
-    throw new Error(`source fixture did not emit its warning signal for ${scopeId}`);
+  if (signals.length !== 2) {
+    throw new Error(`source fixture did not emit two warning observations for ${scopeId}`);
   }
-  flushCapturedWarningBatch(scenario.eventBus, signal);
 }
 
 export async function waitForRuntimeEvidence(

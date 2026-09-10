@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import type { RunStateDatabase } from "./run-state-database.js";
 import type { WorkflowRunTrigger } from "./trigger-types.js";
 import type { WorkflowDefinition } from "./types.js";
@@ -14,6 +15,7 @@ export function rejectUnadmittedWorkflowTrigger(args: {
   const admission = args.definition.triggerAdmission?.({
     scopeRoot: args.scopeRoot,
     stateDir: args.stateDir,
+    runtimeStateDir: dirname(args.runState.path),
     scopeId: args.scopeId,
     workflowName: args.definition.name,
     trigger: args.trigger,

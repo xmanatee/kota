@@ -6,20 +6,12 @@ import {
 } from "#core/workflow/step-input-code.js";
 import type { WorkflowDefinitionInput } from "#core/workflow/types.js";
 import {
-  autonomyIssueDecisionRequested,
-  autonomyIssueInvestigationKey,
-} from "#modules/autonomy/autonomy-issue-events.js";
-import {
   AUTONOMY_ISSUE_PROJECTION_RESOURCE,
   AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
   type AutonomyIssueProjection,
   decodeAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
-import { stageAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection-publication.js";
 import { autonomyHealthSignal } from "#modules/autonomy/health-signal.js";
-import {
-  ownerQuestionMutationRequested,
-} from "#modules/owner-questions/events.js";
 import {
   type PlanHealthReviewActionsOutput,
   planAutonomyHealthReviewActionsOperation,
@@ -27,9 +19,9 @@ import {
 import {
   type AutonomyHealthReviewActionResult,
   applyAutonomyHealthReviewActions,
-  buildAutonomyHealthAttentionDigest,
   writeAutonomyHealthReviewArtifact,
 } from "./health-review.js";
+import { finalizeAutonomyHealthReview } from "./health-review-finalization.js";
 import { buildReview } from "./review-steps.js";
 
 const planActions = typedCodeStep<PlanHealthReviewActionsOutput>({
@@ -76,16 +68,7 @@ const publishReview = typedCodeStep<PublishedReview>({
       review,
       plannedActions: planActions.outputRequired(ctx).actions,
     });
-    const { projection, ...actions } = finalized;
-    stageAutonomyIssueProjection({
-      state: ctx.state,
-      key: AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
-      revision: snapshot.revision,
-      current: currentProjection,
-      next: projection,
-      emit: ctx.emit,
-      stepId: "publish-review:materialize",
-    });
+    const { projection: _projection, ...actions } = finalized;
     return { actions };
   },
 });
@@ -114,6 +97,7 @@ const writeArtifact = typedCodeStep<{ written: boolean; path: string }>({
 const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
   name: "autonomy-health-reviewer",
   repository: "read",
+  finalize: finalizeAutonomyHealthReview,
   resources: () => [AUTONOMY_ISSUE_PROJECTION_RESOURCE],
   description:
     "Turn typed autonomy health observations into durable issue transitions and request review only for undecided revisions.",
@@ -155,80 +139,6 @@ const autonomyHealthReviewerWorkflow: WorkflowDefinitionInput = {
           );
         }
         return { emitted: mutations.length };
-      },
-    },
-    {
-      id: "emit-owner-question-mutations",
-      type: "code",
-      run: (ctx) => {
-        const mutations = publishReview.outputRequired(ctx).actions
-          .ownerQuestionMutations;
-        for (const mutation of mutations) {
-          ctx.emit(
-            ownerQuestionMutationRequested.name,
-            mutation,
-            {
-              delivery: "on-run-success",
-              stepId: `emit-owner-question-mutation:${mutation.questionId}`,
-            },
-          );
-        }
-        return { emitted: mutations.length };
-      },
-    },
-    {
-      id: "emit-decision-requests",
-      type: "code",
-      run: (ctx) => {
-        const review = buildReview.outputRequired(ctx).review;
-        const requests = publishReview.outputRequired(ctx).actions.applied.filter(
-          (action) => action.kind === "decision-requested",
-        );
-        for (const [index, request] of requests.entries()) {
-          ctx.emit(
-            autonomyIssueDecisionRequested.name,
-            {
-              issueKey: request.issueKey,
-              rootCauseKey: request.dedupeKey,
-              semanticRevision: request.semanticRevision,
-              transition: request.transition,
-              observedAt: review.generatedAt,
-              requestKind: "transition",
-              idempotencyKey: autonomyIssueInvestigationKey(
-                request.issueKey,
-                request.semanticRevision,
-                0,
-              ),
-            },
-            {
-              delivery: "on-run-success",
-              stepId:
-                `emit-decision-request:${request.issueKey}:` +
-                `${request.semanticRevision}:${index}`,
-            },
-          );
-        }
-        return { emitted: requests.length };
-      },
-    },
-    {
-      id: "emit-attention",
-      type: "code",
-      run: (ctx) => {
-        const actions = publishReview.outputRequired(ctx).actions;
-        if (actions.applied.length === 0) return { emitted: 0 };
-        ctx.emit(
-          "workflow.attention.digest",
-          buildAutonomyHealthAttentionDigest({
-            review: buildReview.outputRequired(ctx).review,
-            actions,
-          }),
-          {
-            delivery: "on-run-success",
-            stepId: "emit-attention",
-          },
-        );
-        return { emitted: 1 };
       },
     },
   ],

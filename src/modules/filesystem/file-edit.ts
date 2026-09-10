@@ -13,7 +13,6 @@ import {
   buildNotFoundMessage,
   tryWhitespaceMatch,
 } from "./file-edit-helpers.js";
-import { lintFile } from "./lint.js";
 import { fileNotFoundError, resolveToolPath } from "./path-resolver.js";
 
 export const fileEditTool: KotaTool = {
@@ -82,37 +81,9 @@ export async function runFileEdit(
 
   const content = readFileSync(path, "utf-8");
   const count = content.split(oldStr).length - 1;
+  const matched = count === 0 ? tryWhitespaceMatch(content, oldStr) : oldStr;
 
-  if (count === 0) {
-    // Try whitespace-tolerant match before falling to fuzzy error
-    const wsMatch = tryWhitespaceMatch(content, oldStr);
-    if (wsMatch) {
-      const updated = content.replace(wsMatch, () => newStr);
-      writeFileSync(path, updated, "utf-8");
-
-      const lintResult = lintFile(path);
-      if (!lintResult.ok) {
-        writeFileSync(path, content, "utf-8");
-        recordModification(path);
-        return {
-          content:
-            `Edit reverted — syntax error detected:\n${lintResult.error}\n\n` +
-            `The file has been restored. Fix the syntax in your replacement and try again.`,
-          is_error: true,
-        };
-      }
-
-      recordModification(path);
-      trackFileChange(path, content, "file_edit");
-      const line = content.slice(0, content.indexOf(wsMatch)).split("\n").length;
-      printEditDiff(path, content, wsMatch, newStr);
-      return {
-        content:
-          `Applied with whitespace correction at line ${line} in ${path}. ` +
-          `(Indentation/whitespace in old_string didn't match exactly, but content matched.)`,
-      };
-    }
-
+  if (!matched) {
     const msg = buildNotFoundMessage(path, content, oldStr);
     return {
       content: staleWarning ? `${staleWarning}\n\n${msg}` : msg,
@@ -131,27 +102,21 @@ export async function runFileEdit(
   }
 
   const updated = replaceAll
-    ? content.replaceAll(oldStr, () => newStr)
-    : content.replace(oldStr, () => newStr);
+    ? content.replaceAll(matched, () => newStr)
+    : content.replace(matched, () => newStr);
 
   writeFileSync(path, updated, "utf-8");
-
-  // Linter-gated: syntax check after edit, revert on failure
-  const lintResult = lintFile(path);
-  if (!lintResult.ok) {
-    writeFileSync(path, content, "utf-8"); // revert
-    recordModification(path);
-    return {
-      content:
-        `Edit reverted — syntax error detected:\n${lintResult.error}\n\n` +
-        `The file has been restored. Fix the syntax in your replacement and try again.`,
-      is_error: true,
-    };
-  }
-
   recordModification(path);
   trackFileChange(path, content, "file_edit");
+  printEditDiff(path, content, matched, newStr);
+  if (count === 0) {
+    const line = content.slice(0, content.indexOf(matched)).split("\n").length;
+    return {
+      content:
+        `Applied with whitespace correction at line ${line} in ${path}. ` +
+        `(Indentation/whitespace in old_string didn't match exactly, but content matched.)`,
+    };
+  }
   const replacements = replaceAll ? count : 1;
-  printEditDiff(path, content, oldStr, newStr);
   return { content: `Replaced ${replacements} occurrence(s) in ${path}` };
 }

@@ -7,7 +7,11 @@ import { subscribeBuilderInterruptions } from "./autonomy-issue-builder-interrup
 import { subscribeDeadLetterChanges } from "./autonomy-issue-dead-letter-source.js";
 import { autonomyIssueReconciliationRequested } from "./autonomy-issue-events.js";
 import { subscribeModuleOperationFailures } from "./autonomy-issue-module-source.js";
-import { readAutonomyIssueProjection } from "./autonomy-issue-projection.js";
+import {
+  AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+  type AutonomyIssueProjection,
+  decodeAutonomyIssueProjection,
+} from "./autonomy-issue-projection.js";
 import { subscribeAutonomyIssueReconciliation } from "./autonomy-issue-reconciliation-source.js";
 import {
   type AutonomyIssueRuntimeScope,
@@ -220,7 +224,12 @@ function subscribeOwnerInterventions(ctx: AutonomyIssueSourceContext): void {
     const runtime = resolveAutonomyIssueRuntimeScope(ctx, payload);
     const question = runtime.ownerQuestionQueue.get(payload.id);
     if (!question || question.status === "pending") return;
-    const linkedIssue = readAutonomyIssueProjection(runtime.workspaceRoot).issues.find(
+    const linkedIssue = decodeAutonomyIssueProjection(
+      runtime.runState.readScopeStateValue<AutonomyIssueProjection>(
+        runtime.scopeId,
+        AUTONOMY_ISSUE_PROJECTION_STATE_KEY,
+      ).value,
+    ).issues.find(
       (issue) => issue.links.ownerQuestionIds.includes(question.id),
     );
     if (linkedIssue) {

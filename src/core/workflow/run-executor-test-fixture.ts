@@ -162,6 +162,7 @@ export function makeRunContext(
   }
 
   return {
+    runtimeStateDir: join(workspaceRoot, ".kota"),
     run: { id: runId, attempt, daemonEpoch: 1 },
     scope: { id: "test-scope", root: workspaceRoot },
     workflow: "test",

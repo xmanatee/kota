@@ -7,10 +7,9 @@ import type { DaemonRuntimeScope } from "#core/daemon/runtime-scope-provider.js"
 import type { EventBus } from "#core/events/event-bus.js";
 import { ScopedEventBus } from "#core/events/scope.js";
 import type { WorkflowRunMetadata } from "#core/workflow/run-types.js";
-import { AUTONOMY_ISSUE_PROJECTION_FILE } from "#modules/autonomy/autonomy-issue-projection.js";
-import {
-  type AutonomyHealthSignal,
-  autonomyHealthSignal,
+import { AUTONOMY_ISSUE_PROJECTION_STATE_KEY } from "#modules/autonomy/autonomy-issue-projection.js";
+import type {
+  AutonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
 
 const FIXTURE_TIME = "2026-08-14T09:00:00.000Z";
@@ -63,24 +62,9 @@ export function createRuntimeSourceFixture(args: {
   const scopeId = scope.scope.scopeId;
   const scopeRoot = scope.scope.scopeRoot;
   const pbus = new ScopedEventBus(bus, scopeId);
-  const reviewRunId = `review-${tag}`;
-  const trajectoryRunId = `trajectory-${tag}`;
   const interruptionRunId = `builder-interrupted-${tag}`;
-  const reviewPath = join(
-    scopeRoot,
-    ".kota",
-    "runs",
-    reviewRunId,
-    "review-scrutiny.json",
-  );
-  const trajectoryPath = join(
-    scopeRoot,
-    ".kota",
-    "runs",
-    trajectoryRunId,
-    "steps",
-    "build.trajectory-diagnostics.json",
-  );
+  const reviewPaths: string[] = [];
+  const trajectoryPaths: string[] = [];
   let ownerQuestionPath: string | null = null;
 
   return {
@@ -105,6 +89,9 @@ export function createRuntimeSourceFixture(args: {
       });
     },
     emitReview(): void {
+      const reviewRunId = `review-${tag}-${reviewPaths.length + 1}`;
+      const reviewPath = join(scopeRoot, ".kota", "runs", reviewRunId, "review-scrutiny.json");
+      reviewPaths.push(reviewPath);
       mkdirSync(join(reviewPath, ".."), { recursive: true });
       writeFileSync(reviewPath, JSON.stringify({
         runId: reviewRunId,
@@ -126,6 +113,9 @@ export function createRuntimeSourceFixture(args: {
       });
     },
     emitTrajectory(): void {
+      const trajectoryRunId = `trajectory-${tag}-${trajectoryPaths.length + 1}`;
+      const trajectoryPath = join(scopeRoot, ".kota", "runs", trajectoryRunId, "steps", "build.trajectory-diagnostics.json");
+      trajectoryPaths.push(trajectoryPath);
       mkdirSync(join(trajectoryPath, ".."), { recursive: true });
       writeFileSync(trajectoryPath, JSON.stringify({
         version: 1,
@@ -221,26 +211,16 @@ export function createRuntimeSourceFixture(args: {
         throw new Error(`scope ${scopeId} has no owner-question fixture`);
       }
       const paths = [
-        join(scopeRoot, AUTONOMY_ISSUE_PROJECTION_FILE),
         join(scopeRoot, ".kota", "dead-letter-queue", "items.json"),
         ownerQuestionPath,
         join(scope.runStore.runsDir, interruptionRunId, "metadata.json"),
-        reviewPath,
-        trajectoryPath,
+        ...reviewPaths,
+        ...trajectoryPaths,
       ];
-      return Object.fromEntries(paths.map((path) => [
+      return { projection: JSON.stringify(scope.runState.readScopeStateValue(scopeId, AUTONOMY_ISSUE_PROJECTION_STATE_KEY)), ...Object.fromEntries(paths.map((path) => [
         path.slice(scopeRoot.length + 1),
         readFileSync(path, "utf-8"),
-      ]));
+      ])) };
     },
   };
-}
-
-export function flushCapturedWarningBatch(
-  bus: EventBus,
-  signal: ScopedAutonomyHealthSignal,
-): void {
-  for (let index = 1; index < 5; index++) {
-    bus.emit(autonomyHealthSignal, signal);
-  }
 }

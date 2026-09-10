@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -18,6 +18,7 @@ describe("run transactional state", () => {
     const root = mkdtempSync(join(tmpdir(), "kota-run-context-state-"));
     roots.push(root);
     const scopeRoot = join(root, "project");
+    mkdirSync(scopeRoot);
     const store = new RunStateDatabase(join(root, "state"));
     try {
       store.registerScope({
@@ -71,6 +72,7 @@ describe("run transactional state", () => {
         now: () => "2026-08-25T10:00:03.000Z",
       });
 
+      expect(context.runtimeStateDir).toBe(join(root, "state"));
       const snapshot = context.state.read<{ count: number }>("counter/value");
       context.state.compareAndSet("counter/value", snapshot.revision, { count: 1 });
       expect(context.state.read("counter/value")).toEqual({

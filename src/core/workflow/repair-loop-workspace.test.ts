@@ -69,7 +69,8 @@ function makeContext(workspaceRoot: string, workspaceDir: string): WorkflowStepC
     scopeId: "test-scope",
     workspaceRoot: workspaceDir,
     scopeRoot: workspaceRoot,
-    stateDir: join(workspaceRoot, ".kota"),
+   stateDir: join(workspaceRoot, ".kota"),
+    runtimeStateDir: join(workspaceRoot, ".kota"),
     agentRuntime: resolveAgentRuntime(undefined),
     workflow: {
       name: "test-workflow",

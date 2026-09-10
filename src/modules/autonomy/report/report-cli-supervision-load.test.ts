@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { Command } from "commander";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTerminalTransport } from "#modules/rendering/transport.js";
+import { createAutonomyClient } from "../client.js";
 import { buildReportCommand } from "./report-cli.js";
 
 const CSI_RED = "\x1b[31m";
@@ -37,7 +38,7 @@ async function captureStdout(fn: () => Promise<void> | void): Promise<string> {
 function makeProgram(): Command {
   const program = new Command();
   program.exitOverride();
-  program.addCommand(buildReportCommand());
+  program.addCommand(buildReportCommand({ client: { autonomy: createAutonomyClient(process.cwd()) } }));
   return program;
 }
 

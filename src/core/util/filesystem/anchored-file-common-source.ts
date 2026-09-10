@@ -1,4 +1,4 @@
-export const REPO_MUTATION_FILESYSTEM_COMMON_SOURCE = `
+export const ANCHORED_FILE_COMMON_SOURCE = `
 function identity(stats) {
   return { dev: stats.dev, ino: stats.ino };
 }
@@ -70,27 +70,27 @@ function requireNoFollowPrimitives() {
     !Number.isInteger(constants.O_NOFOLLOW) ||
     constants.O_NOFOLLOW === 0
   ) {
-    refuse("repo mutations require directory and no-follow open support");
+    refuse("filesystem operations require directory and no-follow open support");
   }
 }
 
-function inspectRepoRoot(request) {
-  const stats = lstatSync(request.repoRootPath);
+function inspectRoot(request) {
+  const stats = lstatSync(request.rootPath);
   if (
     stats.isSymbolicLink() ||
     !stats.isDirectory() ||
-    !sameIdentity(stats, request.repoRootIdentity) ||
-    realpathSync.native(request.repoRootPath) !== request.repoRootPath
+    !sameIdentity(stats, request.rootIdentity) ||
+    realpathSync.native(request.rootPath) !== request.rootPath
   ) {
-    refuse("repository root changed during the repo mutation");
+    refuse("filesystem root changed during filesystem access");
   }
 }
 
 function inspectAnchoredParent(request, expectedIdentity) {
-  inspectRepoRoot(request);
+  inspectRoot(request);
   const anchored = statSync(".");
   if (!anchored.isDirectory() || !sameIdentity(anchored, expectedIdentity)) {
-    refuse("parent directory changed during the repo mutation");
+    refuse("parent directory changed during filesystem access");
   }
   const pathStats = lstatSync(request.parentPath);
   if (
@@ -99,31 +99,31 @@ function inspectAnchoredParent(request, expectedIdentity) {
     !sameIdentity(pathStats, expectedIdentity) ||
     realpathSync.native(request.parentPath) !== request.parentPath
   ) {
-    refuse("parent directory changed during the repo mutation");
+    refuse("parent directory changed during filesystem access");
   }
 }
 
 function enterParent(request) {
-  inspectRepoRoot(request);
-  const projectFd = openSync(
-    request.repoRootPath,
+  inspectRoot(request);
+  const rootFd = openSync(
+    request.rootPath,
     constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
   );
   try {
-    const repoStats = fstatSync(projectFd);
+    const rootStats = fstatSync(rootFd);
     if (
-      !repoStats.isDirectory() ||
-      !sameIdentity(repoStats, request.repoRootIdentity)
+      !rootStats.isDirectory() ||
+      !sameIdentity(rootStats, request.rootIdentity)
     ) {
-      refuse("repository root changed while it was opened");
+      refuse("filesystem root changed while it was opened");
     }
-    process.chdir(request.repoRootPath);
-    if (!sameIdentity(statSync("."), request.repoRootIdentity)) {
-      refuse("repository root changed while it was anchored");
+    process.chdir(request.rootPath);
+    if (!sameIdentity(statSync("."), request.rootIdentity)) {
+      refuse("filesystem root changed while it was anchored");
     }
-    inspectRepoRoot(request);
+    inspectRoot(request);
 
-    let currentIdentity = request.repoRootIdentity;
+    let currentIdentity = request.rootIdentity;
     for (const part of request.parentParts) {
       let pathStats = lstatOptional(part);
       if (pathStats === undefined) {
@@ -157,31 +157,31 @@ function enterParent(request) {
       } finally {
         closeSync(directoryFd);
       }
-      inspectRepoRoot(request);
+      inspectRoot(request);
     }
     inspectAnchoredParent(request, currentIdentity);
     return currentIdentity;
   } finally {
-    closeSync(projectFd);
+    closeSync(rootFd);
   }
 }
 
-function inspectMarkdownEntry(name, expectedSnapshot) {
+function inspectTextFileEntry(name, expectedSnapshot) {
   const pathStats = lstatOptional(name);
   if (pathStats === undefined) {
     if (expectedSnapshot !== undefined) {
-      refuse("markdown entry changed during the repo mutation");
+      refuse("file entry changed during filesystem access");
     }
     return undefined;
   }
   if (pathStats.isSymbolicLink()) {
-    refuse("symbolic-link markdown entries are forbidden");
+    refuse("symbolic-link file entries are forbidden");
   }
   if (!pathStats.isFile()) {
-    refuse("markdown entries must be regular files");
+    refuse("file entries must be regular files");
   }
   if (pathStats.nlink !== 1) {
-    refuse("markdown entries must not have multiple hard links");
+    refuse("file entries must not have multiple hard links");
   }
   const fd = openSync(
     name,
@@ -197,7 +197,7 @@ function inspectMarkdownEntry(name, expectedSnapshot) {
       (expectedSnapshot !== undefined &&
         !sameSnapshot(openedSnapshot, expectedSnapshot))
     ) {
-      refuse("markdown entry changed during the repo mutation");
+      refuse("file entry changed during filesystem access");
     }
     return { fd, mode: opened.mode & 0o777, snapshot: openedSnapshot };
   } catch (error) {

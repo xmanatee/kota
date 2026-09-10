@@ -251,7 +251,7 @@ describe("scope improvement actions", () => {
       const sourceRunId = `systemic-${revision}`;
       const now = new Date(NOW.getTime() + revision * 1000);
       const evidence = collectProgressReviewEvidence({
-        workspaceRoot: root, scopeRoot: root, stateDir: join(root, ".kota"), now,
+        workspaceRoot: root, scopeRoot: root, stateDir: join(root, ".kota"), runtimeStateDir: join(root, ".kota"), now,
         trigger: { event: "autonomy.progress-review.requested", schemaRef: null, payload: {} },
         semanticInput: { automatic, inputRevision: automatic ? revision : null,
           boundary: automatic ? "evidence-window" : "explicit-request", shouldReview: true,

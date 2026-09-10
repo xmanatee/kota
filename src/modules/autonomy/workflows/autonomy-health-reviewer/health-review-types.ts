@@ -1,4 +1,5 @@
 import type { AutonomyIssueTransition } from "#modules/autonomy/autonomy-issue-projection.js";
+import type { GeneratedWorkQuestionDismissal } from "#modules/autonomy/generated-work-owner-question.js";
 import type {
   AutonomyHealthActionability,
   AutonomyHealthEvidenceRef,
@@ -6,7 +7,6 @@ import type {
   AutonomyHealthSeverity,
   AutonomyHealthSignal,
 } from "#modules/autonomy/health-signal.js";
-import type { OwnerQuestionMutationRequest } from "#modules/owner-questions/events.js";
 
 export type AutonomyHealthReviewGroup = {
   dedupeKey: string;
@@ -64,7 +64,7 @@ export type AutonomyHealthAppliedAction =
 
 export type AutonomyHealthReviewActionResult = {
   taskMutations: Array<{ id: string; state: "dropped" }>;
-  ownerQuestionMutations: OwnerQuestionMutationRequest[];
+  ownerQuestionDismissals: GeneratedWorkQuestionDismissal[];
   issueTransitions: AutonomyIssueTransition[];
   applied: AutonomyHealthAppliedAction[];
 };

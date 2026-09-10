@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("native writer authorization boundary", () => {
-  it("revalidates task mutations through a host service without exposing state to the caller", async () => {
+  it("revalidates inbox capture through a host service without exposing state to the caller", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-authorization-worker-"));
     roots.push(root);
     const target = createRepoTaskRuntimeSandbox(root, "worker-run");
@@ -37,8 +37,8 @@ describe("native writer authorization boundary", () => {
         const { parentPort, workerData } = require("node:worker_threads");
         (async () => {
           const { tsImport } = await import("tsx/esm/api");
-          const { completeTask } = await tsImport(workerData.module, workerData.parent);
-          parentPort.postMessage(await completeTask(workerData.workspace, workerData.env));
+          const { captureNote } = await tsImport(workerData.module, workerData.parent);
+          parentPort.postMessage(await captureNote(workerData.workspace, workerData.env));
         })().catch(error => { throw error; });
       `, {
         eval: true,
@@ -68,9 +68,9 @@ describe("native writer authorization boundary", () => {
       },
     }, async (child) => {
       childEnv = child.env;
-      expect(await invoke()).toMatchObject({ ok: true, toState: "done" });
-      expect(readFileSync(join(target.workspaceRoot, "data/tasks/archive/task-authorized-worker.md"), "utf8"))
-        .toContain("status: done");
+      expect(await invoke()).toMatchObject({ ok: true, id: "task-authorized-worker" });
+      expect(readFileSync(join(target.workspaceRoot, "data/inbox/task-authorized-worker.md"), "utf8"))
+        .toBe("# Authorized worker\n");
       await expect(invoke({ KOTA_RUN_ATTEMPT: "2" })).rejects.toThrow(/authorization denied/i);
       await expect(invoke({ KOTA_DAEMON_EPOCH: "2" })).rejects.toThrow(/authorization denied/i);
       await expect(invoke({ KOTA_RUN_ID: "other-run" })).rejects.toThrow();
@@ -83,7 +83,7 @@ describe("native writer authorization boundary", () => {
     await expect(invoke()).rejects.toThrow();
   });
 
-  it("enforces database and response protection in the OS sandbox while permitting task completion", async () => {
+  it("enforces database and response protection in the OS sandbox while permitting inbox capture", async () => {
     const root = mkdtempSync(join(tmpdir(), "kota-native-child-run-state-"));
     roots.push(root);
     const runId = "run-native-child";
@@ -104,7 +104,7 @@ describe("native writer authorization boundary", () => {
     for (const path of databasePaths) expect(existsSync(path)).toBe(true);
     const sourceRoot = resolve("src");
     const loader = createRequire(import.meta.url).resolve("tsx");
-    const script = join(target.workspaceRoot, "complete-task.mjs");
+    const script = join(target.workspaceRoot, "capture-note.mjs");
     writeFileSync(script, [
       'import { readFileSync, writeFileSync } from "node:fs";',
       `import { nativeRunRepositoryAccess } from ${JSON.stringify(join(sourceRoot, "core/workflow/run-context.ts"))};`,
@@ -117,8 +117,7 @@ describe("native writer authorization boundary", () => {
       'try { writeFileSync(process.env.RESPONSE_PROBE, "true"); throw new Error("Authorization response writable"); }',
       'catch (error) { if (!["EACCES", "EPERM", "EROFS"].includes(error.code)) throw error; }',
       'const target = { authority: "runtime-owned-sandbox", repositoryAccess: nativeRunRepositoryAccess(process.cwd()) };',
-      'await mutateRepoTask(target, { kind: "create", options: { title: "Native completion", priority: "p2" } });',
-      'const result = await mutateRepoTask(target, { kind: "move", id: "task-native-completion", state: "done" });',
+      'const result = await mutateRepoTask(target, { kind: "capture", title: "Native inbox note" });',
       'process.stdout.write(JSON.stringify(result));',
     ].join("\n"));
     const env = {
@@ -163,10 +162,10 @@ describe("native writer authorization boundary", () => {
           process.once("error", reject);
           process.once("close", (status) => status === 0 ? resolve(stdout) : reject(new Error(stderr)));
         });
-        expect(JSON.parse(await invoke())).toMatchObject({ ok: true, toState: "done" });
-        expect(readFileSync(join(target.workspaceRoot, "data/tasks/archive/task-native-completion.md"), "utf8"))
-          .toContain("status: done");
-        expect(existsSync(join(root, "data/tasks/archive/task-native-completion.md"))).toBe(false);
+        expect(JSON.parse(await invoke())).toMatchObject({ ok: true, id: "task-native-inbox-note" });
+        expect(readFileSync(join(target.workspaceRoot, "data/inbox/task-native-inbox-note.md"), "utf8"))
+          .toBe("# Native inbox note\n");
+        expect(existsSync(join(root, "data/inbox/task-native-inbox-note.md"))).toBe(false);
 
       },
     );

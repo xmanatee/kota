@@ -3,8 +3,66 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
+import { EventBus } from "#core/events/event-bus.js";
+import { initModuleEventRegistry } from "#core/events/module-event.js";
+import { defineScopedModuleEvent } from "#core/events/scope.js";
+import { RunStateDatabase } from "../run-state-database.js";
 import { WorkflowScenarioDriver } from "./index.js";
 import { createTestTransactionalRunState } from "./run-context-fixture.js";
+
+it.each(["valid", "wrong-scope", "invalid"] as const)(
+  "prepares a finalizer handoff before committing success: %s",
+  async (payloadKind) => {
+    const root = mkdtempSync(join(tmpdir(), "kota-finalizer-handoff-"));
+    const event = defineScopedModuleEvent<{ runId: string }>("scenario.finalizer.handoff", ["runId"], {
+      payloadSchema: {
+        type: "object",
+        properties: { runId: { type: "string", required: true } },
+        additionalProperties: false,
+      },
+    });
+    const release = initModuleEventRegistry().acquire("scenario-finalizer", event);
+    try {
+      const state = createTestTransactionalRunState(join(root, "state"));
+      const result = await new WorkflowScenarioDriver({
+        name: "finalizer-handoff",
+        repository: "none",
+        triggers: [{ event: "manual" }],
+        steps: [{ id: "work", type: "code", run: () => undefined }],
+        finalize: (ctx) => {
+          ctx.state.compareAndSet("finalized", 0, true);
+          ctx.emit(event.name, payloadKind === "invalid" ? {} : {
+            runId: ctx.runId,
+            ...(payloadKind === "wrong-scope" ? { scopeId: "other-scope" } : {}),
+          }, "handoff");
+        },
+      }, { workspaceRoot: root, runId: "handoff-run", ports: { state } }).run();
+      const database = new RunStateDatabase(state.stateDir);
+      try {
+        if (payloadKind === "valid") {
+          expect(result.status, result.error).toBe("success");
+          const [publication] = database.listPendingPublications();
+          expect(publication.payload).toEqual({ runId: "handoff-run", scopeId: state.scopeId });
+          // Validate the undelivered payload directly: delivery-time scoping cannot repair this proof.
+          expect(() => new EventBus().validate(event.name, { ...publication.payload })).not.toThrow();
+          expect(state.read("finalized")).toEqual({ revision: 1, value: true });
+        } else {
+          expect(result.status).toBe("failed");
+          expect(result.error).toContain(payloadKind === "wrong-scope"
+            ? "does not match scoped bus" : "payload.runId is required");
+          expect(database.getRun("handoff-run")?.state).toBe("needs_attention");
+          expect(database.listPendingPublications()).toEqual([]);
+          expect(state.read("finalized")).toEqual({ revision: 0, value: null });
+        }
+      } finally {
+        database.close();
+      }
+    } finally {
+      release();
+      rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
 
 it("publishes staged state and events only after scenario success", async () => {
   const root = mkdtempSync(join(tmpdir(), "kota-scenario-state-"));
@@ -44,7 +102,7 @@ it("publishes staged state and events only after scenario success", async () => 
 
 // The scenario API must observe the same writer publication gates as the runtime.
 // This catches success inferred from steps while integration is still rejectable.
-it.each(["validation", "invariant", "success"] as const)(
+it.each(["validation", "invariant", "finalization", "success"] as const)(
   "settles writer state and events through integration: %s",
   async (outcome) => {
     const root = mkdtempSync(join(tmpdir(), "kota-scenario-writer-"));
@@ -57,6 +115,7 @@ it.each(["validation", "invariant", "success"] as const)(
       execFileSync("git", ["commit", "--quiet", "-m", "scenario input"], { cwd: root });
       const state = createTestTransactionalRunState(join(root, ".kota", "test-state"));
       state.compareAndSet("counter", 0, { value: 1 });
+      let workspaceDir = "";
       const result = await new WorkflowScenarioDriver({
         name: "writer-publication-scenario",
         repository: "write",
@@ -69,8 +128,18 @@ it.each(["validation", "invariant", "success"] as const)(
             : { satisfied: true },
         },
         triggers: [{ event: "scenario.requested" }],
+        finalize: (ctx) => {
+          expect(ctx.scopeRoot).toBe(root);
+          expect(ctx.stateDir).toBe(join(root, ".kota"));
+          expect(existsSync(workspaceDir)).toBe(false);
+          expect(readFileSync(join(ctx.scopeRoot, "result.txt"), "utf8")).toBe("published");
+          ctx.state.compareAndSet("finalized", 0, true);
+          ctx.emit("scenario.finalized", { runId: ctx.runId }, "finalize");
+          if (outcome === "finalization") throw new Error("owner completion rejected");
+        },
         steps: [
           { id: "stage", type: "code", run: async (ctx) => {
+            workspaceDir = ctx.workspaceRoot;
             writeFileSync(join(ctx.workspaceRoot, "result.txt"), "published");
             ctx.state.compareAndSet("counter", 1, { value: 2 });
             expect(state.read("counter")).toEqual({ revision: 1, value: { value: 1 } });
@@ -84,14 +153,20 @@ it.each(["validation", "invariant", "success"] as const)(
         expect(result.status, result.error).toBe("success");
         expect(readFileSync(join(root, "result.txt"), "utf8")).toBe("published");
         expect(state.read("counter")).toEqual({ revision: 2, value: { value: 2 } });
-        expect(result.emitted).toEqual([expect.objectContaining({ event: "scenario.completed" })]);
+        expect(state.read("finalized")).toEqual({ revision: 1, value: true });
+        expect(result.emitted).toEqual([
+          expect.objectContaining({ event: "scenario.completed" }),
+          expect.objectContaining({ event: "scenario.finalized" }),
+        ]);
         expect(existsSync(result.workspaceDir)).toBe(false);
       } else {
         expect(result.status).toBe("failed");
         expect(result.error).toContain(outcome === "validation"
-          ? "Scenario requires integration repair:" : "integration-invariant-failed");
-        expect(existsSync(join(root, "result.txt"))).toBe(false);
+          ? "Scenario requires integration repair:" : outcome === "invariant"
+            ? "integration-invariant-failed" : "owner completion rejected");
+        expect(existsSync(join(root, "result.txt"))).toBe(outcome === "finalization");
         expect(state.read("counter")).toEqual({ revision: 1, value: { value: 1 } });
+        expect(state.read("finalized")).toEqual({ revision: 0, value: null });
         expect(result.emitted).toEqual([]);
       }
     } finally {

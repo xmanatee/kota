@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   mkdirSync,
   readdirSync,
@@ -8,6 +9,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { inspectBuilderTaskTarget } from "#modules/autonomy/workflows/builder/task-contract.js";
 import { loadFixture } from "./fixture.js";
 import {
   cleanupFixtureWorkingDir,
@@ -63,16 +65,23 @@ describe("runFixture multi-round", () => {
     }
   });
 
-  it("executes multi-round fixtures in order against one preserved workspace", async () => {
+  it("publishes the full next-round task before builder dispatch without publishing retained output", async () => {
     writeMultiRoundFixture(fixturesRoot);
     const fixture = loadFixture(fixturesRoot, "multi-round-mini");
+    if (fixture.spec.mode !== "multi-round") throw new Error("expected multi-round fixture");
+    fixture.spec.rounds[1].workflowName = "builder";
+    fixture.spec.rounds[1].builderTaskId = "task-round-2";
+    const task = "---\nstatus: open\npriority: p2\n---\n# Round two\n\nPreserve round one and implement the second outcome.\n";
+    writeFileSync(join(fixture.fixtureDir, "rounds/round-2-task.md"), task);
     const calls: Array<{ workflowName: string; workingDir: string; budgetMs: number }> = [];
     const executor: WorkflowExecutor = {
       preflight: () => TEST_EXECUTION_PROFILE,
-      execute: async ({ workflowName, workingDir, budgetMs }) => {
+      execute: async ({ workflowName, workingDir, budgetMs, triggerPayload }) => {
         calls.push({ workflowName, workingDir, budgetMs });
         if (calls.length === 1) {
           writeFileSync(join(workingDir, "state", "round-1.txt"), "done");
+          execFileSync("git", ["add", "--", "state/round-1.txt"], { cwd: workingDir });
+          writeFileSync(join(workingDir, "unrelated.txt"), "retained untracked output");
         } else {
           expect(readFileSync(join(workingDir, "state", "round-1.txt"), "utf-8")).toBe(
             "done",
@@ -82,7 +91,19 @@ describe("runFixture multi-round", () => {
               join(workingDir, "data", "tasks", "task-round-2.md"),
               "utf-8",
             ),
-          ).toBe("round 2 task");
+          ).toBe(task);
+          expect(execFileSync("git", ["show", "HEAD:data/tasks/task-round-2.md"], {
+            cwd: workingDir, encoding: "utf8",
+          })).toBe(task);
+          expect(execFileSync("git", ["ls-tree", "-r", "--name-only", "HEAD", "--", "state/round-1.txt", "unrelated.txt"], {
+            cwd: workingDir, encoding: "utf8",
+          })).toBe("");
+          expect(execFileSync("git", ["diff", "--cached", "--name-only"], {
+            cwd: workingDir, encoding: "utf8",
+          }).trim()).toBe("state/round-1.txt");
+          expect(inspectBuilderTaskTarget({ workspaceRoot: workingDir, payload: triggerPayload! })).toMatchObject({
+            actionable: true, taskId: "task-round-2",
+          });
           writeFileSync(join(workingDir, "state", "round-2.txt"), "done");
         }
         return {
@@ -105,7 +126,7 @@ describe("runFixture multi-round", () => {
     expect(report.run.outcome).toBe("pass");
     expect(calls).toEqual([
       { workflowName: "fixture-worker", workingDir: report.workingDir, budgetMs: 60_000 },
-      { workflowName: "fixture-worker", workingDir: report.workingDir, budgetMs: 70_000 },
+      { workflowName: "builder", workingDir: report.workingDir, budgetMs: 70_000 },
     ]);
     expect(report.run.rounds?.map((round) => round.outcome)).toEqual([
       "pass",

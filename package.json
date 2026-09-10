@@ -64,6 +64,7 @@
     "check:client-bindings": "pnpm check:ui-bindings && node scripts/generate-daemon-contract-bindings.mjs --check",
     "hygiene": "node --conditions=source --import tsx src/check-hygiene.ts",
     "validate-tasks": "node --conditions=source --import tsx src/validate-queue.ts",
+    "hooks:install": "node scripts/install-task-hook.mjs",
     "kota": "node --conditions=source --import tsx src/cli.ts"
   },
   "dependencies": {

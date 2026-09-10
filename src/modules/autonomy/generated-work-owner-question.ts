@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -5,16 +6,57 @@ import {
   OwnerQuestionQueue,
   type PendingOwnerQuestion,
 } from "#core/daemon/owner-question-queue.js";
-import {
-  type OwnerQuestionMutationRequest,
-  ownerQuestionMutationKey,
-} from "#modules/owner-questions/events.js";
 import type {
   GeneratedWorkProposalAction,
   GeneratedWorkProvenance,
 } from "./generated-work-proposal-types.js";
 
 const DISPOSITION_RESOLUTION_SOURCE = "generated-work-disposition:";
+
+export type GeneratedWorkQuestionDismissal = {
+  questionId: string;
+  questionRevision: string;
+  reason: string;
+  resolutionSource: string;
+};
+
+function questionContent(item: OwnerQuestionEnqueueInput | PendingOwnerQuestion) {
+  return {
+    context: item.context,
+    question: item.question,
+    reason: item.reason,
+    source: item.source,
+    answerBehavior: item.answerBehavior,
+    origin: item.origin,
+    proposedAnswers: item.proposedAnswers ?? [],
+    timeoutMs: item.timeoutMs,
+    defaultResolution: item.defaultResolution,
+    defaultAnswer: item.defaultAnswer,
+  };
+}
+
+function questionRevision(item: PendingOwnerQuestion): string {
+  return createHash("sha256").update(JSON.stringify({
+    id: item.id,
+    createdAt: item.createdAt,
+    dedupeKey: item.dedupeKey,
+    content: questionContent(item),
+  })).digest("hex");
+}
+
+export function applyGeneratedWorkQuestionDismissal(
+  queue: OwnerQuestionQueue,
+  dismissal: GeneratedWorkQuestionDismissal,
+): boolean {
+  const current = queue.get(dismissal.questionId);
+  if (current === null || questionRevision(current) !== dismissal.questionRevision) return false;
+  if (current.status === "dismissed") {
+    return current.dismissalReason === dismissal.reason &&
+      current.resolutionSource === dismissal.resolutionSource;
+  }
+  if (current.status !== "pending") return false;
+  return queue.dismiss(current.id, dismissal.reason, dismissal.resolutionSource) !== null;
+}
 
 export type ReconciledGeneratedWorkQuestion = {
   item: PendingOwnerQuestion;
@@ -79,18 +121,18 @@ export function planGeneratedWorkQuestionDismissals(args: {
   linkedQuestionIds: readonly string[];
   reason: string;
   source: string;
-}): OwnerQuestionMutationRequest[] {
+}): GeneratedWorkQuestionDismissal[] {
   const existing = findGeneratedWorkQuestion(args.queue, args.proposalKey);
   const ids = new Set(args.linkedQuestionIds);
   if (existing) ids.add(existing.id);
-  return [...ids].sort().flatMap((questionId): OwnerQuestionMutationRequest[] => {
-    if (args.queue.get(questionId)?.status !== "pending") return [];
+  return [...ids].sort().flatMap((questionId): GeneratedWorkQuestionDismissal[] => {
+    const question = args.queue.get(questionId);
+    if (question?.status !== "pending") return [];
     return [{
       questionId,
-      mutation: "dismiss",
+      questionRevision: questionRevision(question),
       reason: args.reason,
       resolutionSource: `${DISPOSITION_RESOLUTION_SOURCE}${args.source}`,
-      idempotencyKey: ownerQuestionMutationKey(questionId),
     }];
   });
 }
@@ -103,9 +145,10 @@ export function dismissGeneratedWorkQuestion(
 ): GeneratedWorkProposalAction[] {
   return planGeneratedWorkQuestionDismissals({
     queue, proposalKey, linkedQuestionIds: [], reason, source,
-  }).map((mutation) => {
-    queue.dismiss(mutation.questionId, mutation.reason, mutation.resolutionSource);
-    return { kind: "dismissed-owner-question", questionId: mutation.questionId };
+  }).flatMap((dismissal): GeneratedWorkProposalAction[] => {
+    return applyGeneratedWorkQuestionDismissal(queue, dismissal)
+      ? [{ kind: "dismissed-owner-question", questionId: dismissal.questionId }]
+      : [];
   });
 }
 
@@ -113,16 +156,9 @@ function changedQuestion(
   existing: PendingOwnerQuestion,
   input: OwnerQuestionEnqueueInput,
 ): boolean {
-  return existing.context !== input.context ||
-    existing.question !== input.question ||
-    existing.reason !== input.reason ||
-    existing.source !== input.source ||
-    existing.answerBehavior !== input.answerBehavior ||
-    JSON.stringify(existing.proposedAnswers ?? []) !==
-      JSON.stringify(input.proposedAnswers ?? []) ||
-    existing.timeoutMs !== input.timeoutMs ||
-    existing.defaultResolution !== input.defaultResolution ||
-    existing.defaultAnswer !== input.defaultAnswer;
+  const { origin: _existingOrigin, ...existingContent } = questionContent(existing);
+  const { origin: _inputOrigin, ...inputContent } = questionContent(input);
+  return JSON.stringify(existingContent) !== JSON.stringify(inputContent);
 }
 
 function updatedQuestion(

@@ -52,20 +52,8 @@ describe("GET /api/attention", () => {
       scheduler: { count: () => 0 } as unknown as Scheduler,
       bus,
       moduleRoutes: attentionRoutes({
+        stateDir: join(workspaceRoot, ".kota"),
         workspaceRoot,
-        getWorkflowStatus: async () => ({
-          activeRuns: [],
-          pendingRuns: [],
-          queueLength: 0,
-          completedRuns: 0,
-          protectedRunIds: [],
-          authorityCriticalRunIds: [],
-          operationallyActiveRunIds: [],
-          terminalRunIds: [],
-          workflows: {},
-          paused: false,
-          concurrency: 1,
-        }),
       }),
       makeAgent: () => {
         throw new Error(

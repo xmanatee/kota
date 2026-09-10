@@ -29,6 +29,7 @@ const HARNESS_NAME = "integration-policy-fixture";
 function context(): RunContext {
   const workspaceDir = process.cwd();
   return {
+    runtimeStateDir: stateRoot,
     run: { id: "run-1", attempt: 1, daemonEpoch: 1 },
     scope: { id: "scope-1", root: workspaceDir },
     workflow: "integration-policy-test",

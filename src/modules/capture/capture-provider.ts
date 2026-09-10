@@ -44,24 +44,24 @@ export class CaptureProviderImpl implements CaptureProvider {
     }
     if (trimmed === "") return this.ambiguous();
 
-    let target: CaptureTarget;
+    let target: CaptureTarget = "inbox";
     if (filter?.target) {
       target = filter.target;
-    } else {
-      if (!this.classifier) return this.ambiguous();
+    } else if (this.classifier) {
       const classification = await this.classifier.classify({
         text: trimmed,
         ...(filter?.hint !== undefined && { hint: filter.hint }),
         available: CAPTURE_TARGET_ORDER,
       });
-      if (classification.kind === "ambiguous") return this.ambiguous();
-      target = classification.target;
+      if (classification.kind === "confident") {
+        target = classification.target === "tasks" ? "inbox" : classification.target;
+      }
     }
 
     try {
       return await writeCaptureTarget({
         target,
-        text: trimmed,
+        text,
         scope: resolvedScope,
       });
     } catch (error) {

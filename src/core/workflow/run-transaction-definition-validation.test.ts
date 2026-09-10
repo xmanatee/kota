@@ -89,6 +89,18 @@ describe("workflow run transaction definition", () => {
     expect(validated.integration?.postReconcile).toBe(postReconcile);
   });
 
+  it("preserves synchronous finalizers and rejects async or malformed finalizers", () => {
+    const finalize = () => undefined;
+    const definition = { ...workflow("write", integration), finalize };
+    expect(validateWorkflowDefinitions([definition])[0].finalize).toBe(finalize);
+    for (const invalid of [async () => undefined, "finalize"]) {
+      expect(() => validateWorkflowDefinitions([{
+        ...definition,
+        finalize: invalid as unknown as typeof finalize,
+      }])).toThrow("finalize must be a synchronous function");
+    }
+  });
+
   it("disables owner questions for every writer-launched agent contract", () => {
     const [validated] = validateWorkflowDefinitions([
       workflow("write", integration, [

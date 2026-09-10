@@ -12,7 +12,8 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { REPO_MUTATION_FILESYSTEM_HELPER_SOURCE } from "./repo-mutation-filesystem-helper-source.js";
+import { ANCHORED_FILE_HELPER_SOURCE } from "./anchored-file-helper-source.js";
+import { listAnchoredTextFiles, readAnchoredTextFile, writeAnchoredTextFile } from "./anchored-files.js";
 
 const roots: string[] = [];
 
@@ -51,7 +52,7 @@ function runRacedHelper(args: {
       args.preloadPath,
       "--input-type=module",
       "--eval",
-      REPO_MUTATION_FILESYSTEM_HELPER_SOURCE,
+      ANCHORED_FILE_HELPER_SOURCE,
     ],
     {
       encoding: "utf8",
@@ -69,19 +70,25 @@ afterEach(() => {
   }
 });
 
-describe("descriptor-anchored repo mutations", () => {
+describe("descriptor-anchored filesystem mutations", () => {
   it("keeps removal in the verified parent when its pathname is replaced at rename", () => {
-    const root = makeRoot("kota-repo-remove-race-");
-    const repoRoot = join(root, "project");
-    const inboxDir = join(repoRoot, "data", "inbox");
-    const parkedInboxDir = join(repoRoot, "data", "inbox-parked");
+    const root = makeRoot("kota-filesystem-remove-race-");
+    const filesystemRoot = join(root, "project");
+    const notesDir = join(filesystemRoot, "work", "notes");
+    const parkedNotesDir = join(filesystemRoot, "work", "notes-parked");
     const outsideDir = join(root, "outside");
-    const fileName = "note-race.md";
-    mkdirSync(inboxDir, { recursive: true });
+    const fileName = "note-race.txt";
+    mkdirSync(notesDir, { recursive: true });
     mkdirSync(outsideDir);
-    const sourcePath = join(inboxDir, fileName);
+    const sourcePath = join(notesDir, fileName);
     const outsidePath = join(outsideDir, fileName);
-    writeFileSync(sourcePath, "inside\n");
+    writeAnchoredTextFile({
+      rootPath: filesystemRoot,
+      boundaryDir: notesDir,
+      filePath: sourcePath,
+      content: "inside\n",
+      expectation: "missing",
+    });
     writeFileSync(outsidePath, "outside must remain\n");
     const preloadPath = join(root, "replace-parent-before-rename.cjs");
     writeFileSync(
@@ -101,23 +108,23 @@ fs.renameSync = function renameSync(source, destination) {
 syncBuiltinESMExports();
 `,
     );
-    const repoRootPath = realpathSync.native(repoRoot);
-    const repoStats = lstatSync(repoRootPath);
+    const rootPath = realpathSync.native(filesystemRoot);
+    const rootStats = lstatSync(rootPath);
 
     const response = runRacedHelper({
       preloadPath,
       env: {
         KOTA_RACE_FILE: fileName,
         KOTA_RACE_OUTSIDE: outsideDir,
-        KOTA_RACE_PARENT: inboxDir,
-        KOTA_RACE_PARKED: parkedInboxDir,
+        KOTA_RACE_PARENT: notesDir,
+        KOTA_RACE_PARKED: parkedNotesDir,
       },
       request: {
         operation: "remove",
-        repoRootPath,
-        repoRootIdentity: { dev: repoStats.dev, ino: repoStats.ino },
-        parentParts: ["data", "inbox"],
-        parentPath: inboxDir,
+        rootPath,
+        rootIdentity: { dev: rootStats.dev, ino: rootStats.ino },
+        parentParts: ["work", "notes"],
+        parentPath: notesDir,
         fileName,
         createParent: false,
         expectedSnapshot: fileSnapshot(sourcePath),
@@ -126,17 +133,21 @@ syncBuiltinESMExports();
 
     expect(response).toEqual({ ok: true, removed: true });
     expect(readFileSync(outsidePath, "utf8")).toBe("outside must remain\n");
-    expect(() => readFileSync(join(parkedInboxDir, fileName), "utf8")).toThrow();
+    expect(readAnchoredTextFile({
+      rootPath: filesystemRoot,
+      boundaryDir: parkedNotesDir,
+      filePath: join(parkedNotesDir, fileName),
+    })).toBeNull();
   });
 
   it("keeps destination installation in the verified parent when replaced at link", () => {
-    const root = makeRoot("kota-repo-write-race-");
-    const repoRoot = join(root, "project");
-    const tasksDir = join(repoRoot, "data", "tasks");
-    const parkedTasksDir = join(repoRoot, "data", "tasks-parked");
+    const root = makeRoot("kota-filesystem-write-race-");
+    const filesystemRoot = join(root, "project");
+    const filesDir = join(filesystemRoot, "work", "files");
+    const parkedFilesDir = join(filesystemRoot, "work", "files-parked");
     const outsideDir = join(root, "outside");
-    const fileName = "task-race.md";
-    mkdirSync(tasksDir, { recursive: true });
+    const fileName = "entry-race.json";
+    mkdirSync(filesDir, { recursive: true });
     mkdirSync(outsideDir);
     const outsidePath = join(outsideDir, fileName);
     writeFileSync(outsidePath, "outside must remain\n");
@@ -159,23 +170,23 @@ fs.linkSync = function linkSync(source, destination) {
 syncBuiltinESMExports();
 `,
     );
-    const repoRootPath = realpathSync.native(repoRoot);
-    const repoStats = lstatSync(repoRootPath);
+    const rootPath = realpathSync.native(filesystemRoot);
+    const rootStats = lstatSync(rootPath);
 
     const response = runRacedHelper({
       preloadPath,
       env: {
         KOTA_RACE_FILE: fileName,
         KOTA_RACE_OUTSIDE: outsideDir,
-        KOTA_RACE_PARENT: tasksDir,
-        KOTA_RACE_PARKED: parkedTasksDir,
+        KOTA_RACE_PARENT: filesDir,
+        KOTA_RACE_PARKED: parkedFilesDir,
       },
       request: {
         operation: "write",
-        repoRootPath,
-        repoRootIdentity: { dev: repoStats.dev, ino: repoStats.ino },
-        parentParts: ["data", "tasks"],
-        parentPath: tasksDir,
+        rootPath,
+        rootIdentity: { dev: rootStats.dev, ino: rootStats.ino },
+        parentParts: ["work", "files"],
+        parentPath: filesDir,
         fileName,
         createParent: true,
         expectation: "missing",
@@ -185,8 +196,13 @@ syncBuiltinESMExports();
 
     expect(response.ok).toBe(true);
     expect(readFileSync(outsidePath, "utf8")).toBe("outside must remain\n");
-    expect(readFileSync(join(parkedTasksDir, fileName), "utf8")).toBe(
-      "installed inside\n",
-    );
+    expect(listAnchoredTextFiles({
+      rootPath: filesystemRoot,
+      boundaryDir: parkedFilesDir,
+      directoryPath: parkedFilesDir,
+      nameSuffix: null,
+    })).toEqual([
+      expect.objectContaining({ name: fileName, content: "installed inside\n" }),
+    ]);
   });
 });

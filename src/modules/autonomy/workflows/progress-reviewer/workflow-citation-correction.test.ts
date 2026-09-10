@@ -1,4 +1,4 @@
-import { existsSync, rmSync } from "node:fs";
+import { appendFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { UNKNOWN_AGENT_USAGE } from "#core/agent-harness/index.js";
@@ -178,11 +178,13 @@ describe("progress-reviewer citation correction", () => {
     database.close();
     const state = createTestTransactionalRunState(join(stateDir, "review-state"), scopeId);
     const inspect = (boundary: unknown, consumedRevision: number) => inspectProgressSemanticBoundary({
-      workspaceRoot, scopeRoot: workspaceRoot, stateDir,
+      workspaceRoot, scopeRoot: workspaceRoot, stateDir, runtimeStateDir: stateDir,
       progressBoundaryState: boundary, consumedRevision, runCommand: runGitEvidenceCommand,
     });
     const baseline = await inspect(null, 0);
     writeProgressReviewTask(workspaceRoot, "blocked", "task-citation-source");
+    appendFileSync(join(workspaceRoot, "data", "tasks", "task-citation-source.md"),
+      "\n## Blocked on\n\nkind: operator-capture\npath: evidence/citation-source\ndescription: Required operator evidence is unavailable\n");
     commitProgressReviewFixture(workspaceRoot, "task needs external input", "2026-06-04T11:40:00.000Z");
     const reserved = await inspect(baseline.nextState, 0);
     expect(reserved.shouldEmit, reserved.reason).toBe(true);
@@ -202,7 +204,7 @@ describe("progress-reviewer citation correction", () => {
     expect(run.emitted).toEqual([]);
     const restartedBoundary = JSON.parse(JSON.stringify(reserved.nextState));
     expect(await inspect(restartedBoundary, consumed.lastConsumedRevision)).toMatchObject({ shouldEmit: false, nextState: { pending: null } });
-    expect(admitProgressReviewTrigger({ scopeRoot: workspaceRoot, scopeId, stateDir, workflowName: "progress-reviewer", state, trigger })).toMatchObject({ admitted: false });
+    expect(admitProgressReviewTrigger({ scopeRoot: workspaceRoot, scopeId, stateDir, runtimeStateDir: state.stateDir, workflowName: "progress-reviewer", state, trigger })).toMatchObject({ admitted: false });
     const decisions = new OwnerDecisionStore(join(stateDir, "owner-decisions"), scopeId);
     const decision = decisions.create({
       request: { kind: "single-choice", prompt: "How should later evidence be assessed?", options: [{ id: "proceed", label: "Assess later evidence" }] },

@@ -136,6 +136,10 @@ function renderRoutineMethod(operation, clientType, transportExpression, indenta
   const body = renderBody(operation);
   const requestArguments = [JSON.stringify(operation.method), query.path];
   if (body !== undefined) requestArguments.push(body);
+  if (operation.timeoutMs !== undefined) {
+    if (body === undefined) requestArguments.push("undefined");
+    requestArguments.push(JSON.stringify({ timeoutMs: operation.timeoutMs }));
+  }
   const request = requestArguments.join(", ");
 
   if (operation.transport === "nullable") {

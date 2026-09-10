@@ -22,8 +22,7 @@ This workflow owns cross-run systemic operational and product learning.
   disposition cancels the topic's pending handoff; publication reconciles
   remaining handoffs against task completion before consuming them. Dispatcher
   invokes the same reconciliation on idle, so release does not require a new
-  review. Both owners share publication serialization and stage receipts with
-  delivery in the runtime transaction.
+  review. Both owners stage receipts with delivery in the runtime transaction.
 - Consume each automatic semantic input revision once. Automatic requests use
   their own latest-only event slot, while the explicit request event is
   lossless, so owner/system requests cannot replace or be replaced by a
@@ -57,8 +56,9 @@ This workflow owns cross-run systemic operational and product learning.
   lifecycle when canonical state disproves their premise.
 - Stage task changes and semantic publication evidence in the writer run.
   Owner-question reconciliation and the consumed semantic watermark publish
-  through the staged `progress-review-publication` `repository: none`
-  follow-up, using compare-and-set against the runtime state row.
+  in the original run's shared success finalizer, using compare-and-set against
+  the latest runtime state row. A failed finalizer retains the original run for
+  recovery without repeating agent work.
 - A consumed review watermark does not cancel paired owner effects for an
   integrated task change. Publication reconciles against canonical task state
   and the retirement disposition recorded in archived tasks, so delayed effects

@@ -28,8 +28,6 @@ import type {
   OwnerQuestionsClient,
   OwnerQuestionsListResult,
 } from "./client.js";
-import { ownerQuestionMutationRequested } from "./events.js";
-import ownerQuestionMutationWorkflow from "./mutation-workflow.js";
 import {
   type OwnerQuestionScopeProviderResolver,
   ownerQuestionControlRoutes,
@@ -158,8 +156,6 @@ const ownerQuestionsModule: KotaModule = {
   version: "1.0.0",
   description: "Owner-question queue operator CLI and HTTP routes for agent escalations",
   dependencies: ["rendering"],
-  events: [ownerQuestionMutationRequested],
-  workflows: [ownerQuestionMutationWorkflow],
   uiSurfaces: [ownerQuestionsUiSurfaceSource],
 
   commands: (ctx) => {

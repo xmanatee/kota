@@ -5,9 +5,9 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { OwnerQuestionQueue } from "#core/daemon/owner-question-queue.js";
 import {
-  materializeAutonomyIssueProjection,
   readAutonomyIssueProjection,
 } from "#modules/autonomy/autonomy-issue-projection.js";
+import { seedAutonomyIssueProjection } from "#modules/autonomy/autonomy-issue-projection.test-helpers.js";
 import {
   type AutonomyHealthSignalInput,
   normalizeHealthSignal,
@@ -70,7 +70,7 @@ describe("autonomy health repair task deduplication", () => {
   });
 
   function applyReview(review: ReturnType<typeof buildAutonomyHealthReviewFromSignals>) {
-    const currentProjection = readAutonomyIssueProjection(workspaceRoot);
+    const currentProjection = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"));
     const plannedActions = planAutonomyHealthReviewActions({
       workspaceRoot,
       currentProjection,
@@ -86,7 +86,7 @@ describe("autonomy health repair task deduplication", () => {
       review,
       plannedActions,
     });
-    materializeAutonomyIssueProjection(workspaceRoot, finalized.projection);
+    seedAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota"), finalized.projection);
     return finalized;
   }
 

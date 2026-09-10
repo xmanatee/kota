@@ -9,7 +9,6 @@ import {
   machineAuthorityMutationError,
 } from "#core/tools/protected-scope-paths.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
-import { lintFile } from "./lint.js";
 
 const MAX_FILES = 50;
 const MAX_GLOB = 1000;
@@ -19,7 +18,7 @@ export const findReplaceTool: KotaTool = {
   description:
     "Find and replace text across multiple files matching a glob pattern. " +
     "Supports literal strings, regex with capture groups, and word-boundary matching. " +
-    "Lint-gated: reverts all changes if any file gets syntax errors.",
+    "On write failure, restore attempted files and report any rollback failures.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -94,6 +93,8 @@ function revertOriginals(originals: Map<string, string>): string[] {
       recordModification(p);
     } catch {
       failures.push(p);
+      recordModification(p);
+      trackFileChange(p, orig, "find_replace");
     }
   }
   return failures;
@@ -201,25 +202,12 @@ export async function runFindReplace(
 
   // Apply with rollback support
   const originals = new Map<string, string>();
-  for (const h of hits) originals.set(h.path, h.content);
 
-  const modified: string[] = [];
   try {
     for (const h of hits) {
+      // Include a partially failed write, but never rewrite unattempted files.
+      originals.set(h.path, h.content);
       writeFileSync(h.path, h.result, "utf-8");
-      const lint = lintFile(h.path);
-      if (!lint.ok) {
-        const revertFailures = revertOriginals(originals);
-        const revertMsg = revertFailures.length > 0
-          ? `\nFailed to revert ${revertFailures.length} file(s): ${revertFailures.join(", ")}`
-          : "\nAll changes reverted.";
-        return {
-          content:
-            `Syntax error in ${h.path} after replacement:\n${lint.error}${revertMsg}`,
-          is_error: true,
-        };
-      }
-      modified.push(h.path);
     }
   } catch (err) {
     const revertFailures = revertOriginals(originals);
@@ -230,16 +218,16 @@ export async function runFindReplace(
     return { content: `Write failed: ${msg}. ${revertMsg}`, is_error: true };
   }
 
-  for (const p of modified) {
-    recordModification(p);
-    trackFileChange(p, originals.get(p) ?? null, "find_replace");
+  for (const h of hits) {
+    recordModification(h.path);
+    trackFileChange(h.path, h.content, "find_replace");
   }
 
-  const lines = modified
-    .map((p) => `  ${p}: ${hits.find((h) => h.path === p)!.count} replacement(s)`)
+  const lines = hits
+    .map((h) => `  ${h.path}: ${h.count} replacement(s)`)
     .join("\n");
 
   return {
-    content: `Replaced ${total} occurrence(s) in ${modified.length} file(s):\n${lines}`,
+    content: `Replaced ${total} occurrence(s) in ${hits.length} file(s):\n${lines}`,
   };
 }

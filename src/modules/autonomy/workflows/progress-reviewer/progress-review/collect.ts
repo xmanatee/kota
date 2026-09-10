@@ -143,6 +143,7 @@ export function collectProgressReviewEvidence(args: {
   workspaceRoot: string;
   scopeRoot: string;
   stateDir: string;
+  runtimeStateDir: string;
   eventJournal?: EventJournal;
   trigger: WorkflowRunTrigger;
   now: Date;
@@ -171,6 +172,7 @@ export function collectProgressReviewEvidence(args: {
     args.scopeRoot,
     args.trigger,
     stateDir,
+    args.runtimeStateDir,
   );
   const scopes = target.sources.map((source) =>
     collectProgressReviewEvidenceForSource({
@@ -252,6 +254,7 @@ export type ProgressReviewEvidenceOperationInput = {
   workspaceRoot: string;
   scopeRoot: string;
   stateDir: string;
+  runtimeStateDir: string;
   trigger: WorkflowRunTrigger;
   nowIso: string;
   semanticInput: ProgressReviewSemanticInput;
@@ -266,6 +269,7 @@ export function collectProgressReviewEvidenceInWorker(
     workspaceRoot: input.workspaceRoot,
     scopeRoot: input.scopeRoot,
     stateDir: input.stateDir,
+    runtimeStateDir: input.runtimeStateDir,
     trigger: input.trigger,
     now: new Date(input.nowIso),
     semanticInput: input.semanticInput,

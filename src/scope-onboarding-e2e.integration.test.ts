@@ -65,7 +65,6 @@ const TARGET_WORKFLOWS = new Set([
   "dispatcher",
   "scope-improvement-actions",
   "scope-improvement-onboarding",
-  "scope-improvement-publication",
   "scope-improver",
 ]);
 type RunningDaemon = {
@@ -417,6 +416,12 @@ async function waitFor<T>(read: () => Promise<T> | T, accept: (value: T) => bool
   return last;
 }
 
+async function pauseScopeForDrain(client: KotaClient, scopeId: string): Promise<void> {
+  const workflow = client.forScope(scopeId).workflow;
+  expect(await workflow.pause()).toMatchObject({ paused: true });
+  await waitFor(() => workflow.status(), (status) => status.activeRuns.length === 0);
+}
+
 describe("self-service external scope onboarding acceptance", () => {
   let root: string;
   let hostRoot: string;
@@ -434,8 +439,7 @@ describe("self-service external scope onboarding acceptance", () => {
   let runResourceAllocateSpy: { mockRestore(): void };
   let harnessReady: boolean;
   let releaseBuilder: () => void;
-  let builderEntered: Promise<void>;
-  let resolveBuilderEntered: () => void;
+  let builderEntered: boolean;
   let generatedTaskId: string | null;
   let priorOperatorTokenPath: string | undefined;
   let priorSessionId: string | undefined;
@@ -472,18 +476,14 @@ describe("self-service external scope onboarding acceptance", () => {
       release = resolve;
     });
     releaseBuilder = release;
-    let entered!: () => void;
-    builderEntered = new Promise<void>((resolve) => {
-      entered = resolve;
-    });
-    resolveBuilderEntered = entered;
+    builderEntered = false;
     registerAgentHarness(createAcceptanceHarness({
       ready: () => harnessReady,
       taskId: () => {
         if (generatedTaskId === null) throw new Error("Generated task id is unavailable");
         return generatedTaskId;
       },
-      onBuilderEntered: () => resolveBuilderEntered(),
+      onBuilderEntered: () => { builderEntered = true; },
       waitForBuilderRelease: () => released,
     }));
 
@@ -795,12 +795,6 @@ describe("self-service external scope onboarding acceptance", () => {
       }),
       (result) => result.runs.some((run) => run.status === "success"),
     );
-    await waitFor(
-      () => running.client.forScope(observeScopeId).workflow.listRuns({
-        workflow: "scope-improvement-publication",
-      }),
-      (result) => result.runs.some((run) => run.status === "success"),
-    );
     const observeQuestions = await waitFor(
       () => running.client.forScope(observeScopeId).ownerQuestions.list({ status: "pending" }),
       (result) => result.questions.some((item) => item.source === "scope-improver"),
@@ -863,7 +857,10 @@ describe("self-service external scope onboarding acceptance", () => {
     expect(upgraded.exitCode, upgraded.stderr).toBe(0);
     expect(JSON.parse(upgraded.stdout)).toMatchObject({ ok: true });
 
-    await builderEntered;
+    await waitFor(
+      async () => ({ entered: builderEntered, status: await running.client.forScope(codeScopeId).workflow.status() }),
+      (result) => result.entered,
+    );
     const activeCodeStatus = await running.client.forScope(codeScopeId).workflow.status();
     expect(activeCodeStatus.activeRuns).toEqual(expect.arrayContaining([
       expect.objectContaining({ workflow: "builder" }),
@@ -1047,7 +1044,7 @@ describe("self-service external scope onboarding acceptance", () => {
       missingSetupScopeId,
       "--json",
     ], "y\n");
-    expect(drainedMissingSetup.exitCode, drainedMissingSetup.stderr).toBe(0);
+    expect(drainedMissingSetup.exitCode, `${drainedMissingSetup.stdout}\n${drainedMissingSetup.stderr}`).toBe(0);
     const removedMissingSetup = await runCli([
       "scope",
       "remove",
@@ -1150,7 +1147,7 @@ describe("self-service external scope onboarding acceptance", () => {
       recoveryOperationId,
       "--json",
     ], "y\n");
-    expect(retriedRecovery.exitCode, retriedRecovery.stderr).toBe(0);
+    expect(retriedRecovery.exitCode, `${retriedRecovery.stdout}\n${retriedRecovery.stderr}`).toBe(0);
     expect(JSON.parse(retriedRecovery.stdout)).toMatchObject({
       ok: true,
       operation: { state: "succeeded", attempts: 2 },
@@ -1191,8 +1188,9 @@ describe("self-service external scope onboarding acceptance", () => {
       }),
     };
     const codeHashBeforeRemoval = directoryHash(codeRoot);
+    await pauseScopeForDrain(running.client, observeScopeId);
     const drainedObserve = await runCli(["scope", "drain", observeScopeId, "--json"], "y\n");
-    expect(drainedObserve.exitCode, drainedObserve.stderr).toBe(0);
+    expect(drainedObserve.exitCode, `${drainedObserve.stdout}\n${drainedObserve.stderr}`).toBe(0);
     expect(JSON.parse(drainedObserve.stdout)).toMatchObject({ ok: true, status: "drained" });
     const observeHashBeforeRemoval = directoryHash(observeRoot);
     const removedObserve = await runCli(["scope", "remove", observeScopeId, "--json"], "y\n");
@@ -1211,8 +1209,9 @@ describe("self-service external scope onboarding acceptance", () => {
       .toEqual(observeConfigBefore);
     expect(directoryHash(codeRoot)).toBe(codeHashBeforeRemoval);
 
+    await pauseScopeForDrain(running.client, recoveryScopeId);
     const drainedRecovery = await runCli(["scope", "drain", recoveryScopeId, "--json"], "y\n");
-    expect(drainedRecovery.exitCode, drainedRecovery.stderr).toBe(0);
+    expect(drainedRecovery.exitCode, `${drainedRecovery.stdout}\n${drainedRecovery.stderr}`).toBe(0);
     const removedRecovery = await runCli(["scope", "remove", recoveryScopeId, "--json"], "y\n");
     expect(removedRecovery.exitCode, removedRecovery.stderr).toBe(0);
 
@@ -1281,6 +1280,7 @@ describe("self-service external scope onboarding acceptance", () => {
       "src/core/daemon/scope-registration.ts",
     ]);
     expect(structuralSearch.onboardingSurfaceOwners.every((path) =>
+      path === "src/client/kota-client.generated.ts" ||
       path.startsWith("src/core/daemon/") || path.startsWith("src/modules/daemon-ops/")
     )).toBe(true);
     expect(structuralSearch.authorityMutationOwners).toEqual([

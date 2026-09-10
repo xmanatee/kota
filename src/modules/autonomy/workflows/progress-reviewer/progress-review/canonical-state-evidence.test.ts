@@ -1,6 +1,8 @@
-import { rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { deriveDirectoryScopeId, ScopeRegistry } from "#core/daemon/scope-registry.js";
+import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { progressReviewRequested } from "../events.js";
 import {
   makeProgressReviewScopeRoot,
@@ -38,6 +40,45 @@ describe("progress-reviewer canonical state evidence", () => {
     }
   });
 
+  it("reads hosted SQLite authority without moving scope-local evidence into the daemon root", () => {
+    const scopeRoot = makeProgressReviewScopeRoot("progress-hosted-authority");
+    scopeRoots.push(scopeRoot);
+    const stateDir = join(scopeRoot, ".kota");
+    const runtimeStateDir = join(scopeRoot, "daemon-state");
+    const workspaceRoot = join(scopeRoot, "sandbox");
+    mkdirSync(workspaceRoot);
+    const scopeId = deriveDirectoryScopeId(scopeRoot);
+    new ScopeRegistry({ stateDir: runtimeStateDir, scopes: [{ scopeRoot }] });
+    const database = new RunStateDatabase(runtimeStateDir);
+    database.registerScope({ id: scopeId, rootPath: scopeRoot, createdAt: NOW.toISOString() });
+    database.admitRun({
+      id: "hosted-pending", scopeId, workflow: "builder", repository: "read",
+      trigger: { event: "manual", schemaRef: null, payload: {} }, resources: [],
+      admittedAt: NOW.toISOString(),
+    });
+    database.close();
+    mkdirSync(join(stateDir, "runs", "scope-evidence"), { recursive: true });
+    writeFileSync(join(stateDir, "runs", "scope-evidence", "metadata.json"), JSON.stringify({
+      id: "scope-evidence", workflow: "builder", definitionPath: "workflow.ts",
+      trigger: { event: "manual", schemaRef: null, payload: {} }, status: "success",
+      startedAt: NOW.toISOString(), completedAt: NOW.toISOString(),
+      runDir: ".kota/runs/scope-evidence", steps: [],
+    }));
+
+    const evidence = collectProgressReviewEvidence({
+      workspaceRoot, scopeRoot, stateDir, runtimeStateDir,
+      trigger: { event: progressReviewRequested.name, schemaRef: null, payload: {} }, now: NOW,
+    });
+    expect(evidence.runs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "run:hosted-pending", status: "pending" }),
+    ]));
+    expect(evidence.runs).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "run:scope-evidence", status: "success" }),
+    ]));
+    expect(evidence.canonicalState.find((item) => item.id === "state:queue")?.summary)
+      .toContain("ownershipAvailable=true");
+  });
+
   it("keeps the pinned outcome comparison in default input when raw semantic references overflow", () => {
     const workspaceRoot = makeProgressReviewScopeRoot("progress-compact-comparison");
     scopeRoots.push(workspaceRoot);
@@ -47,7 +88,7 @@ describe("progress-reviewer canonical state evidence", () => {
       errors: ["critic-rejection"], observationOnly: false,
     };
     const evidence = collectProgressReviewEvidence({
-      workspaceRoot, scopeRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota"),
+      workspaceRoot, scopeRoot: workspaceRoot, stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: { event: progressReviewRequested.name, schemaRef: null, payload: {} }, now: NOW,
       semanticInput: {
         automatic: true, shouldReview: true, inputRevision: 1, deliveryAttempt: 0,
@@ -91,7 +132,7 @@ describe("progress-reviewer canonical state evidence", () => {
     const evidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: {
         event: progressReviewRequested.name,
         schemaRef: null,

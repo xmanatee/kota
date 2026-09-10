@@ -64,7 +64,7 @@ export type BlockedPromoterMoveItem = {
 export type ExplorerAdditionItem = {
   runId: string;
   taskCount: number;
-  watchlistAdds: number;
+  watchlistUpdated: boolean;
 };
 
 export type FailedRunItem = {
@@ -221,30 +221,17 @@ function collectExplorerAdditions(
   const items: ExplorerAdditionItem[] = [];
   for (const run of runs) {
     if (run.workflow !== "explorer") continue;
-    if (run.status !== "success") continue;
-    const apply = run.steps.find((s) => s.id === "apply-watchlist-updates");
-    const watchlistAdds = readWatchlistAddCount(apply?.output);
-    const taskCount = countCommittedTaskAdditions(run, runsDir);
-    if (taskCount === 0 && watchlistAdds === 0) continue;
-    items.push({ runId: run.id, taskCount, watchlistAdds });
+    if (run.status !== "success" && run.status !== "completed-with-warnings") continue;
+    const delivery = readAutonomyRunDeliveryEvidence(runsDir, run);
+    if (!delivery) continue;
+    const watchlistUpdated = delivery.changedPaths.includes("data/watchlist.yaml");
+    const taskCount = delivery.changedPaths.filter(
+      (path) => /^data\/tasks\/(?:archive\/)?task-.*\.md$/.test(path),
+    ).length;
+    if (taskCount === 0 && !watchlistUpdated) continue;
+    items.push({ runId: run.id, taskCount, watchlistUpdated });
   }
   return items;
-}
-
-function readWatchlistAddCount(output: unknown): number {
-  if (!output || typeof output !== "object") return 0;
-  const apply = output as { applied?: { kind?: string }[] };
-  if (!Array.isArray(apply.applied)) return 0;
-  return apply.applied.filter((entry) => entry.kind === "added").length;
-}
-
-function countCommittedTaskAdditions(
-  run: WorkflowRunMetadata,
-  runsDir: string,
-): number {
-  return readAutonomyRunDeliveryEvidence(runsDir, run)?.changedPaths.filter(
-    (path) => /^data\/tasks\/task-.*\.md$/.test(path),
-  ).length ?? 0;
 }
 
 function collectDecomposerSplits(

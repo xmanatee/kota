@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +25,7 @@ describe("builder delivery outcomes truthfulness", () => {
     mkdirSync(runsDir, { recursive: true });
     mkdirSync(join(workspaceRoot, "data", "tasks"), { recursive: true });
     mkdirSync(join(workspaceRoot, "data", "tasks", "archive"), { recursive: true });
+    execFileSync("git", ["init", "--quiet"], { cwd: workspaceRoot });
   });
 
   afterEach(() => {
@@ -245,7 +247,7 @@ describe("builder delivery outcomes truthfulness", () => {
     const progressEvidence = collectProgressReviewEvidence({
       workspaceRoot,
       scopeRoot: workspaceRoot,
-      stateDir: join(workspaceRoot, ".kota"),
+      stateDir: join(workspaceRoot, ".kota"), runtimeStateDir: join(workspaceRoot, ".kota"),
       trigger: { event: "manual", schemaRef: null, payload: { windowMs: 7 * MS_PER_DAY } },
       now: new Date(NOW),
     });

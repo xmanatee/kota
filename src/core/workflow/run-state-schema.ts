@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 
-export const RUN_STATE_SCHEMA_VERSION = 6;
+export const RUN_STATE_SCHEMA_VERSION = 7;
 
 function tableExists(database: Database.Database, table: string): boolean {
   return database
@@ -380,6 +380,14 @@ function restoreScopedAgentBackoff(database: Database.Database): void {
   `);
 }
 
+function addNonWriterExecutionReceipt(database: Database.Database): void {
+  if (columnExists(database, "runs", "execution_completed_at")) return;
+  database.exec(`
+    ALTER TABLE runs ADD COLUMN execution_completed_at TEXT
+      CHECK (execution_completed_at IS NULL OR repository_access != 'write');
+  `);
+}
+
 const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   version: number;
   apply(database: Database.Database): void;
@@ -390,6 +398,7 @@ const RUN_STATE_MIGRATIONS: ReadonlyArray<{
   { version: 4, apply: migrateLegacyScopeIdentity },
   { version: 5, apply: addDaemonStateValues },
   { version: 6, apply: restoreScopedAgentBackoff },
+  { version: 7, apply: addNonWriterExecutionReceipt },
 ];
 
 export function initializeRunStateSchema(database: Database.Database): void {

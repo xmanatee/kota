@@ -107,12 +107,6 @@ describe("issue-driven owner-answer lifecycle integration", () => {
 
       const bus = new EventBus();
       const pbus = new ScopedEventBus(bus, deriveDirectoryScopeId(workspaceRoot));
-      const source = makeAutonomyIssueSourceContext(
-        workspaceRoot,
-        bus,
-        deriveDirectoryScopeId(workspaceRoot),
-      );
-      subscribeAutonomyIssueSources(source.ctx);
       const workflowDefinitions = await loadAutonomyWorkflowDefinitions();
       const runtimeFixture = createTestWorkflowRuntime({
         config: {
@@ -124,12 +118,17 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         idleIntervalMs: 10,
         workflows: workflowDefinitions.filter((workflow) =>
           workflow.name === "autonomy-health-reviewer" ||
-          workflow.name === "autonomy-issue-projection-materialization" ||
-          workflow.name === "improver" ||
-          workflow.name === "improver-disposition-publication"
+          workflow.name === "improver"
         ),
       });
       const { runtime } = runtimeFixture;
+      const source = makeAutonomyIssueSourceContext(
+        workspaceRoot,
+        bus,
+        deriveDirectoryScopeId(workspaceRoot),
+        { runState: runtimeFixture.runState, workflowRuntime: runtime },
+      );
+      subscribeAutonomyIssueSources(source.ctx);
       runtime.start();
       try {
         createWorkflowDispatchDeadLetter({
@@ -161,13 +160,13 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         });
         await waitForLifecycle(
           () => {
-            const issue = readAutonomyIssueProjection(workspaceRoot).issues[0];
+            const issue = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0];
             return issue?.disposition.kind === "owner-question" &&
               issue.links.ownerQuestionIds.length === 1;
           },
           "the owner-question disposition",
         );
-        const firstIssue = readAutonomyIssueProjection(workspaceRoot).issues[0]!;
+        const firstIssue = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]!;
         const questionId = firstIssue.links.ownerQuestionIds[0]!;
         const questions = new OwnerQuestionQueue(
           join(workspaceRoot, ".kota", "owner-questions"),
@@ -177,12 +176,12 @@ describe("issue-driven owner-answer lifecycle integration", () => {
         questions.answer(questionId, "Preserve the worktree", "fixture-owner");
         await waitForLifecycle(
           () =>
-            readAutonomyIssueProjection(workspaceRoot).issues[0]
+            readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state")).issues[0]
               ?.disposition.kind === "task",
           "the answer-driven task disposition",
         );
 
-        const projection = readAutonomyIssueProjection(workspaceRoot);
+        const projection = readAutonomyIssueProjection(workspaceRoot, join(workspaceRoot, ".kota", "state"));
         const tasks = listFullRepoTasks(workspaceRoot);
         expect(projection.issues).toEqual([
           expect.objectContaining({

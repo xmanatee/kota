@@ -2219,7 +2219,6 @@ describe("ScopeOnboardingService", () => {
     expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
       state: "applying",
       registeredByOperation: false,
-      authorityApplied: null,
     });
     expect(fixture.authority.inspect(planned.plan.scopeId)).toMatchObject({
       trust: { trusted: true },
@@ -2360,7 +2359,12 @@ describe("ScopeOnboardingService", () => {
       },
     });
     if (cancelled.ok) throw new Error("rollback failure fixture unexpectedly cancelled");
-    expect(await fixture.service.status(planned.plan.operationId)).toEqual(cancelled.operation);
+    expect(await fixture.service.status(planned.plan.operationId)).toMatchObject({
+      operationId: planned.plan.operationId,
+      state: "incomplete",
+      error: { code: "rollback_failed" },
+      readiness: { partiallyApplied: true, blocked: true },
+    });
     expect(fixture.lifecycle.getHostingState(planned.plan.scopeId)).toBe("inactive");
     rollbackSpy.mockRestore();
     await fixture.close();

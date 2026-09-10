@@ -98,6 +98,7 @@ function taskCreateParameters(): UiActionParameterSpec {
   return {
     fields: [
       { id: "title", label: "Title", input: "text", required: true },
+      { id: "body", label: "Task details (Markdown)", input: "multiline", required: true },
       {
         id: "priority",
         label: "Priority",
@@ -115,9 +116,10 @@ function taskCreateParameters(): UiActionParameterSpec {
     ],
     schema: {
       type: "object",
-      required: ["title", "priority", "state"],
+      required: ["title", "body", "priority", "state"],
       properties: {
         title: { type: "string" },
+        body: { type: "string" },
         priority: { type: "string", enum: ["p0", "p1", "p2", "p3"], default: "p2" },
         state: { type: "string", enum: ["open", "blocked"], default: "open" },
       },

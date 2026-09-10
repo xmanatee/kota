@@ -5,7 +5,6 @@
   "scripts": {
     "test": "node scripts/check-resource-budget.mjs --visible-only",
     "validate-tasks": "node \"$KOTA_DIST_DIR/validate-queue.js\"",
-    "finish-task": "node \"$KOTA_DIST_DIR/cli.js\" task move task-implement-scalable-inversion-counter done",
     "kota": "node \"$KOTA_DIST_DIR/cli.js\"",
     "check:fast": "pnpm validate-tasks"
   }

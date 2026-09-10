@@ -8,6 +8,7 @@ import type {
 import type { WorkflowRunSummary } from "#core/daemon/daemon-control.js";
 import type { PendingOwnerQuestion } from "#core/daemon/owner-question-queue.js";
 import { createKotaClientTestDouble } from "#core/server/daemon-client-test-support.js";
+import { summarizeRepoTaskQueue } from "#modules/repo-tasks/repo-tasks-domain.js";
 import { inspectRepoWorkSupply } from "#modules/repo-tasks/work-supply.js";
 import type { ModuleSetupRequirementStatus } from "#modules/setup/client.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
@@ -123,7 +124,10 @@ function client(args: {
 } = {}): KotaClient {
   const blockedContent = args.blockedContent ?? {};
   const root = mkdtempSync(join(tmpdir(), "operator-inbox-supply-"));
-  const workSupply = inspectRepoWorkSupply({ workspaceRoot: root, scopeRoot: root, stateDir: join(root, ".kota"), capacity: 4 });
+  const workSupply = inspectRepoWorkSupply(
+    { workspaceRoot: root, scopeRoot: root, stateDir: join(root, ".kota"), capacity: 4 },
+    { tasks: [], queue: summarizeRepoTaskQueue([], 0, "empty-published-queue") },
+  );
   rmSync(root, { recursive: true, force: true });
   return createKotaClientTestDouble({
     approvals: {

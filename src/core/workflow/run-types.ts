@@ -143,8 +143,10 @@ export type WorkflowStepContext = {
   scopeRoot: string;
   agentRuntime: AgentRuntimeSelection;
   runtimeResources?: WorkflowRuntimeResources;
-  /** Canonical durable runtime-state directory for this scope. */
+  /** Scope-local runtime artifact directory. */
   stateDir: string;
+  /** Authoritative durable runtime database directory, potentially shared across scopes. */
+  runtimeStateDir: string;
   eventJournal?: EventJournal;
   /**
    * The authoritative resolved scope policy captured when this step starts.

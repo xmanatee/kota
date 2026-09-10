@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   createConfirmedActionDeadLetter,
   createEventEnvelopeDeadLetter,
+  createWorkflowDispatchDeadLetter,
   DeadLetterQueueStore,
 } from "#core/daemon/dead-letter-queue.js";
 import { EventBus } from "#core/events/event-bus.js";
@@ -104,6 +105,55 @@ describe("workflow dead-letter queue integration", () => {
     rmSync(workspaceRoot, { recursive: true, force: true });
   });
 
+  it("dismisses a retry failure only after finalization succeeds, including restart", async () => {
+    const item = createWorkflowDispatchDeadLetter({
+      store, scopeId: "scope-a", workflowName: "completion-retry",
+      trigger: { event: "retry.requested", schemaRef: null, payload: {} },
+      reason: "Provider unavailable", errorClass: "provider",
+    });
+    let finalizationFails = true;
+    let executions = 0;
+    const workflows: RegisteredWorkflowDefinitionInput[] = [{
+      name: "completion-retry", repository: "read",
+      definitionPath: "src/core/workflow/dead-letter-queue.test.ts",
+      moduleRoot: process.cwd(), triggers: [{ event: "retry.requested" }],
+      steps: [{ id: "work", type: "code", run: () => ++executions }],
+      finalize: () => {
+        if (finalizationFails) throw new Error("Completion temporarily unavailable");
+      },
+    }];
+    const createHost = () => createTestWorkflowRuntime({
+      scopeRoot: workspaceRoot, bus, pbus, deadLetterQueue: store, workflows,
+    });
+    let host = createHost();
+    try {
+      host.runtime.start();
+      const result = await host.runtime.execute({
+        scopeId: "scope-a", workflow: "completion-retry", event: "retry.requested",
+        payload: { redriveOf: item.id },
+      });
+      expect(result.ok).toBe(false);
+      const run = host.runState.listRuns("scope-a")[0]!;
+      expect(run.state).toBe("needs_attention");
+      expect(store.get(item.id)?.status).toBe("open");
+      await host.stop();
+
+      host = createHost();
+      host.runtime.start();
+      expect(store.get(item.id)?.status).toBe("open");
+      host.runtime.setDispatchPaused(true);
+      finalizationFails = false;
+      host.runState.resumeRun(run.id, new Date().toISOString());
+      host.runtime.setDispatchPaused(false);
+      await waitUntil(() => store.get(item.id)?.status === "dismissed",
+        "timed out waiting for completed retry publication");
+      expect(host.runState.getRun(run.id)?.state).toBe("succeeded");
+      expect(executions).toBe(1);
+    } finally {
+      await host.stop();
+    }
+  });
+
   it("parks event-triggered workflow validation failures with the durable event id", async () => {
     bus.addEmitMiddleware((envelope, next) => {
       if (envelope.type === "telegram.message") envelope.eventId = "evtj-000000000001";
@@ -194,6 +244,7 @@ describe("workflow dead-letter queue integration", () => {
       message: { text: "nested text" },
       botToken: "secret-token",
     });
+    const sourceEvent = eventJournal.query({ type: "telegram.message" })[0]!;
     await waitUntil(
       () => store.list({ status: "open" }).length === 1 && !runtime.isBusy(),
       "timed out waiting for failed workflow DLQ item",
@@ -208,7 +259,7 @@ describe("workflow dead-letter queue integration", () => {
         lastErrorClass: "execution",
         retryCount: 1,
       },
-      sourceEventIds: ["evtj-000000000002"],
+      sourceEventIds: [sourceEvent.id],
       source: {
         kind: "workflow-dispatch",
         workflowName: "telegram-redrive-fixture",
