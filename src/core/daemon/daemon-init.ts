@@ -43,6 +43,7 @@ import type {
   BuildDaemonInitParams,
   DaemonRuntimeContext,
 } from "./daemon-runtime-context.js";
+import { snapshotDaemonState } from "./daemon-state.js";
 import { DaemonEventLoopLatencyMonitor } from "./event-loop-latency.js";
 import {
   WORKFLOW_METRICS_SOURCE_PROVIDER_TYPE,
@@ -276,7 +277,7 @@ export function buildDaemonInit(params: BuildDaemonInitParams): DaemonRuntimeCon
   };
 
   const handle = buildDaemonHandle({
-    getState: () => ctx.state,
+    getState: () => snapshotDaemonState(ctx.state),
     isRunning: () => ctx.running && !ctx.stopping,
     workflows,
     bus,

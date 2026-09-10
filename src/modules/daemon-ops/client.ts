@@ -23,6 +23,7 @@ import type {
   DaemonSseStreamEvent,
   InteractiveSession,
 } from "#core/daemon/daemon-control.js";
+import type { DaemonRuntimeRevision } from "#core/daemon/daemon-runtime-revision.js";
 import type {
   ScopeAuthorityFailure,
   ScopeAuthorityMutation,
@@ -141,9 +142,9 @@ export interface SessionsClient {
  */
 export type DaemonOpsStatusResult =
   | { state: "running"; serviceInstalled: boolean; status: DaemonLiveStatus }
-  | { state: "not_running"; serviceInstalled: boolean }
-  | { state: "stale"; serviceInstalled: boolean; pid: number }
-  | { state: "unreachable"; serviceInstalled: boolean; pid: number };
+  | { state: "not_running"; serviceInstalled: boolean; runtimeRevision?: DaemonRuntimeRevision }
+  | { state: "stale"; serviceInstalled: boolean; pid: number; runtimeRevision?: DaemonRuntimeRevision }
+  | { state: "unreachable"; serviceInstalled: boolean; pid: number; runtimeRevision?: DaemonRuntimeRevision };
 
 /** Result of `daemonOps.pid()`. */
 export type DaemonOpsPidResult =

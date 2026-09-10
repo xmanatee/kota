@@ -20,6 +20,7 @@ import { isProcessAlive } from "#core/util/process-alive.js";
 import { Daemon } from "./daemon.js";
 import {
   acquireInstanceLock,
+  assertSupervisorInstanceLock,
   CONTROL_FILE,
   INSTANCE_LOCK_FILE,
   releaseInstanceLock,
@@ -29,7 +30,7 @@ import { prepareDaemonStateRoot } from "./daemon-state-root.js";
 
 vi.mock("node:child_process", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:child_process")>();
-  return { ...actual, execFileSync: vi.fn() };
+  return { ...actual, execFileSync: vi.fn(actual.execFileSync) };
 });
 
 vi.mock("#core/util/process-alive.js", async (importOriginal) => {
@@ -78,6 +79,23 @@ describe("daemon instance lock", () => {
     mockedExecFileSync.mockReset();
     mockedIsProcessAlive.mockReset();
     if (existsSync(tmpDir)) rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("lets only the supervisor's child borrow its lock and retains it across child shutdown", async () => {
+    const stateRoot = prepareDaemonStateRoot(tmpDir, undefined);
+    const supervisor = { ...owner, pid: process.ppid };
+    await acquireInstanceLock(tmpDir, stateRoot, supervisor, () => {});
+    expect(() => assertSupervisorInstanceLock(stateRoot, supervisor.token)).not.toThrow();
+    expect(() => assertSupervisorInstanceLock(stateRoot, "wrong-token")).toThrow("does not own");
+    writeControlFile(stateRoot, { ...contender, port: 3921 });
+    releaseInstanceLock(stateRoot, contender);
+    expect(existsSync(join(stateRoot.path, CONTROL_FILE))).toBe(false);
+    expect(() => assertSupervisorInstanceLock(stateRoot, supervisor.token)).not.toThrow();
+    releaseInstanceLock(stateRoot, supervisor);
+    await acquireInstanceLock(tmpDir, stateRoot, owner, () => {});
+    expect(() => assertSupervisorInstanceLock(stateRoot, owner.token)).toThrow("does not own");
+    releaseInstanceLock(stateRoot, owner);
+    expect(() => assertSupervisorInstanceLock(stateRoot, supervisor.token)).toThrow("does not own");
   });
 
   it("refuses to acquire the instance lock when daemon-state points at a live daemon without a control file", async () => {

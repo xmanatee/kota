@@ -51,6 +51,19 @@ export function buildDaemonStatusNode(
     },
   ];
   const summary = `${workflow.activeRuns.length} active · ${workflow.pendingRuns.length} pending · ${workflow.completedRuns} completed`;
+  if (status.runtimeRevision !== undefined) {
+    const runtime = status.runtimeRevision;
+    stateEntries.push(
+      { label: "Loaded revision", value: runtime.loadedRevision ?? "unversioned" },
+      { label: "Canonical revision", value: runtime.canonicalRevision ?? "unversioned" },
+    );
+    if (runtime.activation !== null) {
+      stateEntries.push({
+        label: "Activation",
+        value: `${runtime.activation.status}: ${runtime.activation.targetRevision}${runtime.activation.error ? ` — ${runtime.activation.error}` : ""}`,
+      });
+    }
+  }
   const activity: RenderNode[] = [line(span(summary, "muted"))];
   if (workflow.activeRuns.length > 0) {
     const rows: ColumnRow[] = workflow.activeRuns.map((run) => ({

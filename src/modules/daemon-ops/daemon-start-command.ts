@@ -2,6 +2,8 @@ import { Command } from "commander";
 import { loadConfig } from "#core/config/config.js";
 import { resolveScopeRoot } from "#core/config/scope-root.js";
 import { Daemon } from "#core/daemon/daemon.js";
+import { assertSupervisorInstanceLock } from "#core/daemon/daemon-instance-lock.js";
+import { prepareDaemonStateRoot } from "#core/daemon/daemon-state-root.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { loadRuntimeModules } from "#core/modules/runtime-loader.js";
 import type { LogFormat } from "#core/util/log-format.js";
@@ -10,6 +12,7 @@ import {
   DAEMON_CHILD_ENV,
   DAEMON_COMMAND_DESCRIPTION,
   DAEMON_START_DESCRIPTION,
+  DAEMON_SUPERVISOR_TOKEN_ENV,
   type DaemonStartOptions,
   installDaemonPresetEnv,
   parseIntOption,
@@ -26,12 +29,16 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
   const logFormat: LogFormat | undefined = opts.logFormat
     ?? (process.env.KOTA_DAEMON_LOG_FORMAT === "json" ? "json" : undefined);
   if (process.env[DAEMON_CHILD_ENV] !== String(process.ppid)) {
-    await runDaemonSupervisor();
+    await runDaemonSupervisor(resolveScopeRoot(opts.scopeRoot));
     return;
   }
 
   const useDashboard = process.stdout.isTTY === true && !logFormat;
   const scopeRoot = resolveScopeRoot(opts.scopeRoot);
+  const supervisorInstanceToken = process.env[DAEMON_SUPERVISOR_TOKEN_ENV];
+  delete process.env[DAEMON_SUPERVISOR_TOKEN_ENV];
+  if (!supervisorInstanceToken) throw new Error("Missing daemon supervisor instance token.");
+  assertSupervisorInstanceLock(prepareDaemonStateRoot(scopeRoot, undefined), supervisorInstanceToken);
   const config = loadConfig(scopeRoot);
   const presetResolution = installDaemonPresetEnv(opts.preset, config.defaultPreset);
   const preset = presetResolution.preset;
@@ -54,6 +61,7 @@ async function startDaemon(rawOpts: DaemonStartOptions, command?: Command): Prom
     eventBus,
   });
   const daemon = new Daemon({
+    supervisorInstanceToken,
     runtimeModuleHost: { eventBus, moduleLoader: loader },
     scopeRoot: scopeRoot,
     verbose,

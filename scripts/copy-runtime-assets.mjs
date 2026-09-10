@@ -1,4 +1,5 @@
-import { cpSync, mkdirSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { cpSync, existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 const repositoryRoot = resolve(import.meta.dirname, "..");
@@ -29,3 +30,8 @@ function copyRuntimeMarkdown(directory) {
 copyRuntimeMarkdown(sourceModules);
 copySourcePath(join(sourceModules, "eval-harness", "fixtures"));
 copySourcePath(join(sourceModules, "harness-parity", "scenarios"));
+// Built processes report the build's revision rather than the checkout's later HEAD.
+const builtRevision = existsSync(join(repositoryRoot, ".git"))
+  ? execFileSync("git", ["rev-parse", "HEAD"], { cwd: repositoryRoot, encoding: "utf8" }).trim()
+  : null;
+writeFileSync(join(repositoryRoot, "dist", "runtime-revision.json"), `${JSON.stringify(builtRevision)}\n`);

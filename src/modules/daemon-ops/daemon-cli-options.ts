@@ -6,6 +6,7 @@ import { line, span } from "#modules/rendering/primitives.js";
 import { printToStderr, writeStdout } from "#modules/rendering/transport.js";
 
 export const DAEMON_CHILD_ENV = "KOTA_DAEMON_CHILD";
+export const DAEMON_SUPERVISOR_TOKEN_ENV = "KOTA_DAEMON_SUPERVISOR_TOKEN";
 export const DAEMON_SCOPE_ROOT_OPTION_DESCRIPTION =
   "Directory-backed scope root the daemon operates on (overrides KOTA_SCOPE_ROOT and cwd)";
 const DAEMON_HOST_HELP = [

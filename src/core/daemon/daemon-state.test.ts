@@ -65,4 +65,14 @@ describe("assertDaemonState", () => {
   it("throws contain the path in error message", () => {
     expect(() => assertDaemonState("/state.json", null)).toThrow("/state.json");
   });
+
+  it("rejects malformed persisted activation identity", () => {
+    expect(() => assertDaemonState("/state.json", {
+      ...validState,
+      runtimeRevision: {
+        root: "/runtime", mode: "source", loadedRevision: null, canonicalRevision: null,
+        activation: { targetRevision: "not-a-revision", status: "active", error: null },
+      },
+    })).toThrow("invalid runtime revision");
+  });
 });

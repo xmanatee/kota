@@ -43,6 +43,8 @@ export type DaemonConfig = {
   idleIntervalMs?: number;
   pollIntervalMs?: number;
   stateDir?: string;
+  /** Parent-held instance reservation; standalone hosts acquire their own lock. */
+  supervisorInstanceToken?: string;
   workflows?: readonly RegisteredWorkflowDefinitionInput[];
   channels?: readonly ChannelDef[];
   /**

@@ -11,6 +11,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveScopeRoot } from "#core/config/scope-root.js";
 import type { DaemonControlAddress, DaemonLiveStatus } from "#core/daemon/daemon-control.js";
+import { loadDaemonStateFromDisk } from "#core/daemon/daemon-state-persistence.js";
 import {
   isDaemonControlAddressReachable,
   readLiveDaemonControlAddress,
@@ -74,17 +75,19 @@ function readControlAddress(options: DaemonOpsScopeOptions = {}): DaemonControlA
 export function localDaemonStatus(options: DaemonOpsScopeOptions = {}): DaemonOpsStatusResult {
   const serviceInstalled = isServiceUnitInstalled();
   const address = readControlAddress(options);
+  const revision = loadDaemonStateFromDisk(join(resolveScopeRoot(options.scopeRoot), ".kota"))?.runtimeRevision;
+  const retained = revision === undefined ? {} : { runtimeRevision: revision };
   if (!address || typeof address.pid !== "number") {
-    return { state: "not_running", serviceInstalled };
+    return { state: "not_running", serviceInstalled, ...retained };
   }
   if (!isProcessAlive(address.pid)) {
-    return { state: "stale", serviceInstalled, pid: address.pid };
+    return { state: "stale", serviceInstalled, pid: address.pid, ...retained };
   }
   // The selector would have picked the daemon transport when it could
   // actually reach the daemon. Reaching here means the control file is
   // present but the daemon HTTP probe failed; preserve the live pid and
   // distinguish an unreachable daemon from a stale process.
-  return { state: "unreachable", serviceInstalled, pid: address.pid };
+  return { state: "unreachable", serviceInstalled, pid: address.pid, ...retained };
 }
 
 export function localDaemonPid(options: DaemonOpsScopeOptions = {}): DaemonOpsPidResult {

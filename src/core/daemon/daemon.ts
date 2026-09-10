@@ -3,9 +3,10 @@ import type { DaemonConfig } from "./daemon-config.js";
 import { createDaemonRuntimeContext } from "./daemon-context-factory.js";
 import { buildDaemonDashboardSnapshot } from "./daemon-dashboard-snapshot.js";
 import type { DaemonRuntimeContext } from "./daemon-init.js";
+import { failRuntimeActivation, observeIntegratedRuntime } from "./daemon-runtime-activation.js";
 import { runDaemonShutdown } from "./daemon-shutdown.js";
 import { runDaemonStartup } from "./daemon-startup.js";
-import type { DaemonState, DaemonStopReason } from "./daemon-state.js";
+import { type DaemonState, type DaemonStopReason, snapshotDaemonState } from "./daemon-state.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import {
   anyDaemonWorkflowRuntimeBusy,
@@ -118,6 +119,12 @@ export class Daemon {
     try {
       ctx = await createDaemonRuntimeContext(this.config, {
         onScopeTrustRevoked: (scopeId) => this.beginScopeTrustRevocation(scopeId),
+        onIntegratedRuntime: (scopeRoot, integration) => {
+          const context = this.context();
+          if (observeIntegratedRuntime(context.state, context.stateDir, scopeRoot, integration)) {
+            this.requestRestart(`Activate integrated runtime ${integration.publishedHead}`);
+          }
+        },
       });
       generation.context = ctx;
       ctx.running = true;
@@ -147,6 +154,13 @@ export class Daemon {
       });
       if (generation.shutdown !== null) await generation.shutdown;
     } catch (err) {
+      if (ctx !== null) {
+        try {
+          failRuntimeActivation(ctx.state, ctx.stateDir, err instanceof Error ? err.message : String(err));
+        } catch (stateError) {
+          ctx.log(`Could not persist activation failure: ${String(stateError)}`);
+        }
+      }
       generation.readiness.resolve("failed");
       if (ctx !== null && generation.shutdown === null) {
         try {
@@ -214,10 +228,10 @@ export class Daemon {
 
   getState(): DaemonState {
     if (this.generation?.context !== null && this.generation?.context !== undefined) {
-      return { ...this.generation.context.state };
+      return snapshotDaemonState(this.generation.context.state);
     }
     if (this.generation === null && this.lastState !== null) {
-      return { ...this.lastState };
+      return snapshotDaemonState(this.lastState);
     }
     throw new Error("Daemon has not started");
   }
@@ -325,6 +339,7 @@ export class Daemon {
     if (ctx.restartRequested) return;
     ctx.restartRequested = true;
     ctx.restartReason = reason;
+    ctx.runCoordinator.pauseGlobalAdmission();
     setDaemonWorkflowDispatchPaused(ctx, true);
     ctx.log(`${reason} — restart requested`);
     this.maybeRestart();
@@ -381,6 +396,11 @@ export class Daemon {
           this.restartShutdownScheduled = false;
           const restartError = error instanceof Error ? error : new Error(String(error));
           ctx.log(`Restart shutdown failed: ${restartError.message}`);
+          try {
+            failRuntimeActivation(ctx.state, ctx.stateDir, restartError.message);
+          } catch (stateError) {
+            ctx.log(`Could not persist activation failure: ${String(stateError)}`);
+          }
           return restartError;
         });
     });

@@ -12,6 +12,7 @@ export function loadDaemonStateFromDisk(stateDir: string): DaemonState | null {
   return {
     startedAt: state.startedAt,
     pid: state.pid,
+    ...(state.runtimeRevision === undefined ? {} : { runtimeRevision: state.runtimeRevision }),
     ...(state.lastStoppedAt !== undefined
       ? { lastStoppedAt: state.lastStoppedAt }
       : {}),

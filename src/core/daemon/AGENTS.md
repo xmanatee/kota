@@ -33,6 +33,20 @@ Keep `daemon.ts` a thin orchestrator. Lifecycle concerns live in focused
 `daemon-*` siblings. Normal stop and failed start share `runDaemonShutdown`.
 Use `daemon-chat-*` and `daemon-control-*` prefixes for those subsystems.
 
+Integrated changes to the executing KOTA installation enter the existing restart
+drain only after terminal publication is durable. The drain closes global
+admission without changing persistent operator pauses or provider backoff. Runtime
+revision state retains the requested target through shutdown and startup; readiness
+confirms activation for each process after revalidating even previously active
+targets against its loaded revision. Built installations retain their build revision and fail
+activation visibly if a restart still loads an older build, without retrying that
+same target automatically. Workflow recovery remains the owner of queued and held
+contracts.
+
+Supervised children borrow an authenticated parent-held instance reservation;
+their shutdown removes their control identity while the supervisor retains the
+reservation across replacements. Standalone hosts own and release their own lock.
+
 ## Capabilities And Identity
 
 Capability readiness comes from typed module-contributed sources. Each stable

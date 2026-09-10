@@ -5,6 +5,7 @@ import { EventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import { resolveWorkflowConcurrency } from "#core/workflow/concurrency.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
+import { integratedRunRevision } from "#core/workflow/run-lifecycle.js";
 import { recoverInterruptedRuns } from "#core/workflow/run-restart-recovery.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { DaemonConfig } from "./daemon-config.js";
@@ -15,10 +16,12 @@ import {
 import { buildDaemonInit, type DaemonRuntimeContext } from "./daemon-init.js";
 import {
   acquireInstanceLock,
+  assertSupervisorInstanceLock,
   releaseInstanceLock,
 } from "./daemon-instance-lock.js";
 import { DaemonLogger } from "./daemon-logger.js";
 import { repairRetainedRunMetadataAtDaemonStartup } from "./daemon-run-metadata-repair.js";
+import { failRuntimeActivation, initializeRuntimeActivation } from "./daemon-runtime-activation.js";
 import type { DaemonState } from "./daemon-state.js";
 import { loadDaemonStateFromDisk } from "./daemon-state-persistence.js";
 import { prepareDaemonStateRoot } from "./daemon-state-root.js";
@@ -32,6 +35,7 @@ import { ScopeRuntimeRegistry } from "./scope-runtime.js";
 
 export type DaemonRuntimeContextHooks = {
   onScopeTrustRevoked?: (scopeId: string) => void;
+  onIntegratedRuntime?: (scopeRoot: string, integration: { publishedHead: string; changedPaths: readonly string[] }) => void;
 };
 
 export async function createDaemonRuntimeContext(
@@ -77,9 +81,14 @@ export async function createDaemonRuntimeContext(
     startedAt: state.startedAt,
     token,
   };
-  await acquireInstanceLock(scopeRoot, stateRoot, instanceIdentity, log);
+  if (config.supervisorInstanceToken !== undefined) {
+    assertSupervisorInstanceLock(stateRoot, config.supervisorInstanceToken);
+  } else {
+    await acquireInstanceLock(scopeRoot, stateRoot, instanceIdentity, log);
+  }
   let runState: RunStateDatabase | undefined;
   try {
+  initializeRuntimeActivation(state, stateDir);
   const eventJournal = new EventJournal(join(stateDir, "events"), {
     scopeLineage: (scopeId) => scopeLineageForId(scopeId, scopeRegistry),
   });
@@ -109,10 +118,19 @@ export async function createDaemonRuntimeContext(
       scopeRuntimes.get(run.scopeId).workflowRuntime.prepareCancellation(run),
     execute: (run, signal) =>
       scopeRuntimes.get(run.scopeId).workflowRuntime.executeAdmittedRun(run, signal),
-    deliverPublication: (publication) =>
-      scopeRuntimes
-        .get(publication.scopeId)
-        .workflowRuntime.deliverPublication(publication),
+    deliverPublication: (publication) => {
+      const runtime = scopeRuntimes.get(publication.scopeId);
+      if (publication.event === "workflow.completed") {
+        const run = runtime.runState.getRun(publication.runId);
+        const integration = run === null ? null : integratedRunRevision(run);
+        if (integration !== null) {
+          // finishRun has committed success and its outbox. Close admission before
+          // completion subscribers can refill; shutdown waits for this drain.
+          hooks.onIntegratedRuntime?.(runtime.scope.scopeRoot, integration);
+        }
+      }
+      runtime.workflowRuntime.deliverPublication(publication);
+    },
     onPublicationError: (error, publication) => {
       log(
         `Deferred publication ${publication.id} after delivery failure: ${
@@ -234,6 +252,11 @@ export async function createDaemonRuntimeContext(
     startupDispatchPaused: blockedRecovery.length > 0,
   });
   } catch (error) {
+    try {
+      failRuntimeActivation(state, stateDir, error instanceof Error ? error.message : String(error));
+    } catch (stateError) {
+      log(`Could not persist activation failure: ${String(stateError)}`);
+    }
     runState?.close();
     releaseInstanceLock(stateRoot, instanceIdentity);
     throw error;

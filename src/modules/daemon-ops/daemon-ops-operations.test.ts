@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DaemonLiveStatus } from "#core/daemon/daemon-control.js";
+import { saveDaemonStateToDisk } from "#core/daemon/daemon-state-persistence.js";
 import { isProcessAlive } from "#core/util/process-alive.js";
-import { localDaemonStop } from "./daemon-ops-operations.js";
+import { localDaemonStatus, localDaemonStop } from "./daemon-ops-operations.js";
 
 vi.mock("#core/util/process-alive.js", () => ({
   isProcessAlive: vi.fn(),
@@ -84,6 +85,18 @@ describe("localDaemonStop", () => {
       "Bearer expected-token",
     );
     expect(killSpy).not.toHaveBeenCalledWith(pid, "SIGTERM");
+  });
+
+  it("exposes a failed activation revision after the child exits", () => {
+    const status = daemonStatus(4321);
+    const runtimeRevision = {
+      root: scopeRoot, mode: "built" as const,
+      loadedRevision: "a".repeat(40), canonicalRevision: "b".repeat(40),
+      activation: { targetRevision: "b".repeat(40), status: "failed" as const, error: "startup failed" },
+    };
+    mkdirSync(join(scopeRoot, ".kota"), { recursive: true });
+    saveDaemonStateToDisk(join(scopeRoot, ".kota"), { ...status, runtimeRevision });
+    expect(localDaemonStatus({ scopeRoot })).toMatchObject({ state: "not_running", runtimeRevision });
   });
 
   it("refuses to signal the recorded pid when authenticated /status reports a different pid", async () => {

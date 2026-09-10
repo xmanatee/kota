@@ -11,6 +11,18 @@ surface around the daemon runtime. It also owns the daemon-facing CLI commands.
 - Exact command names, flags, output fields, service-unit contents, and restart constants
   belong in the command implementation and tests, not docs catalogs.
 - The daemon runtime itself lives in core; this module wires it into the CLI and supervisor surface.
+- Daemon status exposes loaded and canonical runtime revisions and retains failed
+  activation targets when the child cannot start. A supervised restart does not
+  rebuild an installed binary. Failed activation parks the supervisor, including
+  after service relaunch, until changed runtime code is installed and the service
+  is restarted. Documentation-only changes do not unlock a failed target.
+  The supervisor holds the instance reservation across child replacements and
+  parking; children authenticate the parent reservation and publish their own
+  control identity. Only the reservation owner expires prior activation readiness
+  before spawn and records preflight failures. Rejected duplicate starts leave
+  the live owner's activation state intact. Intentional supervisor shutdown
+  cancels replacement, releases the reservation after child exit, and does not
+  mark the activation failed or prevent retrying the same runtime.
 - The `/ui/surfaces` route and `ui` client delegate to one live assembler. This module contributes
   status, scope, inbox, and continuity; capability modules own their sources. Never register demo/fixture surfaces in production.
 - Session autonomy mode is part of that operator surface. This module owns the

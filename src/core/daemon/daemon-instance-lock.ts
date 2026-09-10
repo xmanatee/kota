@@ -92,6 +92,14 @@ function tryReserveInstanceLock(
   );
 }
 
+/** A supervised child borrows its parent's reservation across replacements. */
+export function assertSupervisorInstanceLock(stateRoot: DaemonStateRoot, token: string): void {
+  const current = readInstanceOwner(stateRoot);
+  if (current?.value.pid !== process.ppid || current.value.token !== token) {
+    throw new Error("Daemon supervisor does not own the instance lock.");
+  }
+}
+
 /**
  * Reserve the project before asynchronous startup and reject any live owner.
  * A dead owner PID is the only automatic stale-lock or stale-control cleanup

@@ -137,6 +137,19 @@ function readJournal(value: Record<string, unknown> | undefined): IntegrationJou
   return value as IntegrationJournal;
 }
 
+/** Publication consumers inspect the committed runtime journal, never agent artifacts. */
+export function integratedRunRevision(run: StoredRun): {
+  publishedHead: string;
+  changedPaths: readonly string[];
+} | null {
+  const journal = readJournal(run.integration);
+  if (journal === null || journal.phase !== "merged") return null;
+  if (journal.publishedHead === undefined || journal.changedPaths === undefined) {
+    throw new Error(`Incomplete integrated revision for run "${run.id}"`);
+  }
+  return { publishedHead: journal.publishedHead, changedPaths: journal.changedPaths };
+}
+
 function isRebaseActive(workspaceDir: string): boolean {
   const path = git(workspaceDir, ["rev-parse", "--git-path", "rebase-merge"]);
   return existsSync(path);

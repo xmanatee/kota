@@ -12,6 +12,7 @@ import {
 import { startChannel } from "./daemon-channel-start.js";
 import type { DaemonRuntimeContext } from "./daemon-init.js";
 import { writeControlFile } from "./daemon-instance-lock.js";
+import { completeRuntimeActivation } from "./daemon-runtime-activation.js";
 import { saveDaemonStateToDisk } from "./daemon-state-persistence.js";
 import { subscribeDaemon } from "./daemon-subscriptions.js";
 import {
@@ -131,7 +132,7 @@ export async function runDaemonStartup(
 
   await startDaemonWorkflowRuntimes(ctx);
   await ctx.runCoordinator.drainPublications();
-  if (!ctx.startupDispatchPaused) {
+  if (!ctx.startupDispatchPaused && !ctx.restartRequested) {
     ctx.runCoordinator.resumeGlobalAdmission();
   }
 
@@ -172,6 +173,7 @@ export async function runDaemonStartup(
     await startChannel(def, channelCtx, ctx.channelStatuses, ctx.activeChannels, ctx.log);
   }
 
+  completeRuntimeActivation(ctx.state, ctx.stateDir);
   saveDaemonStateToDisk(ctx.stateDir, ctx.state);
   ctx.log(
     `Daemon ready (pid ${process.pid}): ${ctx.workflows.getDefinitionCount()} workflows, ` +

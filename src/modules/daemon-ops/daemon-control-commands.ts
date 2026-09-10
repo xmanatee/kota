@@ -33,6 +33,7 @@ export function addDaemonControlCommands(command: Command): void {
       if (opts.json) {
         writeJson({
           running: false,
+          ...(result.runtimeRevision === undefined ? {} : { runtimeRevision: result.runtimeRevision }),
           serviceInstalled: result.serviceInstalled,
           ...(result.state === "stale" ? { staleControlFile: true, pid: result.pid } : {}),
           ...(result.state === "unreachable" ? { unreachable: true, pid: result.pid } : {}),
@@ -44,6 +45,10 @@ export function addDaemonControlCommands(command: Command): void {
             ? `Daemon process ${result.pid} is alive but its control endpoint is unreachable.`
             : "Daemon is not running.";
         printDaemonError(message);
+        if (result.runtimeRevision?.activation) {
+          const activation = result.runtimeRevision.activation;
+          printDaemonError(`Runtime ${activation.targetRevision}: ${activation.status}${activation.error ? ` — ${activation.error}` : ""}`);
+        }
         if (result.serviceInstalled) {
           print(line(plain("service:  installed (OS service unit present)")));
         }
