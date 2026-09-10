@@ -1,3 +1,4 @@
+import { dirname } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
 import { agentBackoffQueueUntil } from "./agent-backoff.js";
@@ -354,6 +355,7 @@ export class WorkflowQueueManager {
     const recovery = canRestartRetainedWorkflow(run) ? await definition.recovery?.({
       scopeRoot: this.config.scopeRoot,
       stateDir: this.config.store.rootDir,
+      runtimeStateDir: dirname(this.config.runState.path),
       scopeId: this.config.scopeId,
       workflowName: run.workflow,
       runId,
