@@ -35,6 +35,12 @@ and publication.
   diagnostics, conflict-path write scope, Git mutation denial, cancellation,
   and no-progress fingerprints are runtime rails; staging, rebase continuation,
   commit, and publication remain runtime-owned.
+- Integration agents retain ordinary timestamped agent streams and results
+  under the original run, with a distinct identity for every repair invocation.
+  Message streaming follows harness capability; adapters without a message
+  stream still retain returned results and measured usage.
+  Verification summaries and measured usage survive errors and cancellation;
+  successful agent output still awaits runtime validation and publication.
 - Agent repair continuation is evidence-driven: workflow owners contribute the
   task/queue packet and capable-agent judgment, while core detects semantic
   boundaries, records compact check outputs and neutral command-verification

@@ -181,7 +181,10 @@ export function createActiveRunHandle(opts: {
     appendAgentMessage: (stepId, message) => {
       appendFileSync(
         join(runDirPath, "steps", `${stepId}.events.jsonl`),
-        `${safeJsonStringify(projectKotaAgentMessageForStorage(message))}\n`,
+        `${safeJsonStringify({
+          ...projectKotaAgentMessageForStorage(message),
+          recordedAt: new Date().toISOString(),
+        })}\n`,
         "utf-8",
       );
     },
@@ -221,6 +224,13 @@ export function createActiveRunHandle(opts: {
     },
     recordStep: (result) => {
       recordStepInDefinitionOrder(result);
+      const usage = new AgentUsageAccumulator();
+      for (const step of metadata.steps) {
+        if (step.type === "agent" && step.status !== "skipped") usage.observe(step.usage);
+      }
+      if (metadata.steps.some((step) => step.type === "agent" && step.status !== "skipped")) {
+        metadata.usage = usage.snapshot();
+      }
       writeJsonFile(
         join(runDirPath, "steps", `${result.id}.json`),
         projectWorkflowStepResultForStorage(result),

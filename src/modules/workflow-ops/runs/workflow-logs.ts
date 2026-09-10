@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
   KotaAgentMessage,
@@ -157,6 +157,19 @@ export function filterWithContext(
 
 type StepLog = { stepId: string; lines: string[] };
 
+function agentStepIds(runsDir: string, runId: string, metadata: WorkflowRunMetadata, filterStep?: string): string[] {
+  const ids = new Set(metadata.steps.filter((step) => step.type === "agent").map((step) => step.id));
+  const stepsDir = join(runsDir, runId, "steps");
+  if (existsSync(stepsDir)) {
+    for (const entry of readdirSync(stepsDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".events.jsonl")) {
+        ids.add(entry.name.slice(0, -".events.jsonl".length));
+      }
+    }
+  }
+  return [...ids].filter((id) => !filterStep || id === filterStep);
+}
+
 export function buildRunLogs(
   runsDir: string,
   runId: string,
@@ -164,18 +177,14 @@ export function buildRunLogs(
   filterStep?: string,
   maxLen: number = DEFAULT_MAX_LEN,
 ): StepLog[] {
-  const agentSteps = metadata.steps.filter(
-    (s) => s.type === "agent" && (!filterStep || s.id === filterStep),
-  );
-
-  return agentSteps.map((step) => {
-    const eventsPath = join(runsDir, runId, "steps", `${step.id}.events.jsonl`);
+  return agentStepIds(runsDir, runId, metadata, filterStep).map((stepId) => {
+    const eventsPath = join(runsDir, runId, "steps", `${stepId}.events.jsonl`);
     const events = readStepEvents(eventsPath);
     const lines: string[] = [];
     for (const event of events) {
       lines.push(...formatAgentMessage(event, maxLen));
     }
-    return { stepId: step.id, lines };
+    return { stepId, lines };
   });
 }
 
@@ -236,7 +245,7 @@ export async function followRunLogs(
   };
   if (runId) {
     const metadata = await readMetadata(runId);
-    if (metadata && metadata.status !== "running") {
+    if (metadata && metadata.status !== "running" && !(await readAuthority()).operationallyActiveRunIds.has(runId)) {
       const stepLogs = buildRunLogs(runsDir, runId, metadata, filterStep, maxLen);
       for (const { stepId, lines } of stepLogs) {
         print(line(plain("")));
@@ -286,12 +295,9 @@ export async function followRunLogs(
           const metadata = await readMetadata(activeRunId);
           if (!metadata) return;
 
-          const agentSteps = metadata.steps.filter(
-            (s) => s.type === "agent" && (!filterStep || s.id === filterStep),
-          );
-          for (const step of agentSteps) {
-            if (!stepStates.has(step.id)) {
-              stepStates.set(step.id, {
+          for (const stepId of agentStepIds(runsDir, activeRunId, metadata, filterStep)) {
+            if (!stepStates.has(stepId)) {
+              stepStates.set(stepId, {
                 headerPrinted: false,
                 linesEmitted: 0,
               });
@@ -299,13 +305,13 @@ export async function followRunLogs(
             emitNewStepEvents(
               runsDir,
               activeRunId,
-              step.id,
-              stepStates.get(step.id)!,
+              stepId,
+              stepStates.get(stepId)!,
               maxLen,
             );
           }
 
-          if (metadata.status !== "running") {
+          if (metadata.status !== "running" && !(await readAuthority()).operationallyActiveRunIds.has(activeRunId)) {
             cleanup();
           }
         } catch (error) {

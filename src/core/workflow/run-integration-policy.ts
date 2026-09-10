@@ -1,19 +1,27 @@
-import { isAbsolute, posix } from "node:path";
+import { randomUUID } from "node:crypto";
+import { isAbsolute, join, posix } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import {
   type AgentCanUseTool,
+  type AgentVerificationTrajectoryEntry,
+  collectAgentVerificationTrajectory,
   composeCanUseTools,
   createWorkflowAgentGuards,
+  harnessSupportsRunOption,
+  type KotaAgentMessage,
   resolveAgentHarness,
+  UNKNOWN_AGENT_USAGE,
 } from "#core/agent-harness/index.js";
 import { WORKFLOW_AGENT_GIT_OWNERSHIP_INSTRUCTION } from "#core/agent-harness/native-cli-workflow-rails.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { renderUntrustedContent } from "#core/util/untrusted-content.js";
+import { createActiveRunHandle } from "./active-run-handle.js";
 import type { AgentBackoffManager } from "./agent-backoff.js";
 import type { IntegrationValidation, IntegrationValidationInput } from "./integration-queue.js";
 import type { RunContext } from "./run-context.js";
 import type { IntegrationContinuationIssue } from "./run-lifecycle.js";
+import { readWorkflowRunMetadataFile } from "./run-metadata.js";
 import { resolveWorkflowAgentRunContract } from "./steps/step-executor-agent-run-contract.js";
 import { createWorkflowAgentHarnessRunner } from "./steps/workflow-agent-harness-runner.js";
 import type {
@@ -331,29 +339,128 @@ export async function continueRunIntegration(
     ),
     askOwnerSource: `integration:${context.workflow}/${context.run.id}`,
   });
-  const response = await createWorkflowAgentHarnessRunner(
-    context.processes.register,
-    agentBackoff,
-    context.scope.id,
-  )(
-    harness,
-    {
-      ...contract.options,
-      scopeRoot: context.scope.root,
-      cwd: context.sandbox.workspaceDir,
-      agentWriteScope: continuation.agentWriteScope,
-      agentOutputDir: context.resources.agentDir,
-      env: { ...context.resources.env, GIT_OPTIONAL_LOCKS: "0" },
-      authorityConfigPath,
-      mcpScopeConfigPolicy: "disabled",
-      persistSession: false,
-    },
-    {
-      signal: context.signal,
-      workspaceKey: context.sandbox.workspaceDir,
-    },
-  );
-  if (response.isError) {
-    throw new Error(response.text.trim() || response.subtype || "Integration repair failed");
+  const runDirPath = join(context.scope.root, ".kota", "runs", context.run.id);
+  const metadata = readWorkflowRunMetadataFile(join(runDirPath, "metadata.json"));
+  if (metadata === null || metadata.id !== context.run.id || metadata.workflow !== context.workflow) {
+    throw new Error(`Integration repair requires the original run evidence for "${context.run.id}"`);
+  }
+  const evidence = createActiveRunHandle({
+    id: context.run.id,
+    scopeRoot: context.scope.root,
+    runDirPath,
+    metadata,
+    headSha: null,
+  });
+  // A new invocation identity preserves interrupted and repeated repairs, including
+  // multiple repairs of the same fingerprint within a recovered run attempt.
+  const stepId = `integration-${issue.kind}-${context.run.attempt}-${randomUUID()}`;
+  const startedAt = new Date();
+  let usage = UNKNOWN_AGENT_USAGE;
+  const pendingCalls = new Map<string, Extract<KotaAgentMessage, { type: "tool_call" }>>();
+  const verificationResults: AgentVerificationTrajectoryEntry[] = [];
+  let resultSeen = false;
+  const identity = {
+    runAttempt: context.run.attempt,
+    daemonEpoch: context.run.daemonEpoch,
+    kind: issue.kind,
+    fingerprint: issue.fingerprint,
+  };
+  evidence.writeAgentInputs(stepId, undefined, continuation.prompt);
+  evidence.appendAgentMessage(stepId, {
+    type: "status",
+    category: "integration-repair-started",
+    description: JSON.stringify(identity),
+  });
+  let content = "";
+  let failure: string | undefined;
+  try {
+    const response = await createWorkflowAgentHarnessRunner(
+      context.processes.register,
+      agentBackoff,
+      context.scope.id,
+    )(
+      harness,
+      {
+        ...contract.options,
+        scopeRoot: context.scope.root,
+        cwd: context.sandbox.workspaceDir,
+        agentWriteScope: continuation.agentWriteScope,
+        agentOutputDir: context.resources.agentDir,
+        env: { ...context.resources.env, GIT_OPTIONAL_LOCKS: "0" },
+        authorityConfigPath,
+        mcpScopeConfigPolicy: "disabled",
+        ...(harnessSupportsRunOption(harness, "persistSession") ? { persistSession: true } : {}),
+        workflowContext: {
+          workflowName: context.workflow,
+          runId: context.run.id,
+          stepId,
+          spanId: `${context.run.id}:${stepId}`,
+          scopeId: context.scope.id,
+        },
+        onUsage: (observed) => { usage = observed; },
+        ...(harness.emitsAgentMessageStream ? { onMessage: (message: KotaAgentMessage) => {
+          if (message.type === "tool_call") pendingCalls.set(message.toolUseId, message);
+          if (message.type === "tool_result") {
+            const call = pendingCalls.get(message.toolUseId);
+            if (call !== undefined) {
+              verificationResults.push(...collectAgentVerificationTrajectory([call, message]));
+              pendingCalls.delete(message.toolUseId);
+            }
+          }
+          if (message.type === "result") resultSeen = true;
+          evidence.appendAgentMessage(stepId, message);
+        } } : {}),
+      },
+      {
+        signal: context.signal,
+        workspaceKey: context.sandbox.workspaceDir,
+      },
+    );
+    usage = response.usage;
+    content = boundedEvidence(sanitizeEvidence(response.text));
+    if (!resultSeen) {
+      evidence.appendAgentMessage(stepId, {
+        type: "result",
+        isError: response.isError,
+        text: content,
+        usage,
+        numTurns: response.turns,
+        ...(response.sessionId === undefined ? {} : { sessionId: response.sessionId }),
+        ...(response.subtype === undefined ? {} : { subtype: response.subtype }),
+      });
+    }
+    context.signal.throwIfAborted();
+    if (response.isError) {
+      throw new Error(response.text.trim() || response.subtype || "Integration repair failed");
+    }
+  } catch (error) {
+    failure = boundedEvidence(sanitizeEvidence(error instanceof Error ? error.message : String(error)));
+    throw error;
+  } finally {
+    const completedAt = new Date();
+    const outcome = context.signal.aborted ? "cancelled" : failure === undefined ? "success" : "failed";
+    evidence.appendAgentMessage(stepId, {
+      type: "status",
+      category: `integration-repair-${outcome}`,
+      description: failure ?? "Agent repair completed; runtime verification and publication remain pending.",
+    });
+    evidence.recordStep({
+      id: stepId,
+      type: "agent",
+      status: outcome === "success" ? "success" : "failed",
+      harness: harness.name,
+      model: runtime.tiers.capable,
+      startedAt: startedAt.toISOString(),
+      completedAt: completedAt.toISOString(),
+      durationMs: completedAt.getTime() - startedAt.getTime(),
+      usage,
+      output: {
+        ...identity,
+        outcome,
+        content,
+        verificationResults,
+      },
+      ...(failure === undefined ? {} : { error: failure }),
+    });
   }
 }

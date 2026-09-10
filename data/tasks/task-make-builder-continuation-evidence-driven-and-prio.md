@@ -118,5 +118,49 @@ without a separate logger, watchdog, agent protocol or workflow-specific state.
 ```
 kind: operator-capture
 path: .kota/runs/builder-continuation-calibration/
-description: trusted-host canonical-runtime export and replay — export the cited 2026-08-13 through 2026-08-15 builder repair snapshots plus a matching latest-200-run window with repair iterations, yielded/resumed transitions, task outcomes, and stable duplicate-work identities; replay the 9.0-, 9.6-, and 6.5-hour trajectories through the candidate continuation policy and capture the first typed decision for each plus before/after builder agent-hours and duplicate-work outcomes. The retained August 6 completion-only capture is not a substitute.
+description: attributable, writer-readable canonical-runtime export and replay of the cited 2026-08-13 through 2026-08-15 builder repair snapshots plus a matching latest-200-run window with repair iterations, yielded/resumed transitions, task outcomes, and stable duplicate-work identities; replay the 9.0-, 9.6-, and 6.5-hour trajectories through the candidate continuation policy and retain the first typed decision for each plus before/after builder agent-hours and duplicate-work outcomes. Equivalent authorized scoped exports at other paths are acceptable. Completion-only captures do not establish these trajectories.
 ```
+
+## Retained implementation and evidence, September 10
+
+The shared integration policy now records each conflict/validation agent invocation
+through the ordinary run handle under its original run. Distinct invocation ids
+preserve repeated and recovered attempts; timestamped redacted streams, neutral
+verification summaries, typed outcomes, and measured usage survive success,
+error results, provider failures, thrown errors, and cancellation. Session
+persistence is enabled when the harness supports it. An evidence initialization
+failure prevents harness launch. Integration still owns validation and publication.
+
+Workflow log inspection discovers streams before terminal step results exist;
+following continues while durable integration remains active. A quiet stream must
+be assessed alongside the existing publication wait and process evidence. No
+new watchdog, scheduler, continuation authority, or resource cap was introduced.
+
+Focused checks passed for repair evidence and redaction, usage aggregation,
+continuation decisions, coordinator yield/resume, run retention, log following,
+and the lifecycle's writer/checkpoint/integration cases. Four unrelated
+read/none finalization scenarios also fail with the unmodified HEAD core files
+because authority-critical fixture metadata is missing. A validation subprocess
+case cannot run here because process supervision's `/bin/ps` call returns EPERM.
+Those limitations are separate from the passing checks and do not establish
+missing host capabilities.
+
+The original historical acceptance remains unmet. The supplied issue export
+only links this task through an unrelated September 8 recovery-state capture.
+The writer inventory exposes one readable July metadata record. Targeted
+canonical historical and September 10 metadata reads returned PermissionError;
+the suggested calibration directory returned ENOENT. These observations neither
+establish absence of the underlying historical runs nor provide the requested
+cohort. No historical decision correctness, latest-200 comparison, or
+counterfactual agent-hour savings is claimed.
+
+Evidence for this retained attempt is under
+`.kota/runtime/2026-09-02t01-15-20-966z-builder-23282ba73a7cf12e43e230520e1b8868eb2e3d1e7fe94b7419a2eb5bed232770/agent/`:
+`integration-observation-transcript.txt` renders a controlled harness through the
+production integration policy, run store, and CLI log renderer;
+`continuation-evidence-access.json` pins the inspected evidence inventory and
+access outcomes; `baseline-lifecycle-validation.txt` records the unchanged-code
+comparison; `verification.md` records proof selection and remaining limitations.
+The task remains blocked until equivalent attributable historical evidence is
+available for the required replay. The controlled inspection fixture is not a
+live canonical-runtime calibration.
