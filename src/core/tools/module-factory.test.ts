@@ -60,6 +60,8 @@ describe("runModuleFactory — create", () => {
   it("keeps saved declarations within the caller's scope", async () => {
     const scopeA = { cwd: join(tmpDir, "scope-a"), sessionId: "a" };
     const scopeB = { cwd: join(tmpDir, "scope-b"), sessionId: "b" };
+    mkdirSync(scopeA.cwd);
+    mkdirSync(scopeB.cwd);
     expect((await runModuleFactory({ action: "create", manifest: sampleManifest }, scopeA)).is_error).toBeFalsy();
     expect((await runModuleFactory({ action: "list" }, scopeB)).content).not.toContain(sampleManifest.name);
     expect((await runModuleFactory({ action: "remove", name: sampleManifest.name }, scopeB)).is_error).toBe(true);

@@ -14,6 +14,7 @@ const fileSnapshotSchema = identitySchema.extend({
 export type FileIdentity = z.infer<typeof identitySchema>;
 export type FileSnapshot = z.infer<typeof fileSnapshotSchema>;
 export type VerifiedFile = { content: string; snapshot: FileSnapshot };
+export type AnchoredDirectoryEntry = { name: string; kind: "file" | "directory" };
 export type VerifiedDirectoryEntry = VerifiedFile & { name: string };
 
 export type FileAccess = {
@@ -38,7 +39,9 @@ export type PreparedDirectory = {
 export type HelperRequest = PreparedDirectory &
   (
     | { operation: "list"; nameSuffix: string | null }
+    | { operation: "list-entries" }
     | { operation: "read"; fileName: string; maxBytes?: number }
+    | { operation: "append"; fileName: string; content: string }
     | ({ operation: "write"; fileName: string; content: string } & MutationExpectation)
     | { operation: "remove"; fileName: string; expectedSnapshot: FileSnapshot }
   );
@@ -59,6 +62,7 @@ export const helperResponseSchema = z.discriminatedUnion("ok", [
   z.object({
     ok: z.literal(true),
     files: z.array(batchEntrySchema).optional(),
+    directoryEntries: z.array(z.object({ name: z.string(), kind: z.enum(["file", "directory"]) })).optional(),
     entries: z.array(verifiedFileSchema.extend({ name: z.string() })).optional(),
     snapshot: z.discriminatedUnion("exists", [
       z.object({ exists: z.literal(false) }),

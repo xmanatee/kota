@@ -1,8 +1,5 @@
 # Modules Runtime
 
-This directory owns module discovery, loading, lifecycle, provider registration,
-and foreign-module transports.
-
 Runtime-loaded declarations are decoded by `assertModuleDefinition` before
 dependency sorting or lifecycle work. Keep top-level declaration shape there;
 capability-specific validators own the contents of declared contributions.
@@ -65,20 +62,26 @@ MCP, workflow, and server hosts own their buses, schedulers, registries,
 loaders, routes, manifests, and activations. Extend host ownership; do not add
 process singletons or let nested hosts clean up CLI state.
 
-- Modules own tool, workflow, channel, provider, agent, and service contributions.
 - Treat `<scope>/.kota/modules/` as untrusted. Resolve persisted machine trust
   before discovery or re-import; caller `KotaConfig` is not authority.
 - Foreign modules are a transport variant of the same module model, not a
   separate extension system. A connected transport remains a pending candidate
   until loader admission transfers it into normal activation ownership;
   rejected candidates are discarded before the next admission.
-- Keep protocol details strict and code-owned. Message names, config fields,
-  transport variants, health states, and generated scaffold details belong in
-  types, schemas, examples, and focused tests instead of docs catalogs.
-- `ModuleStorage` is an atomic byte/JSON container, not a schema authority.
+- `ModuleStorage` is an atomic UTF-8 text/JSON container, not a schema authority.
   `getJSON` returns `unknown`; each owning module decodes, versions, and
   migrates its durable value. A malformed file is distinct from an absent key
   and must not be silently replaced with defaults.
+- Module text persistence selects identities through `module-files.ts` and performs
+  I/O through the shared anchored filesystem owner, including enumeration and
+  cleanup. Authorization stays with callers. Installed names retain their exact single
+  path component (including dots); manifest authoring owns its narrower name policy.
+  Installers validate the same storage identity before effects. Keys retain lossless legacy filenames;
+  reject ambiguous keys rather than guessing which value a sanitized name meant.
+  Exact stored filenames remain accessible without renaming existing data.
+  `getDir()` is informational and grants no filesystem safety to executable imports
+  or binary database adapters. The anchored owner's documented directory-relocation
+  and optimistic snapshot limits apply here too.
 - Module capability/effect inspection goes through the module manifest
   projection in `module-manifest.ts`; derive contribution lists from loader
   state and add module-owned capability/data/effect declarations there instead
@@ -87,8 +90,7 @@ process singletons or let nested hosts clean up CLI state.
   their declared dependencies without loading unrelated module side effects.
 - Provider registration and lookup use typed `ProviderToken<T>` values.
   Cross-cutting tokens live in `provider-registry.ts`; domain tokens live with
-  their owning type. TypeScript rejects raw string registrations at the
-  registry boundary.
+  their owning type.
 - Keep provider base protocols minimal. Optional behavior is exposed through a
   typed capability property only by implementations that actually provide it;
   do not add support booleans, required throwing methods, or successful no-op
@@ -109,9 +111,7 @@ process singletons or let nested hosts clean up CLI state.
 
 ## Lifecycle Modes
 
-`ModuleLoader` runs in one of two typed lifecycle modes, set at construction
-through `{ mode: "commands" | "runtime" }`. The mode is the protocol boundary
-between cheap CLI subcommand registration and a fully-driven module runtime.
+`ModuleLoader` declares `{ mode: "commands" | "runtime" }` at construction:
 
 - `"commands"`: populate commands, local clients, and static contributions
   without `onLoad`, tools, foreign modules, or providers. Runtime-dependent
@@ -119,10 +119,6 @@ between cheap CLI subcommand registration and a fully-driven module runtime.
 - `"runtime"`: drive the full lifecycle for long-lived hosts. Use
   `loadRuntimeModules`, bind the host `EventBus`, clean owned listeners on every
   exit path, and let sessions borrow host state.
-
-The mode boundary prevents commands snapshots from advertising routes whose
-providers were never activated. Validation and reload may read static
-contributions; execution hydrates a runtime loader first.
 
 Every loader host owns a complete lifecycle. Metadata-only commands loaders
 must unload after taking their snapshot, including failure paths; callers do

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,8 +10,11 @@ import { loadManifest, saveManifest } from "#core/manifest/persistence.js";
 import { clearCustomTools, executeTool, getAllTools } from "#core/tools/index.js";
 import { clearCustomGroups, enableGroup, filterTools, resetGroups, TOOL_GROUPS } from "#core/tools/tool-groups.js";
 import { createRuntimeModuleLoader } from "./module-context.test-helpers.js";
-import { discoverModules as discoverMachineAuthorizedModules } from "./module-discovery.js";
+import { discoverModules as discoverMachineAuthorizedModules, reimportInstalledModule } from "./module-discovery.js";
 import type { ModuleLoader } from "./module-loader.js";
+import { ModuleLogStore } from "./module-log.js";
+import { ModuleStorage } from "./module-storage.js";
+import { parseSource } from "./registry-source.js";
 
 function makeTmpDir(): string {
   const dir = join(tmpdir(), `kota-module-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -122,6 +125,34 @@ describe("discoverModules", () => {
     expect(existsSync(source)).toBe(false);
   });
 
+  it.each([".kota/tools", ".kota/tools/saved_probe.json", ".kota/modules/saved_probe"])(
+    "rejects linked migration storage at %s without deleting the source or outside data", async (relativePath) => {
+      const tool = { name: "saved_probe", description: "Saved code", code: "print('ok')" };
+      const outside = join(tmpDir, "outside");
+      mkdirSync(outside);
+      const content = JSON.stringify(tool);
+      writeFileSync(join(outside, "saved_probe.json"), content);
+      const manifestContent = JSON.stringify({ name: tool.name, tools: [tool] });
+      writeFileSync(join(outside, "manifest.json"), manifestContent);
+      const link = join(tmpDir, relativePath);
+      mkdirSync(join(link, ".."), { recursive: true });
+      symlinkSync(relativePath.endsWith(".json") ? join(outside, "saved_probe.json") : outside, link);
+      const source = join(tmpDir, ".kota/tools/saved_probe.json");
+      if (relativePath.startsWith(".kota/modules")) {
+        mkdirSync(join(source, ".."), { recursive: true });
+        writeFileSync(source, content);
+      }
+      await expect(discoverModules(tmpDir)).rejects.toThrow("Unsafe filesystem path");
+      expect(readFileSync(source, "utf8")).toBe(content);
+      expect(readFileSync(join(outside, "manifest.json"), "utf8")).toBe(manifestContent);
+    },
+  );
+
+  it("reports a dangling storage ancestor instead of treating it as absent", async () => {
+    symlinkSync(join(tmpDir, "missing"), join(tmpDir, ".kota"));
+    await expect(discoverModules(tmpDir)).rejects.toThrow("Unsafe filesystem path");
+  });
+
   it("discovers and loads a simple module with one tool", async () => {
     writeModule(tmpDir, "hello", `
       export default {
@@ -148,6 +179,37 @@ describe("discoverModules", () => {
 
     const result = await executeTool("hello_world", {});
     expect(result.content).toBe("Hello from module!");
+  });
+
+  it.each([
+    ["github:owner/kota-audit.probe", "index.mjs"],
+    ["npm:@owner/kota-audit.probe", "entry.mjs"],
+  ])("discovers and reloads existing installer identities without renaming data: %s", async (source, entry) => {
+    const { name } = parseSource(source);
+    const directory = join(tmpDir, ".kota", "modules", name);
+    mkdirSync(directory, { recursive: true });
+    const code = `export default { name: ${JSON.stringify(name)}, description: "original" };`;
+    writeFileSync(join(directory, entry), code);
+    if (entry !== "index.mjs") {
+      writeFileSync(join(directory, "package.json"), JSON.stringify({ main: entry }));
+    }
+    writeFileSync(join(directory, "state.json"), '{"retained":true}');
+    writeModule(tmpDir, "neighbor", 'export default { name: "neighbor" };');
+
+    expect((await discoverModules(tmpDir)).map(module => module.name)).toEqual([name, "neighbor"]);
+    const storage = new ModuleStorage(tmpDir, name);
+    expect(storage.getJSON("state")).toEqual({ retained: true });
+    const distinct = new ModuleStorage(tmpDir, name.replace(".", "_"));
+    distinct.setJSON("state", { separate: true });
+    expect(storage.getJSON("state")).toEqual({ retained: true });
+    expect(distinct.getJSON("state")).toEqual({ separate: true });
+
+    const logs = new ModuleLogStore(tmpDir);
+    logs.append(name, "info", "loaded");
+    expect(logs.query()).toEqual([expect.objectContaining({ module: name, msg: "loaded" })]);
+    writeFileSync(join(directory, entry), code.replace("original", "updated"));
+    expect(await reimportInstalledModule(name, tmpDir, { globalConfigPath })).toMatchObject({ name, description: "updated" });
+    expect(readFileSync(join(directory, "state.json"), "utf8")).toBe('{"retained":true}');
   });
 
   it("registers tool into a group when group is specified", async () => {

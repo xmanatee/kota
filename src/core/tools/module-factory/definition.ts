@@ -30,6 +30,7 @@ export const moduleFactoryTool: KotaTool = {
 			},
 			name: {
 				type: "string",
+				pattern: "^[a-zA-Z0-9_-]+$",
 				description: "Module name (for remove/info/logs actions)",
 			},
 			level: {

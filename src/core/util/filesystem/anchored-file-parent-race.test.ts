@@ -3,6 +3,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -204,5 +205,120 @@ syncBuiltinESMExports();
     })).toEqual([
       expect.objectContaining({ name: fileName, content: "installed inside\n" }),
     ]);
+  });
+});
+
+// Inject races at actual host filesystem calls; the production helper, including
+// its no-follow opens and compensation, executes unchanged in a child process.
+describe("anchored reads, append, listing and failed cleanup", () => {
+  it.each([
+    "read-leaf", "append-leaf", "append-parent", "list-parent", "list-invalid-name", "write-cleanup", "remove-cleanup",
+  ] as const)("preserves outside data during %s", (scenario) => {
+    const root = makeRoot("kota-filesystem-boundary-race-");
+    const filesystemRoot = join(root, "scope");
+    const parent = join(filesystemRoot, "files");
+    const parked = join(filesystemRoot, "parked");
+    const outside = join(root, "outside");
+    mkdirSync(parent, { recursive: true });
+    mkdirSync(outside);
+    const fileName = "value.txt";
+    const file = join(parent, fileName);
+    const outsideFile = join(outside, fileName);
+    writeFileSync(file, "inside");
+    writeFileSync(outsideFile, "outside sentinel");
+    const before = fileSnapshot(file);
+    const preloadPath = join(root, "race.cjs");
+    writeFileSync(preloadPath, `
+const fs = require("node:fs");
+const { syncBuiltinESMExports } = require("node:module");
+const original = { ...fs };
+const scenario = process.env.KOTA_RACE_SCENARIO;
+let fired = false;
+function replaceParent() {
+  original.renameSync(process.env.KOTA_RACE_PARENT, process.env.KOTA_RACE_PARKED);
+  original.symlinkSync(process.env.KOTA_RACE_OUTSIDE, process.env.KOTA_RACE_PARENT);
+}
+fs.openSync = function(name, flags, ...rest) {
+  const targetOpen = scenario === "read-leaf" ||
+    (scenario === "append-leaf" && (flags & fs.constants.O_APPEND));
+  if (!fired && targetOpen && name === "value.txt") {
+    fired = true;
+    original.unlinkSync(name);
+    original.symlinkSync(process.env.KOTA_RACE_OUTSIDE_FILE, name);
+  }
+  return original.openSync(name, flags, ...rest);
+};
+fs.writeFileSync = function(fd, ...rest) {
+  if (!fired && scenario === "append-parent" && typeof fd === "number") {
+    fired = true;
+    replaceParent();
+  }
+  return original.writeFileSync(fd, ...rest);
+};
+fs.readdirSync = function(name, ...rest) {
+  // Some filesystems cannot create invalid UTF-8 names. Supply the raw OS
+  // directory response at that port; production decoding still runs unchanged.
+  if (scenario === "list-invalid-name" && process.cwd() === process.env.KOTA_RACE_PARENT) {
+    return [Buffer.from([0xff])];
+  }
+  if (!fired && scenario === "list-parent" && process.cwd() === process.env.KOTA_RACE_PARENT) {
+    fired = true;
+    replaceParent();
+  }
+  return original.readdirSync(name, ...rest);
+};
+fs.linkSync = function(source, destination) {
+  if (scenario === "write-cleanup" && destination === "new.txt") {
+    original.unlinkSync(source);
+    original.symlinkSync(process.env.KOTA_RACE_OUTSIDE_FILE, source);
+    throw new Error("installation failed after temporary replacement");
+  }
+  if (scenario === "remove-cleanup") throw new Error("restore unavailable");
+  return original.linkSync(source, destination);
+};
+fs.renameSync = function(source, destination) {
+  if (!fired && scenario === "remove-cleanup" && source === "value.txt") {
+    fired = true;
+    original.unlinkSync(source);
+    original.symlinkSync(process.env.KOTA_RACE_OUTSIDE_FILE, source);
+  }
+  return original.renameSync(source, destination);
+};
+syncBuiltinESMExports();
+`);
+    const rootPath = realpathSync.native(filesystemRoot);
+    const stats = lstatSync(rootPath);
+    const operation = scenario.startsWith("append") ? "append"
+      : scenario.startsWith("read") ? "read"
+      : scenario.startsWith("list") ? "list-entries"
+      : scenario.startsWith("write") ? "write" : "remove";
+    const response = runRacedHelper({
+      preloadPath,
+      env: {
+        KOTA_RACE_SCENARIO: scenario,
+        KOTA_RACE_PARENT: parent,
+        KOTA_RACE_PARKED: parked,
+        KOTA_RACE_OUTSIDE: outside,
+        KOTA_RACE_OUTSIDE_FILE: outsideFile,
+      },
+      request: {
+        operation, rootPath, rootIdentity: { dev: stats.dev, ino: stats.ino },
+        parentParts: ["files"], parentPath: parent, createParent: false,
+        fileName: operation === "write" ? "new.txt" : fileName,
+        content: " appended", expectation: "missing", expectedSnapshot: before,
+      },
+    });
+    expect(response.ok).toBe(scenario === "append-parent");
+    if (scenario === "list-invalid-name") expect(response.reason).toContain("not lossless UTF-8");
+    expect(JSON.stringify(response)).not.toContain("outside sentinel");
+    expect(readFileSync(outsideFile, "utf8")).toBe("outside sentinel");
+    if (scenario === "append-parent") {
+      expect(readFileSync(join(parked, fileName), "utf8")).toBe("inside appended");
+    }
+    if (scenario === "write-cleanup" || scenario === "remove-cleanup") {
+      const retained = readdirSync(parent).filter(name => name.startsWith(".anchored-file."));
+      expect(retained).toHaveLength(1);
+      expect(lstatSync(join(parent, retained[0]!)).isSymbolicLink()).toBe(true);
+    }
   });
 });

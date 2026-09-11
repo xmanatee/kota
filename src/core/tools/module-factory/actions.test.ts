@@ -3,13 +3,14 @@
  * Covers gaps not addressed by the existing module-factory.test.ts.
  */
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
 import { ModuleLogStore } from "#core/modules/module-log.js";
 import { clearCustomTools } from "#core/tools/index.js";
 import { handleCreate, handleInfo } from "./actions.js";
+import { runModuleFactory } from "./index.js";
 import { handleLogs } from "./logs.js";
 
 let originalCwd: string;
@@ -159,4 +160,23 @@ describe("handleLogs — edge cases", () => {
 		const result = handleLogs({ name: "many-logs" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("30 entries");
 	});
+});
+
+// Production runner -> manifest persistence -> physical filesystem owner.
+it("confines authoring and log inspection when a module directory points outside", async () => {
+  const outside = join(tmpDir, "outside");
+  const modules = join(tmpDir, ".kota", "modules");
+  mkdirSync(outside);
+  mkdirSync(modules, { recursive: true });
+  const content = JSON.stringify({ name: "audit-probe", description: "outside sentinel" });
+  writeFileSync(join(outside, "manifest.json"), content);
+  symlinkSync(outside, join(modules, "audit-probe"));
+  const context = { cwd: tmpDir, scopeRoot: tmpDir };
+  for (const action of ["info", "remove"]) {
+    await expect(runModuleFactory({ action, name: "audit-probe" }, context)).rejects.toThrow("Unsafe filesystem path");
+  }
+  const result = await runModuleFactory({ action: "create", manifest: { name: "audit-probe" } }, context);
+  expect(result.is_error).toBe(true);
+  await expect(runModuleFactory({ action: "logs", name: "../../../outside" }, context)).rejects.toThrow("Invalid module name");
+  expect(readFileSync(join(outside, "manifest.json"), "utf8")).toBe(content);
 });

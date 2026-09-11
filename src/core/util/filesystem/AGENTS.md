@@ -15,6 +15,8 @@ filename selection, content formats, and domain transitions.
 - Files must be regular and single-link. Reads carry verified metadata snapshots;
   conditional writes and removals compare those snapshots before mutation.
   These are optimistic checks, not atomic compare-and-swap against other writers.
+  Existing entries require their exact stored spelling, including on filesystems
+  that otherwise alias case or Unicode normalization variants.
 - Cross-directory moves install then remove, with snapshot-checked compensation.
   They are not atomic transactions; failed cleanup may retain a temporary or
   quarantined entry rather than remove an entry whose identity is uncertain.

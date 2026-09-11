@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { ANCHORED_FILE_HELPER_SOURCE } from "./anchored-file-helper-source.js";
 import {
   type AnchoredBatchEntry,
+  type AnchoredDirectoryEntry,
   type BatchReadRequest,
   type FileAccess,
   type FileIdentity,
@@ -186,6 +187,11 @@ export function removeAnchoredTextFile(args: FileAccess & { expectedSnapshot: Fi
   }
 }
 
+/** Append through a verified no-follow descriptor, preserving concurrent append semantics. */
+export function appendAnchoredTextFile(args: FileAccess & { content: string }): void {
+  runHelper({ operation: "append", ...prepareFile(args, true), content: args.content }, args.filePath);
+}
+
 /** Bounded independent reads share one isolated helper and retain per-file failures. */
 export async function readAnchoredTextFiles(
   files: readonly (FileAccess & { maxBytes: number })[],
@@ -236,4 +242,15 @@ export async function readAnchoredTextFiles(
   if (response.files?.length !== selected.length) throw new Error("Anchored batch omitted file results");
   for (const [index, file] of response.files.entries()) entries[selected[index]!] = file;
   return entries;
+}
+
+/** Names and physical kinds only; no content reads or recursive traversal. */
+export function listAnchoredDirectory(args: {
+  rootPath: string;
+  boundaryDir: string;
+  directoryPath: string;
+}): AnchoredDirectoryEntry[] {
+  const response = runHelper({ operation: "list-entries", ...prepareDirectory({ ...args, createParent: false }) }, args.directoryPath);
+  if (response.directoryEntries === undefined) throw unsafeFilesystemPath(args.directoryPath, "helper omitted directory entries");
+  return response.directoryEntries;
 }

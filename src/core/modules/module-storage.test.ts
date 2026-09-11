@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ModuleStorage, ModuleStorageJsonError } from "./module-storage.js";
@@ -142,12 +142,49 @@ describe("ModuleStorage", () => {
     expect(storage.getDir()).toBe(join(tmpBase, ".kota", "modules", "my-mod"));
   });
 
-  it("sanitizes keys with special characters", () => {
+  it("rejects ambiguous keys while preserving legacy filenames and distinct valid keys", () => {
     const storage = new ModuleStorage(tmpBase, "test-mod");
-    storage.setJSON("my/key.name", { ok: true });
-    expect(storage.getJSON("my/key.name")).toEqual({ ok: true });
-    expect(storage.has("my/key.name")).toBe(true);
+    storage.writeFile("first_key.json", '{"legacy":true}');
+    for (const key of ["first/key", "first?key", "", "../key"]) {
+      expect(() => storage.setJSON(key, "replacement")).toThrow("Invalid module storage key");
+      expect(() => storage.getJSON(key)).toThrow("Invalid module storage key");
+    }
+    storage.setJSON("first-key", "separate");
+    expect(storage.getJSON("first_key")).toEqual({ legacy: true });
+    expect(storage.getJSON("first-key")).toBe("separate");
+    expect(storage.readFile("first_key.json")).toBe('{"legacy":true}');
   });
+
+  it("rejects traversal in module names and exact filenames before creating storage", () => {
+    for (const name of ["", ".", "..", "../escape", "/escape", "a\\b", "a\0b", "\ud800"]) {
+      expect(() => new ModuleStorage(tmpBase, name)).toThrow("Invalid module name");
+    }
+    const storage = new ModuleStorage(tmpBase, "test-mod");
+    for (const filename of ["../../../escaped.txt", "/escaped.txt", "..", "nested/file", "a\\b", "a\0b", "\ud800.txt"]) {
+      expect(() => storage.writeFile(filename, "sentinel")).toThrow("Invalid module filename");
+      expect(() => storage.readFile(filename)).toThrow("Invalid module filename");
+      expect(() => storage.deleteFile(filename)).toThrow("Invalid module filename");
+    }
+    expect(existsSync(storage.getDir())).toBe(false);
+  });
+
+  it.each([".kota", ".kota/modules", ".kota/modules/test-mod", ".kota/modules/test-mod/value.txt"])(
+    "rejects linked storage at %s without reading, overwriting, or cleaning outside files", (relativePath) => {
+      const outside = join(tmpBase, "outside");
+      mkdirSync(outside);
+      const sentinel = join(outside, "value.txt");
+      writeFileSync(sentinel, "outside");
+      const link = join(tmpBase, relativePath);
+      mkdirSync(join(link, ".."), { recursive: true });
+      symlinkSync(relativePath.endsWith(".txt") ? sentinel : outside, link);
+      const storage = new ModuleStorage(tmpBase, "test-mod");
+      for (const operation of [
+        () => storage.readFile("value.txt"), () => storage.writeFile("value.txt", "overwrite"),
+        () => storage.deleteFile("value.txt"), () => storage.list(), () => storage.clear(),
+      ]) expect(operation).toThrow("Unsafe filesystem path");
+      expect(readFileSync(sentinel, "utf8")).toBe("outside");
+    },
+  );
 
   it("creates directory lazily on first write", () => {
     const storage = new ModuleStorage(tmpBase, "lazy-mod");
@@ -164,4 +201,17 @@ describe("ModuleStorage", () => {
     writeFileSync(join(dir, "bad.json"), "not valid json{{{");
     expect(() => storage.getJSON("bad")).toThrowError(ModuleStorageJsonError);
   });
+});
+
+it("never aliases admitted key or module spelling on case-insensitive filesystems", () => {
+  const storage = new ModuleStorage(tmpBase, "case-probe");
+  storage.setJSON("Key", "original");
+  try { storage.setJSON("key", "distinct"); } catch (error) {
+    expect(String(error)).toContain("spelling aliases");
+  }
+  expect(storage.getJSON("Key")).toBe("original");
+  try { new ModuleStorage(tmpBase, "CASE-PROBE").setJSON("Key", "another module"); } catch (error) {
+    expect(String(error)).toContain("spelling aliases");
+  }
+  expect(storage.getJSON("Key")).toBe("original");
 });

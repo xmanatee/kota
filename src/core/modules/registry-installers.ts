@@ -20,11 +20,13 @@ import {
   outboundHttp,
 } from "#core/outbound-http/index.js";
 import { withProtectedGitBareRepositoryEnv } from "#core/util/protected-git-env.js";
+import { assertModuleStorageName } from "./module-files.js";
 import type { InstallResult, ParsedSource } from "./registry.js";
 
 export const MODULES_DIR = "modules";
 
 export async function installNpm(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
+  assertModuleStorageName(parsed.name);
   const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
   mkdirSync(moduleDir, { recursive: true });
 
@@ -79,6 +81,7 @@ export async function installUrl(
   kotaDir: string,
   http: OutboundHttpRequestPort = outboundHttp,
 ): Promise<InstallResult> {
+  assertModuleStorageName(parsed.name);
   const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
   mkdirSync(moduleDir, { recursive: true });
 
@@ -129,6 +132,7 @@ export async function installUrl(
 }
 
 export async function installGithub(parsed: ParsedSource, kotaDir: string): Promise<InstallResult> {
+  assertModuleStorageName(parsed.name);
   const moduleDir = join(kotaDir, MODULES_DIR, parsed.name);
   mkdirSync(moduleDir, { recursive: true });
 

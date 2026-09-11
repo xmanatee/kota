@@ -16,7 +16,7 @@ export function handleLogs(input: Record<string, unknown>, context?: ToolRunnerC
 	const keyword = input.keyword as string | undefined;
 	const limit = (input.limit as number) ?? 30;
 
-	if (!moduleName) {
+	if (moduleName === undefined) {
 		const modules = store.modules();
 		if (modules.length === 0) {
 			return { content: "No module logs found." };

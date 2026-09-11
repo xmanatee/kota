@@ -59,10 +59,10 @@ describe("manifest persistence edge cases", () => {
 		expect(deleteManifest("no-manifest", tmpDir)).toBe(false);
 	});
 
-	it("deleteManifest cleans up empty directory after removing manifest", () => {
+	it("deleteManifest preserves the shared directory after removing its manifest", () => {
 		saveManifest(minimal, tmpDir);
 		deleteManifest("test-mod", tmpDir);
-		expect(existsSync(join(tmpDir, ".kota", "modules", "test-mod"))).toBe(false);
+		expect(existsSync(join(tmpDir, ".kota", "modules", "test-mod"))).toBe(true);
 	});
 
 	it("deleteManifest preserves directory when other files exist", () => {
@@ -77,7 +77,7 @@ describe("manifest persistence edge cases", () => {
 
 
 	it("listManifestModules returns empty for non-existent modules dir", () => {
-		const list = listManifestModules(join(tmpDir, "nonexistent"));
+		const list = listManifestModules(tmpDir);
 		expect(list).toHaveLength(0);
 	});
 

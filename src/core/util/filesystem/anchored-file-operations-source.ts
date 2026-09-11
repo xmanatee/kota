@@ -1,7 +1,20 @@
 export const ANCHORED_FILE_OPERATIONS_SOURCE = `
+function listDirectoryEntries(request, parentIdentity) {
+  inspectAnchoredParent(request, parentIdentity);
+  const entries = directoryNames().sort().map(name => {
+    const stats = lstatSync(name);
+    if (stats.isSymbolicLink() || (!stats.isFile() && !stats.isDirectory()) || (stats.isFile() && stats.nlink !== 1)) {
+      refuse("directory entries must be real directories or single-link regular files");
+    }
+    return { name, kind: stats.isDirectory() ? "directory" : "file" };
+  });
+  inspectAnchoredParent(request, parentIdentity);
+  return entries;
+}
+
 function listTextFiles(request, parentIdentity) {
   inspectAnchoredParent(request, parentIdentity);
-  const names = readdirSync(".")
+  const names = directoryNames()
     .filter((name) => request.nameSuffix === null || name.endsWith(request.nameSuffix))
     .sort();
   const entries = [];
@@ -50,6 +63,26 @@ function readTextFile(request, parentIdentity) {
   } finally {
     closeSync(opened.fd);
   }
+}
+
+function appendTextFile(request, parentIdentity, directoryFd) {
+  inspectAnchoredParent(request, parentIdentity);
+  const initial = inspectTextFileEntry(request.fileName, undefined);
+  const before = initial && initial.snapshot;
+  if (initial) closeSync(initial.fd);
+  const fd = openSync(request.fileName,
+    constants.O_WRONLY | constants.O_APPEND | constants.O_NOFOLLOW | constants.O_NONBLOCK |
+      (before === undefined ? constants.O_CREAT | constants.O_EXCL : 0), 0o666);
+  try {
+    const opened = fstatSync(fd);
+    if (!opened.isFile() || opened.nlink !== 1 || (before && !sameIdentity(opened, before))) {
+      refuse("file entry changed while opening for append");
+    }
+    inspectAnchoredParent(request, parentIdentity);
+    writeFileSync(fd, request.content, "utf8");
+    fsyncSync(fd);
+    fsyncSync(directoryFd);
+  } finally { closeSync(fd); }
 }
 
 function cleanupTemporary(name, expectedIdentity) {

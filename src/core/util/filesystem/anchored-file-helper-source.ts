@@ -41,8 +41,9 @@ function execute(request) {
   if (
     request === null ||
     typeof request !== "object" ||
-    (request.operation !== "list" &&
+    (request.operation !== "list" && request.operation !== "list-entries" &&
       request.operation !== "read" &&
+      request.operation !== "append" &&
       request.operation !== "write" &&
       request.operation !== "remove") ||
     typeof request.rootPath !== "string" ||
@@ -57,7 +58,7 @@ function execute(request) {
         part.includes("/") ||
         part.includes("\\\\"),
     ) ||
-    (request.operation !== "list" &&
+    (request.operation !== "list" && request.operation !== "list-entries" &&
       (typeof request.fileName !== "string" ||
         !request.fileName ||
         request.fileName === "." ||
@@ -92,11 +93,14 @@ function execute(request) {
   if (request.operation === "remove") {
     validateSnapshot(request.expectedSnapshot, "expected file snapshot");
   }
+  if (request.operation === "append" && typeof request.content !== "string") {
+    refuse("anchored file append request is invalid");
+  }
 
   const parentIdentity = enterParent(request);
   if (parentIdentity === undefined) {
     return (
-      request.operation === "list"
+      request.operation === "list-entries" ? { ok: true, directoryEntries: [] } : request.operation === "list"
         ? { ok: true, entries: [] }
         : { ok: true, snapshot: { exists: false } }
     );
@@ -109,10 +113,15 @@ function execute(request) {
       if (!sameIdentity(fstatSync(directoryFd), parentIdentity)) {
         refuse("parent directory changed while it was opened");
       }
-      if (request.operation === "list") {
+      if (request.operation === "list-entries") {
+        return { ok: true, directoryEntries: listDirectoryEntries(request, parentIdentity) };
+      } else if (request.operation === "list") {
         return { ok: true, entries: listTextFiles(request, parentIdentity) };
       } else if (request.operation === "read") {
         return { ok: true, snapshot: readTextFile(request, parentIdentity) };
+      } else if (request.operation === "append") {
+        appendTextFile(request, parentIdentity, directoryFd);
+        return { ok: true };
       } else if (request.operation === "write") {
         return {
           ok: true,

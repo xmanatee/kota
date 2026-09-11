@@ -6,17 +6,10 @@
  * event handlers, scripts, and module lifecycle.
  */
 
-import {
-	appendFileSync,
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
-import { printTerminalDiagnostic } from "./terminal-renderer.js";
+import { resolve } from "node:path";
+import { appendAnchoredTextFile, readAnchoredTextFile, writeAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
+import { listModuleDirectories, moduleFile } from "./module-files.js";
+import { ModuleStorage } from "./module-storage.js";
 
 export type LogLevel = "info" | "warn" | "error" | "debug";
 
@@ -40,15 +33,14 @@ const MAX_ENTRIES = 1000;
 const PRUNE_TO = 750;
 
 export class ModuleLogStore {
-	private baseDir: string;
+	private readonly baseDir: string;
 
 	constructor(baseDir: string) {
-		this.baseDir = join(baseDir, ".kota", "modules");
+		this.baseDir = resolve(baseDir);
 	}
 
 	append(module: string, level: LogLevel, msg: string, data?: unknown): void {
-		const dir = join(this.baseDir, module);
-		if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    const access = moduleFile(this.baseDir, module, "logs.jsonl");
 		const entry: LogEntry = {
 			ts: new Date().toISOString(),
 			level,
@@ -56,16 +48,15 @@ export class ModuleLogStore {
 			msg,
 		};
 		if (data !== undefined) entry.data = data;
-		const path = join(dir, "logs.jsonl");
-		appendFileSync(path, `${JSON.stringify(entry)}\n`, "utf-8");
-		this.maybePrune(path);
+    appendAnchoredTextFile({ ...access, content: `${JSON.stringify(entry)}\n` });
+    this.maybePrune(module);
 	}
 
 	query(opts: LogQueryOptions = {}): LogEntry[] {
 		const limit = opts.limit ?? 50;
 		let entries: LogEntry[];
 
-		if (opts.module) {
+		if (opts.module !== undefined) {
 			entries = this.readLog(opts.module);
 		} else {
 			entries = [];
@@ -99,54 +90,46 @@ export class ModuleLogStore {
 		return entries.slice(-count);
 	}
 
-	modules(): string[] {
-		if (!existsSync(this.baseDir)) return [];
-		return readdirSync(this.baseDir).filter((d) =>
-			existsSync(join(this.baseDir, d, "logs.jsonl")),
-		);
-	}
+  modules(): string[] {
+    return listModuleDirectories(this.baseDir).filter(module =>
+      new ModuleStorage(this.baseDir, module).hasFile("logs.jsonl"));
+  }
 
-	clear(module: string): boolean {
-		const path = join(this.baseDir, module, "logs.jsonl");
-		if (!existsSync(path)) return false;
-		unlinkSync(path);
-		return true;
-	}
+  clear(module: string): boolean {
+    return new ModuleStorage(this.baseDir, module).deleteFile("logs.jsonl");
+  }
 
-	private readLog(module: string): LogEntry[] {
-		const path = join(this.baseDir, module, "logs.jsonl");
-		if (!existsSync(path)) return [];
-		try {
-			const content = readFileSync(path, "utf-8");
-			return content
-				.split("\n")
-				.filter(Boolean)
-				.map((line) => {
-					try {
-						return JSON.parse(line) as LogEntry;
-					} catch {
-						return null;
-					}
-				})
-				.filter((e): e is LogEntry => e !== null);
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			printTerminalDiagnostic(`[kota] Failed to read module log ${path}: ${msg}`, "error");
-			return [];
-		}
-	}
+  private readLog(module: string): LogEntry[] {
+    const content = new ModuleStorage(this.baseDir, module).readFile("logs.jsonl");
+    if (content === undefined) return [];
+    return content.split("\n").filter(Boolean).map(line => decodeLogLine(line, module));
+  }
 
-	private maybePrune(path: string): void {
-		try {
-			const content = readFileSync(path, "utf-8");
-			const lines = content.split("\n").filter(Boolean);
-			if (lines.length > MAX_ENTRIES) {
-				const pruned = lines.slice(-PRUNE_TO);
-				writeFileSync(path, `${pruned.join("\n")}\n`, "utf-8");
-			}
-		} catch (err) {
-			const msg = err instanceof Error ? err.message : String(err);
-			printTerminalDiagnostic(`[kota] Failed to prune module log ${path}: ${msg}`, "error");
-		}
-	}
+  private maybePrune(module: string): void {
+    const access = moduleFile(this.baseDir, module, "logs.jsonl");
+    const file = readAnchoredTextFile(access);
+    if (file === null) throw new Error(`Module log disappeared before pruning: ${module}`);
+    const lines = file.content.split("\n").filter(Boolean);
+    // Never discard malformed history during retention. It needs explicit repair.
+    for (const line of lines) decodeLogLine(line, module);
+    if (lines.length > MAX_ENTRIES) {
+      writeAnchoredTextFile({ ...access, expectation: "existing", expectedSnapshot: file.snapshot,
+        content: `${lines.slice(-PRUNE_TO).join("\n")}\n` });
+    }
+  }
+}
+
+function decodeLogLine(line: string, module: string): LogEntry {
+  let entry: unknown;
+  try { entry = JSON.parse(line); }
+  catch { throw new Error(`Invalid module log JSON for ${module}`); }
+  if (typeof entry !== "object" || entry === null ||
+    !("ts" in entry) || typeof entry.ts !== "string" ||
+    !("msg" in entry) || typeof entry.msg !== "string" ||
+    !("module" in entry) || entry.module !== module ||
+    !("level" in entry) || (entry.level !== "info" && entry.level !== "warn" && entry.level !== "error" && entry.level !== "debug")) {
+    throw new Error(`Invalid module log entry for ${module}`);
+  }
+  return { ts: entry.ts, msg: entry.msg, module: entry.module, level: entry.level,
+    ...("data" in entry ? { data: entry.data } : {}) };
 }

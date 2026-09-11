@@ -14,7 +14,7 @@
  * automatically.
  */
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
@@ -26,6 +26,8 @@ import { migrateSavedTools } from "#core/manifest/migrate-saved-tools.js";
 import { isManifestModuleName } from "#core/manifest/validation.js";
 import { adaptExport } from "#core/tools/tool-adapters.js";
 import { assertModuleDefinition } from "./module-definition.js";
+import { listModuleDirectories, moduleDirectory } from "./module-files.js";
+import { ModuleStorage } from "./module-storage.js";
 import type { KotaModule } from "./module-types.js";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
@@ -43,7 +45,6 @@ export async function discoverModules(
   const base = cwd || process.cwd();
   const modulesDir = resolve(base, MODULES_DIR);
 
-  if (!existsSync(modulesDir) && !existsSync(join(base, ".kota", "tools"))) return [];
   const trust = loadScopeConfigTrustDecision(base, configOptions);
   if (!trust.trusted) {
     if (verbose) {
@@ -56,12 +57,7 @@ export async function discoverModules(
   }
 
   migrateSavedTools(base);
-  if (!existsSync(modulesDir)) return [];
-
-  const entries = readdirSync(modulesDir, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => e.name)
-    .sort();
+  const entries = listModuleDirectories(base);
 
   const modules: KotaModule[] = [];
 
@@ -92,29 +88,34 @@ export async function discoverModules(
  * Checks for manifest.json, index.js/mjs, then package.json (in that order).
  * Returns null for empty or unrecognized directories.
  */
-async function loadModuleDirectory(dir: string, name: string, scopeRoot: string): Promise<KotaModule | null> {
+async function loadModuleDirectory(
+  dir: string, name: string, scopeRoot: string, importFile = importModuleFile,
+): Promise<KotaModule | null> {
   // 1. Manifest-based module (JSON-defined tools)
-  const manifestPath = join(dir, "manifest.json");
-  if (existsSync(manifestPath)) {
+  const storage = new ModuleStorage(scopeRoot, name);
+  // Installed and runtime storage names can be broader than authored manifest names.
+  if (isManifestModuleName(name)) {
     const manifest = loadManifest(name, scopeRoot);
-    return manifest ? manifestToModule(manifest) : null;
+    if (manifest) return manifestToModule(manifest);
+  } else if (storage.hasFile("manifest.json")) {
+    throw new Error(`Invalid manifest module name: ${name}`);
   }
 
   // 2. Single-file code module (index.js or index.mjs at directory root)
   for (const entry of ["index.js", "index.mjs"]) {
     const entryPath = join(dir, entry);
     if (existsSync(entryPath)) {
-      return importModuleFile(entryPath, name);
+      return importFile(entryPath, name);
     }
   }
 
   // 3. Packaged module — resolved via package.json "main" or "exports" field.
   //    Covers compiled TypeScript modules and npm-installed packages.
-  const pkgJsonPath = join(dir, "package.json");
-  if (existsSync(pkgJsonPath)) {
-    const entryPath = resolvePackageEntry(dir, pkgJsonPath);
+  const packageJson = storage.readFile("package.json");
+  if (packageJson !== undefined) {
+    const entryPath = resolvePackageEntry(dir, packageJson);
     if (entryPath) {
-      return importModuleFile(entryPath, name);
+      return importFile(entryPath, name);
     }
   }
 
@@ -122,9 +123,8 @@ async function loadModuleDirectory(dir: string, name: string, scopeRoot: string)
 }
 
 /** Resolve the entry file path from a package.json "main" or "exports" field. */
-function resolvePackageEntry(dir: string, pkgJsonPath: string): string | null {
-  try {
-    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, "utf-8")) as {
+function resolvePackageEntry(dir: string, content: string): string | null {
+    const pkgJson = JSON.parse(content) as {
       main?: string;
       exports?: unknown;
     };
@@ -138,9 +138,6 @@ function resolvePackageEntry(dir: string, pkgJsonPath: string): string | null {
     if (!mainStr) return null;
     const entryPath = join(dir, mainStr);
     return existsSync(entryPath) ? entryPath : null;
-  } catch {
-    return null;
-  }
 }
 
 /** Import a single module file and adapt its export to KotaModule. */
@@ -166,31 +163,7 @@ export async function reimportInstalledModule(
   configOptions: LoadConfigOptions = {},
 ): Promise<KotaModule | null> {
   const base = cwd || process.cwd();
-  if (!isManifestModuleName(name)) throw new Error(`Invalid module name: ${name}`);
-  const moduleDir = resolve(base, MODULES_DIR, name);
-  if (!existsSync(moduleDir)) return null;
+  const moduleDir = moduleDirectory(base, name);
   if (!loadScopeConfigTrustDecision(base, configOptions).trusted) return null;
-
-  const manifestPath = join(moduleDir, "manifest.json");
-  if (existsSync(manifestPath)) {
-    const manifest = loadManifest(name, base);
-    return manifest ? manifestToModule(manifest) : null;
-  }
-
-  for (const entry of ["index.js", "index.mjs"]) {
-    const entryPath = join(moduleDir, entry);
-    if (existsSync(entryPath)) {
-      return reimportModuleFile(entryPath, name);
-    }
-  }
-
-  const pkgJsonPath = join(moduleDir, "package.json");
-  if (existsSync(pkgJsonPath)) {
-    const entryPath = resolvePackageEntry(moduleDir, pkgJsonPath);
-    if (entryPath) {
-      return reimportModuleFile(entryPath, name);
-    }
-  }
-
-  return null;
+  return loadModuleDirectory(moduleDir, name, base, reimportModuleFile);
 }

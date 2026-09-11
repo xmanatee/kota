@@ -6,16 +6,9 @@
  * This enables truly self-contained modules that own their data.
  */
 
-import {
-	existsSync,
-	mkdirSync,
-	readdirSync,
-	readFileSync,
-	unlinkSync,
-	writeFileSync,
-} from "node:fs";
-import { join } from "node:path";
-import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { join, resolve } from "node:path";
+import { listAnchoredDirectory, readAnchoredTextFile, removeAnchoredTextFile, writeAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
+import { moduleDirectory, moduleFile } from "./module-files.js";
 
 export class ModuleStorageJsonError extends Error {
 	constructor(readonly path: string, message: string) {
@@ -25,133 +18,67 @@ export class ModuleStorageJsonError extends Error {
 }
 
 export class ModuleStorage {
-	private dir: string;
+  private readonly dir: string;
+  private readonly baseDir: string;
+  constructor(baseDir: string, private readonly moduleName: string) {
+    this.baseDir = resolve(baseDir);
+    this.dir = moduleDirectory(this.baseDir, moduleName);
+  }
 
-	constructor(baseDir: string, moduleName: string) {
-		this.dir = join(baseDir, ".kota", "modules", moduleName);
-	}
+  /** Informational path, not an I/O capability. Binary stores own their boundary. */
+  getDir(): string { return this.dir; }
 
-	/** Get the storage directory path (creates it lazily on first write). */
-	getDir(): string {
-		return this.dir;
-	}
+  getJSON(key: string): unknown | undefined {
+    const filename = this.keyFilename(key, ".json");
+    const content = this.readFile(filename);
+    if (content === undefined) return undefined;
+    try { return JSON.parse(content) as unknown; }
+    catch (error) {
+      throw new ModuleStorageJsonError(join(this.dir, filename), error instanceof Error ? error.message : String(error));
+    }
+  }
 
-	/** Read a JSON value by key. Returns undefined if not found. */
-	getJSON(key: string): unknown | undefined {
-		const path = this.resolvePath(key, ".json");
-		if (!existsSync(path)) return undefined;
-		try {
-			return JSON.parse(readFileSync(path, "utf-8")) as unknown;
-		} catch (error) {
-			throw new ModuleStorageJsonError(
-				path,
-				error instanceof Error ? error.message : String(error),
-			);
-		}
-	}
+  setJSON(key: string, value: unknown): void {
+    const filename = this.keyFilename(key, ".json");
+    const content = JSON.stringify(value, null, 2);
+    if (content === undefined) throw new Error("Module storage value is not JSON serializable");
+    this.writeFile(filename, `${content}\n`);
+  }
 
-	/** Write a JSON value by key. */
-	setJSON(key: string, value: unknown): void {
-		const path = this.resolvePath(key, ".json");
-		writeJsonFileAtomic(path, value);
-	}
+  getText(key: string): string | undefined { return this.readFile(this.keyFilename(key, ".txt")); }
+  setText(key: string, value: string): void { this.writeFile(this.keyFilename(key, ".txt"), value); }
+  readFile(filename: string): string | undefined {
+    return readAnchoredTextFile(moduleFile(this.baseDir, this.moduleName, filename))?.content;
+  }
+  writeFile(filename: string, content: string): void {
+    writeAnchoredTextFile({ ...moduleFile(this.baseDir, this.moduleName, filename), content, expectation: "any" });
+  }
+  has(key: string): boolean {
+    return this.hasFile(this.keyFilename(key, ".json")) || this.hasFile(this.keyFilename(key, ".txt"));
+  }
+  hasFile(filename: string): boolean { return this.readFile(filename) !== undefined; }
+  delete(key: string): boolean {
+    const json = this.deleteFile(this.keyFilename(key, ".json"));
+    const text = this.deleteFile(this.keyFilename(key, ".txt"));
+    return json || text;
+  }
+  deleteFile(filename: string): boolean {
+    const access = moduleFile(this.baseDir, this.moduleName, filename);
+    const file = readAnchoredTextFile(access);
+    if (file === null) return false;
+    removeAnchoredTextFile({ ...access, expectedSnapshot: file.snapshot });
+    return true;
+  }
+  list(): string[] {
+    return listAnchoredDirectory({ rootPath: this.baseDir, boundaryDir: this.dir, directoryPath: this.dir }).map(entry => entry.name);
+  }
+  listByExtension(ext: string): string[] { return this.list().filter(name => name.endsWith(ext)); }
+  clear(): void { for (const file of this.list()) this.deleteFile(file); }
 
-	/** Read raw text by key. Returns undefined if not found. */
-	getText(key: string): string | undefined {
-		const path = this.resolvePath(key, ".txt");
-		if (!existsSync(path)) return undefined;
-		try {
-			return readFileSync(path, "utf-8");
-		} catch {
-			return undefined;
-		}
-	}
-
-	/** Write raw text by key. */
-	setText(key: string, value: string): void {
-		this.ensureDir();
-		const path = this.resolvePath(key, ".txt");
-		writeFileSync(path, value, "utf-8");
-	}
-
-	/** Read a file by exact filename (for markdown, etc.). */
-	readFile(filename: string): string | undefined {
-		const path = join(this.dir, filename);
-		if (!existsSync(path)) return undefined;
-		try {
-			return readFileSync(path, "utf-8");
-		} catch {
-			return undefined;
-		}
-	}
-
-	/** Write a file by exact filename. */
-	writeFile(filename: string, content: string): void {
-		this.ensureDir();
-		writeFileSync(join(this.dir, filename), content, "utf-8");
-	}
-
-	/** Check if a key exists (checks all modules). */
-	has(key: string): boolean {
-		return (
-			existsSync(this.resolvePath(key, ".json")) ||
-			existsSync(this.resolvePath(key, ".txt"))
-		);
-	}
-
-	/** Check if a file exists by exact filename. */
-	hasFile(filename: string): boolean {
-		return existsSync(join(this.dir, filename));
-	}
-
-	/** Delete a key (removes all modules). Returns true if anything was deleted. */
-	delete(key: string): boolean {
-		let deleted = false;
-		for (const ext of [".json", ".txt"]) {
-			const path = this.resolvePath(key, ext);
-			if (existsSync(path)) {
-				unlinkSync(path);
-				deleted = true;
-			}
-		}
-		return deleted;
-	}
-
-	/** Delete a file by exact filename. */
-	deleteFile(filename: string): boolean {
-		const path = join(this.dir, filename);
-		if (!existsSync(path)) return false;
-		unlinkSync(path);
-		return true;
-	}
-
-	/** List all files in storage. */
-	list(): string[] {
-		if (!existsSync(this.dir)) return [];
-		return readdirSync(this.dir).sort();
-	}
-
-	/** List files matching a glob-like suffix (e.g. ".json", ".md"). */
-	listByExtension(ext: string): string[] {
-		return this.list().filter((f) => f.endsWith(ext));
-	}
-
-	/** Remove all files in this module's storage. */
-	clear(): void {
-		if (!existsSync(this.dir)) return;
-		for (const file of readdirSync(this.dir)) {
-			unlinkSync(join(this.dir, file));
-		}
-	}
-
-	private ensureDir(): void {
-		if (!existsSync(this.dir)) {
-			mkdirSync(this.dir, { recursive: true });
-		}
-	}
-
-	private resolvePath(key: string, ext: string): string {
-		const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-		return join(this.dir, `${safeKey}${ext}`);
-	}
+  private keyFilename(key: string, ext: string): string {
+    // Preserve every formerly lossless filename. Ambiguous legacy keys must be
+    // addressed by their stored filename; guessing their original identity loses data.
+    if (typeof key !== "string" || !/^[a-zA-Z0-9_-]+$/.test(key)) throw new Error(`Invalid module storage key: ${key}`);
+    return `${key}${ext}`;
+  }
 }

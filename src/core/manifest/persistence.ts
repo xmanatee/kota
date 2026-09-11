@@ -2,30 +2,20 @@
  * Manifest persistence — save, load, delete, and list manifest-based modules.
  */
 
-import {
-	existsSync,
-	readdirSync,
-	readFileSync,
-	rmSync,
-} from "node:fs";
-import { join, resolve } from "node:path";
-import { writeJsonFileAtomic } from "#core/util/json-file.js";
+import { listModuleDirectories, moduleFile } from "#core/modules/module-files.js";
+import { ModuleStorage } from "#core/modules/module-storage.js";
 import type { ModuleManifest } from "./types.js";
 import { isManifestModuleName, validateManifest } from "./validation.js";
-
-function getModulesDir(cwd?: string): string {
-	return resolve(cwd || process.cwd(), ".kota", "modules");
-}
 
 export function getManifestPath(moduleName: string, cwd?: string): string {
 	if (!isManifestModuleName(moduleName))
 		throw new Error(`Invalid module name: ${moduleName}`);
-	return join(getModulesDir(cwd), moduleName, "manifest.json");
+	return moduleFile(cwd ?? process.cwd(), moduleName, "manifest.json").filePath;
 }
 
 export function saveManifest(manifest: ModuleManifest, cwd?: string): string {
 	const path = getManifestPath(manifest.name, cwd);
-	writeJsonFileAtomic(path, manifest);
+	new ModuleStorage(cwd ?? process.cwd(), manifest.name).writeFile("manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
 	return path;
 }
 
@@ -34,8 +24,9 @@ export function loadManifest(
 	cwd?: string,
 ): ModuleManifest | null {
 	const path = getManifestPath(moduleName, cwd);
-	if (!existsSync(path)) return null;
-	const raw: unknown = JSON.parse(readFileSync(path, "utf-8"));
+	const content = new ModuleStorage(cwd ?? process.cwd(), moduleName).readFile("manifest.json");
+	if (content === undefined) return null;
+	const raw: unknown = JSON.parse(content);
 	const errors = validateManifest(raw);
 	if (errors.length)
 		throw new Error(
@@ -48,26 +39,21 @@ export function loadManifest(
 }
 
 export function deleteManifest(moduleName: string, cwd?: string): boolean {
-	const manifestPath = getManifestPath(moduleName, cwd);
-	if (!existsSync(manifestPath)) return false;
-	rmSync(manifestPath);
-	const dir = join(getModulesDir(cwd), moduleName);
-	if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
-	return true;
+  getManifestPath(moduleName, cwd);
+  // Keep the directory: it is shared with runtime storage and may receive files
+  // concurrently. No recursive pathname cleanup after the anchored deletion.
+  return new ModuleStorage(cwd ?? process.cwd(), moduleName).deleteFile("manifest.json");
 }
 
 /** List all saved manifest module names. */
 export function listManifestModules(
 	cwd?: string,
 ): { name: string; manifest: ModuleManifest }[] {
-	const dir = getModulesDir(cwd);
-	if (!existsSync(dir)) return [];
-
-	const results: { name: string; manifest: ModuleManifest }[] = [];
-	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		if (!entry.isDirectory()) continue;
-		const manifest = loadManifest(entry.name, cwd);
-		if (manifest) results.push({ name: entry.name, manifest });
-	}
-	return results;
+  const results: { name: string; manifest: ModuleManifest }[] = [];
+  for (const name of listModuleDirectories(cwd ?? process.cwd())) {
+    if (!new ModuleStorage(cwd ?? process.cwd(), name).hasFile("manifest.json")) continue;
+    const manifest = loadManifest(name, cwd);
+    if (manifest) results.push({ name, manifest });
+  }
+  return results;
 }

@@ -1,10 +1,12 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import {
   getNpmVersion,
+  installGithub,
+  installNpm,
   installUrl,
   resolveInstalledPackageName,
   resolveNpmEntry,
@@ -31,6 +33,16 @@ it.each([
   expect(result).toEqual({ name, source: "url", files: [`modules/${name}`] });
   expect(readFileSync(join(root, "modules", name, "index.mjs"), "utf8")).toBe(content);
 });
+
+it.each(["", ".", "..", "../escape", "/escape", "a\\b", "a\0b", "\ud800"])(
+  "rejects unsafe module identity before installer effects: %j", async (name) => {
+    const parsed = { type: "npm", identifier: "unused", name } as const;
+    for (const install of [installNpm, installGithub, installUrl]) {
+      await expect(install(parsed, root)).rejects.toThrow("Invalid module name");
+    }
+    expect(readdirSync(root)).toEqual([]);
+  },
+);
 
 it.each([
   ["version", '{"name":"my-tool","version":"2.3.1"}', "2.3.1"],

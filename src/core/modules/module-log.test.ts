@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ModuleLogStore } from "./module-log.js";
@@ -170,15 +170,17 @@ describe("ModuleLogStore", () => {
 
 	it("prunes when exceeding max entries", () => {
 		const store = new ModuleLogStore(tmpBase);
-		for (let i = 0; i < 1010; i++) {
-			store.append("my-mod", "info", `msg-${i}`);
-		}
+    const dir = join(tmpBase, ".kota", "modules", "my-mod");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "logs.jsonl"), `${Array.from({ length: 1000 }, (_, i) =>
+      JSON.stringify({ ts: "2025-01-01", level: "info", module: "my-mod", msg: `msg-${i}` })).join("\n")}\n`);
+    store.append("my-mod", "info", "newest");
 		const entries = store.tail("my-mod", 2000);
 		expect(entries.length).toBeLessThanOrEqual(760);
 		expect(entries.length).toBeGreaterThanOrEqual(740);
 	});
 
-	it("handles corrupted log lines gracefully", () => {
+	it("reports corrupted log lines distinctly from missing logs", () => {
 		const store = new ModuleLogStore(tmpBase);
 		const dir = join(tmpBase, ".kota", "modules", "bad-mod");
 		mkdirSync(dir, { recursive: true });
@@ -186,11 +188,19 @@ describe("ModuleLogStore", () => {
 			join(dir, "logs.jsonl"),
 			'{"ts":"2025-01-01","level":"info","module":"bad-mod","msg":"good"}\nnot json\n{"ts":"2025-01-02","level":"error","module":"bad-mod","msg":"also good"}\n',
 		);
-		const entries = store.tail("bad-mod");
-		expect(entries).toHaveLength(2);
-		expect(entries[0].msg).toBe("good");
-		expect(entries[1].msg).toBe("also good");
+    expect(() => store.tail("bad-mod")).toThrow();
 	});
+
+  it("retains malformed history when append would otherwise prune it away", () => {
+    const store = new ModuleLogStore(tmpBase);
+    const dir = join(tmpBase, ".kota", "modules", "bad-mod");
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, "logs.jsonl");
+    const content = `not json\n${JSON.stringify({ ts: "2025-01-01", level: "info", module: "bad-mod", msg: "valid" })}\n`;
+    writeFileSync(path, content.repeat(501));
+    expect(() => store.append("bad-mod", "info", "new")).toThrow("Invalid module log JSON");
+    expect(readFileSync(path, "utf8").startsWith(content.repeat(501))).toBe(true);
+  });
 
 	it("sets timestamps automatically", () => {
 		const store = new ModuleLogStore(tmpBase);
@@ -199,4 +209,20 @@ describe("ModuleLogStore", () => {
 		const entries = store.tail("my-mod");
 		expect(entries[0].ts >= before).toBe(true);
 	});
+  it("rejects traversal and linked log files across append, prune, query, listing and clear", () => {
+    const store = new ModuleLogStore(tmpBase);
+    expect(() => store.query({ module: "../../../outside" })).toThrow("Invalid module name");
+    const outside = join(tmpBase, "outside.jsonl");
+    const content = '{"ts":"2025-01-01","level":"info","module":"my-mod","msg":"outside"}\n'.repeat(1001);
+    writeFileSync(outside, content);
+    const dir = join(tmpBase, ".kota", "modules", "my-mod");
+    mkdirSync(dir, { recursive: true });
+    symlinkSync(outside, join(dir, "logs.jsonl"));
+    for (const operation of [() => store.append("my-mod", "info", "new"),
+      () => store.query({ module: "my-mod" }), () => store.modules(), () => store.clear("my-mod")]) {
+      expect(operation).toThrow("Unsafe filesystem path");
+    }
+    expect(readFileSync(outside, "utf8")).toBe(content);
+  });
+
 });

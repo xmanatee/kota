@@ -40,6 +40,16 @@ function lstatOptional(path) {
   }
 }
 
+function directoryNames() {
+  return readdirSync(".", { encoding: "buffer" }).map(bytes => {
+    const name = bytes.toString("utf8");
+    if (!Buffer.from(name, "utf8").equals(bytes)) {
+      refuse("directory entry name is not lossless UTF-8");
+    }
+    return name;
+  });
+}
+
 function validateIdentity(value, field) {
   if (
     value === null ||
@@ -131,6 +141,9 @@ function enterParent(request) {
         mkdirSync(part);
         pathStats = lstatSync(part);
       }
+      if (!readdirSync(".", { encoding: "buffer" }).some(name => name.equals(Buffer.from(part, "utf8")))) {
+        refuse("directory component spelling aliases another entry");
+      }
       if (pathStats.isSymbolicLink()) {
         refuse("symbolic-link directory components are forbidden");
       }
@@ -173,6 +186,9 @@ function inspectTextFileEntry(name, expectedSnapshot) {
       refuse("file entry changed during filesystem access");
     }
     return undefined;
+  }
+  if (!readdirSync(".", { encoding: "buffer" }).some(entry => entry.equals(Buffer.from(name, "utf8")))) {
+    refuse("file name spelling aliases another entry");
   }
   if (pathStats.isSymbolicLink()) {
     refuse("symbolic-link file entries are forbidden");

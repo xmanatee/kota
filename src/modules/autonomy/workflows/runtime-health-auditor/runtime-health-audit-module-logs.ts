@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { assertModuleStorageName } from "#core/modules/module-files.js";
+import { listAnchoredDirectory, readAnchoredTextFile } from "#core/util/filesystem/anchored-files.js";
 import { classifyModuleOperationHealth } from "#modules/autonomy/autonomy-issue-module-failure.js";
 import type { AutonomyHealthEvidenceRef } from "#modules/autonomy/health-signal.js";
 import {
@@ -89,17 +90,17 @@ function classifyLogObservation(
 
 export function scanModuleLogs(ctx: RuntimeHealthAuditContext): void {
   const modulesDir = join(ctx.stateDir, "modules");
-  if (!existsSync(modulesDir)) return;
-
-  for (const entry of readdirSync(modulesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+  for (const entry of listAnchoredDirectory({ rootPath: ctx.scopeRoot, boundaryDir: modulesDir, directoryPath: modulesDir })) {
+    if (entry.kind !== "directory") continue;
     const moduleName = entry.name;
+    assertModuleStorageName(moduleName);
     const absolutePath = join(modulesDir, moduleName, "logs.jsonl");
-    if (!existsSync(absolutePath)) continue;
+    const file = readAnchoredTextFile({ rootPath: ctx.scopeRoot, boundaryDir: join(modulesDir, moduleName), filePath: absolutePath });
+    if (file === null) continue;
 
     const repoPath = join(".kota", "modules", moduleName, "logs.jsonl");
     ctx.inspected.moduleLogFiles += 1;
-    const lines = readFileSync(absolutePath, "utf-8")
+    const lines = file.content
       .split(/\r?\n/)
       .map((line, index) => ({ line, lineNumber: index + 1 }))
       .filter((entry) => entry.line.trim().length > 0)
