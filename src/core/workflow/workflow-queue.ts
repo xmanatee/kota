@@ -107,6 +107,8 @@ function resolveRestoredTrigger(
 
 /** Trigger admission adapter. RunStateDatabase is the only durable queue. */
 export class WorkflowQueueManager {
+  private readonly retainedRecoveries = new Map<string, Promise<boolean>>();
+
   constructor(private readonly config: WorkflowQueueManagerConfig) {}
 
   get length(): number {
@@ -347,7 +349,18 @@ export class WorkflowQueueManager {
     this.appendRun({ ...queued, notBeforeMs });
   }
 
-  async resumeRetainedRun(runId: string, resumedAtMs: number): Promise<boolean> {
+  resumeRetainedRun(runId: string, resumedAtMs: number): Promise<boolean> {
+    const pending = this.retainedRecoveries.get(runId);
+    if (pending) return pending;
+    // Event and operator requests share one assessment; durable state still
+    // decides whether its result can resume the retained run.
+    const recovery = this.assessRetainedRun(runId, resumedAtMs)
+      .finally(() => this.retainedRecoveries.delete(runId));
+    this.retainedRecoveries.set(runId, recovery);
+    return recovery;
+  }
+
+  private async assessRetainedRun(runId: string, resumedAtMs: number): Promise<boolean> {
     const run = this.config.runState.getRun(runId);
     if (run?.state !== "needs_attention" || run.scopeId !== this.config.scopeId) return false;
     const definition = this.definition(run.workflow);

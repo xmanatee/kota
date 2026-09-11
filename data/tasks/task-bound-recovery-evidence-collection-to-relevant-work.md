@@ -32,6 +32,12 @@ September 10 18:21-18:51Z suspension from its elapsed-work diagnosis.
 ## Desired Outcome
 
 The September 11 restart reproduced the same cost in concurrent preflights.
+Completed workflows also triggered overlapping reconciliation requests while
+`hjhox7` awaited recovery: its resolver had no in-flight exclusion, so each
+request could launch another full scan before one reconciled the run. The
+common queue manager now shares concurrent retained-run assessments; keep that
+ownership and do not add a builder-specific lock. This prevents amplification,
+but does not make the remaining full-history scan proportional to task evidence.
 Recovery reconciled `hjhox7` to its revised task and retained worktree, but both
 builders were still collecting evidence at 03:50Z. During host-active inspection,
 the control API repeatedly exceeded 5-, 10- and 20-second request deadlines;

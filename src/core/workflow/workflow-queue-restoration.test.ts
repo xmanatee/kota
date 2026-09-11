@@ -306,10 +306,12 @@ describe("durable workflow queue restoration", () => {
     const original = trigger("review.changed", { taskId: "held", revision: 1, idempotencyKey: "old" });
     const revised = trigger("review.changed", { taskId: "held", revision: 2, idempotencyKey: "new" });
     const definition = workflow(scopeRoot);
-    let ready = false;
-    definition.recovery = () => ready
-      ? { resume: true, trigger: revised, revision: "new-evidence" }
-      : { resume: false, reason: "external prerequisite unchanged" };
+    let finish!: (decision: WorkflowRecoveryDecision) => void;
+    const recovery = vi.fn<NonNullable<WorkflowDefinition["recovery"]>>()
+      .mockResolvedValueOnce({ resume: false, reason: "external prerequisite unchanged" })
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+      .mockReturnValue({ resume: true, trigger: revised, revision: "new-evidence" });
+    definition.recovery = recovery;
     const queue = new WorkflowQueueManager({
       store: new WorkflowRunStore(scopeRoot), runState,
       coordinator: { refill: vi.fn() } as unknown as RunCoordinator,
@@ -325,8 +327,12 @@ describe("durable workflow queue restoration", () => {
     runState.requireRunAttention("held-owner", "blocked", []);
     expect((await queue.resumeRetainedRun("held-owner", Date.now()))).toBe(false);
     expect(runState.getRun("held-owner")).toMatchObject({ state: "needs_attention", trigger: original });
-    ready = true;
-    expect((await queue.resumeRetainedRun("held-owner", Date.now()))).toBe(true);
+    const first = queue.resumeRetainedRun("held-owner", Date.now());
+    const duplicate = queue.resumeRetainedRun("held-owner", Date.now());
+    expect(recovery).toHaveBeenCalledTimes(2);
+    finish({ resume: true, trigger: revised, revision: "new-evidence" });
+    expect(await first).toBe(true);
+    expect(await duplicate).toBe(true);
     expect(runState.getRun("held-owner")).toMatchObject({ state: "queued", trigger: revised, resources: ["task:held"] });
     expect(queue.appendRun(queued("duplicate", revised))).toEqual({ status: "duplicate", runId: "held-owner" });
     runState.requireRunAttention("held-owner", "same failure", []);
