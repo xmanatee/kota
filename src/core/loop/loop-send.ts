@@ -276,6 +276,7 @@ function toolExecutionOptions(
     clientApprovalResolver: state.clientApprovalResolver,
     sessionId: state.sessionId,
     scopeRoot: state.scopeRoot,
+    resolveRuntimeScope: state.resolveRuntimeScope,
     cwd: state.scopeRoot,
     scopeId: state.scopeId,
     authorityConfigPath: state.authorityConfigPath,

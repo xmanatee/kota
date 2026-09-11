@@ -20,6 +20,7 @@ export function createDefaultWorkflowTrialRuntimeFactory(): WorkflowTrialRuntime
     const runtimeLoader = await loadRuntimeModules({
       config: runtimeConfig,
       cwd: trialWorkspaceRoot,
+      scopeRoot: trialWorkspaceRoot,
       installedModuleSourceDir: sourceScopeRoot,
       eventBus,
     });

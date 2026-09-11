@@ -24,6 +24,8 @@ import { ProviderRegistry } from "./provider-registry.js";
 export type RuntimeLoaderOptions = {
   config: KotaConfig;
   cwd: string;
+  /** Canonical activation scope, absent for a daemon-wide loader. */
+  scopeRoot?: string;
   /** Exact event authority owned by the runtime host. */
   eventBus: EventBus;
   verbose?: boolean;
@@ -46,6 +48,7 @@ export async function loadRuntimeModules(
   const verbose = options.verbose ?? false;
   const loader = new ModuleLoader(options.config, verbose, {
     mode: "runtime",
+    scopeRoot: options.scopeRoot,
     globalConfigPath: options.globalConfigPath,
     installedModuleSourceDir: options.installedModuleSourceDir,
     providerRegistry: options.providerRegistry ?? new ProviderRegistry(),

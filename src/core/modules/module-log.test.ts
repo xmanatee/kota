@@ -1,24 +1,17 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import {
-	getModuleLogStore,
-	initModuleLogStore,
-	ModuleLogStore,
-	resetModuleLogStore,
-} from "./module-log.js";
+import { ModuleLogStore } from "./module-log.js";
 
 const tmpBase = join(process.env.TMPDIR || "/tmp", "kota-log-test");
 
 beforeEach(() => {
 	if (existsSync(tmpBase)) rmSync(tmpBase, { recursive: true });
 	mkdirSync(tmpBase, { recursive: true });
-	resetModuleLogStore();
 });
 
 afterEach(() => {
 	if (existsSync(tmpBase)) rmSync(tmpBase, { recursive: true });
-	resetModuleLogStore();
 });
 
 describe("ModuleLogStore", () => {
@@ -205,20 +198,5 @@ describe("ModuleLogStore", () => {
 		store.append("my-mod", "info", "timestamped");
 		const entries = store.tail("my-mod");
 		expect(entries[0].ts >= before).toBe(true);
-	});
-});
-
-describe("ModuleLogStore singleton", () => {
-	it("initModuleLogStore creates singleton", () => {
-		expect(getModuleLogStore()).toBeNull();
-		initModuleLogStore(tmpBase);
-		expect(getModuleLogStore()).toBeInstanceOf(ModuleLogStore);
-	});
-
-	it("resetModuleLogStore clears singleton", () => {
-		initModuleLogStore(tmpBase);
-		expect(getModuleLogStore()).not.toBeNull();
-		resetModuleLogStore();
-		expect(getModuleLogStore()).toBeNull();
 	});
 });

@@ -3,6 +3,7 @@ import { dirname, join, resolve } from "node:path";
 import { getGlobalConfigPath, type KotaConfig } from "#core/config/config.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DeadLetterQueueStore } from "#core/daemon/dead-letter-queue.js";
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 import type {
   ResolvedScopePolicy,
   ScopePolicyAuthority,
@@ -149,6 +150,7 @@ export function createStepContext(
       "effects" | "processes" | "publications" | "repositoryAccess" | "runtimeStateDir" | "signal" | "state" | "runEvidence"
     > & { sandbox: Pick<RunContext["sandbox"], "repository"> };
     scopePolicyAuthority?: ScopePolicyAuthority;
+    resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
     runAgentHarness: WorkflowAgentHarnessRunner;
     currentStepId?: string;
     triggerWorkflow?: (
@@ -204,6 +206,7 @@ export function createStepContext(
     const resolvedOptions = {
       ...options,
       scopeRoot: context.scopeRoot,
+      resolveRuntimeScope: deps.resolveRuntimeScope,
       authorityConfigPath: context.authorityConfigPath,
       workflowContext: context.workflow,
       ...(harness.toolControl === "kota" && deps.approvalQueue !== undefined
@@ -322,6 +325,7 @@ export function createStepContext(
           deps.authorityConfigPath ?? getGlobalConfigPath(),
         ),
         signal,
+        resolveRuntimeScope: deps.resolveRuntimeScope,
       };
       const authority = deps.scopePolicyAuthority;
       const getScopePolicySnapshot = authority === undefined
@@ -340,6 +344,7 @@ export function createStepContext(
         ...(authority !== undefined ? { scopePolicyAuthority: authority } : {}),
         ...(getScopePolicySnapshot !== undefined ? { getScopePolicySnapshot } : {}),
         ...(context.sessionId !== undefined ? { sessionId: context.sessionId } : {}),
+        resolveRuntimeScope: context.resolveRuntimeScope,
         scopeRoot: context.scopeRoot,
         cwd: context.cwd,
         ...(context.env !== undefined ? { env: context.env } : {}),

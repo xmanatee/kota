@@ -11,6 +11,7 @@ import {
   composeAgentHarnessTranscriptPrompt,
 } from "#core/agent-harness/transcript.js";
 import type { KotaConfig } from "#core/config/config.js";
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 import { CostTracker } from "#core/loop/cost.js";
 import { buildKotaSystemPrompt } from "#core/loop/system-prompt.js";
 import type { ProxyTransport } from "#core/loop/transport.js";
@@ -30,6 +31,7 @@ export type TelegramHarnessSessionAgentOptions = {
   scopeRoot: string;
   cwd: string;
   scopeId: string;
+  resolveRuntimeScope: DaemonRuntimeScopeProvider["resolve"];
   config: KotaConfig;
   autonomyMode: AutonomyMode;
   verbose?: boolean;
@@ -72,6 +74,7 @@ export class TelegramHarnessSessionAgent {
           prompt,
           model: this.options.model,
           scopeRoot: this.options.scopeRoot,
+          resolveRuntimeScope: this.options.resolveRuntimeScope,
           cwd: this.options.cwd,
           effort: this.options.effort,
           autonomyMode: this.options.autonomyMode,

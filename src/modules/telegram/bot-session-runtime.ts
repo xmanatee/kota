@@ -1,6 +1,7 @@
 import { resolveAgentHarness } from "#core/agent-harness/index.js";
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import type { ScopeRuntime } from "#core/daemon/scope-runtime.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, ProxyTransport } from "#core/loop/transport.js";
@@ -122,6 +123,9 @@ export class TelegramSessionRuntime {
         scopeRoot: target.scopeRoot,
         cwd: target.scopeRoot,
         scopeId: target.scopeId,
+        resolveRuntimeScope: (scopeId) => this.options.moduleLoader
+          ?.getProviderRegistry().get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId)
+          ?? { ok: false, scopeId },
         config,
         autonomyMode: this.options.autonomyMode,
         verbose: this.options.verbose ?? config.verbose,

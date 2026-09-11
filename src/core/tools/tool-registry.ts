@@ -2,6 +2,7 @@ import type { KotaTool } from "#core/agent-harness/message-protocol.js";
 import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js";
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 import type { ToolEffect } from "./effect.js";
 import {
 	deregisterLocalToolApprovalBinding,
@@ -25,6 +26,8 @@ export type ToolRunnerContext = {
 	signal?: AbortSignal;
 	/** Canonical directory root of the selected directory-backed scope. */
 	scopeRoot?: string;
+	/** Live host ownership; an unavailable scope must never fall back to disk. */
+	resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
 	/** Execution working directory, which may be an isolated worktree. */
 	cwd?: string;
 	/** Exact filesystem roots declared for this agent invocation. */

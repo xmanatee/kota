@@ -76,9 +76,12 @@ export class ProviderRegistry {
 	private providers = new Map<string, ProviderEntry<unknown>[]>();
 	/** Map from token id → name of the active provider. */
 	private active = new Map<string, string>();
+	/** Lifetime history distinguishes withdrawn authority from an unhosted token. */
+	private registeredTokens = new Set<string>();
 
 	/** Register a provider for a token. First registered becomes active by default. */
 	register<T>(token: ProviderToken<T>, name: string, provider: T): void {
+		this.registeredTokens.add(token);
 		let entries = this.providers.get(token);
 		if (!entries) {
 			entries = [];
@@ -104,6 +107,11 @@ export class ProviderRegistry {
 		const activeName = this.active.get(token);
 		if (!activeName) return null;
 		return this.getByName(token, activeName);
+	}
+
+	/** Whether this registry has ever hosted the token, including after withdrawal or clear. */
+	hasRegistered<T>(token: ProviderToken<T>): boolean {
+		return this.registeredTokens.has(token);
 	}
 
 	/** Get a specific named provider for a token. Returns null if not found. */
@@ -182,7 +190,7 @@ export class ProviderRegistry {
 		}
 	}
 
-	/** Clear all providers and active selections. */
+	/** Withdraw all providers and active selections, preserving lifetime ownership history. */
 	clear(): void {
 		this.providers.clear();
 		this.active.clear();

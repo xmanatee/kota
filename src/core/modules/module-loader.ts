@@ -61,6 +61,8 @@ export type { ModuleSource, ModuleSummary } from "./module-types.js";
 export type ModuleLoaderMode = "commands" | "runtime";
 
 export type ModuleLoaderOptions = {
+  /** Canonical scope for activation diagnostics; omit for scope-less hosts. */
+  scopeRoot?: string;
   /** Lifecycle mode this loader operates in. Defaults to `"runtime"`. */
   mode?: ModuleLoaderMode;
   /** Alternate persisted machine-authority file for embedders. */
@@ -83,11 +85,13 @@ export class ModuleLoader {
   private readonly installedModuleSourceDir?: string;
   private readonly providerRegistry: ProviderRegistry;
   private cwd: string;
+  private readonly scopeRoot?: string;
   private bus: EventBus | null = null;
   private sessionFactory: ((opts: CreateSessionOptions) => ModuleSession) | null = null;
 
   constructor(config: KotaConfig, verbose = false, options?: ModuleLoaderOptions) {
     this.config = config;
+    this.scopeRoot = options?.scopeRoot;
     this.verbose = verbose;
     this.cwd = process.cwd();
     this.mode = options?.mode ?? "runtime";
@@ -138,6 +142,7 @@ export class ModuleLoader {
     return createLoaderModuleContext(
       {
         cwd: this.installedModuleSourceDir ?? this.cwd,
+        scopeRoot: this.scopeRoot,
         verbose: this.verbose,
         config: this.config,
         moduleStorages: this.state.moduleStorages,

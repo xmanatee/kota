@@ -365,6 +365,9 @@ export class StandaloneRunHost {
       resolveAgentDef: this.options.resolveAgentDef,
       resolveSkillsPrompt: this.options.resolveSkillsPrompt,
       scopePolicyAuthority: this.scopeRuntime.scopePolicyAuthority,
+      resolveRuntimeScope: (scopeId) =>
+        this.providerRegistry.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId)
+          ?? { ok: false, scopeId },
       runTool: execution?.runTool,
       runCommand: execution?.runCommand,
       resolveAgentHarness: execution?.resolveAgentHarness,

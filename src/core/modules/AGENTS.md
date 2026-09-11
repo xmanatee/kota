@@ -35,6 +35,15 @@ operation scope from the request, signal, session, or channel runtime; module
 loader `cwd` is storage context and must not be used as runtime attribution.
 Operations without authoritative scope remain ordinary diagnostics.
 
+Module logs resolve through the host runtime-scope provider. Tool/session/workflow scope
+owns request logs; explicit operation scope takes precedence. Activation logs
+use the loader's declared canonical `scopeRoot`, never its storage `cwd` or the
+registry default. Scope-less activation diagnostics stay on the terminal stream.
+Standalone hosts supply their canonical root explicitly. A withdrawn runtime
+cannot fall back to disk or another host's provider.
+Provider registration history belongs to the host registry and survives withdrawal,
+including when registration and withdrawal occur between module log calls.
+
 `ModuleLoader` owns its `ProviderRegistry`. Runtime composition roots pass the
 host registry explicitly when it must also be the single CLI process registry;
 embedded and test hosts use a fresh registry. Never initialize, replace, or

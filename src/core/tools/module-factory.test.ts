@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
 import { manifestToModule } from "#core/manifest/index.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
-import { initModuleLogStore, resetModuleLogStore } from "#core/modules/module-log.js";
+import { ModuleLogStore } from "#core/modules/module-log.js";
 import { clearCustomTools, getAllTools } from "./index.js";
 import {
 	runModuleFactory,
@@ -178,85 +178,74 @@ describe("runModuleFactory — unknown action", () => {
 
 
 describe("runModuleFactory — logs", () => {
-	it("returns error when log store not initialized", async () => {
-		resetModuleLogStore();
+	it("returns error without authoritative scope", async () => {
 		const result = await runModuleFactory({ action: "logs" });
 		expect(result.is_error).toBe(true);
-		expect(result.content).toContain("not initialized");
+		expect(result.content).toContain("authoritative scope");
 	});
 
 	it("returns summary of modules with logs when no name given", async () => {
-		initModuleLogStore(tmpDir);
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("mod-a", "info", "hello from a");
 		store.append("mod-b", "error", "error from b");
 
-		const result = await runModuleFactory({ action: "logs" });
+		const result = await runModuleFactory({ action: "logs" }, { scopeRoot: tmpDir });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("mod-a");
 		expect(result.content).toContain("mod-b");
 		expect(result.content).toContain("Modules with logs");
-		resetModuleLogStore();
 	});
 
 	it("returns no logs message when store is empty", async () => {
-		initModuleLogStore(tmpDir);
-		const result = await runModuleFactory({ action: "logs" });
+		const result = await runModuleFactory({ action: "logs" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("No module logs found");
-		resetModuleLogStore();
 	});
 
 	it("returns log entries for a specific module", async () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("my-mod", "info", "step 1 done");
 		store.append("my-mod", "error", "step 2 failed");
 
-		const result = await runModuleFactory({ action: "logs", name: "my-mod" });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod" }, { scopeRoot: tmpDir });
 		expect(result.is_error).toBeUndefined();
 		expect(result.content).toContain("step 1 done");
 		expect(result.content).toContain("step 2 failed");
 		expect(result.content).toContain("2 entries");
-		resetModuleLogStore();
 	});
 
 	it("filters by level", async () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("my-mod", "info", "info msg");
 		store.append("my-mod", "error", "error msg");
 
-		const result = await runModuleFactory({ action: "logs", name: "my-mod", level: "error" });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod", level: "error" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("error msg");
 		expect(result.content).not.toContain("info msg");
 		expect(result.content).toContain("1 entries");
-		resetModuleLogStore();
 	});
 
 	it("filters by keyword", async () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("my-mod", "info", "weather check passed");
 		store.append("my-mod", "info", "notification sent");
 
-		const result = await runModuleFactory({ action: "logs", name: "my-mod", keyword: "weather" });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod", keyword: "weather" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("weather");
 		expect(result.content).not.toContain("notification");
-		resetModuleLogStore();
 	});
 
 	it("respects limit parameter", async () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		for (let i = 0; i < 10; i++) {
 			store.append("my-mod", "info", `msg-${i}`);
 		}
 
-		const result = await runModuleFactory({ action: "logs", name: "my-mod", limit: 3 });
+		const result = await runModuleFactory({ action: "logs", name: "my-mod", limit: 3 }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("3 entries");
-		resetModuleLogStore();
 	});
 
 	it("shows empty message when module has no entries", async () => {
-		initModuleLogStore(tmpDir);
-		const result = await runModuleFactory({ action: "logs", name: "no-logs-mod" });
+		const result = await runModuleFactory({ action: "logs", name: "no-logs-mod" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("No log entries");
-		resetModuleLogStore();
 	});
 });

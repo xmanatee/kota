@@ -16,7 +16,6 @@ import { EventBus } from "#core/events/event-bus.js";
 import { AgentSession, type LoopOptions } from "#core/loop/loop.js";
 import { NullTransport, type Transport } from "#core/loop/transport.js";
 import type { ModuleLoader } from "#core/modules/module-loader.js";
-import { initModuleLogStore } from "#core/modules/module-log.js";
 import type { RouteRegistration } from "#core/modules/module-types.js";
 import type { AutonomyMode } from "#core/tools/autonomy-mode.js";
 import type { DaemonClientHandlers } from "#root/client/kota-client.generated.js";
@@ -113,7 +112,6 @@ export function startServer(options: ServerOptions): Server {
   });
 
   const bus = options.eventBus ?? new EventBus();
-  initModuleLogStore(process.cwd());
 
   const cleanupTimer = setInterval(() => pool.cleanup(), 5 * 60 * 1000);
   cleanupTimer.unref();

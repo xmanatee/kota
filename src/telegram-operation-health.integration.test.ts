@@ -2,10 +2,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
+import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { EventJournal, installEventJournal } from "#core/events/event-journal.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
-import { initModuleLogStore, resetModuleLogStore } from "#core/modules/module-log.js";
+import { ModuleLogStore } from "#core/modules/module-log.js";
 import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
 import { outboundHttpRequestPort } from "#core/outbound-http/testing/request-port.js";
 import { hostActiveClock } from "#core/workflow/host-suspension.js";
@@ -22,7 +23,6 @@ afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
   vi.useRealTimers();
   vi.restoreAllMocks();
-  resetModuleLogStore();
 });
 
 async function channelFixture() {
@@ -30,19 +30,19 @@ async function channelFixture() {
   const root = mkdtempSync(join(tmpdir(), "telegram-health-"));
   cleanups.push(() => rmSync(root, { recursive: true, force: true }));
   const bus = new EventBus();
-  const { ctx: healthCtx, runtime } = makeAutonomyIssueSourceContext(root, bus);
+  const { ctx: healthCtx, runtime } = makeAutonomyIssueSourceContext(root, bus, deriveDirectoryScopeId(root));
   cleanups.push(() => runtime.runState.close());
   subscribeModuleOperationFailures(healthCtx);
   const journal = new EventJournal(join(root, ".kota", "events"));
   cleanups.push(installEventJournal(bus, journal));
   const signals: AutonomyHealthSignal[] = [];
   bus.on(autonomyHealthSignal, (signal) => signals.push(signal));
-  const logs = initModuleLogStore(root);
+  const logs = new ModuleLogStore(root);
   const loader = new ModuleLoader({
     modelProvider: { type: "openai", apiKey: "fixture-model-key" },
     serve: { defaultAutonomyMode: "supervised" },
     log: { format: "json" },
-  });
+  }, false, { scopeRoot: root });
   loader.setCwd(root);
   loader.setBus(bus);
   cleanups.push(() => loader.unloadAll());

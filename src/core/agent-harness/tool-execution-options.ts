@@ -1,5 +1,6 @@
 import { getGlobalConfigPath } from "#core/config/config.js";
 import type { ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
+import { getCurrentToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { agentHarnessToolRunnerContext } from "./session-context.js";
 import type { AgentHarnessRunOptions } from "./types.js";
 
@@ -22,7 +23,10 @@ export function agentHarnessToolExecutionOptions(
 	const cwd = overrides.cwd !== undefined ? overrides.cwd : options.cwd;
 	const scopeRoot = options.scopeRoot ?? options.cwd ?? cwd;
 	const signal = overrides.signal ?? options.abortController?.signal;
+	const resolveRuntimeScope = options.resolveRuntimeScope
+		?? getCurrentToolCallExecutionOptions()?.resolveRuntimeScope;
 	return {
+		...(resolveRuntimeScope !== undefined ? { resolveRuntimeScope } : {}),
 		resultLimit: overrides.resultLimit,
 		verbose: options.verbose === true,
 		autonomyMode: options.autonomyMode ?? "autonomous",

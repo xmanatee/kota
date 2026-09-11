@@ -86,7 +86,7 @@ export class ToolsHandler {
 		private readonly elicitation: ElicitationHandler,
 		private readonly mrtr: McpMrtrStateCodec,
 		private readonly taskStore: McpTaskStore,
-		options: { toolFilter?: string[]; moduleTools?: ToolDef[] } = {},
+		private readonly options: { toolFilter?: string[]; moduleTools?: ToolDef[]; scopeRoot?: string } = {},
 	) {
 		this.toolFilter = options.toolFilter?.length ? new Set(options.toolFilter) : null;
 		for (const def of options.moduleTools ?? []) {
@@ -459,9 +459,10 @@ export class ToolsHandler {
 
 	private async runTool(name: string, args: ToolRunnerInput): Promise<ToolResult> {
 		const extRunner = this.moduleRunners.get(name);
-		if (!extRunner) return executeTool(name, args);
+		const context = { scopeRoot: this.options.scopeRoot };
+		if (!extRunner) return executeTool(name, args, context);
 		try {
-			return await extRunner(args);
+			return await extRunner(args, context);
 		} catch (err) {
 			const errMsg = err instanceof Error ? err.message : String(err);
 			return { content: `Tool error: ${errMsg}`, is_error: true };

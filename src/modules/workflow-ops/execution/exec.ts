@@ -361,6 +361,7 @@ export function registerExecCommand(
       const runtimeLoader = await loadRuntimeModules({
         config: runtimeConfig,
         cwd: ctx.cwd,
+        scopeRoot: ctx.cwd,
         eventBus: bus,
       });
       try {

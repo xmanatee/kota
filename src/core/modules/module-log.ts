@@ -9,10 +9,11 @@
 import {
 	appendFileSync,
 	existsSync,
-	mkdirSync,readdirSync, 
+	mkdirSync,
+	readdirSync,
 	readFileSync,
 	unlinkSync,
-	writeFileSync
+	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { printTerminalDiagnostic } from "./terminal-renderer.js";
@@ -148,30 +149,4 @@ export class ModuleLogStore {
 			printTerminalDiagnostic(`[kota] Failed to prune module log ${path}: ${msg}`, "error");
 		}
 	}
-}
-
-// ─── Singleton ────────────────────────────────────────────────────────
-
-let _store: ModuleLogStore | null = null;
-
-export function initModuleLogStore(baseDir: string): ModuleLogStore {
-	_store = new ModuleLogStore(baseDir);
-	return _store;
-}
-
-/**
- * Install a pre-built {@link ModuleLogStore} as the module-level singleton.
- * Used by the per-scope runtime bundle factory to register the default
- * project's instance without re-binding `baseDir` outside the bundle.
- */
-export function setModuleLogStoreInstance(store: ModuleLogStore): void {
-	_store = store;
-}
-
-export function getModuleLogStore(): ModuleLogStore | null {
-	return _store;
-}
-
-export function resetModuleLogStore(): void {
-	_store = null;
 }

@@ -58,7 +58,8 @@ notification forwarding.
   session-autonomy config is a startup error, not a hidden fallback.
 - Interactive harness sessions own one scope-scoped tool-runtime identity
   for the conversation and erase its credential overlay on clear, scope
-  switch, or bot shutdown.
+  switch, or bot shutdown. They carry the host's live runtime resolver on
+  every turn so provider withdrawal cannot reopen canonical storage directly.
 - Interactive sessions report scope ids for drain inspection and resolve the
   live daemon default instead of retaining the startup runtime.
 - Inbound voice/audio messages route through the `transcription` module

@@ -1,12 +1,29 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { EventBus } from "#core/events/event-bus.js";
 import { initModuleEventRegistry } from "#core/events/module-event.js";
 import { defineScopedModuleEvent } from "#core/events/scope.js";
 import { StandaloneRunHost } from "./standalone-run-host.js";
+
+// Standalone admission and child recovery use real lifecycle/storage owners.
+// Socket availability is an external port owned by the resource allocator.
+vi.mock("./run-resources.js", async (original) => {
+  const actual = await original<typeof import("./run-resources.js")>();
+  return {
+    ...actual,
+    RunResourceAllocator: class extends actual.RunResourceAllocator {
+      constructor(
+        store: import("./run-state-database.js").RunStateDatabase,
+        options: import("./run-resources.js").RunResourceAllocatorOptions,
+      ) {
+        super(store, { ...options, isPortAvailable: async () => true });
+      }
+    },
+  };
+});
 
 describe("StandaloneRunHost", () => {
   const cleanup: string[] = [];

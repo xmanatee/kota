@@ -1,6 +1,7 @@
 import type {
   AgentCanUseTool,
   AgentHarness,
+  AgentHarnessRunOptions,
   AgentTokenBudgetLedger,
   KotaAgentMessage,
   TrajectoryDiagnosticsMetadata,
@@ -73,6 +74,7 @@ export type AgentStepConfig = {
   onProcessSpawn?: ProcessSpawnObserver;
   scopeId?: string;
   scopePolicyAuthority?: ScopePolicyAuthority;
+  resolveRuntimeScope?: AgentHarnessRunOptions["resolveRuntimeScope"];
   scopePolicySnapshot?: ScopePolicySnapshot;
   scopePolicy?: ResolvedScopePolicy;
   /** Native provider sessions retained by step id across durable run attempts. */

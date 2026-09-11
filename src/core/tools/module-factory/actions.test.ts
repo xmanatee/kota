@@ -7,7 +7,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, } from "vitest";
-import { initModuleLogStore, resetModuleLogStore } from "#core/modules/module-log.js";
+import { ModuleLogStore } from "#core/modules/module-log.js";
 import { clearCustomTools } from "#core/tools/index.js";
 import { handleCreate, handleInfo } from "./actions.js";
 import { handleLogs } from "./logs.js";
@@ -111,17 +111,16 @@ describe("handleInfo — edge cases", () => {
 
 describe("handleLogs — edge cases", () => {
 	it("shows data field in log entries", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("data-mod", "info", "with data", { key: "value" });
 
-		const result = handleLogs({ name: "data-mod" });
+		const result = handleLogs({ name: "data-mod" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("with data");
 		expect(result.content).toContain('"key":"value"');
-		resetModuleLogStore();
 	});
 
 	it("combines level and keyword filters", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("filter-mod", "info", "info about weather");
 		store.append("filter-mod", "error", "error about weather");
 		store.append("filter-mod", "info", "info about sports");
@@ -130,37 +129,34 @@ describe("handleLogs — edge cases", () => {
 			name: "filter-mod",
 			level: "info",
 			keyword: "weather",
-		});
+		}, { scopeRoot: tmpDir });
 		expect(result.content).toContain("info about weather");
 		expect(result.content).not.toContain("error about weather");
 		expect(result.content).not.toContain("sports");
 		expect(result.content).toContain("1 entries");
-		resetModuleLogStore();
 	});
 
 	it("shows filter description when no entries match", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		store.append("some-mod", "info", "hello");
 
 		const result = handleLogs({
 			name: "some-mod",
 			level: "error",
 			keyword: "crash",
-		});
+		}, { scopeRoot: tmpDir });
 		expect(result.content).toContain("No log entries");
 		expect(result.content).toContain('level=error');
 		expect(result.content).toContain('keyword="crash"');
-		resetModuleLogStore();
 	});
 
 	it("default limit is 30", () => {
-		const store = initModuleLogStore(tmpDir);
+		const store = new ModuleLogStore(tmpDir);
 		for (let i = 0; i < 50; i++) {
 			store.append("many-logs", "info", `msg-${i}`);
 		}
 
-		const result = handleLogs({ name: "many-logs" });
+		const result = handleLogs({ name: "many-logs" }, { scopeRoot: tmpDir });
 		expect(result.content).toContain("30 entries");
-		resetModuleLogStore();
 	});
 });

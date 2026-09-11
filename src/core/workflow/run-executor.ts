@@ -283,6 +283,7 @@ export function executeWorkflowRun(
           onProcessSpawn: runContext.processes.register,
           scopeId,
           scopePolicyAuthority: deps.scopePolicyAuthority,
+          resolveRuntimeScope: deps.resolveRuntimeScope,
           scopePolicySnapshot,
           scopePolicy: scopePolicySnapshot?.policy,
           ...(deps.agentBackoff === undefined

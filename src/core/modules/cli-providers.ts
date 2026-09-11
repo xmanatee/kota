@@ -40,13 +40,11 @@ export async function ensureCliProvidersFor(
     .filter((entry): entry is readonly [string, string] => Boolean(entry[1]));
 
   // Ensure the registry has in-core defaults populated (memory, task, history).
-  if (!getProviderRegistry()) initProviderRegistry();
-  registerDefaultProviders();
-
-  const registry = getProviderRegistry();
+  const registry = getProviderRegistry() ?? initProviderRegistry();
+  registerDefaultProviders(registry);
   const unconfiguredNeedingLoad = types.filter((type) => {
     if (config.providers?.[type]) return false;
-    return !registry?.introspect(type).active;
+    return !registry.introspect(type).active;
   });
 
   if (configuredEntries.length === 0 && unconfiguredNeedingLoad.length === 0) {
@@ -73,7 +71,7 @@ export async function ensureCliProvidersFor(
       providers: providersForLoader,
     },
     false,
-    registry ? { providerRegistry: registry } : undefined,
+    { scopeRoot: cwd, providerRegistry: registry },
   );
   loader.setCwd(cwd);
   loader.setBus(initEventBus());

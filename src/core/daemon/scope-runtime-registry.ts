@@ -6,6 +6,7 @@ import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import type { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { QuietHoursConfig } from "./notification-gate.js";
+import type { DaemonRuntimeScopeProvider } from "./runtime-scope-provider.js";
 import type { ScopePolicyAuthority } from "./scope-policy.js";
 import type {
   DirectoryScope,
@@ -60,6 +61,10 @@ export class ScopeRuntimeRegistry {
   static create(opts: ScopeRuntimeRegistryOptions): ScopeRuntimeRegistry {
     const defaultId = opts.registry.getDefaultScopeId();
     const byId = new Map<ScopeId, ScopeRuntime>();
+    const resolveRuntimeScope: DaemonRuntimeScopeProvider["resolve"] = (scopeId) => {
+      const runtime = byId.get(scopeId);
+      return runtime ? { ok: true, runtime } : { ok: false, scopeId };
+    };
     for (const scope of opts.registry.list()) {
       const runtime = createScopeRuntime({
         scope,
@@ -76,6 +81,7 @@ export class ScopeRuntimeRegistry {
         installSingletons: scope.scopeId === defaultId,
         quietHours: scope.scopeId === defaultId ? opts.quietHours : undefined,
         scopePolicyAuthority: opts.scopePolicyAuthority,
+        resolveRuntimeScope,
         runState: opts.runState,
         runCoordinator: opts.runCoordinator,
         daemonEpoch: opts.daemonEpoch,
@@ -95,6 +101,7 @@ export class ScopeRuntimeRegistry {
       onLog: opts.onLog,
       quietHours: opts.quietHours,
       scopePolicyAuthority: opts.scopePolicyAuthority,
+      resolveRuntimeScope,
       runState: opts.runState,
       runCoordinator: opts.runCoordinator,
       daemonEpoch: opts.daemonEpoch,

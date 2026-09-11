@@ -30,7 +30,7 @@ export async function runModuleFactory(
 		case "info":
 			return handleInfo(input.name as string, cwd);
 		case "logs":
-			return handleLogs(input);
+			return handleLogs(input, context);
 		default:
 			return {
 				content: `Unknown action: "${action}". Use create, list, remove, info, or logs.`,

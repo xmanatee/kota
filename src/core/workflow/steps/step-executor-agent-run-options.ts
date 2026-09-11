@@ -127,6 +127,9 @@ export function buildAgentHarnessRunOptions(input: {
         ? { resumeSessionId }
         : {}),
       scopeRoot: agentConfig.scopeRoot,
+      ...(agentConfig.resolveRuntimeScope !== undefined
+        ? { resolveRuntimeScope: agentConfig.resolveRuntimeScope }
+        : {}),
       cwd: workspaceDir,
       ...(agentWriteScope !== undefined ? { agentWriteScope } : {}),
       agentOutputDir,

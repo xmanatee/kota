@@ -20,6 +20,7 @@ import type { ProviderRegistry } from "./provider-registry.js";
 
 export interface LoaderContextDeps {
   cwd: string;
+  scopeRoot?: string;
   verbose: boolean;
   config: KotaConfig;
   moduleStorages: Map<string, ModuleStorage>;
@@ -46,6 +47,7 @@ export function createLoaderModuleContext(
 ): ModuleRuntimeContext {
   const params: ModuleContextParams = {
     cwd: deps.cwd,
+    scopeRoot: deps.scopeRoot,
     verbose: deps.verbose,
     config: deps.config,
     moduleStorages: deps.moduleStorages,

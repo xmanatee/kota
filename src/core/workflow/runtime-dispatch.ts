@@ -214,6 +214,7 @@ export async function executeAdmittedWorkflowRun(
       resolveAgentDef: state.resolveAgentDef,
       resolveSkillsPrompt: state.resolveSkillsPrompt,
       scopePolicyAuthority: state.runtimeConfig.scopePolicyAuthority,
+      resolveRuntimeScope: state.runtimeConfig.resolveRuntimeScope,
       agentBackoff: state.backoff,
     },
     abortController,

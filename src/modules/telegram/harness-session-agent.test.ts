@@ -62,6 +62,7 @@ describe("TelegramHarnessSessionAgent", () => {
       scopeRoot: "/tmp/scope-a",
       cwd: "/tmp/scope-a/.worktrees/session-a",
       scopeId: "scope-a",
+      resolveRuntimeScope: (scopeId) => ({ ok: false, scopeId }),
       config: {},
       autonomyMode: "autonomous",
       proxy: new ProxyTransport(),

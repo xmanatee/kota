@@ -447,6 +447,7 @@ export class McpServer {
 		this.taskStore = options.taskStore ?? new McpTaskStore();
 		this.registerTaskStatusListener();
 		this.tools = new ToolsHandler(ctx, this.elicitation, mrtr, this.taskStore, {
+			scopeRoot,
 			...(options.toolFilter !== undefined && { toolFilter: options.toolFilter }),
 			...(options.moduleTools !== undefined && { moduleTools: options.moduleTools }),
 		});

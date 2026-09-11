@@ -47,6 +47,7 @@ export function buildBrowserCommand(ctx: ModuleContext): Command {
         const runtimeLoader = await loadRuntimeModules({
           config: runtimeConfig,
           cwd: ctx.cwd,
+          scopeRoot: ctx.cwd,
           eventBus: new EventBus(),
         });
         const defaults = defaultSourceAccessReportOptions(ctx.cwd);

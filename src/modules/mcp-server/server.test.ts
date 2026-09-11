@@ -190,7 +190,7 @@ describe("McpServer method handlers", () => {
 			content: [{ type: "text", text: "counted" }],
 			structuredContent: { count: 2 },
 		});
-		expect(runner).toHaveBeenCalledWith({ amount: 2 });
+		expect(runner).toHaveBeenCalledWith({ amount: 2 }, { scopeRoot: process.cwd() });
 
 		const unknown = await call(server, "tools/call", { name: "missing", arguments: {} });
 		expect(unknown.error).toMatchObject({ code: -32602, message: "Unknown tool: missing" });

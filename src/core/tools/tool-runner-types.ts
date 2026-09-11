@@ -10,6 +10,7 @@ import type { AgentHarnessWorkflowContext } from "#core/agent-harness/types.js";
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 import type {
 	ResolvedScopePolicy,
 	ScopePolicyAuthority,
@@ -74,6 +75,8 @@ export type ToolCallExecutionOptions = {
 	clientApprovalResolver?: ToolApprovalResolver;
 	sessionId?: string;
 	scopeRoot?: string;
+	/** Live host ownership; an unavailable scope must never fall back to disk. */
+	resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
 	cwd?: string;
 	agentWriteScope?: AgentWriteScope;
 	agentOutputDir?: string;

@@ -3,14 +3,13 @@
  */
 
 import type { LogLevel } from "#core/modules/module-log.js";
-import { getModuleLogStore } from "#core/modules/module-log.js";
-import type { ToolResult } from "#core/tools/index.js";
+import { resolveModuleLogStore } from "#core/modules/module-log-scope.js";
+import type { ToolResult, ToolRunnerContext } from "#core/tools/index.js";
 
-export function handleLogs(input: Record<string, unknown>): ToolResult {
-	const store = getModuleLogStore();
-	if (!store) {
-		return { content: "Module log store not initialized", is_error: true };
-	}
+export function handleLogs(input: Record<string, unknown>, context?: ToolRunnerContext): ToolResult {
+	const resolved = resolveModuleLogStore(context ?? {});
+	if (!resolved.ok) return { content: resolved.error, is_error: true };
+	const store = resolved.store;
 
 	const moduleName = input.name as string | undefined;
 	const level = input.level as LogLevel | undefined;

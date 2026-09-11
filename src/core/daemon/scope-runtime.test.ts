@@ -1,15 +1,18 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventBus } from "#core/events/event-bus.js";
-import {
-  getModuleLogStore,
-  resetModuleLogStore,
-} from "#core/modules/module-log.js";
+import { ModuleLoader } from "#core/modules/module-loader.js";
+import { ModuleLogStore } from "#core/modules/module-log.js";
+import type { ModuleRuntimeContext } from "#core/modules/module-types.js";
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
+import { runModuleFactory } from "#core/tools/module-factory/index.js";
+import { executeToolCalls, type ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
 import { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import { RunStateDatabase } from "#core/workflow/run-state-database.js";
 import { ScopeRuntimeStateStore } from "#core/workflow/scope-runtime-state.js";
+import { StandaloneRunHost } from "#core/workflow/standalone-run-host.js";
 import { getApprovalQueue, resetApprovalQueue } from "./approval-queue.js";
 import {
   getIdempotencyStore,
@@ -19,9 +22,11 @@ import {
   getOwnerQuestionQueue,
   resetOwnerQuestionQueue,
 } from "./owner-question-queue.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "./runtime-scope-provider.js";
 import {
   buildDirectoryScope,
   type DirectoryScope,
+  deriveDirectoryScopeId,
   ScopeRegistry,
 } from "./scope-registry.js";
 import {
@@ -30,6 +35,20 @@ import {
   ScopeRuntimeRegistry,
 } from "./scope-runtime.js";
 import { getTaskStore, resetTaskStore } from "./task-store.js";
+
+// Log ownership does not depend on host socket availability. Keep allocation
+// and lifecycle real while controlling only the external listener probe.
+vi.mock("#core/workflow/run-resources.js", async (original) => {
+  const actual = await original<typeof import("#core/workflow/run-resources.js")>();
+  return {
+    ...actual,
+    RunResourceAllocator: class extends actual.RunResourceAllocator {
+      constructor(store: RunStateDatabase, options: import("#core/workflow/run-resources.js").RunResourceAllocatorOptions) {
+        super(store, { ...options, isPortAvailable: async () => true });
+      }
+    },
+  };
+});
 
 function makeScopeRoot(name: string): string {
   const root = mkdtempSync(join(tmpdir(), `kota-scope-runtime-${name}-`));
@@ -79,7 +98,6 @@ afterEach(() => {
 function resetSingletons(): void {
   resetTaskStore();
 
-  resetModuleLogStore();
   resetApprovalQueue();
   resetIdempotencyStore();
   resetOwnerQuestionQueue();
@@ -197,7 +215,6 @@ describe("createScopeRuntime", () => {
     runInfrastructure.attach(bundleB);
 
     expect(getTaskStore()).toBe(bundleA.taskStore);
-    expect(getModuleLogStore()).toBe(bundleA.moduleLogStore);
     expect(getApprovalQueue()).toBe(bundleA.approvalQueue);
     expect(getIdempotencyStore()).toBe(bundleA.idempotencyStore);
     expect(getOwnerQuestionQueue()).toBe(bundleA.ownerQuestionQueue);
@@ -401,5 +418,229 @@ describe("ScopeRuntimeRegistry — scoped ownership and controls", () => {
     runtimes.getDefault().scheduler.stopTimer();
     runtimes.getDefault().scheduler.disconnectBus();
     return runtimes.getDefault().workflowRuntime.stop();
+  });
+});
+
+// Detects cross-scope disclosure through the public log caller, including live
+// runtime retirement and canonical scope versus isolated execution directories.
+describe("module log runtime ownership", () => {
+  it("keeps interleaved module contexts and queries bound through default changes and retirement", async () => {
+    const dirA = makeScopeRoot("logs-a");
+    const dirB = makeScopeRoot("logs-b");
+    const worktree = makeScopeRoot("logs-worktree");
+    const registry = new ScopeRegistry({
+      stateDir: makeScopeRoot("logs-state"),
+      scopes: [{ scopeRoot: dirA }, { scopeRoot: dirB }],
+    });
+    const bus = new EventBus();
+    const infrastructure = makeRunInfrastructure(registry.list());
+    const runtimes = ScopeRuntimeRegistry.create({ registry, bus, onLog: () => {}, ...infrastructure.options });
+    const [a, b] = runtimes.list();
+    if (!a || !b) throw new Error("Expected two runtimes");
+    const loader = new ModuleLoader({}); // Daemon-wide activation has no project scope.
+    loader.setCwd(dirA);
+    loader.setBus(bus);
+    const providers = loader.getProviderRegistry();
+    providers.register(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE, "log-host", {
+      resolve: (scopeId) => {
+        try { return { ok: true, runtime: runtimes.get(scopeId) }; }
+        catch { return { ok: false, scopeId }; }
+      },
+    });
+    const resolveRuntimeScope: NonNullable<ToolCallExecutionOptions["resolveRuntimeScope"]> = (scopeId) =>
+      providers.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId) ?? { ok: false, scopeId };
+    const options = (runtime: ScopeRuntime): ToolCallExecutionOptions => ({
+      resultLimit: 10000, verbose: false, autonomyMode: "autonomous",
+      scopeId: runtime.scope.scopeId, scopeRoot: runtime.scope.scopeRoot,
+      cwd: worktree, resolveRuntimeScope,
+    });
+    let ctxA!: ModuleRuntimeContext;
+    let ctxB!: ModuleRuntimeContext;
+    try {
+      await loader.load({ name: "log-a", onLoad(ctx) { ctxA = ctx; ctx.log.info("scope-less activation"); } });
+      await loader.load({ name: "log-b", onLoad(ctx) { ctxB = ctx; } });
+      await loader.load({
+        name: "log-caller",
+        tools: [{
+          tool: { name: "scope_log_probe", description: "Exercise scoped module logs", input_schema: {
+            type: "object", properties: { message: { type: "string" }, name: { type: "string" } },
+          } },
+          effect: readOnlyLocalEffect(),
+          runner: async (input, context) => {
+            await Promise.resolve();
+            const ctx = context?.scopeId === a.scope.scopeId ? ctxA : ctxB;
+            if (typeof input.message === "string") ctx.log.info(input.message);
+            if (input.message === "operation") {
+              ctx.log.operationFailed?.(b.scope.scopeId, "probe", "explicit B failure");
+              ctx.log.operationRecovered?.(b.scope.scopeId, "probe", "explicit B recovery");
+            }
+            return runModuleFactory({ action: "logs", name: input.name }, context);
+          },
+        }],
+      });
+      const call = async (runtime: ScopeRuntime, message?: string, name?: string) => {
+        const [result] = await executeToolCalls([{
+          type: "tool_use", id: "probe", name: "scope_log_probe", input: { ...(message !== undefined ? { message } : {}), ...(name !== undefined ? { name } : {}) },
+        }], options(runtime));
+        if (!result) throw new Error("Missing tool response");
+        return result;
+      };
+      const [firstA, firstB] = await Promise.all([call(a, "A sentinel", "log-a"), call(b, "B sentinel", "log-b")]);
+      expect(firstA.is_error).not.toBe(true);
+      expect(firstA.content).toContain("A sentinel");
+      expect(firstA.content).not.toContain("B sentinel");
+      expect(firstB.content).toContain("B sentinel");
+      expect(firstB.content).not.toContain("A sentinel");
+      expect((await call(a)).content).toContain("log-a:");
+      expect((await call(a)).content).not.toContain("log-b:");
+      expect((await call(b)).content).toContain("log-b:");
+      expect((await call(b)).content).not.toContain("log-a:");
+      await call(a, "operation");
+      expect(a.moduleLogStore.query().map((entry) => entry.msg)).not.toContain("explicit B failure");
+      expect(b.moduleLogStore.tail("log-a").map((entry) => entry.msg)).toEqual(["explicit B failure", "explicit B recovery"]);
+      expect(a.moduleLogStore.query().map((entry) => entry.msg)).not.toContain("scope-less activation");
+      expect(new ModuleLogStore(worktree).modules()).toEqual([]);
+
+      runtimes.setDefaultScopeId(b.scope.scopeId);
+      expect((await call(a, "A after default switch")).content).toContain("A after default switch");
+      const retired = runtimes.remove(a.scope.scopeId);
+      retired.scheduler.stopTimer();
+      retired.scheduler.disconnectBus();
+      await retired.workflowRuntime.stop();
+      expect((await call(b, "B survives")).content).toContain("B survives");
+      expect(await call(a, "retired write")).toMatchObject({ is_error: true, content: expect.stringContaining("unavailable") });
+      expect(a.moduleLogStore.query().map((entry) => entry.msg)).not.toContain("retired write");
+      expect(await runModuleFactory({ action: "logs" }, { ...options(b), scopeRoot: dirA })).toMatchObject({ is_error: true });
+      expect(await runModuleFactory({ action: "logs" }, { ...options(b), scopeId: "unknown" })).toMatchObject({ is_error: true });
+      expect(await runModuleFactory({ action: "logs" }, { cwd: dirA })).toMatchObject({ is_error: true });
+      expect(await runModuleFactory({ action: "logs" }, { scopeRoot: join(worktree, "missing") })).toMatchObject({ is_error: true, content: expect.stringContaining("unavailable") });
+      providers.unregisterOwner("log-host");
+      expect(await call(b, "withdrawn write")).toMatchObject({ is_error: true, content: expect.stringContaining("unavailable") });
+      expect(b.moduleLogStore.query().map((entry) => entry.msg)).not.toContain("withdrawn write");
+    } finally {
+      await loader.unloadAll();
+      for (const runtime of [a, b]) {
+        runtime.scheduler.stopTimer();
+        runtime.scheduler.disconnectBus();
+        await runtime.workflowRuntime.stop();
+      }
+      resetSingletons();
+    }
+  });
+
+  it("keeps workflow log queries on the live runtime selector after scope retirement", async () => {
+    const dirA = makeScopeRoot("workflow-logs-a");
+    const dirB = makeScopeRoot("workflow-logs-b");
+    const registry = new ScopeRegistry({
+      stateDir: makeScopeRoot("workflow-logs-state"),
+      scopes: [{ scopeRoot: dirA }, { scopeRoot: dirB }],
+    });
+    const infrastructure = makeRunInfrastructure(registry.list());
+    const runtimes = ScopeRuntimeRegistry.create({
+      registry, bus: new EventBus(), onLog: () => {}, ...infrastructure.options,
+      workflows: [{
+        name: "query-module-logs", enabled: true, repository: "none",
+        moduleRoot: dirA, definitionPath: "test/query-module-logs.ts", triggers: [{ webhook: true }],
+        steps: [{ id: "query", type: "code", run: async (ctx) => {
+          const before = await ctx.runTool("module_factory", { action: "logs", name: "workflow-probe" });
+          runtimes.remove(ctx.scopeId);
+          const after = await ctx.runTool("module_factory", { action: "logs", name: "workflow-probe" });
+          return { before, after };
+        } }],
+      }],
+    });
+    const [a, b] = runtimes.list();
+    if (!a || !b) throw new Error("Expected two runtimes");
+    infrastructure.attach(a);
+    infrastructure.attach(b);
+    a.moduleLogStore.append("workflow-probe", "info", "workflow A sentinel");
+    b.moduleLogStore.append("workflow-probe", "info", "workflow B sentinel");
+    runtimes.setDefaultScopeId(b.scope.scopeId);
+    try {
+      a.workflowRuntime.start();
+      const result = await a.workflowRuntime.execute({
+        workflow: "query-module-logs", scopeId: a.scope.scopeId, event: "manual", payload: {},
+      });
+      expect(result, result.ok ? undefined : result.error).toMatchObject({ ok: true, output: {
+        before: { content: expect.stringContaining("workflow A sentinel") },
+        after: { is_error: true, content: expect.stringContaining("unavailable") },
+      } });
+      if (result.ok) expect(JSON.stringify(result.output)).not.toContain("workflow B sentinel");
+    } finally {
+      for (const runtime of [a, b]) {
+        runtime.scheduler.stopTimer();
+        runtime.scheduler.disconnectBus();
+        await runtime.workflowRuntime.stop();
+      }
+      resetSingletons();
+    }
+  });
+
+  it.each(["unregister", "clear"] as const)("rejects logging after silent host ownership withdrawal via %s", async (withdrawal) => {
+    const canonical = makeScopeRoot("silent-host");
+    const worktree = makeScopeRoot("silent-worktree");
+    const loader = new ModuleLoader({}, false, { scopeRoot: canonical });
+    loader.setCwd(worktree);
+    loader.setBus(new EventBus());
+    let context!: ModuleRuntimeContext;
+    let host: StandaloneRunHost | undefined;
+    try {
+      await loader.load({ name: "silent-probe", onLoad(ctx) { context = ctx; } });
+      // Production standalone commands load modules before constructing the host.
+      // No log call occurs while the provider is present.
+      host = new StandaloneRunHost({
+        stateDir: join(canonical, ".kota"),
+        scope: buildDirectoryScope({ scopeRoot: canonical }),
+        workflows: [],
+        providerRegistry: loader.getProviderRegistry(),
+      });
+      host.scopeRuntime.moduleLogStore.append("silent-probe", "info", "existing log");
+      if (withdrawal === "clear") host.providerRegistry.clear();
+      else host.providerRegistry.unregisterOwner("standalone-run-host");
+      context.log.info("WITHDRAWN_WRITE_SENTINEL");
+      context.log.operationFailed?.(host.scopeRuntime.scope.scopeId, "probe", "WITHDRAWN_OPERATION_SENTINEL");
+      expect(new ModuleLogStore(canonical).query().map((entry) => entry.msg)).toEqual(["existing log"]);
+      expect(new ModuleLogStore(worktree).modules()).toEqual([]);
+    } finally {
+      await host?.close();
+      await loader.unloadAll();
+    }
+  });
+
+  it("uses an explicit canonical activation root for standalone worktree hosts", async () => {
+    const canonical = makeScopeRoot("standalone-logs");
+    const requested = makeScopeRoot("standalone-request");
+    const worktree = makeScopeRoot("standalone-worktree");
+    const loader = new ModuleLoader({}, false, { scopeRoot: canonical });
+    loader.setCwd(worktree);
+    loader.setBus(new EventBus());
+    try {
+      await loader.load({
+        name: "activation-probe",
+        onLoad(ctx) { ctx.log.info("canonical activation"); },
+        tools: (ctx) => [{
+          tool: { name: "standalone_log_probe", description: "Exercise standalone operation scope", input_schema: { type: "object", properties: {} } },
+          effect: readOnlyLocalEffect(),
+          runner: async (_input, context) => {
+            ctx.log.operationFailed?.(deriveDirectoryScopeId(requested), "probe", "request operation");
+            return runModuleFactory({ action: "logs", name: "activation-probe" }, context);
+          },
+        }],
+      });
+      const result = await runModuleFactory({ action: "logs", name: "activation-probe" }, { cwd: worktree, scopeRoot: canonical });
+      expect(result.is_error).not.toBe(true);
+      expect(result.content).toContain("canonical activation");
+      const [requestResult] = await executeToolCalls([
+        { type: "tool_use", id: "standalone-probe", name: "standalone_log_probe", input: {} },
+      ], {
+        resultLimit: 10000, verbose: false, autonomyMode: "autonomous",
+        scopeId: deriveDirectoryScopeId(requested), scopeRoot: requested, cwd: worktree,
+      });
+      expect(requestResult?.is_error).not.toBe(true);
+      expect(requestResult?.content).toContain("request operation");
+      expect(requestResult?.content).not.toContain("canonical activation");
+      expect(new ModuleLogStore(canonical).query().map((entry) => entry.msg)).toEqual(["canonical activation"]);
+      expect(new ModuleLogStore(worktree).modules()).toEqual([]);
+    } finally { await loader.unloadAll(); }
   });
 });

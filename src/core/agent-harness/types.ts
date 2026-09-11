@@ -1,6 +1,7 @@
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 import type {
   ResolvedScopePolicy,
   ScopePolicyAuthority,
@@ -217,6 +218,8 @@ export type AgentHarnessRunOptions = {
    * shared KOTA tool runner.
    */
   guardrailsConfig?: GuardrailsConfig;
+  /** Live host ownership for tools executed by an in-process harness. */
+  resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
   /** Policy resolved when the harness run starts, used for discovery and native setup. */
   scopePolicy?: ResolvedScopePolicy;
   /**

@@ -40,6 +40,7 @@ export function localMcpServerClient(): McpServerClient {
       const loader = await loadRuntimeModules({
         config,
         cwd: process.cwd(),
+        scopeRoot: process.cwd(),
         eventBus: new EventBus(),
       });
 

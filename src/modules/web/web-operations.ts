@@ -71,6 +71,7 @@ export function localWebClient(ctx: ModuleContext): WebClient {
       const runtimeLoader = await loadRuntimeModules({
         config: ctx.config,
         cwd: ctx.cwd,
+        scopeRoot: ctx.cwd,
         verbose,
         eventBus,
       });

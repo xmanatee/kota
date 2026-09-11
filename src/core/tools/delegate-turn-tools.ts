@@ -58,6 +58,7 @@ export async function executeDelegateToolBlocks(args: {
   const approvalQueue = context?.approvalQueue ?? inherited?.approvalQueue;
   const sessionId = context?.sessionId ?? inherited?.sessionId;
   const scopeRoot = context?.scopeRoot ?? inherited?.scopeRoot;
+  const resolveRuntimeScope = context?.resolveRuntimeScope ?? inherited?.resolveRuntimeScope;
   const cwd = context?.cwd ?? inherited?.cwd;
   const env = context?.env ?? inherited?.env;
   const authorityConfigPath =
@@ -97,6 +98,7 @@ export async function executeDelegateToolBlocks(args: {
     ...(approvalQueue !== undefined ? { approvalQueue } : {}),
     ...(sessionId !== undefined ? { sessionId } : {}),
     ...(scopeRoot !== undefined ? { scopeRoot } : {}),
+    ...(resolveRuntimeScope !== undefined ? { resolveRuntimeScope } : {}),
     ...(cwd !== undefined ? { cwd } : {}),
     ...(env !== undefined ? { env } : {}),
     ...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),

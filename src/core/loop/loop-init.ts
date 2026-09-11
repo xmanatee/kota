@@ -2,6 +2,7 @@ import type { KotaThinkingConfig } from "#core/agent-harness/message-protocol.js
 import type { ChannelUserIdentity } from "#core/channels/channel.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { IdempotencyStore } from "#core/daemon/idempotency-store.js";
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 import type { ScopePolicyAuthority } from "#core/daemon/scope-policy.js";
 import type { McpAuthorizationResolver } from "#core/mcp/client.js";
 import { type McpInputResolver, McpManager, type McpServerConfig } from "#core/mcp/manager.js";
@@ -34,6 +35,7 @@ export interface AgentLoopState {
   sessionId: string;
   sessionLabel: string | undefined;
   scopeRoot: string;
+  resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
   authorityConfigPath?: string;
   scopeId: string;
   context: Context;

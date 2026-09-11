@@ -6,6 +6,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { setIdempotencyStoreInstance } from "#core/daemon/idempotency-singleton.js";
 import { IdempotencyStore } from "#core/daemon/idempotency-store.js";
 import { setOwnerQuestionQueueInstance } from "#core/daemon/owner-question-queue.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import { capScopeAutonomyMode } from "#core/daemon/scope-policy.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { initTaskStore, setTaskStoreInstance } from "#core/daemon/task-store.js";
@@ -14,7 +15,6 @@ import { remoteMcpToolDescriptionQualityReportsFromManager } from "#core/mcp/too
 import { createModelClient } from "#core/model/model-client.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { ModuleLoader } from "#core/modules/module-loader.js";
-import { initModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
 import type { CreateSessionOptions, ModuleSession } from "#core/modules/module-types.js";
 import { registerDefaultProviders } from "#core/modules/provider-registry.js";
 import {
@@ -77,7 +77,14 @@ export function initAgentSession(
   state.verbose = options.verbose || false;
   state.ownsModuleRuntime = options.moduleLoader === undefined;
   state.moduleLoader = options.moduleLoader
-    ?? new ModuleLoader(options.config || {}, state.verbose);
+    ?? new ModuleLoader(options.config || {}, state.verbose, { scopeRoot });
+  const providers = state.moduleLoader.getProviderRegistry();
+  if (options.scopeRuntime || providers.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)) {
+    // Capture host ownership once; withdrawal must not turn a session into a disk reader.
+    state.resolveRuntimeScope = (scopeId) =>
+      providers.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId)
+      ?? { ok: false, scopeId };
+  }
   if (state.ownsModuleRuntime) {
     registerDefaultProviders(state.moduleLoader.getProviderRegistry());
   }
@@ -134,13 +141,11 @@ export function initAgentSession(
       );
     }
     setTaskStoreInstance(options.scopeRuntime.taskStore);
-    setModuleLogStoreInstance(options.scopeRuntime.moduleLogStore);
     setIdempotencyStoreInstance(options.scopeRuntime.idempotencyStore);
     setOwnerQuestionQueueInstance(options.scopeRuntime.ownerQuestionQueue);
     state.idempotencyStore = options.scopeRuntime.idempotencyStore;
   } else {
     initTaskStore(scopeRoot);
-    initModuleLogStore(scopeRoot);
     const idempotencyStore = new IdempotencyStore(
       join(scopeRoot, ".kota", "idempotency"),
       deriveDirectoryScopeId(scopeRoot),

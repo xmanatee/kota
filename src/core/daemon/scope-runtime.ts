@@ -1,3 +1,4 @@
+import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
 /**
  * ScopeRuntime — directory-scope runtime bundle.
  *
@@ -27,7 +28,7 @@ import { getScopeSecretStore, type SecretStore } from "#core/config/secrets.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { EventJournal } from "#core/events/event-journal.js";
 import { ScopedEventBus } from "#core/events/scope.js";
-import { ModuleLogStore, setModuleLogStoreInstance } from "#core/modules/module-log.js";
+import { ModuleLogStore } from "#core/modules/module-log.js";
 import type { AgentBackoffManager } from "#core/workflow/agent-backoff.js";
 import type { RunCoordinator } from "#core/workflow/run-coordinator.js";
 import {
@@ -118,7 +119,7 @@ export type ScopeRuntimeFactoryOptions = {
   /**
    * When true, the freshly built per-scope instances are also installed
    * as the process-level singletons (`getTaskStore`,
-   * `getApprovalQueue`, `getOwnerQuestionQueue`, `getModuleLogStore`).
+   * `getApprovalQueue`, `getOwnerQuestionQueue`).
    * Exactly one bundle per daemon should pass `true` — the default
    * scope. Other bundles must leave the singletons untouched.
    */
@@ -126,6 +127,7 @@ export type ScopeRuntimeFactoryOptions = {
   /** Quiet-hours config; only honored on the default bundle. */
   quietHours?: QuietHoursConfig;
   scopePolicyAuthority?: ScopePolicyAuthority;
+  resolveRuntimeScope?: DaemonRuntimeScopeProvider["resolve"];
   runState: RunStateDatabase;
   runCoordinator: RunCoordinator;
   daemonEpoch: number;
@@ -135,7 +137,6 @@ export type ScopeRuntimeFactoryOptions = {
 
 function installScopeRuntimeSingletons(runtime: ScopeRuntime): void {
   setTaskStoreInstance(runtime.taskStore);
-  setModuleLogStoreInstance(runtime.moduleLogStore);
   setApprovalQueueInstance(runtime.approvalQueue);
   setIdempotencyStoreInstance(runtime.idempotencyStore);
   setOwnerDecisionStoreInstance(runtime.ownerDecisionStore);
@@ -235,6 +236,7 @@ export function createScopeRuntime(
     resolveSkillsPrompt: opts.resolveSkillsPrompt,
     isDefaultScopeRuntime: () => isDefaultScopeRuntime,
     scopePolicyAuthority: opts.scopePolicyAuthority,
+    resolveRuntimeScope: opts.resolveRuntimeScope,
     agentBackoff: opts.agentBackoff,
   });
 

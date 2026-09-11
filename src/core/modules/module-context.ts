@@ -7,6 +7,7 @@ import type { AgentDef } from "#core/agents/agent-types.js";
 import type { ChannelDef } from "#core/channels/channel.js";
 import type { KotaConfig } from "#core/config/config.js";
 import { getScopeSecretStore } from "#core/config/secrets.js";
+import { DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE } from "#core/daemon/runtime-scope-provider.js";
 import type { EventBus } from "#core/events/event-bus.js";
 import type { BusEnvelope, BusEvents } from "#core/events/event-bus-types.js";
 import {
@@ -23,10 +24,12 @@ import { getRegisteredTools } from "#core/tools/index.js";
 import { registerCustomGroup } from "#core/tools/tool-groups.js";
 import { getToolMiddleware } from "#core/tools/tool-middleware.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
+import { getCurrentToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { resolveLogFormatter } from "#core/util/log-format.js";
 import type { RegisteredWorkflowDefinitionInput } from "#core/workflow/types.js";
 import type { KotaClient } from "#root/client/kota-client.generated.js";
-import { getModuleLogStore } from "./module-log.js";
+import type { LogLevel } from "./module-log.js";
+import { resolveModuleLogStore } from "./module-log-scope.js";
 import { classifyModuleOperationFailure, type ModuleOperationFailureIdentity } from "./module-operation-health.js";
 import { ModuleStorage } from "./module-storage.js";
 import type { ControlRouteRegistration, CreateSessionOptions, HealthCheckResult, ModuleEventProxy, ModuleRuntimeContext, ModuleSession, ModuleSummary, RouteRegistration } from "./module-types.js";
@@ -37,6 +40,7 @@ import { printTerminalDiagnostic } from "./terminal-renderer.js";
 
 export interface ModuleContextParams {
   cwd: string;
+  scopeRoot?: string;
   verbose: boolean;
   config: KotaConfig;
   moduleStorages: Map<string, ModuleStorage>;
@@ -158,18 +162,43 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
   // Carry identities into recovery even when the issue reviewer is paused.
   // The durable events remain the observation authority; this is activation-local.
   const pendingOperationFailures = new Map<string, Map<string, ModuleOperationFailureIdentity>>();
+  const appendLog = (level: LogLevel, msg: string, data?: unknown, operationScopeId?: string) => {
+    const execution = getCurrentToolCallExecutionOptions();
+    // Registration can follow module activation and withdrawal can precede the
+    // first log. The registry owns that history independently of log traffic.
+    const runtimeOwned = providerRegistry.hasRegistered(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE);
+    const resolveRuntimeScope = execution?.resolveRuntimeScope ?? (runtimeOwned
+      ? (scopeId: string) => providerRegistry.get(DAEMON_RUNTIME_SCOPE_PROVIDER_TYPE)?.resolve(scopeId)
+        ?? { ok: false as const, scopeId }
+      : undefined);
+    // An explicit operation identity overrides both the invocation and activation scope.
+    const scope = operationScopeId !== undefined
+      ? {
+          scopeId: operationScopeId,
+          scopeRoot: resolveRuntimeScope ? undefined : execution?.scopeRoot ?? params.scopeRoot,
+          resolveRuntimeScope,
+        }
+      : execution !== undefined
+        ? { scopeId: execution.scopeId, scopeRoot: execution.scopeRoot, resolveRuntimeScope }
+        : { scopeRoot: params.scopeRoot, resolveRuntimeScope };
+    // Scope-less activation diagnostics remain on the host's terminal stream.
+    if (scope.scopeId === undefined && scope.scopeRoot === undefined) return;
+    const resolved = resolveModuleLogStore(scope);
+    if (resolved.ok) resolved.store.append(moduleName ?? "_default", level, msg, data);
+    else printTerminalDiagnostic(formatLine("warn", prefix, resolved.error), "warn");
+  };
   const log = {
     info: (msg: string, data?: unknown) => {
       printTerminalDiagnostic(formatLine("info", prefix, msg, data));
-      getModuleLogStore()?.append(moduleName ?? "_default", "info", msg, data);
+      appendLog("info", msg, data);
     },
     warn: (msg: string, data?: unknown) => {
       printTerminalDiagnostic(formatLine("warn", prefix, msg, data), "warn");
-      getModuleLogStore()?.append(moduleName ?? "_default", "warn", msg, data);
+      appendLog("warn", msg, data);
     },
     error: (msg: string, data?: unknown) => {
       printTerminalDiagnostic(formatLine("error", prefix, msg, data), "error");
-      getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, data);
+      appendLog("error", msg, data);
     },
     operationFailed: (
       scopeId: string,
@@ -179,7 +208,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     ) => {
       const observationData = { scopeId, operation, detail: data };
       printTerminalDiagnostic(formatLine("error", prefix, msg, observationData), "error");
-      getModuleLogStore()?.append(moduleName ?? "_default", "error", msg, observationData);
+      appendLog("error", msg, observationData, scopeId);
       if (moduleName !== undefined) {
         const identity = classifyModuleOperationFailure({
           module: moduleName,
@@ -209,7 +238,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
       const message = msg ?? `${operation} recovered`;
       const observationData = { scopeId, operation, detail: data };
       printTerminalDiagnostic(formatLine("info", prefix, message, observationData));
-      getModuleLogStore()?.append(moduleName ?? "_default", "info", message, observationData);
+      appendLog("info", message, observationData, scopeId);
       if (moduleName !== undefined) {
         const key = JSON.stringify([scopeId, operation]);
         const recovered = new Map(pendingOperationFailures.get(key));
@@ -226,7 +255,7 @@ export function createModuleContext(params: ModuleContextParams, moduleName?: st
     },
     debug: (msg: string, data?: unknown) => {
       if (verbose) printTerminalDiagnostic(formatLine("debug", prefix, msg, data), "debug");
-      getModuleLogStore()?.append(moduleName ?? "_default", "debug", msg, data);
+      appendLog("debug", msg, data);
     },
   };
   return {

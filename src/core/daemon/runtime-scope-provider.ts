@@ -9,6 +9,7 @@ import type { ScopeRuntime } from "./scope-runtime.js";
 export type DaemonRuntimeScope = Pick<
   ScopeRuntime,
   | "scope"
+  | "moduleLogStore"
   | "deadLetterQueue"
   | "runStore"
   | "runState"
