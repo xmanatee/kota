@@ -2,7 +2,8 @@ import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-writ
 import { isScopePolicyPathWithin, resolveScopePolicyPath } from "#core/daemon/scope-policy-paths.js";
 import { scopePolicyToolEffectQueries } from "#core/daemon/scope-policy-tool-query.js";
 import type { ScopePolicyToolEffectQuery } from "#core/daemon/scope-policy-types.js";
-import { getToolEffect } from "./index.js";
+import type { ToolEffect } from "./effect.js";
+import type { ToolFilesystemTargets } from "./filesystem-targets.js";
 import type {
   ToolCallExecutionOptions,
   ToolResultEntry,
@@ -12,20 +13,21 @@ import type {
 export function enforceAgentWriteScope(
   block: ValidatedToolUseBlock,
   options: ToolCallExecutionOptions,
+  targets: ToolFilesystemTargets,
+ effect: ToolEffect | undefined,
 ): ToolResultEntry | null {
   const scope = options.agentWriteScope;
   if (scope === undefined || (scope !== "deny-all" && scope.length === 0)) {
     return null;
   }
 
-  const effect = getToolEffect(block.name, block.input);
   if (!effect) {
     return errorEntry(
       block,
       `Blocked by agent write scope: ${block.name} has no declared tool effect.`,
     );
   }
-  const writeQueries = scopePolicyToolEffectQueries(block.name, effect, block.input)
+  const writeQueries = scopePolicyToolEffectQueries(block.name, effect, block.input, targets)
     .filter(isLocalWriteQuery);
   if (writeQueries.length === 0) return null;
   const cwd = options.cwd ?? process.cwd();
@@ -61,11 +63,12 @@ export function enforceAgentWriteScope(
 export function isAgentOutputOnlyWrite(
   block: ValidatedToolUseBlock,
   options: ToolCallExecutionOptions,
+  targets: ToolFilesystemTargets,
+ effect: ToolEffect | undefined,
 ): boolean {
   if (options.agentOutputDir === undefined) return false;
-  const effect = getToolEffect(block.name, block.input);
   if (!effect) return false;
-  const queries = scopePolicyToolEffectQueries(block.name, effect, block.input);
+  const queries = scopePolicyToolEffectQueries(block.name, effect, block.input, targets);
   if (queries.length === 0) return false;
 
   const cwd = options.cwd ?? process.cwd();

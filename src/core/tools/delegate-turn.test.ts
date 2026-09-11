@@ -86,7 +86,7 @@ describe("runDelegateTurns", () => {
     const runner = vi.fn(async () => ({ content: "executed" }));
     registerTool(
       LIVE_POLICY_TOOL_DEFINITION,
-      vi.fn(async () => ({ content: "unexpected global execution" })),
+      runner,
       "delegate-live-policy-test",
       { effect: localWriteEffect() },
     );

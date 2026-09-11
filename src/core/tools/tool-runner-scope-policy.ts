@@ -1,12 +1,12 @@
 import type { ResolvedScopePolicy } from "#core/daemon/scope-policy.js";
 import { decideScopePolicyToolCall } from "#core/daemon/scope-policy-tool-query.js";
 import { confirmAction } from "#core/util/confirm.js";
-import { getToolEffect } from "./index.js";
+import type { ToolEffect } from "./effect.js";
+import type { ToolFilesystemTargets } from "./filesystem-targets.js";
 import type { ClientApprovalResult } from "./tool-approval.js";
 import { extractApprovalContext } from "./tool-approval.js";
 import { getModuleToolEffectMetadata } from "./tool-effect-registry.js";
 import { isAgentOutputOnlyWrite } from "./tool-runner-agent-write-scope.js";
-import { enqueueToolApproval } from "./tool-runner-approval-queue.js";
 import type {
   ToolCallExecutionOptions,
   ToolResultEntry,
@@ -15,6 +15,9 @@ import type {
 
 export async function enforceToolScopePolicy(args: {
   block: ValidatedToolUseBlock;
+  targets: ToolFilesystemTargets;
+ effect: ToolEffect | undefined;
+ enqueueApproval: (reason: string, context: string | undefined) => { id: string };
   options: ToolCallExecutionOptions;
   policy: ResolvedScopePolicy;
   risk: "safe" | "moderate" | "dangerous";
@@ -40,7 +43,7 @@ export async function enforceToolScopePolicy(args: {
     }
   }
 
-  const effect = getToolEffect(block.name, block.input);
+  const effect = args.effect;
   if (!effect) {
     return errorEntry(
       block,
@@ -51,7 +54,7 @@ export async function enforceToolScopePolicy(args: {
   // only that path boundary; owner-confirmation policy (especially destructive
   // effects) must still decide the call.
   const decisionPolicy: ResolvedScopePolicy =
-    policy.writes.mode !== "none" && isAgentOutputOnlyWrite(block, options)
+    policy.writes.mode !== "none" && isAgentOutputOnlyWrite(block, options, args.targets, effect)
       ? {
           ...policy,
           writes: { mode: "unrestricted", source: policy.writes.source },
@@ -62,6 +65,7 @@ export async function enforceToolScopePolicy(args: {
     block.name,
     effect,
     block.input,
+    args.targets,
   );
   if (decision.outcome === "deny" || decision.outcome === "ignore") {
     args.emitAssessment("deny", decision.rendered);
@@ -77,18 +81,7 @@ export async function enforceToolScopePolicy(args: {
   if (clientDecision.outcome === "blocked") return clientDecision.result;
   let approved = clientDecision.outcome === "allowed";
   if (!approved && options.approvalQueue) {
-    const queued = enqueueToolApproval({
-      approvalQueue: options.approvalQueue,
-      toolName: block.name,
-      input: block.input,
-      risk: args.risk,
-      reason: decision.rendered,
-      sessionId: options.sessionId,
-      timeoutMs: options.guardrailsConfig?.approvalTimeoutMs,
-      context: approvalContext,
-      mcpManager: options.mcpManager,
-      promptFingerprints: options.mcpPromptToolDeclarationFingerprints,
-    });
+    const queued = args.enqueueApproval(decision.rendered, approvalContext);
     return errorEntry(block, `Queued for approval [${queued.id}]: ${decision.rendered}`);
   }
   if (!approved) approved = await confirmAction(`Allow ${block.name}? (${decision.reason})`);

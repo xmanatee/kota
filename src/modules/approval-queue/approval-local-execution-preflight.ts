@@ -9,6 +9,7 @@ import {
 	leaseLocalToolForApproval,
 } from "#core/tools/local-tool-approval-binding.js";
 import { validateToolCallInputAgainstSchema } from "#core/tools/tool-input-validation.js";
+import type { ToolRunnerContext } from "#core/tools/tool-registry.js";
 import type { ApprovalExecutionLease } from "./approval-execution-leases.js";
 
 export type LocalApprovalFailureReason =
@@ -53,8 +54,23 @@ function failureBody(
 	};
 }
 
+/** Fill missing execution roots from the reviewed record; explicit roots still
+ * undergo fingerprint drift checks. The scope provider remains authoritative. */
+export function localApprovalExecutionContext(
+  item: PendingApproval,
+  context?: ToolRunnerContext,
+): ToolRunnerContext {
+  const roots = item.localToolDeclaration?.executionRoots;
+  return {
+    ...(roots ? { cwd: roots.cwd, ...(roots.scopeRoot === null ? {} : { scopeRoot: roots.scopeRoot }) } : {}),
+    ...context,
+    ...(item.sessionId ? { sessionId: item.sessionId } : {}),
+  };
+}
+
 export function prepareLocalApprovalExecution(
 	snapshot: ApprovalExecutionSnapshot,
+  context?: ToolRunnerContext,
 ): LocalApprovalExecutionPreflight {
 	const item = snapshot.approval;
 	const declaration = item.localToolDeclaration;
@@ -72,6 +88,7 @@ export function prepareLocalApprovalExecution(
 		item.tool,
 		snapshot.executionInput,
 		declaration,
+    localApprovalExecutionContext(item, context),
 	);
 	if (!leased.ok) {
 		const reasons = {

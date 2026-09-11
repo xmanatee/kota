@@ -42,7 +42,9 @@ describe("git tool effects", () => {
 	it("resolves external writes and escalates forced pushes per invocation", () => {
 		registerGitTool();
 
-		expect(getToolEffect("git", { op: "status" })).toBeUndefined();
+		expect(getToolEffect("git", { op: "status" })).toMatchObject({
+			kind: "read", scope: "local-fs",
+		});
 		expect(getToolEffect("git", {
 			op: "push",
 			args: "origin HEAD:feature",

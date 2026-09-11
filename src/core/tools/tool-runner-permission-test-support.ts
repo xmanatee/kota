@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 import type { KotaToolUseBlock } from "#core/agent-harness/message-protocol.js";
 import type { ToolCallExecutionOptions } from "./tool-runner.js";
 
@@ -30,7 +30,7 @@ vi.mock("#core/util/confirm.js", () => ({
   confirmAction: (message: string) => confirmActionMock(message),
 }));
 
-import { executeTool, getToolEffect } from "./index.js";
+import { executeTool, getAllTools, getToolEffect } from "./index.js";
 
 export function permissionTestMocks() {
   return {
@@ -58,3 +58,16 @@ export function runOptions(
     ...overrides,
   };
 }
+
+import { resolve } from "node:path";
+import { readOnlyLocalEffect } from "./effect.js";
+import { registerLocalToolApprovalBinding } from "./local-tool-approval-binding.js";
+
+beforeEach(() => {
+  for (const tool of getAllTools()) registerLocalToolApprovalBinding(tool,
+    (input, context) => executeTool(tool.name, input, context), {
+      effect: readOnlyLocalEffect(), resolveEffect: (input) => getToolEffect(tool.name, input),
+      ...(tool.name === "file_write" ? { resolveFilesystemTargets: (input: Record<string, unknown>) =>
+        typeof input.path === "string" ? { kind: "known" as const, paths: [resolve(input.path)] } : { kind: "unknown" as const } } : {}),
+    });
+});

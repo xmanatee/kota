@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import type { ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
+import { resolveToolPath } from "./path-resolver.js";
 /**
  * Filesystem module — file read, write, edit, search, and watch tools.
  * Editors preserve unfinished syntax; publication validates final results.
@@ -27,6 +30,20 @@ import { grepTool, runGrep } from "./grep.js";
 import { multiEditTool, runMultiEdit } from "./multi-edit.js";
 import { repoMapTool, runRepoMap } from "./repo-map.js";
 
+const fileTarget: ToolFilesystemTargetResolver = (input, context) =>
+  typeof input.path === "string"
+    ? { kind: "known", paths: [resolve(resolveToolPath(input.path, context))] }
+    : { kind: "unknown" };
+const editTargets: ToolFilesystemTargetResolver = (input, context) => {
+  if (!Array.isArray(input.edits)) return { kind: "unknown" };
+  const paths: string[] = [];
+  for (const edit of input.edits) {
+    if (!edit || typeof edit !== "object" || typeof edit.path !== "string") return { kind: "unknown" };
+    paths.push(resolve(resolveToolPath(edit.path, context)));
+  }
+  return { kind: "known", paths };
+};
+
 const tools: ToolDef[] = [
   {
     tool: fileReadTool,
@@ -36,16 +53,19 @@ const tools: ToolDef[] = [
   {
     tool: fileWriteTool,
     runner: runFileWrite,
+    resolveFilesystemTargets: fileTarget,
     effect: localWriteEffect(),
   },
   {
     tool: fileEditTool,
     runner: runFileEdit,
+    resolveFilesystemTargets: fileTarget,
     effect: localWriteEffect(),
   },
   {
     tool: multiEditTool,
     runner: runMultiEdit,
+    resolveFilesystemTargets: editTargets,
     effect: localWriteEffect(),
     group: "advanced_editing",
   },

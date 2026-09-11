@@ -304,7 +304,7 @@ describe("approval review receipt binding", () => {
 			expect(vi.mocked(executeTool)).toHaveBeenCalledOnce();
 			expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
 				{ command: "deploy" },
-				undefined,
+				expect.objectContaining({ cwd: process.cwd() }),
 			);
 		} finally {
 			vi.useRealTimers();

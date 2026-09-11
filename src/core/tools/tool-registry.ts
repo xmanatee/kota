@@ -3,6 +3,7 @@ import type { AgentTokenBudgetLedger } from "#core/agent-harness/token-budget.js
 import type { AgentWriteScope } from "#core/agents/agent-types.js";
 import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { DaemonRuntimeScopeProvider } from "#core/daemon/runtime-scope-provider.js";
+import type { ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
 import type { ToolEffect } from "./effect.js";
 import {
 	deregisterLocalToolApprovalBinding,
@@ -66,6 +67,8 @@ export type ToolRegistration = {
 	effect: ToolEffect;
 	/** Invocation-specific effect escalation for tools that expose multiple operations. */
 	resolveEffect?: toolEffectRegistry.ToolEffectResolver;
+  /** Complete filesystem mutation targets; omission leaves local writes unknown. */
+  resolveFilesystemTargets?: ToolFilesystemTargetResolver;
 	/** Tool group for progressive disclosure. Undefined = core (always available). */
 	group?: string;
 };
@@ -174,7 +177,7 @@ export function getRegisteredTools(): KotaTool[] {
 /**
 * Resolve a subset of registered tools by name.
 * Returns matching tool definitions and runners; silently skips unknown names.
-* Callers can override individual entries after resolution (e.g. bounded shell).
+* Preserve definition and runner identity for authorization of registered operations.
 */
 export function resolveToolSet(names: readonly string[]): ResolvedToolSet {
 	const resolvedTools: KotaTool[] = [];

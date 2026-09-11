@@ -1,5 +1,5 @@
-import { execSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, execSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -69,6 +69,39 @@ describe("git tool", () => {
 	});
 
 	describe("status", () => {
+		it.each(["status", "diff"])("%s leaves a stale index unchanged while inspecting the working tree", async (op) => {
+			const scopedDir = mkdtempSync(join(tmpdir(), "kota-git-read-index-"));
+			try {
+				gitExec("init -b main", scopedDir);
+				const trackedPath = join(scopedDir, "tracked.txt");
+				writeFileSync(trackedPath, "tracked\n");
+				gitExec("add tracked.txt", scopedDir);
+				gitExec('commit -m "Initial"', scopedDir);
+				// Force stat-cache staleness without changing tracked content.
+				utimesSync(trackedPath, new Date(0), new Date(0));
+				writeFileSync(join(scopedDir, "untracked.txt"), "untracked\n");
+				const indexPath = join(scopedDir, ".git", "index");
+				const before = readFileSync(indexPath);
+				const beforeStat = statSync(indexPath);
+
+				const result = await runGit({ op }, { cwd: scopedDir });
+
+				expect(result.is_error).toBeUndefined();
+				expect(result.content).toContain(op === "status" ? "untracked.txt" : "(no changes)");
+				expect(readFileSync(indexPath)).toEqual(before);
+				expect(statSync(indexPath).mtimeMs).toBe(beforeStat.mtimeMs);
+				expect(statSync(indexPath).ino).toBe(beforeStat.ino);
+				// The same fixture must expose ordinary Git's optional index write.
+				execFileSync("git", ["status", "--short"], {
+					cwd: scopedDir,
+					env: { ...process.env, GIT_OPTIONAL_LOCKS: "1" },
+				});
+				expect(readFileSync(indexPath)).not.toEqual(before);
+			} finally {
+				rmSync(scopedDir, { recursive: true, force: true });
+			}
+		});
+
 		it("shows clean working tree", async () => {
 			const r = await runGit({ op: "status" });
 			expect(r.is_error).toBeUndefined();

@@ -16,6 +16,7 @@
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { networkReadEffect, networkWriteEffect } from "#core/tools/effect.js";
 import { httpRequestTool, runHttpRequest } from "./http-request.js";
+import { resolveSaveTargets } from "./save-path.js";
 import { runWebFetch, webFetchTool } from "./web-fetch.js";
 import { runWebSearch, webSearchTool } from "./web-search.js";
 
@@ -23,6 +24,7 @@ const tools: ToolDef[] = [
   {
     tool: webFetchTool,
     runner: runWebFetch,
+    resolveFilesystemTargets: resolveSaveTargets,
     effect: networkReadEffect(),
     group: "web",
   },
@@ -35,6 +37,7 @@ const tools: ToolDef[] = [
   {
     tool: httpRequestTool,
     runner: runHttpRequest,
+    resolveFilesystemTargets: resolveSaveTargets,
     effect: networkWriteEffect(),
     group: "web",
   },

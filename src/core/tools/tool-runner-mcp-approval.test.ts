@@ -109,6 +109,7 @@ describe("tool runner MCP approval metadata", () => {
 			undefined,
 			"s-mcp",
 			metadata,
+      null,
 		);
 		expect(metadata.serverTransportIdentityFingerprint).toBe(serverTransportIdentityFingerprint);
 		expect(mockExecuteTool).not.toHaveBeenCalled();

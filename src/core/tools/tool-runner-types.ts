@@ -29,6 +29,7 @@ import type {
 	ToolRunner,
 	ToolRunnerContext,
 } from "./index.js";
+import type { LocalToolExecutionLeaseResult } from "./local-tool-approval-binding.js";
 import type { ToolApprovalResolver } from "./tool-approval.js";
 import type { ValidatedToolCallInput } from "./tool-input-validation.js";
 
@@ -55,6 +56,7 @@ export type LocalToolExecutor = (
 ) => Promise<ToolResult>;
 
 export type LocalToolExecution = {
+  lease?: (name: string, input: Parameters<ToolRunner>[0], context?: ToolRunnerContext) => LocalToolExecutionLeaseResult | undefined;
 	inputSchemas: ReadonlyMap<string, KotaToolInputSchema>;
 	execute: LocalToolExecutor;
 };

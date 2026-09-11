@@ -90,6 +90,8 @@ describe("guardrails confirm gate", () => {
       undefined,
       undefined,
       "session-1",
+      undefined,
+      expect.objectContaining({ declarationEffectFingerprint: expect.any(String) }),
     );
   });
 

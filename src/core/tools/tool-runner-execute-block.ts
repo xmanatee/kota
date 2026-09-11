@@ -4,7 +4,11 @@ import type { McpExecuteToolOptions } from "#core/mcp/manager.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { resolveAutonomyGate } from "./autonomy-mode.js";
 import { assess } from "./guardrails.js";
-import { executeTool } from "./index.js";
+import { executeTool, getToolEffect } from "./index.js";
+import {
+	executeLocalToolLease,
+	leaseLocalToolForExecution,
+} from "./local-tool-approval-binding.js";
 import {
 	type ClientApprovalResult,
 	extractApprovalContext,
@@ -15,6 +19,7 @@ import {
 	snapshotToolCallForExecution,
 	type ToolApprovalExecutionBinding,
 } from "./tool-approval-execution.js";
+import { validateToolCallInputAgainstSchema } from "./tool-input-validation.js";
 import { getToolMiddleware } from "./tool-middleware.js";
 import { throwIfToolRunnerAborted } from "./tool-runner-abort.js";
 import { enforceAgentWriteScope } from "./tool-runner-agent-write-scope.js";
@@ -74,9 +79,61 @@ export async function executeToolBlock(
 		mcpPromptToolDeclarationFingerprints,
 	);
 	if (staleResult) {
-		recordToolExecutionMetric({ block, input, result: staleResult, resultLimit, transport });
+		recordToolExecutionMetric({
+			block,
+			input,
+			result: staleResult,
+			resultLimit,
+			transport,
+		});
 		return toolResultEntry(block, staleResult);
 	}
+	const runnerContext = {
+		...(approvalQueue !== undefined ? { approvalQueue } : {}),
+		...(sessionId && { sessionId }),
+		toolUseId: block.id,
+		...(scopeRoot !== undefined ? { scopeRoot } : {}),
+		...(resolveRuntimeScope !== undefined ? { resolveRuntimeScope } : {}),
+		...(cwd !== undefined ? { cwd } : {}),
+		...(agentWriteScope !== undefined ? { agentWriteScope } : {}),
+		...(agentOutputDir !== undefined ? { agentOutputDir } : {}),
+		...(env !== undefined ? { env } : {}),
+		...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
+		...(scopeId !== undefined ? { scopeId } : {}),
+		...(workflowContext !== undefined
+			? {
+					workflow: workflowContext,
+					scopeId: workflowContext.scopeId,
+				}
+			: {}),
+		...(tokenBudget !== undefined ? { tokenBudget } : {}),
+		...(signal ? { signal } : {}),
+	};
+	const leased = mcpManager?.isMcpTool(block.name)
+		? undefined
+		: options.localToolExecution
+			? options.localToolExecution.lease?.(block.name, input, runnerContext)
+			: leaseLocalToolForExecution(block.name, input, runnerContext);
+	if (leased && !leased.ok)
+		return toolErrorEntry(
+			block,
+			"Tool declaration changed or is unavailable before authorization.",
+		);
+	const localLease = leased?.ok ? leased.lease : undefined;
+	if (localLease) {
+		const validation = validateToolCallInputAgainstSchema(
+			block.name,
+			input,
+			localLease.tool.input_schema,
+		);
+		if (!validation.ok) return toolErrorEntry(block, validation.error);
+	}
+	const targets = localLease?.targets ?? { kind: "none" as const };
+	const effect = localLease
+		? localLease.effect
+		: options.localToolExecution
+			? undefined
+			: getToolEffect(block.name, input);
 	const assessment = guardrailsConfig
 		? assess(block.name, input, guardrailsConfig)
 		: assess(block.name, input);
@@ -92,8 +149,28 @@ export async function executeToolBlock(
 			reason,
 			...(sessionId && { session: sessionId }),
 		});
-		transport?.emit({ type: "guardrail", tool: assessment.tool, risk: assessment.risk, policy, reason });
+		transport?.emit({
+			type: "guardrail",
+			tool: assessment.tool,
+			risk: assessment.risk,
+			policy,
+			reason,
+		});
 	};
+	const enqueueApproval = (reason: string, context: string | undefined) =>
+		enqueueToolApproval({
+			approvalQueue,
+			toolName: block.name,
+			input,
+			risk: assessment.risk,
+			reason,
+			sessionId,
+			timeoutMs: guardrailsConfig?.approvalTimeoutMs,
+			context,
+			mcpManager,
+			promptFingerprints: mcpPromptToolDeclarationFingerprints,
+			localToolDeclaration: localLease?.declaration ?? null,
+		});
 	const askClientApproval = async (
 		reason: string,
 		approvalContext: string | undefined,
@@ -118,18 +195,33 @@ export async function executeToolBlock(
 			approvalExecutionBinding = binding;
 			return { outcome: "allowed" };
 		}
-		if (decision.outcome === "cancelled") throw new ToolApprovalCancelledError(decision.message);
-		return { outcome: "blocked", result: toolErrorEntry(block, `Blocked by client approval: ${decision.message}`) };
+		if (decision.outcome === "cancelled")
+			throw new ToolApprovalCancelledError(decision.message);
+		return {
+			outcome: "blocked",
+			result: toolErrorEntry(
+				block,
+				`Blocked by client approval: ${decision.message}`,
+			),
+		};
 	};
 	const scopePolicySnapshot = options.getScopePolicySnapshot?.();
 	const scopePolicy = scopePolicySnapshot?.policy ?? options.scopePolicy;
-	const agentWriteScopeResult = enforceAgentWriteScope(block, options);
+	const agentWriteScopeResult = enforceAgentWriteScope(
+		block,
+		options,
+		targets,
+		effect,
+	);
 	if (agentWriteScopeResult) return agentWriteScopeResult;
 	if (scopePolicy) {
 		const scopePolicyResult = await enforceToolScopePolicy({
 			block,
 			options,
 			policy: scopePolicy,
+			targets,
+			effect,
+			enqueueApproval,
 			risk: assessment.risk,
 			askClientApproval,
 			emitAssessment: emitGuardrailAssessment,
@@ -139,30 +231,27 @@ export async function executeToolBlock(
 	const effectiveAutonomyMode = scopePolicy
 		? capScopeAutonomyMode(autonomyMode, scopePolicy)
 		: autonomyMode;
-	const autonomyDecision = resolveAutonomyGate(effectiveAutonomyMode, assessment);
+	const autonomyDecision = resolveAutonomyGate(
+		effectiveAutonomyMode,
+		assessment,
+	);
 	if (autonomyDecision.action === "deny") {
 		emitGuardrailAssessment("deny", autonomyDecision.message);
 		return toolErrorEntry(block, autonomyDecision.message);
 	}
 	let clientApprovedAutonomyGate = false;
 	if (autonomyDecision.action === "queue") {
-		const approvalContext = messages ? extractApprovalContext(messages) : undefined;
+		const approvalContext = messages
+			? extractApprovalContext(messages)
+			: undefined;
 		emitGuardrailAssessment("queue", autonomyDecision.reason);
-		const clientDecision = await askClientApproval(autonomyDecision.reason, approvalContext);
+		const clientDecision = await askClientApproval(
+			autonomyDecision.reason,
+			approvalContext,
+		);
 		if (clientDecision.outcome === "blocked") return clientDecision.result;
 		if (clientDecision.outcome === "unavailable") {
-			const queued = enqueueToolApproval({
-				approvalQueue,
-				toolName: block.name,
-				input,
-				risk: assessment.risk,
-				reason: autonomyDecision.reason,
-				sessionId,
-				timeoutMs: guardrailsConfig?.approvalTimeoutMs,
-				context: approvalContext,
-				mcpManager,
-				promptFingerprints: mcpPromptToolDeclarationFingerprints,
-			});
+			const queued = enqueueApproval(autonomyDecision.reason, approvalContext);
 			return toolErrorEntry(
 				block,
 				`Queued for approval [${queued.id}]: ${block.name} - ${autonomyDecision.reason}. ` +
@@ -180,22 +269,16 @@ export async function executeToolBlock(
 		);
 	}
 	if (assessment.policy === "queue" && !clientApprovedAutonomyGate) {
-		const approvalContext = messages ? extractApprovalContext(messages) : undefined;
-		const clientDecision = await askClientApproval(assessment.reason, approvalContext);
+		const approvalContext = messages
+			? extractApprovalContext(messages)
+			: undefined;
+		const clientDecision = await askClientApproval(
+			assessment.reason,
+			approvalContext,
+		);
 		if (clientDecision.outcome === "blocked") return clientDecision.result;
 		if (clientDecision.outcome === "unavailable") {
-			const queued = enqueueToolApproval({
-				approvalQueue,
-				toolName: block.name,
-				input,
-				risk: assessment.risk,
-				reason: assessment.reason,
-				sessionId,
-				timeoutMs: guardrailsConfig?.approvalTimeoutMs,
-				context: approvalContext,
-				mcpManager,
-				promptFingerprints: mcpPromptToolDeclarationFingerprints,
-			});
+			const queued = enqueueApproval(assessment.reason, approvalContext);
 			return toolErrorEntry(
 				block,
 				`Queued for approval [${queued.id}]: ${block.name} is classified as ${assessment.risk} (${assessment.reason}). ` +
@@ -206,13 +289,20 @@ export async function executeToolBlock(
 	if (assessment.policy === "confirm") {
 		let approved = false;
 		if (!clientApprovedAutonomyGate) {
-			const approvalContext = messages ? extractApprovalContext(messages) : undefined;
-			const clientDecision = await askClientApproval(assessment.reason, approvalContext);
+			const approvalContext = messages
+				? extractApprovalContext(messages)
+				: undefined;
+			const clientDecision = await askClientApproval(
+				assessment.reason,
+				approvalContext,
+			);
 			if (clientDecision.outcome === "blocked") return clientDecision.result;
 			approved = clientDecision.outcome === "allowed";
 		}
 		if (!approved) {
-			approved = await confirmAction(`Allow ${block.name}? (${assessment.reason})`);
+			approved = await confirmAction(
+				`Allow ${block.name}? (${assessment.reason})`,
+			);
 		}
 		if (!approved) {
 			return toolErrorEntry(
@@ -224,28 +314,10 @@ export async function executeToolBlock(
 	}
 
 	const startMs = performance.now();
-	const runnerContext = {
-		...(approvalQueue !== undefined ? { approvalQueue } : {}),
-		...(sessionId && { sessionId }),
-		toolUseId: block.id,
-		...(scopeRoot !== undefined ? { scopeRoot } : {}),
-		...(resolveRuntimeScope !== undefined ? { resolveRuntimeScope } : {}),
-		...(cwd !== undefined ? { cwd } : {}),
-		...(agentWriteScope !== undefined ? { agentWriteScope } : {}),
-		...(agentOutputDir !== undefined ? { agentOutputDir } : {}),
-		...(env !== undefined ? { env } : {}),
-		...(authorityConfigPath !== undefined ? { authorityConfigPath } : {}),
-		...(scopeId !== undefined ? { scopeId } : {}),
-		...(workflowContext !== undefined
-			? {
-					workflow: workflowContext,
-					scopeId: workflowContext.scopeId,
-				}
-			: {}),
-		...(tokenBudget !== undefined ? { tokenBudget } : {}),
-		...(signal ? { signal } : {}),
-	};
-	const resultContentProvenance = mcpManager?.getToolResultContentProvenance?.(block.name);
+
+	const resultContentProvenance = mcpManager?.getToolResultContentProvenance?.(
+		block.name,
+	);
 	const call = {
 		name: block.name,
 		input,
@@ -257,9 +329,13 @@ export async function executeToolBlock(
 	};
 	const baseFn = async () => {
 		const executionCall = snapshotToolCallForExecution(call);
-		if (approvalExecutionBinding && !approvalExecutionBinding.matches(executionCall)) {
+		if (
+			approvalExecutionBinding &&
+			!approvalExecutionBinding.matches(executionCall)
+		) {
 			return {
-				content: "Blocked because tool input changed after client approval; request approval for the new operation.",
+				content:
+					"Blocked because tool input changed after client approval; request approval for the new operation.",
 				is_error: true,
 			};
 		}
@@ -270,22 +346,40 @@ export async function executeToolBlock(
 		);
 		if (dispatchStaleResult) return dispatchStaleResult;
 		if (!mcpManager?.isMcpTool(executionCall.name)) {
-			const executeLocalTool = options.localToolExecution?.execute ?? executeTool;
-			return executeLocalTool(executionCall.name, executionCall.input, runnerContext);
+			if (localLease) {
+				if (executionCall.name !== localLease.tool.name)
+					return {
+						content: "Tool changed after authorization.",
+						is_error: true,
+					};
+				return executeLocalToolLease(
+					localLease,
+					executionCall.input,
+					runnerContext,
+				);
+			}
+			const executeLocalTool =
+				options.localToolExecution?.execute ?? executeTool;
+			return executeLocalTool(
+				executionCall.name,
+				executionCall.input,
+				runnerContext,
+			);
 		}
 		const mcpOptions: McpExecuteToolOptions = {};
 		if (mcpInputResolver) mcpOptions.inputResolver = mcpInputResolver;
 		if (signal) mcpOptions.signal = signal;
 		return Object.keys(mcpOptions).length > 0
-			? mcpManager.executeTool(executionCall.name, executionCall.input, mcpOptions)
+			? mcpManager.executeTool(
+					executionCall.name,
+					executionCall.input,
+					mcpOptions,
+				)
 			: mcpManager.executeTool(executionCall.name, executionCall.input);
 	};
 	const result = await withToolCallExecutionOptions(options, () =>
-		executeToolWithIdempotency(
-			block,
-			input,
-			idempotencyStore,
-			() => getToolMiddleware().execute(call, baseFn),
+		executeToolWithIdempotency(block, input, idempotencyStore, () =>
+			getToolMiddleware().execute(call, baseFn),
 		),
 	);
 	throwIfToolRunnerAborted(signal);

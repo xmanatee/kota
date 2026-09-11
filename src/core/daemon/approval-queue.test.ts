@@ -38,6 +38,19 @@ describe("ApprovalQueue", () => {
 		rmSync(dir, { recursive: true, force: true });
 	});
 
+  it("rejects a stored local declaration with relative execution roots", () => {
+    const item = queue.enqueue("shell", { command: "pwd" }, "moderate", "reviewed");
+    const path = join(dir, `${item.id}.json`);
+    const record = JSON.parse(readFileSync(path, "utf8"));
+    record.localToolDeclaration = {
+      registrationGeneration: 1,
+      declarationEffectFingerprint: "a".repeat(64),
+      executionRoots: { cwd: "relative", scopeRoot: null },
+    };
+    writeFileSync(path, JSON.stringify(record));
+    expect(() => queue.get(item.id)).toThrow();
+  });
+
 	it("enqueues and retrieves an item", () => {
 		const item = queue.enqueue("shell", { command: "rm -rf /tmp" }, "dangerous", "destructive command");
 		expect(item.id).toHaveLength(8);

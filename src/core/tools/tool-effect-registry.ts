@@ -2,6 +2,7 @@ import type {
   ModuleCapabilityManifestProjection,
   ModuleManifestEffectLookup,
 } from "#core/modules/module-manifest.js";
+import type { ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
 import type { ToolEffect } from "./effect.js";
 import type { ToolRunner } from "./tool-registry.js";
 
@@ -12,6 +13,8 @@ export type ToolEffectResolver = (
 export type ToolEffectMetadata = {
   effect: ToolEffect;
   resolveEffect?: ToolEffectResolver;
+  /** Complete filesystem mutation targets; omission leaves local writes unknown. */
+  resolveFilesystemTargets?: ToolFilesystemTargetResolver;
   moduleName?: string;
   manifestEffect?: ModuleManifestEffectLookup;
   moduleManifest?: ModuleCapabilityManifestProjection;

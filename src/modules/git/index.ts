@@ -20,6 +20,9 @@ const tools: ToolDef[] = [
     runner: runGit,
     effect: networkWriteEffect(),
     resolveEffect: resolveGitToolEffect,
+    // Configured helpers (including fsmonitor and clean filters) can write even
+    // during observation. Git's complete mutation destinations remain opaque.
+    resolveFilesystemTargets: () => ({ kind: "unknown" }),
   },
 ];
 

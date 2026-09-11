@@ -40,9 +40,13 @@ Owns the `kota approval` CLI and HTTP surfaces. Core daemon owns the shared
   daemon-ops. A single approval represents a single tool call; a mode change
   affects how future tool calls are gated.
 - Local tool-call approvals bind the queue-time registry generation and
-  declaration/effect fingerprint. Preflight rejects drift and leases the exact
-  definition and runner execution must use, even if the mutable registry
-  changes after preflight.
+  declaration/effect/input/execution-root/target fingerprint. Opaque destinations
+  still bind the working directory and scope root. Preflight resolves targets with the
+  execution context, rejects drift, and leases the exact definition and runner
+  execution must use, even if the mutable registry changes after preflight.
+  Local clients and routes select scope authority; each queued local call
+  restores its reviewed working directory for both preflight and dispatch.
+  Explicit execution-root overrides still undergo fingerprint checks.
 - Every local and route execution registers queue-owned activity before async
   preflight and releases it only after tool execution and resource-lease cleanup,
   so scope drain can block on approved work that is no longer pending.

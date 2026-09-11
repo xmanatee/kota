@@ -31,6 +31,8 @@ vi.mock("#core/tools/index.js", () => ({
 }));
 
 import { localWriteEffect, readOnlyLocalEffect } from "#core/tools/effect.js";
+import { getAllTools } from "#core/tools/index.js";
+import { deregisterLocalToolApprovalBinding, registerLocalToolApprovalBinding } from "#core/tools/local-tool-approval-binding.js";
 import { deleteModuleToolEffect, resolveRegisteredToolEffect, setModuleToolEffect } from "#core/tools/tool-effect-registry.js";
 import { enableGroup, resetGroups } from "#core/tools/tool-groups.js";
 import { executeToolCalls } from "#core/tools/tool-runner-execution.js";
@@ -255,6 +257,11 @@ describe("runEditorLoop", () => {
       }
       return { content: written ? "updated" : "stale" };
     });
+    for (const tool of getAllTools().filter((tool) => ["file_read", "file_write"].includes(tool.name))) {
+      registerLocalToolApprovalBinding(tool, (input, context) => mockExecuteTool(tool.name, input, context), {
+        effect: tool.name === "file_read" ? readOnlyLocalEffect() : localWriteEffect(),
+      });
+    }
     setModuleToolEffect("file_write", { effect: localWriteEffect() });
     setModuleToolEffect("file_read", { effect: readOnlyLocalEffect() });
     try {
@@ -270,6 +277,8 @@ describe("runEditorLoop", () => {
       expect(results.map((result: { tool_use_id: string }) => result.tool_use_id)).toEqual(["write", "forbidden", "read"]);
       expect(results[1].is_error).toBe(true);
     } finally {
+      deregisterLocalToolApprovalBinding("file_write");
+      deregisterLocalToolApprovalBinding("file_read");
       deleteModuleToolEffect("file_write");
       deleteModuleToolEffect("file_read");
     }

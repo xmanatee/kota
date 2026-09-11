@@ -169,11 +169,11 @@ it.each(["task-reference", "cited-export", "narrow-hint"] as const)("restrains u
       expect(enforceAgentWriteScope({
         type: "tool_use", id: "attempted-reviewer-write", name: "reviewer_write",
         input: write.input,
-      }, toolOptions)).toMatchObject({ is_error: true, content: expect.stringContaining("writes are denied") });
+      }, toolOptions, { kind: "unknown" }, { kind: "write", scope: "local-fs", idempotent: true, openWorld: false })).toMatchObject({ is_error: true, content: expect.stringContaining("writes are denied") });
       expect(enforceAgentWriteScope({
         type: "tool_use", id: "reviewer-evidence-read", name: "reviewer_read",
         input: read.input,
-      }, toolOptions)).toBeNull();
+      }, toolOptions, { kind: "none" }, { kind: "read", scope: "local-fs", idempotent: true, openWorld: false })).toBeNull();
       expect(projectNativeCliScope({
         cwd: root, autonomyMode: options.autonomyMode, scopePolicy: undefined,
         agentWriteScope: options.agentWriteScope,

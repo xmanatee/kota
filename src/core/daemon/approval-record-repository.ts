@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type {
 	AnchoredRecordIdentity,
 	AnchoredRecordSnapshot,
@@ -36,7 +36,17 @@ function isLocalToolDeclaration(
 		&& Number.isSafeInteger(value.registrationGeneration)
 		&& value.registrationGeneration > 0
 		&& typeof value.declarationEffectFingerprint === "string"
-		&& /^[0-9a-f]{64}$/.test(value.declarationEffectFingerprint);
+		&& /^[0-9a-f]{64}$/.test(value.declarationEffectFingerprint)
+    && (value.executionRoots === undefined || (
+      value.executionRoots !== null
+      && typeof value.executionRoots === "object"
+      && typeof value.executionRoots.cwd === "string"
+      && isAbsolute(value.executionRoots.cwd)
+      && (value.executionRoots.scopeRoot === null || (
+        typeof value.executionRoots.scopeRoot === "string"
+        && isAbsolute(value.executionRoots.scopeRoot)
+      ))
+    ));
 }
 
 export class ApprovalRecordRepository {

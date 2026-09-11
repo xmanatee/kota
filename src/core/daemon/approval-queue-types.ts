@@ -51,6 +51,8 @@ export type ApprovalMcpPromptDeclaration = {
 };
 
 export type ApprovalLocalToolDeclaration = {
+	/** Absent on legacy records, which cannot reconstruct a reviewed context. */
+	executionRoots?: { cwd: string; scopeRoot: string | null };
 	registrationGeneration: number;
 	declarationEffectFingerprint: string;
 };

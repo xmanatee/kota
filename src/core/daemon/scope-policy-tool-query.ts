@@ -1,4 +1,5 @@
-import type { ToolEffect } from "#core/tools/effect.js";
+import { localWriteEffect, type ToolEffect } from "#core/tools/effect.js";
+import type { ToolFilesystemTargets } from "#core/tools/filesystem-targets.js";
 import { resolveOpaqueExecutionEffects } from "#core/tools/opaque-execution-effects.js";
 import type { ValidatedToolCallInput } from "#core/tools/tool-input-validation.js";
 import { decideScopePolicy } from "./scope-policy-decisions.js";
@@ -9,25 +10,27 @@ import type {
   ScopePolicyToolEffectQuery,
 } from "./scope-policy-types.js";
 
-const PATH_FIELDS = ["path", "filePath", "targetPath", "directory", "scopeRoot"] as const;
-
-const OPAQUE_LOCAL_EXECUTION_TOOLS = new Set([
-  "Bash",
-  "Task",
-  "code_exec",
-  "process",
-  "shell",
-]);
-
 export function scopePolicyToolEffectQueries(
   toolName: string,
   effect: ToolEffect,
   input: ValidatedToolCallInput,
+  targets: ToolFilesystemTargets = { kind: "none" },
 ): readonly ScopePolicyToolEffectQuery[] {
-  const effects = resolveOpaqueExecutionEffects(toolName, input) ?? [effect];
-  return effects.map((resolvedEffect) =>
-    scopePolicyToolEffectQuery(toolName, resolvedEffect, input)
-  );
+  const effects = [...(resolveOpaqueExecutionEffects(toolName, input) ?? [effect])];
+  // Mutation destinations are independent of the primary effect (e.g. a download).
+  if (targets.kind !== "none" && !effects.some((candidate) =>
+    candidate.scope === "local-fs" && candidate.kind !== "read")) {
+    effects.push(localWriteEffect());
+  }
+  return effects.flatMap((resolvedEffect) => {
+    const query = scopePolicyToolEffectQuery(toolName, resolvedEffect);
+    if (query.effectScope === "local-fs" &&
+      (query.effectKind === "write" || query.effectKind === "destructive") &&
+      targets.kind === "known" && targets.paths.length > 0) {
+      return targets.paths.map((targetPath) => ({ ...query, targetPath }));
+    }
+    return [query];
+  });
 }
 
 const OUTCOME_RANK: Record<ScopePolicyDecisionOutcome, number> = {
@@ -42,8 +45,9 @@ export function decideScopePolicyToolCall(
   toolName: string,
   effect: ToolEffect,
   input: ValidatedToolCallInput,
+  targets: ToolFilesystemTargets = { kind: "none" },
 ): ScopePolicyDecision {
-  const decisions = scopePolicyToolEffectQueries(toolName, effect, input)
+  const decisions = scopePolicyToolEffectQueries(toolName, effect, input, targets)
     .map((query) => decideScopePolicy(policy, query));
   const [first, ...rest] = decisions;
   if (!first) throw new Error(`No scope-policy effects resolved for ${toolName}`);
@@ -59,35 +63,11 @@ export function decideScopePolicyToolCall(
 function scopePolicyToolEffectQuery(
   toolName: string,
   effect: ToolEffect,
-  input: ValidatedToolCallInput,
 ): ScopePolicyToolEffectQuery {
-  if (
-    effect.scope === "local-fs" &&
-    (effect.kind === "write" || effect.kind === "destructive")
-  ) {
-    const targetPath = OPAQUE_LOCAL_EXECUTION_TOOLS.has(toolName)
-      ? undefined
-      : inputPath(input);
-    return {
-      kind: "tool-effect",
-      toolName,
-      effectKind: effect.kind,
-      effectScope: "local-fs",
-      ...(targetPath !== undefined ? { targetPath } : {}),
-    };
-  }
   return {
     kind: "tool-effect",
     toolName,
     effectKind: effect.kind,
     effectScope: effect.scope,
   } as ScopePolicyToolEffectQuery;
-}
-
-function inputPath(input: ValidatedToolCallInput): string | undefined {
-  for (const field of PATH_FIELDS) {
-    const value = input[field];
-    if (typeof value === "string" && value.trim()) return value;
-  }
-  return undefined;
 }

@@ -12,6 +12,7 @@ import type {
   ToolRunner,
   ToolRunnerContext,
 } from "./index.js";
+import { leaseLocalToolForExecution } from "./local-tool-approval-binding.js";
 import type {
   LocalToolExecutor,
   ToolCallExecutionOptions,
@@ -119,10 +120,40 @@ export async function executeDelegateToolBlocks(args: {
     ...(args.mcpMgr !== undefined ? { mcpManager: args.mcpMgr } : {}),
     messages: args.messages,
     allowedTools,
-    localToolExecution: { inputSchemas, execute: executeLocalTool },
+    ...(context?.agentWriteScope !== undefined || inherited?.agentWriteScope !== undefined
+      ? { agentWriteScope: context?.agentWriteScope ?? inherited?.agentWriteScope } : {}),
+    ...(context?.agentOutputDir !== undefined || inherited?.agentOutputDir !== undefined
+      ? { agentOutputDir: context?.agentOutputDir ?? inherited?.agentOutputDir } : {}),
+    localToolExecution: { inputSchemas, execute: executeLocalTool,
+      lease: (name, input, executionContext) => {
+        const tool = args.tools.find((candidate) => candidate.name === name);
+        const runner = args.runners[name];
+        if (!tool || !runner) return undefined;
+        const leased = leaseLocalToolForExecution(name, input, executionContext, { tool, runner });
+        // A wrapper has its own opaque behavior; it cannot borrow a registration's targets.
+        return leased.ok ? leased : undefined;
+      },
+    },
   };
   const { executeToolCalls } = await import("./tool-runner.js");
-  const results = await executeToolCalls([...args.toolBlocks], executionOptions);
+  // Normalize the execution limit before leasing so policy and approvals bind
+  // the exact input passed to the registered runner, including on resumption.
+  const toolBlocks = args.toolBlocks.map((block): KotaToolUseBlock => {
+    if (block.name !== "shell" || !Object.hasOwn(args.runners, block.name)) return block;
+    const input = block.input;
+    if (typeof input !== "object" || input === null || Array.isArray(input)) return block;
+    const timeout = "timeout_ms" in input ? input.timeout_ms : undefined;
+    return {
+      ...block,
+      input: {
+        ...input,
+        timeout_ms: timeout === undefined || timeout === 0
+          ? 60_000
+          : typeof timeout === "number" ? Math.min(timeout, 60_000) : timeout,
+      },
+    };
+  });
+  const results = await executeToolCalls(toolBlocks, executionOptions);
 
   return results.map((result, index): DelegateToolResultEntry => {
     const block = args.toolBlocks[index];

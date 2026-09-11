@@ -33,6 +33,15 @@ import {
   registerPreSendHook,
   resetPreSendHooks,
 } from "#core/loop/pre-send-hooks.js";
+import { readOnlyLocalEffect } from "./effect.js";
+import { getAllTools } from "./index.js";
+import { registerLocalToolApprovalBinding } from "./local-tool-approval-binding.js";
+
+beforeEach(() => {
+  for (const tool of getAllTools()) registerLocalToolApprovalBinding(tool,
+    (input, context) => mockExecuteTool(tool.name, input, context),
+    { effect: readOnlyLocalEffect(), resolveEffect: (input) => mockGetToolEffect(tool.name, input) });
+});
 
 const {
   mockStreamMessage,

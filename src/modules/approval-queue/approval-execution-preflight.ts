@@ -92,7 +92,7 @@ async function prepareMcpApprovalExecution(
 		return { ok: true, lease: { ...snapshot.descriptor } };
 	}
 	if (!isMcpManagedToolName(item.tool)) {
-		return prepareLocalApprovalExecution(snapshot);
+		return prepareLocalApprovalExecution(snapshot, context);
 	}
 
 	const parsed = parseToolName(item.tool);
@@ -127,7 +127,7 @@ async function prepareMcpApprovalExecution(
 		};
 	}
 
-	const cwd = context?.cwd ?? process.cwd();
+	const cwd = context?.cwd ?? context?.scopeRoot ?? process.cwd();
 	const config = McpManager.loadConfig(cwd);
 	if (!config) {
 		return {

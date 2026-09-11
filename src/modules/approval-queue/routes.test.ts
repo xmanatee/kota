@@ -331,7 +331,7 @@ describe("approval-routes", () => {
       });
       expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
         { command: "deploy.sh", accessToken: "raw-token" },
-        undefined,
+        expect.objectContaining({ cwd: process.cwd() }),
       );
       expect(JSON.stringify(result.body)).not.toContain("raw-token");
       expect(JSON.stringify(result.body)).not.toContain("deployed raw-token");

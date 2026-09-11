@@ -8,7 +8,6 @@ import {
   outboundHttpPolicy,
 } from "#core/outbound-http/index.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import { resolveContainedPath } from "#core/tools/path-containment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import { extractPage, formatMetadataHeader } from "./html-page-extract.js";
 import { safePositiveInt } from "./http-request-utils.js";
@@ -17,6 +16,7 @@ import {
   readResponseTextWithLimit,
   WebAccessResponseBodyLimitError,
 } from "./response-body-limit.js";
+import { resolveSavePath } from "./save-path.js";
 
 export const webFetchTool: KotaTool = {
   name: "web_fetch",
@@ -91,9 +91,7 @@ function formatBytes(bytes: number): string {
 export async function runWebFetch(input: Record<string, unknown>, context?: ToolRunnerContext): Promise<ToolResult> {
   const url = input.url as string;
   const maxLength = safePositiveInt(input.max_length, 20_000);
-  const saveTo = typeof input.save_to === "string" && input.save_to.length > 0 ? input.save_to : undefined;
-  const allowedRoot = context?.cwd ?? process.cwd();
-  const savePath = saveTo ? resolveContainedPath(saveTo, allowedRoot, allowedRoot) : undefined;
+  const savePath = resolveSavePath(input, context);
   const responseBytes = savePath?.ok ? maxLength : outboundHttpPolicy("public-untrusted").responseBytes.default;
 
   if (!url) {

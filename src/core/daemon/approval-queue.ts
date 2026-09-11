@@ -31,6 +31,7 @@ import {
 	type ApprovalExecutionApprovalResult,
 	type ApprovalExecutionApproveAllResult,
 	type ApprovalExecutionSnapshotResult,
+	type ApprovalLocalToolDeclaration,
 	type ApprovalMcpPromptDeclaration,
 	type ApprovalPersistencePort,
 	type ApprovalStatus,
@@ -150,6 +151,7 @@ export class ApprovalQueue {
 		context?: string,
 		sessionId?: string,
 		mcpPromptDeclaration?: ApprovalMcpPromptDeclaration,
+    localToolDeclaration?: ApprovalLocalToolDeclaration | null,
 	): PendingApproval {
 		if (usesWorkflowGateIdentity(tool, source)) {
 			throw new Error(
@@ -169,7 +171,8 @@ export class ApprovalQueue {
 			context,
 			sessionId,
 			mcpPromptDeclaration,
-			localToolDeclaration: captureLocalToolApprovalDeclaration(tool, input),
+			localToolDeclaration: localToolDeclaration === undefined
+        ? captureLocalToolApprovalDeclaration(tool, input) : localToolDeclaration ?? undefined,
 		});
 	}
 

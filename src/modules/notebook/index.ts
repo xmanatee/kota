@@ -8,12 +8,15 @@
 
 import type { KotaModule, ToolDef } from "#core/modules/module-types.js";
 import { localWriteEffect } from "#core/tools/effect.js";
-import { notebookTool, runNotebook } from "./notebook.js";
+import { notebookTool, resolveNotebookPath, runNotebook } from "./notebook.js";
 
 const tools: ToolDef[] = [
   {
     tool: notebookTool,
     runner: runNotebook,
+    resolveFilesystemTargets: (input, context) => typeof input.path === "string"
+      ? { kind: "known", paths: [resolveNotebookPath(input.path, context)] }
+      : { kind: "unknown" },
     effect: localWriteEffect(),
     group: "code",
   },

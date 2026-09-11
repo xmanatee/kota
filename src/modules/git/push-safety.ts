@@ -1,7 +1,9 @@
 import {
 	localDestructiveEffect,
+	localWriteEffect,
 	networkDestructiveEffect,
 	networkWriteEffect,
+	readOnlyLocalEffect,
 	type ToolEffect,
 } from "#core/tools/effect.js";
 import type { ToolEffectResolver } from "#core/tools/tool-effect-registry.js";
@@ -189,9 +191,18 @@ export const resolveGitToolEffect: ToolEffectResolver = (input) => {
 	const operation = typeof input.op === "string" ? input.op : "";
 	const args = typeof input.args === "string" ? input.args : "";
 	if (operation === "push") return pushEffect(args);
+	if (["status", "diff", "log", "show"].includes(operation)) {
+		return readOnlyLocalEffect();
+	}
+	if (operation === "add" || operation === "commit") return localWriteEffect();
 	if (operation !== "branch") return undefined;
 
 	const branch = parseBranchArguments(args);
-	if (!branch.ok || branch.value.action !== "delete") return undefined;
-	return localDestructiveEffect();
+	if (!branch.ok) return undefined;
+	switch (branch.value.action) {
+		case "list": return readOnlyLocalEffect();
+		case "delete": return localDestructiveEffect();
+		case "create":
+		case "switch": return localWriteEffect();
+	}
 };

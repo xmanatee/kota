@@ -18,8 +18,10 @@ import type { ScopedEventBus } from "#core/events/scope.js";
 import { resolveAgentRuntime } from "#core/model/preset.js";
 import { assess } from "#core/tools/guardrails.js";
 import { executeTool, getToolEffect, type ToolResult } from "#core/tools/index.js";
+import { captureLocalToolApprovalDeclaration, executeLocalToolLease, type LocalToolExecutionLease, leaseLocalToolForApproval } from "#core/tools/local-tool-approval-binding.js";
 import { validateToolCallInput } from "#core/tools/tool-input-validation.js";
 import type { ToolCallExecutionOptions } from "#core/tools/tool-runner.js";
+import { enqueueToolApproval } from "#core/tools/tool-runner-approval-queue.js";
 import { withToolCallExecutionOptions } from "#core/tools/tool-runner-runtime.js";
 import { enforceToolScopePolicy } from "#core/tools/tool-runner-scope-policy.js";
 import {
@@ -57,6 +59,7 @@ async function enforceWorkflowToolScopePolicy(args: {
   context: ReturnType<typeof buildWorkflowToolContext>;
   policy: ResolvedScopePolicy;
   options: ToolCallExecutionOptions;
+  lease?: LocalToolExecutionLease;
 }): Promise<void> {
   const validation = validateToolCallInput(args.name, args.input);
   if (!validation.ok) throw new Error(validation.error);
@@ -72,6 +75,13 @@ async function enforceWorkflowToolScopePolicy(args: {
     options: args.options,
     policy: args.policy,
     risk: assessment.risk,
+    effect: args.lease?.effect ?? getToolEffect(args.name, validation.input),
+    targets: args.lease?.targets ?? { kind: "none" },
+    enqueueApproval: (reason, context) => enqueueToolApproval({
+      approvalQueue: args.options.approvalQueue, toolName: args.name,
+      input: validation.input, risk: assessment.risk, reason, context,
+      sessionId: args.options.sessionId, localToolDeclaration: args.lease?.declaration ?? null,
+    }),
     askClientApproval: async () => ({ outcome: "unavailable" }),
     emitAssessment: () => {},
   });
@@ -352,6 +362,12 @@ export function createStepContext(
         workflowContext: context.workflow,
         scopeId: context.scopeId,
       };
+      const declaration = deps.runTool ? undefined
+        : captureLocalToolApprovalDeclaration(name, input, context);
+      const leased = declaration === undefined ? undefined
+        : leaseLocalToolForApproval(name, input, declaration, context);
+      if (leased && !leased.ok) throw new Error("Tool declaration changed before authorization");
+      const lease = leased?.ok ? leased.lease : undefined;
       if (scopePolicy !== undefined) {
         if (deps.approvalQueue === undefined) {
           throw new Error("Scope policy enforcement requires a workflow approval queue");
@@ -362,14 +378,15 @@ export function createStepContext(
           context,
           policy: scopePolicy,
           options: executionOptions,
+          lease,
         });
       }
       const runTool = deps.runTool;
       const executeResolvedTool = (): Promise<ToolResult> =>
         withToolCallExecutionOptions(executionOptions, () =>
-          runTool ? runTool(name, input, context) : executeTool(name, input, context)
+          runTool ? runTool(name, input, context) : lease ? executeLocalToolLease(lease, input, context) : executeTool(name, input, context)
         );
-      const effect = getToolEffect(name, input);
+      const effect = lease?.effect ?? getToolEffect(name, input);
       const writerTransaction = deps.runContext?.sandbox.repository === "write";
       if (writerTransaction && !isRunLocalEffect(effect)) {
         const detail = effect === undefined

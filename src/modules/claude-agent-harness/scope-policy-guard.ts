@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { resolveAgentFilesystemWriteRoots } from "#core/agent-harness/agent-write-scope-roots.js";
 import type {
   AgentCanUseTool,
@@ -30,6 +31,7 @@ import {
   sessionWriteEffect,
   type ToolEffect,
 } from "#core/tools/effect.js";
+import { resolveFilesystemTargets, type ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
 import { resolveOpaqueExecutionPrimaryEffect } from "#core/tools/opaque-execution-effects.js";
 import type { ValidatedToolCallInput } from "#core/tools/tool-input-validation.js";
 import { KOTA_OWNER_QUESTIONS_MCP_TOOL } from "./kota-tools-mcp.js";
@@ -39,7 +41,7 @@ type AgentToolInput = Parameters<AgentCanUseTool>[1];
 type ClaudeToolPolicyBinding = {
   moduleName: string;
   effect: (input: AgentToolInput) => ToolEffect;
-  normalizeInput?: (input: AgentToolInput) => AgentToolInput;
+  resolveFilesystemTargets?: ToolFilesystemTargetResolver;
 };
 
 const localRead = () => readOnlyLocalEffect();
@@ -49,15 +51,25 @@ const sessionRead = () => readOnlySessionEffect();
 const sessionWrite = () => sessionWriteEffect();
 const operatorWrite = () => operatorSurfaceEffect();
 
+const fileTargets: ToolFilesystemTargetResolver = (input, context) =>
+  typeof input.file_path === "string" && input.file_path.length > 0
+    ? { kind: "known", paths: [resolve(context?.cwd ?? process.cwd(), input.file_path)] }
+    : { kind: "unknown" };
+
+const notebookTargets: ToolFilesystemTargetResolver = (input, context) =>
+  typeof input.notebook_path === "string" && input.notebook_path.length > 0
+    ? { kind: "known", paths: [resolve(context?.cwd ?? process.cwd(), input.notebook_path)] }
+    : { kind: "unknown" };
+
 const CLAUDE_TOOL_POLICY_BINDINGS = new Map<string, ClaudeToolPolicyBinding>([
-  ["Read", binding("filesystem", localRead, normalizeFilePath)],
+  ["Read", binding("filesystem", localRead)],
   ["Glob", binding("filesystem", localRead)],
   ["Grep", binding("filesystem", localRead)],
-  ["Write", binding("filesystem", localWrite, normalizeFilePath)],
-  ["Edit", binding("filesystem", localWrite, normalizeFilePath)],
-  ["MultiEdit", binding("filesystem", localWrite)],
-  ["NotebookRead", binding("notebook", localRead, normalizeNotebookPath)],
-  ["NotebookEdit", binding("notebook", localWrite, normalizeNotebookPath)],
+  ["Write", binding("filesystem", localWrite, fileTargets)],
+  ["Edit", binding("filesystem", localWrite, fileTargets)],
+  ["MultiEdit", binding("filesystem", localWrite, fileTargets)],
+  ["NotebookRead", binding("notebook", localRead)],
+  ["NotebookEdit", binding("notebook", localWrite, notebookTargets)],
   ["WebFetch", binding("web-access", networkRead)],
   ["WebSearch", binding("web-access", networkRead)],
   ["Bash", binding("execution", shellEffect)],
@@ -75,19 +87,9 @@ const CLAUDE_TOOL_POLICY_BINDINGS = new Map<string, ClaudeToolPolicyBinding>([
 function binding(
   moduleName: string,
   effect: ClaudeToolPolicyBinding["effect"],
-  normalizeInput?: ClaudeToolPolicyBinding["normalizeInput"],
+  resolveFilesystemTargets?: ToolFilesystemTargetResolver,
 ): ClaudeToolPolicyBinding {
-  return { moduleName, effect, ...(normalizeInput ? { normalizeInput } : {}) };
-}
-
-function normalizeFilePath(input: AgentToolInput): AgentToolInput {
-  const path = input.path ?? input.file_path;
-  return path === undefined ? input : { ...input, path };
-}
-
-function normalizeNotebookPath(input: AgentToolInput): AgentToolInput {
-  const path = input.path ?? input.notebook_path;
-  return path === undefined ? input : { ...input, path };
+  return { moduleName, effect, resolveFilesystemTargets };
 }
 
 function shellEffect(input: AgentToolInput): ToolEffect {
@@ -149,11 +151,11 @@ export function createClaudeAgentWriteScopeGuard(args: {
         `Blocked by agent write scope: Claude tool ${toolName} has no effect-aware policy binding.`,
       );
     }
-    const normalizedInput = binding.normalizeInput?.(input) ?? input;
     const writeQueries = scopePolicyToolEffectQueries(
       toolName,
-      binding.effect(normalizedInput),
-      normalizedInput as ValidatedToolCallInput,
+      binding.effect(input),
+      input as ValidatedToolCallInput,
+      resolveFilesystemTargets(binding.resolveFilesystemTargets, input, { cwd: args.cwd }),
     ).filter(isLocalWriteQuery);
     if (writeQueries.length === 0) {
       return { behavior: "allow", updatedInput: input };
@@ -212,14 +214,14 @@ export function createClaudeScopePolicyGuard(args: {
       );
     }
 
-    const normalizedInput = binding.normalizeInput?.(input) ?? input;
-    const effect = binding.effect(normalizedInput);
+    const effect = binding.effect(input);
     const risk = riskFromEffect(effect);
     const decision = decideScopePolicyToolCall(
       policy,
       toolName,
       effect,
-      normalizedInput as ValidatedToolCallInput,
+      input as ValidatedToolCallInput,
+      resolveFilesystemTargets(binding.resolveFilesystemTargets, input, { cwd: args.cwd }),
     );
     if (decision.outcome === "deny" || decision.outcome === "ignore") {
       return deny(`Blocked by scope policy: ${decision.rendered}`);

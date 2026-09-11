@@ -124,6 +124,7 @@ export function commitModuleTools(
         : {}),
       ...(manifest ? { moduleManifest: manifest } : {}),
       ...(def.resolveEffect ? { resolveEffect: def.resolveEffect } : {}),
+      ...(def.resolveFilesystemTargets ? { resolveFilesystemTargets: def.resolveFilesystemTargets } : {}),
     }));
     if (def.group) trackModuleRegistration(state, mod.name, registerCustomGroup(def.group, [def.tool.name]));
   }

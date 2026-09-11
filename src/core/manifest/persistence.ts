@@ -8,16 +8,16 @@ import {
 	readFileSync,
 	rmSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { writeJsonFileAtomic } from "#core/util/json-file.js";
 import type { ModuleManifest } from "./types.js";
 import { isManifestModuleName, validateManifest } from "./validation.js";
 
 function getModulesDir(cwd?: string): string {
-	return join(cwd || process.cwd(), ".kota", "modules");
+	return resolve(cwd || process.cwd(), ".kota", "modules");
 }
 
-function getManifestPath(moduleName: string, cwd?: string): string {
+export function getManifestPath(moduleName: string, cwd?: string): string {
 	if (!isManifestModuleName(moduleName))
 		throw new Error(`Invalid module name: ${moduleName}`);
 	return join(getModulesDir(cwd), moduleName, "manifest.json");

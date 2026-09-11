@@ -1,5 +1,5 @@
 import type { KotaTool } from "#core/agent-harness/message-protocol.js";
-import type { ResolvedToolSet, ToolRunner } from "#core/tools/tool-registry.js";
+import type { ResolvedToolSet } from "#core/tools/tool-registry.js";
 import { resolveRegisteredToolSetByEffect } from "#core/tools/tool-registry.js";
 import { detectWorkspaceTechnology, getDirectoryOverview } from "#core/util/workspace-detection.js";
 import { formatResolvedToolGuidance, formatResolvedToolNameGuidance } from "./tool-guidance.js";
@@ -79,50 +79,8 @@ export const EXECUTE_PROMPT = `You are a task execution sub-agent. Complete the 
 
 // --- Tool sets ---
 
-/** Custom shell tool definition with 60s timeout description for sub-agents. */
-const subShellTool: KotaTool = {
-  name: "shell",
-  description:
-    "Execute a shell command (max 60s timeout). " +
-    "Use for builds, tests, git commands. Commands run in the working directory.",
-  input_schema: {
-    type: "object" as const,
-    properties: {
-      command: { type: "string", description: "The shell command to execute" },
-      timeout_ms: { type: "number", description: "Timeout in ms (max 60000)" },
-    },
-    required: ["command"],
-  },
-};
-
-/** Wrap a shell runner with a 60s max timeout for sub-agents. */
-function createBoundedShellRunner(baseRunner: ToolRunner): ToolRunner {
-  const MAX_SUB_TIMEOUT = 60_000;
-  return (input, context) =>
-    baseRunner({
-      ...input,
-      timeout_ms: Math.min(
-        (input.timeout_ms as number) || MAX_SUB_TIMEOUT,
-        MAX_SUB_TIMEOUT,
-      ),
-    }, context);
-}
-
-/** Apply the bounded shell override to a resolved tool set. */
-function applyShellBound(
-  toolSet: ResolvedToolSet,
-): void {
-  const idx = toolSet.tools.findIndex((t) => t.name === "shell");
-  if (idx >= 0) toolSet.tools[idx] = subShellTool;
-  if (toolSet.runners.shell) {
-    toolSet.runners.shell = createBoundedShellRunner(toolSet.runners.shell);
-  }
-}
-
 export function getExploreToolSet(): ResolvedToolSet {
-  const set = resolveRegisteredToolSetByEffect((effect) => effect.kind === "read");
-  applyShellBound(set);
-  return set;
+  return resolveRegisteredToolSetByEffect((effect) => effect.kind === "read");
 }
 
 export function getResearchToolSet(): ResolvedToolSet {
@@ -130,9 +88,7 @@ export function getResearchToolSet(): ResolvedToolSet {
 }
 
 export function getExecuteToolSet(): ResolvedToolSet {
-  const set = resolveRegisteredToolSetByEffect((effect) => effect.kind !== "destructive");
-  applyShellBound(set);
-  return set;
+  return resolveRegisteredToolSetByEffect((effect) => effect.kind !== "destructive");
 }
 
 // --- Prompt builder ---
@@ -154,6 +110,9 @@ export function buildSubAgentPrompt(
   if (config.tools) {
     const toolGuidance = formatResolvedToolGuidance(config.tools);
     if (toolGuidance) parts.push(toolGuidance);
+    if (config.tools.some((tool) => tool.name === "shell")) {
+      parts.push("Delegated shell commands have a maximum timeout of 60 seconds.");
+    }
   } else if (config.toolNames) {
     const toolGuidance = formatResolvedToolNameGuidance(config.toolNames);
     if (toolGuidance) parts.push(toolGuidance);

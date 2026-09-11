@@ -25,6 +25,7 @@ import {
 } from "#core/daemon/scope-registry.js";
 import { initProviderRegistry, resetProviderRegistry } from "#core/modules/provider-registry.js";
 import type { ToolRunner } from "#core/tools/index.js";
+import { executeToolCalls } from "#core/tools/tool-runner.js";
 import {
   clearApprovalExecutionTestTools,
   registerApprovalExecutionTestTools,
@@ -312,8 +313,16 @@ describe("approval-queue module daemon-control routes", () => {
         },
       ]);
 
-      const itemA = approvalA.enqueue("shell", { command: "a" }, "moderate", "a");
-      const itemB = approvalB.enqueue("shell", { command: "b" }, "moderate", "b");
+      for (const [scope, approvalQueue] of [[scopeA, approvalA], [scopeB, approvalB]] as const) {
+        await executeToolCalls([{
+          type: "tool_use", id: "shell", name: "shell", input: { command: "echo scoped" },
+        }], {
+          resultLimit: 1000, verbose: false, autonomyMode: "supervised", approvalQueue,
+          cwd: scope.scopeRoot, scopeRoot: scope.scopeRoot,
+        });
+      }
+      const itemA = approvalA.list("pending")[0]!;
+      const itemB = approvalB.list("pending")[0]!;
 
       const listB = await fetchWith(port, `/approvals?scopeId=${scopeB.scopeId}`);
       expect(listB.status).toBe(200);
@@ -371,7 +380,7 @@ describe("approval-queue module daemon-control routes", () => {
       };
       expect(vi.mocked(executeTool)).toHaveBeenCalledWith(
         { command: "deploy.sh", accessToken: "raw-token" },
-        undefined,
+        expect.objectContaining({ cwd: process.cwd() }),
       );
       expect(body.approval.status).toBe("approved");
       expect(body.approval.input).toMatchObject({ redacted: true, reason: "tool-io" });

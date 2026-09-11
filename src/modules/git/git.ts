@@ -63,7 +63,9 @@ function truncateDiff(text: string): string {
 
 function git(args: string[], context?: ToolRunnerContext): Promise<{ stdout: string; stderr: string; code: number }> {
 	return new Promise((resolve) => {
-		const proc = execFile("git", args, {
+		// Read operations must not refresh the index. Required writes for mutation
+		// operations still run under their declared authorization.
+		const proc = execFile("git", ["--no-optional-locks", "-c", "diff.autoRefreshIndex=false", ...args], {
 			cwd: context?.cwd ?? process.cwd(),
 			env: withProtectedGitBareRepositoryEnv(),
 			maxBuffer: 5 * 1024 * 1024,

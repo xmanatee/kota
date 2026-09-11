@@ -1,10 +1,11 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetApprovalQueue, setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
+import { type ApprovalQueue, resetApprovalQueue, setApprovalQueueInstance } from "#core/daemon/approval-queue.js";
 import { resetProviderRegistry } from "#core/modules/provider-registry.js";
 import { clearCustomTools, deregisterTool, type ToolRunnerContext } from "#core/tools/index.js";
+import { captureLocalToolApprovalDeclaration } from "#core/tools/local-tool-approval-binding.js";
 import { executeToolCalls } from "#core/tools/tool-runner.js";
 import { resetPromptStore } from "#modules/prompt-templates/prompt.js";
 import {
@@ -27,7 +28,15 @@ import {
   writeApprovalScopeSqlite as writeScopeSqlite,
 } from "./execution-scope-tools.integration.js";
 
+import { buildLocalApprovalsClient } from "./local-client.js";
 import { handleApproveAllApprovals, handleApproveApproval, handleListApprovals } from "./routes.js";
+
+function enqueueScopedTool(entry: ScopeRuntimeEntry, ...args: Parameters<ApprovalQueue["enqueue"]>) {
+  args[10] = captureLocalToolApprovalDeclaration(args[0], args[1], {
+    cwd: entry.scope.scopeRoot, scopeRoot: entry.scope.scopeRoot,
+  });
+  return entry.approvalQueue.enqueue(...args);
+}
 
 describe("approval execution scope", () => {
   let rootDir: string;
@@ -76,6 +85,8 @@ describe("approval execution scope", () => {
           verbose: false,
           autonomyMode: "supervised",
           approvalQueue: entry.approvalQueue,
+          cwd: entry.scope.scopeRoot,
+          scopeRoot: entry.scope.scopeRoot,
           sessionId,
           scopeId: entry.scope.scopeId,
         },
@@ -156,7 +167,7 @@ describe("approval execution scope", () => {
   });
 
   it("rejects execution when a queued approval is attributed to another scope", async () => {
-    const item = scopeB.approvalQueue.enqueue(
+    const item = enqueueScopedTool(scopeB,
       TOOL_NAMES.fileWrite,
       { path: "scope-mismatch.txt", content: "must-not-run" },
       "moderate",
@@ -193,7 +204,7 @@ describe("approval execution scope", () => {
   });
 
   it("executes a selected scope's single approval under that scope cwd", async () => {
-    const item = scopeB.approvalQueue.enqueue(
+    const item = enqueueScopedTool(scopeB,
       TOOL_NAMES.fileWrite,
       { path: "marker.txt", content: "scope-b" },
       "moderate",
@@ -226,19 +237,19 @@ describe("approval execution scope", () => {
   });
 
   it("executes approve-all for the selected scope without writing to the default scope", async () => {
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.fileWrite,
       { path: "one.txt", content: "one" },
       "moderate",
       "write one",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.fileWrite,
       { path: "nested/two.txt", content: "two" },
       "moderate",
       "write two",
     );
-    const defaultItem = defaultEntry.approvalQueue.enqueue(
+    const defaultItem = enqueueScopedTool(defaultEntry,
       TOOL_NAMES.fileWrite,
       { path: "default.txt", content: "default" },
       "moderate",
@@ -281,31 +292,31 @@ describe("approval execution scope", () => {
     writeScopeFile(defaultEntry, "map.ts", "export const DEFAULT_SYMBOL = 'default';\n");
     writeScopeFile(scopeB, "map.ts", "export const SCOPE_B_SYMBOL = 'scope-b';\n");
 
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.fileRead,
       { path: "readme.md" },
       "safe",
       "read selected scope file",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.grep,
       { pattern: "SEARCH_MARKER", path: "." },
       "safe",
       "search selected scope files",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.glob,
       { pattern: "*.scope", path: "." },
       "safe",
       "glob selected scope files",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.filesOverview,
       { path: "." },
       "safe",
       "overview selected scope files",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.repoMap,
       { directory: ".", pattern: "**/*.ts" },
       "safe",
@@ -371,26 +382,26 @@ describe("approval execution scope", () => {
       writeScopeSqlite(scopeB, "data/scope.db", "SCOPE_B_SQLITE_MARKER");
     }
 
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.readDocument,
       { path: "docs/scope.html" },
       "safe",
       "read selected scope document",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.viewImage,
       { path: "images/scope.png", detail: "original" },
       "safe",
       "view selected scope image",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.promptTemplate,
       { action: "render", name: "scope" },
       "safe",
       "render selected scope prompt",
     );
     if (hasSqlite3) {
-      scopeB.approvalQueue.enqueue(
+      enqueueScopedTool(scopeB,
         TOOL_NAMES.sqlite,
         { database: "data/scope.db", action: "query", sql: "SELECT marker FROM markers" },
         "moderate",
@@ -446,13 +457,13 @@ describe("approval execution scope", () => {
       "export const marker = 'default-edit';\n",
     );
 
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.fileRead,
       { path: "missing/default-read-only.ts" },
       "safe",
       "read missing selected scope file",
     );
-    scopeB.approvalQueue.enqueue(
+    enqueueScopedTool(scopeB,
       TOOL_NAMES.fileEdit,
       {
         path: "missing/default-edit-only.ts",
@@ -496,9 +507,10 @@ describe("approval execution scope", () => {
     expect(contexts.every((context) => context.cwd === scopeB.scope.scopeRoot)).toBe(true);
   });
 
-  it("executes approved module persistence under the selected scope cwd", async () => {
-    scopeB.approvalQueue.enqueue(
-      "module_factory",
+  it.each(["route", "local-client"])("resumes worktree module persistence through %s", async (surface) => {
+    const worktree = join(scopeB.scope.scopeRoot, "worktree");
+    mkdirSync(worktree);
+    await executeToolCalls([{ type: "tool_use", id: "create-module", name: "module_factory", input:
       {
         action: "create",
         manifest: {
@@ -512,33 +524,37 @@ describe("approval execution scope", () => {
             },
           ],
         },
-      },
-      "moderate",
-      "create selected scope manifest module",
-    );
-    const { res, result } = mockResponse();
-    await handleApproveAllApprovals(
-      mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
-      res,
-      null,
-      undefined,
-      scopeB.scope.scopeId,
-    );
-
-    expect(result.status).toBe(200);
-    const body = result.body as {
-      resolutions: Array<{ resolution: { kind: string; execution: { status: string } } }>;
-    };
-    expect(
-      body.resolutions.every(
-        (entry) =>
-          entry.resolution.kind === "tool_execution" &&
-          entry.resolution.execution.status === "succeeded",
-      ),
-    ).toBe(true);
+      }
+    }], {
+      resultLimit: 10000, verbose: false, autonomyMode: "supervised",
+      approvalQueue: scopeB.approvalQueue, cwd: worktree,
+      scopeRoot: scopeB.scope.scopeRoot,
+    });
+    const pending = scopeB.approvalQueue.list("pending");
+    expect(pending).toHaveLength(1);
+    const item = pending[0]!;
+    const review = scopeB.approvalQueue.projectForClient(item).review;
+    if (review.status !== "available") throw new Error("Expected review");
+    if (surface === "local-client") {
+      expect(await buildLocalApprovalsClient().approve(item.id, review.digest, undefined, {
+        scopeId: scopeB.scope.scopeId,
+      })).toMatchObject({ ok: true, resolution: { kind: "tool_execution", execution: { status: "succeeded" } } });
+    } else {
+      const { res, result } = mockResponse();
+      await handleApproveAllApprovals(
+        mockRequest(approvalBatchDecisionBody(scopeB.approvalQueue)),
+        res, null, undefined, scopeB.scope.scopeId,
+      );
+      expect(result.status).toBe(200);
+      expect(result.body).toMatchObject({ resolutions: [{ resolution: {
+        kind: "tool_execution", execution: { status: "succeeded" },
+      } }] });
+    }
+    expect(scopeB.approvalQueue.get(item.id)?.status).toBe("approved");
+    expect(existsSync(join(scopeB.scope.scopeRoot, ".kota", "modules", "approval-scope-mod", "manifest.json"))).toBe(false);
     expect(
       existsSync(
-        join(scopeB.scope.scopeRoot, ".kota", "modules", "approval-scope-mod", "manifest.json"),
+        join(worktree, ".kota", "modules", "approval-scope-mod", "manifest.json"),
       ),
     ).toBe(true);
     expect(

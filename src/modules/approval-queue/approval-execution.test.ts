@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +12,7 @@ import {
 	registerTool,
 	type ToolRunner,
 } from "#core/tools/index.js";
+import { executeToolCalls } from "#core/tools/tool-runner.js";
 import {
 	ApprovalExecutionDescriptorMismatchError,
 	approvedApprovalResponse,
@@ -47,6 +48,42 @@ describe("approval execution lease", () => {
 		clearCustomTools();
 		vi.clearAllMocks();
 	});
+
+  it("resumes an executor-queued write only against its reviewed execution root", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kota-approval-owned-target-"));
+    dirs.push(dir);
+    const queue = new ApprovalQueue(join(dir, "state"));
+    const input = { action: "create", manifest: { name: "reviewed" }, path: "decoy" };
+    const [queued] = await executeToolCalls([{ type: "tool_use", id: "write", name: "module_factory", input }], {
+      resultLimit: 10000, verbose: false, autonomyMode: "supervised", approvalQueue: queue,
+      cwd: dir, scopeRoot: dir, agentWriteScope: [".kota/modules/reviewed/"],
+    });
+    expect(queued?.content).toContain("Queued for approval");
+    const target = join(dir, ".kota/modules/reviewed/manifest.json");
+    expect(existsSync(target)).toBe(false);
+    const item = queue.list("pending")[0];
+    if (!item) throw new Error("Expected queued module write");
+    const selection = queue.getExecutionSnapshot(item.id);
+    if (!selection.ok) throw new Error("Expected execution snapshot");
+    const changed = await prepareApprovalExecutionBatch([selection.snapshot], { cwd: join(dir, "another-root") });
+    expect(changed).toMatchObject({ ok: false, body: { reason: "local_tool_declaration_effect_changed_since_review" } });
+    const context = { cwd: dir, scopeRoot: dir };
+    const preflight = await prepareApprovalExecutionBatch([selection.snapshot], context);
+    if (!preflight.ok) throw new Error("Expected successful preflight");
+    try {
+      const lease = preflight.leases.get(item.id);
+      if (!lease) throw new Error("Expected lease");
+      const approved = queue.approveForExecution(lease);
+      if (!approved.ok) throw new Error("Expected approval");
+      expect(await approvedApprovalResponse(approved.approval, context, lease)).toMatchObject({
+        resolution: { kind: "tool_execution", execution: { status: "succeeded" } },
+      });
+      expect(JSON.parse(readFileSync(target, "utf8"))).toMatchObject({ name: "reviewed" });
+      expect(existsSync(join(dir, "another-root"))).toBe(false);
+    } finally {
+      await closeApprovalExecutionLeases(preflight.leases.values());
+    }
+  });
 
 	it("rejects a descriptor mismatch immediately before tool dispatch", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "kota-approval-execution-lease-"));
@@ -194,7 +231,7 @@ describe("approval execution lease", () => {
 
 		expect(reviewedRunner).toHaveBeenCalledWith(
 			{ operation: "deploy" },
-			undefined,
+			expect.objectContaining({ cwd: process.cwd() }),
 		);
 		expect(replacementRunner).not.toHaveBeenCalled();
 	});

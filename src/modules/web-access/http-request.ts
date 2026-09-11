@@ -8,7 +8,6 @@ import {
   outboundHttpPolicy,
 } from "#core/outbound-http/index.js";
 import type { ToolRunnerContext } from "#core/tools/index.js";
-import { resolveContainedPath } from "#core/tools/path-containment.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import {
   formatBytes,
@@ -26,6 +25,7 @@ import {
   readResponseTextWithLimit,
   WebAccessResponseBodyLimitError,
 } from "./response-body-limit.js";
+import { resolveSavePath } from "./save-path.js";
 
 export const httpRequestTool: KotaTool = {
   name: "http_request",
@@ -85,9 +85,7 @@ export async function runHttpRequest(input: Record<string, unknown>, context?: T
   const body = input.body as string | undefined;
   const timeoutMs = safePositiveInt(input.timeout_ms, DEFAULT_TIMEOUT, 120_000);
   const maxResponse = safePositiveInt(input.max_response_length, DEFAULT_MAX_RESPONSE);
-  const saveTo = typeof input.save_to === "string" && input.save_to.length > 0 ? input.save_to : undefined;
-  const allowedRoot = context?.cwd ?? process.cwd();
-  const savePath = saveTo ? resolveContainedPath(saveTo, allowedRoot, allowedRoot) : undefined;
+  const savePath = resolveSavePath(input, context);
 
   if (!url) {
     return { content: "Error: url is required", is_error: true };

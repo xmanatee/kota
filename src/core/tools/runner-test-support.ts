@@ -1,4 +1,4 @@
-import { type Mock, vi } from "vitest";
+import { beforeEach, type Mock, vi } from "vitest";
 import type { AutonomyMode } from "./autonomy-mode.js";
 import type { ToolCallExecutionOptions, ToolResultEntry } from "./tool-runner.js";
 
@@ -51,7 +51,7 @@ import { getApprovalQueue } from "#core/daemon/approval-queue.js";
 import { truncateToolResult } from "#core/loop/context.js";
 import { confirmAction } from "#core/util/confirm.js";
 import { assess } from "./guardrails.js";
-import { executeTool, getToolEffect } from "./index.js";
+import { executeTool, getAllTools, getToolEffect } from "./index.js";
 
 export const mockExecuteTool = vi.mocked(executeTool);
 export const mockGetToolEffect = vi.mocked(getToolEffect);
@@ -197,3 +197,12 @@ export function mockDeferredLocalTools(): {
 
 export type { ToolResultEntry } from "./tool-runner.js";
 export { tryEmitMock };
+
+// Keep registration and leasing real; only leaf tool effects/execution are controlled.
+import { registerLocalToolApprovalBinding } from "./local-tool-approval-binding.js";
+
+beforeEach(() => {
+  for (const tool of getAllTools()) registerLocalToolApprovalBinding(tool,
+    (input, context) => mockExecuteTool(tool.name, input, context),
+    { effect: readEffect, resolveEffect: (input) => mockGetToolEffect(tool.name, input) });
+});

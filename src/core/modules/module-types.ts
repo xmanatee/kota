@@ -1,3 +1,4 @@
+import type { ToolFilesystemTargetResolver } from "#core/tools/filesystem-targets.js";
 import type { ModuleOperationFailureIdentity } from "./module-operation-health.js";
 /**
  * KotaModule protocol — the standard unit of functionality in KOTA.
@@ -189,6 +190,8 @@ export type ToolDef = {
    * projection.
    */
   resolveEffect?: ToolEffectResolver;
+  /** Complete filesystem mutation targets; omission leaves local writes unknown. */
+  resolveFilesystemTargets?: ToolFilesystemTargetResolver;
 };
 
 export type ModuleRouteMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";

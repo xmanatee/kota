@@ -207,6 +207,8 @@ describe("executeToolCalls output_schema enforcement", () => {
 			undefined,
 			undefined,
 			undefined,
+      undefined,
+      expect.objectContaining({ declarationEffectFingerprint: expect.any(String) }),
 		);
 		expect(runner).not.toHaveBeenCalled();
 	});

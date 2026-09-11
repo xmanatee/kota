@@ -294,6 +294,5 @@ function projectExecutionContext(
 	return {
 		scopeId: runtime.scope.scopeId,
 		scopeRoot: runtime.scope.scopeRoot,
-		cwd: runtime.scope.scopeRoot,
 	};
 }

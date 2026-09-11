@@ -13,6 +13,7 @@ import { executeLocalToolLease } from "#core/tools/local-tool-approval-binding.j
 import { isMcpManagedToolName } from "#core/tools/tool-name-policy.js";
 import type { ToolResult } from "#core/tools/tool-result.js";
 import type { ApprovalExecutionLease } from "./approval-execution-leases.js";
+import { localApprovalExecutionContext } from "./approval-local-execution-preflight.js";
 import type {
 	ApprovalExecutionProjection,
 	ApprovalResolutionProjection,
@@ -37,6 +38,7 @@ function approvalExecutionContext(
 	base: ToolRunnerContext | undefined,
 	item: PendingApproval,
 ): ToolRunnerContext | undefined {
+	if (!isMcpManagedToolName(item.tool)) return localApprovalExecutionContext(item, base);
 	if (!base && !item.sessionId) return undefined;
 	return {
 		...base,

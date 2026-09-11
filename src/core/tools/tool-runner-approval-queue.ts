@@ -1,4 +1,4 @@
-import type { ApprovalQueue } from "#core/daemon/approval-queue.js";
+import type { ApprovalLocalToolDeclaration, ApprovalQueue } from "#core/daemon/approval-queue.js";
 import type { McpManager } from "#core/mcp/manager.js";
 import type { RiskLevel } from "./guardrails.js";
 import type { ValidatedToolCallInput } from "./tool-input-validation.js";
@@ -7,6 +7,7 @@ import type { McpPromptToolDeclarationFingerprints } from "./tool-runner-types.j
 
 export function enqueueToolApproval(args: {
 	approvalQueue?: ApprovalQueue;
+  localToolDeclaration: ApprovalLocalToolDeclaration | null;
 	toolName: string;
 	input: ValidatedToolCallInput;
 	risk: RiskLevel;
@@ -37,6 +38,7 @@ export function enqueueToolApproval(args: {
 		undefined,
 		args.context,
 		args.sessionId,
-		...(mcpPromptDeclaration ? [mcpPromptDeclaration] : []),
+    mcpPromptDeclaration,
+    args.localToolDeclaration,
 	);
 }

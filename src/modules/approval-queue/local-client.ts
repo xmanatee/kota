@@ -48,7 +48,6 @@ function resolveLocalApprovalTarget(selector?: ScopeSelector): LocalApprovalTarg
 		executionContext: {
 			scopeId: resolved.runtime.scope.scopeId,
 			scopeRoot: resolved.runtime.scope.scopeRoot,
-			cwd: resolved.runtime.scope.scopeRoot,
 		},
 	};
 }

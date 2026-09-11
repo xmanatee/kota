@@ -59,7 +59,7 @@ function buildNotebook(cells: NotebookCell[], kernel = "python3") {
   };
 }
 
-function resolveNotebookPath(
+export function resolveNotebookPath(
   filePath: string,
   context?: ToolRunnerContext,
 ): string {

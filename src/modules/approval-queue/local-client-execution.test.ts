@@ -22,6 +22,7 @@ import {
 	clearCustomTools,
 	registerTool,
 } from "#core/tools/index.js";
+import { executeToolCalls } from "#core/tools/tool-runner.js";
 import approvalQueueModule from "./index.js";
 
 const TOOL_NAME = "channel_approval_execution_test";
@@ -75,12 +76,15 @@ describe("approval-queue local client execution", () => {
 			finishExecution = () => resolve({ content: "executed" });
 		}));
 		registerTool(testTool, run);
-		const pending = queue.enqueue(
-			TOOL_NAME,
-			{ operation: "deploy", accessToken: "raw-secret" },
-			"dangerous",
-			"deploy production",
-		);
+		await executeToolCalls([{
+			type: "tool_use", id: "deploy", name: TOOL_NAME,
+			input: { operation: "deploy", accessToken: "raw-secret" },
+		}], {
+			resultLimit: 1000, verbose: false, autonomyMode: "supervised",
+			approvalQueue: queue, cwd: testDir, scopeRoot: testDir,
+		});
+		const pending = queue.list("pending")[0];
+		if (!pending) throw new Error("Expected queued deployment");
 		const review = queue.projectForClient(pending).review;
 		if (review.status !== "available") throw new Error("expected review descriptor");
 

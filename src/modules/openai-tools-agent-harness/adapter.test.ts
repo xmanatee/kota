@@ -27,8 +27,21 @@ vi.mock("#core/config/secrets.js", () => ({
   maskKnownSecretValues: (text: string) => maskKnownSecretValuesMock(text),
 }));
 
+import { readOnlyLocalEffect } from "#core/tools/effect.js";
+import { deregisterLocalToolApprovalBinding, registerLocalToolApprovalBinding } from "#core/tools/local-tool-approval-binding.js";
 import { runFileRead } from "#modules/filesystem/file-read.js";
 import { openaiToolsAgentHarness } from "./adapter.js";
+
+const registeredTools = new Set<string>();
+function setTools(tools: readonly KotaTool[]): void {
+  getAllToolsMock.mockReturnValue(tools);
+  for (const tool of tools) {
+    registerLocalToolApprovalBinding(tool,
+      (input, context) => executeToolMock(tool.name, input, context),
+      { effect: readOnlyLocalEffect(), resolveEffect: (input) => getToolEffectMock(tool.name, input) });
+    registeredTools.add(tool.name);
+  }
+}
 
 type StubFinalMessage = Pick<KotaModelResponse, "id" | "content" | "stop_reason"> & {
   usage?: { input_tokens: number; output_tokens: number };
@@ -140,7 +153,7 @@ beforeEach(() => {
     model,
     providerName: "openai",
   }));
-  getAllToolsMock.mockReturnValue([TEST_TOOL]);
+  setTools([TEST_TOOL]);
   getToolEffectMock.mockReturnValue({
     kind: "read",
     scope: "local-fs",
@@ -151,6 +164,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const name of registeredTools) deregisterLocalToolApprovalBinding(name);
+  registeredTools.clear();
   vi.clearAllMocks();
 });
 
@@ -439,7 +454,7 @@ describe("openaiToolsAgentHarness — happy path tool loop", () => {
   });
 
   it("does not expose project secrets or env files through file_read tool results", async () => {
-    getAllToolsMock.mockReturnValue([FILE_READ_TOOL]);
+    setTools([FILE_READ_TOOL]);
 
     queueStream(
       makeStubStream({
@@ -679,7 +694,7 @@ describe("openaiToolsAgentHarness — guardrails", () => {
       description: "Other",
       input_schema: { type: "object" as const, properties: {} },
     };
-    getAllToolsMock.mockReturnValue([TEST_TOOL, otherTool]);
+    setTools([TEST_TOOL, otherTool]);
 
     queueStream(
       makeStubStream({

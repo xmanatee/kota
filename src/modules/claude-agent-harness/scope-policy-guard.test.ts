@@ -114,7 +114,7 @@ describe("createClaudeScopePolicyGuard", () => {
     expect(getScopePolicySnapshot).toHaveBeenCalledTimes(2);
   });
 
-  it("applies write boundaries to normalized Claude file paths", async () => {
+  it("authorizes Claude's actual file field even when an allowed decoy is present", async () => {
     const policy = resolveScopePolicy({
       projection: PROJECTION,
       scopeId: "workspace",
@@ -136,7 +136,10 @@ describe("createClaudeScopePolicyGuard", () => {
       guard("Write", { file_path: "/tmp/workspace/generated/out.ts" }, CONTEXT),
     ).resolves.toMatchObject({ behavior: "allow" });
     await expect(
-      guard("Edit", { file_path: "/tmp/workspace/src/index.ts" }, CONTEXT),
+      guard("Edit", {
+        file_path: "/tmp/workspace/src/index.ts",
+        path: "/tmp/workspace/generated/decoy.ts",
+      }, CONTEXT),
     ).resolves.toMatchObject({
       behavior: "deny",
       message: expect.stringContaining("outside the allowed write paths"),

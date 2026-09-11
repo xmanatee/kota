@@ -21,8 +21,18 @@ module lifecycle. General-purpose capabilities belong in modules.
   tools and native CLI sandboxes.
 - `session-environment` owns live session/scope credential overlays. Registration
   owns teardown; stale approvals cannot recreate an ended session's overlay.
-- Executable approvals snapshot the registry generation and declaration/effect.
-  Preflight leases that exact definition and runner, rather than looking up a name.
+- Filesystem mutation targets come from the registered tool's pure
+  `resolveFilesystemTargets` declaration using the runner's execution context.
+  Declare every destination, including derived paths and ancillary mutations;
+  Network operations declare ancillary download destinations through the same
+  contract. A declaration of no ancillary writes never exempts a local write effect;
+  opaque execution and unresolved dynamic target sets remain unknown and are
+  denied under bounded write policies. Generic input fields grant no authority.
+- Executable approvals snapshot the registry generation, declaration, resolved
+  effect, inputs, execution roots and targets, including opaque operations.
+  Preflight leases that exact definition and runner;
+  dispatch rejects operation drift. Nested runner overrides cannot borrow the
+  registered operation's authority.
 
 ## Core capabilities
 
