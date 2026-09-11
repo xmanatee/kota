@@ -62,9 +62,11 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
     out.defaultPreset = raw.defaultPreset;
   }
 
-  if (Array.isArray(raw.autoEnable)) {
-    const valid = raw.autoEnable.filter((g): g is string => typeof g === "string" && g.length > 0);
-    if (valid.length > 0) out.autoEnable = valid;
+  if (raw.autoEnable !== undefined) {
+    if (!Array.isArray(raw.autoEnable) || !raw.autoEnable.every((group): group is string => typeof group === "string" && group.length > 0)) {
+      throw new Error("config.autoEnable must be an array of non-empty strings");
+    }
+    out.autoEnable = [...raw.autoEnable];
   }
 
   if (isPlainObject(raw.user)) {
@@ -120,19 +122,16 @@ export function sanitizeCore(raw: unknown): Partial<CoreKotaConfig> {
     if (tiers.fast || tiers.balanced || tiers.capable) out.modelTiers = tiers;
   }
 
-  if (isPlainObject(raw.modelOutputTokenLimits)) {
+  if (raw.modelOutputTokenLimits !== undefined) {
+    if (!isPlainObject(raw.modelOutputTokenLimits)) throw new Error("config.modelOutputTokenLimits must be an object");
     const limits: Record<string, number> = {};
     for (const [model, limit] of Object.entries(raw.modelOutputTokenLimits)) {
-      if (
-        model.length > 0 &&
-        typeof limit === "number" &&
-        Number.isInteger(limit) &&
-        limit > 0
-      ) {
-        limits[model] = limit;
+      if (!model || typeof limit !== "number" || !Number.isInteger(limit) || limit <= 0) {
+        throw new Error(`config.modelOutputTokenLimits.${model} must be a positive integer`);
       }
+      limits[model] = limit;
     }
-    if (Object.keys(limits).length > 0) out.modelOutputTokenLimits = limits;
+    out.modelOutputTokenLimits = limits;
   }
 
   if (isPlainObject(raw.agentModels)) {
