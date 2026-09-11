@@ -51,7 +51,6 @@ describe("task client store isolation", () => {
     expect(await client.search("Search")).toMatchObject({ ok: true, tasks: [{ id: "task-a" }] });
     await expect(client.search("Search", { scopeId: "missing" })).rejects.toThrow("Unknown scope: missing");
     await expect(client.reindex({ scopeId: "missing" })).rejects.toThrow("Unknown scope: missing");
-    await semantic.flush();
   });
 
   it("does not read another host's task files when its supplied host has no scope provider", async () => {

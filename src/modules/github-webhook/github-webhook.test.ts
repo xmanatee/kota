@@ -3,7 +3,6 @@ import { once } from "node:events";
 import { IncomingMessage, ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Scheduler } from "#core/daemon/scheduler.js";
 import { deriveDirectoryScopeId } from "#core/daemon/scope-registry.js";
 import { type BusEnvelope, EventBus } from "#core/events/event-bus.js";
 import { makeStubEventProxy } from "#core/modules/testing/index.js";
@@ -56,7 +55,7 @@ async function receiver(config: unknown = { secret: SECRET }) {
   };
   githubWebhookModule.onLoad(ctx);
   const handle = buildRequestHandler({
-    port: 0, pool: new SessionPool(), scheduler: new Scheduler("/tmp", null), bus,
+    port: 0, pool: new SessionPool(), bus,
     moduleRoutes: githubWebhookModule.routes(ctx), authToken: "daemon-token",
     makeAgent: () => { throw new Error("Webhook must not create a session"); },
     resolveDefaultAutonomyMode: () => "passive",
